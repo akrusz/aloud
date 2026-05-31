@@ -4,13 +4,17 @@
 # ../src = @aloud/core):
 #
 #   cd ts
-#   fly launch --no-deploy --copy-config --name aloud-server   # first time only
-#   fly volumes create aloud_data --size 1                     # durable ledger disk
-#   fly secrets set ALOUD_SESSION_SECRET=... GOOGLE_CLIENT_IDS=... \
-#                   ANTHROPIC_API_KEY=... GEMINI_API_KEY=... \
-#                   FIREWORKS_API_KEY=... GOOGLE_TTS_API_KEY=... \
-#                   ALOUD_CORS_ORIGINS=https://your-ui-host
+#   # Create the app explicitly — do NOT use `fly launch`: it looks for fly.toml
+#   # in the cwd (ts/), not here in server/, so --copy-config finds nothing and
+#   # scaffolds a "blank app" instead.
+#   fly apps create aloud-server                               # first time only
+#   fly volumes create aloud_data --size 1 --region sjc --app aloud-server
+#   fly secrets import --app aloud-server < your-secrets.env   # KEY=value per line; see deploy.md
 #   fly deploy --config server/fly.toml
+#
+# Always deploy from ts/ (the cwd is the Docker build CONTEXT, so COPY src ./src
+# reaches @aloud/core). The [build].dockerfile below is resolved relative to
+# THIS file (server/), hence "Dockerfile" — see the note there.
 #
 # Full runbook + the secret list: dev-docs/deploy.md.
 #
@@ -23,7 +27,11 @@ app = "aloud-server"           # rename to your Fly app name
 primary_region = "sjc"         # pick the region nearest your users
 
 [build]
-  dockerfile = "server/Dockerfile"
+  # Resolved relative to THIS file's directory (ts/server/), not the cwd you
+  # deploy from — so it's just "Dockerfile", not "server/Dockerfile". The build
+  # CONTEXT is still the cwd (deploy from ts/) so the Dockerfile's COPY src ./src
+  # reaches @aloud/core. (A leading "server/" here doubles to ts/server/server/.)
+  dockerfile = "Dockerfile"
 
 [env]
   ALOUD_ENV = "production"

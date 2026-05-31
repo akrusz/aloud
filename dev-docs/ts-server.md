@@ -152,6 +152,11 @@ curl -s -X POST localhost:8787/v1/llm/complete -H "authorization: Bearer $TOK" \
 
 Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 
+> **Prefix:** the hosted-service routes below are mounted under **`/cloud/v1`**
+> (the app's own backend is under `/app/v1`). The `/v1/...` paths in this table
+> omit that prefix for brevity — e.g. the Stripe webhook is really
+> `POST /cloud/v1/billing/webhook`, and `/v1/me` is `GET /cloud/v1/me`.
+
 | Route | Auth | Purpose |
 |---|---|---|
 | `GET /health` | public | liveness + what's configured |

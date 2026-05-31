@@ -30,9 +30,16 @@ runtime via tsx — the build context must include core's source.
 
 ```bash
 cd ts
-fly launch --no-deploy --copy-config --name aloud-server   # uses server/fly.toml
-fly volumes create aloud_data --size 1                     # durable ledger disk
+# Create the app explicitly. Do NOT use `fly launch` here: it looks for fly.toml
+# in the cwd (ts/), not server/, so --copy-config finds nothing and scaffolds a
+# "blank app" with no build config.
+fly apps create aloud-server                               # globally-unique name
+fly volumes create aloud_data --size 1 --region sjc --app aloud-server   # durable ledger disk
 ```
+
+> **Single volume on purpose.** Fly warns you to create two — say no. The ledger
+> is one SQLite file pinned to one machine (see below); a second volume would
+> mean a second, divergent ledger.
 
 Then set the secrets (everything sensitive — never in `fly.toml`):
 
