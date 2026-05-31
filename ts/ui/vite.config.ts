@@ -11,8 +11,17 @@ const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
 // dev port in ts/server/.env.example; override with ALOUD_SERVER_URL.
 const SERVER_URL = process.env['ALOUD_SERVER_URL'] ?? 'http://localhost:8787';
 
+// Hosted-subpath build (ALOUD_HOSTED=1, via `npm run ui:build:hosted`): served
+// at aloud.rest/app/ off the existing GitHub Pages site (docs/ on main). base
+// '/app/' rebases asset URLs and feeds the router's deploy-base logic
+// (route-base.ts → import.meta.env.BASE_URL); outDir is the repo-root docs/app
+// so the build lands straight in the Pages tree. Dev/desktop builds keep base
+// '/' → ui/dist. The cross-origin API base is separate (VITE_ALOUD_SERVER_URL).
+const HOSTED = process.env['ALOUD_HOSTED'] === '1';
+
 export default defineConfig({
     root: __dirname,
+    base: HOSTED ? '/app/' : '/',
     server: {
         // Allow Vite to read CSS / TS sources from outside ui/ — we
         // import the existing app's CSS verbatim from src/web/static/.
@@ -51,8 +60,10 @@ export default defineConfig({
         },
     },
     build: {
-        outDir: resolve(__dirname, 'dist'),
+        // Hosted build commits into the repo, so write to docs/app (repo root,
+        // two levels up from ui/) and skip sourcemaps to keep the tree lean.
+        outDir: HOSTED ? resolve(__dirname, '../../docs/app') : resolve(__dirname, 'dist'),
         emptyOutDir: true,
-        sourcemap: true,
+        sourcemap: !HOSTED,
     },
 });

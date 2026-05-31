@@ -10,6 +10,10 @@ interface ImportMetaEnv {
      *  (the `?mode=` override in app-mode.ts) in deployed builds. */
     readonly DEV: boolean;
     readonly PROD: boolean;
+    /** The build's public base path, trailing-slashed: '/' for dev/desktop,
+     *  '/app/' for the hosted-subpath build (vite.config.ts `base`). Drives the
+     *  router's deploy-base logic (route-base.ts). */
+    readonly BASE_URL: string;
     /** Absolute origin of the hosted aloud server for a deployed static build,
      *  e.g. https://api.aloud.example. Unset in dev — paths stay relative and
      *  the Vite proxy forwards them. */

@@ -24,18 +24,22 @@ import type { SessionSetup } from './settings.js';
 import type { SessionState } from '../../src/facilitation/session.js';
 import { applyChromeSettings, loadAppSettings } from './app-settings.js';
 import { detectCapabilities } from './capabilities.js';
+import { routePath, appPath } from './route-base.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings';
 
+// Paths carry the deploy base ('/' in dev, '/app/' for the hosted subpath
+// build) so pushState + refresh resolve under either — see route-base.ts.
 const ROUTE_FOR_VIEW: Record<Exclude<View, 'session'>, string> = {
-    setup: '/',
-    history: '/history',
-    settings: '/settings',
+    setup: routePath('/'),
+    history: routePath('/history'),
+    settings: routePath('/settings'),
 };
 
 function viewFromPath(path: string): Exclude<View, 'session'> {
-    if (path.startsWith('/history')) return 'history';
-    if (path.startsWith('/settings')) return 'settings';
+    const p = appPath(path);
+    if (p.startsWith('/history')) return 'history';
+    if (p.startsWith('/settings')) return 'settings';
     return 'setup';
 }
 
@@ -154,7 +158,7 @@ function wirePopstate(): void {
         // restored the URL.
         if (currentSession || currentNoting) {
             const target = viewFromPath(window.location.pathname);
-            window.history.pushState({ view: 'session' }, '', '/session');
+            window.history.pushState({ view: 'session' }, '', routePath('/session'));
             if (currentSession) currentSession.requestLeave(target);
             else if (currentNoting) currentNoting.requestLeave(target);
             return;
@@ -280,7 +284,7 @@ async function goSession(
     // something to pop while the session is live — wirePopstate intercepts
     // it to confirm before leaving. (Normal exits below route via routeTo,
     // which replaces this URL.)
-    window.history.pushState({ view: 'session' }, '', '/session');
+    window.history.pushState({ view: 'session' }, '', routePath('/session'));
     currentSession = await mountSessionView(
         root,
         setup,
@@ -301,7 +305,7 @@ async function goSession(
 async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<void> {
     setActiveNav('setup');
     // Same back-button trap as goSession (see wirePopstate).
-    window.history.pushState({ view: 'session' }, '', '/session');
+    window.history.pushState({ view: 'session' }, '', routePath('/session'));
     currentNoting = await mountNotingSessionView(root, setup, (destination) => {
         // Same as goSession: the view tells us where to land. "history" and
         // "settings" come from the in-session link / Back-button confirm
