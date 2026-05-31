@@ -39,6 +39,8 @@ import { isDesktopSync } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
+import { fetchMe, clearServerToken, isGoogleSignInConfigured } from '../server-auth.js';
+import { renderGoogleSignInButton } from '../google-signin.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
@@ -157,6 +159,49 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireNetworkSection();
         wireUpdatesSection();
         wireFooter();
+        void wireAccountSection();
+    }
+
+    // ---- Account section (hosted sign-in, meditation-pal-rfb) -----------
+    // Only rendered on builds that ship Google sign-in (isGoogleSignInConfigured
+    // → VITE_GOOGLE_CLIENT_ID set). Async because the balance comes from /me;
+    // re-renders just its own body on sign-in/out so unsaved settings elsewhere
+    // in the form survive.
+    async function wireAccountSection(): Promise<void> {
+        const body = root.querySelector<HTMLElement>('#account-body');
+        if (!body) return; // section not present in this build
+        const account = await fetchMe();
+        if (account) {
+            body.innerHTML = `
+                <div class="account-row">
+                    <div class="account-info">
+                        <div class="account-email">${escape(account.email)}</div>
+                        <div class="account-credits provider-hint">${account.creditsRemaining} credits remaining</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
+                </div>`;
+            body.querySelector('#account-signout')?.addEventListener('click', () => {
+                void clearServerToken().then(() => wireAccountSection());
+            });
+            return;
+        }
+        body.innerHTML = `
+            <p class="provider-hint">Sign in to use the hosted aloud server — new accounts get free credits.</p>
+            <div class="account-signin-button" id="account-signin-button"></div>`;
+        const host = body.querySelector<HTMLElement>('#account-signin-button');
+        if (host) {
+            await renderGoogleSignInButton(host, {
+                onSignedIn: () => {
+                    void wireAccountSection();
+                },
+                onError: (err) => {
+                    const p = document.createElement('p');
+                    p.className = 'provider-hint';
+                    p.textContent = err.message;
+                    body.appendChild(p);
+                },
+            });
+        }
     }
 
     // ---- Provider section ----------------------------------------------
@@ -1157,6 +1202,7 @@ function renderHTML(s: AppSettings): string {
         <h1 class="settings-title">Settings</h1>
 
         <form id="settings-form" class="setup-form">
+            ${isGoogleSignInConfigured() ? renderAccountSection() : ''}
             ${renderProviderSection(s)}
             ${renderLanguageSection(s)}
             ${renderTtsSection(s)}
@@ -1190,6 +1236,18 @@ function renderHTML(s: AppSettings): string {
         speedLabelId: 's-tts-rate-label',
         speedValue: s.defaultTtsRate,
     })}`;
+}
+
+function renderAccountSection(): string {
+    // Shell only — wireAccountSection() fills #account-body asynchronously
+    // (signed-in email + balance, or the Google sign-in button).
+    return `
+    <section class="settings-section" id="account-section">
+        <h2>Account</h2>
+        <div class="account-body" id="account-body">
+            <p class="provider-hint">Loading…</p>
+        </div>
+    </section>`;
 }
 
 function renderProviderSection(s: AppSettings): string {

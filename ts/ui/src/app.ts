@@ -25,6 +25,7 @@ import type { SessionState } from '../../src/facilitation/session.js';
 import { applyChromeSettings, loadAppSettings } from './app-settings.js';
 import { detectCapabilities } from './capabilities.js';
 import { routePath, appPath } from './route-base.js';
+import { ensureCloudAccess } from './cloud-gate.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings';
 
@@ -280,6 +281,12 @@ async function goSession(
     continueFrom: SessionState | null = null
 ): Promise<void> {
     setActiveNav('setup'); // session is still under Setup tab conceptually
+    // Pre-flight hosted sign-in: if this session will hit a credit-metered
+    // cloud service (hosted LLM, or Cloud STT/TTS — all gated on a session
+    // token) and we're not signed in, surface the sign-in modal before mounting
+    // rather than failing on the first utterance. Dismissing it aborts the
+    // start and leaves the user on setup (which is still mounted).
+    if (!(await ensureCloudAccess(setup, await loadAppSettings()))) return;
     // Push a '/session' history entry so the browser Back button has
     // something to pop while the session is live — wirePopstate intercepts
     // it to confirm before leaving. (Normal exits below route via routeTo,
@@ -304,6 +311,8 @@ async function goSession(
 
 async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<void> {
     setActiveNav('setup');
+    // Same hosted sign-in pre-flight as goSession.
+    if (!(await ensureCloudAccess(setup, await loadAppSettings()))) return;
     // Same back-button trap as goSession (see wirePopstate).
     window.history.pushState({ view: 'session' }, '', routePath('/session'));
     currentNoting = await mountNotingSessionView(root, setup, (destination) => {

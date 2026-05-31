@@ -74,6 +74,17 @@ export async function getServerToken(): Promise<string | null> {
     return kv().get(TOKEN_KEY);
 }
 
+/** GET /cloud/v1/me — the signed-in account + live balance. Returns null when
+ *  there's no cached token or the server rejects it (expired/invalid); callers
+ *  treat null as "signed out". Shape mirrors the server's AccountView. */
+export async function fetchMe(): Promise<AuthResponse['account'] | null> {
+    const token = await getServerToken();
+    if (!token) return null;
+    const res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    return (await res.json()) as AuthResponse['account'];
+}
+
 export async function clearServerToken(): Promise<void> {
     await kv().delete(TOKEN_KEY);
 }
