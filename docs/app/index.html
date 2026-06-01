@@ -63,47 +63,18 @@
             href="https://fonts.googleapis.com/css2?family=Knewave&display=block"
             rel="stylesheet"
         />
-        <!-- First-paint loader styles. Self-contained (own class names, inline
-             keyframe) so the orb breathes correctly in the gap between CSS
-             paint and the JS bundle / first view render — on GitHub Pages the
-             ~70 KB-gzip bundle is a noticeable beat. Cleared automatically when
-             a view sets #app-root's innerHTML. -->
-        <style>
-            .app-loading {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 60vh;
-            }
-            .app-loading-orb {
-                width: 64px;
-                height: 64px;
-                border-radius: 50%;
-                background: radial-gradient(circle at 35% 30%, #f4c989, #e0a96d 45%, #c77f4a 80%);
-                box-shadow: 0 0 40px 8px rgba(224, 169, 109, 0.35);
-                animation: app-loading-breathe 3.2s ease-in-out infinite;
-            }
-            @keyframes app-loading-breathe {
-                0%,
-                100% {
-                    transform: scale(0.85);
-                    opacity: 0.65;
-                }
-                50% {
-                    transform: scale(1.05);
-                    opacity: 1;
-                }
-            }
-            @media (prefers-reduced-motion: reduce) {
-                .app-loading-orb {
-                    animation-duration: 6s;
-                }
-            }
-        </style>
-      <script type="module" crossorigin src="/app/assets/index-C3yitF78.js"></script>
+      <script type="module" crossorigin src="/app/assets/index-D4-zTocL.js"></script>
       <link rel="stylesheet" crossorigin href="/app/assets/index-s9EWQ4I-.css">
     </head>
     <body>
+        <!-- First-paint boot orb. The real rainbow orb in its kasina (gaze)
+             form — large, full-opacity, centered — so the page shows a single
+             calm orb during the gap between CSS paint and the JS bundle / first
+             view render (on GitHub Pages the bundle is a noticeable beat). On
+             boot, app.ts (settleBootOrb) fades it out and fades the small idle
+             orb into the top bar. Styled entirely by the imported stylesheet's
+             .orb/.orb-kasina rules (a blocking <link>, so painted first). -->
+        <div class="orb orb-kasina" id="boot-orb" role="status" aria-label="Loading aloud"></div>
         <!-- In the Tauri desktop shell the nav doubles as the window title bar.
              Dragging is wired in JS (tauri-chrome.ts) with a movement threshold
              so the whole bar — including over links/logo — drags the window
@@ -127,12 +98,9 @@
         <main class="main">
             <div id="app-root">
                 <!-- Setup, session, and history views mount here. Until the
-                     first view renders (it sets innerHTML, clearing this), a
-                     calm breathing orb stands in so the page isn't blank while
-                     the JS bundle loads. -->
-                <div class="app-loading" role="status" aria-label="Loading aloud">
-                    <div class="app-loading-orb"></div>
-                </div>
+                     first view renders, the page isn't blank — the centered
+                     #boot-orb (in <body>) stands in, then flies up into the nav
+                     on boot. -->
             </div>
         </main>
 
