@@ -135,7 +135,7 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
  * Google tier authority the meter bills with (providers.googleTtsRateFor), so a
  * shown line can never drift from the real charge.
  *
- * Cheaper cloud engines we may wire later (meditation-pal-2gz) are NOT offered
+ * Cheaper cloud engines we may wire later (meditation-pal-b7i) are NOT offered
  * yet, so they're deliberately absent here rather than advertised at a rate the
  * server can't actually deliver: Google Neural2/WaveNet ($16/1M, half Chirp3-HD)
  * and Standard ($4/1M) are a one-line catalog add; off-Google options to weigh
