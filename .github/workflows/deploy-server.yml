@@ -4,6 +4,12 @@ name: Deploy server (Fly)
 # already be provisioned (see dev-docs/deploy.md). No push trigger on purpose:
 # a hosted billing server should never redeploy itself from a code push without
 # a human in the loop. Wire an on:push:main trigger later if you want CD.
+#
+# BRANCHES: the server code lives on `ts-core`; this file is also committed to
+# `main` only so the "Run workflow" button shows (workflow_dispatch needs the
+# file on the default branch). When you run it, pick **Use workflow from:
+# ts-core**. The guard step below fails fast with a clear message if you don't.
+# (At the ts-core→main cutover, drop this note + the guard.)
 on:
   workflow_dispatch:
 
@@ -14,6 +20,12 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v5
+      - name: Ensure the TS server is present (run from the ts-core branch)
+        run: |
+          if [ ! -d ts/server ]; then
+            echo "::error::No ts/ here — re-run with Use workflow from ts-core (main is the legacy Python app)."
+            exit 1
+          fi
       - uses: superfly/flyctl-actions/setup-flyctl@master
       # Run from ts/ so the Docker build context includes ../src (@aloud/core);
       # the Dockerfile + fly.toml live under server/.

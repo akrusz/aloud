@@ -9,6 +9,13 @@ name: Deploy web app (UI → docs/app)
 # deliberate act, and the build bakes in build-time config you choose when you
 # run it. Flip on the `push` trigger below if you later want CD on every merge.
 #
+# BRANCHES: the UI code lives on `ts-core`; this file is also committed to `main`
+# only so the "Run workflow" button shows (workflow_dispatch needs the file on
+# the default branch). When you run it, pick **Use workflow from: ts-core** — it
+# builds + commits docs/app back to whatever branch you dispatch from, and Pages
+# serves ts-core. The guard step fails fast if you forget. (Drop the note + guard
+# at the ts-core→main cutover.)
+#
 # Required repo settings (Settings → Secrets and variables → Actions → Variables):
 #   - ALOUD_SERVER_URL   the hosted /cloud origin, e.g. https://aloud-server.fly.dev
 #                        (already used by tauri-release.yml)
@@ -28,6 +35,13 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+
+      - name: Ensure the UI is present (run from the ts-core branch)
+        run: |
+          if [ ! -d ts/ui ]; then
+            echo "::error::No ts/ui here — re-run with Use workflow from ts-core (main is the legacy Python app)."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -53,6 +67,6 @@ jobs:
             echo "No change in docs/app — nothing to deploy."
           else
             git commit -m "build: hosted web app [skip ci]"
-            git push
-            echo "Committed + pushed rebuilt docs/app."
+            git push origin "HEAD:${{ github.ref_name }}"
+            echo "Committed + pushed rebuilt docs/app to ${{ github.ref_name }}."
           fi
