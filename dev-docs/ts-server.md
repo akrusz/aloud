@@ -72,7 +72,7 @@ load logic is `loadConfig` in `config.ts`.
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
-| `ALOUD_ADMIN_TOKEN` | `/v1/admin/metrics` | unset = endpoint 404s (disabled, not open) |
+| `ALOUD_ADMIN_TOKEN` | `/v1/admin/*` + panel | unset = admin routes & panel 404 (disabled, not open) |
 
 ### Keys for the full hosted pipeline
 
@@ -170,7 +170,20 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | `POST /v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
 | `GET /v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
+| `GET /v1/admin` | none* | operator control panel HTML (`*` served only when a token is configured) |
 | `GET /v1/admin/metrics` | admin token | ledger aggregates for spend monitoring |
+| `GET /v1/admin/accounts` | admin token | every account + derived balance / granted / spent / paid flag |
+| `GET /v1/admin/accounts/:id` | admin token | one account + its full ledger (audit trail) |
+| `POST /v1/admin/grant` | admin token | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
+
+### Admin control panel
+
+Browse to `/cloud/v1/admin` on the server (e.g.
+`https://aloud-server.fly.dev/cloud/v1/admin`) — a single self-contained page
+(`src/admin/panel.ts`) for spend monitoring, account lookup, and credit grants.
+Paste `ALOUD_ADMIN_TOKEN` once (kept in this origin's localStorage, sent as a
+Bearer header; never baked into the page). With no token configured the panel
+and every `/admin/*` endpoint 404 — disabled, not open.
 
 ## Hosted voices & auditioning new ones
 

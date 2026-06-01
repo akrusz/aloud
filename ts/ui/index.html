@@ -4,6 +4,27 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>aloud.</title>
+        <!-- Decode the SPA deep-link redirect from the Pages 404.html (paths
+             under /app/). Restores the real path (e.g. /app/settings) from the
+             ?/… query BEFORE the router reads location, so a hard refresh /
+             shared link resolves to the right view. No-op for normal loads and
+             for the dev/desktop build (base '/'). Pairs with docs/404.html.
+             Must stay a classic inline script so it runs before the deferred
+             module (main.ts → route-base.ts). (rafgraph/spa-github-pages) -->
+        <script>
+            (function (l) {
+                if (l.search[1] === '/') {
+                    var decoded = l.search
+                        .slice(1)
+                        .split('&')
+                        .map(function (s) {
+                            return s.replace(/~and~/g, '&');
+                        })
+                        .join('?');
+                    history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+                }
+            })(window.location);
+        </script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link

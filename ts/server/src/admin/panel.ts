@@ -1,0 +1,290 @@
+/**
+ * Self-contained operator control panel, served as one HTML string from the
+ * admin routes (GET /cloud/v1/admin) when ALOUD_ADMIN_TOKEN is configured.
+ *
+ * Deliberately a single inline page with no build step and no framework: it's
+ * an internal tool that must keep working with zero deploy ceremony. The admin
+ * token is NEVER baked in — the operator pastes it once, it lives in
+ * localStorage for this origin, and every call sends it as a Bearer header.
+ * Same-origin with the API, so no CORS in play.
+ *
+ * Everything the page can do maps to a token-gated endpoint in routes/admin.ts;
+ * with no token, those return 404 and the page is just an inert form.
+ */
+
+export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>aloud — admin</title>
+<style>
+  :root {
+    --bg: #14110f; --panel: #1d1916; --line: #2e2823; --ink: #efe7dd;
+    --dim: #a89a8c; --accent: #e0a96d; --good: #7fb389; --bad: #d98a7a;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    padding: 24px; max-width: 980px; margin-inline: auto;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px; }
+  h1 .dot { color: var(--accent); }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+       color: var(--dim); margin: 28px 0 12px; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 13px; margin: 0 0 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  input {
+    width: 100%; padding: 9px 11px; background: #100d0b; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; font: inherit;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    padding: 9px 16px; background: var(--accent); color: #1a1208; border: none;
+    border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: default; }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row > div { flex: 1; min-width: 140px; }
+  .row > button { flex: 0 0 auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; font-size: 11px;
+       text-transform: uppercase; letter-spacing: .6px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: #221d19; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px;
+          font-size: 11px; font-weight: 600; }
+  .pill.paid { background: rgba(127,179,137,.18); color: var(--good); }
+  .pill.free { background: rgba(168,154,140,.16); color: var(--dim); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { background: #100d0b; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat .k { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+  .stat .v { font-size: 20px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .stat .v.warn { color: var(--bad); }
+  .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .msg.ok { color: var(--good); }
+  .msg.err { color: var(--bad); }
+  .muted { color: var(--dim); }
+  .hidden { display: none; }
+  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6);
+              display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: var(--panel); border: 1px solid var(--line);
+           border-radius: var(--radius); padding: 20px; max-width: 560px; width: 100%;
+           max-height: 80vh; overflow: auto; }
+  .modal h3 { margin: 0 0 2px; font-size: 16px; }
+  .x { float: right; background: none; border: none; color: var(--dim);
+       font-size: 22px; cursor: pointer; padding: 0; line-height: 1; }
+</style>
+</head>
+<body>
+  <h1>aloud<span class="dot">.</span> admin</h1>
+  <p class="sub">Operator console — spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
+
+  <div class="card" id="authCard">
+    <label for="tok">Admin token (<code>ALOUD_ADMIN_TOKEN</code>)</label>
+    <div class="row">
+      <div><input id="tok" type="password" placeholder="paste token" autocomplete="off"></div>
+      <button id="connect">Connect</button>
+      <button class="ghost" id="forget">Forget</button>
+    </div>
+    <div class="msg" id="authMsg"></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:12px">refresh</button></h2>
+    <div class="grid" id="stats"></div>
+
+    <h2>Grant credits</h2>
+    <div class="card">
+      <div class="row">
+        <div><label for="gEmail">Account email</label><input id="gEmail" placeholder="someone@example.com" autocomplete="off"></div>
+        <div style="flex:0 0 130px"><label for="gCredits">Credits</label><input id="gCredits" type="number" min="1" step="1" placeholder="100"></div>
+        <button id="grant">Grant</button>
+      </div>
+      <div class="msg" id="grantMsg"></div>
+    </div>
+
+    <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:12px">refresh</button></h2>
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <div><input id="search" placeholder="filter by email…" autocomplete="off"></div>
+      </div>
+      <table>
+        <thead><tr><th>Email</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th></tr></thead>
+        <tbody id="acctRows"><tr><td colspan="6" class="muted">Connect to load accounts.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="modalRoot"></div>
+
+<script>
+(function () {
+  var KEY = 'aloud-admin-token';
+  var $ = function (id) { return document.getElementById(id); };
+  var token = '';
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ authorization: 'Bearer ' + token }, opts.headers || {});
+    return fetch('/cloud/v1/admin' + path, opts).then(function (r) {
+      return r.json().then(function (body) {
+        if (!r.ok) throw new Error((body && body.error && body.error.message) || ('HTTP ' + r.status));
+        return body;
+      }, function () {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return {};
+      });
+    });
+  }
+
+  function setMsg(el, text, kind) {
+    el.textContent = text || '';
+    el.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+
+  function usd(n) { return '$' + Number(n || 0).toFixed(2); }
+  function int(n) { return Number(n || 0).toLocaleString(); }
+  function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
+
+  // ---- metrics dashboard -------------------------------------------------
+  function loadMetrics() {
+    return api('/metrics?sinceHours=24').then(function (m) {
+      var t = m.totals, w = m.window, a = m.abuse;
+      var cards = [
+        ['Accounts', int(t.accounts)],
+        ['Credits outstanding', int(t.creditsOutstanding)],
+        ['Provider cost (all-time)', usd(t.providerCostUsd)],
+        ['Free burn (non-converters)', usd(t.freeBurnUsd), t.freeBurnUsd > 0 ? 'warn' : ''],
+        ['Est. gross revenue', usd(t.estGrossRevenueUsd)],
+        ['Signups (24h)', int(w.signups)],
+        ['Provider cost (24h)', usd(w.providerCostUsd)],
+        ['IP clusters (24h)', int(a.ipsOverThreshold), a.ipsOverThreshold > 0 ? 'warn' : ''],
+      ];
+      $('stats').innerHTML = cards.map(function (c) {
+        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
+      }).join('');
+    });
+  }
+
+  // ---- accounts table ----------------------------------------------------
+  var allAccounts = [];
+  function renderAccounts() {
+    var q = $('search').value.trim().toLowerCase();
+    var rows = allAccounts.filter(function (a) { return !q || a.email.toLowerCase().indexOf(q) >= 0; });
+    if (!rows.length) {
+      $('acctRows').innerHTML = '<tr><td colspan="6" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
+      return;
+    }
+    $('acctRows').innerHTML = rows.map(function (a) {
+      var pill = a.purchased ? '<span class="pill paid">paid</span>' : '<span class="pill free">free</span>';
+      return '<tr data-id="' + a.id + '">' +
+        '<td>' + esc(a.email) + '</td>' +
+        '<td>' + pill + '</td>' +
+        '<td class="num">' + int(a.balance) + '</td>' +
+        '<td class="num">' + int(a.granted) + '</td>' +
+        '<td class="num">' + int(a.debited) + '</td>' +
+        '<td class="muted">' + date(a.createdAt) + '</td>' +
+        '</tr>';
+    }).join('');
+    Array.prototype.forEach.call($('acctRows').querySelectorAll('tr'), function (tr) {
+      tr.addEventListener('click', function () { openLedger(tr.getAttribute('data-id')); });
+    });
+  }
+  function loadAccounts() {
+    return api('/accounts').then(function (list) { allAccounts = list; renderAccounts(); });
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  // ---- per-account ledger modal -----------------------------------------
+  function openLedger(id) {
+    api('/accounts/' + encodeURIComponent(id)).then(function (d) {
+      var entries = d.entries.slice().reverse(); // newest first
+      var rows = entries.map(function (e) {
+        var amt = e.amount > 0 ? '+' + int(e.amount) : int(e.amount);
+        var cls = e.amount > 0 ? 'good' : 'bad';
+        return '<tr><td class="muted">' + date(e.createdAt) + '</td><td>' + esc(e.kind) +
+          '</td><td>' + esc(e.reason) + '</td><td class="num" style="color:var(--' + cls + ')">' + amt + '</td></tr>';
+      }).join('') || '<tr><td colspan="4" class="muted">No ledger entries.</td></tr>';
+      $('modalRoot').innerHTML =
+        '<div class="modal-bg" id="mbg"><div class="modal">' +
+        '<button class="x" id="mx">&times;</button>' +
+        '<h3>' + esc(d.account.email) + '</h3>' +
+        '<p class="sub" style="margin:0 0 14px">Balance <strong>' + int(d.balance) + '</strong> credits · ' +
+        'id <code>' + esc(d.account.id) + '</code></p>' +
+        '<table><thead><tr><th>When</th><th>Kind</th><th>Reason</th><th class="num">Δ</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div></div>';
+      $('mx').onclick = $('mbg').onclick = function (e) {
+        if (e.target === $('mbg') || e.target === $('mx')) $('modalRoot').innerHTML = '';
+      };
+    }).catch(function (e) { alert(e.message); });
+  }
+
+  // ---- grant -------------------------------------------------------------
+  function doGrant() {
+    var email = $('gEmail').value.trim();
+    var credits = parseInt($('gCredits').value, 10);
+    if (!email || !(credits > 0)) { setMsg($('grantMsg'), 'Enter an email and a positive credit amount.', 'err'); return; }
+    $('grant').disabled = true;
+    api('/grant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: email, credits: credits }),
+    }).then(function (r) {
+      setMsg($('grantMsg'), 'Granted ' + int(credits) + ' to ' + email + ' — new balance ' + int(r.balance) + '.', 'ok');
+      $('gCredits').value = '';
+      return Promise.all([loadAccounts(), loadMetrics()]);
+    }).catch(function (e) {
+      setMsg($('grantMsg'), e.message, 'err');
+    }).then(function () { $('grant').disabled = false; });
+  }
+
+  // ---- connect / boot ----------------------------------------------------
+  function connect() {
+    token = $('tok').value.trim();
+    if (!token) { setMsg($('authMsg'), 'Paste the admin token first.', 'err'); return; }
+    setMsg($('authMsg'), 'Connecting…');
+    loadMetrics().then(function () {
+      localStorage.setItem(KEY, token);
+      setMsg($('authMsg'), 'Connected.', 'ok');
+      $('app').classList.remove('hidden');
+      return loadAccounts();
+    }).catch(function (e) {
+      setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
+      $('app').classList.add('hidden');
+    });
+  }
+
+  $('connect').onclick = connect;
+  $('forget').onclick = function () {
+    localStorage.removeItem(KEY); token = ''; $('tok').value = '';
+    $('app').classList.add('hidden'); setMsg($('authMsg'), 'Token forgotten.');
+  };
+  $('grant').onclick = doGrant;
+  $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('search').addEventListener('input', renderAccounts);
+  $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') connect(); });
+  $('gCredits').addEventListener('keydown', function (e) { if (e.key === 'Enter') doGrant(); });
+
+  var saved = localStorage.getItem(KEY);
+  if (saved) { $('tok').value = saved; connect(); }
+})();
+</script>
+</body>
+</html>`;
