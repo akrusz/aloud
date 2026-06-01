@@ -23,6 +23,7 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import type { Account, CreditsStore, LedgerEntry, LedgerKind } from './store.js';
+import type { UsageEvent, UsageKind } from './usage.js';
 
 /** SQL DDL — created on open if absent. Idempotent (IF NOT EXISTS). */
 const SCHEMA = `
@@ -48,6 +49,28 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+-- Raw per-call usage telemetry (cost attribution), separate from the money
+-- ledger above. One row per metered provider call. provider_cost_usd is full
+-- precision; credits is the fractional amount debited. See usage.ts.
+CREATE TABLE IF NOT EXISTS usage_events (
+    id                TEXT PRIMARY KEY,
+    account_id        TEXT NOT NULL REFERENCES accounts(id),
+    session_id        TEXT,
+    ts                REAL NOT NULL,
+    kind              TEXT NOT NULL,
+    provider          TEXT NOT NULL,
+    model             TEXT NOT NULL,
+    tokens_in         INTEGER NOT NULL,
+    tokens_out        INTEGER NOT NULL,
+    cache_read        INTEGER NOT NULL,
+    cache_creation    INTEGER NOT NULL,
+    seconds           REAL NOT NULL,
+    chars             INTEGER NOT NULL,
+    provider_cost_usd REAL NOT NULL,
+    credits           REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
+CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
 `;
 
 type Row = Record<string, string | number | bigint | Uint8Array | null>;
@@ -76,6 +99,26 @@ function rowToEntry(r: Row): LedgerEntry {
     };
     if (r['hold_id'] != null) entry.holdId = String(r['hold_id']);
     return entry;
+}
+
+function rowToUsage(r: Row): UsageEvent {
+    return {
+        id: String(r['id']),
+        accountId: String(r['account_id']),
+        sessionId: r['session_id'] != null ? String(r['session_id']) : null,
+        ts: Number(r['ts']),
+        kind: String(r['kind']) as UsageKind,
+        provider: String(r['provider']),
+        model: String(r['model']),
+        tokensIn: Number(r['tokens_in']),
+        tokensOut: Number(r['tokens_out']),
+        cacheRead: Number(r['cache_read']),
+        cacheCreation: Number(r['cache_creation']),
+        seconds: Number(r['seconds']),
+        chars: Number(r['chars']),
+        providerCostUsd: Number(r['provider_cost_usd']),
+        credits: Number(r['credits']),
+    };
 }
 
 export class SqliteCreditsStore implements CreditsStore {
@@ -170,6 +213,39 @@ export class SqliteCreditsStore implements CreditsStore {
     async allEntries(): Promise<LedgerEntry[]> {
         const rows = this.db.prepare('SELECT * FROM ledger').all() as Row[];
         return rows.map(rowToEntry);
+    }
+
+    async appendUsage(event: UsageEvent): Promise<void> {
+        this.db
+            .prepare(
+                `INSERT INTO usage_events
+                 (id, account_id, session_id, ts, kind, provider, model,
+                  tokens_in, tokens_out, cache_read, cache_creation,
+                  seconds, chars, provider_cost_usd, credits)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            )
+            .run(
+                event.id,
+                event.accountId,
+                event.sessionId,
+                event.ts,
+                event.kind,
+                event.provider,
+                event.model,
+                event.tokensIn,
+                event.tokensOut,
+                event.cacheRead,
+                event.cacheCreation,
+                event.seconds,
+                event.chars,
+                event.providerCostUsd,
+                event.credits
+            );
+    }
+
+    async allUsage(): Promise<UsageEvent[]> {
+        const rows = this.db.prepare('SELECT * FROM usage_events ORDER BY ts').all() as Row[];
+        return rows.map(rowToUsage);
     }
 
     async getSetting(key: string): Promise<string | undefined> {

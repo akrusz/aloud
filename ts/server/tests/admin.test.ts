@@ -114,6 +114,44 @@ describe('admin routes — data', () => {
         const res = await h.app.request('/cloud/v1/admin/accounts/nope', { headers: authed() });
         expect(res.status).toBe(400);
     });
+
+    it('serves the cost-attribution report (per-service split + cache ratio)', async () => {
+        // Two metered calls on one account: a near-free cached LLM turn and a
+        // TTS leg. The report must split cost by service and surface the ratio.
+        await h.store.appendUsage({
+            id: 'u1', accountId: 'a1', sessionId: null, ts: 1_000_000,
+            kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
+            tokensIn: 100, tokensOut: 20, cacheRead: 900, cacheCreation: 0,
+            seconds: 0, chars: 0, providerCostUsd: 0.0002, credits: 0.004,
+        });
+        await h.store.appendUsage({
+            id: 'u2', accountId: 'a1', sessionId: null, ts: 1_000_010,
+            kind: 'tts', provider: 'google', model: 'Leda',
+            tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0,
+            seconds: 0, chars: 400, providerCostUsd: 0.012, credits: 0.24,
+        });
+
+        const res = await h.app.request('/cloud/v1/admin/usage?sinceHours=1000000', { headers: authed() });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            events: number;
+            byService: Array<{ kind: string; providerCostUsd: number; events: number }>;
+            llmCacheHitRatio: number;
+            sessions: { count: number };
+        };
+        expect(body.events).toBe(2);
+        const tts = body.byService.find((s) => s.kind === 'tts')!;
+        expect(tts.providerCostUsd).toBeCloseTo(0.012, 9);
+        // 900 cacheRead / (100 in + 900 cacheRead) = 0.9
+        expect(body.llmCacheHitRatio).toBeCloseTo(0.9, 9);
+        // Both calls 10s apart → one reconstructed session.
+        expect(body.sessions.count).toBe(1);
+    });
+
+    it('gates the usage report behind the admin token', async () => {
+        const res = await h.app.request('/cloud/v1/admin/usage');
+        expect(res.status).toBe(401);
+    });
 });
 
 describe('admin routes — grant', () => {

@@ -108,6 +108,41 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:12px">refresh</button></h2>
     <div class="grid" id="stats"></div>
 
+    <h2>Cost attribution
+      <span style="float:right;display:flex;gap:8px;align-items:center">
+        <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:12px">
+          <option value="24">last 24h</option>
+          <option value="168">last 7d</option>
+          <option value="720">last 30d</option>
+          <option value="1000000">all time</option>
+        </select>
+        <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:12px">refresh</button>
+      </span>
+    </h2>
+    <p class="sub" style="margin:-4px 0 12px">What real sessions actually cost — the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
+    <div class="grid" id="usageStats"></div>
+    <div class="card">
+      <p class="sub" style="margin:0 0 10px">Cost split by service — what drives the bill.</p>
+      <table>
+        <thead><tr><th>Service</th><th class="num">Provider $</th><th class="num">Share</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
+        <tbody id="usageServiceRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <p class="sub" style="margin:0 0 10px">Per-model / per-voice cost, biggest first.</p>
+      <table>
+        <thead><tr><th>Service</th><th>Model / voice</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
+        <tbody id="usageModelRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <p class="sub" style="margin:0 0 10px">Per-session distribution — sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
+      <table>
+        <thead><tr><th>Metric</th><th class="num">Median</th><th class="num">p90</th><th class="num">Max</th><th class="num">Mean</th></tr></thead>
+        <tbody id="usageSessionRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
+      </table>
+    </div>
+
     <h2>Free credits</h2>
     <div class="card">
       <p class="sub" style="margin:0 0 14px">Tune the free tier live — no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
@@ -187,6 +222,10 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   }
 
   function usd(n) { return '$' + Number(n || 0).toFixed(2); }
+  // Provider costs per call/session are often fractions of a cent — show enough
+  // precision to be legible (4 dp under $1, 2 dp above).
+  function usdp(n) { n = Number(n || 0); return '$' + n.toFixed(n < 1 ? 4 : 2); }
+  function pct(n) { return (Number(n || 0) * 100).toFixed(0) + '%'; }
   function int(n) { return Number(n || 0).toLocaleString(); }
   // Credit amounts are fractional (TTS debits sub-credit), so show one decimal.
   function dec1(n) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
@@ -209,6 +248,47 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       $('stats').innerHTML = cards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
       }).join('');
+    });
+  }
+
+  // ---- cost attribution --------------------------------------------------
+  var SVC = { llm: 'LLM', stt: 'STT', tts: 'TTS' };
+  function loadUsage() {
+    return api('/usage?sinceHours=' + $('usageWindow').value).then(function (u) {
+      var s = u.sessions;
+      var cards = [
+        ['Provider cost', usdp(u.totals.providerCostUsd)],
+        ['Credits spent', dec1(u.totals.credits)],
+        ['Metered calls', int(u.events)],
+        ['LLM cache-hit', pct(u.llmCacheHitRatio)],
+        ['Sessions', int(s.count)],
+        ['Avg cost / session', usdp(s.costUsd.mean)],
+        ['Median credits / session', dec1(s.credits.p50)],
+        ['Avg session length', (Number(s.meanDurationMin) || 0).toFixed(1) + ' min'],
+      ];
+      $('usageStats').innerHTML = cards.map(function (c) {
+        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
+      }).join('');
+
+      var svc = u.byService.slice().sort(function (a, b) { return b.providerCostUsd - a.providerCostUsd; });
+      $('usageServiceRows').innerHTML = svc.map(function (v) {
+        return '<tr><td>' + (SVC[v.kind] || v.kind) + '</td><td class="num">' + usdp(v.providerCostUsd) +
+          '</td><td class="num">' + pct(v.costShare) + '</td><td class="num">' + dec1(v.credits) +
+          '</td><td class="num">' + int(v.events) + '</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="muted">No usage in this window.</td></tr>';
+
+      $('usageModelRows').innerHTML = u.byModel.map(function (m) {
+        return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.model) + '</code></td><td class="num">' +
+          usdp(m.providerCostUsd) + '</td><td class="num">' + dec1(m.credits) + '</td><td class="num">' + int(m.events) + '</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="muted">No usage in this window.</td></tr>';
+
+      function distRow(label, d, fmt) {
+        return '<tr><td>' + label + '</td><td class="num">' + fmt(d.p50) + '</td><td class="num">' + fmt(d.p90) +
+          '</td><td class="num">' + fmt(d.max) + '</td><td class="num">' + fmt(d.mean) + '</td></tr>';
+      }
+      $('usageSessionRows').innerHTML = s.count
+        ? distRow('Provider $ / session', s.costUsd, usdp) + distRow('Credits / session', s.credits, dec1)
+        : '<tr><td colspan="5" class="muted">No sessions in this window.</td></tr>';
     });
   }
 
@@ -352,7 +432,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       localStorage.setItem(KEY, token);
       setMsg($('authMsg'), 'Connected.', 'ok');
       $('app').classList.remove('hidden');
-      return Promise.all([loadAccounts(), loadConfig()]);
+      return Promise.all([loadAccounts(), loadConfig(), loadUsage()]);
     }).catch(function (e) {
       setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
       $('app').classList.add('hidden');
@@ -368,6 +448,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   $('saveConfig').onclick = saveConfig;
   $('savePause').onclick = savePause;
   $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('search').addEventListener('input', renderAccounts);
   $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') connect(); });

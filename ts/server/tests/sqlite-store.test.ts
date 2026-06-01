@@ -14,6 +14,7 @@ import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import { SqliteCreditsStore } from '../src/credits/sqlite-store.js';
 import { Ledger } from '../src/credits/ledger.js';
 import type { Account, CreditsStore } from '../src/credits/store.js';
+import type { UsageEvent } from '../src/credits/usage.js';
 
 const ACCOUNT: Account = {
     id: 'acct-1',
@@ -23,6 +24,27 @@ const ACCOUNT: Account = {
     createdAt: 100,
     signupIp: '203.0.113.7',
 };
+
+function usageEvent(over: Partial<UsageEvent> = {}): UsageEvent {
+    return {
+        id: 'u-1',
+        accountId: 'acct-1',
+        sessionId: null,
+        ts: 1000,
+        kind: 'llm',
+        provider: 'google',
+        model: 'gemini-2.5-flash-lite',
+        tokensIn: 50,
+        tokensOut: 20,
+        cacheRead: 4000,
+        cacheCreation: 0,
+        seconds: 0,
+        chars: 0,
+        providerCostUsd: 0.000123,
+        credits: 0.00246,
+        ...over,
+    };
+}
 
 // Run the identical suite against each store implementation.
 const implementations: Array<[string, () => CreditsStore]> = [
@@ -84,6 +106,30 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         await ledger.grant('acct-2', 30);
         expect((await store.allAccounts()).map((a) => a.id).sort()).toEqual(['acct-1', 'acct-2']);
         expect((await store.allEntries()).reduce((s, e) => s + e.amount, 0)).toBe(50);
+    });
+
+    it('round-trips usage telemetry rows (full precision, null sessionId)', async () => {
+        await store.createAccount(ACCOUNT);
+        const llm = usageEvent({ id: 'u-llm' });
+        const tts = usageEvent({
+            id: 'u-tts',
+            kind: 'tts',
+            provider: 'google',
+            model: 'Leda',
+            tokensIn: 0,
+            cacheRead: 0,
+            chars: 420,
+            sessionId: 'sess-9',
+            providerCostUsd: 0.0126,
+            credits: 0.252,
+        });
+        await store.appendUsage(llm);
+        await store.appendUsage(tts);
+        const all = await store.allUsage();
+        expect(all).toHaveLength(2);
+        // Exact round-trip including the fractional USD/credits and null session.
+        expect(all.find((e) => e.id === 'u-llm')).toEqual(llm);
+        expect(all.find((e) => e.id === 'u-tts')).toEqual(tts);
     });
 
     it('round-trips and upserts operator settings', async () => {

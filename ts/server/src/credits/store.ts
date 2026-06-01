@@ -17,6 +17,11 @@
  *    spendable balance without yet being a charge.
  */
 
+// Type-only import (erased at compile) — the raw usage telemetry row this store
+// also persists, kept beside the ledger. Defined in usage.ts with its
+// aggregation logic; here we only need the row shape for the store methods.
+import type { UsageEvent } from './usage.js';
+
 export type LedgerKind =
     | 'signup_grant'
     | 'purchase'
@@ -71,6 +76,16 @@ export interface CreditsStore {
     allAccounts(): Promise<Account[]>;
     /** Every ledger entry across all accounts (for spend aggregates). */
     allEntries(): Promise<LedgerEntry[]>;
+
+    // ---- Usage telemetry (cost attribution) ---------------------------------
+    // Raw per-call cost records, separate from the money ledger (see usage.ts).
+    // Best-effort writes; reads feed the admin cost dashboard.
+
+    /** Append a raw usage telemetry row. */
+    appendUsage(event: UsageEvent): Promise<void>;
+    /** Every usage row across all accounts (trial-scale scan; a SQL store
+     *  answers the dashboard's aggregates with indexed queries instead). */
+    allUsage(): Promise<UsageEvent[]>;
 
     // ---- Operator settings (durable runtime config) -------------------------
     // A tiny key→value store for operator-tunable knobs (free-credit grant,

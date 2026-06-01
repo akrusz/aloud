@@ -16,6 +16,7 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
+import { recordUsage } from '../credits/usage.js';
 import { synthesizeWithGoogle } from '../providers/tts.js';
 import { resolveVoiceId } from '../providers/voice-catalog.js';
 import { log } from '../logger.js';
@@ -57,6 +58,20 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const cost = priceTtsChars(text.length);
         const debit = Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:google:${text.length}c`);
+        await recordUsage(deps.store, {
+            accountId: account.id,
+            kind: 'tts',
+            provider: 'google',
+            model: resolveVoiceId(body.voice),
+            tokensIn: 0,
+            tokensOut: 0,
+            cacheRead: 0,
+            cacheCreation: 0,
+            seconds: 0,
+            chars: text.length,
+            providerCostUsd: cost.providerCostUsd,
+            credits: debit,
+        });
         const remaining = await deps.ledger.balance(account.id);
 
         c.header('content-type', 'audio/mpeg');

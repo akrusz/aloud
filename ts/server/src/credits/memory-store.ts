@@ -6,12 +6,14 @@
  */
 
 import type { Account, CreditsStore, LedgerEntry } from './store.js';
+import type { UsageEvent } from './usage.js';
 
 export class MemoryCreditsStore implements CreditsStore {
     private accounts = new Map<string, Account>();
     private bySub = new Map<string, string>();
     private entries = new Map<string, LedgerEntry[]>();
     private settings = new Map<string, string>();
+    private usage: UsageEvent[] = [];
 
     async getAccountByGoogleSub(sub: string): Promise<Account | undefined> {
         const id = this.bySub.get(sub);
@@ -47,6 +49,14 @@ export class MemoryCreditsStore implements CreditsStore {
 
     async allEntries(): Promise<LedgerEntry[]> {
         return [...this.entries.values()].flat();
+    }
+
+    async appendUsage(event: UsageEvent): Promise<void> {
+        this.usage.push(event);
+    }
+
+    async allUsage(): Promise<UsageEvent[]> {
+        return [...this.usage];
     }
 
     async getSetting(key: string): Promise<string | undefined> {

@@ -16,6 +16,7 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
+import { recordUsage } from '../credits/usage.js';
 import { transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
 
@@ -62,6 +63,20 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const cost = priceSttSeconds(seconds);
         const debit = Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `stt:${stt.provider}:${seconds.toFixed(1)}s`);
+        await recordUsage(deps.store, {
+            accountId: account.id,
+            kind: 'stt',
+            provider: stt.provider,
+            model: stt.model,
+            tokensIn: 0,
+            tokensOut: 0,
+            cacheRead: 0,
+            cacheCreation: 0,
+            seconds,
+            chars: 0,
+            providerCostUsd: cost.providerCostUsd,
+            credits: debit,
+        });
 
         const response: TranscribeResponse = {
             text,

@@ -28,10 +28,38 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isMeteredBlocked, FREE_LIMIT_MESSAGE } from '../admin/runtime-config.js';
 import { isModelAllowed } from '../pricing/providers.js';
-import { SESSION_HOLD_CREDITS, priceLlmTurn } from '../pricing/meter.js';
+import { SESSION_HOLD_CREDITS, priceLlmTurn, type CostBreakdown } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
+import { recordUsage } from '../credits/usage.js';
+import type { LlmUsage } from '@aloud/core/facilitation';
+import type { ProviderId } from '../contract.js';
 import { log } from '../logger.js';
+
+/** Best-effort cost-attribution write for one settled LLM turn (usage.ts). */
+function recordLlmUsage(
+    deps: Deps,
+    accountId: string,
+    provider: ProviderId,
+    model: string,
+    usage: LlmUsage,
+    cost: CostBreakdown
+): Promise<void> {
+    return recordUsage(deps.store, {
+        accountId,
+        kind: 'llm',
+        provider,
+        model,
+        tokensIn: usage.tokensIn ?? 0,
+        tokensOut: usage.tokensOut ?? 0,
+        cacheRead: usage.cacheRead ?? 0,
+        cacheCreation: usage.cacheCreation ?? 0,
+        seconds: 0,
+        chars: 0,
+        providerCostUsd: cost.providerCostUsd,
+        credits: cost.credits,
+    });
+}
 
 const VALID_PROVIDERS = new Set(['anthropic', 'groq', 'openrouter', 'google']);
 
@@ -117,9 +145,11 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                             await sse.writeSSE({ data: JSON.stringify({ text: chunk.text, done: false } satisfies CompleteChunk) });
                             continue;
                         }
-                        const cost = priceLlmTurn(body.provider!, body.model!, usageOf(chunk));
+                        const usage = usageOf(chunk);
+                        const cost = priceLlmTurn(body.provider!, body.model!, usage);
                         await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
                         settled = true;
+                        await recordLlmUsage(deps, account.id, body.provider!, body.model!, usage, cost);
                         final = {
                             text: chunk.text,
                             finishReason: chunk.finishReason ?? null,
@@ -140,8 +170,10 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // ---- non-streaming branch ----
         try {
             const result = await deps.forwarder.complete(body.messages, fwd);
-            const cost = priceLlmTurn(body.provider, body.model, usageOf(result));
+            const usage = usageOf(result);
+            const cost = priceLlmTurn(body.provider, body.model, usage);
             await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
+            await recordLlmUsage(deps, account.id, body.provider, body.model, usage, cost);
             const response: CompleteResponse = {
                 text: result.text,
                 finishReason: result.finishReason,

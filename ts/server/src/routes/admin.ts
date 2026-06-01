@@ -21,6 +21,7 @@ import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { Account, LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
+import { buildUsageReport } from '../credits/usage.js';
 import { ADMIN_PANEL_HTML } from '../admin/panel.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 
@@ -75,6 +76,22 @@ export function adminRoutes(deps: Deps): Hono {
             deps.store.allEntries(),
         ]);
         return c.json(buildMetrics(accounts, entries, now, windowSinceTs));
+    });
+
+    // Cost attribution (meditation-pal-rvy): the per-service split, cache-hit
+    // ratio, per-model cost, and reconstructed per-session economics the ledger
+    // can't show. This is the dataset for calibrating USD_PER_CREDIT and pack
+    // sizing against what real sessions actually cost.
+    app.get('/usage', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        const sinceHours = Number(c.req.query('sinceHours') ?? 24);
+        const now = Date.now() / 1000;
+        const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
+
+        const events = await deps.store.allUsage();
+        return c.json(buildUsageReport(events, now, windowSinceTs));
     });
 
     // Every account with derived balance, lifetime granted/spent, and whether
