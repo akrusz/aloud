@@ -76,6 +76,16 @@ keep both open in two tabs:
 The override is **dev-only**: `vite build` hard-disables it (`app-mode.ts`),
 so a deployed visitor can't force local mode to unlock Ollama/BYOK.
 
+**Inspect the loading state (`?slowboot`).** First paint shows the boot orb — a
+large, centered, magenta-rippling rainbow orb (the kasina-mode form) that
+cross-fades into the small nav orb once the first view mounts. On localhost
+it's a blink. `:4649/?slowboot=5000` holds it on screen for 5000 ms *before*
+the view mounts, so you see the real loading state (static nav + orb, empty
+content). Dev-only (`bootApp` in `app.ts`), gated on `import.meta.env.DEV` so
+it's dead-code-eliminated from `vite build`. To see the **failure-to-load**
+state (orb pulses forever), block the JS bundle in DevTools → Network → Block
+request URL, or set Network to Offline before reloading.
+
 ### Hosted server (Hono)
 
 ```bash
