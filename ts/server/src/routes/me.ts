@@ -27,14 +27,22 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     });
 
     // Public pricing transparency — no auth needed; the margin is published.
-    app.get('/models', (c) =>
-        c.json({
+    // Each model carries its typical-session creditsPerHour so the client's
+    // model dropdown can show the cloud-rate badge ("N☁️") next to it.
+    app.get('/models', (c) => {
+        const ratePerHour = new Map(
+            estimateModels().map((e) => [`${e.provider}:${e.model}`, e.creditsPerHour])
+        );
+        return c.json({
             // Credits debit at provider COST; margin is added at purchase.
             usdPerCredit: USD_PER_CREDIT,
             packMarkup: PACK_MARKUP,
-            models: allowedModels(),
-        })
-    );
+            models: allowedModels().map((m) => ({
+                ...m,
+                creditsPerHour: ratePerHour.get(`${m.provider}:${m.model}`) ?? null,
+            })),
+        });
+    });
 
     app.get('/packs', (c) => c.json({ packs: CREDIT_PACKS }));
 

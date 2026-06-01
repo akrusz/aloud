@@ -1859,13 +1859,15 @@ body:has(.session-container) {
     top: -1px;
 }
 
-/* Cost indicator on a hosted voice row — communicates relative credit burn
-   (meditation-pal-b7i). 'value' (cheaper Neural2) reads green "$"; 'premium'
-   (Chirp3-HD) reads amber "$$". The title attr carries the ~credits/hr. */
+/* Cloud-rate badge on a hosted voice row — "N☁️" ≈ N credits/hour, so a pricier
+   voice reads as pricier (meditation-pal-b7i). Colored by tier: 'value' (cheaper
+   Neural2) green, 'premium' (Chirp3-HD) amber. The title attr carries the exact
+   credits/hr; the picker also shows a "1☁️ ≈ 1 credit/hour" legend. */
 .voice-row-cost {
     display: inline-block;
     font-size: 0.82rem;
     font-weight: 600;
+    color: var(--text-muted);
     border-radius: var(--radius-sm);
     padding: 0.1rem 0.32rem;
     margin-left: 0.35rem;
@@ -1881,6 +1883,14 @@ body:has(.session-container) {
 .voice-row-cost-premium {
     color: #d9a23f;
     background: rgba(245, 165, 47, 0.14);
+}
+
+/* The "1☁️ ≈ 1 credit/hour" legend under a credit-spending picker (voice list,
+   hosted model select). Quiet — it explains the badge without competing. */
+.credit-rate-legend {
+    margin: 0.5rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
 }
 
 .voice-row-uninstall {

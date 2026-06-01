@@ -159,9 +159,10 @@ export function estimateVoices(): VoiceEstimate[] {
         const rate = googleTtsRateFor(v.googleId);
         const perHour = (chars: number): number =>
             Math.ceil(usdToCredits(chars * rate) * PER_HOUR);
+        const tierLabel = v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
         return {
             voiceId: v.googleId,
-            label: `Cloud voice — ${v.name} (Google Chirp3-HD)`,
+            label: `Cloud voice — ${v.name} (${tierLabel})`,
             creditsPerHour: {
                 spacious: perHour(TTS_CHAR_PROFILES.spacious),
                 typical: perHour(TTS_CHAR_PROFILES.typical),

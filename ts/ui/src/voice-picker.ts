@@ -21,6 +21,7 @@
 import type { TtsEngine } from '../../src/platform/index.js';
 
 import { createTtsForVoice } from './adapters/tts-picker.js';
+import { rateBadge, RATE_LEGEND } from './credit-rate.js';
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 
@@ -305,6 +306,14 @@ export function renderVoiceList(
         appendTierLabel(listEl, TIER_LABELS[tier] ?? 'Other');
         for (const v of items) appendRow(listEl, v, selectedName, options);
     }
+
+    // Explain the cloud-rate badge whenever a paid hosted voice is in the list.
+    if (voices.some((v) => rateBadge(v.creditsPerHour))) {
+        const legend = document.createElement('div');
+        legend.className = 'credit-rate-legend';
+        legend.textContent = RATE_LEGEND;
+        listEl.appendChild(legend);
+    }
 }
 
 function appendTierLabel(parent: HTMLElement, text: string): void {
@@ -338,18 +347,19 @@ function appendRow(
         note.textContent = entry.note;
         nameSpan.appendChild(note);
     }
-    // Cost indicator for hosted voices: "$" (value/Neural2) vs "$$" (premium/
-    // Chirp3-HD), so a pricier voice reads as pricier at a glance. The tooltip
-    // carries the concrete credits/hr (meditation-pal-b7i).
-    if (entry.costTier) {
+    // Cloud-rate badge for hosted voices: "N☁️" ≈ N credits/hr, colored by tier
+    // (green value, amber premium) so a pricier voice reads as pricier at a
+    // glance. The tooltip carries the concrete credits/hr (meditation-pal-b7i).
+    const rateText = rateBadge(entry.creditsPerHour);
+    if (rateText) {
         const cost = document.createElement('span');
-        cost.className = `voice-row-cost voice-row-cost-${entry.costTier}`;
-        cost.textContent = entry.costTier === 'premium' ? '$$' : '$';
-        const tierWord = entry.costTier === 'premium' ? 'Premium' : 'Value';
-        cost.title =
-            entry.creditsPerHour != null
-                ? `${tierWord} voice · ≈ ${entry.creditsPerHour} credits/hr`
-                : `${tierWord} voice`;
+        cost.className = entry.costTier
+            ? `voice-row-cost voice-row-cost-${entry.costTier}`
+            : 'voice-row-cost';
+        cost.textContent = rateText;
+        const tierWord =
+            entry.costTier === 'premium' ? 'Premium' : entry.costTier === 'value' ? 'Value' : 'Cloud';
+        cost.title = `${tierWord} voice · ≈ ${entry.creditsPerHour} credits/hour`;
         nameSpan.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {

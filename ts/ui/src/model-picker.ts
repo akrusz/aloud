@@ -15,6 +15,7 @@ import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 import { getApiKey, hasApiKey } from './api-keys.js';
 import { probeOllamaDirect } from './ollama-direct.js';
+import { rateSuffix, RATE_LEGEND } from './credit-rate.js';
 import type { Provider } from './settings.js';
 
 /** Providers that authenticate with a user-supplied key (BYOK). The hosted
@@ -47,11 +48,15 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
         try {
             const resp = await fetch(cloudUrl('/me/models'));
             if (!resp.ok) return null;
-            const data = (await resp.json()) as { models?: Array<{ provider: string; model: string }> };
+            const data = (await resp.json()) as {
+                models?: Array<{ provider: string; model: string; creditsPerHour?: number | null }>;
+            };
             if (!data.models?.length) return null;
+            // Hosted models cost credits, so append the cloud-rate badge ("N☁️")
+            // to the label — the only provider where the picker shows it.
             const opts: ModelOption[] = data.models.map((m) => ({
                 value: `${m.provider}/${m.model}`,
-                label: m.model,
+                label: `${m.model}${rateSuffix(m.creditsPerHour)}`,
             }));
             cache.set(provider, opts);
             return opts;
@@ -134,8 +139,12 @@ export function mountModelPicker(
         const optionsHTML = models
             .map((m) => `<option value="${attr(m.value)}">${escape(m.label)}</option>`)
             .join('');
+        // Only the hosted ('aloud') models carry the cloud-rate badge, so the
+        // legend explaining it belongs only under that provider's selector.
+        const legend =
+            provider === 'aloud' ? `<p class="credit-rate-legend">${escape(RATE_LEGEND)}</p>` : '';
         container.innerHTML = `
-            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>`;
+            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${legend}`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
         // The user wants the picker to always show a concrete model name
         // (no "(provider default)" placeholder), so if the persisted value
