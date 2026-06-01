@@ -5,18 +5,18 @@ import { dirname, resolve } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
-// Hosted aloud server (@aloud/server, Hono). Serves BOTH the app's own backend
-// (/app/v1/*) and the hosted cloud service (/cloud/v1/*) in dev, so browser
+// aloud cloud (@aloud/server, Hono). Serves BOTH the app's own backend
+// (/app/v1/*) and the cloud service (/cloud/v1/*) in dev, so browser
 // preview needs only this one server running — no Python/Flask. Defaults to the
-// dev port in ts/server/.env.example; override with ALOUD_SERVER_URL.
-const SERVER_URL = process.env['ALOUD_SERVER_URL'] ?? 'http://localhost:8787';
+// dev port in ts/server/.env.example; override with ALOUD_CLOUD_URL.
+const SERVER_URL = process.env['ALOUD_CLOUD_URL'] ?? 'http://localhost:8787';
 
 // Hosted-subpath build (ALOUD_HOSTED=1, via `npm run ui:build:hosted`): served
 // at aloud.rest/app/ off the existing GitHub Pages site (docs/ on main). base
 // '/app/' rebases asset URLs and feeds the router's deploy-base logic
 // (route-base.ts → import.meta.env.BASE_URL); outDir is the repo-root docs/app
 // so the build lands straight in the Pages tree. Dev/desktop builds keep base
-// '/' → ui/dist. The cross-origin API base is separate (VITE_ALOUD_SERVER_URL).
+// '/' → ui/dist. The cross-origin API base is separate (VITE_ALOUD_CLOUD_URL).
 const HOSTED = process.env['ALOUD_HOSTED'] === '1';
 
 export default defineConfig({

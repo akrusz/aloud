@@ -2,7 +2,7 @@
  * Google Identity Services (GIS) wrapper — the browser half of hosted sign-in
  * (meditation-pal-rfb). Loads Google's script on demand, renders the official
  * sign-in button, and hands the resulting ID token to the server
- * (`googleSignIn` in server-auth.ts), which verifies it and mints our session.
+ * (`googleSignIn` in cloud-auth.ts), which verifies it and mints our session.
  *
  * Gated on a build-time client id (`VITE_GOOGLE_CLIENT_ID`,
  * `isGoogleSignInConfigured()`): with none, this module's entry points no-op so
@@ -15,13 +15,13 @@
  *
  * NOT YET MOUNTED IN A VIEW. The server side and this plumbing are done and
  * tested; where the button lives (a dedicated account view, a settings row, a
- * modal gating the first hosted turn on `ServerSignInRequiredError`) is a UX
+ * modal gating the first hosted turn on `CloudSignInRequiredError`) is a UX
  * call best made with the app running and a real client id — see
  * dev-docs/deploy.md. Drop `renderGoogleSignInButton(el, { onSignedIn })` into
  * the chosen spot then.
  */
 
-import { googleClientId, googleSignIn, type AuthResponse } from './server-auth.js';
+import { googleClientId, googleSignIn, type AuthResponse } from './cloud-auth.js';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 

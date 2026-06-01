@@ -10,7 +10,7 @@
  *   proxy forwards them (see ui/vite.config.ts).
  * - **Web (hosted)**: a static build (e.g. GitHub Pages) has no proxy and lives
  *   on a different origin than the backend, so the API origin is baked in at
- *   build time via `VITE_ALOUD_SERVER_URL` — the same origin that serves the
+ *   build time via `VITE_ALOUD_CLOUD_URL` — the same origin that serves the
  *   `/cloud/v1/*` service (one Hono process answers both).
  * - **Tauri desktop**: the Rust shell starts an embedded server on an ephemeral
  *   loopback port and injects `window.__ALOUD_API_BASE__` via an
@@ -27,7 +27,7 @@ const APP_PREFIX = '/app/v1';
 
 const BASE = (
     (globalThis as unknown as { __ALOUD_API_BASE__?: string }).__ALOUD_API_BASE__ ??
-    import.meta.env.VITE_ALOUD_SERVER_URL ??
+    import.meta.env.VITE_ALOUD_CLOUD_URL ??
     ''
 ).replace(/\/+$/, '');
 

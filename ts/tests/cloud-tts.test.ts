@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ServerTtsEngine } from '../ui/src/adapters/server-tts.js';
+import { CloudTtsEngine } from '../ui/src/adapters/cloud-tts.js';
 
 // HTMLAudioElement isn't in the Node test env; stub a minimal Audio that
 // "plays" instantly so speak() resolves. The adapter only needs play() +
@@ -22,7 +22,7 @@ beforeEach(() => {
     (globalThis as unknown as { URL: typeof URL }).URL.revokeObjectURL = () => {};
 });
 
-describe('ServerTtsEngine (hosted POST mode)', () => {
+describe('CloudTtsEngine (hosted POST mode)', () => {
     it('POSTs JSON with a bearer token and the voice/rate, then plays the audio', async () => {
         let seen: { url: string; init: RequestInit } | null = null;
         const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -33,7 +33,7 @@ describe('ServerTtsEngine (hosted POST mode)', () => {
         }) as unknown as typeof fetch;
 
         const onSynthesize = vi.fn();
-        const engine = new ServerTtsEngine({
+        const engine = new CloudTtsEngine({
             voice: 'en-US-Chirp3-HD-Achernar',
             endpointUrl: '/v1/tts',
             usePost: true,
@@ -61,7 +61,7 @@ describe('ServerTtsEngine (hosted POST mode)', () => {
             return new Response(new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }), { status: 200 });
         }) as unknown as typeof fetch;
 
-        const engine = new ServerTtsEngine({
+        const engine = new CloudTtsEngine({
             voice: 'en-US-Chirp3-HD-Achernar',
             endpointUrl: '/v1/tts',
             usePost: true,
@@ -79,14 +79,14 @@ describe('ServerTtsEngine (hosted POST mode)', () => {
             return new Response(new Blob([new Uint8Array([1])], { type: 'audio/wav' }), { status: 200 });
         }) as unknown as typeof fetch;
 
-        const engine = new ServerTtsEngine({ voice: 'Samantha', endpointUrl: '/api/voices/preview', fetchImpl });
+        const engine = new CloudTtsEngine({ voice: 'Samantha', endpointUrl: '/api/voices/preview', fetchImpl });
         await engine.speak('hello');
         expect(seenUrl).toContain('/api/voices/preview?');
         expect(seenUrl).toContain('voice=Samantha');
     });
 });
 
-describe('ServerTtsEngine hosted 401 self-heal', () => {
+describe('CloudTtsEngine hosted 401 self-heal', () => {
     it('clears a stale token and retries once with a fresh one', async () => {
         const tokens = ['stale-token', 'fresh-token'];
         const seen: Array<string | undefined> = [];
@@ -106,7 +106,7 @@ describe('ServerTtsEngine hosted 401 self-heal', () => {
         const onAuthError = vi.fn(async () => {
             tokens.shift(); // drop the stale token so the next authProvider() returns the fresh one
         });
-        const engine = new ServerTtsEngine({
+        const engine = new CloudTtsEngine({
             voice: 'Leda',
             endpointUrl: '/cloud/v1/tts',
             usePost: true,
@@ -126,7 +126,7 @@ describe('ServerTtsEngine hosted 401 self-heal', () => {
     it('surfaces a 401 that persists after the retry', async () => {
         const fetchImpl = (async () =>
             new Response('', { status: 401 })) as unknown as typeof fetch;
-        const engine = new ServerTtsEngine({
+        const engine = new CloudTtsEngine({
             voice: 'Leda',
             endpointUrl: '/cloud/v1/tts',
             usePost: true,

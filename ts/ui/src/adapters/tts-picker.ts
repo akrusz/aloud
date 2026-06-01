@@ -15,9 +15,9 @@ import type { TtsEngine } from '../../../src/platform/tts.js';
 import { allVoices, findVoice, type VoiceEntry } from '../voices.js';
 
 import { BrowserTtsEngine } from './browser-tts.js';
-import { ServerTtsEngine } from './server-tts.js';
+import { CloudTtsEngine } from './cloud-tts.js';
 import { cloudUrl } from '../cloud-base.js';
-import { ensureServerToken, clearServerToken } from '../server-auth.js';
+import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 
 export interface CreateTtsResult {
     engine: TtsEngine;
@@ -41,7 +41,7 @@ export interface CreateTtsResult {
  */
 export interface CreateTtsOptions {
     /**
-     * Forwarded to ServerTtsEngine — reports characters synthesized
+     * Forwarded to CloudTtsEngine — reports characters synthesized
      * server-side for session usage tracking. Browser TTS ignores it (no
      * server compute, not counted).
      */
@@ -55,18 +55,18 @@ export interface CreateTtsOptions {
  * default Chirp3-HD voice. (A hosted voice picker is a follow-up; for now the
  * default carries the experience.)
  */
-export function createServerAloudTts(voice = '', options: CreateTtsOptions = {}): TtsEngine {
-    const opts: ConstructorParameters<typeof ServerTtsEngine>[0] = {
+export function createCloudAloudTts(voice = '', options: CreateTtsOptions = {}): TtsEngine {
+    const opts: ConstructorParameters<typeof CloudTtsEngine>[0] = {
         voice,
         endpointUrl: cloudUrl('/tts'),
         usePost: true,
-        authProvider: ensureServerToken,
+        authProvider: ensureCloudToken,
         // Drop a rejected token and re-sign-in once (mirrors the LLM proxy), so
         // a stale session doesn't break hosted TTS for the whole page lifetime.
-        onAuthError: clearServerToken,
+        onAuthError: clearCloudToken,
     };
     if (options.onServerSynthesize) opts.onSynthesize = options.onServerSynthesize;
-    return new ServerTtsEngine(opts);
+    return new CloudTtsEngine(opts);
 }
 
 export async function createTtsForVoice(
@@ -80,7 +80,7 @@ export async function createTtsForVoice(
     if (voiceId.startsWith('aloud:')) {
         // Hosted Google voice — synthesize through the server's /v1/tts.
         const name = voiceId.slice('aloud:'.length);
-        return { engine: createServerAloudTts(name, options), voice: null };
+        return { engine: createCloudAloudTts(name, options), voice: null };
     }
 
     if (voiceId.startsWith('browser:')) {
@@ -94,28 +94,28 @@ export async function createTtsForVoice(
     if (voiceId.startsWith('server:')) {
         const name = voiceId.slice('server:'.length);
         // Try the catalog so we can pass the right engine (piper/macos/
-        // elevenlabs) to ServerTtsEngine. If the catalog can't find it,
-        // fall back to a bare ServerTtsEngine with just the name — Flask
+        // elevenlabs) to CloudTtsEngine. If the catalog can't find it,
+        // fall back to a bare CloudTtsEngine with just the name — Flask
         // will route it correctly via engine_for_voice on its side.
         const voices = await allVoices();
         const voice =
             voices.find((v) => v.id === voiceId) ??
             voices.find((v) => v.name === name && v.source === 'server') ??
             null;
-        const sttOptions: ConstructorParameters<typeof ServerTtsEngine>[0] = { voice: name };
+        const sttOptions: ConstructorParameters<typeof CloudTtsEngine>[0] = { voice: name };
         if (voice?.engine) sttOptions.engine = voice.engine;
         if (options.onServerSynthesize) sttOptions.onSynthesize = options.onServerSynthesize;
-        return { engine: new ServerTtsEngine(sttOptions), voice };
+        return { engine: new CloudTtsEngine(sttOptions), voice };
     }
 
     // Legacy / unprefixed id — try the catalog one more time.
     const voices = await allVoices();
     const voice = findVoice(voices, voiceId);
     if (voice && voice.source === 'server') {
-        const sttOptions: ConstructorParameters<typeof ServerTtsEngine>[0] = { voice: voice.name };
+        const sttOptions: ConstructorParameters<typeof CloudTtsEngine>[0] = { voice: voice.name };
         if (voice.engine) sttOptions.engine = voice.engine;
         if (options.onServerSynthesize) sttOptions.onSynthesize = options.onServerSynthesize;
-        return { engine: new ServerTtsEngine(sttOptions), voice };
+        return { engine: new CloudTtsEngine(sttOptions), voice };
     }
     return {
         engine: voice ? new BrowserTtsEngine({ defaultVoice: voice.name }) : new BrowserTtsEngine(),

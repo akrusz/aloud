@@ -1,8 +1,8 @@
 /**
  * Hosted-server LLM provider — the web tier's only LLM source.
  *
- * POSTs to the hosted aloud server's metered proxy (/v1/llm/complete) with a
- * bearer session token (see server-auth.ts). The server holds the real
+ * POSTs to the aloud cloud's metered proxy (/v1/llm/complete) with a
+ * bearer session token (see cloud-auth.ts). The server holds the real
  * provider keys, forwards the turn, meters it against the account's credits,
  * and returns the text (+ credits charged/remaining). The browser never sees
  * a provider key. Contrast claude-proxy-http.ts, which targets the desktop
@@ -20,17 +20,17 @@ import type {
     Message,
     StreamChunk,
 } from '../../../src/llm/index.js';
-import { ensureServerToken, clearServerToken } from '../server-auth.js';
+import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
 
 /** Providers the server is willing to forward to (mirrors contract.ts ProviderId). */
-export type ServerProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
+export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
 
 const ENDPOINT = '/llm/complete';
 const DEFAULT_MAX_TOKENS = 400;
 
-export interface ServerLlmProviderOptions {
-    provider: ServerProviderId;
+export interface CloudLlmProviderOptions {
+    provider: CloudProviderId;
     model: string;
     maxTokens?: number;
     fetchImpl?: typeof fetch;
@@ -55,13 +55,13 @@ interface ApiErrorBody {
     error?: { code?: string; message?: string };
 }
 
-export class ServerLlmProvider implements LLMProvider {
+export class CloudLlmProvider implements LLMProvider {
     readonly model: string;
-    private readonly provider: ServerProviderId;
+    private readonly provider: CloudProviderId;
     private readonly maxTokens: number;
     private readonly fetchImpl: typeof fetch;
 
-    constructor(options: ServerLlmProviderOptions) {
+    constructor(options: CloudLlmProviderOptions) {
         this.provider = options.provider;
         this.model = options.model;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -97,16 +97,16 @@ export class ServerLlmProvider implements LLMProvider {
                 body: this.body(messages, options, stream),
             });
 
-        let res = await send(await ensureServerToken());
+        let res = await send(await ensureCloudToken());
         if (res.status === 401) {
-            await clearServerToken();
-            res = await send(await ensureServerToken());
+            await clearCloudToken();
+            res = await send(await ensureCloudToken());
         }
         return res;
     }
 
     private async throwFromError(res: Response): Promise<never> {
-        let message = `aloud server returned ${res.status}`;
+        let message = `aloud cloud returned ${res.status}`;
         try {
             const data = (await res.json()) as ApiErrorBody;
             if (data.error?.message) message = data.error.message;

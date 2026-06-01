@@ -14,10 +14,10 @@ interface ImportMetaEnv {
      *  '/app/' for the hosted-subpath build (vite.config.ts `base`). Drives the
      *  router's deploy-base logic (route-base.ts). */
     readonly BASE_URL: string;
-    /** Absolute origin of the hosted aloud server for a deployed static build,
+    /** Absolute origin of the aloud cloud for a deployed static build,
      *  e.g. https://api.aloud.example. Unset in dev — paths stay relative and
      *  the Vite proxy forwards them. */
-    readonly VITE_ALOUD_SERVER_URL?: string;
+    readonly VITE_ALOUD_CLOUD_URL?: string;
     /** Google OAuth *web* client id for the hosted sign-in (meditation-pal-rfb).
      *  When set, the UI offers real Google sign-in (google-signin.ts); unset, it
      *  falls back to the server's local dev sign-in. Must match one of the

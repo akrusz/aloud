@@ -1,4 +1,4 @@
-# Fly.io deploy for the aloud hosted server (@aloud/server). meditation-pal-a3u.
+# Fly.io deploy for aloud cloud (@aloud/server). meditation-pal-a3u.
 #
 # Deploy from the ts/ workspace root (so the Docker build context includes
 # ../src = @aloud/core):
@@ -7,9 +7,9 @@
 #   # Create the app explicitly — do NOT use `fly launch`: it looks for fly.toml
 #   # in the cwd (ts/), not here in server/, so --copy-config finds nothing and
 #   # scaffolds a "blank app" instead.
-#   fly apps create aloud-server                               # first time only
-#   fly volumes create aloud_data --size 1 --region sjc --app aloud-server
-#   fly secrets import --app aloud-server < your-secrets.env   # KEY=value per line; see deploy.md
+#   fly apps create aloud-cloud                               # first time only
+#   fly volumes create aloud_data --size 1 --region sjc --app aloud-cloud
+#   fly secrets import --app aloud-cloud < your-secrets.env   # KEY=value per line; see deploy.md
 #   fly deploy --config server/fly.toml
 #
 # Always deploy from ts/ (the cwd is the Docker build CONTEXT, so COPY src ./src
@@ -23,7 +23,7 @@
 # correct at trial scale. Scaling out later = swap SqliteCreditsStore for
 # Postgres (credits/store.ts) and drop the [mounts].
 
-app = "aloud-server"           # rename to your Fly app name
+app = "aloud-cloud"           # rename to your Fly app name
 primary_region = "sjc"         # pick the region nearest your users
 
 [build]

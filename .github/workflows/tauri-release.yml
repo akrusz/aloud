@@ -8,7 +8,7 @@ name: Build Release (Tauri)
 #
 # UNTESTED until a real release runs this — see dev-docs/desktop.md. Required
 # repo config:
-#   - var  ALOUD_SERVER_URL          hosted /cloud/v1 origin baked into the
+#   - var  ALOUD_CLOUD_URL          hosted /cloud/v1 origin baked into the
 #                                    desktop UI so credits work (else cloud off)
 #   - secrets (macOS signing + notarization; same ones build.yml already uses):
 #     MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD, MACOS_SIGN_IDENTITY,
@@ -25,7 +25,7 @@ permissions:
 env:
   # Baked into the UI build so the desktop app can reach the hosted service
   # (/cloud/v1) for accounts + credits. Local providers work without it.
-  VITE_ALOUD_SERVER_URL: ${{ vars.ALOUD_SERVER_URL }}
+  VITE_ALOUD_CLOUD_URL: ${{ vars.ALOUD_CLOUD_URL }}
 
 jobs:
   tauri-macos:

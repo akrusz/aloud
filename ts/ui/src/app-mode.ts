@@ -3,8 +3,8 @@
  * by default, keys behind the "use my own keys" toggle) vs 'local' (desktop /
  * full dev: every provider available, Ollama + APIs on).
  *
- * The build default is whether a hosted server URL was baked in
- * (cloud-base.isHostedBuild): a hosted build defaults to 'web', a plain
+ * The build default is whether an aloud cloud URL was baked in
+ * (cloud-base.isCloudBuild): a hosted build defaults to 'web', a plain
  * dev/desktop build to 'local'.
  *
  * For DEVELOPMENT you can force either mode at runtime — no rebuild, no settings
@@ -19,11 +19,11 @@
  * false, so in any deployed build readOverride() short-circuits to null (and the
  * branch tree-shakes away) — a visitor to the hosted site CANNOT force local
  * mode to unlock Ollama or skip the BYOK opt-in. Web mode is locked in by the
- * build default (isHostedBuild) with no runtime way around it. No config to
+ * build default (isCloudBuild) with no runtime way around it. No config to
  * maintain; it's enforced at compile time.
  */
 
-import { isHostedBuild } from './cloud-base.js';
+import { isCloudBuild } from './cloud-base.js';
 
 export type AppMode = 'web' | 'local';
 
@@ -61,7 +61,7 @@ export function initAppMode(): void {
 
 /** The active mode: a dev override if set, else the build default. */
 export function appMode(): AppMode {
-    return readOverride() ?? (isHostedBuild() ? 'web' : 'local');
+    return readOverride() ?? (isCloudBuild() ? 'web' : 'local');
 }
 
 export function isWebMode(): boolean {

@@ -1,11 +1,11 @@
 /**
- * server-auth.ts — the hosted-session token flow. Covers the new Google
+ * cloud-auth.ts — the hosted-session token flow. Covers the new Google
  * sign-in path (meditation-pal-rfb) and the dev fallback, with an injected KV
  * + fetch so it runs hermetically in Node.
  *
  * Note: VITE_GOOGLE_CLIENT_ID is unset in the test env, so
- * isGoogleSignInConfigured() is false here — ensureServerToken takes the dev
- * branch. The Google-configured branch (throws ServerSignInRequiredError) is a
+ * isGoogleSignInConfigured() is false here — ensureCloudToken takes the dev
+ * branch. The Google-configured branch (throws CloudSignInRequiredError) is a
  * build-time toggle we can't flip per-test; it's exercised by typecheck + the
  * unit assertion on googleSignIn directly.
  */
@@ -14,13 +14,13 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
     googleSignIn,
     devSignIn,
-    ensureServerToken,
-    getServerToken,
-    clearServerToken,
+    ensureCloudToken,
+    getCloudToken,
+    clearCloudToken,
     isGoogleSignInConfigured,
-    setServerAuthBackend,
-    setServerAuthFetch,
-} from '../ui/src/server-auth.js';
+    setCloudAuthBackend,
+    setCloudAuthFetch,
+} from '../ui/src/cloud-auth.js';
 import type { KvStorage } from '../src/platform/storage.js';
 
 class MemoryKv implements KvStorage {
@@ -52,13 +52,13 @@ let kv: MemoryKv;
 
 beforeEach(() => {
     kv = new MemoryKv();
-    setServerAuthBackend(kv);
+    setCloudAuthBackend(kv);
 });
 
 describe('googleSignIn', () => {
     it('POSTs the ID token as JSON and caches the returned session token', async () => {
         let seen: { url: string; init?: RequestInit } | null = null;
-        setServerAuthFetch(async (url, init) => {
+        setCloudAuthFetch(async (url, init) => {
             seen = { url: String(url), init };
             return new Response(JSON.stringify(AUTH_BODY), { status: 200 });
         });
@@ -69,40 +69,40 @@ describe('googleSignIn', () => {
         expect(seen!.url).toMatch(/\/cloud\/v1\/auth\/google$/);
         expect(seen!.init?.method).toBe('POST');
         expect(JSON.parse(String(seen!.init?.body))).toEqual({ idToken: 'id-token-xyz' });
-        // Token is cached for subsequent ensureServerToken() calls.
-        expect(await getServerToken()).toBe('tok-google');
+        // Token is cached for subsequent ensureCloudToken() calls.
+        expect(await getCloudToken()).toBe('tok-google');
     });
 
     it('throws a friendly message when the server rejects the token (401)', async () => {
-        setServerAuthFetch(async () => new Response('nope', { status: 401 }));
+        setCloudAuthFetch(async () => new Response('nope', { status: 401 }));
         await expect(googleSignIn('bad')).rejects.toThrow(/rejected/i);
-        expect(await getServerToken()).toBeNull();
+        expect(await getCloudToken()).toBeNull();
     });
 });
 
-describe('ensureServerToken', () => {
+describe('ensureCloudToken', () => {
     it('returns a cached token without any network call', async () => {
         await kv.set('server:token', 'cached');
-        setServerAuthFetch(async () => {
+        setCloudAuthFetch(async () => {
             throw new Error('should not fetch when a token is cached');
         });
-        expect(await ensureServerToken()).toBe('cached');
+        expect(await ensureCloudToken()).toBe('cached');
     });
 
     it('falls back to dev sign-in when Google is not configured (dev build)', async () => {
         // Guard the assumption this whole branch rests on.
         expect(isGoogleSignInConfigured()).toBe(false);
-        setServerAuthFetch(async () =>
+        setCloudAuthFetch(async () =>
             new Response(JSON.stringify({ ...AUTH_BODY, token: 'tok-dev' }), { status: 200 })
         );
-        await clearServerToken();
-        expect(await ensureServerToken()).toBe('tok-dev');
+        await clearCloudToken();
+        expect(await ensureCloudToken()).toBe('tok-dev');
     });
 });
 
 describe('devSignIn', () => {
     it('surfaces the production-mode 404 as a clear message', async () => {
-        setServerAuthFetch(async () => new Response('', { status: 404 }));
+        setCloudAuthFetch(async () => new Response('', { status: 404 }));
         await expect(devSignIn()).rejects.toThrow(/production mode/i);
     });
 });

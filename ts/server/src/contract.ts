@@ -1,6 +1,6 @@
 /**
  * The wire contract between the aloud client (ts/ui, Capacitor) and this
- * hosted server. This is the ENTIRE coupling surface between the two —
+ * aloud cloud. This is the ENTIRE coupling surface between the two —
  * everything else here is server-private. Keep it small and stable.
  *
  * The client half lives today in ts/ui/src/adapters/claude-proxy-http.ts
@@ -16,7 +16,7 @@
 
 import type { Message } from '@aloud/core/llm';
 
-/** Providers the hosted server is willing to forward to. The web tier's
+/** Providers the aloud cloud is willing to forward to. The web tier's
  *  ONLY LLM source is this server; on-device + bring-your-own-key live in
  *  the app-store / desktop builds and never touch this contract. */
 export type ProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
@@ -92,7 +92,7 @@ export interface SpeakRequest {
 /** GET /cloud/v1/voices — public. The curated hosted voices the server can speak
  *  (empty when TTS isn't configured). The client merges these into its voice
  *  picker; the `name` is what it stores and sends back as the /cloud/v1/tts `voice`. */
-export interface HostedVoice {
+export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
 }

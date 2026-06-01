@@ -51,7 +51,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
         if (!isModelAllowed(body.provider, body.model)) {
             return c.json(
-                apiError('model_not_allowed', `model not available on aloud server: ${body.provider}/${body.model}`),
+                apiError('model_not_allowed', `model not available on aloud cloud: ${body.provider}/${body.model}`),
                 ERROR_STATUS.model_not_allowed
             );
         }

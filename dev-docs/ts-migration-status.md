@@ -48,7 +48,7 @@ typecheck + 73 tests, `cargo check` — all green.
 **Now unblocked:** meditation-pal-sk8 (delete Python/Flask) — clk + bkg give the
 desktop and web targets Flask-free backends. Before deleting, run the manual
 verifications noted on each bead (desktop runtime flows; a web build against the
-hosted server; a real Tauri release).
+aloud cloud; a real Tauri release).
 
 ## Prior session
 
@@ -78,7 +78,7 @@ Things that were either in this session's brief but skipped, or near-by and wort
 ### Skipped from the brief
 
 - **`mobile-quirks.js`** (62 LOC) — handles iOS Safari AudioContext suspension + Socket.IO reconnect. Doesn't have a clean 1:1 in the TS UI: the socket-reconnect half is N/A (TS uses HTTP/fetch + streaming, not Socket.IO), and the AudioContext-resume half depends on a shared `state.audioContext` pattern that TS deliberately moved away from (per-adapter contexts in `BargeInListener` and `ServerWhisperStt`). A useful port would need a small registry pattern so adapters can opt in for visibility-driven resume — recommended as a follow-up.
-- **`audio-utils.js`** (53 LOC) — `setAudioPlaying` + `decodeAndPlay`. Superseded by the `HTMLAudioElement`-based `ServerTtsEngine` (which deliberately replaced Web Audio decode for Firefox-suspension reasons) and the streaming-tts pipeline. The `state.serverAudioPlaying` / `state.ttsSpeaking` flags don't have analogues in the TS UI; equivalent state lives inside per-adapter classes. Nothing to port.
+- **`audio-utils.js`** (53 LOC) — `setAudioPlaying` + `decodeAndPlay`. Superseded by the `HTMLAudioElement`-based `CloudTtsEngine` (which deliberately replaced Web Audio decode for Firefox-suspension reasons) and the streaming-tts pipeline. The `state.serverAudioPlaying` / `state.ttsSpeaking` flags don't have analogues in the TS UI; equivalent state lives inside per-adapter classes. Nothing to port.
 - **`noting.js`** (496 LOC) — round-robin noting circle orchestrator. **DONE as of `39db8c0`** (was open when this section was written). The orchestrator is `ui/src/views/noting-session.ts` (579 LOC); the participant configurator is live in `ui/src/views/setup.ts` (`#participant-list` + per-participant voice dropdowns), no longer a disabled placeholder. See the 2026-05-28c reconciliation note at the top.
 
 ### Other frontend gaps (not in the session brief, but visible)

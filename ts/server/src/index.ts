@@ -79,7 +79,7 @@ async function main(): Promise<void> {
     }
 
     serve({ fetch: app.fetch, port: config.port }, (info) => {
-        log.info('aloud server up', {
+        log.info('aloud cloud up', {
             port: info.port,
             providers: configuredProviders(config),
             billing: Boolean(config.stripeSecretKey),

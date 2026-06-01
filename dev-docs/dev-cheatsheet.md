@@ -14,7 +14,7 @@ Two stacks live side by side:
 | `src/`, `tests/` | **Python / Flask** (legacy) | The original app + dev-preview backend. Still ships via PyInstaller this cycle; being removed (meditation-pal-sk8). |
 | `ts/src/` | TS — `@aloud/core` | Shared engine: pacing, prompts, session, noting, LLM providers, platform adapters. |
 | `ts/ui/` | TS — Vite, vanilla ES modules | The web UI (`ui/src/`, builds to `ui/dist/`). No framework, no build step beyond Vite. |
-| `ts/server/` | TS — Hono | The **hosted cloud service**: Google auth, credit ledger, metered LLM/STT/TTS forwarding, billing. |
+| `ts/server/` | TS — Hono | **aloud cloud**: Google auth, credit ledger, metered LLM/STT/TTS forwarding, billing. |
 | `ts/src-tauri/` | Rust — Tauri 2 | The **desktop shell**: an embedded `axum` backend (native Whisper/Piper/Ollama/claude-CLI) + the webview that loads `ui/`. |
 
 ### Two backend namespaces
@@ -29,8 +29,8 @@ The UI talks to two backends, named by role (see `ui/src/app-base.ts` /
   billing, metered forwarding). Always the **Hono** server.
 
 On desktop the Rust shell injects `window.__ALOUD_API_BASE__` (its loopback
-port) so `/app/v1` resolves locally; `/cloud/v1` points at the hosted server
-(baked in at build time via `VITE_ALOUD_SERVER_URL`).
+port) so `/app/v1` resolves locally; `/cloud/v1` points at the aloud cloud
+(baked in at build time via `VITE_ALOUD_CLOUD_URL`).
 
 ## Running
 
@@ -66,7 +66,7 @@ Flask**. Run `cd ts/server && npm run dev` and load :4649.
 **Local vs web mode (dev override).** The app runs in `local` mode (all
 providers: Ollama + every BYOK API) or `web` mode (the hosted demo: Ollama
 hidden, BYOK off behind a settings checkbox). The build default keys off
-`isHostedBuild()` (whether `VITE_ALOUD_SERVER_URL` was baked in). In **dev** you
+`isCloudBuild()` (whether `VITE_ALOUD_CLOUD_URL` was baked in). In **dev** you
 can force either with a URL param — no rebuild, no settings change — so you can
 keep both open in two tabs:
 - `:4649/?mode=web` — force web mode
@@ -164,8 +164,8 @@ cycle:
 - `build.yml` — the legacy PyInstaller DMG/EXE/AppImage.
 - `tauri-release.yml` — the Tauri bundles (artifacts carry a `-tauri` suffix so
   they don't collide). macOS signs + notarizes via the existing `APPLE_*` /
-  `MACOS_*` secrets; the desktop UI build bakes `VITE_ALOUD_SERVER_URL` from the
-  repo var `ALOUD_SERVER_URL`.
+  `MACOS_*` secrets; the desktop UI build bakes `VITE_ALOUD_CLOUD_URL` from the
+  repo var `ALOUD_CLOUD_URL`.
 
 Full build/signing detail: [building.md](building.md) (PyInstaller) and
 [desktop.md](desktop.md) (Tauri — endpoint list, prereqs, release + cutover).
@@ -178,10 +178,10 @@ Full build/signing detail: [building.md](building.md) (PyInstaller) and
   `GOOGLE_TTS_API_KEY`, `ALOUD_SESSION_SECRET`, `GOOGLE_CLIENT_IDS`, Stripe keys,
   `ALOUD_ADMIN_TOKEN`, and `ALOUD_UI_DIR` (serve `ui/dist` from the same process
   — the single-box self-host story).
-- **UI build**: `VITE_ALOUD_SERVER_URL` — the hosted origin baked into a
+- **UI build**: `VITE_ALOUD_CLOUD_URL` — the hosted origin baked into a
   static/desktop build so `/app/v1` + `/cloud/v1` resolve off-origin (unset in
   dev; the Vite proxy handles it).
-- **Vite dev overrides**: `ALOUD_SERVER_URL` (Hono — both `/app` and `/cloud`
+- **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono — both `/app` and `/cloud`
   proxy targets), `OLLAMA_URL`. (`ALOUD_BACKEND_URL`/Flask is gone since the
   `/app` cutover, meditation-pal-5d9.)
 - **BYOK keys** entered in the UI live in the browser's localStorage and are

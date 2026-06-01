@@ -30,8 +30,8 @@ import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
 import { wrapTtsWithBargeIn } from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
-import { ServerLlmProvider, type ServerProviderId } from '../adapters/server-llm.js';
-import { ensureServerToken } from '../server-auth.js';
+import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
+import { ensureCloudToken } from '../cloud-auth.js';
 
 import {
     createSttForChoice,
@@ -41,8 +41,8 @@ import {
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
-import { createTtsForVoice, createServerAloudTts } from '../adapters/tts-picker.js';
-import { ServerWhisperSttEngine } from '../adapters/server-whisper-stt.js';
+import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
+import { CloudWhisperSttEngine } from '../adapters/cloud-whisper-stt.js';
 import { type SessionSetup, dirStepToBackend } from '../settings.js';
 import { loadAppSettings } from '../app-settings.js';
 import { sessionStore } from '../state.js';
@@ -62,7 +62,7 @@ import { appUrl } from '../app-base.js';
 import {
     buildScoredVoiceList,
     fetchServerVoices,
-    fetchHostedVoices,
+    fetchCloudVoices,
     prefixedVoiceId,
     previewVoice as runVoicePreview,
     renderVoiceList,
@@ -87,14 +87,14 @@ export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
             // Hosted, metered proxy. Sign in (dev flow until OAuth lands) so the
             // request carries a bearer token. setup.model is "provider/model";
             // the model id itself may contain a slash (openrouter), so split once.
-            await ensureServerToken();
+            await ensureCloudToken();
             const slash = setup.model.indexOf('/');
             const sub = slash > 0 ? setup.model.slice(0, slash) : '';
             const model = slash > 0 ? setup.model.slice(slash + 1) : '';
             if (!sub || !model) {
-                throw new Error('Pick a model for the hosted aloud server in Settings.');
+                throw new Error('Pick a model for the aloud cloud in Settings.');
             }
-            return new ServerLlmProvider({ provider: sub as ServerProviderId, model });
+            return new CloudLlmProvider({ provider: sub as CloudProviderId, model });
         }
         case 'ollama':
             return new OllamaProvider({ baseUrl: OLLAMA_PROXY_URL, ...modelOpt });
@@ -241,7 +241,7 @@ export async function mountSessionView(
     // report it as 'server-whisper' downstream. Fall back to the best local
     // option if hosted STT can't initialize (e.g. no mic).
     // The STT source is an explicit, mode-resolved choice (Settings / setup) —
-    // Whisper locally, browser speech, or the hosted server (credits). No
+    // Whisper locally, browser speech, or the aloud cloud (credits). No
     // hidden automatic; resolveSttChoice falls back to the mode's flow default
     // when nothing's been chosen.
     const sttChoice = resolveSttChoice(appSettings.sttEngine, isWebMode());
@@ -266,7 +266,7 @@ export async function mountSessionView(
             // voice) — honor it by falling through to the normal picker instead
             // of overriding it with the hosted default (the Ava→Leda bug).
             const v = voiceId?.startsWith('aloud:') ? voiceId.slice('aloud:'.length) : '';
-            engine = createServerAloudTts(v, ttsOpts);
+            engine = createCloudAloudTts(v, ttsOpts);
         } else {
             ({ engine } = await createTtsForVoice(voiceId, ttsOpts));
         }
@@ -305,7 +305,7 @@ export async function mountSessionView(
     // For the server-Whisper STT path, barge-in is detected on its continuous
     // (echo-cancelled) capture stream — see setBargeInHandler below. Wiring it
     // up here, after the tts wrapper exists; the engine cancels the live TTS.
-    if (sttBackend === 'server-whisper' && stt instanceof ServerWhisperSttEngine) {
+    if (sttBackend === 'server-whisper' && stt instanceof CloudWhisperSttEngine) {
         stt.setBargeInHandler(() => {
             void tts.cancel();
             onBargeIn();
@@ -555,7 +555,7 @@ export async function mountSessionView(
             // and the loop resumes listening so the session isn't wedged.
             // Hosted credit/auth failures get a clear, actionable message.
             const msg = (err as Error).message;
-            showErrorToast(describeHostedError(msg) ?? `Something went wrong: ${msg}`);
+            showErrorToast(describeCloudError(msg) ?? `Something went wrong: ${msg}`);
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {
             busy = false;
@@ -770,7 +770,7 @@ export async function mountSessionView(
     void initVoicePicker();
 
     async function initVoicePicker(): Promise<void> {
-        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchHostedVoices()]);
+        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         scoredVoices = buildScoredVoiceList(server, true, hosted);
         updateVoicePickerLabel();
     }
@@ -1218,15 +1218,15 @@ function stripVoicePrefix(voice: string | null): string | null {
  * both the code names and the embedded HTTP status. Returns null when the error
  * isn't a recognized hosted condition, so callers keep their own phrasing.
  */
-function describeHostedError(msg: string): string | null {
+function describeCloudError(msg: string): string | null {
     if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
-        return 'aloud (hosted) requires credits — purchase more, or choose a different provider in Settings.';
+        return 'aloud cloud requires credits — purchase more, or choose a different provider in Settings.';
     }
     if (/unauthenticated|endpoint 401/i.test(msg)) {
-        return 'aloud (hosted) needs you to sign in again — check Settings.';
+        return 'aloud cloud needs you to sign in again — check Settings.';
     }
     if (/email_unverified|endpoint 403/i.test(msg)) {
-        return 'Verify your email to use aloud (hosted), then try again.';
+        return 'Verify your email to use aloud cloud, then try again.';
     }
     if (/quota_exceeded|endpoint 429/i.test(msg)) {
         return "You've hit aloud's rate limit — wait a moment and try again.";
@@ -1238,7 +1238,7 @@ function describeSttError(err: unknown): string {
     const msg = err instanceof Error ? err.message : String(err);
     // Hosted (aloud) conditions — credits / auth — get a clear, actionable line
     // instead of a raw "Whisper endpoint 402: {json}".
-    const hosted = describeHostedError(msg);
+    const hosted = describeCloudError(msg);
     if (hosted) return hosted;
     // Common cases that benefit from plain-English status text.
     if (/Whisper endpoint 5\d\d/.test(msg) || /failed to fetch/i.test(msg)) {

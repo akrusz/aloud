@@ -37,10 +37,10 @@ export interface ProviderMeta {
 }
 
 export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
-    // Hosted aloud server: no key, no local model — credits-metered premium
+    // aloud cloud: no key, no local model — credits-metered premium
     // LLMs. The only LLM source for the web tier (meditation-pal-vd3). Shown
-    // only when the server is reachable.
-    { value: 'aloud', label: 'aloud (hosted)', needsKey: false, requires: 'hosted' },
+    // only when aloud cloud is reachable.
+    { value: 'aloud', label: 'aloud cloud', needsKey: false, requires: 'cloud' },
     // Local Ollama — only when a daemon is actually reachable (e.g. not on the
     // hosted website).
     { value: 'ollama', label: 'Ollama (Local)', needsKey: false, requires: 'ollama' },
@@ -56,7 +56,7 @@ export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
 export interface ProviderAvailabilityOpts {
     /** Web mode — the hosted demo (app-mode.isWebMode()): Ollama + local
      *  providers off, BYOK off unless opted in. Build default keys off
-     *  isHostedBuild, but a dev override can force it (see app-mode.ts). */
+     *  isCloudBuild, but a dev override can force it (see app-mode.ts). */
     webMode?: boolean;
     /** User opted into bring-your-own-key in web mode. */
     allowByok?: boolean;
@@ -67,7 +67,7 @@ export interface ProviderAvailabilityOpts {
  *    web mode regardless of what a local probe found — the hosted demo is
  *    server-only, and a forced-web dev session shouldn't surface a stray local
  *    daemon.
- *  - Other `requires` providers (the hosted service) need that capability.
+ *  - Other `requires` providers (aloud cloud) need that capability.
  *  - BYOK providers (no `requires`): shown by default, but hidden in web mode
  *    unless the user explicitly enables BYOK (asking a public site's visitors
  *    for their own API key feels wrong; opt-in instead). */

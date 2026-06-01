@@ -53,7 +53,7 @@ type VadFields = Pick<
     'silenceBaseMs' | 'silenceMaxMs' | 'silenceRampRate' | 'minSpeechDurationMs'
 >;
 
-export interface ServerWhisperSttEngineOptions extends Partial<VadFields> {
+export interface CloudWhisperSttEngineOptions extends Partial<VadFields> {
     /** Endpoint URL. Default '/api/stt/whisper' — Vite proxies in dev. */
     endpointUrl?: string;
     /** RMS energy floor below which a frame is counted as silence. */
@@ -63,14 +63,14 @@ export interface ServerWhisperSttEngineOptions extends Partial<VadFields> {
     /** Custom fetch (tests). */
     fetchImpl?: typeof fetch;
     /** When present, each transcription request carries `Authorization: Bearer
-     *  <token>`. Used to target the hosted server's authed /v1/stt (vs the
+     *  <token>`. Used to target the aloud cloud's authed /v1/stt (vs the
      *  open Flask /api/stt/whisper). Returning null sends no auth header. */
     authProvider?: () => Promise<string | null>;
 }
 
-export class ServerWhisperSttEngine implements SttEngine {
+export class CloudWhisperSttEngine implements SttEngine {
     private readonly opts: Required<
-        Omit<ServerWhisperSttEngineOptions, 'fetchImpl' | 'authProvider'>
+        Omit<CloudWhisperSttEngineOptions, 'fetchImpl' | 'authProvider'>
     > & {
         fetchImpl: typeof fetch;
         authProvider: (() => Promise<string | null>) | null;
@@ -99,7 +99,7 @@ export class ServerWhisperSttEngine implements SttEngine {
     private bargeInChunks = 0;
     private bargeInFired = false;
 
-    constructor(options: ServerWhisperSttEngineOptions = {}) {
+    constructor(options: CloudWhisperSttEngineOptions = {}) {
         this.opts = {
             endpointUrl: options.endpointUrl ?? '/app/v1/stt/whisper',
             energyThreshold: options.energyThreshold ?? 0.015,

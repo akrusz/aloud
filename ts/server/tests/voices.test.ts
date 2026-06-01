@@ -3,7 +3,7 @@ import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { resolveVoiceId, defaultVoice, CURATED_VOICES } from '../src/providers/voice-catalog.js';
-import type { HostedVoice } from '../src/contract.js';
+import type { CloudVoice } from '../src/contract.js';
 
 describe('voice catalog', () => {
     it('resolves a curated short name to its Google id', () => {
@@ -27,7 +27,7 @@ describe('GET /cloud/v1/voices', () => {
         const app = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k' })));
         const res = await app.request('/cloud/v1/voices');
         expect(res.status).toBe(200);
-        const voices = (await res.json()) as HostedVoice[];
+        const voices = (await res.json()) as CloudVoice[];
         expect(voices.map((v) => v.name)).toEqual(['Pulcherrima', 'Sadachbia', 'Leda']);
         expect(voices.every((v) => 'gender' in v)).toBe(true);
     });

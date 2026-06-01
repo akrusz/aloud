@@ -4,7 +4,7 @@
 //! Piper (neural, ONNX via `piper-rs`) cross-platform, plus macOS `say` as a
 //! zero-setup local engine on Darwin. Shapes mirror `src/tts/` (PIPER_VOICES,
 //! aggregate_voices, the preview WAV contract) so the existing TS adapters
-//! (`voices.ts`, `server-tts.ts`) are unchanged.
+//! (`voices.ts`, `cloud-tts.ts`) are unchanged.
 //!
 //! Piper models are downloaded on demand: the first preview/synthesis of a
 //! voice pulls its `.onnx`/`.onnx.json` from Hugging Face into `piper_dir`,

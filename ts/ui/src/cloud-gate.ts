@@ -2,7 +2,7 @@
  * Cloud-access gate for starting a session (meditation-pal-rfb).
  *
  * Sign-in/credits aren't tied to the LLM provider alone — Cloud STT and Cloud
- * TTS bill independently, and all three funnel through `ensureServerToken()`.
+ * TTS bill independently, and all three funnel through `ensureCloudToken()`.
  * The LLM path fetches the token eagerly (buildProvider), but STT/TTS fetch it
  * lazily (first transcription / first spoken response), so a naive "catch at
  * build" would let an STT-only hosted session start and then fail mid-utterance.
@@ -10,14 +10,14 @@
  * So we pre-flight at session start: if the session will touch ANY credit-
  * metered cloud service and we don't already hold a token, surface the sign-in
  * modal before anything runs. Dev builds with no Google client id fall through —
- * their lazy dev sign-in (server-auth.ensureServerToken) handles it.
+ * their lazy dev sign-in (cloud-auth.ensureCloudToken) handles it.
  */
 
 import type { SessionSetup } from './settings.js';
 import type { AppSettings } from './app-settings.js';
 import { resolveSttChoice } from './adapters/stt-picker.js';
 import { isWebMode } from './app-mode.js';
-import { getServerToken, isGoogleSignInConfigured } from './server-auth.js';
+import { getCloudToken, isGoogleSignInConfigured } from './cloud-auth.js';
 import { showSignInModal } from './sign-in-modal.js';
 
 /** Whether this session will hit a credit-metered cloud service: the hosted
@@ -48,7 +48,7 @@ export async function ensureCloudAccess(
     settings: AppSettings
 ): Promise<boolean> {
     if (!sessionUsesCloud(setup, settings, isWebMode())) return true;
-    if (await getServerToken()) return true;
+    if (await getCloudToken()) return true;
     if (!isGoogleSignInConfigured()) return true; // dev build → lazy dev sign-in
     return showSignInModal();
 }

@@ -10,7 +10,7 @@
  * `'/session'`); these helpers translate to/from the real `location.pathname`
  * so pushState/replaceState, popstate, and the initial deep-link resolve under
  * either base. API URLs are NOT affected — those are absolute, cross-origin to
- * the server via VITE_ALOUD_SERVER_URL (see app-base.ts / cloud-base.ts).
+ * the server via VITE_ALOUD_CLOUD_URL (see app-base.ts / cloud-base.ts).
  *
  * The `*For(prefix, …)` functions are pure (prefix passed in) so the prefix
  * math is unit-testable at both bases; the bound `routePath`/`appPath` exports

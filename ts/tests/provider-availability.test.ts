@@ -19,7 +19,7 @@ beforeAll(async () => {
 
 const caps = (over: Partial<Capabilities>): Capabilities => ({
     flask: false,
-    hosted: false,
+    cloud: false,
     ollama: false,
     ...over,
 });
@@ -30,9 +30,9 @@ describe('isProviderAvailable', () => {
         expect(mod.isProviderAvailable(byok, caps({}))).toBe(true);
     });
 
-    it('gates aloud-hosted on the server, Ollama on a local daemon, claude_proxy on Flask', () => {
+    it('gates aloud cloud on the service, Ollama on a local daemon, claude_proxy on Flask', () => {
         const get = (v: string) => mod.ALL_PROVIDERS.find((p) => p.value === v)!;
-        expect(mod.isProviderAvailable(get('aloud'), caps({ hosted: true }))).toBe(true);
+        expect(mod.isProviderAvailable(get('aloud'), caps({ cloud: true }))).toBe(true);
         expect(mod.isProviderAvailable(get('aloud'), caps({}))).toBe(false);
         expect(mod.isProviderAvailable(get('ollama'), caps({ ollama: true }))).toBe(true);
         expect(mod.isProviderAvailable(get('ollama'), caps({}))).toBe(false);
@@ -47,16 +47,16 @@ describe('isProviderAvailable', () => {
 
     it('in web mode, BYOK is hidden unless explicitly enabled', () => {
         const byok = mod.ALL_PROVIDERS.find((p) => p.value === 'anthropic')!;
-        expect(mod.isProviderAvailable(byok, caps({ hosted: true }), { webMode: true })).toBe(false);
+        expect(mod.isProviderAvailable(byok, caps({ cloud: true }), { webMode: true })).toBe(false);
         expect(
-            mod.isProviderAvailable(byok, caps({ hosted: true }), { webMode: true, allowByok: true })
+            mod.isProviderAvailable(byok, caps({ cloud: true }), { webMode: true, allowByok: true })
         ).toBe(true);
     });
 
     it('web mode hides local providers even when a local daemon IS reachable', () => {
         // A forced-web dev session (or the hosted site) must not surface a stray
         // local Ollama / Flask the capability probe happened to find.
-        const localUp = caps({ hosted: true, ollama: true, flask: true });
+        const localUp = caps({ cloud: true, ollama: true, flask: true });
         expect(mod.isProviderAvailable(mod.ALL_PROVIDERS.find((p) => p.value === 'ollama')!, localUp, { webMode: true })).toBe(false);
         expect(mod.isProviderAvailable(mod.ALL_PROVIDERS.find((p) => p.value === 'claude_proxy')!, localUp, { webMode: true })).toBe(false);
         // ...but local mode still shows them.
@@ -64,7 +64,7 @@ describe('isProviderAvailable', () => {
     });
 
     it('web mode (BYOK off): shows aloud only; (BYOK on): adds the key providers', () => {
-        const caps0 = caps({ hosted: true });
+        const caps0 = caps({ cloud: true });
         const off = mod.ALL_PROVIDERS.filter((p) =>
             mod.isProviderAvailable(p, caps0, { webMode: true })
         ).map((p) => p.value);

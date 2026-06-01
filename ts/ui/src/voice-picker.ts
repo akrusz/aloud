@@ -13,7 +13,7 @@
  *   0  Other    — everything else
  *
  * A separate "Best" group appears above the tiers and is reserved for the
- * genuinely top-quality voices: the hosted (aloud server) voices and Chrome's
+ * genuinely top-quality voices: the hosted (aloud cloud) voices and Chrome's
  * cloud voices. Local engines (macOS Premium, Piper) are good but sort into the
  * Premium/Standard tiers below rather than Best.
  */
@@ -42,8 +42,8 @@ export interface ServerVoice {
 }
 
 /** A curated hosted voice from the server's GET /v1/voices (mirrors the
- *  server's HostedVoice contract by hand). */
-export interface HostedVoice {
+ *  server's CloudVoice contract by hand). */
+export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
 }
@@ -134,7 +134,7 @@ export function scoreVoice(name: string, engine?: string): number {
 export function buildScoredVoiceList(
     serverVoices: readonly ServerVoice[] | null,
     includeBrowserVoices: boolean,
-    hostedVoices: readonly HostedVoice[] = []
+    hostedVoices: readonly CloudVoice[] = []
 ): ScoredVoice[] {
     const langPrefix = (navigator.language || 'en').split(/[-_]/)[0];
     const browserVoices =
@@ -654,27 +654,27 @@ export function downloadPercent(p: DownloadProgress): number {
 }
 
 // ---------------------------------------------------------------------------
-// /v1/voices loader (hosted server)
+// /v1/voices loader (aloud cloud)
 // ---------------------------------------------------------------------------
 
-let hostedVoicesCache: HostedVoice[] | null = null;
+let cloudVoicesCache: CloudVoice[] | null = null;
 
 /**
  * Fetch the curated hosted voices from the server. Returns [] (cached) when the
  * server is unreachable or has no TTS key — so the picker only surfaces hosted
  * voices that can actually speak (availability-driven menus).
  */
-export async function fetchHostedVoices(force = false): Promise<HostedVoice[]> {
-    if (!force && hostedVoicesCache !== null) return hostedVoicesCache;
+export async function fetchCloudVoices(force = false): Promise<CloudVoice[]> {
+    if (!force && cloudVoicesCache !== null) return cloudVoicesCache;
     try {
         const response = await fetch(cloudUrl('/voices'));
-        hostedVoicesCache = response.ok ? ((await response.json()) as HostedVoice[]) : [];
+        cloudVoicesCache = response.ok ? ((await response.json()) as CloudVoice[]) : [];
     } catch {
-        hostedVoicesCache = [];
+        cloudVoicesCache = [];
     }
-    return hostedVoicesCache;
+    return cloudVoicesCache;
 }
 
-export function invalidateHostedVoicesCache(): void {
-    hostedVoicesCache = null;
+export function invalidateCloudVoicesCache(): void {
+    cloudVoicesCache = null;
 }

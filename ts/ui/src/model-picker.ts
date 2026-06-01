@@ -39,7 +39,7 @@ let providerStatusCache: Record<string, { available: boolean; models?: string[] 
 export async function fetchModels(provider: string): Promise<ModelOption[] | null> {
     if (cache.has(provider)) return cache.get(provider)!;
 
-    // Hosted aloud server publishes its allowlisted models (with pricing) at
+    // aloud cloud publishes its allowlisted models (with pricing) at
     // /v1/me/models — public, no auth. The option value encodes provider/model
     // so buildProvider can route the turn (model ids may themselves contain a
     // slash, e.g. openrouter, so the leading segment is the provider).

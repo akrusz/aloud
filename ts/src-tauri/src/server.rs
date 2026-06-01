@@ -211,7 +211,7 @@ struct SttQuery {
 }
 
 /// Transcribe raw f32 mono PCM. Body and response match the old Flask route so
-/// the existing ServerWhisperSttEngine adapter is unchanged.
+/// the existing CloudWhisperSttEngine adapter is unchanged.
 async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,

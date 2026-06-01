@@ -10,7 +10,7 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 
-const ISSUER = 'aloud-server';
+const ISSUER = 'aloud-cloud';
 const TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionClaims {

@@ -1,10 +1,10 @@
-# aloud hosted server (@aloud/server) — deploy image. meditation-pal-a3u.
+# aloud cloud (@aloud/server) — deploy image. meditation-pal-a3u.
 #
 # BUILD CONTEXT IS THE ts/ WORKSPACE ROOT, not ts/server. The server runs via
 # tsx and resolves the `@aloud/core` path alias (../src) at runtime, so core's
 # source must be in the image — the server's own files aren't enough. Build:
 #
-#   cd ts && docker build -f server/Dockerfile -t aloud-server .
+#   cd ts && docker build -f server/Dockerfile -t aloud-cloud .
 #
 # Fly does this for you: `fly deploy` from ts/ with server/fly.toml (its
 # [build] dockerfile points here). See dev-docs/deploy.md.

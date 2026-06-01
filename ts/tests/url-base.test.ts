@@ -5,7 +5,7 @@
  * gap that let an early /cloud/v1/v1 bug through. So assert the prefix directly.
  *
  * With no base configured (the test env sets neither window.__ALOUD_API_BASE__
- * nor VITE_ALOUD_SERVER_URL), both helpers return root-relative paths.
+ * nor VITE_ALOUD_CLOUD_URL), both helpers return root-relative paths.
  */
 import { describe, it, expect } from 'vitest';
 import { appUrl } from '../ui/src/app-base.js';

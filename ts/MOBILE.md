@@ -53,7 +53,7 @@ npm run cap:android      # builds + syncs + opens Android Studio
   later for higher-quality iOS voices.
 - **Storage**: `LocalStorageKv`. Works inside Capacitor but doesn't survive
   WebView data clears; long-term we should swap to Capacitor Preferences.
-- **LLM**: Anthropic via the hosted server proxy (`dbd` in beads),
+- **LLM**: Anthropic via the aloud cloud proxy (`dbd` in beads),
   Ollama via the user's own LAN if reachable — same code as the web preview.
 
 ## iOS Info.plist additions

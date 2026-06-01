@@ -1,7 +1,7 @@
 /**
  * Structured logger with a HARD privacy invariant: meditation content never
  * touches a log line. This is the operational half of meditation-pal-dn2
- * (no-retention default for the multi-user hosted server) — the architecture
+ * (no-retention default for the multi-user aloud cloud) — the architecture
  * already keeps sessions client-side, and this guarantees the one place
  * content transits the server (the forwarding proxy) doesn't quietly persist
  * it via logs.

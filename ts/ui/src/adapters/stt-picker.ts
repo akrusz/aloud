@@ -20,14 +20,14 @@ import type { SttEngine } from '../../../src/platform/stt.js';
 import type { PacingConfig } from '../../../src/facilitation/pacing.js';
 
 import { CapacitorSttEngine } from './capacitor-stt.js';
-import { ServerWhisperSttEngine } from './server-whisper-stt.js';
+import { CloudWhisperSttEngine } from './cloud-whisper-stt.js';
 import {
     WebSpeechSttEngine,
     isWebSpeechSupported,
     type WebSpeechSttEngineOptions,
 } from './web-speech-stt.js';
 import { cloudUrl } from '../cloud-base.js';
-import { ensureServerToken } from '../server-auth.js';
+import { ensureCloudToken } from '../cloud-auth.js';
 import { isTauri } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import type { SttEngineChoice } from '../app-settings.js';
@@ -49,7 +49,7 @@ const SERVER_WHISPER_PATH = '/stt/whisper';
 let cachedBackend: SttBackend | null = null;
 
 async function isServerWhisperReachable(): Promise<boolean> {
-    if (!ServerWhisperSttEngine.isAvailable()) return false;
+    if (!CloudWhisperSttEngine.isAvailable()) return false;
     try {
         // Empty POST → the backend returns 400 (route exists, body missing) or
         // 503 (model still loading). Either proves the STT route is wired. A 5xx
@@ -75,18 +75,18 @@ export function invalidateSttBackendCache(): void {
 }
 
 /**
- * STT that routes mic audio through the hosted server's authed /v1/stt (Groq
+ * STT that routes mic audio through the aloud cloud's authed /v1/stt (Groq
  * Whisper) instead of Flask. Same client-side capture/VAD as server-Whisper —
  * only the endpoint and a bearer token differ. Used when a session is on the
  * hosted ('aloud') provider so the whole pipeline runs against @aloud/server.
  * Returns null when mic capture isn't available in this environment.
  */
 export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
-    if (!ServerWhisperSttEngine.isAvailable()) return null;
-    return new ServerWhisperSttEngine({
+    if (!CloudWhisperSttEngine.isAvailable()) return null;
+    return new CloudWhisperSttEngine({
         ...vadOpts,
         endpointUrl: cloudUrl('/stt'),
-        authProvider: ensureServerToken,
+        authProvider: ensureCloudToken,
     });
 }
 
@@ -147,7 +147,7 @@ export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | 
         case 'web-speech':
             return new WebSpeechSttEngine(webSpeechOpts(vadOpts));
         case 'server-whisper':
-            return new ServerWhisperSttEngine({
+            return new CloudWhisperSttEngine({
                 ...vadOpts,
                 endpointUrl: appUrl(SERVER_WHISPER_PATH),
             });
@@ -185,7 +185,7 @@ export async function createSttForChoice(
             return isWebSpeechSupported() ? new WebSpeechSttEngine(webSpeechOpts(vadOpts)) : null;
         case 'whisper':
             return (await isServerWhisperReachable())
-                ? new ServerWhisperSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
+                ? new CloudWhisperSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
                 : null;
     }
 }
@@ -212,7 +212,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
     if (!webMode) out.push({ value: 'whisper', label: 'Whisper — on this device' });
     if (isWebSpeechSupported()) out.push({ value: 'web-speech', label: 'Browser speech recognition' });
-    out.push({ value: 'aloud', label: 'aloud server — uses credits' });
+    out.push({ value: 'aloud', label: 'aloud cloud — uses credits' });
     return out;
 }
 

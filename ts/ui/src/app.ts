@@ -66,7 +66,7 @@ export async function bootApp(): Promise<void> {
     const settings = await loadAppSettings();
     applyChromeSettings(settings);
 
-    // Probe the runtime environment (Flask / hosted server / Ollama) so menus
+    // Probe the runtime environment (Flask / aloud cloud / Ollama) so menus
     // and desktop-only controls can gate themselves to what's reachable.
     // Fire-and-forget — views read the cached value at render and tolerate the
     // initial `false`. (detectCapabilities also populates the is-desktop cache.)

@@ -16,7 +16,7 @@ import { appUrl } from '../app-base.js';
 
 /**
  * The UI carries TTS rate as words-per-minute (≈160 neutral; see
- * SessionSetup.ttsRate). The hosted server contract (and Google Cloud TTS)
+ * SessionSetup.ttsRate). The aloud cloud contract (and Google Cloud TTS)
  * wants a multiplier (1.0 = neutral). Mirror BrowserTtsEngine's normalization
  * so all engines agree on "normal": treat a value >5 as WPM (÷160), else as an
  * already-relative multiplier. (Flask's GET path takes WPM directly, so this
@@ -57,7 +57,7 @@ function synthCachePut(key: string, blob: Blob): void {
     SYNTH_CACHE.set(key, blob);
 }
 
-export interface ServerTtsEngineOptions {
+export interface CloudTtsEngineOptions {
     voice: string;
     engine?: string;
     endpointUrl?: string;
@@ -70,7 +70,7 @@ export interface ServerTtsEngineOptions {
     onSynthesize?: (chars: number) => void;
     /**
      * POST a JSON body ({text, voice, rate}) instead of a GET with query
-     * params, and attach a bearer token. Used to target the hosted server's
+     * params, and attach a bearer token. Used to target the aloud cloud's
      * authed /v1/tts (vs Flask's open GET /api/voices/preview), and to keep
      * the meditation text out of URL query strings that intermediaries log.
      */
@@ -82,12 +82,12 @@ export interface ServerTtsEngineOptions {
      * (the next authProvider() then re-signs-in). Without this, a cached token
      * that the server no longer accepts — expired, or minted under a previous
      * session secret — fails every hosted synthesis even though the LLM path
-     * self-heals. Wire to clearServerToken for the hosted engine.
+     * self-heals. Wire to clearCloudToken for the hosted engine.
      */
     onAuthError?: () => Promise<void>;
 }
 
-export class ServerTtsEngine implements TtsEngine {
+export class CloudTtsEngine implements TtsEngine {
     private readonly voiceId: string;
     private readonly engine: string | undefined;
     private readonly endpointUrl: string;
@@ -102,7 +102,7 @@ export class ServerTtsEngine implements TtsEngine {
     private currentResolve: (() => void) | null = null;
     private currentAbort: AbortController | null = null;
 
-    constructor(options: ServerTtsEngineOptions) {
+    constructor(options: CloudTtsEngineOptions) {
         this.voiceId = options.voice;
         this.engine = options.engine;
         this.endpointUrl = options.endpointUrl ?? appUrl('/voices/preview');

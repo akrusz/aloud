@@ -4,7 +4,7 @@
  * Mirrors the desktop fetchers (`src-tauri/src/providers.rs`, themselves a port
  * of Flask's `provider_routes.py`): query each provider's models API, filter to
  * chat-capable text models, and shape `[{value, label}]`. The BYOK key is
- * forwarded by the UI as `x-provider-key` (the hosted server never persists
+ * forwarded by the UI as `x-provider-key` (the aloud cloud never persists
  * it); OpenRouter is public and claude_proxy is a static alias list. Any
  * failure returns `[]`, on which the picker falls back to a free-form input.
  */

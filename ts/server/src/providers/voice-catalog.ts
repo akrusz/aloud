@@ -4,7 +4,7 @@
  * Google Cloud TTS voice id, so the client never has to carry the full id.
  *
  * These are the hand-picked "very high quality" voices that float to the top
- * of the picker when the hosted server is reachable. Audition more with
+ * of the picker when the aloud cloud is reachable. Audition more with
  * scripts/preview-voices.ts and add the winners here.
  */
 

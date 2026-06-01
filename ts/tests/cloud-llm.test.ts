@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { ServerLlmProvider } from '../ui/src/adapters/server-llm.js';
-import { setServerAuthBackend, setServerAuthFetch } from '../ui/src/server-auth.js';
+import { CloudLlmProvider } from '../ui/src/adapters/cloud-llm.js';
+import { setCloudAuthBackend, setCloudAuthFetch } from '../ui/src/cloud-auth.js';
 import type { KvStorage } from '../src/platform/storage.js';
 import type { StreamChunk } from '../src/llm/index.js';
 
@@ -41,21 +41,21 @@ let kv: MemoryKv;
 
 beforeEach(() => {
     kv = new MemoryKv();
-    setServerAuthBackend(kv);
+    setCloudAuthBackend(kv);
     // Default dev sign-in mints "tok-fresh"; tests that pre-seed a token won't hit this.
-    setServerAuthFetch(async () =>
+    setCloudAuthFetch(async () =>
         new Response(JSON.stringify({ token: 'tok-fresh', isNewAccount: false, account: {} }), {
             status: 200,
         })
     );
 });
 
-describe('ServerLlmProvider.complete', () => {
+describe('CloudLlmProvider.complete', () => {
     it('posts with the cached bearer token and maps the response', async () => {
         await kv.set('server:token', 'tok-1');
         let seenAuth = '';
         let seenBody: Record<string, unknown> = {};
-        const provider = new ServerLlmProvider({
+        const provider = new CloudLlmProvider({
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             fetchImpl: async (_url, init) => {
@@ -86,7 +86,7 @@ describe('ServerLlmProvider.complete', () => {
     it('on 401 clears the stale token, re-signs-in, and retries once', async () => {
         await kv.set('server:token', 'stale');
         const authSeen: string[] = [];
-        const provider = new ServerLlmProvider({
+        const provider = new CloudLlmProvider({
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             fetchImpl: async (_url, init) => {
@@ -110,7 +110,7 @@ describe('ServerLlmProvider.complete', () => {
 
     it('surfaces the server error message on a non-retryable failure', async () => {
         await kv.set('server:token', 'tok-1');
-        const provider = new ServerLlmProvider({
+        const provider = new CloudLlmProvider({
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             fetchImpl: async () =>
@@ -122,7 +122,7 @@ describe('ServerLlmProvider.complete', () => {
     });
 });
 
-describe('ServerLlmProvider.completeStream', () => {
+describe('CloudLlmProvider.completeStream', () => {
     async function collect(it: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
         const out: StreamChunk[] = [];
         for await (const c of it) out.push(c);
@@ -131,7 +131,7 @@ describe('ServerLlmProvider.completeStream', () => {
 
     it('parses SSE deltas and ends with a terminal done chunk', async () => {
         await kv.set('server:token', 'tok-1');
-        const provider = new ServerLlmProvider({
+        const provider = new CloudLlmProvider({
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             fetchImpl: async () =>
@@ -156,7 +156,7 @@ describe('ServerLlmProvider.completeStream', () => {
 
     it('handles SSE frames split across read() boundaries', async () => {
         await kv.set('server:token', 'tok-1');
-        const provider = new ServerLlmProvider({
+        const provider = new CloudLlmProvider({
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             // One frame delivered in two pieces, the split landing mid-JSON.
@@ -176,7 +176,7 @@ describe('ServerLlmProvider.completeStream', () => {
 
     it('throws on an SSE error event', async () => {
         await kv.set('server:token', 'tok-1');
-        const provider = new ServerLlmProvider({
+        const provider = new CloudLlmProvider({
             provider: 'anthropic',
             model: 'claude-sonnet-4-6',
             fetchImpl: async () =>

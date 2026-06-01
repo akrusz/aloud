@@ -31,7 +31,7 @@ import {
     downloadPercent,
     downloadVoiceModel,
     fetchServerVoices,
-    fetchHostedVoices,
+    fetchCloudVoices,
     invalidateServerVoicesCache,
     prefixedVoiceId,
     previewVoice as runPreview,
@@ -204,7 +204,7 @@ export async function mountSetupView(
                 setTimeout(done, 600);
             });
         }
-        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchHostedVoices()]);
+        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         scoredVoices = buildScoredVoiceList(server, true, hosted);
         // Auto-select the top available voice when the user hasn't chosen one
         // — never leave the picker on a bare "Default". The list is sorted

@@ -39,7 +39,7 @@ import { isDesktopSync } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
-import { fetchMe, clearServerToken, isGoogleSignInConfigured } from '../server-auth.js';
+import { fetchMe, clearCloudToken, isGoogleSignInConfigured } from '../cloud-auth.js';
 import { renderGoogleSignInButton } from '../google-signin.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
@@ -49,7 +49,7 @@ import {
     downloadPercent,
     downloadVoiceModel,
     fetchServerVoices,
-    fetchHostedVoices,
+    fetchCloudVoices,
     invalidateServerVoicesCache,
     prefixedVoiceId,
     previewVoice as runPreview,
@@ -181,12 +181,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                     <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
                 </div>`;
             body.querySelector('#account-signout')?.addEventListener('click', () => {
-                void clearServerToken().then(() => wireAccountSection());
+                void clearCloudToken().then(() => wireAccountSection());
             });
             return;
         }
         body.innerHTML = `
-            <p class="provider-hint">Sign in to use the hosted aloud server — new accounts get free credits.</p>
+            <p class="provider-hint">Sign in to use the aloud cloud — new accounts get free credits.</p>
             <div class="account-signin-button" id="account-signin-button"></div>`;
         const host = body.querySelector<HTMLElement>('#account-signin-button');
         if (host) {
@@ -798,7 +798,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 setTimeout(done, 600);
             });
         }
-        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchHostedVoices()]);
+        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         scoredVoices = buildScoredVoiceList(server, true, hosted);
         const btn = root.querySelector<HTMLButtonElement>('#s-voice-btn');
         if (btn) updateVoiceButtonLabel(btn);
@@ -1198,7 +1198,7 @@ const API_KEY_INFO: Record<Provider, { url: string; prefix: string } | undefined
     // claude_proxy uses the local `claude` CLI's existing login —
     // no API key entered through this page.
     claude_proxy: undefined,
-    // aloud (hosted) holds keys server-side; the user signs in, never pastes a key.
+    // aloud cloud holds keys server-side; the user signs in, never pastes a key.
     aloud: undefined,
 };
 

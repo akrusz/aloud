@@ -1,6 +1,6 @@
-# Running the aloud server (`@aloud/server`)
+# Running aloud cloud (`@aloud/server`)
 
-The hosted backend — a stateless Hono proxy with Google auth, a credit
+aloud cloud — a stateless Hono proxy with Google auth, a credit
 ledger, and metered LLM billing. Lives at `ts/server/`, a workspace package
 of `ts/` (`@aloud/core`). Full design rationale is in `ts/server/README.md`;
 this file is the operational quick-reference.
@@ -102,7 +102,7 @@ token. The route-level logic is unit-tested against the in-memory store in
 
 ## Running the full loop locally (UI ↔ server)
 
-The browser UI can drive the metered proxy end-to-end. The `aloud (hosted)`
+The browser UI can drive the metered proxy end-to-end. The `aloud cloud`
 provider in Setup/Settings routes LLM turns through this server instead of
 Flask or BYOK.
 
@@ -112,12 +112,12 @@ cd ts/server
 cp .env.example .env        # set ANTHROPIC_API_KEY (or GROQ / OPENROUTER)
 npm run dev                 # :8787
 
-# Terminal 2 — the UI (Vite proxies /v1/* → :8787; override via ALOUD_SERVER_URL)
+# Terminal 2 — the UI (Vite proxies /v1/* → :8787; override via ALOUD_CLOUD_URL)
 cd ts
 npm run ui:dev              # :5173
 ```
 
-In the UI: pick provider **aloud (hosted)**, choose a model (the picker is
+In the UI: pick provider **aloud cloud**, choose a model (the picker is
 populated live from `GET /v1/me/models`), start a session. On first LLM turn
 the UI auto-signs-in via the dev route and caches the token.
 
@@ -127,16 +127,16 @@ pipeline is Flask-free. STT needs `FIREWORKS_API_KEY` (or any backend via the
 `STT_*` overrides — see `config.ts` `resolveSttConfig`); TTS needs
 `GOOGLE_TTS_API_KEY` (without it the client falls back to browser
 `speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
-and `tts-picker.createServerAloudTts`, selected in `views/session.ts` when
+and `tts-picker.createCloudAloudTts`, selected in `views/session.ts` when
 `setup.provider === 'aloud'`.
 
 **Auth — dev shortcut.** `/v1/llm/complete` is behind bearer auth. Until the
-Google OAuth flow exists (`meditation-pal-rfb`), the UI's `server-auth.ts`
+Google OAuth flow exists (`meditation-pal-rfb`), the UI's `cloud-auth.ts`
 falls back to `POST /v1/auth/dev` — a **local-only** route that mints a session
 for a fixed `dev@localhost` account (seeded with `ALOUD_FREE_SIGNUP_CREDITS`,
 auto-refilled when it runs dry). It **404s in production** (strict mode), so
-it's a dev convenience, not a backdoor. Client wiring: `ui/src/server-auth.ts`
-(token) + `ui/src/adapters/server-llm.ts` (`complete` + SSE `completeStream`).
+it's a dev convenience, not a backdoor. Client wiring: `ui/src/cloud-auth.ts`
+(token) + `ui/src/adapters/cloud-llm.ts` (`complete` + SSE `completeStream`).
 
 Quick handshake without the UI:
 
@@ -181,7 +181,7 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 ### Admin control panel
 
 Browse to `/cloud/v1/admin` on the server (e.g.
-`https://aloud-server.fly.dev/cloud/v1/admin`) — a single self-contained page
+`https://aloud-cloud.fly.dev/cloud/v1/admin`) — a single self-contained page
 (`src/admin/panel.ts`) for spend monitoring, account lookup, and credit grants.
 Paste `ALOUD_ADMIN_TOKEN` once (kept in this origin's localStorage, sent as a
 Bearer header; never baked into the page). With no token configured the panel
@@ -242,7 +242,7 @@ In rough priority order. Tracked under epic `meditation-pal-bot`.
 2. **Real auth** (`meditation-pal-rfb`) — the server-side ID-token verification
    is done (`auth/google.ts` + `POST /cloud/v1/auth/google`); what's missing is
    the **UI** sign-in button (Google Identity Services) and a real OAuth client
-   id. The dev sign-in 404s in strict mode, so `ensureServerToken()` needs to
+   id. The dev sign-in 404s in strict mode, so `ensureCloudToken()` needs to
    branch to the real flow for a live deploy.
 3. **History-prefix caching** (`meditation-pal-cet`) — the cost estimates in
    `/v1/me/estimates` assume conversation-history prompt caching that isn't
@@ -253,10 +253,10 @@ In rough priority order. Tracked under epic `meditation-pal-bot`.
    [deploy.md](deploy.md). Remaining: the **UI hosting** decision (the repo's
    GitHub Pages is taken by the marketing site — subpath vs. separate host;
    options written up in deploy.md) and real TLS, which the chosen host
-   provides. Wiring is CORS + `VITE_ALOUD_SERVER_URL`.
+   provides. Wiring is CORS + `VITE_ALOUD_CLOUD_URL`.
 
 **Done since the first cut:** Google-direct value-tier LLM; the configurable
-build-time server base URL (`VITE_ALOUD_SERVER_URL`); server STT
+build-time server base URL (`VITE_ALOUD_CLOUD_URL`); server STT
 (`meditation-pal-age`) and TTS (`meditation-pal-2gz`); the UI LLM/STT/TTS
 adapters repointed at this server on the hosted provider (`meditation-pal-vd3`).
 

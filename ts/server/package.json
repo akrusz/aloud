@@ -3,7 +3,7 @@
     "version": "0.0.1",
     "private": true,
     "type": "module",
-    "description": "aloud hosted proxy: stateless LLM/STT/TTS forwarding with OAuth, a credits ledger, and metered billing. Open source (AGPL-3.0) like the rest of aloud — see ts/server/README.md for why that's a feature, not a constraint.",
+    "description": "aloud cloud proxy: stateless LLM/STT/TTS forwarding with OAuth, a credits ledger, and metered billing. Open source (AGPL-3.0) like the rest of aloud — see ts/server/README.md for why that's a feature, not a constraint.",
     "main": "./dist/index.js",
     "scripts": {
         "dev": "tsx watch src/index.ts",

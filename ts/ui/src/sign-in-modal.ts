@@ -11,7 +11,7 @@
  */
 
 import { renderGoogleSignInButton } from './google-signin.js';
-import type { AuthResponse } from './server-auth.js';
+import type { AuthResponse } from './cloud-auth.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 

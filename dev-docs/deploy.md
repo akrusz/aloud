@@ -1,7 +1,7 @@
 # Deploying the aloud web demo
 
-How to get a stranger-accessible hosted aloud online: a static UI talking to
-the hosted server (`@aloud/server`) over HTTPS, with accounts + credits.
+How to get a stranger-accessible aloud cloud online: a static UI talking to
+the aloud cloud (`@aloud/server`) over HTTPS, with accounts + credits.
 Tracks `meditation-pal-a3u` (infra) under the `meditation-pal-bot` epic.
 
 The deploy has **two halves**, deployed independently:
@@ -12,7 +12,7 @@ The deploy has **two halves**, deployed independently:
 | **UI** | `ui/dist` (static Vite build) | a static host (see [UI hosting](#ui-hosting--an-open-decision)) | host-provided |
 
 They're stitched together by two settings: the UI is **built** with
-`VITE_ALOUD_SERVER_URL` = the server's public origin, and the server is
+`VITE_ALOUD_CLOUD_URL` = the server's public origin, and the server is
 **configured** with `ALOUD_CORS_ORIGINS` = the UI's public origin. Mic capture
 needs a secure context, so both must be real HTTPS (the `cert.py` self-signed
 cert is LAN-only and won't do here).
@@ -33,8 +33,8 @@ cd ts
 # Create the app explicitly. Do NOT use `fly launch` here: it looks for fly.toml
 # in the cwd (ts/), not server/, so --copy-config finds nothing and scaffolds a
 # "blank app" with no build config.
-fly apps create aloud-server                               # globally-unique name
-fly volumes create aloud_data --size 1 --region sjc --app aloud-server   # durable ledger disk
+fly apps create aloud-cloud                               # globally-unique name
+fly volumes create aloud_data --size 1 --region sjc --app aloud-cloud   # durable ledger disk
 ```
 
 > **Single volume on purpose.** Fly warns you to create two — say no. The ledger
@@ -113,7 +113,7 @@ the result into `docs/app/` on the branch you run it from; Pages publishes
 `docs/` automatically. One-time: set two repo **Variables** (Settings → Secrets
 and variables → Actions → Variables):
 
-- `ALOUD_SERVER_URL` — the hosted `/cloud` origin (e.g. `https://aloud-server.fly.dev`).
+- `ALOUD_CLOUD_URL` — the hosted `/cloud` origin (e.g. `https://aloud-cloud.fly.dev`).
 - `GOOGLE_CLIENT_ID` — the web OAuth client id (= `GOOGLE_CLIENT_IDS` on the
   server). Not secret; it's baked into the public client.
 
@@ -121,7 +121,7 @@ and variables → Actions → Variables):
 
 ```bash
 cd ts
-VITE_ALOUD_SERVER_URL=https://aloud-server.fly.dev \
+VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev \
   VITE_GOOGLE_CLIENT_ID=<web-oauth-client-id> \
   npm run ui:build:hosted          # → repo-root docs/app/
 git add docs/app && git commit -m "build hosted app" && git push
@@ -143,7 +143,7 @@ Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin
 - [ ] Google OAuth web client id created; `GOOGLE_CLIENT_IDS` set on the server
       and the same id baked into the UI (`meditation-pal-rfb` wires the sign-in
       button — until then the UI uses the dev sign-in, which 404s in prod).
-- [ ] UI built with `VITE_ALOUD_SERVER_URL` = the server origin.
+- [ ] UI built with `VITE_ALOUD_CLOUD_URL` = the server origin.
 - [ ] Server `ALOUD_CORS_ORIGINS` = the UI origin.
 - [ ] Stripe live keys + webhook endpoint (`POST /cloud/v1/billing/webhook`)
       registered in the Stripe dashboard, if selling credits at launch.

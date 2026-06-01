@@ -35,8 +35,8 @@ shell starts an embedded `axum` server on an ephemeral loopback port and injects
 its base as `window.__ALOUD_API_BASE__`, which `appUrl()` reads — so `/app/v1/*`
 calls hit Rust whether the webview is the Vite dev server (`tauri:dev`) or the
 bundled static UI (`tauri:build`). Hosted features (`/cloud/v1/*` — accounts,
-credits, hosted voices) always go to the hosted server, baked in at build time
-via `VITE_ALOUD_SERVER_URL`.
+credits, hosted voices) always go to the aloud cloud, baked in at build time
+via `VITE_ALOUD_CLOUD_URL`.
 
 (The browser-only dev path — `npm run ui:dev` without Tauri — has no Rust shell;
 there the Vite proxy forwards both `/app/v1` and `/cloud/v1` to the Hono server
@@ -138,7 +138,7 @@ collide with the PyInstaller uploads on the same release.
 - **Windows**: MSI + NSIS, unsigned (parity with the current Python build).
 - **Linux**: AppImage + .deb. Needs the WebKitGTK 4.1 / GTK / appindicator /
   rsvg stack + CMake/build-essential (whisper-rs, espeak-rs).
-- The desktop UI build bakes `VITE_ALOUD_SERVER_URL` (repo var `ALOUD_SERVER_URL`)
+- The desktop UI build bakes `VITE_ALOUD_CLOUD_URL` (repo var `ALOUD_CLOUD_URL`)
   so the app reaches the hosted `/cloud/v1` service for accounts + credits;
   local providers work without it.
 

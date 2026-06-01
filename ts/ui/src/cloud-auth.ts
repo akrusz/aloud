@@ -1,10 +1,10 @@
 /**
- * Session token for the hosted aloud server (@aloud/server).
+ * Session token for the aloud cloud (@aloud/server).
  *
  * The metered LLM proxy (/v1/llm/complete) is behind bearer auth: every
  * request carries a short-lived session JWT the server minted. In production
  * that token comes from Google sign-in (meditation-pal-rfb); until that flow
- * exists, `ensureServerToken()` falls back to the server's dev sign-in route
+ * exists, `ensureCloudToken()` falls back to the server's dev sign-in route
  * (/v1/auth/dev, local-only) so the whole loop runs end-to-end locally.
  *
  * The token is cached in a KvStorage slot (localStorage today, swappable per
@@ -27,7 +27,7 @@ export interface AuthResponse {
 }
 
 // Lazy so importing this module doesn't construct LocalStorageKv (which throws
-// outside a browser, e.g. in Node tests). Tests call setServerAuthBackend first.
+// outside a browser, e.g. in Node tests). Tests call setCloudAuthBackend first.
 let backendOverride: KvStorage | null = null;
 let lazyBackend: KvStorage | null = null;
 function kv(): KvStorage {
@@ -38,12 +38,12 @@ function kv(): KvStorage {
 let fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis);
 
 /** Swap the storage backend (tests / future Capacitor secure storage). */
-export function setServerAuthBackend(kvStorage: KvStorage): void {
+export function setCloudAuthBackend(kvStorage: KvStorage): void {
     backendOverride = kvStorage;
 }
 
 /** Swap fetch (tests). */
-export function setServerAuthFetch(impl: typeof fetch): void {
+export function setCloudAuthFetch(impl: typeof fetch): void {
     fetchImpl = impl;
 }
 
@@ -59,18 +59,18 @@ export function isGoogleSignInConfigured(): boolean {
     return googleClientId() !== '';
 }
 
-/** Thrown by ensureServerToken when a hosted (Google-configured) build has no
+/** Thrown by ensureCloudToken when a hosted (Google-configured) build has no
  *  cached session: the user must complete interactive sign-in, which can't be
  *  done from a mid-session LLM call. Callers catch this to surface the sign-in
  *  UI (google-signin.ts) instead of erroring the turn. */
-export class ServerSignInRequiredError extends Error {
+export class CloudSignInRequiredError extends Error {
     constructor() {
         super('Sign in to continue.');
-        this.name = 'ServerSignInRequiredError';
+        this.name = 'CloudSignInRequiredError';
     }
 }
 
-export async function getServerToken(): Promise<string | null> {
+export async function getCloudToken(): Promise<string | null> {
     return kv().get(TOKEN_KEY);
 }
 
@@ -78,14 +78,14 @@ export async function getServerToken(): Promise<string | null> {
  *  there's no cached token or the server rejects it (expired/invalid); callers
  *  treat null as "signed out". Shape mirrors the server's AccountView. */
 export async function fetchMe(): Promise<AuthResponse['account'] | null> {
-    const token = await getServerToken();
+    const token = await getCloudToken();
     if (!token) return null;
     const res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) return null;
     return (await res.json()) as AuthResponse['account'];
 }
 
-export async function clearServerToken(): Promise<void> {
+export async function clearCloudToken(): Promise<void> {
     await kv().delete(TOKEN_KEY);
 }
 
@@ -95,8 +95,8 @@ export async function devSignIn(): Promise<AuthResponse> {
     if (!res.ok) {
         throw new Error(
             res.status === 404
-                ? 'Hosted aloud server has dev sign-in disabled (production mode).'
-                : `aloud server sign-in failed (${res.status}). Is it running on :8787?`
+                ? 'aloud cloud has dev sign-in disabled (production mode).'
+                : `aloud cloud sign-in failed (${res.status}). Is it running on :8787?`
         );
     }
     const body = (await res.json()) as AuthResponse;
@@ -120,7 +120,7 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
         throw new Error(
             res.status === 401
                 ? 'Google sign-in was rejected. Please try again.'
-                : `aloud server sign-in failed (${res.status}).`
+                : `aloud cloud sign-in failed (${res.status}).`
         );
     }
     const body = (await res.json()) as AuthResponse;
@@ -131,16 +131,16 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
 /**
  * Return a valid server token. A cached token wins. Otherwise: a Google-
  * configured (hosted) build can't mint one non-interactively, so it throws
- * ServerSignInRequiredError for the caller to surface the sign-in UI; a dev
+ * CloudSignInRequiredError for the caller to surface the sign-in UI; a dev
  * build (no Google client id) signs in via the local dev route so the loop
  * runs end-to-end. The session JWT is long-lived (7 days) so we don't
  * proactively refresh; an expired/invalid token surfaces as a 401 from the
  * proxy, which the caller clears and retries through here.
  */
-export async function ensureServerToken(): Promise<string> {
-    const existing = await getServerToken();
+export async function ensureCloudToken(): Promise<string> {
+    const existing = await getCloudToken();
     if (existing) return existing;
-    if (isGoogleSignInConfigured()) throw new ServerSignInRequiredError();
+    if (isGoogleSignInConfigured()) throw new CloudSignInRequiredError();
     const { token } = await devSignIn();
     return token;
 }

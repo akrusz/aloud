@@ -1,10 +1,10 @@
 # @aloud/server
 
-The hosted **aloud** backend: a stateless proxy with accounts, a credit ledger,
-and metered billing. It's what lets a stranger hit a URL, sign in with Google,
-get a few free credits, and spend them on premium LLMs/voices — without an API
-key or anything running locally. (The app-store and desktop builds keep the
-on-device and bring-your-own-key paths; this server is just the "easy, hosted"
+**aloud cloud** — the hosted **aloud** backend: a stateless proxy with accounts,
+a credit ledger, and metered billing. It's what lets a stranger hit a URL, sign
+in with Google, get a few free credits, and spend them on premium LLMs/voices —
+without an API key or anything running locally. (The app-store and desktop builds
+keep the on-device and bring-your-own-key paths; aloud cloud is just the "easy"
 option.)
 
 This is part of the public, **AGPL-3.0** aloud repo, on purpose. See
