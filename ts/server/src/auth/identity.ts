@@ -78,13 +78,19 @@ export async function connectIdentity(
         return { account, isNewAccount: false, isNewIdentity: false, granted: 0, breakerTripped: false };
     }
 
-    // New identity: link to the caller's account, or mint a fresh one.
+    // New identity: link it to the caller's account when they're genuinely
+    // signed in, else mint a fresh one. A linkToAccountId that no longer resolves
+    // — a STALE/expired session token, common after an in-memory dev server
+    // restart wipes accounts while the browser keeps a still-valid-signature
+    // token — is treated as "not signed in" and falls through to a new account,
+    // NOT a 500 (the bug that made sign-in look broken).
     let account: Account;
     let isNewAccount = false;
-    if (opts.linkToAccountId) {
-        const target = await deps.store.getAccountById(opts.linkToAccountId);
-        if (!target) throw new Error('cannot link identity: signed-in account not found');
-        account = target;
+    const linked = opts.linkToAccountId
+        ? await deps.store.getAccountById(opts.linkToAccountId)
+        : undefined;
+    if (linked) {
+        account = linked;
     } else {
         account = {
             id: randomUUID(),

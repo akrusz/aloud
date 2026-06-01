@@ -101,6 +101,19 @@ describe('connectIdentity — email signup vs connecting an identity', () => {
     });
 });
 
+describe('connectIdentity — stale session token', () => {
+    it('a linkToAccountId for a missing account falls back to a new account (no throw)', async () => {
+        const d = deps();
+        // Simulates a stale bearer: the token verified to an account id that no
+        // longer exists (e.g. an in-memory dev server restarted). Must not 500.
+        const r = await connectIdentity(d, google(), { linkToAccountId: 'gone-account-id' });
+        expect(r.isNewAccount).toBe(true);
+        expect(r.account.id).not.toBe('gone-account-id');
+        expect(r.granted).toBe(20);
+        expect(await d.ledger.balance(r.account.id)).toBe(20);
+    });
+});
+
 describe('connectIdentity — one identity, one account', () => {
     it('refuses to link an identity already bound to a different account', async () => {
         const d = deps();
