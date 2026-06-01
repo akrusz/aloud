@@ -171,6 +171,31 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect(all.find((e) => e.id === 'u-tts')).toEqual(tts);
     });
 
+    it('round-trips gifts; resolveGift is atomic; createGift idempotent on session', async () => {
+        await store.createAccount(ACCOUNT); // the buyer
+        const g = {
+            id: 'gift-1',
+            buyerAccountId: 'acct-1',
+            recipientEmail: 'friend@e.com',
+            credits: 50,
+            stripeSessionId: 'cs_1',
+            status: 'pending' as const,
+            createdAt: 100,
+        };
+        await store.createGift(g);
+        await store.createGift({ ...g, id: 'gift-2' }); // same session → idempotent no-op
+        expect(await store.getGiftById('gift-1')).toEqual(g);
+        expect(await store.getGiftById('gift-2')).toBeUndefined();
+        expect((await store.getGiftByStripeSession('cs_1'))?.id).toBe('gift-1');
+        expect((await store.getPendingGiftsForEmail('friend@e.com')).map((x) => x.id)).toEqual(['gift-1']);
+
+        // First resolve wins; a second can't (no double-spend), and it leaves pending lists empty.
+        expect(await store.resolveGift('gift-1', 'accepted', 200)).toBe(true);
+        expect(await store.resolveGift('gift-1', 'declined', 300)).toBe(false);
+        expect(await store.getPendingGiftsForEmail('friend@e.com')).toEqual([]);
+        expect((await store.getGiftById('gift-1'))?.status).toBe('accepted');
+    });
+
     it('round-trips and upserts operator settings', async () => {
         expect(await store.getSetting('free_signup_credits')).toBeUndefined();
         await store.setSetting('free_signup_credits', '0');

@@ -23,6 +23,7 @@ import { CURATED_VOICES } from './providers/voice-catalog.js';
 import { voiceCreditsPerHourTypical } from './pricing/estimate.js';
 import type { CloudVoice } from './contract.js';
 import { billingRoutes } from './routes/billing.js';
+import { giftRoutes } from './routes/gifts.js';
 import { adminRoutes } from './routes/admin.js';
 import { appBackendRoutes } from './routes/app.js';
 
@@ -95,6 +96,7 @@ export function createApp(deps: Deps): Hono {
     app.route('/cloud/v1/stt', sttRoutes(deps));
     app.route('/cloud/v1/tts', ttsRoutes(deps));
     app.route('/cloud/v1/billing', billingRoutes(deps));
+    app.route('/cloud/v1/gifts', giftRoutes(deps));
     app.route('/cloud/v1/admin', adminRoutes(deps));
 
     // The app's own backend surface for the web build (the desktop shell serves

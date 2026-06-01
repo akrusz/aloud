@@ -27,6 +27,7 @@ import { detectCapabilities } from './capabilities.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
 import { consumePurchaseReturn } from './cloud-billing.js';
+import { checkAndShowGifts } from './gift-modal.js';
 import { showErrorToast, showSuccessToast } from './toast.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings';
@@ -113,6 +114,10 @@ export async function bootApp(): Promise<void> {
     } else if (purchase === 'cancel') {
         showErrorToast('Checkout canceled — you have not been charged.');
     }
+
+    // Prompt to accept any clouds gifted to this account (no-op when signed out
+    // or none pending). meditation-pal-bd5.
+    void checkAndShowGifts();
 }
 
 /**

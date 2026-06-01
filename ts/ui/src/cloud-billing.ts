@@ -35,7 +35,7 @@ export async function fetchPacks(): Promise<CreditPack[]> {
  * the caller shows the message. Side-effect-free (no redirect) so it's testable
  * and the redirect stays at the call site.
  */
-export async function startCheckout(packId: string): Promise<string> {
+export async function startCheckout(packId: string, giftToEmail?: string): Promise<string> {
     const token = await getCloudToken();
     if (!token) throw new Error('Sign in to buy credits.');
     const res = await fetch(cloudUrl('/billing/checkout'), {
@@ -45,6 +45,9 @@ export async function startCheckout(packId: string): Promise<string> {
             packId,
             channel: 'web_stripe',
             returnPath: import.meta.env.BASE_URL ?? '/',
+            // When gifting, the payment still clears now but the clouds become a
+            // pending gift the recipient accepts on next sign-in.
+            ...(giftToEmail ? { giftToEmail } : {}),
         }),
     });
     if (!res.ok) {
@@ -72,4 +75,47 @@ export function consumePurchaseReturn(): 'success' | 'cancel' | null {
     url.searchParams.delete('purchase');
     window.history.replaceState(null, '', url.pathname + url.search + url.hash);
     return value;
+}
+
+// ---- Gift clouds (meditation-pal-bd5) -------------------------------------
+
+/** A pending gift addressed to the signed-in account. Mirrors server GiftView. */
+export interface GiftView {
+    id: string;
+    credits: number;
+    fromEmail?: string;
+    createdAt: number;
+}
+
+async function authed(path: string, init?: RequestInit): Promise<Response> {
+    const token = await getCloudToken();
+    if (!token) throw new Error('Sign in required.');
+    return fetch(cloudUrl(path), {
+        ...init,
+        headers: { ...(init?.headers ?? {}), authorization: `Bearer ${token}` },
+    });
+}
+
+/** GET /cloud/v1/gifts — pending gifts waiting for the signed-in account. Returns
+ *  [] on any error so a transient hiccup never blocks the app. */
+export async function fetchGifts(): Promise<GiftView[]> {
+    try {
+        const res = await authed('/gifts');
+        if (!res.ok) return [];
+        return ((await res.json()) as { gifts?: GiftView[] }).gifts ?? [];
+    } catch {
+        return [];
+    }
+}
+
+/** Accept a gift → its clouds land in the signed-in account. */
+export async function acceptGift(id: string): Promise<void> {
+    const res = await authed(`/gifts/${encodeURIComponent(id)}/accept`, { method: 'POST' });
+    if (!res.ok) throw new Error('This gift is no longer available.');
+}
+
+/** Decline a gift → its clouds return to the buyer. */
+export async function declineGift(id: string): Promise<void> {
+    const res = await authed(`/gifts/${encodeURIComponent(id)}/decline`, { method: 'POST' });
+    if (!res.ok) throw new Error('This gift is no longer available.');
 }

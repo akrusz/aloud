@@ -12,6 +12,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { loadConfig, configuredProviders } from './config.js';
 import { buildDeps } from './deps.js';
 import { createApp } from './app.js';
+import { reconcileExpiredGifts } from './credits/gifts.js';
 import { assertSolvent, PACK_MARKUP } from './pricing/meter.js';
 import { loadRuntimeOverrides } from './admin/runtime-config.js';
 import { CREDIT_PACKS } from './billing/stripe.js';
@@ -77,6 +78,19 @@ async function main(): Promise<void> {
         });
         log.info('serving static UI', { uiDir: root, spaFallback: indexHtml !== null });
     }
+
+    // Gift expiry sweep: return clouds from gifts left unaccepted past their
+    // expiry to the buyer (meditation-pal-bd5). Run once at boot, then hourly.
+    // Idempotent + atomic per gift, so overlapping/extra runs are harmless.
+    const sweep = (): void => {
+        void reconcileExpiredGifts(deps, Date.now() / 1000)
+            .then((n) => {
+                if (n > 0) log.info('gift expiry sweep', { returnedToBuyers: n });
+            })
+            .catch((err: unknown) => log.error('gift expiry sweep failed', { err: String(err) }));
+    };
+    sweep();
+    setInterval(sweep, 3_600_000).unref();
 
     serve({ fetch: app.fetch, port: config.port }, (info) => {
         log.info('aloud cloud up', {

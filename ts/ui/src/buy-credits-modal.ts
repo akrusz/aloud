@@ -47,6 +47,15 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="Close">&times;</button>
                 </div>
                 <p class="provider-hint buy-credits-subtitle">${escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE)}</p>
+                <div class="buy-credits-target" role="tablist">
+                    <button type="button" class="buy-credits-target-btn active" data-target="self" role="tab">For myself</button>
+                    <button type="button" class="buy-credits-target-btn" data-target="gift" role="tab">Gift to someone</button>
+                </div>
+                <input type="email" id="buy-credits-gift-email" class="signin-input buy-credits-gift-email hidden"
+                    placeholder="Recipient's email" autocomplete="off" />
+                <p class="provider-hint buy-credits-gift-note hidden" id="buy-credits-gift-note">
+                    They'll be asked to accept the gift next time they sign in. If they decline or don't within 60 days, the clouds return to you.
+                </p>
                 <div class="buy-credits-packs" id="buy-credits-packs">
                     <p class="provider-hint">Loading…</p>
                 </div>
@@ -69,7 +78,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             const el = overlay.querySelector<HTMLElement>('#buy-credits-error');
             if (!el) return;
             el.textContent = msg;
-            el.classList.remove('hidden');
+            el.classList.toggle('hidden', msg === ''); // empty → clear/hide
         };
 
         overlay.querySelector('#buy-credits-close')?.addEventListener('click', () => close(false));
@@ -78,9 +87,36 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         });
         document.addEventListener('keydown', onKey);
 
+        // "For myself" vs "Gift to someone" — toggles the recipient email field.
+        const emailEl = overlay.querySelector<HTMLInputElement>('#buy-credits-gift-email')!;
+        const noteEl = overlay.querySelector<HTMLElement>('#buy-credits-gift-note')!;
+        let gifting = false;
+        overlay.querySelectorAll<HTMLButtonElement>('.buy-credits-target-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                gifting = btn.dataset['target'] === 'gift';
+                overlay
+                    .querySelectorAll('.buy-credits-target-btn')
+                    .forEach((b) => b.classList.toggle('active', b === btn));
+                emailEl.classList.toggle('hidden', !gifting);
+                noteEl.classList.toggle('hidden', !gifting);
+                showError('');
+            });
+        });
+
+        // Resolve the recipient at pack-click time: undefined for self, the typed
+        // email for a gift, or an error string if a gift email is missing/invalid.
+        const recipient = (): { email?: string; error?: string } => {
+            if (!gifting) return {};
+            const email = emailEl.value.trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                return { error: "Enter the recipient's email to send a gift." };
+            }
+            return { email };
+        };
+
         const packsHost = overlay.querySelector<HTMLElement>('#buy-credits-packs')!;
         void fetchPacks()
-            .then((packs) => renderPacks(packsHost, packs, showError))
+            .then((packs) => renderPacks(packsHost, packs, showError, recipient))
             .catch((err: unknown) => {
                 packsHost.innerHTML = '';
                 showError(err instanceof Error ? err.message : String(err));
@@ -91,7 +127,8 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
 function renderPacks(
     host: HTMLElement,
     packs: CreditPack[],
-    showError: (msg: string) => void
+    showError: (msg: string) => void,
+    recipient: () => { email?: string; error?: string }
 ): void {
     if (packs.length === 0) {
         host.innerHTML = '<p class="provider-hint">No credit packs are available right now.</p>';
@@ -105,10 +142,15 @@ function renderPacks(
         btn.innerHTML = `<span class="buy-credits-pack-credits">${creditAmount(pack.credits, 0)}</span>
             <span class="buy-credits-pack-price">${dollars(pack.priceUsdCents)}</span>`;
         btn.addEventListener('click', () => {
+            const to = recipient();
+            if (to.error) {
+                showError(to.error);
+                return;
+            }
             // Disable the whole list while we redirect, so a double-click can't
             // open two checkout sessions.
             host.querySelectorAll('button').forEach((b) => (b.disabled = true));
-            startCheckout(pack.id)
+            startCheckout(pack.id, to.email)
                 .then((url) => window.location.assign(url))
                 .catch((err: unknown) => {
                     host.querySelectorAll('button').forEach((b) => (b.disabled = false));

@@ -25,6 +25,8 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
     Account,
     CreditsStore,
+    Gift,
+    GiftStatus,
     Identity,
     IdentityProvider,
     LedgerEntry,
@@ -55,6 +57,19 @@ CREATE TABLE IF NOT EXISTS identities (
     PRIMARY KEY (provider, sub)
 );
 CREATE INDEX IF NOT EXISTS idx_identities_account ON identities(account_id);
+-- Gift clouds (meditation-pal-bd5). Funded by a cleared Stripe payment; granted
+-- once — to the recipient on accept, or back to the buyer on decline/expiry.
+CREATE TABLE IF NOT EXISTS gifts (
+    id                TEXT PRIMARY KEY,
+    buyer_account_id  TEXT NOT NULL REFERENCES accounts(id),
+    recipient_email   TEXT NOT NULL,
+    credits           REAL NOT NULL,
+    stripe_session_id TEXT NOT NULL UNIQUE,
+    status            TEXT NOT NULL,
+    created_at        REAL NOT NULL,
+    resolved_at       REAL
+);
+CREATE INDEX IF NOT EXISTS idx_gifts_recipient ON gifts(recipient_email, status);
 CREATE TABLE IF NOT EXISTS ledger (
     id         TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts(id),
@@ -118,6 +133,20 @@ function rowToIdentity(r: Row): Identity {
     };
     if (r['secret_hash'] != null) identity.secretHash = String(r['secret_hash']);
     return identity;
+}
+
+function rowToGift(r: Row): Gift {
+    const gift: Gift = {
+        id: String(r['id']),
+        buyerAccountId: String(r['buyer_account_id']),
+        recipientEmail: String(r['recipient_email']),
+        credits: Number(r['credits']),
+        stripeSessionId: String(r['stripe_session_id']),
+        status: String(r['status']) as GiftStatus,
+        createdAt: Number(r['created_at']),
+    };
+    if (r['resolved_at'] != null) gift.resolvedAt = Number(r['resolved_at']);
+    return gift;
 }
 
 function rowToEntry(r: Row): LedgerEntry {
@@ -294,6 +323,72 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db
             .prepare('UPDATE identities SET granted_credits = 1 WHERE provider = ? AND sub = ?')
             .run(provider, sub);
+    }
+
+    async createGift(gift: Gift): Promise<void> {
+        try {
+            this.db
+                .prepare(
+                    `INSERT INTO gifts
+                        (id, buyer_account_id, recipient_email, credits, stripe_session_id, status, created_at, resolved_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                )
+                .run(
+                    gift.id,
+                    gift.buyerAccountId,
+                    gift.recipientEmail,
+                    gift.credits,
+                    gift.stripeSessionId,
+                    gift.status,
+                    gift.createdAt,
+                    gift.resolvedAt ?? null
+                );
+        } catch (err) {
+            // Idempotent on the funding payment: a webhook retry for the same
+            // checkout session must not create a second gift.
+            if (String(err).includes('UNIQUE') || String(err).includes('constraint')) return;
+            throw err;
+        }
+    }
+
+    async getGiftById(id: string): Promise<Gift | undefined> {
+        const row = this.db.prepare('SELECT * FROM gifts WHERE id = ?').get(id) as Row | undefined;
+        return row ? rowToGift(row) : undefined;
+    }
+
+    async getGiftByStripeSession(stripeSessionId: string): Promise<Gift | undefined> {
+        const row = this.db
+            .prepare('SELECT * FROM gifts WHERE stripe_session_id = ?')
+            .get(stripeSessionId) as Row | undefined;
+        return row ? rowToGift(row) : undefined;
+    }
+
+    async getPendingGiftsForEmail(email: string): Promise<Gift[]> {
+        const rows = this.db
+            .prepare("SELECT * FROM gifts WHERE recipient_email = ? AND status = 'pending' ORDER BY created_at")
+            .all(email) as Row[];
+        return rows.map(rowToGift);
+    }
+
+    async pendingGiftsCreatedBefore(cutoff: number): Promise<Gift[]> {
+        const rows = this.db
+            .prepare("SELECT * FROM gifts WHERE status = 'pending' AND created_at <= ? ORDER BY created_at")
+            .all(cutoff) as Row[];
+        return rows.map(rowToGift);
+    }
+
+    async resolveGift(
+        id: string,
+        status: Exclude<GiftStatus, 'pending'>,
+        resolvedAt: number
+    ): Promise<boolean> {
+        // Conditional on still-pending so concurrent accept/decline/expire can't
+        // double-resolve (and thus can't double-grant). changes() = rows updated.
+        this.db
+            .prepare("UPDATE gifts SET status = ?, resolved_at = ? WHERE id = ? AND status = 'pending'")
+            .run(status, resolvedAt, id);
+        const changed = this.db.prepare('SELECT changes() AS n').get() as { n: number };
+        return changed.n > 0;
     }
 
     async appendEntry(entry: LedgerEntry): Promise<void> {

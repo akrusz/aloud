@@ -90,6 +90,26 @@ export interface Identity {
     secretHash?: string;
 }
 
+/** A purchased gift of clouds, addressed to an email. Funded by a CLEARED Stripe
+ *  payment, so it never cancels: the clouds are granted exactly once — to the
+ *  recipient on accept, or back to the buyer on decline/expiry. (meditation-pal-bd5) */
+export type GiftStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
+export interface Gift {
+    id: string;
+    buyerAccountId: string;
+    /** Lower-cased email the gift is addressed to (the recipient may not have an
+     *  account yet — it waits in 'pending' until someone with this email signs in). */
+    recipientEmail: string;
+    credits: number;
+    /** The Stripe checkout session that funded it — the idempotency key. */
+    stripeSessionId: string;
+    status: GiftStatus;
+    createdAt: number;
+    /** When it left 'pending' (accepted/declined/expired). */
+    resolvedAt?: number;
+}
+
 export interface CreditsStore {
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
@@ -104,6 +124,21 @@ export interface CreditsStore {
     getIdentitiesForAccount(accountId: string): Promise<Identity[]>;
     /** Flip an identity's grantedCredits flag to true after a grant settles. */
     markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void>;
+
+    // ---- Gifts (gift-clouds, meditation-pal-bd5) ---------------------------
+    /** Record a purchased gift (status 'pending'). Idempotent on stripeSessionId:
+     *  a webhook retry must not create a second gift for the same payment. */
+    createGift(gift: Gift): Promise<void>;
+    getGiftById(id: string): Promise<Gift | undefined>;
+    /** A payment's gift, for webhook idempotency (one gift per checkout session). */
+    getGiftByStripeSession(stripeSessionId: string): Promise<Gift | undefined>;
+    /** Pending gifts addressed to an email (lower-cased), for the accept prompt. */
+    getPendingGiftsForEmail(email: string): Promise<Gift[]>;
+    /** All pending gifts created on/before `cutoff` (the expiry sweep). */
+    pendingGiftsCreatedBefore(cutoff: number): Promise<Gift[]>;
+    /** Move a gift to a terminal state. Implementations should no-op if it isn't
+     *  still 'pending' (so concurrent accept/decline/expire can't double-resolve). */
+    resolveGift(id: string, status: Exclude<GiftStatus, 'pending'>, resolvedAt: number): Promise<boolean>;
 
     /** Append a ledger entry. Implementations must make this atomic. */
     appendEntry(entry: LedgerEntry): Promise<void>;

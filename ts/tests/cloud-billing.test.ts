@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { fetchPacks, startCheckout } from '../ui/src/cloud-billing.js';
+import {
+    fetchPacks,
+    startCheckout,
+    fetchGifts,
+    acceptGift,
+    declineGift,
+} from '../ui/src/cloud-billing.js';
 import { setCloudAuthBackend } from '../ui/src/cloud-auth.js';
 import type { KvStorage } from '../src/platform/storage.js';
 
@@ -90,5 +96,59 @@ describe('startCheckout', () => {
         await kv.set('server:token', 'tok-abc');
         vi.stubGlobal('fetch', vi.fn(async () => new Response('boom', { status: 500 })));
         await expect(startCheckout('plus')).rejects.toThrow(/temporarily unavailable/i);
+    });
+
+    it('includes giftToEmail when gifting, and omits it otherwise', async () => {
+        await kv.set('server:token', 'tok-abc');
+        const bodies: Array<Record<string, unknown>> = [];
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (_url: string, init?: RequestInit) => {
+                bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+                return new Response(JSON.stringify({ checkoutUrl: 'https://x' }), { status: 200 });
+            })
+        );
+        await startCheckout('plus', 'friend@e.com');
+        await startCheckout('plus');
+        expect(bodies[0]?.['giftToEmail']).toBe('friend@e.com');
+        expect('giftToEmail' in (bodies[1] ?? {})).toBe(false);
+    });
+});
+
+describe('gifts', () => {
+    it('fetchGifts returns the list, and [] on error (never blocks the app)', async () => {
+        await kv.set('server:token', 'tok');
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () =>
+                new Response(JSON.stringify({ gifts: [{ id: 'g1', credits: 50, createdAt: 1 }] }), { status: 200 })
+            )
+        );
+        expect(await fetchGifts()).toHaveLength(1);
+
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
+        expect(await fetchGifts()).toEqual([]);
+    });
+
+    it('accept/decline POST to the gift routes with the bearer token', async () => {
+        await kv.set('server:token', 'tok');
+        const calls: Array<{ url: string; method?: string }> = [];
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (url: string, init?: RequestInit) => {
+                calls.push({ url: String(url), method: init?.method });
+                return new Response('{}', { status: 200 });
+            })
+        );
+        await acceptGift('g1');
+        await declineGift('g2');
+        expect(calls[0]).toMatchObject({ url: expect.stringMatching(/\/gifts\/g1\/accept$/), method: 'POST' });
+        expect(calls[1]).toMatchObject({ url: expect.stringMatching(/\/gifts\/g2\/decline$/), method: 'POST' });
+    });
+
+    it('accept throws a friendly message when the gift is gone', async () => {
+        await kv.set('server:token', 'tok');
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 400 })));
+        await expect(acceptGift('g1')).rejects.toThrow(/no longer available/i);
     });
 });

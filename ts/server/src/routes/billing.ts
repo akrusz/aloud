@@ -9,6 +9,7 @@
  */
 
 import { Hono } from 'hono';
+import { randomUUID } from 'node:crypto';
 import {
     ERROR_STATUS,
     apiError,
@@ -25,6 +26,9 @@ import {
     verifyStripeSignature,
 } from '../billing/stripe.js';
 import { log } from '../logger.js';
+
+/** Loose email shape check for gift recipients (mirrors routes/auth.ts). */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** A client-supplied post-checkout return path, sanitised to a single clean
  *  relative path ending in '/'. Anything not starting with a single '/' (absolute
@@ -51,6 +55,12 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!pack) {
             return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
         }
+        // Optional gift recipient. Validate the shape now so a typo fails fast at
+        // checkout rather than minting an undeliverable gift after payment.
+        const giftToEmail = body.giftToEmail ? body.giftToEmail.trim().toLowerCase() : '';
+        if (giftToEmail && !EMAIL_RE.test(giftToEmail)) {
+            return c.json(apiError('bad_request', 'gift recipient email is not valid'), ERROR_STATUS.bad_request);
+        }
         const origin = deps.config.corsOrigins[0] ?? '';
         // Where Stripe returns the user. The client passes its own app path (e.g.
         // '/app/' on the Pages subpath build) so the redirect lands back IN the
@@ -65,6 +75,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     accountId: account.id,
                     successUrl: `${returnBase}?purchase=success`,
                     cancelUrl: `${returnBase}?purchase=cancel`,
+                    ...(giftToEmail ? { giftToEmail } : {}),
                 },
                 secret
             );
@@ -88,7 +99,27 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         const event = JSON.parse(payload) as unknown;
         const purchase = parseCheckoutCompleted(event);
-        if (purchase) {
+        if (purchase && purchase.giftToEmail) {
+            // A GIFT: the payment cleared, but the clouds become a pending gift the
+            // recipient accepts on next sign-in (declined/expired → back to buyer).
+            // createGift is idempotent on the session id, so a webhook retry is safe.
+            await deps.store.createGift({
+                id: randomUUID(),
+                buyerAccountId: purchase.accountId,
+                // Normalize here too — matching (accept/list) is all lower-cased,
+                // so the stored address must be, regardless of how it arrived.
+                recipientEmail: purchase.giftToEmail.trim().toLowerCase(),
+                credits: purchase.credits,
+                stripeSessionId: purchase.stripeSessionId,
+                status: 'pending',
+                createdAt: Date.now() / 1000,
+            });
+            log.info('gift purchased', {
+                buyerAccountId: purchase.accountId,
+                credits: purchase.credits,
+                recipientEmail: purchase.giftToEmail,
+            });
+        } else if (purchase) {
             await deps.ledger.purchase(
                 purchase.accountId,
                 purchase.credits,

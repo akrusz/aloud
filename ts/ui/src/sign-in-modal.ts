@@ -12,6 +12,7 @@
 import { renderGoogleSignInButton } from './google-signin.js';
 import { renderAppleSignInButton } from './apple-signin.js';
 import { isDesktopSync } from './is-desktop.js';
+import { checkAndShowGifts } from './gift-modal.js';
 import { emailLogin, emailSignup, type AuthResponse } from './cloud-auth.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
@@ -94,6 +95,8 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         const onSignedIn = (auth: AuthResponse): void => {
             options.onSignedIn?.(auth);
             close(true);
+            // A just-signed-in user may have clouds waiting to be accepted.
+            void checkAndShowGifts();
         };
 
         overlay.querySelector('#signin-modal-close')?.addEventListener('click', () => close(false));

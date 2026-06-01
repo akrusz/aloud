@@ -165,6 +165,19 @@ export interface CheckoutRequest {
      *  bounces the user back into the app instead of the marketing root. Ignored
      *  unless it's a clean relative path. */
     returnPath?: string;
+    /** When set, this purchase is a GIFT to that email (meditation-pal-bd5): the
+     *  payment still clears immediately, but the clouds become a pending gift the
+     *  recipient accepts on next sign-in (declined/expired → returned to buyer). */
+    giftToEmail?: string;
+}
+
+/** A pending gift addressed to the signed-in account (GET /cloud/v1/gifts). */
+export interface GiftView {
+    id: string;
+    credits: number;
+    /** Buyer's email, for "a gift from …" — omitted if unknown. */
+    fromEmail?: string;
+    createdAt: number;
 }
 
 export interface CheckoutResponse {

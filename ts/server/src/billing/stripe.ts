@@ -75,6 +75,9 @@ export interface CheckoutParams {
     accountId: string;
     successUrl: string;
     cancelUrl: string;
+    /** When set, the payment funds a GIFT to this email rather than crediting the
+     *  buyer directly (meditation-pal-bd5). Rides in metadata for the webhook. */
+    giftToEmail?: string;
 }
 
 /**
@@ -97,6 +100,7 @@ export async function createCheckoutSession(
         'line_items[0][price_data][product_data][name]': params.pack.label,
         'metadata[pack_id]': params.pack.id,
         'metadata[credits]': String(params.pack.credits),
+        ...(params.giftToEmail ? { 'metadata[gift_to_email]': params.giftToEmail } : {}),
     });
 
     const res = await fetchImpl('https://api.stripe.com/v1/checkout/sessions', {
@@ -122,6 +126,9 @@ export interface FulfilledPurchase {
     credits: number;
     packId: string;
     stripeSessionId: string;
+    /** Present when the purchase was a gift (metadata[gift_to_email]); the webhook
+     *  then records a pending gift instead of crediting the buyer. */
+    giftToEmail?: string;
 }
 
 export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | undefined {
@@ -137,5 +144,6 @@ export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | unde
     const packId = meta['pack_id'] ?? '';
     const stripeSessionId = typeof obj['id'] === 'string' ? obj['id'] : '';
     if (!accountId || !credits) return undefined;
-    return { accountId, credits, packId, stripeSessionId };
+    const giftToEmail = typeof meta['gift_to_email'] === 'string' ? meta['gift_to_email'] : '';
+    return { accountId, credits, packId, stripeSessionId, ...(giftToEmail ? { giftToEmail } : {}) };
 }
