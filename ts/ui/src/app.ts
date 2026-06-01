@@ -26,6 +26,8 @@ import { applyChromeSettings, loadAppSettings } from './app-settings.js';
 import { detectCapabilities } from './capabilities.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
+import { consumePurchaseReturn } from './cloud-billing.js';
+import { showErrorToast, showSuccessToast } from './toast.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings';
 
@@ -66,6 +68,11 @@ export async function bootApp(): Promise<void> {
     const settings = await loadAppSettings();
     applyChromeSettings(settings);
 
+    // Read (and clear) any `?purchase=` Stripe appended on return from checkout,
+    // before the router normalizes the URL. The toast waits until a view is
+    // mounted (end of boot) so it has a surface to show on. (meditation-pal-8sj)
+    const purchase = consumePurchaseReturn();
+
     // Probe the runtime environment (Flask / aloud cloud / Ollama) so menus
     // and desktop-only controls can gate themselves to what's reachable.
     // Fire-and-forget — views read the cached value at render and tolerate the
@@ -98,6 +105,14 @@ export async function bootApp(): Promise<void> {
     // painting for later view changes.
     settleBootOrb();
     bootOrbPending = false;
+
+    // Fulfilment is the server's webhook, so by the time the user lands back the
+    // credits are usually already added; phrase it without over-promising timing.
+    if (purchase === 'success') {
+        showSuccessToast('Payment received — your credits have been added.');
+    } else if (purchase === 'cancel') {
+        showErrorToast('Checkout canceled — you have not been charged.');
+    }
 }
 
 /**

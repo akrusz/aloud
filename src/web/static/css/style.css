@@ -2746,6 +2746,50 @@ html:has(.nav-brand.has-update) .update-btn {
     pointer-events: auto;
 }
 
+/* Success variant — a calm confirmation (e.g. credits added), not an alarm. */
+.error-toast.toast-success {
+    background: var(--accent, #4a7c59);
+}
+
+/* ---- Buy-credits modal (meditation-pal-8sj) ---- */
+.buy-credits-subtitle {
+    margin: 0 0 1rem;
+}
+
+.buy-credits-packs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.buy-credits-pack {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    text-align: left;
+}
+
+.buy-credits-pack-credits {
+    font-weight: 600;
+}
+
+.buy-credits-pack-price {
+    opacity: 0.85;
+}
+
+.buy-credits-error {
+    margin-top: 0.75rem;
+    color: var(--danger, #c0503e);
+}
+
+.account-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
 /* ---- No-voices warning ---- */
 
 .no-voices-banner {

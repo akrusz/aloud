@@ -11,11 +11,21 @@
 const TOAST_DURATION_MS = 5000;
 const FADE_MS = 300;
 
+/** A transient error banner (red). */
 export function showErrorToast(message: string): void {
+    showToast(message, 'error');
+}
+
+/** A transient success banner (calm/positive) — e.g. "credits added". */
+export function showSuccessToast(message: string): void {
+    showToast(message, 'success');
+}
+
+function showToast(message: string, variant: 'error' | 'success'): void {
     if (typeof document === 'undefined') return;
     const toast = document.createElement('div');
-    toast.className = 'error-toast';
-    toast.setAttribute('role', 'alert');
+    toast.className = variant === 'success' ? 'error-toast toast-success' : 'error-toast';
+    toast.setAttribute('role', variant === 'success' ? 'status' : 'alert');
     toast.textContent = message;
     document.body.appendChild(toast);
 

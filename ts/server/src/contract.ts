@@ -133,6 +133,12 @@ export interface CheckoutRequest {
     channel: PurchaseChannel;
     /** ISO 3166-1 alpha-2; selects the commission rate (US vs EU differ). */
     jurisdiction?: string;
+    /** App-relative path (must start with '/') to return to after checkout, e.g.
+     *  '/app/' for the GitHub-Pages subpath build. The server appends
+     *  `?purchase=success|cancel` and prefixes its own validated origin — Stripe
+     *  bounces the user back into the app instead of the marketing root. Ignored
+     *  unless it's a clean relative path. */
+    returnPath?: string;
 }
 
 export interface CheckoutResponse {

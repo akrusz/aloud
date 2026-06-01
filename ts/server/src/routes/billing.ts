@@ -26,6 +26,17 @@ import {
 } from '../billing/stripe.js';
 import { log } from '../logger.js';
 
+/** A client-supplied post-checkout return path, sanitised to a single clean
+ *  relative path ending in '/'. Anything not starting with a single '/' (absolute
+ *  URLs, scheme-relative '//host', missing) falls back to '/'. The trailing '?'
+ *  for the purchase param is added by the caller. */
+export function safeReturnPath(raw: string | undefined): string {
+    if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) return '/';
+    // Strip any query/hash the client tacked on; we own the ?purchase param.
+    const path = raw.split(/[?#]/)[0] ?? '/';
+    return path.endsWith('/') ? path : `${path}/`;
+}
+
 export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
 
@@ -41,13 +52,19 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
         }
         const origin = deps.config.corsOrigins[0] ?? '';
+        // Where Stripe returns the user. The client passes its own app path (e.g.
+        // '/app/' on the Pages subpath build) so the redirect lands back IN the
+        // app, not the marketing root; we only honour a clean relative path
+        // (leading '/', no '//' scheme-relative) and always prefix our own
+        // origin, so this can't be turned into an open redirect.
+        const returnBase = `${origin}${safeReturnPath(body.returnPath)}`;
         try {
             const url = await createCheckoutSession(
                 {
                     pack,
                     accountId: account.id,
-                    successUrl: `${origin}/?purchase=success`,
-                    cancelUrl: `${origin}/?purchase=cancel`,
+                    successUrl: `${returnBase}?purchase=success`,
+                    cancelUrl: `${returnBase}?purchase=cancel`,
                 },
                 secret
             );

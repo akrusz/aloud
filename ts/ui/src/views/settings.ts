@@ -40,6 +40,7 @@ import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
 import { fetchMe, clearCloudToken, isGoogleSignInConfigured } from '../cloud-auth.js';
+import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { renderGoogleSignInButton } from '../google-signin.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
@@ -185,8 +186,16 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         <div class="account-email">${escape(account.email)}</div>
                         <div class="account-credits provider-hint">${account.creditsRemaining.toFixed(1)} credits remaining</div>
                     </div>
-                    <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
+                    <div class="account-actions">
+                        <button type="button" class="btn btn-primary" id="account-buy-credits">Buy credits</button>
+                        <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
+                    </div>
                 </div>`;
+            body.querySelector('#account-buy-credits')?.addEventListener('click', () => {
+                // Refresh the balance when the modal closes (dismiss path); the
+                // purchase path redirects to Stripe and returns via ?purchase=.
+                void showBuyCreditsModal().then(() => wireAccountSection());
+            });
             body.querySelector('#account-signout')?.addEventListener('click', () => {
                 void clearCloudToken().then(() => wireAccountSection());
             });

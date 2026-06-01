@@ -5,6 +5,7 @@ import {
     verifyStripeSignature,
     packById,
 } from '../src/billing/stripe.js';
+import { safeReturnPath } from '../src/routes/billing.js';
 
 function sign(payload: string, secret: string, t: number): string {
     const v1 = createHmac('sha256', secret).update(`${t}.${payload}`).digest('hex');
@@ -67,5 +68,24 @@ describe('packById', () => {
     it('looks up known packs', () => {
         expect(packById('starter')?.credits).toBe(50);
         expect(packById('nope')).toBeUndefined();
+    });
+});
+
+describe('safeReturnPath (open-redirect guard)', () => {
+    it('keeps a clean app-relative path and ensures a trailing slash', () => {
+        expect(safeReturnPath('/app/')).toBe('/app/');
+        expect(safeReturnPath('/app')).toBe('/app/');
+        expect(safeReturnPath('/')).toBe('/');
+    });
+
+    it('strips any client-supplied query/hash (server owns ?purchase)', () => {
+        expect(safeReturnPath('/app/?evil=1#x')).toBe('/app/');
+    });
+
+    it('falls back to "/" for absolute, scheme-relative, or missing paths', () => {
+        expect(safeReturnPath('https://evil.example/app/')).toBe('/');
+        expect(safeReturnPath('//evil.example')).toBe('/');
+        expect(safeReturnPath('app/')).toBe('/'); // no leading slash
+        expect(safeReturnPath(undefined)).toBe('/');
     });
 });

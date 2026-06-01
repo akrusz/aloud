@@ -55,6 +55,7 @@ import {
 import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle } from '../theme.js';
 import { showErrorToast } from '../toast.js';
+import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isTauri } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
@@ -556,6 +557,14 @@ export async function mountSessionView(
             // Hosted credit/auth failures get a clear, actionable message.
             const msg = (err as Error).message;
             showErrorToast(describeCloudError(msg) ?? `Something went wrong: ${msg}`);
+            // Out of credits is a dead end mid-session, so make recovery one tap:
+            // surface the buy-credits modal alongside the toast. (meditation-pal-44o)
+            if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+                void showBuyCreditsModal({
+                    title: "You're out of credits",
+                    subtitle: 'Top up to keep going, or switch to a local/BYOK provider in Settings.',
+                });
+            }
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {
             busy = false;
