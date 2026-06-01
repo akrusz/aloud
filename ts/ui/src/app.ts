@@ -79,6 +79,18 @@ export async function bootApp(): Promise<void> {
     // Deep-link into the right view based on the URL the user landed
     // on. Refreshing /history or /settings stays put instead of
     // bouncing the user back to setup.
+    // Dev-only: `?slowboot=<ms>` holds the boot orb on screen *before* the view
+    // mounts, to eyeball the loading state (otherwise a blink on localhost).
+    // Waiting here — ahead of routeTo — keeps the content area empty during the
+    // delay, so it mirrors a real slow load (static nav + centered orb, nothing
+    // mounted) rather than the finished page sitting behind the orb. Read the
+    // query now too: routeTo replaceState's the URL to a clean path, dropping
+    // it. import.meta.env.DEV is false in `vite build`, so this is
+    // dead-code-eliminated from production bundles.
+    if (import.meta.env.DEV) {
+        const ms = Number(new URLSearchParams(window.location.search).get('slowboot'));
+        if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
+    }
     const initial = viewFromPath(window.location.pathname);
     await routeTo(root, initial, { replace: true });
     // First view is mounted and the nav slot is in place — cross-fade the big
