@@ -87,14 +87,47 @@ const MODELS: Record<string, ModelPricing> = {
     },
 };
 
-/** Per-second cost of cloud STT (Fireworks Whisper, the default backend) and
- *  per-character cost of cloud TTS (ElevenLabs-class). The free/browser engines
- *  bill zero — only the server-side engines feed these. If you switch the STT
- *  backend via env (config.ts resolveSttConfig), revisit this rate:
+/** Per-second cost of cloud STT (Fireworks Whisper, the default backend). The
+ *  free/browser engine bills zero — only the server-side engine feeds this. If
+ *  you switch the STT backend via env (config.ts resolveSttConfig), revisit:
  *  Fireworks whisper-v3-turbo ≈ $0.054/hr, Groq ≈ $0.04/hr, OpenAI
  *  gpt-4o-mini-transcribe ≈ $0.18/hr. */
-export const STT_USD_PER_SECOND = 0.054 / 3600; // $0.054/hr (Fireworks whisper-v3-turbo, batch)
-export const TTS_USD_PER_CHAR = 0.00003; // ~ElevenLabs flagship per-char
+export const STT_USD_PER_SECOND = 0.054 / 3600; // $0.054/hr (Fireworks whisper-v3-turbo, standard serverless)
+
+/** Google Cloud TTS list price per CHARACTER, by voice tier. The hosted TTS
+ *  backend is Google (providers/tts.ts synthesizes en-US-Chirp3-HD-* voices),
+ *  so THIS — not a generic "cloud"/ElevenLabs rate — is what actually bills.
+ *  Verified vs cloud.google.com/text-to-speech/pricing (June 2026), per 1M
+ *  chars: Standard $4 · WaveNet/Neural2/Polyglot $16 · Chirp3-HD $30 · Studio
+ *  $160. (Google also gives 1M chars/month free per tier; we don't model that,
+ *  so we slightly over-state real cost — conservative, never an under-bill.) */
+const GOOGLE_TTS_TIER_USD_PER_CHAR = {
+    standard: 4 / M,
+    premium: 16 / M, // WaveNet / Neural2 / Polyglot
+    chirpHd: 30 / M, // Chirp3-HD / Chirp-HD — the tier every curated voice ships on
+    studio: 160 / M,
+} as const;
+
+/** Default per-char TTS rate when a voice id's tier can't be parsed: Chirp3-HD,
+ *  the tier every curated voice uses (voice-catalog.ts). Also the rate the
+ *  whole-session estimate assumes (meter.priceSession, which has no voice). */
+export const TTS_USD_PER_CHAR = GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd; // $30/1M (Google Chirp3-HD)
+
+/** Per-character cost for a specific Google voice, read from its id. Google
+ *  voice ids encode the tier — en-US-Chirp3-HD-Leda, en-US-Neural2-C,
+ *  en-US-Standard-B, en-US-Studio-O — so the tier comes straight from the name.
+ *  Unknown tier → the Chirp3-HD default (what our catalog ships): conservative
+ *  for anything cheaper, and only under-bills the Studio tier we don't offer. */
+export function googleTtsRateFor(voiceId: string | undefined): number {
+    if (!voiceId) return TTS_USD_PER_CHAR;
+    const v = voiceId.toLowerCase();
+    if (v.includes('studio')) return GOOGLE_TTS_TIER_USD_PER_CHAR.studio;
+    if (v.includes('chirp')) return GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd;
+    if (v.includes('neural2') || v.includes('wavenet') || v.includes('polyglot'))
+        return GOOGLE_TTS_TIER_USD_PER_CHAR.premium;
+    if (v.includes('standard')) return GOOGLE_TTS_TIER_USD_PER_CHAR.standard;
+    return TTS_USD_PER_CHAR;
+}
 
 export function pricingFor(provider: ProviderId, model: string): ModelPricing | undefined {
     return MODELS[`${provider}:${model}`];

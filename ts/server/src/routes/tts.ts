@@ -46,23 +46,27 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
+        // Resolve a curated short name ("Leda") or raw id to a Google voice once,
+        // and reuse it for synthesis, pricing (the rate is tier-specific), and
+        // telemetry — so the charge matches the voice actually synthesized.
+        const voiceId = resolveVoiceId(body.voice);
+
         let audio: Uint8Array;
         try {
-            // Resolve a curated short name ("Leda") or raw id to a Google voice.
-            audio = await synthesizeWithGoogle(text, resolveVoiceId(body.voice), body.rate ?? 1, key);
+            audio = await synthesizeWithGoogle(text, voiceId, body.rate ?? 1, key);
         } catch (err) {
             log.error('tts forward failed', { err: String(err) });
             return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
         }
 
-        const cost = priceTtsChars(text.length);
+        const cost = priceTtsChars(text.length, voiceId);
         const debit = Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:google:${text.length}c`);
         await recordUsage(deps.store, {
             accountId: account.id,
             kind: 'tts',
             provider: 'google',
-            model: resolveVoiceId(body.voice),
+            model: voiceId,
             tokensIn: 0,
             tokensOut: 0,
             cacheRead: 0,

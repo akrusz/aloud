@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateModels, estimateStt, estimateVoices } from '../src/pricing/estimate.js';
-import { ttsRateFor } from '../src/pricing/voices.js';
+import { CURATED_VOICES, defaultVoice } from '../src/providers/voice-catalog.js';
 
 describe('estimateModels', () => {
     const models = estimateModels();
@@ -53,23 +53,28 @@ describe('estimateVoices', () => {
         expect(browser.creditsPerHour.engaged).toBe(0);
     });
 
+    it('lists exactly the offered voices: the free locals + the curated Google cloud set', () => {
+        const ids = voices.map((v) => v.voiceId);
+        expect(ids).toContain('browser-default');
+        expect(ids).toContain('os-premium');
+        // Every curated (Chirp3-HD) voice is estimated, by its real Google id.
+        for (const v of CURATED_VOICES) expect(ids).toContain(v.googleId);
+        expect(voices).toHaveLength(2 + CURATED_VOICES.length);
+        // No aspirational engines the server can't synthesize.
+        expect(ids.some((id) => id.includes('elevenlabs') || id.includes('hume'))).toBe(false);
+    });
+
     it('cloud voice cost rises across the talk band (spacious < typical < engaged)', () => {
-        const flash = voices.find((v) => v.voiceId === 'elevenlabs-flash')!;
-        expect(flash.creditsPerHour.spacious).toBeLessThan(flash.creditsPerHour.typical);
-        expect(flash.creditsPerHour.typical).toBeLessThan(flash.creditsPerHour.engaged);
+        const leda = voices.find((v) => v.voiceId === defaultVoice().googleId)!;
+        expect(leda.creditsPerHour.spacious).toBeLessThan(leda.creditsPerHour.typical);
+        expect(leda.creditsPerHour.typical).toBeLessThan(leda.creditsPerHour.engaged);
     });
 
-    it('ElevenLabs is the pricey end; OpenAI/neural are several times cheaper', () => {
-        const at = (id: string) => voices.find((v) => v.voiceId === id)!.creditsPerHour.typical;
-        expect(at('elevenlabs-standard')).toBeGreaterThan(at('elevenlabs-flash'));
-        expect(at('elevenlabs-flash')).toBeGreaterThan(at('openai-tts'));
-        expect(at('elevenlabs-flash') / at('openai-tts')).toBeGreaterThan(1.5);
-    });
-});
-
-describe('ttsRateFor', () => {
-    it('falls back to a non-zero cloud rate for unknown voices (never bills at 0 by accident)', () => {
-        expect(ttsRateFor('some-new-elevenlabs-voice')).toBeGreaterThan(0);
-        expect(ttsRateFor('browser-default')).toBe(0);
+    it('all curated voices share the Chirp3-HD rate (same tier) and cost more than free', () => {
+        const cloud = voices.filter((v) => v.voiceId.includes('Chirp3-HD'));
+        expect(cloud.length).toBe(CURATED_VOICES.length);
+        const rates = cloud.map((v) => v.costUsdPerHourTypical);
+        expect(new Set(rates).size).toBe(1); // one tier → one rate
+        expect(rates[0]!).toBeGreaterThan(0);
     });
 });

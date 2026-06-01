@@ -7,6 +7,7 @@ import {
     packPriceUsd,
     priceLlmTurn,
     priceSession,
+    priceTtsChars,
     type PackLike,
 } from '../src/pricing/meter.js';
 
@@ -72,6 +73,30 @@ describe('priceSession', () => {
         });
         expect(turn.providerCostUsd).toBeGreaterThan(0);
         expect(turn.credits).toBeGreaterThan(0);
+    });
+});
+
+describe('priceTtsChars', () => {
+    const N = 100_000; // chars
+
+    it('prices a Chirp3-HD voice at $30/1M', () => {
+        const cost = priceTtsChars(N, 'en-US-Chirp3-HD-Leda');
+        expect(cost.providerCostUsd).toBeCloseTo(N * (30 / 1_000_000), 9);
+    });
+
+    it('prices cheaper Google tiers correctly — Neural2 $16/1M, Standard $4/1M', () => {
+        expect(priceTtsChars(N, 'en-US-Neural2-C').providerCostUsd).toBeCloseTo(N * (16 / 1_000_000), 9);
+        expect(priceTtsChars(N, 'en-US-Standard-B').providerCostUsd).toBeCloseTo(N * (4 / 1_000_000), 9);
+    });
+
+    it('falls back to the Chirp3-HD default when no voice is given', () => {
+        const explicit = priceTtsChars(N, 'en-US-Chirp3-HD-Leda').providerCostUsd;
+        expect(priceTtsChars(N).providerCostUsd).toBeCloseTo(explicit, 9);
+    });
+
+    it('debits fractional credits at cost (not ceiled)', () => {
+        const cost = priceTtsChars(N, 'en-US-Chirp3-HD-Leda');
+        expect(cost.credits).toBeCloseTo(cost.providerCostUsd / USD_PER_CREDIT, 9);
     });
 });
 

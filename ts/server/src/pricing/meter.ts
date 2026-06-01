@@ -31,6 +31,7 @@ import type { PurchaseChannel } from '../contract.js';
 import {
     STT_USD_PER_SECOND,
     TTS_USD_PER_CHAR,
+    googleTtsRateFor,
     pricingFor,
 } from './providers.js';
 import type { ProviderId } from '../contract.js';
@@ -99,9 +100,12 @@ export function priceSttSeconds(seconds: number): CostBreakdown {
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
 }
 
-/** Price `chars` of cloud TTS — fractional credits, same rationale as STT. */
-export function priceTtsChars(chars: number): CostBreakdown {
-    const providerCostUsd = Math.max(0, chars) * TTS_USD_PER_CHAR;
+/** Price `chars` of cloud TTS — fractional credits, same rationale as STT. The
+ *  rate depends on the Google voice tier actually synthesized (Chirp3-HD vs the
+ *  cheaper Neural2/Standard tiers differ 2-8x), so pass the resolved voice id;
+ *  omitting it falls back to the Chirp3-HD default (providers.googleTtsRateFor). */
+export function priceTtsChars(chars: number, voiceId?: string): CostBreakdown {
+    const providerCostUsd = Math.max(0, chars) * googleTtsRateFor(voiceId);
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
 }
 
