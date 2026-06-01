@@ -1,5 +1,11 @@
 # Building aloud for Desktop
 
+> **Legacy (PyInstaller).** This is the *original* Python desktop build. The
+> desktop app is moving to **Tauri 2** (see [desktop.md](desktop.md)); both CI
+> workflows run in parallel for one cycle to validate Tauri before the Python
+> cutover (meditation-pal-sk8), after which `build.yml` and this doc go away.
+> For current desktop work use Tauri (`cd ts && npm run tauri:build`).
+
 aloud uses PyInstaller to create standalone desktop apps. Each platform must be built on its own OS — PyInstaller doesn't cross-compile.
 
 Releases are fully automated: see `.github/workflows/build.yml`. This doc covers **manual builds** for development.

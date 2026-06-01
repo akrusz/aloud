@@ -1,5 +1,12 @@
 # Voice Barge-In Behavior
 
+> **Historical (Flask era).** This documents the original Python app's
+> client-side barge-in (`src/web/static/js/audio.js`). The TypeScript UI has a
+> different implementation — see `ts/ui/src/audio.ts` and the barge-in wrapper
+> in `ts/ui/src/views/session.ts` (`wrapTtsWithBargeIn`), plus
+> `ts/tests/barge-in.test.ts`. The design notes below still explain the *why*
+> and the energy/timing heuristics, which carried over.
+
 The barge-in system is **entirely client-side**, implemented in the audio loop
 (`src/web/static/js/audio.js`, the `onaudioprocess` handler). The server is
 unaware of barge-in — it simply receives audio and sends TTS audio back.

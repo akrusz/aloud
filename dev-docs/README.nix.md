@@ -1,5 +1,12 @@
 # Building aloud with Nix
 
+> **Legacy (Python / Flask).** This describes the Nix flake for the *original*
+> Python app, which is being removed (meditation-pal-sk8). Current development —
+> the TypeScript UI + Hono server + Tauri desktop shell — does **not** use this
+> flake; see [dev-cheatsheet.md](dev-cheatsheet.md) (`npm run tauri:dev`, or
+> `npm run ui:dev` + the Hono server). Use this only if you specifically need
+> the legacy Python build under Nix.
+
 This project can be built and run using Nix with flakes support.
 
 ## Prerequisites

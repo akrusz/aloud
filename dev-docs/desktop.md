@@ -20,25 +20,32 @@ downloads the Whisper model (base.en GGML, ~142 MB) to
 `<app-data>/models/` (`~/Library/Application Support/app.aloud.meditation/models`
 on macOS); STT returns 503 until that finishes loading.
 
-`tauri:dev` runs `beforeDevCommand` (`npm run ui:dev -- --port 1420 --strictPort`)
-and points the webview at `http://localhost:1420`. The port is **pinned** on
-purpose: Tauri's `devUrl` is a fixed string, so if Vite were allowed to drift to
-another port (5174, …) the window would silently load the wrong server. 1420 is
-Tauri's conventional dev port and is kept separate from the plain browser
-`npm run ui:dev` (still 5173).
+`tauri:dev` runs `beforeDevCommand` (`npm run ui:dev -- --port 4649
+--strictPort`) and points the webview at `http://localhost:4649` (`devUrl`). The
+port is **pinned** on purpose: Tauri's `devUrl` is a fixed string, so if Vite
+were allowed to drift to another port the window would silently load the wrong
+server. 4649 is aloud's dev port (the retired Flask port, reused — see
+`ui/vite.config.ts`).
 
 ## Dev vs. production backend
 
-- **Dev** (`tauri:dev`): the webview loads the Vite dev server, so Vite's proxy
-  (`ui/vite.config.ts`) forwards `/app/v1/*` to Flask (`localhost:4649`, rewriting
-  the prefix back to the legacy `/api/*` until Flask is retired) and `/cloud/v1/*`
-  to the hosted server. **Flask must be running** for STT/TTS/providers to work:
-  `uv run python -m src.web` from the repo root. This is the current
-  "runs on desktop against the existing backend" state.
-- **Production** (`tauri:build`): there is no Vite proxy. The bundled static UI
-  issues `fetch('/app/v1/...')` against `tauri://localhost`, which has no backend.
-  So a production desktop build is **not functional yet** — it needs the local
-  backend described below. This is the Flask-removal work, not the scaffold.
+The app's own backend (`/app/v1/*` — STT/TTS/providers/shell escapes) is served
+by the **Rust shell** in both dev and production; **no Flask** is involved. The
+shell starts an embedded `axum` server on an ephemeral loopback port and injects
+its base as `window.__ALOUD_API_BASE__`, which `appUrl()` reads — so `/app/v1/*`
+calls hit Rust whether the webview is the Vite dev server (`tauri:dev`) or the
+bundled static UI (`tauri:build`). Hosted features (`/cloud/v1/*` — accounts,
+credits, hosted voices) always go to the hosted server, baked in at build time
+via `VITE_ALOUD_SERVER_URL`.
+
+(The browser-only dev path — `npm run ui:dev` without Tauri — has no Rust shell;
+there the Vite proxy forwards both `/app/v1` and `/cloud/v1` to the Hono server
+on :8787, also Flask-free. See `dev-cheatsheet.md`.)
+
+A production desktop build is functional for local features — the `/app/v1/*`
+endpoints below are implemented in Rust. End-to-end release validation (signed
+artifacts launching with their embedded backend) is still pending; see the
+Release note at the bottom.
 
 ## Backend plan (Flask removal, desktop)
 
