@@ -97,38 +97,41 @@ directly: `cd ts && npm ci && ALOUD_ENV=production ALOUD_DB_PATH=/var/lib/aloud/
 
 ---
 
-## UI hosting — an open decision
+## UI hosting (aloud.rest/app)
 
-The UI is a static `ui/dist` (Vite). The catch: **this repo's GitHub Pages is
-already in use** for the marketing/landing site (served from `/docs` on `main`
-with a `CNAME` custom domain — see the "Landing site" note in
-[dev-cheatsheet.md](dev-cheatsheet.md)). A repo gets one Pages site, so the app
-UI can't naively co-deploy there. Two clean options:
+**Decided** (meditation-pal-sgp): the browser app is a **subpath under the
+existing GitHub Pages site** — built with Vite `base: '/app/'` into `docs/app/`,
+so it serves at `https://aloud.rest/app/` alongside the marketing site at `/`.
+Reuses the existing Pages + cert + domain; the SPA router is base-path aware
+(`ui/src/route-base.ts`) and `docs/404.html` carries the deep-link redirect.
 
-1. **Subpath under the existing Pages site** — build the UI with
-   `base: '/app/'` into `docs/app/`, so it serves at
-   `https://<custom-domain>/app/`. Reuses the existing Pages + cert + domain;
-   no new host. Cost: built assets get committed into `docs/` (today
-   hand-written), and the SPA router in `ui/src/app.ts` needs a base-path
-   (`/app`) so deep links and the History API resolve correctly.
-2. **Separate static host** — Cloudflare Pages / Netlify / a CDN bucket on its
-   own subdomain (e.g. `app.<domain>`). Keeps generated assets out of the
-   marketing repo and the router at root (`base: '/'`, no change). Cost: a
-   second host + a DNS record.
+### Deploy (recommended): the workflow
 
-**This needs your call before wiring** — option 1 changes the Vite `base` and
-the router, which would break in-app navigation if done blind, so I left it
-for you. Once chosen, the build itself is one command:
+Run the **Deploy web app (UI → docs/app)** GitHub Action
+(`.github/workflows/deploy-web.yml`, manual). It builds the hosted UI and commits
+the result into `docs/app/` on the branch you run it from; Pages publishes
+`docs/` automatically. One-time: set two repo **Variables** (Settings → Secrets
+and variables → Actions → Variables):
+
+- `ALOUD_SERVER_URL` — the hosted `/cloud` origin (e.g. `https://aloud-server.fly.dev`).
+- `GOOGLE_CLIENT_ID` — the web OAuth client id (= `GOOGLE_CLIENT_IDS` on the
+  server). Not secret; it's baked into the public client.
+
+### Deploy (manual fallback)
 
 ```bash
 cd ts
-VITE_ALOUD_SERVER_URL=https://<your-app>.fly.dev npm run ui:build   # → ui/dist
-# option 1: vite build with base '/app/' and outDir docs/app, then commit docs/app
-# option 2: upload ui/dist to the static host
+VITE_ALOUD_SERVER_URL=https://aloud-server.fly.dev \
+  VITE_GOOGLE_CLIENT_ID=<web-oauth-client-id> \
+  npm run ui:build:hosted          # → repo-root docs/app/
+git add docs/app && git commit -m "build hosted app" && git push
 ```
 
-Whichever host you pick, set the server's `ALOUD_CORS_ORIGINS` to its origin so
-the browser is allowed to call the API cross-origin.
+Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin
+(`https://aloud.rest`) so the browser may call the API cross-origin.
+
+> The dev/desktop build (`npm run ui:build`, base `/` → `ui/dist`) is untouched;
+> only `ui:build:hosted` (base `/app/`) writes `docs/app`.
 
 ---
 
