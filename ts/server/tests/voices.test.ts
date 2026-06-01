@@ -28,8 +28,20 @@ describe('GET /cloud/v1/voices', () => {
         const res = await app.request('/cloud/v1/voices');
         expect(res.status).toBe(200);
         const voices = (await res.json()) as CloudVoice[];
-        expect(voices.map((v) => v.name)).toEqual(['Pulcherrima', 'Sadachbia', 'Leda']);
+        expect(voices.map((v) => v.name)).toEqual(CURATED_VOICES.map((v) => v.name));
         expect(voices.every((v) => 'gender' in v)).toBe(true);
+    });
+
+    it('carries a cost tier + credits/hr so the picker can show relative cost', async () => {
+        const app = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k' })));
+        const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
+        const leda = voices.find((v) => v.name === 'Leda')!; // premium (Chirp3-HD)
+        const vega = voices.find((v) => v.name === 'Vega')!; // value (Neural2)
+        expect(leda.tier).toBe('premium');
+        expect(vega.tier).toBe('value');
+        // The value voice must read as cheaper (lower credits/hr) than premium.
+        expect(vega.creditsPerHourTypical).toBeGreaterThan(0);
+        expect(vega.creditsPerHourTypical).toBeLessThan(leda.creditsPerHourTypical);
     });
 
     it('is empty when TTS is not configured', async () => {

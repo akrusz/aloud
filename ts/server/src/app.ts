@@ -20,6 +20,7 @@ import { llmRoutes } from './routes/llm.js';
 import { sttRoutes } from './routes/stt.js';
 import { ttsRoutes } from './routes/tts.js';
 import { CURATED_VOICES } from './providers/voice-catalog.js';
+import { voiceCreditsPerHourTypical } from './pricing/estimate.js';
 import type { CloudVoice } from './contract.js';
 import { billingRoutes } from './routes/billing.js';
 import { adminRoutes } from './routes/admin.js';
@@ -78,7 +79,12 @@ export function createApp(deps: Deps): Hono {
     // client merges these into its voice picker (availability-driven menus).
     app.get('/cloud/v1/voices', (c) => {
         const voices: CloudVoice[] = deps.config.googleTtsApiKey
-            ? CURATED_VOICES.map((v) => ({ name: v.name, gender: v.gender }))
+            ? CURATED_VOICES.map((v) => ({
+                  name: v.name,
+                  gender: v.gender,
+                  tier: v.tier,
+                  creditsPerHourTypical: voiceCreditsPerHourTypical(v.googleId),
+              }))
             : [];
         return c.json(voices);
     });

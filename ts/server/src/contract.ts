@@ -95,6 +95,12 @@ export interface SpeakRequest {
 export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
+    /** Cost tier for the picker's cost indicator: 'premium' (priciest offered,
+     *  Chirp3-HD) vs 'value' (a cheaper Google tier at ~half the cost). */
+    tier: 'premium' | 'value';
+    /** Estimated credits/hr at a typical talk profile, from the same pricing the
+     *  meter bills with — so the picker can show a concrete "~N cr/hr". */
+    creditsPerHourTypical: number;
 }
 
 // ---- Auth & account ---------------------------------------------------------

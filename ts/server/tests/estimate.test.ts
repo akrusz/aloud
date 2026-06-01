@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { estimateModels, estimateStt, estimateVoices } from '../src/pricing/estimate.js';
+import {
+    estimateModels,
+    estimateStt,
+    estimateVoices,
+    voiceCreditsPerHourTypical,
+} from '../src/pricing/estimate.js';
 import { CURATED_VOICES, defaultVoice } from '../src/providers/voice-catalog.js';
 
 describe('estimateModels', () => {
@@ -57,7 +62,7 @@ describe('estimateVoices', () => {
         const ids = voices.map((v) => v.voiceId);
         expect(ids).toContain('browser-default');
         expect(ids).toContain('os-premium');
-        // Every curated (Chirp3-HD) voice is estimated, by its real Google id.
+        // Every curated voice (both tiers) is estimated, by its real Google id.
         for (const v of CURATED_VOICES) expect(ids).toContain(v.googleId);
         expect(voices).toHaveLength(2 + CURATED_VOICES.length);
         // No aspirational engines the server can't synthesize.
@@ -70,11 +75,24 @@ describe('estimateVoices', () => {
         expect(leda.creditsPerHour.typical).toBeLessThan(leda.creditsPerHour.engaged);
     });
 
-    it('all curated voices share the Chirp3-HD rate (same tier) and cost more than free', () => {
-        const cloud = voices.filter((v) => v.voiceId.includes('Chirp3-HD'));
-        expect(cloud.length).toBe(CURATED_VOICES.length);
-        const rates = cloud.map((v) => v.costUsdPerHourTypical);
-        expect(new Set(rates).size).toBe(1); // one tier → one rate
-        expect(rates[0]!).toBeGreaterThan(0);
+    it('prices the value (Neural2) tier below the premium (Chirp3-HD) tier', () => {
+        const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
+        const premium = CURATED_VOICES.find((v) => v.tier === 'premium')!;
+        const value = CURATED_VOICES.find((v) => v.tier === 'value')!;
+        expect(rateOf(value.googleId)).toBeGreaterThan(0);
+        expect(rateOf(value.googleId)).toBeLessThan(rateOf(premium.googleId));
+        // Neural2 ($16/1M) is ~half Chirp3-HD ($30/1M).
+        expect(rateOf(value.googleId) / rateOf(premium.googleId)).toBeCloseTo(16 / 30, 2);
+    });
+});
+
+describe('voiceCreditsPerHourTypical', () => {
+    it('matches the per-voice estimate and ranks value below premium', () => {
+        const premium = CURATED_VOICES.find((v) => v.tier === 'premium')!;
+        const value = CURATED_VOICES.find((v) => v.tier === 'value')!;
+        expect(voiceCreditsPerHourTypical(value.googleId)).toBeGreaterThan(0);
+        expect(voiceCreditsPerHourTypical(value.googleId)).toBeLessThan(
+            voiceCreditsPerHourTypical(premium.googleId)
+        );
     });
 });

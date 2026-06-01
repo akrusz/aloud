@@ -1859,6 +1859,30 @@ body:has(.session-container) {
     top: -1px;
 }
 
+/* Cost indicator on a hosted voice row — communicates relative credit burn
+   (meditation-pal-b7i). 'value' (cheaper Neural2) reads green "$"; 'premium'
+   (Chirp3-HD) reads amber "$$". The title attr carries the ~credits/hr. */
+.voice-row-cost {
+    display: inline-block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    padding: 0.1rem 0.32rem;
+    margin-left: 0.35rem;
+    white-space: nowrap;
+    position: relative;
+    top: -1px;
+    cursor: help;
+}
+.voice-row-cost-value {
+    color: var(--success);
+    background: rgba(90, 158, 111, 0.14);
+}
+.voice-row-cost-premium {
+    color: #d9a23f;
+    background: rgba(245, 165, 47, 0.14);
+}
+
 .voice-row-uninstall {
     background: transparent;
     border: 1px solid var(--text-muted);

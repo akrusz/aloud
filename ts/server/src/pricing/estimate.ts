@@ -117,6 +117,14 @@ export function estimateStt(): LegEstimate {
     };
 }
 
+/** Typical-profile credits/hr for a Google voice id — the concrete "how fast
+ *  does this burn my credits" number the picker shows next to a voice, computed
+ *  from the SAME rate the meter bills with (so it can't drift). One decimal. */
+export function voiceCreditsPerHourTypical(googleId: string): number {
+    const usdPerHour = TTS_CHAR_PROFILES.typical * googleTtsRateFor(googleId) * PER_HOUR;
+    return Math.round(usdToCredits(usdPerHour) * 10) / 10;
+}
+
 /** A free local voice line (device/OS speechSynthesis) — bills zero, shown so
  *  the picker can contrast "free" against the cloud options. */
 function freeVoice(voiceId: string, label: string): VoiceEstimate {

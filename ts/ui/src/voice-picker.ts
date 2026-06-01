@@ -46,6 +46,11 @@ export interface ServerVoice {
 export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
+    /** Relative cost tier for the picker's $ indicator. Optional for resilience
+     *  against an older server that doesn't send it. */
+    tier?: 'premium' | 'value';
+    /** Estimated credits/hr at a typical talk profile (server-computed). */
+    creditsPerHourTypical?: number;
 }
 
 /** Scored, sorted voice entry for the picker UI. */
@@ -68,6 +73,10 @@ export interface ScoredVoice {
     model?: string;
     /** Small muted label after the name (e.g. a hosted voice's gender). */
     note?: string;
+    /** Cost tier for a hosted voice — drives the "$"/"$$" cost badge. */
+    costTier?: 'premium' | 'value';
+    /** Estimated credits/hr for a hosted voice (shown in the badge tooltip). */
+    creditsPerHour?: number;
 }
 
 export const TIER_LABELS: Record<number, string> = {
@@ -161,6 +170,8 @@ export function buildScoredVoiceList(
             engine: 'aloud',
             recommended: true,
             note: hv.gender,
+            ...(hv.tier ? { costTier: hv.tier } : {}),
+            ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
         });
         seen.add(hv.name);
     }
@@ -326,6 +337,20 @@ function appendRow(
         note.className = 'voice-row-engine';
         note.textContent = entry.note;
         nameSpan.appendChild(note);
+    }
+    // Cost indicator for hosted voices: "$" (value/Neural2) vs "$$" (premium/
+    // Chirp3-HD), so a pricier voice reads as pricier at a glance. The tooltip
+    // carries the concrete credits/hr (meditation-pal-b7i).
+    if (entry.costTier) {
+        const cost = document.createElement('span');
+        cost.className = `voice-row-cost voice-row-cost-${entry.costTier}`;
+        cost.textContent = entry.costTier === 'premium' ? '$$' : '$';
+        const tierWord = entry.costTier === 'premium' ? 'Premium' : 'Value';
+        cost.title =
+            entry.creditsPerHour != null
+                ? `${tierWord} voice · ≈ ${entry.creditsPerHour} credits/hr`
+                : `${tierWord} voice`;
+        nameSpan.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {
         const eng = entry.displayEngine ?? entry.engine!;
