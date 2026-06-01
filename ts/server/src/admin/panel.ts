@@ -105,18 +105,18 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   </div>
 
   <div id="app" class="hidden">
-    <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:12px">refresh</button></h2>
+    <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
     <div class="grid" id="stats"></div>
 
     <h2>Cost attribution
       <span style="float:right;display:flex;gap:8px;align-items:center">
-        <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:12px">
+        <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:14px">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
           <option value="1000000">all time</option>
         </select>
-        <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:12px">refresh</button>
+        <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:14px">refresh</button>
       </span>
     </h2>
     <p class="sub" style="margin:-4px 0 12px">What real sessions actually cost — the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
@@ -182,7 +182,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
-    <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:12px">refresh</button></h2>
+    <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="filter by email…" autocomplete="off"></div>

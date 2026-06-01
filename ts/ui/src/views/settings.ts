@@ -41,7 +41,7 @@ import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
 import { fetchMe, clearCloudToken, isGoogleSignInConfigured } from '../cloud-auth.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
-import { creditAmount } from '../credit-rate.js';
+import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
 import { showSignInModal } from '../sign-in-modal.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
@@ -202,7 +202,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         <div class="account-credits provider-hint">${creditAmount(account.creditsRemaining)} remaining</div>
                     </div>
                     <div class="account-actions">
-                        <button type="button" class="btn btn-primary" id="account-buy-credits">Buy credits</button>
+                        <button type="button" class="btn btn-primary" id="account-buy-credits">Buy ${RATE_EMOJI}</button>
                         <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
                     </div>
                 </div>

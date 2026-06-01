@@ -2845,10 +2845,78 @@ html:has(.nav-brand.has-update) .update-btn {
     color: var(--danger, #c0503e);
 }
 
+/* Gift toggle ("For myself" / "Gift to someone") + recipient field. */
+.buy-credits-target {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.buy-credits-target-btn {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.buy-credits-target-btn.active {
+    border-color: var(--accent, #4a7c59);
+    color: var(--accent, #4a7c59);
+    font-weight: 600;
+}
+/* Inset the recipient input with margin (a leaf box) instead of the modal's
+ * blanket child-padding, and keep its own inner padding. */
+.buy-credits-modal > .buy-credits-gift-email {
+    margin: 0 1.25rem 0.6rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+/* ---- Gift-accept modal (meditation-pal-gift) ---- */
+.gift-modal > *:not(.voice-modal-header):not(.provider-hint) {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}
+.gift-modal > .provider-hint {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+}
+.gift-modal {
+    padding-bottom: 1.25rem;
+}
+.gift-modal-subtitle {
+    margin-top: 1rem;
+}
+.gift-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.gift-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.gift-row-amount {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+.gift-row-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .account-actions {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+    /* Breathing room from the balance line above, matching the rhythm of the
+       connect-prompt below (0.75rem). */
+    margin-top: 0.75rem;
 }
 
 .account-connect-prompt {
