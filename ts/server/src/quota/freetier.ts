@@ -39,10 +39,21 @@ export class FreeGrantBreaker {
     private grants: Array<{ ts: number; credits: number }> = [];
 
     constructor(
-        private readonly budgetPerWindow: number,
+        private budgetPerWindow: number,
         private readonly windowMs = 3_600_000, // 1 hour
         private readonly now: () => number = Date.now
     ) {}
+
+    /** Current per-window budget (for the admin config view). */
+    get budget(): number {
+        return this.budgetPerWindow;
+    }
+
+    /** Retune the budget live (admin panel). 0 halts all free grants. Clamped
+     *  to non-negative. */
+    setBudget(credits: number): void {
+        this.budgetPerWindow = Math.max(0, credits);
+    }
 
     /** Reserve `credits` against the budget. Returns true if within budget (and
      *  records them), false if the grant would exceed it (caller grants 0). */

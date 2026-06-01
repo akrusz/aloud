@@ -13,6 +13,7 @@ import { loadConfig, configuredProviders } from './config.js';
 import { buildDeps } from './deps.js';
 import { createApp } from './app.js';
 import { assertSolvent, PACK_MARKUP } from './pricing/meter.js';
+import { loadRuntimeOverrides } from './admin/runtime-config.js';
 import { CREDIT_PACKS } from './billing/stripe.js';
 import { setStrictContentCheck, log } from './logger.js';
 import { readFileSync } from 'node:fs';
@@ -32,7 +33,7 @@ function readIndexHtml(root: string): string | null {
     }
 }
 
-function main(): void {
+async function main(): Promise<void> {
     // Load .env into process.env for local dev (Fly/Render inject real env, so
     // there's no file there — hence the guard). Tests build config explicitly
     // and never import this entrypoint, so they stay hermetic.
@@ -52,6 +53,9 @@ function main(): void {
     const solvency = assertSolvent(CREDIT_PACKS);
 
     const deps = buildDeps(config);
+    // Fold any persisted operator overrides (admin panel) over the env defaults
+    // before serving, so a knob set last week survives this restart.
+    await loadRuntimeOverrides(deps);
     const app = createApp(deps);
 
     // Optional: serve the built UI from this same process (the "full install"
@@ -89,4 +93,7 @@ function main(): void {
     });
 }
 
-main();
+main().catch((err: unknown) => {
+    log.error('fatal: server failed to start', { error: String(err) });
+    process.exit(1);
+});

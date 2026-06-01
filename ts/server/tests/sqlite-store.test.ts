@@ -85,6 +85,14 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect((await store.allAccounts()).map((a) => a.id).sort()).toEqual(['acct-1', 'acct-2']);
         expect((await store.allEntries()).reduce((s, e) => s + e.amount, 0)).toBe(50);
     });
+
+    it('round-trips and upserts operator settings', async () => {
+        expect(await store.getSetting('free_signup_credits')).toBeUndefined();
+        await store.setSetting('free_signup_credits', '0');
+        expect(await store.getSetting('free_signup_credits')).toBe('0');
+        await store.setSetting('free_signup_credits', '7'); // upsert, not duplicate
+        expect(await store.getSetting('free_signup_credits')).toBe('7');
+    });
 });
 
 describe('SqliteCreditsStore durability', () => {

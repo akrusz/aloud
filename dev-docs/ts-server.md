@@ -175,6 +175,8 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | `GET /v1/admin/accounts` | admin token | every account + derived balance / granted / spent / paid flag |
 | `GET /v1/admin/accounts/:id` | admin token | one account + its full ledger (audit trail) |
 | `POST /v1/admin/grant` | admin token | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
+| `GET /v1/admin/config` | admin token | live effective free-credit knobs + pricing context |
+| `PUT /v1/admin/config` | admin token | `{freeSignupCredits?, freeGrantBudgetPerHour?}` → retune live + persist (0 = off) |
 
 ### Admin control panel
 
@@ -184,6 +186,16 @@ Browse to `/cloud/v1/admin` on the server (e.g.
 Paste `ALOUD_ADMIN_TOKEN` once (kept in this origin's localStorage, sent as a
 Bearer header; never baked into the page). With no token configured the panel
 and every `/admin/*` endpoint 404 — disabled, not open.
+
+**Tunable free-credit knobs.** The panel's *Free credits* section sets
+`freeSignupCredits` and the global hourly `freeGrantBudgetPerHour` live (no
+redeploy) via `PUT /v1/admin/config`. Set either to **0** to stop handing out
+free credits while testing. Overrides persist in the store's `settings` KV
+(`free_signup_credits`, `free_grant_budget_per_hour`) and are folded over the
+env defaults at boot (`loadRuntimeOverrides`), so they survive a restart — a
+persisted panel override wins over `ALOUD_FREE_SIGNUP_CREDITS` /
+`ALOUD_FREE_GRANT_BUDGET_PER_HOUR` on subsequent boots. See
+`src/admin/runtime-config.ts`.
 
 ## Hosted voices & auditioning new ones
 

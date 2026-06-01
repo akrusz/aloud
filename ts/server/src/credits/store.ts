@@ -71,4 +71,15 @@ export interface CreditsStore {
     allAccounts(): Promise<Account[]>;
     /** Every ledger entry across all accounts (for spend aggregates). */
     allEntries(): Promise<LedgerEntry[]>;
+
+    // ---- Operator settings (durable runtime config) -------------------------
+    // A tiny key→value store for operator-tunable knobs (free-credit grant,
+    // hourly budget) set from the admin panel. Kept here so an override survives
+    // restart/redeploy instead of snapping back to the env default. Separate
+    // from accounts/ledger; never carries user content.
+
+    /** A persisted setting value, or undefined if never set. */
+    getSetting(key: string): Promise<string | undefined>;
+    /** Persist a setting value (upsert). */
+    setSetting(key: string, value: string): Promise<void>;
 }

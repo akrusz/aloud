@@ -9,6 +9,7 @@ import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
+import { loadRuntimeOverrides } from '../src/admin/runtime-config.js';
 import type { Account } from '../src/credits/store.js';
 
 const TOKEN = 'super-secret-admin-token';
@@ -156,5 +157,67 @@ describe('admin routes — grant', () => {
 
     it('requires the admin token', async () => {
         expect((await grant({ email: 'alice@example.com', credits: 10 }, 'wrong')).status).toBe(401);
+    });
+});
+
+describe('admin routes — runtime config', () => {
+    let h: ReturnType<typeof makeApp>;
+
+    beforeEach(() => {
+        h = makeApp({ token: TOKEN });
+    });
+
+    async function getConfig() {
+        const res = await h.app.request('/cloud/v1/admin/config', { headers: authed() });
+        return { status: res.status, body: (await res.json()) as Record<string, number> };
+    }
+    async function putConfig(body: unknown, token = TOKEN) {
+        return h.app.request('/cloud/v1/admin/config', {
+            method: 'PUT',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    }
+
+    it('reports the live effective config', async () => {
+        const { status, body } = await getConfig();
+        expect(status).toBe(200);
+        expect(body['freeSignupCredits']).toBe(20); // env/default seeded in loadConfig
+        expect(typeof body['freeGrantBudgetPerHour']).toBe('number');
+        expect(body['usdPerCredit']).toBeGreaterThan(0);
+    });
+
+    it('zeroing signup credits stops the grant on the next signup', async () => {
+        const put = await putConfig({ freeSignupCredits: 0 });
+        expect(put.status).toBe(200);
+        expect(((await put.json()) as Record<string, number>)['freeSignupCredits']).toBe(0);
+
+        // A fresh dev sign-in now grants nothing.
+        const signin = await h.app.request('/cloud/v1/auth/dev', { method: 'POST' });
+        const auth = (await signin.json()) as { account: { creditsRemaining: number } };
+        expect(auth.account.creditsRemaining).toBe(0);
+    });
+
+    it('persists the override to the store (survives a rebuild from the same store)', async () => {
+        await putConfig({ freeSignupCredits: 7, freeGrantBudgetPerHour: 0 });
+        // Rebuild the app against the SAME store (simulates a restart): the boot
+        // loader should re-apply the persisted overrides.
+        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
+        const deps = buildDeps(config, { store: h.store });
+        await loadRuntimeOverrides(deps);
+        expect(deps.config.freeSignupCredits).toBe(7);
+        expect(deps.grantBreaker.budget).toBe(0);
+    });
+
+    it('rejects negative or non-integer values, and a wrong token', async () => {
+        expect((await putConfig({ freeSignupCredits: -1 })).status).toBe(400);
+        expect((await putConfig({ freeSignupCredits: 1.5 })).status).toBe(400);
+        expect((await putConfig({ freeGrantBudgetPerHour: -5 })).status).toBe(400);
+        expect((await putConfig({ freeSignupCredits: 10 }, 'wrong')).status).toBe(401);
+    });
+
+    it('404s config when no token is configured', async () => {
+        const { app } = makeApp(); // no token
+        expect((await app.request('/cloud/v1/admin/config', { headers: authed() })).status).toBe(404);
     });
 });

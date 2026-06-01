@@ -104,6 +104,23 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:12px">refresh</button></h2>
     <div class="grid" id="stats"></div>
 
+    <h2>Free credits</h2>
+    <div class="card">
+      <p class="sub" style="margin:0 0 14px">Tune the free tier live — no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
+      <div class="row">
+        <div>
+          <label for="cSignup">Free credits per new signup</label>
+          <input id="cSignup" type="number" min="0" step="1" autocomplete="off">
+        </div>
+        <div>
+          <label for="cBudget">Global free-grant budget / hour</label>
+          <input id="cBudget" type="number" min="0" step="1" autocomplete="off">
+        </div>
+        <button id="saveConfig">Save</button>
+      </div>
+      <div class="msg" id="configMsg"></div>
+    </div>
+
     <h2>Grant credits</h2>
     <div class="card">
       <div class="row">
@@ -155,6 +172,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
 
   function usd(n) { return '$' + Number(n || 0).toFixed(2); }
   function int(n) { return Number(n || 0).toLocaleString(); }
+  // Credit amounts are fractional (TTS debits sub-credit), so show one decimal.
+  function dec1(n) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
   function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
 
   // ---- metrics dashboard -------------------------------------------------
@@ -163,7 +182,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       var t = m.totals, w = m.window, a = m.abuse;
       var cards = [
         ['Accounts', int(t.accounts)],
-        ['Credits outstanding', int(t.creditsOutstanding)],
+        ['Credits outstanding', dec1(t.creditsOutstanding)],
         ['Provider cost (all-time)', usd(t.providerCostUsd)],
         ['Free burn (non-converters)', usd(t.freeBurnUsd), t.freeBurnUsd > 0 ? 'warn' : ''],
         ['Est. gross revenue', usd(t.estGrossRevenueUsd)],
@@ -175,6 +194,32 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
       }).join('');
     });
+  }
+
+  // ---- free-credit knobs -------------------------------------------------
+  function loadConfig() {
+    return api('/config').then(function (cfg) {
+      $('cSignup').value = cfg.freeSignupCredits;
+      $('cBudget').value = cfg.freeGrantBudgetPerHour;
+    });
+  }
+  function saveConfig() {
+    var signup = parseInt($('cSignup').value, 10);
+    var budget = parseInt($('cBudget').value, 10);
+    if (!(signup >= 0) || !(budget >= 0)) { setMsg($('configMsg'), 'Both values must be 0 or more.', 'err'); return; }
+    $('saveConfig').disabled = true;
+    api('/config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ freeSignupCredits: signup, freeGrantBudgetPerHour: budget }),
+    }).then(function (cfg) {
+      $('cSignup').value = cfg.freeSignupCredits;
+      $('cBudget').value = cfg.freeGrantBudgetPerHour;
+      var off = cfg.freeSignupCredits === 0 || cfg.freeGrantBudgetPerHour === 0;
+      setMsg($('configMsg'), 'Saved.' + (off ? ' Free credits are OFF.' : ''), 'ok');
+    }).catch(function (e) {
+      setMsg($('configMsg'), e.message, 'err');
+    }).then(function () { $('saveConfig').disabled = false; });
   }
 
   // ---- accounts table ----------------------------------------------------
@@ -191,9 +236,9 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       return '<tr data-id="' + a.id + '">' +
         '<td>' + esc(a.email) + '</td>' +
         '<td>' + pill + '</td>' +
-        '<td class="num">' + int(a.balance) + '</td>' +
-        '<td class="num">' + int(a.granted) + '</td>' +
-        '<td class="num">' + int(a.debited) + '</td>' +
+        '<td class="num">' + dec1(a.balance) + '</td>' +
+        '<td class="num">' + dec1(a.granted) + '</td>' +
+        '<td class="num">' + dec1(a.debited) + '</td>' +
         '<td class="muted">' + date(a.createdAt) + '</td>' +
         '</tr>';
     }).join('');
@@ -216,7 +261,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     api('/accounts/' + encodeURIComponent(id)).then(function (d) {
       var entries = d.entries.slice().reverse(); // newest first
       var rows = entries.map(function (e) {
-        var amt = e.amount > 0 ? '+' + int(e.amount) : int(e.amount);
+        var amt = e.amount > 0 ? '+' + dec1(e.amount) : dec1(e.amount);
         var cls = e.amount > 0 ? 'good' : 'bad';
         return '<tr><td class="muted">' + date(e.createdAt) + '</td><td>' + esc(e.kind) +
           '</td><td>' + esc(e.reason) + '</td><td class="num" style="color:var(--' + cls + ')">' + amt + '</td></tr>';
@@ -225,7 +270,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         '<div class="modal-bg" id="mbg"><div class="modal">' +
         '<button class="x" id="mx">&times;</button>' +
         '<h3>' + esc(d.account.email) + '</h3>' +
-        '<p class="sub" style="margin:0 0 14px">Balance <strong>' + int(d.balance) + '</strong> credits · ' +
+        '<p class="sub" style="margin:0 0 14px">Balance <strong>' + dec1(d.balance) + '</strong> credits · ' +
         'id <code>' + esc(d.account.id) + '</code></p>' +
         '<table><thead><tr><th>When</th><th>Kind</th><th>Reason</th><th class="num">Δ</th></tr></thead><tbody>' +
         rows + '</tbody></table></div></div>';
@@ -246,7 +291,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: email, credits: credits }),
     }).then(function (r) {
-      setMsg($('grantMsg'), 'Granted ' + int(credits) + ' to ' + email + ' — new balance ' + int(r.balance) + '.', 'ok');
+      setMsg($('grantMsg'), 'Granted ' + int(credits) + ' to ' + email + ' — new balance ' + dec1(r.balance) + '.', 'ok');
       $('gCredits').value = '';
       return Promise.all([loadAccounts(), loadMetrics()]);
     }).catch(function (e) {
@@ -263,7 +308,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       localStorage.setItem(KEY, token);
       setMsg($('authMsg'), 'Connected.', 'ok');
       $('app').classList.remove('hidden');
-      return loadAccounts();
+      return Promise.all([loadAccounts(), loadConfig()]);
     }).catch(function (e) {
       setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
       $('app').classList.add('hidden');
@@ -276,6 +321,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     $('app').classList.add('hidden'); setMsg($('authMsg'), 'Token forgotten.');
   };
   $('grant').onclick = doGrant;
+  $('saveConfig').onclick = saveConfig;
   $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('search').addEventListener('input', renderAccounts);

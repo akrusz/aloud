@@ -11,6 +11,7 @@ export class MemoryCreditsStore implements CreditsStore {
     private accounts = new Map<string, Account>();
     private bySub = new Map<string, string>();
     private entries = new Map<string, LedgerEntry[]>();
+    private settings = new Map<string, string>();
 
     async getAccountByGoogleSub(sub: string): Promise<Account | undefined> {
         const id = this.bySub.get(sub);
@@ -46,5 +47,13 @@ export class MemoryCreditsStore implements CreditsStore {
 
     async allEntries(): Promise<LedgerEntry[]> {
         return [...this.entries.values()].flat();
+    }
+
+    async getSetting(key: string): Promise<string | undefined> {
+        return this.settings.get(key);
+    }
+
+    async setSetting(key: string, value: string): Promise<void> {
+        this.settings.set(key, value);
     }
 }

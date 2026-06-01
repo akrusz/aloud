@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS ledger (
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_account ON ledger(account_id);
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 `;
 
 type Row = Record<string, string | number | bigint | Uint8Array | null>;
@@ -166,5 +170,21 @@ export class SqliteCreditsStore implements CreditsStore {
     async allEntries(): Promise<LedgerEntry[]> {
         const rows = this.db.prepare('SELECT * FROM ledger').all() as Row[];
         return rows.map(rowToEntry);
+    }
+
+    async getSetting(key: string): Promise<string | undefined> {
+        const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+            | Row
+            | undefined;
+        return row ? String(row['value']) : undefined;
+    }
+
+    async setSetting(key: string, value: string): Promise<void> {
+        this.db
+            .prepare(
+                `INSERT INTO settings (key, value) VALUES (?, ?)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+            )
+            .run(key, value);
     }
 }

@@ -22,6 +22,7 @@ import type { Deps } from '../deps.js';
 import type { Account, LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
 import { ADMIN_PANEL_HTML } from '../admin/panel.js';
+import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
     if (!provided) return false;
@@ -121,6 +122,45 @@ export function adminRoutes(deps: Deps): Hono {
         const entries = await deps.store.listEntries(account.id);
         const balance = entries.reduce((s, e) => s + e.amount, 0);
         return c.json({ account, balance, entries });
+    });
+
+    // Operator-tunable runtime config (free-credit knobs). GET reads the live
+    // effective values; PUT patches them (live + persisted). Lets the operator
+    // stop handing out free credits while testing without a redeploy.
+    app.get('/config', (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+        return c.json(effectiveConfig(deps));
+    });
+
+    app.put('/config', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        let body: { freeSignupCredits?: unknown; freeGrantBudgetPerHour?: unknown };
+        try {
+            body = (await c.req.json()) as typeof body;
+        } catch {
+            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+        }
+
+        const patch: ConfigPatch = {};
+        for (const key of ['freeSignupCredits', 'freeGrantBudgetPerHour'] as const) {
+            if (body[key] === undefined) continue;
+            const n = Number(body[key]);
+            // Non-negative integers only — these are whole-credit knobs, and a
+            // stray float/negative shouldn't silently corrupt the grant budget.
+            if (!Number.isInteger(n) || n < 0) {
+                return c.json(
+                    apiError('bad_request', `${key} must be a non-negative integer`),
+                    ERROR_STATUS.bad_request
+                );
+            }
+            patch[key] = n;
+        }
+
+        const updated = await applyRuntimeConfig(deps, patch);
+        return c.json(updated);
     });
 
     // Grant credits to an account by email. Looks the account up (trial-scale
