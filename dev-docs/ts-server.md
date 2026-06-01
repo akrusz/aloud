@@ -69,7 +69,7 @@ load logic is `loadConfig` in `config.ts`.
 | `FIREWORKS_API_KEY` | server STT (default) | drives `/v1/stt` (Whisper); Fireworks `whisper-v3-turbo`, ≈ $0.054/hr. Recommended over Groq, whose new paid signups may be frozen |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (Fireworks/Groq/OpenAI/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/v1/tts` reports not-configured, client falls back to browser TTS |
-| `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost) |
+| `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup — once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
 | `ALOUD_ADMIN_TOKEN` | `/v1/admin/*` + panel | unset = admin routes & panel 404 (disabled, not open) |
@@ -161,7 +161,7 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 |---|---|---|
 | `GET /health` | public | liveness + what's configured |
 | `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: `{googleClientId}` (first of `GOOGLE_CLIENT_IDS`, or `''`). Lets any install render Google sign-in without baking the id in at build |
-| `POST /v1/auth/google` | public | verify Google ID token, create account, grant free credits |
+| `POST /v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow) |
 | `POST /v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
 | `GET /v1/me` | session | account + live balance |
 | `GET /v1/me/models` `/estimates` `/packs` | public | published pricing |

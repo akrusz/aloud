@@ -5,7 +5,6 @@ import type { Account } from '../src/credits/store.js';
 
 const ACCOUNT: Account = {
     id: 'acct-1',
-    googleSub: 'sub-1',
     email: 'a@example.com',
     emailVerified: true,
     createdAt: 0,

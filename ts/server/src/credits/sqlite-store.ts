@@ -22,19 +22,39 @@
  */
 
 import { DatabaseSync } from 'node:sqlite';
-import type { Account, CreditsStore, LedgerEntry, LedgerKind } from './store.js';
+import type {
+    Account,
+    CreditsStore,
+    Identity,
+    IdentityProvider,
+    LedgerEntry,
+    LedgerKind,
+} from './store.js';
 import type { UsageEvent, UsageKind } from './usage.js';
 
 /** SQL DDL — created on open if absent. Idempotent (IF NOT EXISTS). */
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
     id            TEXT PRIMARY KEY,
-    google_sub    TEXT NOT NULL UNIQUE,
     email         TEXT NOT NULL,
     email_verified INTEGER NOT NULL,
     created_at    REAL NOT NULL,
     signup_ip     TEXT
 );
+-- Sign-in identities (meditation-pal-116). (provider, sub) is globally unique:
+-- one external identity → at most one account, ever. granted_credits records
+-- whether connecting it produced the free grant (so it can't re-trigger).
+CREATE TABLE IF NOT EXISTS identities (
+    provider        TEXT NOT NULL,
+    sub             TEXT NOT NULL,
+    account_id      TEXT NOT NULL REFERENCES accounts(id),
+    email_verified  INTEGER NOT NULL,
+    granted_credits INTEGER NOT NULL DEFAULT 0,
+    created_at      REAL NOT NULL,
+    secret_hash     TEXT,
+    PRIMARY KEY (provider, sub)
+);
+CREATE INDEX IF NOT EXISTS idx_identities_account ON identities(account_id);
 CREATE TABLE IF NOT EXISTS ledger (
     id         TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts(id),
@@ -78,7 +98,6 @@ type Row = Record<string, string | number | bigint | Uint8Array | null>;
 function rowToAccount(r: Row): Account {
     const account: Account = {
         id: String(r['id']),
-        googleSub: String(r['google_sub']),
         email: String(r['email']),
         emailVerified: Number(r['email_verified']) !== 0,
         createdAt: Number(r['created_at']),
@@ -86,6 +105,19 @@ function rowToAccount(r: Row): Account {
     // exactOptionalPropertyTypes: only attach signupIp when actually present.
     if (r['signup_ip'] != null) account.signupIp = String(r['signup_ip']);
     return account;
+}
+
+function rowToIdentity(r: Row): Identity {
+    const identity: Identity = {
+        provider: String(r['provider']) as IdentityProvider,
+        sub: String(r['sub']),
+        accountId: String(r['account_id']),
+        emailVerified: Number(r['email_verified']) !== 0,
+        grantedCredits: Number(r['granted_credits']) !== 0,
+        createdAt: Number(r['created_at']),
+    };
+    if (r['secret_hash'] != null) identity.secretHash = String(r['secret_hash']);
+    return identity;
 }
 
 function rowToEntry(r: Row): LedgerEntry {
@@ -134,18 +166,68 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db.exec('PRAGMA journal_mode = WAL');
         this.db.exec('PRAGMA foreign_keys = ON');
         this.db.exec(SCHEMA);
+        this.migrateLegacyGoogleSub();
+    }
+
+    /**
+     * One-time migration from the original 1:1 accounts.google_sub schema to the
+     * accounts ↔ identities model (meditation-pal-116). Detects the legacy
+     * `google_sub` column; if present, backfills a 'google' identity per account
+     * (granted_credits set from whether the account already has a signup_grant in
+     * the ledger, so we never re-grant nor wrongly block a never-granted account),
+     * then rebuilds `accounts` without the column. No-op on a fresh DB (the new
+     * SCHEMA has no google_sub) and on an already-migrated one.
+     */
+    private migrateLegacyGoogleSub(): void {
+        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
+        const hasLegacy = cols.some((c) => String(c['name']) === 'google_sub');
+        if (!hasLegacy) return;
+
+        // Backfill identities from the legacy column (idempotent via OR IGNORE).
+        this.db.exec(`
+            INSERT OR IGNORE INTO identities
+                (provider, sub, account_id, email_verified, granted_credits, created_at)
+            SELECT 'google', a.google_sub, a.id, a.email_verified,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM ledger l
+                       WHERE l.account_id = a.id AND l.kind = 'signup_grant'
+                   ) THEN 1 ELSE 0 END,
+                   a.created_at
+            FROM accounts a
+            WHERE a.google_sub IS NOT NULL;
+        `);
+
+        // Rebuild accounts without google_sub. FK off + a transaction so the
+        // ledger/usage/identities rows that reference accounts(id) survive the
+        // DROP/RENAME (ids are preserved, so the by-name FK re-resolves).
+        this.db.exec('PRAGMA foreign_keys = OFF');
+        this.db.exec('BEGIN');
+        try {
+            this.db.exec(`
+                CREATE TABLE accounts_new (
+                    id            TEXT PRIMARY KEY,
+                    email         TEXT NOT NULL,
+                    email_verified INTEGER NOT NULL,
+                    created_at    REAL NOT NULL,
+                    signup_ip     TEXT
+                );
+                INSERT INTO accounts_new (id, email, email_verified, created_at, signup_ip)
+                    SELECT id, email, email_verified, created_at, signup_ip FROM accounts;
+                DROP TABLE accounts;
+                ALTER TABLE accounts_new RENAME TO accounts;
+            `);
+            this.db.exec('COMMIT');
+        } catch (err) {
+            this.db.exec('ROLLBACK');
+            throw err;
+        } finally {
+            this.db.exec('PRAGMA foreign_keys = ON');
+        }
     }
 
     /** Release the file handle. Optional — handy for tests and graceful shutdown. */
     close(): void {
         this.db.close();
-    }
-
-    async getAccountByGoogleSub(sub: string): Promise<Account | undefined> {
-        const row = this.db
-            .prepare('SELECT * FROM accounts WHERE google_sub = ?')
-            .get(sub) as Row | undefined;
-        return row ? rowToAccount(row) : undefined;
     }
 
     async getAccountById(id: string): Promise<Account | undefined> {
@@ -154,28 +236,64 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async createAccount(account: Account): Promise<void> {
+        this.db
+            .prepare(
+                `INSERT INTO accounts (id, email, email_verified, created_at, signup_ip)
+                 VALUES (?, ?, ?, ?, ?)`
+            )
+            .run(
+                account.id,
+                account.email,
+                account.emailVerified ? 1 : 0,
+                account.createdAt,
+                account.signupIp ?? null
+            );
+    }
+
+    async getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined> {
+        const row = this.db
+            .prepare('SELECT * FROM identities WHERE provider = ? AND sub = ?')
+            .get(provider, sub) as Row | undefined;
+        return row ? rowToIdentity(row) : undefined;
+    }
+
+    async createIdentity(identity: Identity): Promise<void> {
         try {
             this.db
                 .prepare(
-                    `INSERT INTO accounts (id, google_sub, email, email_verified, created_at, signup_ip)
-                     VALUES (?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO identities
+                        (provider, sub, account_id, email_verified, granted_credits, created_at, secret_hash)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`
                 )
                 .run(
-                    account.id,
-                    account.googleSub,
-                    account.email,
-                    account.emailVerified ? 1 : 0,
-                    account.createdAt,
-                    account.signupIp ?? null
+                    identity.provider,
+                    identity.sub,
+                    identity.accountId,
+                    identity.emailVerified ? 1 : 0,
+                    identity.grantedCredits ? 1 : 0,
+                    identity.createdAt,
+                    identity.secretHash ?? null
                 );
         } catch (err) {
-            // Match MemoryCreditsStore's contract: a duplicate Google identity is
-            // a domain error, not a raw SQLITE_CONSTRAINT leak.
+            // Match MemoryCreditsStore: a duplicate identity is a domain error.
             if (String(err).includes('UNIQUE') || String(err).includes('constraint')) {
-                throw new Error('account already exists for this Google identity');
+                throw new Error('identity already linked to an account');
             }
             throw err;
         }
+    }
+
+    async getIdentitiesForAccount(accountId: string): Promise<Identity[]> {
+        const rows = this.db
+            .prepare('SELECT * FROM identities WHERE account_id = ? ORDER BY created_at')
+            .all(accountId) as Row[];
+        return rows.map(rowToIdentity);
+    }
+
+    async markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void> {
+        this.db
+            .prepare('UPDATE identities SET granted_credits = 1 WHERE provider = ? AND sub = ?')
+            .run(provider, sub);
     }
 
     async appendEntry(entry: LedgerEntry): Promise<void> {

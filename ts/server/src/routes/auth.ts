@@ -1,24 +1,34 @@
 /**
- * POST /v1/auth/google — exchange a Google ID token for an aloud session.
- * Creates the account on first sign-in and grants free credits iff the email
- * is verified (meditation-pal-2yb anti-multi-account lever).
+ * POST /v1/auth/google — exchange a Google ID token for an aloud session. On the
+ * first sign-in with a Google identity it creates an account (or, when the
+ * request carries a session token, links Google to that existing account — the
+ * "connect to claim free credits" flow) and grants free credits per the rules in
+ * auth/identity.ts + quota/freetier.ts (meditation-pal-116).
  *
- * POST /v1/auth/dev — local-only shortcut that mints a session for a fixed
- * dev account without Google, so the browser UI can exercise the metered
- * proxy end-to-end before the real OAuth flow (meditation-pal-rfb) exists.
- * 404s in production (strict mode) — a dev convenience, not a backdoor.
+ * POST /v1/auth/dev — local-only shortcut that mints a session for a fixed dev
+ * account without Google, so the browser UI can exercise the metered proxy
+ * end-to-end. 404s in production (strict mode) — a dev convenience, not a backdoor.
  */
 
 import { Hono } from 'hono';
-import { randomUUID } from 'node:crypto';
+import type { Context } from 'hono';
 import { ERROR_STATUS, apiError } from '../contract.js';
 import type { AuthResponse, GoogleAuthRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import { verifyGoogleIdToken } from '../auth/google.js';
-import { issueSessionToken } from '../auth/session.js';
-import { decideSignupGrant } from '../quota/freetier.js';
-import type { Account } from '../credits/store.js';
+import { verifySessionToken } from '../auth/session.js';
+import { connectIdentity, issueAuthResponse, IdentityConflictError } from '../auth/identity.js';
 import { log } from '../logger.js';
+
+/** The account id from a (valid) bearer token on the request, if any — used to
+ *  link a freshly-verified identity to the already-signed-in account. */
+async function callerAccountId(c: Context, deps: Deps): Promise<string | undefined> {
+    const header = c.req.header('authorization') ?? c.req.header('Authorization');
+    const [scheme, token] = (header ?? '').split(' ');
+    if (scheme?.toLowerCase() !== 'bearer' || !token) return undefined;
+    const claims = await verifySessionToken(token, deps.config.sessionSecret);
+    return claims?.accountId;
+}
 
 export function authRoutes(deps: Deps): Hono {
     const app = new Hono();
@@ -37,62 +47,31 @@ export function authRoutes(deps: Deps): Hono {
             return c.json(apiError('unauthenticated', 'invalid Google sign-in'), ERROR_STATUS.unauthenticated);
         }
 
-        let account = await deps.store.getAccountByGoogleSub(identity.sub);
-        let isNewAccount = false;
-        if (!account) {
-            // Client IP for velocity-based abuse detection (mass-account creation
-            // clusters by IP/subnet). x-forwarded-for is set by Fly/Render; take
-            // the first hop. Absent locally / behind some proxies — that's fine.
-            const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-            const signupIp = fwd || c.req.header('x-real-ip') || undefined;
-            account = {
-                id: randomUUID(),
-                googleSub: identity.sub,
-                email: identity.email,
-                emailVerified: identity.emailVerified,
-                createdAt: Date.now() / 1000,
-                ...(signupIp ? { signupIp } : {}),
-            } satisfies Account;
-            await deps.store.createAccount(account);
-            isNewAccount = true;
+        // Client IP for velocity-based abuse detection (mass-account creation
+        // clusters by IP/subnet). x-forwarded-for is set by Fly/Render; first hop.
+        const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+        const signupIp = fwd || c.req.header('x-real-ip') || undefined;
+        const linkToAccountId = await callerAccountId(c, deps);
 
-            const grant = decideSignupGrant(identity.emailVerified, deps.config.freeSignupCredits);
-            // Emergency brake: refuse the grant if the global hourly free-credit
-            // budget is exhausted (mass-signup flood). The account is still
-            // created and can buy credits — it just gets no freebie right now.
-            let granted = 0;
-            let breakerTripped = false;
-            if (grant.grantCredits > 0) {
-                if (deps.grantBreaker.tryConsume(grant.grantCredits)) {
-                    await deps.ledger.grant(account.id, grant.grantCredits, grant.reason);
-                    granted = grant.grantCredits;
-                } else {
-                    breakerTripped = true;
-                }
+        try {
+            const result = await connectIdentity(
+                deps,
+                {
+                    provider: 'google',
+                    sub: identity.sub,
+                    email: identity.email,
+                    emailVerified: identity.emailVerified,
+                },
+                { ...(signupIp ? { signupIp } : {}), ...(linkToAccountId ? { linkToAccountId } : {}) }
+            );
+            return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
+        } catch (err) {
+            if (err instanceof IdentityConflictError) {
+                return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
             }
-            log.info('account created', {
-                accountId: account.id,
-                emailVerified: identity.emailVerified,
-                granted,
-                ...(breakerTripped ? { breakerTripped: true } : {}),
-            });
-            if (breakerTripped) {
-                log.warn('free-grant breaker tripped', { accountId: account.id });
-            }
+            log.error('google connect failed', { err: String(err) });
+            return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
         }
-
-        const token = await issueSessionToken(account.id, deps.config.sessionSecret);
-        const response: AuthResponse = {
-            token,
-            isNewAccount,
-            account: {
-                id: account.id,
-                email: account.email,
-                emailVerified: account.emailVerified,
-                creditsRemaining: await deps.ledger.balance(account.id),
-            },
-        };
-        return c.json(response);
     });
 
     // Stable identity for the single local dev account. Reused across sign-ins
@@ -105,36 +84,28 @@ export function authRoutes(deps: Deps): Hono {
             return c.json(apiError('bad_request', 'dev sign-in is disabled in production'), 404);
         }
 
-        let account = await deps.store.getAccountByGoogleSub(DEV_GOOGLE_SUB);
-        let isNewAccount = false;
-        if (!account) {
-            account = {
-                id: randomUUID(),
-                googleSub: DEV_GOOGLE_SUB,
+        const existing = await deps.store.getIdentity('google', DEV_GOOGLE_SUB);
+        let response: AuthResponse;
+        if (!existing) {
+            // First call: mint the dev account + identity + grant via the shared path.
+            const result = await connectIdentity(deps, {
+                provider: 'google',
+                sub: DEV_GOOGLE_SUB,
                 email: 'dev@localhost',
                 emailVerified: true,
-                createdAt: Date.now() / 1000,
-            } satisfies Account;
-            await deps.store.createAccount(account);
-            isNewAccount = true;
-            await deps.ledger.grant(account.id, deps.config.freeSignupCredits, 'dev signup grant');
-        } else if ((await deps.ledger.balance(account.id)) <= 0) {
+            });
+            response = await issueAuthResponse(deps, result.account, result.isNewAccount);
+            log.info('dev sign-in', { accountId: result.account.id, isNewAccount: true });
+        } else {
+            const account = await deps.store.getAccountById(existing.accountId);
+            if (!account) throw new Error('dev identity points at a missing account');
             // Keep local testing unblocked: refill the dev account when it runs dry.
-            await deps.ledger.grant(account.id, deps.config.freeSignupCredits, 'dev top-up');
+            if ((await deps.ledger.balance(account.id)) <= 0) {
+                await deps.ledger.grant(account.id, deps.config.freeSignupCredits, 'dev top-up');
+            }
+            response = await issueAuthResponse(deps, account, false);
+            log.info('dev sign-in', { accountId: account.id, isNewAccount: false });
         }
-
-        const token = await issueSessionToken(account.id, deps.config.sessionSecret);
-        const response: AuthResponse = {
-            token,
-            isNewAccount,
-            account: {
-                id: account.id,
-                email: account.email,
-                emailVerified: account.emailVerified,
-                creditsRemaining: await deps.ledger.balance(account.id),
-            },
-        };
-        log.info('dev sign-in', { accountId: account.id, isNewAccount });
         return c.json(response);
     });
 

@@ -8,7 +8,7 @@ function entry(accountId: string, kind: LedgerEntry['kind'], amount: number, at:
     return { id: `e${seq++}`, accountId, kind, amount, reason: kind, createdAt: at };
 }
 function account(id: string, at: number, ip?: string): Account {
-    return { id, googleSub: `sub-${id}`, email: `${id}@x.com`, emailVerified: true, createdAt: at, ...(ip ? { signupIp: ip } : {}) };
+    return { id, email: `${id}@x.com`, emailVerified: true, createdAt: at, ...(ip ? { signupIp: ip } : {}) };
 }
 
 describe('buildMetrics', () => {

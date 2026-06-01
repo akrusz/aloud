@@ -17,7 +17,6 @@ const TOKEN = 'super-secret-admin-token';
 function seedAccount(store: MemoryCreditsStore, id: string, email: string): Promise<void> {
     const account: Account = {
         id,
-        googleSub: `sub-${id}`,
         email,
         emailVerified: true,
         createdAt: 1000,

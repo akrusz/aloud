@@ -10,19 +10,28 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import { SqliteCreditsStore } from '../src/credits/sqlite-store.js';
 import { Ledger } from '../src/credits/ledger.js';
-import type { Account, CreditsStore } from '../src/credits/store.js';
+import type { Account, CreditsStore, Identity } from '../src/credits/store.js';
 import type { UsageEvent } from '../src/credits/usage.js';
 
 const ACCOUNT: Account = {
     id: 'acct-1',
-    googleSub: 'sub-1',
     email: 'a@example.com',
     emailVerified: true,
     createdAt: 100,
     signupIp: '203.0.113.7',
+};
+
+const IDENTITY: Identity = {
+    provider: 'google',
+    sub: 'sub-1',
+    accountId: 'acct-1',
+    emailVerified: true,
+    grantedCredits: false,
+    createdAt: 100,
 };
 
 function usageEvent(over: Partial<UsageEvent> = {}): UsageEvent {
@@ -59,10 +68,9 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         store = make();
     });
 
-    it('round-trips an account by id and by Google sub (including signupIp)', async () => {
+    it('round-trips an account by id (including signupIp)', async () => {
         await store.createAccount(ACCOUNT);
         expect(await store.getAccountById('acct-1')).toEqual(ACCOUNT);
-        expect(await store.getAccountByGoogleSub('sub-1')).toEqual(ACCOUNT);
         expect(await store.getAccountById('missing')).toBeUndefined();
     });
 
@@ -75,11 +83,42 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect('signupIp' in got!).toBe(false);
     });
 
-    it('rejects a duplicate Google identity with the contract error', async () => {
+    it('round-trips an identity by (provider, sub) and lists by account', async () => {
         await store.createAccount(ACCOUNT);
-        await expect(store.createAccount({ ...ACCOUNT, id: 'acct-2' })).rejects.toThrow(
-            /already exists/
+        await store.createIdentity(IDENTITY);
+        expect(await store.getIdentity('google', 'sub-1')).toEqual(IDENTITY);
+        expect(await store.getIdentity('google', 'nope')).toBeUndefined();
+        expect(await store.getIdentitiesForAccount('acct-1')).toEqual([IDENTITY]);
+    });
+
+    it('rejects a duplicate (provider, sub) identity with the contract error', async () => {
+        await store.createAccount(ACCOUNT);
+        await store.createIdentity(IDENTITY);
+        await expect(store.createIdentity({ ...IDENTITY, accountId: 'acct-1' })).rejects.toThrow(
+            /already linked/
         );
+    });
+
+    it('marks an identity granted (idempotent flag flip)', async () => {
+        await store.createAccount(ACCOUNT);
+        await store.createIdentity(IDENTITY);
+        await store.markIdentityGranted('google', 'sub-1');
+        expect((await store.getIdentity('google', 'sub-1'))?.grantedCredits).toBe(true);
+    });
+
+    it('round-trips an email identity with its secretHash', async () => {
+        await store.createAccount(ACCOUNT);
+        const email: Identity = {
+            provider: 'email',
+            sub: 'a@example.com',
+            accountId: 'acct-1',
+            emailVerified: false,
+            grantedCredits: false,
+            createdAt: 100,
+            secretHash: 'scrypt$deadbeef',
+        };
+        await store.createIdentity(email);
+        expect(await store.getIdentity('email', 'a@example.com')).toEqual(email);
     });
 
     it('keeps ledger entries in insertion order (oldest first)', async () => {
@@ -100,7 +139,7 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
 
     it('aggregation reads see every account and entry', async () => {
         await store.createAccount(ACCOUNT);
-        await store.createAccount({ ...ACCOUNT, id: 'acct-2', googleSub: 'sub-2' });
+        await store.createAccount({ ...ACCOUNT, id: 'acct-2' });
         const ledger = new Ledger(store, () => 100);
         await ledger.grant('acct-1', 20);
         await ledger.grant('acct-2', 30);
@@ -151,17 +190,63 @@ describe('SqliteCreditsStore durability', () => {
         rmSync(dir, { recursive: true, force: true });
     });
 
-    it('persists accounts + ledger across a reopen (restart)', async () => {
+    it('persists accounts + identities + ledger across a reopen (restart)', async () => {
         const path = join(dir, 'aloud.db');
         const first = new SqliteCreditsStore(path);
         await first.createAccount(ACCOUNT);
+        await first.createIdentity(IDENTITY);
         await new Ledger(first, () => 100).grant('acct-1', 20);
         first.close();
 
         // Reopen the same file — a fresh process would see exactly this.
         const second = new SqliteCreditsStore(path);
-        expect(await second.getAccountByGoogleSub('sub-1')).toEqual(ACCOUNT);
+        expect(await second.getAccountById('acct-1')).toEqual(ACCOUNT);
+        expect(await second.getIdentity('google', 'sub-1')).toEqual(IDENTITY);
         expect(await new Ledger(second, () => 100).balance('acct-1')).toBe(20);
         second.close();
+    });
+
+    // The production DB predates the identity model; opening it must migrate the
+    // legacy accounts.google_sub column into the identities table and drop it,
+    // preserving the ledger and not re-granting. (meditation-pal-116)
+    it('migrates a legacy google_sub schema into identities on open', async () => {
+        const path = join(dir, 'legacy.db');
+        // Hand-build the OLD schema + a granted account and a never-granted one.
+        const legacy = new DatabaseSync(path);
+        legacy.exec(`
+            CREATE TABLE accounts (
+                id TEXT PRIMARY KEY, google_sub TEXT NOT NULL UNIQUE, email TEXT NOT NULL,
+                email_verified INTEGER NOT NULL, created_at REAL NOT NULL, signup_ip TEXT
+            );
+            CREATE TABLE ledger (
+                id TEXT PRIMARY KEY, account_id TEXT NOT NULL, kind TEXT NOT NULL,
+                amount REAL NOT NULL, hold_id TEXT, reason TEXT NOT NULL, created_at REAL NOT NULL
+            );
+            INSERT INTO accounts VALUES ('old-1','gsub-1','x@e.com',1,10,NULL);
+            INSERT INTO accounts VALUES ('old-2','gsub-2','y@e.com',1,11,NULL);
+            INSERT INTO ledger VALUES ('l1','old-1','signup_grant',20,NULL,'grant',10);
+        `);
+        legacy.close();
+
+        const store = new SqliteCreditsStore(path);
+        // google_sub became a 'google' identity, ledger balance preserved.
+        const id1 = await store.getIdentity('google', 'gsub-1');
+        expect(id1?.accountId).toBe('old-1');
+        expect(id1?.grantedCredits).toBe(true); // had a signup_grant
+        const id2 = await store.getIdentity('google', 'gsub-2');
+        expect(id2?.grantedCredits).toBe(false); // never granted
+        expect(await new Ledger(store, () => 100).balance('old-1')).toBe(20);
+        // The legacy column is gone; the account round-trips in the new shape.
+        expect(await store.getAccountById('old-1')).toEqual({
+            id: 'old-1',
+            email: 'x@e.com',
+            emailVerified: true,
+            createdAt: 10,
+        });
+        // Re-opening the already-migrated DB is a clean no-op.
+        store.close();
+        const reopened = new SqliteCreditsStore(path);
+        expect((await reopened.getIdentity('google', 'gsub-1'))?.accountId).toBe('old-1');
+        reopened.close();
     });
 });

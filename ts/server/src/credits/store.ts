@@ -47,8 +47,8 @@ export interface LedgerEntry {
 
 export interface Account {
     id: string;
-    /** Google `sub` claim — stable per-user id; used to dedupe sign-ins. */
-    googleSub: string;
+    /** Primary email for the account (from its first identity). Display + the
+     *  lookup key for email/password sign-in. */
     email: string;
     emailVerified: boolean;
     createdAt: number;
@@ -58,10 +58,52 @@ export interface Account {
     signupIp?: string;
 }
 
+/** The sign-in methods an account can carry. TRUSTED providers (google, apple)
+ *  are hard enough to mint at scale that connecting one unlocks the free-credit
+ *  grant; 'email' is a local password account that gets none until it connects
+ *  a trusted identity (meditation-pal-116). */
+export type IdentityProvider = 'google' | 'apple' | 'email';
+
+/**
+ * A sign-in identity linked to an account. One account may carry several
+ * (Google + Apple + email). The (provider, sub) pair is GLOBALLY UNIQUE — an
+ * external identity belongs to at most one aloud account, ever — which is the
+ * anti-farming lever behind the free grant: you can't reuse one Google account
+ * to seed credits on many aloud accounts.
+ */
+export interface Identity {
+    provider: IdentityProvider;
+    /** The provider's stable user id: Google/Apple `sub`, or the lower-cased
+     *  email address for the local 'email' provider. */
+    sub: string;
+    accountId: string;
+    /** Whether the provider asserts the email is verified. Only a verified
+     *  trusted provider unlocks the grant. */
+    emailVerified: boolean;
+    /** Whether connecting this identity ever produced a free-credit grant. Set
+     *  once, never cleared, so re-connecting can't re-trigger it. */
+    grantedCredits: boolean;
+    createdAt: number;
+    /** Opaque credential the provider verifies against — a password hash for the
+     *  'email' provider, absent for OAuth identities whose proof is the upstream
+     *  token. Never leaves the server. */
+    secretHash?: string;
+}
+
 export interface CreditsStore {
-    getAccountByGoogleSub(sub: string): Promise<Account | undefined>;
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
+
+    // ---- Identities (sign-in methods, meditation-pal-116) -------------------
+    /** Look up an identity by its globally-unique (provider, sub). */
+    getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined>;
+    /** Link a new identity to an account. Must be atomic; throws the contract
+     *  error 'identity already linked' if (provider, sub) already exists. */
+    createIdentity(identity: Identity): Promise<void>;
+    /** All identities linked to an account (to decide "already granted?"). */
+    getIdentitiesForAccount(accountId: string): Promise<Identity[]>;
+    /** Flip an identity's grantedCredits flag to true after a grant settles. */
+    markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void>;
 
     /** Append a ledger entry. Implementations must make this atomic. */
     appendEntry(entry: LedgerEntry): Promise<void>;
