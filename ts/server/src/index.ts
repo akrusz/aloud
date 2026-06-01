@@ -82,6 +82,9 @@ function main(): void {
             packMarkup: PACK_MARKUP,
             packsClear: solvency.every((r) => r.clears),
             freeSignupCredits: config.freeSignupCredits,
+            // Echoed so a CORS mismatch is debuggable from the boot log alone
+            // ('*' = open; otherwise the exact allowlist the browser must match).
+            corsOrigins: config.corsOrigins.length > 0 ? config.corsOrigins : '*',
         });
     });
 }

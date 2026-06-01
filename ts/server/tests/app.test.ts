@@ -8,6 +8,11 @@ function app() {
     return createApp(buildDeps(config));
 }
 
+function corsApp(origins: string) {
+    const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_CORS_ORIGINS: origins });
+    return createApp(buildDeps(config));
+}
+
 describe('app', () => {
     it('GET /health reports configured providers without leaking keys', async () => {
         const res = await app().request('/health');
@@ -39,5 +44,33 @@ describe('app', () => {
             body: JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-4-6', messages: [] }),
         });
         expect(res.status).toBe(401);
+    });
+});
+
+describe('CORS allowlist', () => {
+    async function preflightAcao(a: ReturnType<typeof createApp>, origin: string): Promise<string | null> {
+        const res = await a.request('/cloud/v1/me', {
+            method: 'OPTIONS',
+            headers: { origin, 'access-control-request-method': 'GET' },
+        });
+        return res.headers.get('access-control-allow-origin');
+    }
+
+    it('echoes a configured origin on the preflight', async () => {
+        expect(await preflightAcao(corsApp('https://aloud.rest'), 'https://aloud.rest')).toBe('https://aloud.rest');
+    });
+
+    it('matches despite a trailing slash in the configured value', async () => {
+        // The classic misconfig: `https://aloud.rest/` configured, browser sends
+        // no trailing slash. Must still match (not drop the header).
+        expect(await preflightAcao(corsApp('https://aloud.rest/'), 'https://aloud.rest')).toBe('https://aloud.rest');
+    });
+
+    it('omits the header for an origin not on the list', async () => {
+        expect(await preflightAcao(corsApp('https://aloud.rest'), 'https://evil.example')).toBeNull();
+    });
+
+    it('falls back to open (*) when no origins are configured', async () => {
+        expect(await preflightAcao(corsApp(''), 'https://anything.example')).toBe('*');
     });
 });

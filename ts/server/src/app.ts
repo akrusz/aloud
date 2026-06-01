@@ -28,10 +28,20 @@ import { appBackendRoutes } from './routes/app.js';
 export function createApp(deps: Deps): Hono {
     const app = new Hono();
 
+    // Allowlist match is trailing-slash tolerant on both sides: a browser sends
+    // Origin with no trailing slash, but a configured value like
+    // `https://aloud.rest/` is an easy mistake — normalize both so it still
+    // matches instead of silently dropping the CORS header (which surfaces as an
+    // opaque "Access-Control-Allow-Origin missing" in the browser). With no
+    // origins configured we fall back to '*' (open) for zero-config local dev.
+    const allowedOrigins = deps.config.corsOrigins.map(stripTrailingSlash);
     app.use(
         '*',
         cors({
-            origin: deps.config.corsOrigins.length > 0 ? deps.config.corsOrigins : '*',
+            origin:
+                allowedOrigins.length === 0
+                    ? '*'
+                    : (origin) => (allowedOrigins.includes(stripTrailingSlash(origin)) ? origin : null),
             allowMethods: ['GET', 'POST', 'OPTIONS'],
             allowHeaders: ['authorization', 'content-type'],
             // So the browser can read per-request cost off the /cloud/v1/tts response.
@@ -73,4 +83,10 @@ export function createApp(deps: Deps): Hono {
     app.route('/app/v1', appBackendRoutes(deps));
 
     return app;
+}
+
+/** Drop trailing slashes so origin comparison is robust to `https://x/` vs the
+ *  `https://x` a browser actually sends. Empty string stays empty. */
+function stripTrailingSlash(origin: string): string {
+    return origin.replace(/\/+$/, '');
 }
