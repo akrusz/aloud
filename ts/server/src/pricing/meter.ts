@@ -65,13 +65,19 @@ export function llmCostUsd(provider: ProviderId, model: string, usage: LlmUsage)
 
 export interface CostBreakdown {
     providerCostUsd: number;
-    /** Credits to debit (at cost, rounded up — never under-charge to a fraction). */
+    /** Credits to debit, at cost (no markup). FRACTIONAL — the balance is a real
+     *  number, so we debit the exact proportional cost and never round a turn up.
+     *  Rounding each turn up to a whole credit massively over-charges cheap
+     *  (e.g. cached) turns — a $0.0001 Gemini turn would bill a full $0.05 credit.
+     *  The UI rounds for display; the debit stays exact. */
     credits: number;
 }
 
-/** Credits for a raw provider-cost USD amount, at cost (no markup), rounded up. */
+/** Credits for a raw provider-cost USD amount, at cost (no markup). Fractional —
+ *  see CostBreakdown.credits. (Display layers that want a whole-number "credits
+ *  /hr" headline ceil the aggregate themselves; this stays exact.) */
 export function usdToCredits(providerCostUsd: number): number {
-    return Math.ceil(providerCostUsd / USD_PER_CREDIT);
+    return providerCostUsd / USD_PER_CREDIT;
 }
 
 function toCredits(providerCostUsd: number): CostBreakdown {
@@ -83,18 +89,17 @@ export function priceLlmTurn(provider: ProviderId, model: string, usage: LlmUsag
     return toCredits(llmCostUsd(provider, model, usage));
 }
 
-/** Price `seconds` of cloud STT — FRACTIONAL credits, deliberately NOT ceiled.
+/** Price `seconds` of cloud STT — fractional credits, like every other leg.
  *  A turn fires several short STT passes (speculative + final), each a real
- *  Groq call; per-call ceil-to-a-whole-credit would over-charge a
- *  fraction-of-a-cent leg by orders of magnitude. So STT debits proportional
- *  fractional credits. The balance is a real number, so this composes cleanly
- *  with the ceiled LLM debits; the UI rounds for display. */
+ *  Groq call; debiting the exact proportional cost keeps a fraction-of-a-cent
+ *  leg from being rounded up by orders of magnitude. The balance is a real
+ *  number; the UI rounds for display. */
 export function priceSttSeconds(seconds: number): CostBreakdown {
     const providerCostUsd = Math.max(0, seconds) * STT_USD_PER_SECOND;
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
 }
 
-/** Price `chars` of cloud TTS — FRACTIONAL credits, same rationale as STT. */
+/** Price `chars` of cloud TTS — fractional credits, same rationale as STT. */
 export function priceTtsChars(chars: number): CostBreakdown {
     const providerCostUsd = Math.max(0, chars) * TTS_USD_PER_CHAR;
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };

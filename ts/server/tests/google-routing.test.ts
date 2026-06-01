@@ -8,7 +8,7 @@ describe('Google-direct value tier', () => {
         const direct = pricingFor('google', 'gemini-2.5-flash-lite');
         expect(direct).toBeDefined();
         expect(direct!.input).toBeCloseTo(0.1 / 1_000_000, 12);
-        expect(direct!.cacheRead).toBeCloseTo(0.025 / 1_000_000, 12);
+        expect(direct!.cacheRead).toBeCloseTo(0.01 / 1_000_000, 12);
 
         expect(isModelAllowed('google', 'gemini-2.5-flash-lite')).toBe(true);
         // The old OpenRouter route for the same model is gone.

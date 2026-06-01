@@ -34,16 +34,28 @@ describe('llmCostUsd', () => {
 });
 
 describe('priceLlmTurn', () => {
-    it('debits at COST (no markup) and rounds credits up', () => {
+    it('debits at COST (no markup), fractional — never rounds a turn up', () => {
         const turn = priceLlmTurn('anthropic', 'claude-sonnet-4-6', {
             tokensIn: 1000,
             tokensOut: 500,
         });
         const expectedUsd = (1000 * 3 + 500 * 15) / 1_000_000; // raw provider cost
         expect(turn.providerCostUsd).toBeCloseTo(expectedUsd, 9);
-        // Credits are cost / USD_PER_CREDIT — margin is NOT applied here.
-        expect(turn.credits).toBe(Math.ceil(expectedUsd / USD_PER_CREDIT));
-        expect(Number.isInteger(turn.credits)).toBe(true);
+        // Credits are cost / USD_PER_CREDIT — margin is NOT applied here, and the
+        // exact fraction is debited (rounding a turn up would over-charge cheap
+        // turns by orders of magnitude).
+        expect(turn.credits).toBeCloseTo(expectedUsd / USD_PER_CREDIT, 9);
+    });
+
+    it('does not round a tiny cached turn up to a whole credit', () => {
+        // A near-free turn (mostly cache reads) must debit a tiny fraction, not 1.
+        const turn = priceLlmTurn('google', 'gemini-2.5-flash-lite', {
+            tokensIn: 50,
+            tokensOut: 20,
+            cacheRead: 4000,
+        });
+        expect(turn.credits).toBeLessThan(0.05);
+        expect(turn.credits).toBeGreaterThan(0);
     });
 });
 
