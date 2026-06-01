@@ -17,7 +17,7 @@ name: Deploy web app (UI → docs/app)
 # at the ts-core→main cutover.)
 #
 # Required repo settings (Settings → Secrets and variables → Actions → Variables):
-#   - ALOUD_SERVER_URL   the hosted /cloud origin, e.g. https://aloud-server.fly.dev
+#   - ALOUD_CLOUD_URL   the hosted /cloud origin, e.g. https://aloud-cloud.fly.dev
 #                        (already used by tauri-release.yml)
 #   - GOOGLE_CLIENT_ID   the web OAuth client id (= GOOGLE_CLIENT_IDS on the
 #                        server). NOT secret — it's baked into the public client.
@@ -55,7 +55,7 @@ jobs:
         working-directory: ts
         run: npm run ui:build:hosted
         env:
-          VITE_ALOUD_SERVER_URL: ${{ vars.ALOUD_SERVER_URL }}
+          VITE_ALOUD_CLOUD_URL: ${{ vars.ALOUD_CLOUD_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
 
       - name: Commit docs/app if it changed
