@@ -4,6 +4,38 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>aloud.</title>
+        <meta
+            name="description"
+            content="A voice-based meditation facilitator. Speak what you notice, and aloud asks thoughtful questions to guide you."
+        />
+
+        <!-- Favicon. /app/ is replaced by Vite with the deploy base ('/'
+             in dev/desktop, '/app/' on the hosted build), so the icon resolves
+             under either base; the file ships from ui/public/aloud.png. -->
+        <link rel="icon" type="image/png" href="/app/aloud.png" />
+        <link rel="apple-touch-icon" href="/app/aloud.png" />
+
+        <!-- Share / OpenGraph. Absolute URLs (a share card is fetched by an
+             external crawler, so relative paths won't resolve); reuses the
+             marketing site's 1200×630 card. -->
+        <meta property="og:title" content="aloud. — a voice-based meditation facilitator" />
+        <meta
+            property="og:description"
+            content="Speak what you notice, and aloud will ask thoughtful questions to guide you. For somatic exploration, parts work, and noting meditation."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://aloud.rest/app/" />
+        <meta property="og:site_name" content="aloud." />
+        <meta property="og:image" content="https://aloud.rest/assets/aloud-share.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="aloud. — a voice-based meditation facilitator" />
+        <meta
+            name="twitter:description"
+            content="Speak what you notice, and aloud will ask thoughtful questions to guide you."
+        />
+        <meta name="twitter:image" content="https://aloud.rest/assets/aloud-share.png" />
         <!-- Decode the SPA deep-link redirect from the Pages 404.html (paths
              under /app/). Restores the real path (e.g. /app/settings) from the
              ?/… query BEFORE the router reads location, so a hard refresh /
@@ -31,8 +63,45 @@
             href="https://fonts.googleapis.com/css2?family=Knewave&display=block"
             rel="stylesheet"
         />
-      <script type="module" crossorigin src="/app/assets/index-DKMpNG0L.js"></script>
-      <link rel="stylesheet" crossorigin href="/app/assets/index-BLXc0A6E.css">
+        <!-- First-paint loader styles. Self-contained (own class names, inline
+             keyframe) so the orb breathes correctly in the gap between CSS
+             paint and the JS bundle / first view render — on GitHub Pages the
+             ~70 KB-gzip bundle is a noticeable beat. Cleared automatically when
+             a view sets #app-root's innerHTML. -->
+        <style>
+            .app-loading {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 60vh;
+            }
+            .app-loading-orb {
+                width: 64px;
+                height: 64px;
+                border-radius: 50%;
+                background: radial-gradient(circle at 35% 30%, #f4c989, #e0a96d 45%, #c77f4a 80%);
+                box-shadow: 0 0 40px 8px rgba(224, 169, 109, 0.35);
+                animation: app-loading-breathe 3.2s ease-in-out infinite;
+            }
+            @keyframes app-loading-breathe {
+                0%,
+                100% {
+                    transform: scale(0.85);
+                    opacity: 0.65;
+                }
+                50% {
+                    transform: scale(1.05);
+                    opacity: 1;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .app-loading-orb {
+                    animation-duration: 6s;
+                }
+            }
+        </style>
+      <script type="module" crossorigin src="/app/assets/index-C3yitF78.js"></script>
+      <link rel="stylesheet" crossorigin href="/app/assets/index-s9EWQ4I-.css">
     </head>
     <body>
         <!-- In the Tauri desktop shell the nav doubles as the window title bar.
@@ -57,7 +126,13 @@
 
         <main class="main">
             <div id="app-root">
-                <!-- Setup, session, and history views mount here. -->
+                <!-- Setup, session, and history views mount here. Until the
+                     first view renders (it sets innerHTML, clearing this), a
+                     calm breathing orb stands in so the page isn't blank while
+                     the JS bundle loads. -->
+                <div class="app-loading" role="status" aria-label="Loading aloud">
+                    <div class="app-loading-orb"></div>
+                </div>
             </div>
         </main>
 
