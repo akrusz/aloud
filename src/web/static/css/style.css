@@ -355,7 +355,7 @@ body {
 }
 
 .saved-key-hint {
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     color: var(--accent);
     margin-top: -0.25rem;
 }
@@ -1334,7 +1334,7 @@ body:has(.session-container) {
 .facilitator-status-hint {
     display: none;
     margin: 0.25rem 0 0 1rem;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     font-style: italic;
 }
@@ -1809,7 +1809,7 @@ body:has(.session-container) {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 0.3rem 0.6rem;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     white-space: nowrap;
     z-index: 10;
@@ -1955,7 +1955,7 @@ body:has(.session-container) {
 }
 
 .voice-row-progress .dl-status {
-    font-size: 0.7rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     white-space: nowrap;
 }
@@ -2012,7 +2012,7 @@ body:has(.session-container) {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     cursor: pointer;
     padding: 0;
 }
@@ -2023,7 +2023,7 @@ body:has(.session-container) {
 .voice-quality-hint {
     margin-top: 0.5rem;
     padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     background: var(--bg-input);
     border-radius: var(--radius);
@@ -2493,7 +2493,7 @@ body::before {
     color: var(--accent);
     border-radius: 999px;
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     line-height: 1;
     cursor: pointer;
     transition: background var(--transition), color var(--transition), transform var(--transition), box-shadow var(--transition);
@@ -2736,7 +2736,7 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 .update-download-size {
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
 }
 
@@ -2923,7 +2923,7 @@ html:has(.nav-brand.has-update) .update-btn {
     gap: 0.5rem;
     margin: 1rem 0;
     color: var(--text-muted, #888);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
 }
 .signin-divider::before,
 .signin-divider::after {
@@ -2963,7 +2963,7 @@ html:has(.nav-brand.has-update) .update-btn {
     border: none;
     color: var(--accent, #4a7c59);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     padding: 0.25rem;
 }
 
@@ -2992,7 +2992,7 @@ html:has(.nav-brand.has-update) .update-btn {
     transform: none;
     margin-top: 0.5rem;
     text-align: left;
-    font-size: 0.825rem;
+    font-size: 0.875rem;
     padding: 0.5rem 2rem 0.5rem 0.75rem;
 }
 
@@ -3081,7 +3081,7 @@ html:has(.nav-brand.has-update) .update-btn {
     border: 1.5px solid var(--text-muted);
     background: none;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
     vertical-align: middle;
@@ -3204,7 +3204,7 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 .preview-label {
-    font-size: 0.75em;
+    font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-muted);
@@ -3341,7 +3341,7 @@ html:has(.nav-brand.has-update) .update-btn {
 
 .ollama-others-heading {
     margin-top: 1rem;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-secondary);
 }
@@ -3796,7 +3796,7 @@ html:has(.nav-brand.has-update) .update-btn {
     border-radius: var(--radius-sm);
     padding: 0.5rem 0.75rem;
     margin: 0.6rem 0;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--text-primary);
     line-height: 1.5;
 }
@@ -3836,7 +3836,7 @@ html:has(.nav-brand.has-update) .update-btn {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     cursor: pointer;
     padding: 0.25rem;
 }
@@ -3905,7 +3905,7 @@ html:has(.nav-brand.has-update) .update-btn {
     background: var(--bg-surface);
     color: var(--text-primary);
     font-family: var(--font);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     line-height: 1.4;
     cursor: pointer;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -3924,7 +3924,7 @@ html:has(.nav-brand.has-update) .update-btn {
 
 .tour-choice small {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
 }
 .tour-choice a {
     color: var(--accent);
@@ -3949,7 +3949,7 @@ html:has(.nav-brand.has-update) .update-btn {
     background: var(--bg-surface);
     color: var(--text-primary);
     font-family: var(--font);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     cursor: pointer;
     transition: border-color 0.15s ease;
 }
@@ -4321,7 +4321,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         border: none;
         cursor: pointer;
         font-family: inherit;
-        font-size: 0.8rem;
+        font-size: 0.875rem;
         line-height: 1;
         min-height: 3rem;
         transition: color var(--transition);

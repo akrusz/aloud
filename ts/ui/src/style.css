@@ -381,7 +381,7 @@
 }
 .voice-status {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     min-height: 1.2em;
 }
 
@@ -389,13 +389,13 @@
 .settings-note {
     margin: 0.5rem 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
 }
 .settings-note code {
     background: var(--bg-input);
     padding: 0.1rem 0.3rem;
     border-radius: 0.2rem;
-    font-size: 0.8em;
+    font-size: 0.875rem;
 }
 
 /* meditation-pal-93b: the lifted breakpoints key off viewport width only,
@@ -497,7 +497,7 @@
 
 .ollama-rec-detected {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
 }
 
@@ -514,7 +514,7 @@
 
 .ollama-others-heading {
     margin-top: 0.5rem;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-muted);
 }
@@ -544,19 +544,19 @@
 }
 
 .ollama-tier-badge {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--accent);
     margin-left: 0.25rem;
 }
 
 .ollama-tier-size {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     margin-top: 0.1rem;
 }
 
 .ollama-tier-note {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     font-style: italic;
     margin-top: 0.1rem;
@@ -570,7 +570,7 @@
 }
 
 .ollama-tier-installed {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--success, #5a9e6f);
 }
 
@@ -599,7 +599,7 @@
 }
 
 .ollama-pull-status {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--text-muted);
     flex: 1;
     min-width: 0;
@@ -628,7 +628,7 @@
 
 .ollama-tool-progress {
     flex-basis: 100%;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     opacity: 0.85;
     /* The streamed log line can be long (brew/curl output); don't let it push
        the layout — clip to a single line. */
