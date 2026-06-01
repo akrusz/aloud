@@ -35,10 +35,10 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   h1 .dot { color: var(--accent); }
   h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
        color: var(--dim); margin: 28px 0 12px; font-weight: 600; }
-  .sub { color: var(--dim); font-size: 13px; margin: 0 0 20px; }
+  .sub { color: var(--dim); font-size: 14px; margin: 0 0 20px; }
   .card { background: var(--panel); border: 1px solid var(--line);
           border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
-  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  label { display: block; font-size: 14px; color: var(--dim); margin-bottom: 5px; }
   input, textarea {
     width: 100%; padding: 9px 11px; background: #100d0b; color: var(--ink);
     border: 1px solid var(--line); border-radius: 8px; font: inherit;
@@ -47,7 +47,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   input:focus, textarea:focus { outline: none; border-color: var(--accent); }
   .check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 14px; }
   .check input { width: auto; }
-  button.xs { padding: 3px 9px; font-size: 12px; }
+  button.xs { padding: 3px 9px; font-size: 14px; }
   button {
     padding: 9px 16px; background: var(--accent); color: #1a1208; border: none;
     border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
@@ -58,28 +58,28 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .row > div { flex: 1; min-width: 140px; }
   .row > button { flex: 0 0 auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  th { color: var(--dim); font-weight: 600; font-size: 11px;
+  th { color: var(--dim); font-weight: 600; font-size: 14px;
        text-transform: uppercase; letter-spacing: .6px; }
   tbody tr { cursor: pointer; }
   tbody tr:hover { background: #221d19; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px;
-          font-size: 11px; font-weight: 600; }
+          font-size: 14px; font-weight: 600; }
   .pill.paid { background: rgba(127,179,137,.18); color: var(--good); }
   .pill.free { background: rgba(168,154,140,.16); color: var(--dim); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
   .stat { background: #100d0b; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .stat .k { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+  .stat .k { font-size: 14px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
   .stat .v { font-size: 20px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
   .stat .v.warn { color: var(--bad); }
-  .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .msg { font-size: 15px; margin-top: 10px; min-height: 18px; }
   .msg.ok { color: var(--good); }
   .msg.err { color: var(--bad); }
   .muted { color: var(--dim); }
   .hidden { display: none; }
-  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 14px; }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6);
               display: flex; align-items: center; justify-content: center; padding: 20px; }
   .modal { background: var(--panel); border: 1px solid var(--line);
