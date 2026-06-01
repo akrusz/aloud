@@ -11,6 +11,7 @@
 
 import { renderGoogleSignInButton } from './google-signin.js';
 import { renderAppleSignInButton } from './apple-signin.js';
+import { isDesktopSync } from './is-desktop.js';
 import { emailLogin, emailSignup, type AuthResponse } from './cloud-auth.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
@@ -101,19 +102,31 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         });
         document.addEventListener('keydown', onKey);
 
-        // OAuth buttons — each no-ops (and removes its host) when unconfigured.
-        const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
-        const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
-        void renderGoogleSignInButton(googleHost, { onSignedIn, onError: (e) => showError(e.message) }).then(
-            (ok) => {
+        // Google/Apple use web popups (GIS / Apple JS) that can't run in the
+        // desktop (Tauri) webview — its custom-scheme origin isn't a valid OAuth
+        // JavaScript origin, so the popups just fail. Hide them there until a
+        // native OAuth flow is wired (meditation-pal — desktop sign-in); email
+        // works everywhere. On web/local each button still no-ops + removes its
+        // host when unconfigured.
+        if (isDesktopSync()) {
+            overlay.querySelector('#signin-oauth')?.remove();
+            overlay.querySelector('.signin-divider')?.remove();
+        } else {
+            const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
+            const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
+            void renderGoogleSignInButton(googleHost, {
+                onSignedIn,
+                onError: (e) => showError(e.message),
+            }).then((ok) => {
                 if (!ok) googleHost.remove();
-            }
-        );
-        void renderAppleSignInButton(appleHost, { onSignedIn, onError: (e) => showError(e.message) }).then(
-            (ok) => {
+            });
+            void renderAppleSignInButton(appleHost, {
+                onSignedIn,
+                onError: (e) => showError(e.message),
+            }).then((ok) => {
                 if (!ok) appleHost.remove();
-            }
-        );
+            });
+        }
 
         // Email form — toggles between sign-in and create-account.
         wireEmailForm(overlay, { onSignedIn, showError, clearError });
