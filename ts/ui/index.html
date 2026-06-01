@@ -32,6 +32,43 @@
             rel="stylesheet"
         />
         <link rel="stylesheet" href="/src/style.css" />
+        <!-- First-paint loader styles. Self-contained (own class names, inline
+             keyframe) so the orb breathes correctly in the gap between CSS
+             paint and the JS bundle / first view render — on GitHub Pages the
+             ~70 KB-gzip bundle is a noticeable beat. Cleared automatically when
+             a view sets #app-root's innerHTML. -->
+        <style>
+            .app-loading {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 60vh;
+            }
+            .app-loading-orb {
+                width: 64px;
+                height: 64px;
+                border-radius: 50%;
+                background: radial-gradient(circle at 35% 30%, #f4c989, #e0a96d 45%, #c77f4a 80%);
+                box-shadow: 0 0 40px 8px rgba(224, 169, 109, 0.35);
+                animation: app-loading-breathe 3.2s ease-in-out infinite;
+            }
+            @keyframes app-loading-breathe {
+                0%,
+                100% {
+                    transform: scale(0.85);
+                    opacity: 0.65;
+                }
+                50% {
+                    transform: scale(1.05);
+                    opacity: 1;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .app-loading-orb {
+                    animation-duration: 6s;
+                }
+            }
+        </style>
     </head>
     <body>
         <!-- In the Tauri desktop shell the nav doubles as the window title bar.
@@ -56,7 +93,13 @@
 
         <main class="main">
             <div id="app-root">
-                <!-- Setup, session, and history views mount here. -->
+                <!-- Setup, session, and history views mount here. Until the
+                     first view renders (it sets innerHTML, clearing this), a
+                     calm breathing orb stands in so the page isn't blank while
+                     the JS bundle loads. -->
+                <div class="app-loading" role="status" aria-label="Loading aloud">
+                    <div class="app-loading-orb"></div>
+                </div>
             </div>
         </main>
 
