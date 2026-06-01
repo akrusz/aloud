@@ -49,6 +49,10 @@ let currentNoting: NotingSessionViewHandle | null = null;
 // null until the first routeTo lands — keeps the initial-load
 // deep-link from being treated as "already on setup" and skipped.
 let currentView: View | null = null;
+// True until the #boot-orb has flown into the nav. While set, setActiveNav
+// leaves the nav orb slot empty — the boot orb itself becomes the idle nav
+// orb (see flyBootOrbToNav), so we never paint two orbs at once.
+let bootOrbPending = true;
 
 function $<T extends HTMLElement>(id: string): T {
     const el = document.getElementById(id);
@@ -77,6 +81,54 @@ export async function bootApp(): Promise<void> {
     // bouncing the user back to setup.
     const initial = viewFromPath(window.location.pathname);
     await routeTo(root, initial, { replace: true });
+    // First view is mounted and the nav slot is in place — cross-fade the big
+    // boot orb out and the small idle nav orb in, then resume normal nav-orb
+    // painting for later view changes.
+    settleBootOrb();
+    bootOrbPending = false;
+}
+
+/**
+ * Retire the first-paint #boot-orb (a centered kasina-form orb): fade it out,
+ * then fade the small idle orb into the nav. setActiveNav left the nav orb slot
+ * empty while bootOrbPending, so the boot orb is the only orb on screen until
+ * the crossfade. A plain fade reads calmer than flying the orb across the page.
+ */
+function settleBootOrb(): void {
+    const navInfo = document.querySelector<HTMLElement>('.nav-session-info');
+    if (!navInfo) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const showNavOrb = (): void => {
+        navInfo.innerHTML = '<div class="orb orb-idle orb-nav" id="home-orb"></div>';
+        wireHomeOrbBounce();
+        // Fade up to the idle orb's resting opacity (0.6, from .orb-idle).
+        if (!reduce) {
+            document
+                .getElementById('home-orb')
+                ?.animate([{ opacity: 0 }, { opacity: 0.6 }], {
+                    duration: 400,
+                    easing: 'ease-in',
+                });
+        }
+    };
+
+    const bootOrb = document.getElementById('boot-orb');
+    if (!bootOrb || reduce) {
+        bootOrb?.remove();
+        showNavOrb();
+        return;
+    }
+
+    const fade = bootOrb.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 500,
+        easing: 'ease-out',
+        fill: 'forwards',
+    });
+    fade.onfinish = () => {
+        bootOrb.remove();
+        showNavOrb();
+    };
 }
 
 function wireNav(): void {
@@ -226,11 +278,12 @@ function setActiveNav(view: View): void {
     // breathing orb.
     const navCenter = document.getElementById('navCenter');
     if (navCenter && view !== 'session') {
-        navCenter.innerHTML = `
-            <div class="nav-session-info">
-                <div class="orb orb-idle orb-nav" id="home-orb"></div>
-            </div>`;
-        wireHomeOrbBounce();
+        // While the boot orb is still pending it flies into this slot and
+        // becomes the idle orb itself (flyBootOrbToNav), so leave it empty —
+        // painting an orb here too would briefly show two.
+        const orb = bootOrbPending ? '' : '<div class="orb orb-idle orb-nav" id="home-orb"></div>';
+        navCenter.innerHTML = `<div class="nav-session-info">${orb}</div>`;
+        if (!bootOrbPending) wireHomeOrbBounce();
     }
 }
 
