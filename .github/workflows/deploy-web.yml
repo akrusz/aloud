@@ -1,0 +1,72 @@
+name: Deploy web app (UI → docs/app)
+
+# Manual only — builds the hosted browser app and commits the result into
+# docs/app/ on the branch you run it from (the branch GitHub Pages serves;
+# CNAME=aloud.rest). This replaces the local `npm run ui:build:hosted` + commit
+# step from dev-docs/deploy.md. Pages then publishes docs/ automatically.
+#
+# Kept manual (workflow_dispatch), like deploy-server.yml: a UI ship is a
+# deliberate act, and the build bakes in build-time config you choose when you
+# run it. Flip on the `push` trigger below if you later want CD on every merge.
+#
+# BRANCHES: the UI code lives on `ts-core`; this file is also committed to `main`
+# only so the "Run workflow" button shows (workflow_dispatch needs the file on
+# the default branch). When you run it, pick **Use workflow from: ts-core** — it
+# builds + commits docs/app back to whatever branch you dispatch from, and Pages
+# serves ts-core. The guard step fails fast if you forget. (Drop the note + guard
+# at the ts-core→main cutover.)
+#
+# Required repo settings (Settings → Secrets and variables → Actions → Variables):
+#   - ALOUD_SERVER_URL   the hosted /cloud origin, e.g. https://aloud-server.fly.dev
+#                        (already used by tauri-release.yml)
+#   - GOOGLE_CLIENT_ID   the web OAuth client id (= GOOGLE_CLIENT_IDS on the
+#                        server). NOT secret — it's baked into the public client.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths: ['ts/ui/**', 'ts/src/**', 'ts/package.json', 'ts/package-lock.json']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      # So the job can commit the rebuilt docs/app back to the branch.
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Ensure the UI is present (run from the ts-core branch)
+        run: |
+          if [ ! -d ts/ui ]; then
+            echo "::error::No ts/ui here — re-run with Use workflow from ts-core (main is the legacy Python app)."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        working-directory: ts
+        run: npm ci
+
+      - name: Build hosted UI → docs/app
+        working-directory: ts
+        run: npm run ui:build:hosted
+        env:
+          VITE_ALOUD_SERVER_URL: ${{ vars.ALOUD_SERVER_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+
+      - name: Commit docs/app if it changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/app
+          if git diff --cached --quiet; then
+            echo "No change in docs/app — nothing to deploy."
+          else
+            git commit -m "build: hosted web app [skip ci]"
+            git push origin "HEAD:${{ github.ref_name }}"
+            echo "Committed + pushed rebuilt docs/app to ${{ github.ref_name }}."
+          fi
