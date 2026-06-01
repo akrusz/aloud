@@ -2803,6 +2803,19 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 /* ---- Sign-in modal: OAuth + email (meditation-pal-s75) ---- */
+/* Pad the modal body; the header keeps its own full-bleed padding + border so
+ * the divider under it still spans edge to edge. */
+.signin-modal > *:not(.voice-modal-header) {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}
+.signin-modal {
+    padding-bottom: 1.25rem;
+}
+.signin-modal-subtitle {
+    margin: 1rem 0 0;
+}
+
 .signin-oauth {
     display: flex;
     flex-direction: column;
@@ -2860,10 +2873,19 @@ html:has(.nav-brand.has-update) .update-btn {
 .signin-input {
     padding: 0.6rem 0.75rem;
     border-radius: var(--radius-sm);
-    border: 1px solid var(--border, #ccc);
+    border: 1px solid var(--border);
     font-size: 0.95rem;
-    background: var(--input-bg, #fff);
-    color: inherit;
+    font-family: var(--font);
+    /* Theme-aware — the old --input-bg fallback was #fff, which rendered a white
+     * box (and an unreadable placeholder) in dark mode. */
+    background: var(--bg-input);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.signin-input::placeholder {
+    /* Some browsers dim placeholders; pin it to the readable muted token. */
+    color: var(--text-muted);
+    opacity: 1;
 }
 .signin-email-submit {
     width: 100%;
