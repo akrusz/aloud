@@ -158,6 +158,15 @@ nothing needs baking into the build.
 You have an Apple Developer membership; this is what to create (all in
 [developer.apple.com](https://developer.apple.com) → Certificates, IDs & Profiles):
 
+> **You do NOT need a Key.** Skip the **Keys** section entirely. This is a
+> verify-only flow: the browser's Apple JS popup returns an `id_token` (JWT) that
+> the server verifies against Apple's *public* JWKS (`auth/apple.ts`). The private
+> `.p8` key is only for server-to-server token-endpoint calls (code exchange /
+> refresh / revoke), which we don't make. If registering a Sign in with Apple
+> **key** shows *"There are no identifiers available to associate"* — that's not a
+> key problem, it's the prerequisite below: no App ID has the capability enabled
+> yet (the same reason the Services ID's "Primary App ID" dropdown would be empty).
+
 > **Bundle ID vs Services ID — you are not stuck with your existing bundle id.**
 > Apple uses two different identifier *types*, and the `aud` of the token differs
 > by platform: a **native** iOS app's token is `aud` = the **App ID / bundle id**
