@@ -127,7 +127,11 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     if (!token) return null;
     const res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) return null;
-    return (await res.json()) as AuthResponse['account'];
+    const account = (await res.json()) as AuthResponse['account'];
+    // `providers` is newer than some deployed servers; default it so callers can
+    // always `.some()`/`.map()` it (a missing field crashed the account panel
+    // against a not-yet-redeployed server).
+    return { ...account, providers: account.providers ?? [] };
 }
 
 export async function clearCloudToken(): Promise<void> {

@@ -16,6 +16,7 @@ import {
     appleSignIn,
     emailSignup,
     emailLogin,
+    fetchMe,
     devSignIn,
     ensureCloudToken,
     getCloudToken,
@@ -104,6 +105,22 @@ describe('ensureCloudToken', () => {
         );
         await clearCloudToken();
         expect(await ensureCloudToken()).toBe('tok-dev');
+    });
+});
+
+describe('fetchMe — tolerant of an older server', () => {
+    it('defaults a missing `providers` to [] so the account panel can map it', async () => {
+        await kv.set('server:token', 'tok');
+        // An older (not-yet-redeployed) server omits `providers` entirely.
+        setCloudAuthFetch(async () =>
+            new Response(
+                JSON.stringify({ id: 'a1', email: 'u@e.com', emailVerified: true, creditsRemaining: 5 }),
+                { status: 200 }
+            )
+        );
+        const me = await fetchMe();
+        expect(me?.providers).toEqual([]);
+        expect(me?.creditsRemaining).toBe(5);
     });
 });
 

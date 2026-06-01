@@ -183,12 +183,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             // An email-only account hasn't claimed its free grant — nudge it to
             // connect a trusted identity (meditation-pal-116). Connecting from a
             // signed-in state links to THIS account (cloud-auth sends the bearer).
-            const hasTrusted = account.providers.some((p) => p === 'google' || p === 'apple');
-            const connectPrompt = hasTrusted
-                ? ''
-                : `<button type="button" class="account-connect-prompt provider-hint" id="account-connect">
+            // Only nudge when we POSITIVELY know the account has identities but
+            // none trusted; an empty/absent list (e.g. an older server that
+            // doesn't report providers) shouldn't nag a Google/Apple user.
+            const providers = account.providers ?? [];
+            const needsConnect =
+                providers.length > 0 && !providers.some((p) => p === 'google' || p === 'apple');
+            const connectPrompt = needsConnect
+                ? `<button type="button" class="account-connect-prompt provider-hint" id="account-connect">
                        Connect Google or Apple to claim your free credits →
-                   </button>`;
+                   </button>`
+                : '';
             body.innerHTML = `
                 <div class="account-row">
                     <div class="account-info">
