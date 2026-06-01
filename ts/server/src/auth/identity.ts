@@ -15,7 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Deps } from '../deps.js';
 import type { Account, IdentityProvider } from '../credits/store.js';
-import type { AuthResponse } from '../contract.js';
+import type { AccountView, AuthResponse } from '../contract.js';
 import { decideConnectGrant } from '../quota/freetier.js';
 import { issueSessionToken } from './session.js';
 import { log } from '../logger.js';
@@ -147,6 +147,19 @@ export async function connectIdentity(
     return { account, isNewAccount, isNewIdentity: true, granted, breakerTripped };
 }
 
+/** The account + live balance + linked sign-in methods (GET /me and every auth
+ *  response). Centralised so both paths report `providers` consistently. */
+export async function buildAccountView(deps: Deps, account: Account): Promise<AccountView> {
+    const identities = await deps.store.getIdentitiesForAccount(account.id);
+    return {
+        id: account.id,
+        email: account.email,
+        emailVerified: account.emailVerified,
+        creditsRemaining: await deps.ledger.balance(account.id),
+        providers: identities.map((i) => i.provider),
+    };
+}
+
 /** Mint a session token + the account view a sign-in route returns. */
 export async function issueAuthResponse(
     deps: Deps,
@@ -154,14 +167,5 @@ export async function issueAuthResponse(
     isNewAccount: boolean
 ): Promise<AuthResponse> {
     const token = await issueSessionToken(account.id, deps.config.sessionSecret);
-    return {
-        token,
-        isNewAccount,
-        account: {
-            id: account.id,
-            email: account.email,
-            emailVerified: account.emailVerified,
-            creditsRemaining: await deps.ledger.balance(account.id),
-        },
-    };
+    return { token, isNewAccount, account: await buildAccountView(deps, account) };
 }

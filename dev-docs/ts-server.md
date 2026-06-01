@@ -64,6 +64,7 @@ load logic is `loadConfig` in `config.ts`.
 | `ALOUD_DB_PATH` | durable credit ledger | SQLite file path (e.g. `/data/aloud.db` on a Fly volume); **required in prod**. Unset in dev → in-memory store, lost on restart |
 | `ALOUD_SESSION_SECRET` | signing session JWTs | `openssl rand -hex 32`; required in prod |
 | `GOOGLE_CLIENT_IDS` | sign-in | comma-sep web/iOS/android client ids; required in prod |
+| `APPLE_CLIENT_IDS` | Apple sign-in | comma-sep Services ID (web) / bundle id (native); empty disables Apple. Email/password needs no config (meditation-pal-s75) |
 | `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client |
 | `GEMINI_API_KEY` | value-tier LLM (Gemini direct) | Google AI Studio key; powers `gemini-2.5-flash-lite` without OpenRouter's fee |
 | `FIREWORKS_API_KEY` | server STT (default) | drives `/v1/stt` (Whisper); Fireworks `whisper-v3-turbo`, ≈ $0.054/hr. Recommended over Groq, whose new paid signups may be frozen |
@@ -162,6 +163,9 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | `GET /health` | public | liveness + what's configured |
 | `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: `{googleClientId}` (first of `GOOGLE_CLIENT_IDS`, or `''`). Lets any install render Google sign-in without baking the id in at build |
 | `POST /v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow) |
+| `POST /v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
+| `POST /v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116) |
+| `POST /v1/auth/email/login` | public | email/password sign-in; one generic 401 for wrong-password / unknown-email |
 | `POST /v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
 | `GET /v1/me` | session | account + live balance |
 | `GET /v1/me/models` `/estimates` `/packs` | public | published pricing |

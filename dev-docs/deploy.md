@@ -140,6 +140,47 @@ Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin
 
 ---
 
+## Sign-in methods (meditation-pal-s75)
+
+Three methods, all behind the one account model (accounts ↔ identities). The UI
+discovers which OAuth methods to show at runtime from `/cloud/v1/config`, so
+nothing needs baking into the build.
+
+- **Email/password** — always on, zero config. New email accounts get **no free
+  credits** until they connect Google or Apple (the anti-farming lever,
+  meditation-pal-116).
+- **Google** — set `GOOGLE_CLIENT_IDS` (see below). Trusted → connecting unlocks
+  the free grant.
+- **Apple** — set `APPLE_CLIENT_IDS`. Trusted, same as Google.
+
+### Sign in with Apple — one-time Apple Developer setup
+
+You have an Apple Developer membership; this is what to create (all in
+[developer.apple.com](https://developer.apple.com) → Certificates, IDs & Profiles):
+
+1. **App ID** (Identifiers → +, type App): if you don't already have one for
+   aloud, create it and enable the **Sign in with Apple** capability.
+2. **Services ID** (Identifiers → +, type Services IDs) — THIS is the web client
+   id, your `APPLE_CLIENT_IDS`. Give it an identifier like `rest.aloud.web`.
+   Enable **Sign in with Apple**, click **Configure**, and under it:
+   - **Primary App ID**: the App ID from step 1.
+   - **Domains**: `aloud.rest`.
+   - **Return URLs**: the exact app origin + base path the browser posts back to —
+     `https://aloud.rest/app/` (the UI uses `window.location.origin + BASE_URL`).
+     Add `https://localhost:4649/` too if you want to test Apple locally.
+3. Set the server secret: `fly secrets set APPLE_CLIENT_IDS=rest.aloud.web`
+   (comma-separate if you later add a native bundle id). That's all the server
+   needs — it verifies Apple's token against Apple's public JWKS; **no private
+   key or client-secret JWT is required** for this verify-only, popup web flow.
+4. Redeploy. The Apple button now appears wherever the UI reaches the server.
+
+> Note: Apple's web popup requires HTTPS and an exact Return URL match — a
+> mismatch is the usual "it silently won't open" cause. The id token's `email`
+> may be a private-relay address, and Apple omits it on repeat sign-ins (the
+> identity is already linked by then, so that's fine).
+
+---
+
 ## Wiring checklist
 
 - [ ] Server deployed; `GET /health` returns `ok:true` with your providers.
@@ -150,6 +191,8 @@ Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin
       (baking `VITE_GOOGLE_CLIENT_ID` is optional — it only avoids a one-probe
       delay). Without `GOOGLE_CLIENT_IDS` the client falls back to dev sign-in,
       which 404s in prod.
+- [ ] (Optional) Apple Services ID created + `APPLE_CLIENT_IDS` set (see
+      "Sign in with Apple" above). Email/password needs no setup.
 - [ ] UI built with `VITE_ALOUD_CLOUD_URL` = the server origin.
 - [ ] Server `ALOUD_CORS_ORIGINS` = the UI origin.
 - [ ] Stripe live keys + webhook endpoint (`POST /cloud/v1/billing/webhook`)

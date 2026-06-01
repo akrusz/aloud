@@ -13,6 +13,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     googleSignIn,
+    appleSignIn,
+    emailSignup,
+    emailLogin,
     devSignIn,
     ensureCloudToken,
     getCloudToken,
@@ -101,6 +104,53 @@ describe('ensureCloudToken', () => {
         );
         await clearCloudToken();
         expect(await ensureCloudToken()).toBe('tok-dev');
+    });
+});
+
+describe('additional sign-in methods (meditation-pal-s75)', () => {
+    it('appleSignIn POSTs the identity token to /auth/apple and caches the token', async () => {
+        let seen: { url: string; init?: RequestInit } | null = null;
+        setCloudAuthFetch(async (url, init) => {
+            seen = { url: String(url), init };
+            return new Response(JSON.stringify({ ...AUTH_BODY, token: 'tok-apple' }), { status: 200 });
+        });
+        const body = await appleSignIn('apple-id-token');
+        expect(body.token).toBe('tok-apple');
+        expect(seen!.url).toMatch(/\/auth\/apple$/);
+        expect(JSON.parse(String(seen!.init?.body))).toEqual({ idToken: 'apple-id-token' });
+        expect(await getCloudToken()).toBe('tok-apple');
+    });
+
+    it('emailSignup and emailLogin POST credentials to their routes', async () => {
+        const seen: string[] = [];
+        setCloudAuthFetch(async (url) => {
+            seen.push(String(url));
+            return new Response(JSON.stringify(AUTH_BODY), { status: 200 });
+        });
+        await emailSignup('a@b.com', 'password1');
+        await emailLogin('a@b.com', 'password1');
+        expect(seen[0]).toMatch(/\/auth\/email\/signup$/);
+        expect(seen[1]).toMatch(/\/auth\/email\/login$/);
+    });
+
+    it('surfaces the server error message (e.g. duplicate email)', async () => {
+        setCloudAuthFetch(async () =>
+            new Response(JSON.stringify({ error: { code: 'bad_request', message: 'email already exists' } }), {
+                status: 400,
+            })
+        );
+        await expect(emailSignup('dup@b.com', 'password1')).rejects.toThrow(/email already exists/);
+    });
+
+    it('rides the cached token as a bearer so a connect LINKS to the account', async () => {
+        await kv.set('server:token', 'existing-tok');
+        let authHeader: string | undefined;
+        setCloudAuthFetch(async (_url, init) => {
+            authHeader = (init?.headers as Record<string, string>)?.['authorization'];
+            return new Response(JSON.stringify(AUTH_BODY), { status: 200 });
+        });
+        await googleSignIn('id-token');
+        expect(authHeader).toBe('Bearer existing-tok');
     });
 });
 

@@ -68,7 +68,10 @@ export function createApp(deps: Deps): Hono {
     // build time. Empty when the server has no GOOGLE_CLIENT_IDS, in which case
     // the client keeps its dev-sign-in fallback. (meditation-pal-rfb)
     app.get('/cloud/v1/config', (c) =>
-        c.json({ googleClientId: deps.config.googleClientIds[0] ?? '' })
+        c.json({
+            googleClientId: deps.config.googleClientIds[0] ?? '',
+            appleClientId: deps.config.appleClientIds[0] ?? '',
+        })
     );
 
     // Public: the curated hosted voices, or [] when TTS isn't configured. The

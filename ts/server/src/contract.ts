@@ -105,6 +105,20 @@ export interface GoogleAuthRequest {
     idToken: string;
 }
 
+/** POST /cloud/v1/auth/apple — exchange a Sign in with Apple ID token. */
+export interface AppleAuthRequest {
+    /** The identity token (JWT) from Sign in with Apple on the client. */
+    idToken: string;
+}
+
+/** POST /cloud/v1/auth/email/{signup,login} — local email/password sign-in.
+ *  Email accounts get NO free credits until they connect Google/Apple
+ *  (meditation-pal-116). */
+export interface EmailAuthRequest {
+    email: string;
+    password: string;
+}
+
 export interface AuthResponse {
     /** Bearer token for subsequent requests (our own short-lived JWT). */
     token: string;
@@ -118,11 +132,17 @@ export interface AuthResponse {
 export interface AccountView {
     id: string;
     email: string;
-    /** Whether Google marked the email verified. We require this before
-     *  granting free credits (anti multi-account). */
+    /** Whether a trusted provider marked the email verified. */
     emailVerified: boolean;
     creditsRemaining: number;
+    /** Sign-in methods linked to this account. Lets the UI offer "connect
+     *  Google/Apple to claim free credits" only when no trusted identity is
+     *  linked yet (meditation-pal-116). Mirrors store.ts IdentityProvider. */
+    providers: SignInProvider[];
 }
+
+/** Sign-in method linked to an account (mirrors store.ts IdentityProvider). */
+export type SignInProvider = 'google' | 'apple' | 'email';
 
 // ---- Billing ----------------------------------------------------------------
 

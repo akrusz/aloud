@@ -13,12 +13,19 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { ERROR_STATUS, apiError } from '../contract.js';
-import type { AuthResponse, GoogleAuthRequest } from '../contract.js';
+import type { AppleAuthRequest, AuthResponse, EmailAuthRequest, GoogleAuthRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import { verifyGoogleIdToken } from '../auth/google.js';
+import { verifyAppleIdToken } from '../auth/apple.js';
+import { hashPassword, verifyPassword } from '../auth/password.js';
 import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, IdentityConflictError } from '../auth/identity.js';
 import { log } from '../logger.js';
+
+/** Loose email shape check — enough to reject obvious garbage; real validity is
+ *  proven later if/when the address is used. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LEN = 8;
 
 /** The account id from a (valid) bearer token on the request, if any — used to
  *  link a freshly-verified identity to the already-signed-in account. */
@@ -72,6 +79,106 @@ export function authRoutes(deps: Deps): Hono {
             log.error('google connect failed', { err: String(err) });
             return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
         }
+    });
+
+    app.post('/apple', async (c) => {
+        const body = (await c.req.json().catch(() => ({}))) as Partial<AppleAuthRequest>;
+        if (!body.idToken) {
+            return c.json(apiError('bad_request', 'idToken required'), ERROR_STATUS.bad_request);
+        }
+
+        let identity;
+        try {
+            identity = await verifyAppleIdToken(body.idToken, deps.config.appleClientIds);
+        } catch (err) {
+            log.warn('apple verify failed', { err: String(err) });
+            return c.json(apiError('unauthenticated', 'invalid Apple sign-in'), ERROR_STATUS.unauthenticated);
+        }
+
+        const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+        const signupIp = fwd || c.req.header('x-real-ip') || undefined;
+        const linkToAccountId = await callerAccountId(c, deps);
+
+        try {
+            const result = await connectIdentity(
+                deps,
+                {
+                    provider: 'apple',
+                    sub: identity.sub,
+                    email: identity.email,
+                    emailVerified: identity.emailVerified,
+                },
+                { ...(signupIp ? { signupIp } : {}), ...(linkToAccountId ? { linkToAccountId } : {}) }
+            );
+            return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
+        } catch (err) {
+            if (err instanceof IdentityConflictError) {
+                return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
+            }
+            log.error('apple connect failed', { err: String(err) });
+            return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
+        }
+    });
+
+    // Email/password. Signup creates an UNTRUSTED 'email' identity — an account
+    // with NO free credits until it connects Google/Apple (meditation-pal-116).
+    app.post('/email/signup', async (c) => {
+        const body = (await c.req.json().catch(() => ({}))) as Partial<EmailAuthRequest>;
+        const email = (body.email ?? '').trim().toLowerCase();
+        const password = body.password ?? '';
+        if (!EMAIL_RE.test(email)) {
+            return c.json(apiError('bad_request', 'a valid email is required'), ERROR_STATUS.bad_request);
+        }
+        if (password.length < MIN_PASSWORD_LEN) {
+            return c.json(
+                apiError('bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`),
+                ERROR_STATUS.bad_request
+            );
+        }
+        if (await deps.store.getIdentity('email', email)) {
+            return c.json(
+                apiError('bad_request', 'an account with this email already exists — try signing in'),
+                ERROR_STATUS.bad_request
+            );
+        }
+
+        const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+        const signupIp = fwd || c.req.header('x-real-ip') || undefined;
+        const linkToAccountId = await callerAccountId(c, deps);
+
+        try {
+            const result = await connectIdentity(
+                deps,
+                { provider: 'email', sub: email, email, emailVerified: false },
+                {
+                    secretHash: hashPassword(password),
+                    ...(signupIp ? { signupIp } : {}),
+                    ...(linkToAccountId ? { linkToAccountId } : {}),
+                }
+            );
+            return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
+        } catch (err) {
+            log.error('email signup failed', { err: String(err) });
+            return c.json(apiError('internal', 'could not create the account'), ERROR_STATUS.internal);
+        }
+    });
+
+    app.post('/email/login', async (c) => {
+        const body = (await c.req.json().catch(() => ({}))) as Partial<EmailAuthRequest>;
+        const email = (body.email ?? '').trim().toLowerCase();
+        const password = body.password ?? '';
+        // One generic message for both "no such email" and "wrong password" so
+        // the endpoint doesn't confirm which emails are registered.
+        const reject = () =>
+            c.json(apiError('unauthenticated', 'incorrect email or password'), ERROR_STATUS.unauthenticated);
+
+        const identity = await deps.store.getIdentity('email', email);
+        if (!identity?.secretHash || !verifyPassword(password, identity.secretHash)) {
+            return reject();
+        }
+        const account = await deps.store.getAccountById(identity.accountId);
+        if (!account) return reject();
+        return c.json(await issueAuthResponse(deps, account, false));
     });
 
     // Stable identity for the single local dev account. Reused across sign-ins

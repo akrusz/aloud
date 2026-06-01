@@ -2790,6 +2790,93 @@ html:has(.nav-brand.has-update) .update-btn {
     flex-wrap: wrap;
 }
 
+.account-connect-prompt {
+    display: block;
+    margin-top: 0.75rem;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    color: var(--accent, #4a7c59);
+    text-decoration: underline;
+}
+
+/* ---- Sign-in modal: OAuth + email (meditation-pal-s75) ---- */
+.signin-oauth {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Apple's button (Apple's own JS button is popup-only; this is our styled one). */
+.apple-signin-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 240px;
+    max-width: 100%;
+    height: 40px;
+    border-radius: 20px;
+    border: none;
+    background: #000;
+    color: #fff;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+.apple-signin-button::before {
+    content: '\f8ff'; /* Apple logo glyph on Apple platforms; harmless elsewhere */
+    font-size: 1rem;
+}
+.apple-signin-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.signin-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    color: var(--text-muted, #888);
+    font-size: 0.8rem;
+}
+.signin-divider::before,
+.signin-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border, #ddd);
+}
+
+.signin-email-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.signin-input {
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border, #ccc);
+    font-size: 0.95rem;
+    background: var(--input-bg, #fff);
+    color: inherit;
+}
+.signin-email-submit {
+    width: 100%;
+}
+.signin-email-toggle {
+    background: none;
+    border: none;
+    color: var(--accent, #4a7c59);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.25rem;
+}
+
 /* ---- No-voices warning ---- */
 
 .no-voices-banner {

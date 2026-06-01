@@ -1,17 +1,17 @@
 /**
  * Sign-in modal — the just-in-time gate (and a Settings affordance) for hosted
- * sign-in (meditation-pal-rfb). Renders the official Google button
- * (google-signin.ts) over a dimmed overlay; resolves true once the user signs
- * in and we hold a session token, false if they dismiss it.
+ * sign-in (meditation-pal-rfb / s75). Offers every configured method over a
+ * dimmed overlay: Google, Apple, and an email/password form (sign in / create
+ * account). Resolves true once a session token is held, false on dismiss.
  *
- * Reuses the `.voice-modal-*` classes for visual consistency with the app's
- * other modals, and appends to <body> so it floats above whatever view is
- * mounted (the just-in-time gate fires from the setup view before a session
- * mounts).
+ * Free credits come from a TRUSTED identity (Google/Apple); an email signup gets
+ * an account but no credits until it connects one (meditation-pal-116) — the
+ * copy says so. Reuses the `.voice-modal-*` classes for visual consistency.
  */
 
 import { renderGoogleSignInButton } from './google-signin.js';
-import type { AuthResponse } from './cloud-auth.js';
+import { renderAppleSignInButton } from './apple-signin.js';
+import { emailLogin, emailSignup, type AuthResponse } from './cloud-auth.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
@@ -27,7 +27,7 @@ export interface SignInModalOptions {
 
 const DEFAULT_TITLE = 'Sign in to start';
 const DEFAULT_SUBTITLE =
-    'New accounts get free credits to try aloud. Google is used only to sign you in.';
+    'Connect Google or Apple and new accounts get free credits to try aloud. Email sign-up works too — connect Google or Apple later to claim credits.';
 
 /**
  * Show the sign-in modal. Resolves true after a successful sign-in (the session
@@ -49,7 +49,23 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                     <button type="button" class="voice-modal-close" id="signin-modal-close" aria-label="Close">&times;</button>
                 </div>
                 <p class="provider-hint signin-modal-subtitle">${escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE)}</p>
-                <div class="signin-modal-button" id="signin-modal-button"></div>
+                <div class="signin-oauth" id="signin-oauth">
+                    <div class="signin-modal-button" id="signin-google-button"></div>
+                    <div class="signin-modal-button" id="signin-apple-button"></div>
+                </div>
+                <div class="signin-divider"><span>or</span></div>
+                <form class="signin-email-form" id="signin-email-form" novalidate>
+                    <input type="email" id="signin-email" placeholder="you@example.com"
+                        autocomplete="email" required class="signin-input" />
+                    <input type="password" id="signin-password" placeholder="Password"
+                        autocomplete="current-password" required class="signin-input" />
+                    <button type="submit" class="btn btn-primary signin-email-submit" id="signin-email-submit">
+                        Sign in
+                    </button>
+                    <button type="button" class="signin-email-toggle" id="signin-email-toggle">
+                        New here? Create an account
+                    </button>
+                </form>
                 <div class="provider-hint signin-modal-error hidden" id="signin-modal-error"></div>
             </div>`;
         document.body.appendChild(overlay);
@@ -71,6 +87,13 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             el.textContent = msg;
             el.classList.remove('hidden');
         };
+        const clearError = (): void => {
+            overlay.querySelector('#signin-modal-error')?.classList.add('hidden');
+        };
+        const onSignedIn = (auth: AuthResponse): void => {
+            options.onSignedIn?.(auth);
+            close(true);
+        };
 
         overlay.querySelector('#signin-modal-close')?.addEventListener('click', () => close(false));
         overlay.addEventListener('click', (e) => {
@@ -78,16 +101,62 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         });
         document.addEventListener('keydown', onKey);
 
-        const host = overlay.querySelector<HTMLElement>('#signin-modal-button')!;
-        void renderGoogleSignInButton(host, {
-            onSignedIn: (auth) => {
-                options.onSignedIn?.(auth);
-                close(true);
-            },
-            onError: (err) => showError(err.message),
-        }).then((rendered) => {
-            if (!rendered) showError('Google sign-in is unavailable in this build.');
-        });
+        // OAuth buttons — each no-ops (and removes its host) when unconfigured.
+        const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
+        const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
+        void renderGoogleSignInButton(googleHost, { onSignedIn, onError: (e) => showError(e.message) }).then(
+            (ok) => {
+                if (!ok) googleHost.remove();
+            }
+        );
+        void renderAppleSignInButton(appleHost, { onSignedIn, onError: (e) => showError(e.message) }).then(
+            (ok) => {
+                if (!ok) appleHost.remove();
+            }
+        );
+
+        // Email form — toggles between sign-in and create-account.
+        wireEmailForm(overlay, { onSignedIn, showError, clearError });
+    });
+}
+
+function wireEmailForm(
+    overlay: HTMLElement,
+    cb: { onSignedIn: (a: AuthResponse) => void; showError: (m: string) => void; clearError: () => void }
+): void {
+    const form = overlay.querySelector<HTMLFormElement>('#signin-email-form')!;
+    const emailEl = overlay.querySelector<HTMLInputElement>('#signin-email')!;
+    const passEl = overlay.querySelector<HTMLInputElement>('#signin-password')!;
+    const submit = overlay.querySelector<HTMLButtonElement>('#signin-email-submit')!;
+    const toggle = overlay.querySelector<HTMLButtonElement>('#signin-email-toggle')!;
+    let mode: 'login' | 'signup' = 'login';
+
+    toggle.addEventListener('click', () => {
+        mode = mode === 'login' ? 'signup' : 'login';
+        submit.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+        toggle.textContent =
+            mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in';
+        passEl.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+        cb.clearError();
+    });
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        cb.clearError();
+        const email = emailEl.value.trim();
+        const password = passEl.value;
+        if (!email || !password) {
+            cb.showError('Enter your email and password.');
+            return;
+        }
+        submit.disabled = true;
+        const action = mode === 'login' ? emailLogin(email, password) : emailSignup(email, password);
+        action
+            .then(cb.onSignedIn)
+            .catch((err: unknown) => {
+                submit.disabled = false;
+                cb.showError(err instanceof Error ? err.message : String(err));
+            });
     });
 }
 

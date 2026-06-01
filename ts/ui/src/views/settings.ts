@@ -41,7 +41,7 @@ import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
 import { fetchMe, clearCloudToken, isGoogleSignInConfigured } from '../cloud-auth.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
-import { renderGoogleSignInButton } from '../google-signin.js';
+import { showSignInModal } from '../sign-in-modal.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
@@ -180,6 +180,15 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
         const account = await fetchMe();
         if (account) {
+            // An email-only account hasn't claimed its free grant — nudge it to
+            // connect a trusted identity (meditation-pal-116). Connecting from a
+            // signed-in state links to THIS account (cloud-auth sends the bearer).
+            const hasTrusted = account.providers.some((p) => p === 'google' || p === 'apple');
+            const connectPrompt = hasTrusted
+                ? ''
+                : `<button type="button" class="account-connect-prompt provider-hint" id="account-connect">
+                       Connect Google or Apple to claim your free credits →
+                   </button>`;
             body.innerHTML = `
                 <div class="account-row">
                     <div class="account-info">
@@ -190,11 +199,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         <button type="button" class="btn btn-primary" id="account-buy-credits">Buy credits</button>
                         <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
                     </div>
-                </div>`;
+                </div>
+                ${connectPrompt}`;
             body.querySelector('#account-buy-credits')?.addEventListener('click', () => {
                 // Refresh the balance when the modal closes (dismiss path); the
                 // purchase path redirects to Stripe and returns via ?purchase=.
                 void showBuyCreditsModal().then(() => wireAccountSection());
+            });
+            body.querySelector('#account-connect')?.addEventListener('click', () => {
+                void showSignInModal({
+                    title: 'Claim your free credits',
+                    subtitle: 'Connect Google or Apple to unlock free credits on this account.',
+                }).then(() => wireAccountSection());
             });
             body.querySelector('#account-signout')?.addEventListener('click', () => {
                 void clearCloudToken().then(() => wireAccountSection());
@@ -202,22 +218,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             return;
         }
         body.innerHTML = `
-            <p class="provider-hint">Sign in to use the aloud cloud — new accounts get free credits.</p>
-            <div class="account-signin-button" id="account-signin-button"></div>`;
-        const host = body.querySelector<HTMLElement>('#account-signin-button');
-        if (host) {
-            await renderGoogleSignInButton(host, {
-                onSignedIn: () => {
-                    void wireAccountSection();
-                },
-                onError: (err) => {
-                    const p = document.createElement('p');
-                    p.className = 'provider-hint';
-                    p.textContent = err.message;
-                    body.appendChild(p);
-                },
-            });
-        }
+            <p class="provider-hint">Sign in to use the aloud cloud — connect Google or Apple for free credits.</p>
+            <button type="button" class="btn btn-primary" id="account-signin">Sign in or create account</button>`;
+        body.querySelector('#account-signin')?.addEventListener('click', () => {
+            void showSignInModal().then(() => wireAccountSection());
+        });
     }
 
     // ---- Provider section ----------------------------------------------

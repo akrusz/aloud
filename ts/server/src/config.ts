@@ -73,6 +73,10 @@ export interface Config {
     sessionSecret: string;
     /** Google OAuth client id(s) accepted as the `aud` of incoming ID tokens. */
     googleClientIds: string[];
+    /** Sign in with Apple client id(s) — the Services ID(s) accepted as the `aud`
+     *  of incoming Apple ID tokens. Empty disables Apple sign-in (optional, not
+     *  required in strict mode). meditation-pal-s75. */
+    appleClientIds: string[];
 
     /** Provider API keys, server-held. The whole point: the client never sees these. */
     providerKeys: ProviderKeys;
@@ -153,6 +157,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         corsOrigins: list(env['ALOUD_CORS_ORIGINS']) || [],
         sessionSecret: env['ALOUD_SESSION_SECRET'] ?? (strict ? '' : 'dev-insecure-secret'),
         googleClientIds: list(env['GOOGLE_CLIENT_IDS']),
+        appleClientIds: list(env['APPLE_CLIENT_IDS']),
         providerKeys,
         freeSignupCredits: Number(env['ALOUD_FREE_SIGNUP_CREDITS'] ?? 20),
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),

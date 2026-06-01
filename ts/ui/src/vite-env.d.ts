@@ -24,6 +24,10 @@ interface ImportMetaEnv {
      *  server's GOOGLE_CLIENT_IDS. Safe to ship in the bundle — a client id is
      *  public; the server verifies the resulting ID token against Google. */
     readonly VITE_GOOGLE_CLIENT_ID?: string;
+    /** Sign in with Apple *Services ID* (meditation-pal-s75). Usually discovered
+     *  at runtime from the server's /config, so this build-time bake is optional;
+     *  when present it lets the Apple button paint before the probe resolves. */
+    readonly VITE_APPLE_CLIENT_ID?: string;
 }
 
 interface ImportMeta {

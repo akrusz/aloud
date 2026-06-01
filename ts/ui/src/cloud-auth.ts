@@ -20,10 +20,22 @@ const TOKEN_KEY = 'server:token';
 
 /** Shape mirrors the server's AuthResponse (ts/server/src/contract.ts).
  *  Hand-mirrored until the shared @aloud/contract package lands. */
+export type SignInProvider = 'google' | 'apple' | 'email';
+
+export interface AccountView {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    creditsRemaining: number;
+    /** Linked sign-in methods — drives the "connect Google/Apple for credits"
+     *  affordance (meditation-pal-116). */
+    providers: SignInProvider[];
+}
+
 export interface AuthResponse {
     token: string;
     isNewAccount: boolean;
-    account: { id: string; email: string; emailVerified: boolean; creditsRemaining: number };
+    account: AccountView;
 }
 
 // Lazy so importing this module doesn't construct LocalStorageKv (which throws
@@ -75,6 +87,23 @@ export function isGoogleSignInConfigured(): boolean {
     return googleClientId() !== '';
 }
 
+// Sign in with Apple — same runtime-discovery pattern as Google (the Services ID
+// comes from the server's /config; meditation-pal-s75). No build-time bake today.
+let runtimeAppleClientId: string | null = null;
+
+export function setRuntimeAppleClientId(id: string): void {
+    runtimeAppleClientId = id;
+}
+
+/** The effective Apple Services id, or '' when unset. */
+export function appleClientId(): string {
+    return runtimeAppleClientId || (import.meta.env.VITE_APPLE_CLIENT_ID ?? '');
+}
+
+export function isAppleSignInConfigured(): boolean {
+    return appleClientId() !== '';
+}
+
 /** Thrown by ensureCloudToken when a hosted (Google-configured) build has no
  *  cached session: the user must complete interactive sign-in, which can't be
  *  done from a mid-session LLM call. Callers catch this to surface the sign-in
@@ -120,28 +149,79 @@ export async function devSignIn(): Promise<AuthResponse> {
     return body;
 }
 
-/** POST /cloud/v1/auth/google — exchange a Google ID token for an aloud
- *  session. The production sign-in (meditation-pal-rfb): the server verifies
- *  the token against Google's JWKS, creates the account on first sign-in, and
- *  grants free credits to verified emails. The returned token is cached like
- *  the dev one. Called from the Google Identity Services callback in
- *  google-signin.ts. */
-export async function googleSignIn(idToken: string): Promise<AuthResponse> {
-    const res = await fetchImpl(cloudUrl('/auth/google'), {
+/**
+ * POST an auth request and cache the returned session token. If a token is
+ * already cached, it rides along as a bearer so the server LINKS the new
+ * identity to the signed-in account (the "connect to claim credits" flow,
+ * meditation-pal-116) instead of making a separate account. Prefers the
+ * server's error message (e.g. "email already exists", identity conflict),
+ * falling back to a per-call generic. Shared by every sign-in method below.
+ */
+async function postAuthAndCache(
+    path: string,
+    payload: unknown,
+    genericError: (status: number) => string
+): Promise<AuthResponse> {
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    const existing = await getCloudToken();
+    if (existing) headers['authorization'] = `Bearer ${existing}`;
+    const res = await fetchImpl(cloudUrl(path), {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        headers,
+        body: JSON.stringify(payload),
     });
     if (!res.ok) {
-        throw new Error(
-            res.status === 401
-                ? 'Google sign-in was rejected. Please try again.'
-                : `aloud cloud sign-in failed (${res.status}).`
-        );
+        let serverMsg = '';
+        try {
+            serverMsg = ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
+        } catch {
+            /* non-JSON body */
+        }
+        throw new Error(serverMsg || genericError(res.status));
     }
     const body = (await res.json()) as AuthResponse;
     await kv().set(TOKEN_KEY, body.token);
     return body;
+}
+
+/** POST /cloud/v1/auth/google — exchange a Google ID token for an aloud
+ *  session (meditation-pal-rfb). The server verifies the token against Google's
+ *  JWKS, signs in (or, on first connect, creates/links the account and grants
+ *  free credits). Called from the Google Identity Services callback in
+ *  google-signin.ts. */
+export function googleSignIn(idToken: string): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/google', { idToken }, (status) =>
+        status === 401
+            ? 'Google sign-in was rejected. Please try again.'
+            : `aloud cloud sign-in failed (${status}).`
+    );
+}
+
+/** POST /cloud/v1/auth/apple — exchange a Sign in with Apple identity token
+ *  (meditation-pal-s75). Same connect semantics as Google. */
+export function appleSignIn(idToken: string): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/apple', { idToken }, (status) =>
+        status === 401
+            ? 'Apple sign-in was rejected. Please try again.'
+            : `aloud cloud sign-in failed (${status}).`
+    );
+}
+
+/** POST /cloud/v1/auth/email/signup — create an email/password account. Gets NO
+ *  free credits until a Google/Apple identity is connected (meditation-pal-116). */
+export function emailSignup(email: string, password: string): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/email/signup', { email, password }, () =>
+        'Could not create the account. Please try again.'
+    );
+}
+
+/** POST /cloud/v1/auth/email/login — sign in with an email/password account. */
+export function emailLogin(email: string, password: string): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/email/login', { email, password }, (status) =>
+        status === 401
+            ? 'Incorrect email or password.'
+            : `aloud cloud sign-in failed (${status}).`
+    );
 }
 
 /**
