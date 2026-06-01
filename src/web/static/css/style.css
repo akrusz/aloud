@@ -2803,17 +2803,24 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 /* ---- Sign-in modal: OAuth + email (meditation-pal-s75) ---- */
-/* Pad the modal body; the header keeps its own full-bleed padding + border so
- * the divider under it still spans edge to edge. */
-.signin-modal > *:not(.voice-modal-header) {
+/* Inset the modal body 1.25rem; the header keeps its full-bleed padding + border
+ * so the divider under it still spans edge to edge. Plain controls take padding;
+ * `.provider-hint` children (the subtitle + error) are tinted BOXES, so they take
+ * MARGIN instead — padding would leave the box itself full-width with only the
+ * text inset. */
+.signin-modal > *:not(.voice-modal-header):not(.provider-hint) {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
+}
+.signin-modal > .provider-hint {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
 }
 .signin-modal {
     padding-bottom: 1.25rem;
 }
 .signin-modal-subtitle {
-    margin: 1rem 0 0;
+    margin-top: 1rem;
 }
 
 .signin-oauth {

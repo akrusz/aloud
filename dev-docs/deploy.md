@@ -158,21 +158,36 @@ nothing needs baking into the build.
 You have an Apple Developer membership; this is what to create (all in
 [developer.apple.com](https://developer.apple.com) → Certificates, IDs & Profiles):
 
-1. **App ID** (Identifiers → +, type App): if you don't already have one for
-   aloud, create it and enable the **Sign in with Apple** capability.
+> **Bundle ID vs Services ID — you are not stuck with your existing bundle id.**
+> Apple uses two different identifier *types*, and the `aud` of the token differs
+> by platform: a **native** iOS app's token is `aud` = the **App ID / bundle id**
+> (your existing `app.aloud.meditation`); a **web** sign-in's token is `aud` = a
+> separate **Services ID**. Identifiers must be globally unique, so the Services
+> ID can't be the same string as the bundle id — make a new one (e.g.
+> `app.aloud.meditation.web`). Keep `app.aloud.meditation` for the future native
+> app; create the Services ID for the web flow now. `APPLE_CLIENT_IDS` accepts
+> BOTH (comma-separated) — the server verifies a token whose `aud` matches any of
+> them, so one server handles web + native.
+
+1. **App ID** (Identifiers → +, type App): you already have `app.aloud.meditation`
+   — just confirm **Sign in with Apple** is enabled on it (Edit → Capabilities).
 2. **Services ID** (Identifiers → +, type Services IDs) — THIS is the web client
-   id, your `APPLE_CLIENT_IDS`. Give it an identifier like `rest.aloud.web`.
-   Enable **Sign in with Apple**, click **Configure**, and under it:
-   - **Primary App ID**: the App ID from step 1.
+   id the browser uses. Give it a new, unique identifier, e.g.
+   `app.aloud.meditation.web`. Enable **Sign in with Apple**, click **Configure**:
+   - **Primary App ID**: `app.aloud.meditation`.
    - **Domains**: `aloud.rest`.
    - **Return URLs**: the exact app origin + base path the browser posts back to —
      `https://aloud.rest/app/` (the UI uses `window.location.origin + BASE_URL`).
      Add `https://localhost:4649/` too if you want to test Apple locally.
-3. Set the server secret: `fly secrets set APPLE_CLIENT_IDS=rest.aloud.web`
-   (comma-separate if you later add a native bundle id). That's all the server
-   needs — it verifies Apple's token against Apple's public JWKS; **no private
-   key or client-secret JWT is required** for this verify-only, popup web flow.
-4. Redeploy. The Apple button now appears wherever the UI reaches the server.
+3. Set the server secret to the **Services ID** (add the bundle id later when the
+   native app ships): `fly secrets set APPLE_CLIENT_IDS=app.aloud.meditation.web`
+   — or both: `APPLE_CLIENT_IDS=app.aloud.meditation.web,app.aloud.meditation`.
+   That's all the server needs — it verifies Apple's token against Apple's public
+   JWKS; **no private key or client-secret JWT is required** for this verify-only,
+   popup web flow.
+4. Redeploy. The Apple button now appears wherever the UI reaches the server (the
+   client reads the Services ID from `/cloud/v1/config` — the first id in
+   `APPLE_CLIENT_IDS`, so list the **web Services ID first**).
 
 > Note: Apple's web popup requires HTTPS and an exact Return URL match — a
 > mismatch is the usual "it silently won't open" cause. The id token's `email`
