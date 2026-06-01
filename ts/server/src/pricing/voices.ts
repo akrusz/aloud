@@ -58,7 +58,7 @@ const VOICES: Record<string, TtsVoiceRate> = {
         id: 'neural-budget',
         label: 'Cloud voice — Neural (Google/Azure/Polly)',
         engine: 'neural',
-        usdPerChar: 0.000015, // Azure Neural ~$14/1M; Google Neural2/WaveNet & Polly Neural ~$16/1M
+        usdPerChar: 0.000016, // List price $16/1M across Azure Neural, Google Neural2/WaveNet, Polly Neural
     },
     'deepgram-aura': {
         id: 'deepgram-aura',

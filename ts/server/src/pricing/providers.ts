@@ -82,7 +82,7 @@ const MODELS: Record<string, ModelPricing> = {
         model: 'gemini-2.5-flash-lite',
         input: 0.1 / M,
         output: 0.4 / M,
-        cacheRead: 0.025 / M, // ~75% off (Gemini implicit caching)
+        cacheRead: 0.01 / M, // Google list price for cached-input read (text), ~90% off input
         cacheCreation: 0.1 / M,
     },
 };
