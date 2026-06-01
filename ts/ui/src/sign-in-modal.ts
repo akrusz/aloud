@@ -25,9 +25,9 @@ export interface SignInModalOptions {
     onSignedIn?: (auth: AuthResponse) => void;
 }
 
-const DEFAULT_TITLE = 'Sign in to start';
+const DEFAULT_TITLE = 'Sign in to aloud cloud';
 const DEFAULT_SUBTITLE =
-    'Connect Google or Apple and new accounts get free credits to try aloud. Email sign-up works too — connect Google or Apple later to claim credits.';
+    'Sign up for free. Connect Google or Apple and we\'ll give you free credits to try aloud cloud!';
 
 /**
  * Show the sign-in modal. Resolves true after a successful sign-in (the session

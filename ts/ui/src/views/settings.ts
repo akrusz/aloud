@@ -218,7 +218,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             return;
         }
         body.innerHTML = `
-            <p class="provider-hint">Sign in to use the aloud cloud — connect Google or Apple for free credits.</p>
+            <p class="provider-hint">Sign in to use the aloud cloud, which connects to text-to-speech, speech-to-text, and LLMs to power your session with no additional setup. Connect Google or Apple for free credits.</p>
             <button type="button" class="btn btn-primary" id="account-signin">Sign in or create account</button>`;
         body.querySelector('#account-signin')?.addEventListener('click', () => {
             void showSignInModal().then(() => wireAccountSection());
