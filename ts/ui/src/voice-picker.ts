@@ -21,7 +21,7 @@
 import type { TtsEngine } from '../../src/platform/index.js';
 
 import { createTtsForVoice } from './adapters/tts-picker.js';
-import { rateBadge, RATE_LEGEND } from './credit-rate.js';
+import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE } from './credit-rate.js';
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 
@@ -361,7 +361,7 @@ function appendRow(
         cost.textContent = rateText;
         const tierWord =
             entry.costTier === 'premium' ? 'Premium' : entry.costTier === 'value' ? 'Value' : 'Cloud';
-        cost.title = `${tierWord} voice · ≈ ${entry.creditsPerHour} credits/hour`;
+        cost.title = `${tierWord} voice · est. ≈ ${entry.creditsPerHour} credits/hour at a concise (exploration) pace — noting mode uses fewer`;
         nameSpan.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {
@@ -541,7 +541,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
             <div class="voice-modal-header">
                 <span class="voice-modal-titlewrap">
                     <span class="voice-modal-title">${title}</span>
-                    <span class="voice-modal-legend hidden">${RATE_LEGEND}</span>
+                    <span class="voice-modal-legend hidden" title="${RATE_LEGEND_TITLE}">${RATE_LEGEND}</span>
                 </span>
                 <button type="button" class="voice-modal-close" id="${cfg.closeId}">&times;</button>
             </div>

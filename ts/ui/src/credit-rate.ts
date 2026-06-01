@@ -2,8 +2,13 @@
  * The cloud credit unit, shown site-wide. ☁️ IS the credit — a balance of 13.7
  * credits renders "13.7☁️", a 50-credit pack "50☁️". In the credit-spending
  * pickers (LLM model, hosted voice, cloud STT) the number is a per-HOUR rate, so
- * "8☁️" there means ~8 credits/hour and the picker carries a "☁️ per hour"
+ * "8☁️" there means ~8 credits/hour and the picker carries an "≈ ☁️ per hour"
  * legend; a user can eyeball burn rate and add model + voice in their head.
+ *
+ * The rates are ESTIMATES, calibrated around exploration mode talking as
+ * concisely as possible — a near-floor. Real use drifts up with how much gets
+ * said, and noting mode (short labels, not sentences) uses fewer ☁️ for voices.
+ * The "≈" and RATE_LEGEND_TITLE carry that caveat without cluttering the badge.
  *
  * Only the aloud cloud costs credits, so rate badges appear ONLY on hosted
  * options; BYOK / local / Ollama options carry none (free to use).
@@ -21,8 +26,15 @@ export const RATE_EMOJI = '☁️';
 export const CREDITS_PER_EMOJI = 1;
 
 /** Legend for a picker whose badges are per-hour rates. Kept terse so it fits
- *  on the picker's header row. */
-export const RATE_LEGEND = `${RATE_EMOJI} per hour`;
+ *  on the picker's header row; the leading "≈" flags that the figures are
+ *  estimates, not exact charges. */
+export const RATE_LEGEND = `≈ ${RATE_EMOJI} per hour`;
+
+/** Fuller caveat for the legend's title/tooltip: the rates are estimates,
+ *  calibrated for the most concise (exploration-mode) talk, and real use drifts
+ *  up with how much is said. Noting mode uses fewer ☁️ for voices. */
+export const RATE_LEGEND_TITLE =
+    'Rough estimate, calibrated for concise exploration-mode talking. Actual ☁️ use rises the more is said; noting mode uses fewer for voices.';
 
 /** A credit balance/amount as currency, e.g. "13.7☁️" — ☁️ is the unit. */
 export function creditAmount(credits: number, digits = 1): string {

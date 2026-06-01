@@ -506,6 +506,7 @@ export async function mountSetupView(
         });
         // Initial gate state (recomputed once /providers status arrives).
         updateBeginButton();
+        updateAiAvailability();
 
         // Continuation banner — shown when the history view has queued a
         // session for continuation. Matches Python's #continue-banner.
@@ -614,6 +615,24 @@ export async function mountSetupView(
     }
 
     /**
+     * Gray out the Provider + Model pickers when no AI will run — i.e. a noting
+     * circle whose participants are all fixed phrases / sounds. The picker stays
+     * legible (so the user sees what would be used) but reads as inactive, with
+     * a one-line note saying why. Exploration, and any circle that leans on an
+     * AI (an llm participant, or an empty/solo circle's AI-led intro), keep it
+     * live. Mirrors the needsLLM() gate the Begin button already uses.
+     */
+    function updateAiAvailability(): void {
+        const active = needsLLM();
+        root.querySelector<HTMLElement>('#ai-provider-group')?.classList.toggle('ai-group-disabled', !active);
+        root.querySelector<HTMLElement>('#ai-model-group')?.classList.toggle('ai-group-disabled', !active);
+        // The "AI isn't used" note only makes sense inside a noting circle —
+        // exploration always uses the model, so never explain its absence there.
+        const showNote = !active && setup.meditationType === 'noting';
+        root.querySelector<HTMLElement>('#ai-inactive-note')?.classList.toggle('hidden', !showNote);
+    }
+
+    /**
      * Annotate provider <option>s with ✱ / ✘, reorder available-first, float
      * claude_proxy to the top when it's working, and auto-select the saved
      * provider if available (else the first available one). ✱ means installed
@@ -709,6 +728,7 @@ export async function mountSetupView(
                 applyTabSelection(tab);
                 // Switching to/from noting changes whether an LLM is needed.
                 updateBeginButton();
+                updateAiAvailability();
             });
         });
     }
@@ -931,6 +951,7 @@ export async function mountSetupView(
         updateAddBtn();
         // Participant edits (type/add/remove) can flip whether an LLM is needed.
         updateBeginButton();
+        updateAiAvailability();
     }
 
     function updateAddBtn(): void {
@@ -1276,6 +1297,7 @@ function renderSetupHTML(
                 <div id="participant-list"></div>
                 <button type="button" id="add-participant-btn" class="btn btn-secondary btn-small"
                     title="Add another participant to the noting circle (up to 4)">+ Add participant</button>
+                <p class="credit-rate-legend">Voices use fewer ☁️ in noting mode — participants speak brief labels, not full sentences.</p>
             </div>
 
             <div class="noting-option-row">
@@ -1289,7 +1311,7 @@ function renderSetupHTML(
         </div>
 
         <div class="form-row form-row-thirds">
-            <div class="form-group">
+            <div class="form-group" id="ai-provider-group">
                 <label for="provider">Provider</label>
                 <select id="provider">
                     ${ALL_PROVIDERS.filter((p) => isProviderAvailable(p, capabilitiesSync(), byokOpts))
@@ -1300,7 +1322,7 @@ function renderSetupHTML(
                         .join('')}
                 </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="ai-model-group">
                 <label for="model-select">Model</label>
                 <div id="model-picker-slot"></div>
             </div>
@@ -1309,6 +1331,8 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
+
+        <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle — the AI model isn't used.</p>
 
         <div id="provider-hint" class="provider-hint hidden"></div>
 

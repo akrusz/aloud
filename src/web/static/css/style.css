@@ -1907,6 +1907,15 @@ body:has(.session-container) {
     font-size: 0.875rem;
 }
 
+/* A credit-spending control grayed out because it can't apply in the current
+   mode — e.g. the Provider/Model pickers in a noting circle with no AI
+   participants. Dimmed and non-interactive, but still legible so the user can
+   see what would otherwise be used (an #ai-inactive-note says why). */
+.ai-group-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .voice-row-uninstall {
     background: transparent;
     border: 1px solid var(--text-muted);

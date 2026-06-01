@@ -114,6 +114,45 @@
     font-family: 'Knewave', cursive;
 }
 
+/* Crypto donation panel in the About modal — revealed by clicking the
+   krusz.eth link (these classes are TS-UI-only, so they live here rather
+   than in the imported legacy stylesheet). The QR encodes the bare 0x
+   address so it works on whatever chain/token the sender chooses (mainnet
+   or Base, ETH or a stablecoin). Static for now; wallet-connect "send" is
+   tracked separately. */
+.about-crypto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.about-crypto-qr {
+    width: 120px;
+    height: 120px;
+    /* The QR path is solid black; a white quiet-zone keeps it scannable in
+       dark theme. */
+    background: #fff;
+    padding: 6px;
+    border-radius: 8px;
+}
+.about-crypto-addr {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95rem;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+.about-crypto-addr:hover {
+    text-decoration: underline;
+}
+.about-crypto-note {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
 @media (max-width: 767px) {
     /* The mobile top bar is a transparent floating header with
        pointer-events:none so it doesn't block content scrolling beneath it —

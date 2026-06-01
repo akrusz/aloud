@@ -15,7 +15,7 @@ import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 import { getApiKey, hasApiKey } from './api-keys.js';
 import { probeOllamaDirect } from './ollama-direct.js';
-import { rateSuffix, RATE_LEGEND } from './credit-rate.js';
+import { rateSuffix, RATE_LEGEND, RATE_LEGEND_TITLE } from './credit-rate.js';
 import type { Provider } from './settings.js';
 
 /** Providers that authenticate with a user-supplied key (BYOK). The hosted
@@ -142,7 +142,9 @@ export function mountModelPicker(
         // Only the hosted ('aloud') models carry the cloud-rate badge, so the
         // legend explaining it belongs only under that provider's selector.
         const legend =
-            provider === 'aloud' ? `<p class="credit-rate-legend">${escape(RATE_LEGEND)}</p>` : '';
+            provider === 'aloud'
+                ? `<p class="credit-rate-legend" title="${attr(RATE_LEGEND_TITLE)}">${escape(RATE_LEGEND)}</p>`
+                : '';
         container.innerHTML = `
             <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${legend}`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
