@@ -137,7 +137,12 @@ export function adminRoutes(deps: Deps): Hono {
         const fail = authFailure(c, deps.config.adminToken);
         if (fail) return fail;
 
-        let body: { freeSignupCredits?: unknown; freeGrantBudgetPerHour?: unknown };
+        let body: {
+            freeSignupCredits?: unknown;
+            freeGrantBudgetPerHour?: unknown;
+            meteredPaused?: unknown;
+            testerEmails?: unknown;
+        };
         try {
             body = (await c.req.json()) as typeof body;
         } catch {
@@ -157,6 +162,18 @@ export function adminRoutes(deps: Deps): Hono {
                 );
             }
             patch[key] = n;
+        }
+        if (body.meteredPaused !== undefined) {
+            if (typeof body.meteredPaused !== 'boolean') {
+                return c.json(apiError('bad_request', 'meteredPaused must be a boolean'), ERROR_STATUS.bad_request);
+            }
+            patch.meteredPaused = body.meteredPaused;
+        }
+        if (body.testerEmails !== undefined) {
+            if (!Array.isArray(body.testerEmails) || body.testerEmails.some((e) => typeof e !== 'string')) {
+                return c.json(apiError('bad_request', 'testerEmails must be an array of strings'), ERROR_STATUS.bad_request);
+            }
+            patch.testerEmails = body.testerEmails as string[];
         }
 
         const updated = await applyRuntimeConfig(deps, patch);

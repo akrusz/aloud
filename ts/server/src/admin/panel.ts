@@ -39,11 +39,15 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   .card { background: var(--panel); border: 1px solid var(--line);
           border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
   label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
-  input {
+  input, textarea {
     width: 100%; padding: 9px 11px; background: #100d0b; color: var(--ink);
     border: 1px solid var(--line); border-radius: 8px; font: inherit;
   }
-  input:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  .check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 14px; }
+  .check input { width: auto; }
+  button.xs { padding: 3px 9px; font-size: 12px; }
   button {
     padding: 9px 16px; background: var(--accent); color: #1a1208; border: none;
     border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
@@ -121,6 +125,18 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       <div class="msg" id="configMsg"></div>
     </div>
 
+    <h2>Soft launch — pause spending</h2>
+    <div class="card">
+      <p class="sub" style="margin:0 0 14px">While paused, signed-in users keep their credits, but a conversation turn returns a polite "come back later" message instead of a real (billed) facilitator response — so nobody spends yet, and their session still saves. Tester emails below bypass the pause so you can keep testing.</p>
+      <label class="check"><input type="checkbox" id="cPaused"> <span>Pause metered usage (conversations return the canned apology)</span></label>
+      <div style="margin-top:14px">
+        <label for="cTesters">Tester emails — exempt from the pause (one per line)</label>
+        <textarea id="cTesters" rows="3" placeholder="you@example.com" autocomplete="off"></textarea>
+      </div>
+      <div class="row" style="margin-top:12px"><button id="savePause">Save</button></div>
+      <div class="msg" id="pauseMsg"></div>
+    </div>
+
     <h2>Grant credits</h2>
     <div class="card">
       <div class="row">
@@ -137,8 +153,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         <div><input id="search" placeholder="filter by email…" autocomplete="off"></div>
       </div>
       <table>
-        <thead><tr><th>Email</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th></tr></thead>
-        <tbody id="acctRows"><tr><td colspan="6" class="muted">Connect to load accounts.</td></tr></tbody>
+        <thead><tr><th>Email</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th></th></tr></thead>
+        <tbody id="acctRows"><tr><td colspan="7" class="muted">Connect to load accounts.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -201,7 +217,25 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     return api('/config').then(function (cfg) {
       $('cSignup').value = cfg.freeSignupCredits;
       $('cBudget').value = cfg.freeGrantBudgetPerHour;
+      $('cPaused').checked = !!cfg.meteredPaused;
+      $('cTesters').value = (cfg.testerEmails || []).join('\n');
     });
+  }
+  function savePause() {
+    var testers = $('cTesters').value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    $('savePause').disabled = true;
+    api('/config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ meteredPaused: $('cPaused').checked, testerEmails: testers }),
+    }).then(function (cfg) {
+      $('cTesters').value = (cfg.testerEmails || []).join('\n');
+      setMsg($('pauseMsg'), cfg.meteredPaused
+        ? 'Saved — spending PAUSED for everyone except ' + (cfg.testerEmails.length || 0) + ' tester(s).'
+        : 'Saved — spending is live.', 'ok');
+    }).catch(function (e) {
+      setMsg($('pauseMsg'), e.message, 'err');
+    }).then(function () { $('savePause').disabled = false; });
   }
   function saveConfig() {
     var signup = parseInt($('cSignup').value, 10);
@@ -228,7 +262,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     var q = $('search').value.trim().toLowerCase();
     var rows = allAccounts.filter(function (a) { return !q || a.email.toLowerCase().indexOf(q) >= 0; });
     if (!rows.length) {
-      $('acctRows').innerHTML = '<tr><td colspan="6" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
+      $('acctRows').innerHTML = '<tr><td colspan="7" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
       return;
     }
     $('acctRows').innerHTML = rows.map(function (a) {
@@ -240,10 +274,20 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         '<td class="num">' + dec1(a.granted) + '</td>' +
         '<td class="num">' + dec1(a.debited) + '</td>' +
         '<td class="muted">' + date(a.createdAt) + '</td>' +
+        '<td><button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button></td>' +
         '</tr>';
     }).join('');
     Array.prototype.forEach.call($('acctRows').querySelectorAll('tr'), function (tr) {
       tr.addEventListener('click', function () { openLedger(tr.getAttribute('data-id')); });
+    });
+    // Per-row grant: prefill the Grant form with this email (don't open ledger).
+    Array.prototype.forEach.call($('acctRows').querySelectorAll('[data-grant]'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        $('gEmail').value = btn.getAttribute('data-grant');
+        $('gCredits').focus();
+        $('gCredits').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     });
   }
   function loadAccounts() {
@@ -322,6 +366,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   };
   $('grant').onclick = doGrant;
   $('saveConfig').onclick = saveConfig;
+  $('savePause').onclick = savePause;
   $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('search').addEventListener('input', renderAccounts);

@@ -91,6 +91,16 @@ export interface Config {
      *  still buy) and it's logged. Default is generous (~100 signups/hr). */
     freeGrantBudgetPerHour: number;
 
+    /** Soft launch switch (operator-tunable via admin panel): when true, metered
+     *  endpoints (LLM/STT/TTS) refuse with `service_paused` so signed-up users
+     *  keep their granted credits but can't spend yet. Accounts in
+     *  `testerEmails` bypass it so the operator can keep testing. */
+    meteredPaused: boolean;
+
+    /** Emails exempt from `meteredPaused` (the operator's own test accounts).
+     *  Case-insensitive match on the account email. */
+    testerEmails: string[];
+
     /** Google Cloud Text-to-Speech API key (separate from the Gemini LLM key).
      *  When set, /cloud/v1/tts synthesizes via Google Cloud TTS. */
     googleTtsApiKey?: string;
@@ -146,6 +156,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         providerKeys,
         freeSignupCredits: Number(env['ALOUD_FREE_SIGNUP_CREDITS'] ?? 20),
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),
+        meteredPaused: env['ALOUD_METERED_PAUSED'] === '1',
+        testerEmails: list(env['ALOUD_TESTER_EMAILS']).map((e) => e.toLowerCase()),
         strict,
     };
     const sttConfig = resolveSttConfig(env);

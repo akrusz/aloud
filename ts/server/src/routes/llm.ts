@@ -26,6 +26,7 @@ import {
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
+import { isMeteredBlocked, FREE_LIMIT_MESSAGE } from '../admin/runtime-config.js';
 import { isModelAllowed } from '../pricing/providers.js';
 import { SESSION_HOLD_CREDITS, priceLlmTurn } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
@@ -53,6 +54,32 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 apiError('model_not_allowed', `model not available on aloud server: ${body.provider}/${body.model}`),
                 ERROR_STATUS.model_not_allowed
             );
+        }
+
+        // Soft-launch pause: a non-tester account can't spend on conversation
+        // yet. Rather than erroring (which would break a session mid-flow), the
+        // facilitator returns a graceful canned turn — TTS speaks it, the
+        // transcript keeps it, and the session saves cleanly. No hold, no charge.
+        // (Testers bypass; see isMeteredBlocked.) STT/TTS stay open so the
+        // message can be heard. A live in-session reload is a follow-up bead.
+        if (isMeteredBlocked(deps, account.email)) {
+            const paused: CompleteResponse = {
+                text: FREE_LIMIT_MESSAGE,
+                finishReason: 'stop',
+                creditsCharged: 0,
+                creditsRemaining: await deps.ledger.balance(account.id),
+            };
+            if (body.stream) {
+                return streamSSE(c, async (sse) => {
+                    await sse.writeSSE({
+                        data: JSON.stringify({ text: FREE_LIMIT_MESSAGE, done: false } satisfies CompleteChunk),
+                    });
+                    await sse.writeSSE({
+                        data: JSON.stringify({ text: '', done: true, result: paused } satisfies CompleteChunk),
+                    });
+                });
+            }
+            return c.json(paused);
         }
 
         // Hold up to the per-turn cap, bounded by what the user actually has.

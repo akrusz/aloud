@@ -9,7 +9,7 @@ import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
-import { loadRuntimeOverrides } from '../src/admin/runtime-config.js';
+import { loadRuntimeOverrides, isMeteredBlocked } from '../src/admin/runtime-config.js';
 import type { Account } from '../src/credits/store.js';
 
 const TOKEN = 'super-secret-admin-token';
@@ -219,5 +219,68 @@ describe('admin routes — runtime config', () => {
     it('404s config when no token is configured', async () => {
         const { app } = makeApp(); // no token
         expect((await app.request('/cloud/v1/admin/config', { headers: authed() })).status).toBe(404);
+    });
+});
+
+describe('metered pause (soft launch)', () => {
+    function pauseApp() {
+        const store = new MemoryCreditsStore();
+        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
+        const deps = buildDeps(config, { store });
+        return { app: createApp(deps), deps };
+    }
+    async function devToken(app: ReturnType<typeof createApp>): Promise<string> {
+        const res = await app.request('/cloud/v1/auth/dev', { method: 'POST' });
+        return ((await res.json()) as { token: string }).token;
+    }
+    function setPause(app: ReturnType<typeof createApp>, body: unknown) {
+        return app.request('/cloud/v1/admin/config', {
+            method: 'PUT',
+            headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    }
+
+    it('returns the canned apology (cost 0) for a blocked non-tester instead of billing', async () => {
+        const { app } = pauseApp();
+        const token = await devToken(app);
+        await setPause(app, { meteredPaused: true });
+        const res = await app.request('/cloud/v1/llm/complete', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                provider: 'anthropic',
+                model: 'claude-sonnet-4-6',
+                messages: [{ role: 'user', content: 'hi' }],
+                stream: false,
+            }),
+        });
+        // Graceful 200 (not a 4xx/5xx) — the session can keep its turn and save.
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { text: string; creditsCharged: number };
+        expect(body.creditsCharged).toBe(0);
+        expect(body.text.toLowerCase()).toContain('free credit');
+    });
+
+    it('exempts a tester email (case-insensitively) and still blocks strangers', async () => {
+        const { app, deps } = pauseApp();
+        await setPause(app, { meteredPaused: true, testerEmails: ['Dev@Localhost'] });
+        expect(isMeteredBlocked(deps, 'dev@localhost')).toBe(false);
+        expect(isMeteredBlocked(deps, 'stranger@example.com')).toBe(true);
+    });
+
+    it('persists pause + testers across a rebuild from the same store', async () => {
+        const { app, deps } = pauseApp();
+        await setPause(app, { meteredPaused: true, testerEmails: ['A@B.com'] });
+        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
+        const deps2 = buildDeps(config, { store: deps.store });
+        await loadRuntimeOverrides(deps2);
+        expect(deps2.config.meteredPaused).toBe(true);
+        expect(deps2.config.testerEmails).toEqual(['a@b.com']); // normalized lowercase
+    });
+
+    it('not blocked when the pause is off', async () => {
+        const { deps } = pauseApp();
+        expect(isMeteredBlocked(deps, 'anyone@example.com')).toBe(false);
     });
 });

@@ -175,8 +175,8 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | `GET /v1/admin/accounts` | admin token | every account + derived balance / granted / spent / paid flag |
 | `GET /v1/admin/accounts/:id` | admin token | one account + its full ledger (audit trail) |
 | `POST /v1/admin/grant` | admin token | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
-| `GET /v1/admin/config` | admin token | live effective free-credit knobs + pricing context |
-| `PUT /v1/admin/config` | admin token | `{freeSignupCredits?, freeGrantBudgetPerHour?}` → retune live + persist (0 = off) |
+| `GET /v1/admin/config` | admin token | live effective knobs (free credits, pause, testers) + pricing context |
+| `PUT /v1/admin/config` | admin token | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
 
 ### Admin control panel
 
@@ -196,6 +196,17 @@ env defaults at boot (`loadRuntimeOverrides`), so they survive a restart — a
 persisted panel override wins over `ALOUD_FREE_SIGNUP_CREDITS` /
 `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` on subsequent boots. See
 `src/admin/runtime-config.ts`.
+
+**Soft-launch spend pause.** The panel's *Soft launch* section sets
+`meteredPaused` + a `testerEmails` allowlist (also persisted; env seeds
+`ALOUD_METERED_PAUSED=1` / `ALOUD_TESTER_EMAILS`). While paused, a conversation
+call (`POST /cloud/v1/llm/complete`) from a non-tester returns a graceful 200
+turn — `FREE_LIMIT_MESSAGE`, **cost 0, no hold** — instead of a real billed
+response (`isMeteredBlocked` short-circuits before the hold). So users keep their
+granted credits, the facilitator says "come back later," TTS speaks it, and the
+session saves normally. STT/TTS stay open so that message can be heard; tester
+emails bypass the pause entirely. In-flight clients only see it on their next
+turn (live-reload is a follow-up — meditation-pal).
 
 ## Hosted voices & auditioning new ones
 
