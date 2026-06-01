@@ -4,6 +4,38 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>aloud.</title>
+        <meta
+            name="description"
+            content="A voice-based meditation facilitator. Speak what you notice, and aloud asks thoughtful questions to guide you."
+        />
+
+        <!-- Favicon. %BASE_URL% is replaced by Vite with the deploy base ('/'
+             in dev/desktop, '/app/' on the hosted build), so the icon resolves
+             under either base; the file ships from ui/public/aloud.png. -->
+        <link rel="icon" type="image/png" href="%BASE_URL%aloud.png" />
+        <link rel="apple-touch-icon" href="%BASE_URL%aloud.png" />
+
+        <!-- Share / OpenGraph. Absolute URLs (a share card is fetched by an
+             external crawler, so relative paths won't resolve); reuses the
+             marketing site's 1200×630 card. -->
+        <meta property="og:title" content="aloud. — a voice-based meditation facilitator" />
+        <meta
+            property="og:description"
+            content="Speak what you notice, and aloud will ask thoughtful questions to guide you. For somatic exploration, parts work, and noting meditation."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://aloud.rest/app/" />
+        <meta property="og:site_name" content="aloud." />
+        <meta property="og:image" content="https://aloud.rest/assets/aloud-share.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="aloud. — a voice-based meditation facilitator" />
+        <meta
+            name="twitter:description"
+            content="Speak what you notice, and aloud will ask thoughtful questions to guide you."
+        />
+        <meta name="twitter:image" content="https://aloud.rest/assets/aloud-share.png" />
         <!-- Decode the SPA deep-link redirect from the Pages 404.html (paths
              under /app/). Restores the real path (e.g. /app/settings) from the
              ?/… query BEFORE the router reads location, so a hard refresh /

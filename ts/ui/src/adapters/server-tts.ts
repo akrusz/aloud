@@ -26,6 +26,37 @@ function wpmToMultiplier(rate: number): number {
     return rate > 5 ? rate / 160 : rate;
 }
 
+/**
+ * Module-level synthesis cache: a request signature → its rendered audio blob.
+ * Auditioning hosted voices replays the same short preview phrase over and over;
+ * without this, every click re-hits the server, which re-synthesizes and (for
+ * hosted voices) re-debits the signed-in user's credits. Caching the blob means
+ * a repeat plays locally with no network call and no charge. Bounded FIFO so it
+ * can't grow without limit; a Blob is immutable so one cached blob serves many
+ * object-URL playbacks.
+ */
+const SYNTH_CACHE = new Map<string, Blob>();
+const SYNTH_CACHE_MAX = 48;
+
+function synthCacheKey(
+    endpoint: string,
+    voice: string,
+    engine: string | undefined,
+    text: string,
+    rate: number | undefined
+): string {
+    return JSON.stringify({ endpoint, voice, engine: engine ?? '', text, rate: rate ?? null });
+}
+
+function synthCachePut(key: string, blob: Blob): void {
+    // Evict the oldest entry once full (Map preserves insertion order).
+    if (SYNTH_CACHE.size >= SYNTH_CACHE_MAX) {
+        const oldest = SYNTH_CACHE.keys().next().value;
+        if (oldest !== undefined) SYNTH_CACHE.delete(oldest);
+    }
+    SYNTH_CACHE.set(key, blob);
+}
+
 export interface ServerTtsEngineOptions {
     voice: string;
     engine?: string;
@@ -112,28 +143,38 @@ export class ServerTtsEngine implements TtsEngine {
         const abort = new AbortController();
         this.currentAbort = abort;
 
+        const cacheKey = synthCacheKey(this.endpointUrl, this.voiceId, this.engine, text, options?.rate);
         let blob: Blob;
-        try {
-            let { url, init } = await this.buildRequest(text, options, abort.signal);
-            let response = await this.fetchImpl(url, init);
-            // Self-heal a stale token: clear it and re-sign-in once on a 401,
-            // matching the LLM proxy. Otherwise hosted preview/playback fails
-            // whenever the cached token is expired or server-secret-rotated.
-            if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
-                await this.onAuthError();
-                ({ url, init } = await this.buildRequest(text, options, abort.signal));
-                response = await this.fetchImpl(url, init);
+        const cached = SYNTH_CACHE.get(cacheKey);
+        if (cached) {
+            // Cache hit: replay locally. No network call, no re-synthesis, and
+            // (deliberately) no onSynthesize — nothing was rendered server-side,
+            // so it isn't billable and mustn't be counted.
+            blob = cached;
+        } else {
+            try {
+                let { url, init } = await this.buildRequest(text, options, abort.signal);
+                let response = await this.fetchImpl(url, init);
+                // Self-heal a stale token: clear it and re-sign-in once on a 401,
+                // matching the LLM proxy. Otherwise hosted preview/playback fails
+                // whenever the cached token is expired or server-secret-rotated.
+                if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
+                    await this.onAuthError();
+                    ({ url, init } = await this.buildRequest(text, options, abort.signal));
+                    response = await this.fetchImpl(url, init);
+                }
+                if (!response.ok) {
+                    throw new Error(`Server TTS responded ${response.status}`);
+                }
+                blob = await response.blob();
+                // Successful server synthesis — count the characters rendered.
+                this.onSynthesize?.(text.length);
+                synthCachePut(cacheKey, blob);
+            } catch (err) {
+                this.currentAbort = null;
+                if ((err as Error).name === 'AbortError') return;
+                throw err;
             }
-            if (!response.ok) {
-                throw new Error(`Server TTS responded ${response.status}`);
-            }
-            blob = await response.blob();
-            // Successful server synthesis — count the characters rendered.
-            this.onSynthesize?.(text.length);
-        } catch (err) {
-            this.currentAbort = null;
-            if ((err as Error).name === 'AbortError') return;
-            throw err;
         }
         if (abort.signal.aborted) return;
 

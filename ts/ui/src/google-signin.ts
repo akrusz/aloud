@@ -46,6 +46,10 @@ interface GsiButtonConfiguration {
     text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
     shape?: 'rectangular' | 'pill' | 'circle' | 'square';
     logo_alignment?: 'left' | 'center';
+    /** Fixed button width in px (max 400). Pinning it makes GIS render at this
+     *  width from the start instead of briefly filling the container, which is
+     *  the "starts full-width then snaps narrow" flash. */
+    width?: number;
 }
 
 interface GoogleAccountsId {
@@ -116,7 +120,13 @@ function makeCallback(handlers: SignInHandlers): (r: CredentialResponse) => void
 export async function renderGoogleSignInButton(
     container: HTMLElement,
     handlers: SignInHandlers,
-    button: GsiButtonConfiguration = { theme: 'outline', size: 'large', shape: 'pill' }
+    button: GsiButtonConfiguration = {
+        theme: 'outline',
+        size: 'large',
+        shape: 'pill',
+        text: 'continue_with',
+        width: 240,
+    }
 ): Promise<boolean> {
     const clientId = googleClientId();
     if (!clientId) return false;

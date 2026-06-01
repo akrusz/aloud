@@ -18,6 +18,21 @@
    TS-preview-only additions
    ============================================ */
 
+/* Google sign-in button (Settings → Account). GIS injects its own iframe
+   button asynchronously; we reserve its height so the surrounding layout
+   doesn't jump while it loads, and scale it up ~25% (GIS caps native sizing at
+   size:'large') anchored to the left edge. The transform doesn't grow the
+   layout box, so min-height carries the reserved space. */
+.account-signin-button {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+}
+.account-signin-button > div {
+    transform: scale(1.25);
+    transform-origin: left center;
+}
+
 /* In-app confirm/alert dialogs (ui/src/dialog.ts) — replace
    window.confirm()/alert(), which silently no-op in the Tauri webview. */
 .app-dialog-backdrop {

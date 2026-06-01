@@ -176,7 +176,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 <div class="account-row">
                     <div class="account-info">
                         <div class="account-email">${escape(account.email)}</div>
-                        <div class="account-credits provider-hint">${account.creditsRemaining} credits remaining</div>
+                        <div class="account-credits provider-hint">${account.creditsRemaining.toFixed(1)} credits remaining</div>
                     </div>
                     <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
                 </div>`;
@@ -209,6 +209,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     function wireProviderSection(): void {
         const providerSel = root.querySelector<HTMLSelectElement>('#s-provider')!;
         providerSel.value = settings.defaultProvider;
+        // The saved default may not be available in this mode — e.g. a fresh web
+        // build defaults to 'ollama', which is filtered out of the web menu.
+        // Setting .value to a missing option leaves the <select> blank; fall
+        // back to the first available provider (the hosted 'aloud' option on
+        // web) and persist so the menu never renders empty.
+        if (providerSel.value !== settings.defaultProvider) {
+            settings.defaultProvider = (providerSel.options[0]?.value ??
+                settings.defaultProvider) as Provider;
+            providerSel.value = settings.defaultProvider;
+            persist();
+        }
         providerSel.addEventListener('change', () => {
             settings.defaultProvider = providerSel.value as Provider;
             persist();
@@ -233,7 +244,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         // Ollama recommendation + installed-model management. Hooked once
         // here; we only show + refresh it when the selected provider is
         // Ollama, so users on other providers don't see the tier card stack.
-        const recEl = root.querySelector<HTMLElement>('#s-ollama-recommendation');
+        // Ollama is a local-daemon provider — it's filtered out of the menu on
+        // the web build, so its install/recommendation card must never mount
+        // there either (a harder guarantee than just hiding it when a non-Ollama
+        // provider is selected).
+        const recEl = isWebMode() ? null : root.querySelector<HTMLElement>('#s-ollama-recommendation');
         const ollamaHandle = recEl
             ? mountOllamaSettings(recEl, {
                   // After a pull/remove the standard model dropdown is stale;
@@ -1208,8 +1223,12 @@ function renderHTML(s: AppSettings): string {
             ${renderTtsSection(s)}
             ${renderDisplaySection(s)}
             ${renderPacingSection(s)}
-            ${renderNetworkSection(s)}
-            ${renderUpdatesSection(s)}
+            ${
+                // Network (host binding) and Updates (desktop auto-updater) are
+                // meaningless in a hosted browser tab — they only apply to the
+                // desktop / self-host builds.
+                isWebMode() ? '' : renderNetworkSection(s) + renderUpdatesSection(s)
+            }
         </form>
     </div>
 
@@ -1306,8 +1325,8 @@ function renderProviderSection(s: AppSettings): string {
                 <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
                 <span>Use my own API keys</span>
             </label>
-            <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead.</span>
-        </div>`
+            <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead; we do not store user keys, but only turn this on if you understand the risks.</span>
+            </div>`
                 : ''
         }
 
