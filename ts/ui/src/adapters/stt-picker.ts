@@ -19,6 +19,7 @@
 import type { SttEngine } from '../../../src/platform/stt.js';
 import type { PacingConfig } from '../../../src/facilitation/pacing.js';
 
+import { rateSuffix } from '../credit-rate.js';
 import { CapacitorSttEngine } from './capacitor-stt.js';
 import { CloudWhisperSttEngine } from './cloud-whisper-stt.js';
 import {
@@ -202,6 +203,12 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     }
 }
 
+/** aloud cloud STT bills a flat, small rate — ~1 credit/hour of speech at a
+ *  typical talk profile (mirrors the server's estimateStt). Shown with the same
+ *  ☁️ unit as the model/voice pickers instead of the old "uses credits" prose,
+ *  so all three credit-spending pickers read consistently. */
+const CLOUD_STT_CREDITS_PER_HOUR = 1;
+
 /**
  * Which STT choices to offer for the current mode, in flow-default order:
  * Whisper (local-only — no on-device backend on the web), then browser speech
@@ -212,7 +219,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
     if (!webMode) out.push({ value: 'whisper', label: 'Whisper — on this device' });
     if (isWebSpeechSupported()) out.push({ value: 'web-speech', label: 'Browser speech recognition' });
-    out.push({ value: 'aloud', label: 'aloud cloud — uses credits' });
+    out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
     return out;
 }
 
