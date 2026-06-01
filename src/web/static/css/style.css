@@ -2800,8 +2800,21 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 /* ---- Buy-credits modal (meditation-pal-8sj) ---- */
+/* Inset the body like the sign-in modal: plain children take padding, the
+ * `.provider-hint` boxes (subtitle/error) take margin so the box itself insets. */
+.buy-credits-modal > *:not(.voice-modal-header):not(.provider-hint) {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}
+.buy-credits-modal > .provider-hint {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+}
+.buy-credits-modal {
+    padding-bottom: 1.25rem;
+}
 .buy-credits-subtitle {
-    margin: 0 0 1rem;
+    margin: 1rem 1.25rem 1rem;
 }
 
 .buy-credits-packs {
