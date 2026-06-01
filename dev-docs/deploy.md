@@ -115,7 +115,12 @@ and variables → Actions → Variables):
 
 - `ALOUD_CLOUD_URL` — the hosted `/cloud` origin (e.g. `https://aloud-cloud.fly.dev`).
 - `GOOGLE_CLIENT_ID` — the web OAuth client id (= `GOOGLE_CLIENT_IDS` on the
-  server). Not secret; it's baked into the public client.
+  server). Not secret; it's baked into the public client. **Optional now**: the
+  UI also discovers the client id at runtime from the server's public
+  `GET /cloud/v1/config` (capabilities probe → `setRuntimeGoogleClientId`), so
+  sign-in works on any install — desktop/local included — that points at a
+  Google-configured server, even with nothing baked in. Baking it just lets the
+  button paint before the probe resolves.
 
 ### Deploy (manual fallback)
 
@@ -140,9 +145,11 @@ Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin
 - [ ] Server deployed; `GET /health` returns `ok:true` with your providers.
 - [ ] Volume mounted; `ALOUD_DB_PATH=/data/aloud.db` (balances persist across a
       `fly deploy`).
-- [ ] Google OAuth web client id created; `GOOGLE_CLIENT_IDS` set on the server
-      and the same id baked into the UI (`meditation-pal-rfb` wires the sign-in
-      button — until then the UI uses the dev sign-in, which 404s in prod).
+- [ ] Google OAuth web client id created; `GOOGLE_CLIENT_IDS` set on the server.
+      The UI then serves the sign-in button to any install via `/cloud/v1/config`
+      (baking `VITE_GOOGLE_CLIENT_ID` is optional — it only avoids a one-probe
+      delay). Without `GOOGLE_CLIENT_IDS` the client falls back to dev sign-in,
+      which 404s in prod.
 - [ ] UI built with `VITE_ALOUD_CLOUD_URL` = the server origin.
 - [ ] Server `ALOUD_CORS_ORIGINS` = the UI origin.
 - [ ] Stripe live keys + webhook endpoint (`POST /cloud/v1/billing/webhook`)

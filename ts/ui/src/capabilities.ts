@@ -18,6 +18,7 @@
 
 import { detectIsDesktop, isDesktopSync } from './is-desktop.js';
 import { cloudUrl } from './cloud-base.js';
+import { setRuntimeGoogleClientId } from './cloud-auth.js';
 
 export type Capability = 'flask' | 'cloud' | 'ollama';
 
@@ -39,19 +40,36 @@ async function reachable(url: string): Promise<boolean> {
     }
 }
 
+/** Probe aloud cloud via its public `/config` route: proves reachability (the
+ *  `cloud` axis) AND learns the Google client id in one round-trip, so any
+ *  install can show real sign-in for whatever server it's pointed at. A failure
+ *  (no server / offline) reads as unreachable + no id. (meditation-pal-rfb) */
+async function probeCloud(): Promise<{ reachable: boolean; googleClientId: string }> {
+    try {
+        const r = await fetch(cloudUrl('/config'), { method: 'GET' });
+        if (!r.ok) return { reachable: false, googleClientId: '' };
+        const data = (await r.json()) as { googleClientId?: string };
+        return { reachable: true, googleClientId: data.googleClientId ?? '' };
+    } catch {
+        return { reachable: false, googleClientId: '' };
+    }
+}
+
 export async function detectCapabilities(): Promise<Capabilities> {
     if (cached) return cached;
     if (inflight) return inflight;
     inflight = (async () => {
         const [flask, cloud, ollama] = await Promise.all([
             detectIsDesktop(), // GET /api/system-info
-            // /cloud/v1/* is aloud cloud (proxied in dev; absolute in prod). Any
-            // public route proves reachability; models is always non-empty.
-            reachable(cloudUrl('/me/models')),
+            // /cloud/v1/* is aloud cloud (proxied in dev; absolute in prod). The
+            // public /config route proves reachability and carries the Google
+            // client id (→ runtime sign-in, build-agnostic).
+            probeCloud(),
             // Ollama via the dev proxy (/ollama → :11434); 404s on the website.
             reachable('/ollama/api/tags'),
         ]);
-        cached = { flask, cloud, ollama };
+        setRuntimeGoogleClientId(cloud.googleClientId);
+        cached = { flask, cloud: cloud.reachable, ollama };
         inflight = null;
         return cached;
     })();

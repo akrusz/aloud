@@ -47,14 +47,30 @@ export function setCloudAuthFetch(impl: typeof fetch): void {
     fetchImpl = impl;
 }
 
-/** The configured Google OAuth web client id, or '' when unset. Build-time
- *  fact (Vite inlines `import.meta.env.VITE_*`), so a build is "Google sign-in
- *  capable" iff this was set at build time. */
-export function googleClientId(): string {
-    return import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+/** Google OAuth web client id discovered at runtime from the reachable aloud
+ *  cloud (`GET /cloud/v1/config`, set by capabilities.detectCapabilities). Lets
+ *  ANY install — local/desktop/web — show real Google sign-in as long as the
+ *  server it talks to is Google-configured, without baking the id in at build.
+ *  null until the probe runs; '' means the server reported none. */
+let runtimeClientId: string | null = null;
+
+/** Record (or clear) the client id the server advertises. Called by the
+ *  capability probe; idempotent. (meditation-pal-rfb) */
+export function setRuntimeGoogleClientId(id: string): void {
+    runtimeClientId = id;
 }
 
-/** True when the build ships real Google sign-in (vs the dev fallback). */
+/** The effective Google OAuth web client id, or '' when unset. The runtime
+ *  value (from the server we're pointed at) wins; otherwise the build-time bake
+ *  (`VITE_GOOGLE_CLIENT_ID`, inlined by Vite) — so a hosted build still works
+ *  before the probe resolves, and a local/desktop build with nothing baked
+ *  picks the id up from its cloud server. */
+export function googleClientId(): string {
+    return runtimeClientId || (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '');
+}
+
+/** True when real Google sign-in is available (vs the dev fallback) — from the
+ *  server config or a build-time bake. */
 export function isGoogleSignInConfigured(): boolean {
     return googleClientId() !== '';
 }

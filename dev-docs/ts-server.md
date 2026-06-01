@@ -160,6 +160,7 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | Route | Auth | Purpose |
 |---|---|---|
 | `GET /health` | public | liveness + what's configured |
+| `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: `{googleClientId}` (first of `GOOGLE_CLIENT_IDS`, or `''`). Lets any install render Google sign-in without baking the id in at build |
 | `POST /v1/auth/google` | public | verify Google ID token, create account, grant free credits |
 | `POST /v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
 | `GET /v1/me` | session | account + live balance |

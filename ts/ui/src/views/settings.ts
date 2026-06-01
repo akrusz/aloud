@@ -163,13 +163,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     // ---- Account section (hosted sign-in, meditation-pal-rfb) -----------
-    // Only rendered on builds that ship Google sign-in (isGoogleSignInConfigured
-    // → VITE_GOOGLE_CLIENT_ID set). Async because the balance comes from /me;
-    // re-renders just its own body on sign-in/out so unsaved settings elsewhere
-    // in the form survive.
+    // The shell always renders; this fills or removes it. Shown only when real
+    // Google sign-in is available — the client id may arrive at runtime from the
+    // reachable server (isGoogleSignInConfigured, via detectCapabilities), so we
+    // await the probe before deciding rather than gating the sync template.
+    // Async also because the balance comes from /me; re-renders just its own body
+    // on sign-in/out so unsaved settings elsewhere in the form survive.
     async function wireAccountSection(): Promise<void> {
         const body = root.querySelector<HTMLElement>('#account-body');
         if (!body) return; // section not present in this build
+        await detectCapabilities();
+        if (!isGoogleSignInConfigured()) {
+            root.querySelector('#account-section')?.remove();
+            return;
+        }
         const account = await fetchMe();
         if (account) {
             body.innerHTML = `
@@ -1217,7 +1224,7 @@ function renderHTML(s: AppSettings): string {
         <h1 class="settings-title">Settings</h1>
 
         <form id="settings-form" class="setup-form">
-            ${isGoogleSignInConfigured() ? renderAccountSection() : ''}
+            ${renderAccountSection()}
             ${renderProviderSection(s)}
             ${renderLanguageSection(s)}
             ${renderTtsSection(s)}

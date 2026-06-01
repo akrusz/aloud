@@ -17,7 +17,10 @@ import {
     ensureCloudToken,
     getCloudToken,
     clearCloudToken,
+    googleClientId,
     isGoogleSignInConfigured,
+    setRuntimeGoogleClientId,
+    CloudSignInRequiredError,
     setCloudAuthBackend,
     setCloudAuthFetch,
 } from '../ui/src/cloud-auth.js';
@@ -53,6 +56,7 @@ let kv: MemoryKv;
 beforeEach(() => {
     kv = new MemoryKv();
     setCloudAuthBackend(kv);
+    setRuntimeGoogleClientId(''); // reset the runtime client id between tests
 });
 
 describe('googleSignIn', () => {
@@ -97,6 +101,24 @@ describe('ensureCloudToken', () => {
         );
         await clearCloudToken();
         expect(await ensureCloudToken()).toBe('tok-dev');
+    });
+});
+
+describe('runtime Google client id (meditation-pal-rfb)', () => {
+    it('is picked up from the server probe, flipping sign-in on without a build bake', () => {
+        expect(isGoogleSignInConfigured()).toBe(false); // nothing baked in test env
+        setRuntimeGoogleClientId('server-web-client-id');
+        expect(googleClientId()).toBe('server-web-client-id');
+        expect(isGoogleSignInConfigured()).toBe(true);
+    });
+
+    it('makes ensureCloudToken require interactive sign-in instead of dev sign-in', async () => {
+        setRuntimeGoogleClientId('server-web-client-id');
+        await clearCloudToken();
+        setCloudAuthFetch(async () => {
+            throw new Error('must not hit the dev route once a client id is known');
+        });
+        await expect(ensureCloudToken()).rejects.toBeInstanceOf(CloudSignInRequiredError);
     });
 });
 

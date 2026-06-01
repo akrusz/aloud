@@ -61,6 +61,16 @@ export function createApp(deps: Deps): Hono {
         })
     );
 
+    // Public: the build-agnostic bits a client needs *before* sign-in. Today just
+    // the Google OAuth web client id (public by design — it ships in the hosted
+    // bundle already), so ANY install — local, desktop, or web — pointed at this
+    // server can render the Google sign-in button without baking the id in at
+    // build time. Empty when the server has no GOOGLE_CLIENT_IDS, in which case
+    // the client keeps its dev-sign-in fallback. (meditation-pal-rfb)
+    app.get('/cloud/v1/config', (c) =>
+        c.json({ googleClientId: deps.config.googleClientIds[0] ?? '' })
+    );
+
     // Public: the curated hosted voices, or [] when TTS isn't configured. The
     // client merges these into its voice picker (availability-driven menus).
     app.get('/cloud/v1/voices', (c) => {

@@ -17,6 +17,7 @@ import type { SessionSetup } from './settings.js';
 import type { AppSettings } from './app-settings.js';
 import { resolveSttChoice } from './adapters/stt-picker.js';
 import { isWebMode } from './app-mode.js';
+import { detectCapabilities } from './capabilities.js';
 import { getCloudToken, isGoogleSignInConfigured } from './cloud-auth.js';
 import { showSignInModal } from './sign-in-modal.js';
 
@@ -49,6 +50,9 @@ export async function ensureCloudAccess(
 ): Promise<boolean> {
     if (!sessionUsesCloud(setup, settings, isWebMode())) return true;
     if (await getCloudToken()) return true;
-    if (!isGoogleSignInConfigured()) return true; // dev build → lazy dev sign-in
+    // Resolve the runtime client id (cached after boot) before deciding: a
+    // Google-configured server → sign-in modal; none → lazy dev sign-in.
+    await detectCapabilities();
+    if (!isGoogleSignInConfigured()) return true; // no client id → lazy dev sign-in
     return showSignInModal();
 }
