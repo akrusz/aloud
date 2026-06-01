@@ -43,6 +43,7 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
+import { rateBadge } from '../credit-rate.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -231,8 +232,12 @@ export async function mountSetupView(
         if (!btn) return;
         const selectedName = stripVoicePrefix(setup.voice);
         const entry = findVoice(selectedName);
+        // Surface the ☁️ rate of a cloud voice on the collapsed button too, so a
+        // paid pick reads as paid without opening the picker.
+        const rate = entry ? rateBadge(entry.creditsPerHour) : '';
+        const ratePart = rate ? ` · ${rate}` : '';
         if (entry) {
-            btn.textContent = `${entry.name} · ${setup.ttsRate} wpm`;
+            btn.textContent = `${entry.name}${ratePart} · ${setup.ttsRate} wpm`;
         } else if (selectedName) {
             // Voice id is stored but we haven't loaded its details yet.
             btn.textContent = `${selectedName} · ${setup.ttsRate} wpm`;

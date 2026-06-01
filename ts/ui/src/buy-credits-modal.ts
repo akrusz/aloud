@@ -10,6 +10,7 @@
  */
 
 import { fetchPacks, startCheckout, type CreditPack } from './cloud-billing.js';
+import { creditAmount } from './credit-rate.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -101,7 +102,7 @@ function renderPacks(
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-secondary buy-credits-pack';
-        btn.innerHTML = `<span class="buy-credits-pack-credits">${pack.credits} credits</span>
+        btn.innerHTML = `<span class="buy-credits-pack-credits">${creditAmount(pack.credits, 0)}</span>
             <span class="buy-credits-pack-price">${dollars(pack.priceUsdCents)}</span>`;
         btn.addEventListener('click', () => {
             // Disable the whole list while we redirect, so a double-click can't

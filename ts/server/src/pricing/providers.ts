@@ -61,17 +61,14 @@ const MODELS: Record<string, ModelPricing> = {
         cacheRead: 0.1 / M,
         cacheCreation: 1.25 / M,
     },
-    'groq:llama-3.3-70b-versatile': {
-        provider: 'groq',
-        model: 'llama-3.3-70b-versatile',
-        input: 0.59 / M,
-        output: 0.79 / M,
-        cacheRead: 0.59 / M, // Groq has NO prompt caching — re-sent history bills at full input.
-        cacheCreation: 0.59 / M,
-    },
+    // (Groq llama-3.3-70b was removed as a hosted option: it has NO prompt
+    // caching, so on this ~98%-re-sent-history workload the whole transcript
+    // bills at full input every turn — pricier than cached Haiku/Gemini despite
+    // a lower sticker price. 'groq' stays a valid provider for STT/Whisper.)
+    //
     // The genuine VALUE tier: cheap per-token AND cache-capable. On this
-    // ~98%-re-sent-history workload, the combination crushes both Haiku and
-    // Groq. Accessed DIRECT via Google's OpenAI-compatible endpoint (no
+    // ~98%-re-sent-history workload, the combination crushes Haiku. Accessed
+    // DIRECT via Google's OpenAI-compatible endpoint (no
     // OpenRouter middleman fee — these are Google's own list prices). Gemini
     // implicit caching is ~75% off input; the OpenAI provider parses
     // prompt_tokens_details.cached_tokens, so cache reads bill at the

@@ -1691,6 +1691,20 @@ body:has(.session-container) {
     font-size: 0.95rem;
 }
 
+/* Title + the "☁️ per hour" legend share the header's left side, so the cost
+   unit is explained right where the user is choosing (not buried at the foot
+   of the list). */
+.voice-modal-titlewrap {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.voice-modal-legend {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
 .voice-modal-close {
     background: none;
     border: none;
@@ -1865,7 +1879,7 @@ body:has(.session-container) {
    credits/hr; the picker also shows a "1☁️ ≈ 1 credit/hour" legend. */
 .voice-row-cost {
     display: inline-block;
-    font-size: 0.82rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-muted);
     border-radius: var(--radius-sm);
@@ -1890,7 +1904,7 @@ body:has(.session-container) {
 .credit-rate-legend {
     margin: 0.5rem 0 0;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
 }
 
 .voice-row-uninstall {

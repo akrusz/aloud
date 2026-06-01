@@ -1,27 +1,33 @@
 /**
- * The credit-rate unit shown across every credit-spending dropdown — the LLM
- * model picker, the hosted voice picker, and anything else billed by the aloud
- * cloud. One ☁️ stands for ~1 credit per hour of use, so a user can eyeball how
- * fast an option drains their balance and add two options up in their head
- * (model rate + voice rate ≈ session rate).
+ * The cloud credit unit, shown site-wide. ☁️ IS the credit — a balance of 13.7
+ * credits renders "13.7☁️", a 50-credit pack "50☁️". In the credit-spending
+ * pickers (LLM model, hosted voice, cloud STT) the number is a per-HOUR rate, so
+ * "8☁️" there means ~8 credits/hour and the picker carries a "☁️ per hour"
+ * legend; a user can eyeball burn rate and add model + voice in their head.
  *
- * Only the aloud cloud costs credits, so the badge appears ONLY on hosted
- * options; BYOK / local / Ollama options carry no badge (they're free to use —
- * the user pays the provider directly, or nothing).
+ * Only the aloud cloud costs credits, so rate badges appear ONLY on hosted
+ * options; BYOK / local / Ollama options carry none (free to use).
  *
  * Everything funnels through here so the symbol and the scale are one-line
  * changes. If real rates ever cluster (all 1s, or all huge), bump
- * CREDITS_PER_EMOJI and every label across the app rescales together.
+ * CREDITS_PER_EMOJI and every rate label across the app rescales together.
  */
 
 export const RATE_EMOJI = '☁️';
 
-/** Credits represented by one emoji. The renormalization knob: at 1, a 3-credit
- *  /hr option shows "3☁️"; set 0.5 to double the resolution, 5 to compress it. */
+/** Credits represented by one emoji in a RATE context. The renormalization
+ *  knob: at 1, an ~8-credit/hr option shows "8☁️"; set 0.5 to double the
+ *  resolution, 5 to compress it. (Currency amounts are shown 1:1, untouched.) */
 export const CREDITS_PER_EMOJI = 1;
 
-/** The legend shown next to any picker that uses the badge. */
-export const RATE_LEGEND = `1${RATE_EMOJI} ≈ 1 credit / hour`;
+/** Legend for a picker whose badges are per-hour rates. Kept terse so it fits
+ *  on the picker's header row. */
+export const RATE_LEGEND = `${RATE_EMOJI} per hour`;
+
+/** A credit balance/amount as currency, e.g. "13.7☁️" — ☁️ is the unit. */
+export function creditAmount(credits: number, digits = 1): string {
+    return `${credits.toFixed(digits)}${RATE_EMOJI}`;
+}
 
 /** Whole emoji-units for a credits/hr rate. Rounds to the nearest unit, but
  *  never below 1 for a genuinely paid option — so a cheap-but-not-free choice

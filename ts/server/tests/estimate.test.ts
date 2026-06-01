@@ -28,13 +28,12 @@ describe('estimateModels', () => {
         expect(usd('claude-opus-4-8') / usd('claude-haiku-4-5-20251001')).toBeGreaterThan(3);
     });
 
-    it('a NO-CACHE model (Groq) can beat a cached cheap model (Haiku) on cost: '
-        + 'this workload is ~98% re-sent history, so cheap cache reads matter more than sticker price', () => {
-        const usd = (model: string) => models.find((m) => m.model === model)!.costUsdPerHour;
-        // Groq has no prompt caching, so the heavy re-sent prefix bills at full
-        // input rate — making it pricier here than Haiku-with-caching despite a
-        // lower sticker price. A real, counterintuitive cost-model fact.
-        expect(usd('llama-3.3-70b-versatile')).toBeGreaterThan(usd('claude-haiku-4-5-20251001'));
+    it('offers only cache-capable models (no Groq — it has no prompt caching)', () => {
+        // Groq was dropped as a hosted option: with no caching, the re-sent
+        // history bills at full input every turn on this workload. The hosted
+        // set should be cache-capable models only.
+        expect(models.some((m) => m.provider === 'groq')).toBe(false);
+        expect(models.some((m) => m.model === 'llama-3.3-70b-versatile')).toBe(false);
     });
 });
 

@@ -62,7 +62,7 @@ describe('priceLlmTurn', () => {
 
 describe('priceSession', () => {
     it('sums all three metered legs (llm + stt + tts)', () => {
-        const turn = priceSession('groq', 'llama-3.3-70b-versatile', {
+        const turn = priceSession('anthropic', 'claude-haiku-4-5-20251001', {
             llmCalls: 1,
             llmTokensIn: 1000,
             llmTokensOut: 1000,

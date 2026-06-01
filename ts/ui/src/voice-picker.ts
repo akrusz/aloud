@@ -7,9 +7,9 @@
  * styling lands automatically.
  *
  * Scoring tiers (descending):
- *   3  Premium  — explicit "Premium" in name
+ *   3  Good     — Piper (desktop), explicit "Premium" in name
  *   2  Quality  — "Enhanced", "Online", "Natural"
- *   1  Standard — Google, known-good macOS voice list, Piper
+ *   1  Standard — Google, known-good macOS voice list
  *   0  Other    — everything else
  *
  * A separate "Best" group appears above the tiers and is reserved for the
@@ -81,7 +81,7 @@ export interface ScoredVoice {
 }
 
 export const TIER_LABELS: Record<number, string> = {
-    3: 'Premium',
+    3: 'Good',
     2: 'Quality',
     1: 'Standard',
     0: 'Other',
@@ -128,7 +128,9 @@ export function scoreVoice(name: string, engine?: string): number {
     if (/Online|Natural/i.test(name)) return 2;
     if (/^Google/i.test(name)) return 1;
     if (MACOS_QUALITY_VOICES.test(baseName)) return 1;
-    if (engine === 'piper') return 1;
+    // Piper (the desktop app's bundled neural voices) sits in the top local
+    // tier — "Good" — per the developer's preference; they're genuinely solid.
+    if (engine === 'piper') return 3;
     return 0;
 }
 
@@ -307,12 +309,12 @@ export function renderVoiceList(
         for (const v of items) appendRow(listEl, v, selectedName, options);
     }
 
-    // Explain the cloud-rate badge whenever a paid hosted voice is in the list.
-    if (voices.some((v) => rateBadge(v.creditsPerHour))) {
-        const legend = document.createElement('div');
-        legend.className = 'credit-rate-legend';
-        legend.textContent = RATE_LEGEND;
-        listEl.appendChild(legend);
+    // Show the "☁️ per hour" legend in the modal header (next to the title) only
+    // when a paid hosted voice is actually in the list — so a local-only picker
+    // stays clean.
+    const legend = listEl.closest('.voice-modal')?.querySelector('.voice-modal-legend');
+    if (legend) {
+        legend.classList.toggle('hidden', !voices.some((v) => rateBadge(v.creditsPerHour)));
     }
 }
 
@@ -537,7 +539,10 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
     <div class="voice-modal-overlay hidden" id="${cfg.modalId}">
         <div class="voice-modal">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">${title}</span>
+                <span class="voice-modal-titlewrap">
+                    <span class="voice-modal-title">${title}</span>
+                    <span class="voice-modal-legend hidden">${RATE_LEGEND}</span>
+                </span>
                 <button type="button" class="voice-modal-close" id="${cfg.closeId}">&times;</button>
             </div>
             <div class="voice-modal-list" id="${cfg.listId}"></div>${footer}
