@@ -482,6 +482,9 @@
     border: 1px solid var(--border);
     border-radius: 999px;
     cursor: pointer;
+    /* Tapped state stacks "balance: N☁️" above the rate via a newline. */
+    white-space: pre-line;
+    text-align: center;
 }
 
 /* History view: the markup uses the lifted .history-container / .history-header

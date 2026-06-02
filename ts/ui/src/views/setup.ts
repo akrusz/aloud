@@ -269,13 +269,6 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
-        // Balance mode (toggled by tapping the pill): show the live balance and
-        // ignore config changes until toggled back. Falls through to the rate
-        // when no balance is available (signed out / non-cloud).
-        if (pillShowsBalance && cloudBalanceText) {
-            el.textContent = `balance: ${cloudBalanceText}`;
-            return;
-        }
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
         const sttChoice = sttSel?.value ?? sttSetupSelected;
 
@@ -287,7 +280,13 @@ export async function mountSetupView(
 
         // Compact for the floating pill; the "≈" carries the estimate/per-hour
         // caveat. Zero (local/BYOK) needs no prose.
-        el.textContent = total > 0 ? `≈ ${rateUnits(total)}${RATE_EMOJI}/hr` : `0${RATE_EMOJI}`;
+        const rate = total > 0 ? `≈ ${rateUnits(total)}${RATE_EMOJI}/hr` : `0${RATE_EMOJI}`;
+
+        // Tapped (and signed in): stack the live balance ABOVE the rate, so the
+        // pill grows to two lines. Otherwise just the rate. (white-space:
+        // pre-line in the CSS renders the newline.)
+        el.textContent =
+            pillShowsBalance && cloudBalanceText ? `balance: ${cloudBalanceText}\n${rate}` : rate;
     }
 
     // The pill toggles between the rate estimate and a peek at your actual cloud
