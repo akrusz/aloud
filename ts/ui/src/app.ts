@@ -25,6 +25,7 @@ import type { SessionSetup } from './settings.js';
 import type { SessionState } from '../../src/facilitation/session.js';
 import { applyChromeSettings, loadAppSettings } from './app-settings.js';
 import { detectCapabilities } from './capabilities.js';
+import { isCloudBuild } from './cloud-base.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
 import { consumePurchaseReturn } from './cloud-billing.js';
@@ -81,14 +82,16 @@ export async function bootApp(): Promise<void> {
     // and desktop-only controls can gate themselves to what's reachable.
     // Fire-and-forget — views read the cached value at render and tolerate the
     // initial `false`. (detectCapabilities also populates the is-desktop cache.)
-    // When the probe lands and aloud cloud is reachable, reveal the Account nav
-    // entry (hidden by default, so a fully-local install never shows it).
+    // Reveal the Account nav entry (hidden by default) on any cloud-capable
+    // build, so it stays reachable even when the cloud is momentarily DOWN — the
+    // Account page is where the "unreachable, use your own keys" escape hatch
+    // lives, so hiding it during an outage would strand the user. A fully-local
+    // build (no cloud URL baked in, never reaches one) keeps it hidden.
+    const revealAccountNav = (): void =>
+        document.querySelectorAll('.nav-link-account').forEach((el) => el.classList.remove('hidden'));
+    if (isCloudBuild()) revealAccountNav();
     void detectCapabilities().then((caps) => {
-        if (caps.cloud) {
-            document
-                .querySelectorAll('.nav-link-account')
-                .forEach((el) => el.classList.remove('hidden'));
-        }
+        if (caps.cloud) revealAccountNav();
     });
 
     wireNav();

@@ -42,7 +42,18 @@ async function render(root: HTMLElement): Promise<void> {
     if (!caps.cloud) {
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
             <p class="provider-hint">aloud cloud is unreachable right now — you can still use your own API keys or a local model. Sign-in and credits return when it's back.</p>
+            <button type="button" class="btn btn-secondary" id="acct-use-keys">Use my own API keys →</button>
             </section>`;
+        // One tap to the escape hatch: flip BYOK on, then jump to Settings →
+        // Providers (the top section) where the keys live.
+        body.querySelector('#acct-use-keys')?.addEventListener('click', () => {
+            void (async () => {
+                const s = await loadAppSettings();
+                s.enableByok = true;
+                await saveAppSettings(s);
+                document.querySelector<HTMLElement>('[data-nav="settings"]')?.click();
+            })();
+        });
         return;
     }
 
