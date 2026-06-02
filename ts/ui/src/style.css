@@ -492,19 +492,15 @@
     white-space: pre-line;
     text-align: center;
 }
-/* Expanded (tapped → balance over rate): shrink the type so the two lines stay
-   within the Begin button's height, so the bar never grows taller than it. */
-.session-estimate.expanded {
-    font-size: 0.72rem;
-    line-height: 1.15;
-    padding-top: 0.2rem;
-    padding-bottom: 0.2rem;
-}
 /* Centered, natural-width button (was full-width). Overrides the lifted
    `.setup-footer .btn-begin { width: 100% }`. */
 .setup-footer-inner .btn-begin {
     grid-column: 2;
     width: auto;
+    /* ~20% wider than its natural width — roomier CTA, still not page-spanning.
+       Horizontal only, so the button height (and the pill matched to it) holds. */
+    padding-left: 2.2rem;
+    padding-right: 2.2rem;
 }
 /* Very narrow: the row gets cramped, so pop the pill out above the bar (the
    fixed footer is its containing block) and give the button the full width back. */
@@ -528,10 +524,10 @@
 .cloud-glyph {
     display: inline-block;
     filter:
-        drop-shadow(0.6px 0 0 rgba(0, 0, 0, 0.85))
-        drop-shadow(-0.6px 0 0 rgba(0, 0, 0, 0.85))
-        drop-shadow(0 0.6px 0 rgba(0, 0, 0, 0.85))
-        drop-shadow(0 -0.6px 0 rgba(0, 0, 0, 0.85));
+        drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000)
+        drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000)
+        drop-shadow(1px 1px 0 #000) drop-shadow(-1px 1px 0 #000)
+        drop-shadow(1px -1px 0 #000) drop-shadow(-1px -1px 0 #000);
 }
 
 /* History view: the markup uses the lifted .history-container / .history-header
