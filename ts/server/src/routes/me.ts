@@ -12,6 +12,7 @@ import { buildAccountView, deleteAccount } from '../auth/identity.js';
 import { allowedModels } from '../pricing/providers.js';
 import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 import { CREDIT_PACKS } from '../billing/stripe.js';
+import { x402Configured } from '../billing/x402.js';
 import {
     TYPICAL_SESSION_MINUTES,
     estimateModels,
@@ -53,7 +54,16 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         });
     });
 
-    app.get('/packs', (c) => c.json({ packs: CREDIT_PACKS }));
+    // Packs for sale, plus whether the x402 (USDC-on-Base) channel is available
+    // so the buy-credits UI knows to offer "Pay with USDC" and which network to
+    // sign for. Off → the UI shows card-only. (meditation-pal-du9 Phase 2.)
+    app.get('/packs', (c) => {
+        const x402 = x402Configured(deps);
+        return c.json({
+            packs: CREDIT_PACKS,
+            x402: x402 ? { enabled: true, network: x402.network } : { enabled: false },
+        });
+    });
 
     // Public credit-use estimates for the UI ("Opus ~N credits/hr", per-voice
     // cost lines). Seeded from one measured session; refine with telemetry.

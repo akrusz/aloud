@@ -2854,7 +2854,18 @@ html:has(.nav-brand.has-update) .update-btn {
     color: var(--danger, #c0503e);
 }
 
-/* Gift toggle ("For myself" / "Gift to someone") + recipient field. */
+/* USDC (x402) settle confirmation — shown in-place since there's no redirect. */
+.buy-credits-success {
+    margin-top: 0.75rem;
+    color: var(--success, #5a9e6f);
+    font-weight: 600;
+}
+.buy-credits-usdc-note {
+    margin-top: 0.5rem;
+}
+
+/* Gift toggle ("For myself" / "Gift to someone") + recipient field.
+ * The payment-method toggle (.buy-credits-method) reuses these classes. */
 .buy-credits-target {
     display: flex;
     gap: 0.5rem;

@@ -17,13 +17,25 @@ export interface CreditPack {
     label: string;
 }
 
-/** GET /cloud/v1/me/packs — the packs for sale (public). Throws on a non-OK
- *  response so the caller can surface "couldn't load packs". */
-export async function fetchPacks(): Promise<CreditPack[]> {
+/** Whether the x402 (USDC-on-Base) pay option is available, and on which network. */
+export interface X402Capability {
+    enabled: boolean;
+    network?: 'base' | 'base-sepolia';
+}
+
+/** Packs for sale plus the available alternative payment channels. */
+export interface BillingPacks {
+    packs: CreditPack[];
+    x402: X402Capability;
+}
+
+/** GET /cloud/v1/me/packs — the packs for sale + channel availability (public).
+ *  Throws on a non-OK response so the caller can surface "couldn't load packs". */
+export async function fetchPacks(): Promise<BillingPacks> {
     const res = await fetch(cloudUrl('/me/packs'));
     if (!res.ok) throw new Error(`Couldn't load credit packs (${res.status}).`);
-    const data = (await res.json()) as { packs?: CreditPack[] };
-    return data.packs ?? [];
+    const data = (await res.json()) as { packs?: CreditPack[]; x402?: X402Capability };
+    return { packs: data.packs ?? [], x402: data.x402 ?? { enabled: false } };
 }
 
 /**
