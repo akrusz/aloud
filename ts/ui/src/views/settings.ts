@@ -84,6 +84,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     const pendingChrome = {
         textScale: settings.textScale,
         themeMode: settings.themeMode,
+        showSessionBalance: settings.showSessionBalance,
     };
 
     const ELEVENLABS_KEY_STORE = 'apikey:elevenlabs';
@@ -127,11 +128,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (undoBtn) undoBtn.disabled = !isUndoable();
     }
 
-    /** Are the Display controls showing an un-applied text-scale/theme change? */
+    /** Are the Display controls showing an un-applied change (text scale, theme,
+     *  or the in-session balance toggle)? */
     function isDisplayDirty(): boolean {
         return (
             pendingChrome.textScale !== settings.textScale ||
-            pendingChrome.themeMode !== settings.themeMode
+            pendingChrome.themeMode !== settings.themeMode ||
+            pendingChrome.showSessionBalance !== settings.showSessionBalance
         );
     }
 
@@ -897,6 +900,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         applyBtn?.addEventListener('click', () => {
             settings.textScale = pendingChrome.textScale;
             settings.themeMode = pendingChrome.themeMode;
+            settings.showSessionBalance = pendingChrome.showSessionBalance;
             applyChromeSettings(settings);
             persist();
             updateApplyDisplayState();
@@ -907,14 +911,19 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
         updateApplyDisplayState();
 
-        // Live in-session balance — a plain auto-applying toggle (not part of the
-        // preview/Apply dance above). Only meaningful signed in (meditation-pal-14s).
+        // In-session balance — a display preference, so it rides the same
+        // preview-then-Apply flow as text scale/theme (meditation-pal-14s): the
+        // checkbox updates the pending state + the preview pill live, and Apply
+        // commits it. Only meaningful signed in.
         const balanceToggle = root.querySelector<HTMLInputElement>('#s-show-session-balance');
+        const balancePreview = root.querySelector<HTMLElement>('#preview-balance-field');
         if (balanceToggle) {
-            balanceToggle.checked = settings.showSessionBalance;
+            balanceToggle.checked = pendingChrome.showSessionBalance;
+            balancePreview?.classList.toggle('hidden', !pendingChrome.showSessionBalance);
             balanceToggle.addEventListener('change', () => {
-                settings.showSessionBalance = balanceToggle.checked;
-                persist();
+                pendingChrome.showSessionBalance = balanceToggle.checked;
+                balancePreview?.classList.toggle('hidden', !balanceToggle.checked);
+                updateApplyDisplayState();
             });
         }
     }
@@ -1077,6 +1086,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             else localStorage.setItem(ELEVENLABS_KEY_STORE, restored.elevenKey);
             pendingChrome.textScale = settings.textScale;
             pendingChrome.themeMode = settings.themeMode;
+            pendingChrome.showSessionBalance = settings.showSessionBalance;
             applyChromeSettings(settings);
             void saveAppSettings(settings);
             if (revertedEl) {
@@ -1465,15 +1475,15 @@ function renderDisplaySection(s: AppSettings): string {
                     <label for="s-theme-mode">Theme</label>
                     <select id="s-theme-mode">${themeOpts}</select>
                 </div>
-                <div class="display-apply-row">
-                    <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>
-                    <span class="settings-saved hidden" id="display-applied">Applied</span>
-                </div>
                 <div class="form-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
                         <span>Show live credit balance during sessions (when signed in)</span>
                     </label>
+                </div>
+                <div class="display-apply-row">
+                    <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>
+                    <span class="settings-saved hidden" id="display-applied">Applied</span>
                 </div>
             </div>
             <div class="display-preview">
@@ -1501,7 +1511,7 @@ function renderDisplaySection(s: AppSettings): string {
                                 <span>Checkbox</span>
                             </label>
                         </div>
-                        <div class="preview-field">
+                        <div class="preview-field${s.showSessionBalance ? '' : ' hidden'}" id="preview-balance-field">
                             <span class="preview-field-label">Cloud balance</span>
                             <span class="preview-pill">balance: 18 <span class="cloud-glyph">☁️</span></span>
                         </div>
