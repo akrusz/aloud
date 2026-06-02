@@ -16,7 +16,7 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { Account, LedgerEntry } from '../credits/store.js';
@@ -228,7 +228,149 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json({ account: { id: account.id, email: account.email }, granted: credits, balance });
     });
 
+    // ---- Retreat passes (meditation-pal-414) -------------------------------
+    // Operator-created, time-boxed unlimited access for retreat attendees. The
+    // operator creates a pass, then adds attendees by email; a member's metered
+    // calls bypass billing while the pass is active and in-window. Admin-only —
+    // there's no attendee-facing UI or shareable code.
+
+    // List passes, each with its attendee roster and the real provider spend so
+    // far (summed from the usage telemetry tagged with this pass). The spend
+    // column is what tells the operator what a retreat actually cost.
+    app.get('/retreats', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        const [passes, accounts, usage] = await Promise.all([
+            deps.store.listRetreatPasses(),
+            deps.store.allAccounts(),
+            deps.store.allUsage(),
+        ]);
+        const emailById = new Map(accounts.map((a) => [a.id, a.email]));
+        const spend = new Map<string, { providerCostUsd: number; credits: number; events: number }>();
+        for (const u of usage) {
+            if (!u.passId) continue;
+            const s = spend.get(u.passId) ?? { providerCostUsd: 0, credits: 0, events: 0 };
+            s.providerCostUsd += u.providerCostUsd;
+            s.credits += u.credits;
+            s.events += 1;
+            spend.set(u.passId, s);
+        }
+        const rows = await Promise.all(
+            passes.map(async (p) => {
+                const members = await deps.store.listRetreatMembers(p.id);
+                return {
+                    ...p,
+                    members: members.map((m) => ({
+                        accountId: m.accountId,
+                        email: emailById.get(m.accountId) ?? '(unknown)',
+                        joinedAt: m.joinedAt,
+                    })),
+                    spend: spend.get(p.id) ?? { providerCostUsd: 0, credits: 0, events: 0 },
+                };
+            })
+        );
+        return c.json(rows);
+    });
+
+    // Create a pass. Dates accept a Unix-seconds number or any Date-parseable
+    // string (the panel sends date-input values); the cap is optional and null
+    // means truly unlimited.
+    app.post('/retreats', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        let body: { label?: unknown; startsAt?: unknown; endsAt?: unknown; perAttendeeDailyCap?: unknown };
+        try {
+            body = (await c.req.json()) as typeof body;
+        } catch {
+            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+        }
+        const label = typeof body.label === 'string' ? body.label.trim() : '';
+        const startsAt = parseTs(body.startsAt);
+        const endsAt = parseTs(body.endsAt);
+        if (!label) return c.json(apiError('bad_request', 'label is required'), ERROR_STATUS.bad_request);
+        if (startsAt === null || endsAt === null) {
+            return c.json(apiError('bad_request', 'startsAt and endsAt must be valid dates'), ERROR_STATUS.bad_request);
+        }
+        if (endsAt <= startsAt) {
+            return c.json(apiError('bad_request', 'endsAt must be after startsAt'), ERROR_STATUS.bad_request);
+        }
+        let cap: number | null = null;
+        if (body.perAttendeeDailyCap !== undefined && body.perAttendeeDailyCap !== null) {
+            const n = Number(body.perAttendeeDailyCap);
+            if (!Number.isFinite(n) || n <= 0) {
+                return c.json(apiError('bad_request', 'perAttendeeDailyCap must be a positive number or null'), ERROR_STATUS.bad_request);
+            }
+            cap = n;
+        }
+        const pass = {
+            id: randomUUID(),
+            label,
+            startsAt,
+            endsAt,
+            perAttendeeDailyCap: cap,
+            status: 'active' as const,
+            createdAt: Date.now() / 1000,
+        };
+        await deps.store.createRetreatPass(pass);
+        return c.json(pass);
+    });
+
+    // Add an attendee to a pass by email — reuses the same case-insensitive
+    // account lookup as grant. The attendee must have signed in at least once
+    // (so an account exists to attach coverage to).
+    app.post('/retreats/:id/members', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        const pass = await deps.store.getRetreatPass(c.req.param('id'));
+        if (!pass) return c.json(apiError('bad_request', 'no such pass'), ERROR_STATUS.bad_request);
+
+        let body: { email?: unknown };
+        try {
+            body = (await c.req.json()) as typeof body;
+        } catch {
+            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+        }
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        if (!email) return c.json(apiError('bad_request', 'email is required'), ERROR_STATUS.bad_request);
+
+        const accounts = await deps.store.allAccounts();
+        const account = findByEmail(accounts, email);
+        if (!account) {
+            return c.json(
+                apiError('bad_request', `no account with email ${email} — they must sign in once first`),
+                ERROR_STATUS.bad_request
+            );
+        }
+        await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: Date.now() / 1000 });
+        return c.json({ added: { accountId: account.id, email: account.email } });
+    });
+
+    // Revoke a pass — coverage stops immediately for every member.
+    app.post('/retreats/:id/revoke', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        const pass = await deps.store.getRetreatPass(c.req.param('id'));
+        if (!pass) return c.json(apiError('bad_request', 'no such pass'), ERROR_STATUS.bad_request);
+        await deps.store.revokeRetreatPass(pass.id);
+        return c.json({ id: pass.id, status: 'revoked' });
+    });
+
     return app;
+}
+
+/** Parse a timestamp input: a Unix-seconds number, or a Date-parseable string
+ *  (e.g. a date-input value). Returns seconds since epoch, or null if invalid. */
+function parseTs(v: unknown): number | null {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    if (typeof v === 'string' && v.trim()) {
+        const ms = Date.parse(v);
+        if (Number.isFinite(ms)) return ms / 1000;
+    }
+    return null;
 }
 
 /** Case-insensitive email match (emails are case-insensitive in practice). */

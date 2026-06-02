@@ -321,3 +321,79 @@ describe('metered pause (soft launch)', () => {
         expect(isMeteredBlocked(deps, 'anyone@example.com')).toBe(false);
     });
 });
+
+describe('admin routes — retreats', () => {
+    function post(app: ReturnType<typeof makeApp>['app'], path: string, body: unknown) {
+        return app.request(path, {
+            method: 'POST',
+            headers: authed({ 'content-type': 'application/json' }),
+            body: JSON.stringify(body),
+        });
+    }
+
+    it('creates a pass, validates its inputs, and lists it', async () => {
+        const { app } = makeApp({ token: TOKEN });
+
+        const bad = await post(app, '/cloud/v1/admin/retreats', { label: '', startsAt: 1000, endsAt: 2000 });
+        expect(bad.status).toBe(400); // missing label
+        const backwards = await post(app, '/cloud/v1/admin/retreats', { label: 'R', startsAt: 2000, endsAt: 1000 });
+        expect(backwards.status).toBe(400); // end before start
+
+        const res = await post(app, '/cloud/v1/admin/retreats', {
+            label: 'Spring Retreat', startsAt: 1000, endsAt: 9999, perAttendeeDailyCap: 40,
+        });
+        expect(res.status).toBe(200);
+        const pass = (await res.json()) as { id: string; status: string; perAttendeeDailyCap: number };
+        expect(pass.status).toBe('active');
+        expect(pass.perAttendeeDailyCap).toBe(40);
+
+        const list = (await (await app.request('/cloud/v1/admin/retreats', { headers: authed() })).json()) as Array<{
+            id: string; label: string; members: unknown[];
+        }>;
+        expect(list).toHaveLength(1);
+        expect(list[0]!.label).toBe('Spring Retreat');
+        expect(list[0]!.members).toEqual([]);
+    });
+
+    it('adds an attendee by email (and rejects an unknown one), then revokes', async () => {
+        const { app, store } = makeApp({ token: TOKEN });
+        await seedAccount(store, 'acct-1', 'yogi@example.com');
+        const pass = (await (
+            await post(app, '/cloud/v1/admin/retreats', { label: 'R', startsAt: 1000, endsAt: 9_999_999_999 })
+        ).json()) as { id: string };
+
+        const unknown = await post(app, `/cloud/v1/admin/retreats/${pass.id}/members`, { email: 'ghost@example.com' });
+        expect(unknown.status).toBe(400); // must sign in once first
+
+        const added = await post(app, `/cloud/v1/admin/retreats/${pass.id}/members`, { email: 'YOGI@example.com' });
+        expect(added.status).toBe(200); // case-insensitive match
+
+        // Tag a usage row to the pass so the list surfaces real spend.
+        await store.appendUsage({
+            id: 'u1', accountId: 'acct-1', sessionId: null, passId: pass.id, ts: 1_500,
+            kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
+            tokensIn: 10, tokensOut: 5, cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0,
+            providerCostUsd: 0.02, credits: 0.4,
+        });
+
+        const list = (await (await app.request('/cloud/v1/admin/retreats', { headers: authed() })).json()) as Array<{
+            members: Array<{ email: string }>; spend: { providerCostUsd: number; events: number };
+        }>;
+        expect(list[0]!.members.map((m) => m.email)).toEqual(['yogi@example.com']);
+        expect(list[0]!.spend.providerCostUsd).toBeCloseTo(0.02);
+        expect(list[0]!.spend.events).toBe(1);
+
+        const revoked = await post(app, `/cloud/v1/admin/retreats/${pass.id}/revoke`, {});
+        expect(revoked.status).toBe(200);
+        const after = (await (await app.request('/cloud/v1/admin/retreats', { headers: authed() })).json()) as Array<{
+            status: string;
+        }>;
+        expect(after[0]!.status).toBe('revoked');
+    });
+
+    it('404s the retreat routes when the admin token is unset', async () => {
+        const { app } = makeApp();
+        const res = await app.request('/cloud/v1/admin/retreats', { headers: authed() });
+        expect(res.status).toBe(404);
+    });
+});

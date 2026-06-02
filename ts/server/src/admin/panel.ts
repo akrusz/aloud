@@ -182,6 +182,20 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
+    <h2>Retreats <button class="ghost" id="refreshRetreats" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
+    <div class="card">
+      <p class="sub" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
+      <div class="row">
+        <div><label for="rLabel">Label</label><input id="rLabel" placeholder="Spring Vipassana 2026" autocomplete="off"></div>
+        <div style="flex:0 0 150px"><label for="rStart">Starts</label><input id="rStart" type="date"></div>
+        <div style="flex:0 0 150px"><label for="rEnd">Ends</label><input id="rEnd" type="date"></div>
+        <div style="flex:0 0 150px"><label for="rCap">Daily cap / person</label><input id="rCap" type="number" min="1" step="1" placeholder="unlimited"></div>
+        <button id="createRetreat">Create</button>
+      </div>
+      <div class="msg" id="retreatMsg"></div>
+    </div>
+    <div id="retreatList"></div>
+
     <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
@@ -423,6 +437,91 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     }).then(function () { $('grant').disabled = false; });
   }
 
+  // ---- retreats ----------------------------------------------------------
+  function loadRetreats() {
+    return api('/retreats').then(renderRetreats);
+  }
+  function renderRetreats(list) {
+    if (!list.length) {
+      $('retreatList').innerHTML = '<p class="muted" style="padding:0 2px 8px">No retreat passes yet.</p>';
+      return;
+    }
+    var now = Date.now() / 1000;
+    $('retreatList').innerHTML = list.map(function (p) {
+      var active = p.status === 'active' && p.startsAt <= now && p.endsAt >= now;
+      var state = p.status === 'revoked' ? '<span class="pill free">revoked</span>'
+        : active ? '<span class="pill paid">active</span>'
+        : p.startsAt > now ? '<span class="pill free">scheduled</span>'
+        : '<span class="pill free">ended</span>';
+      var cap = p.perAttendeeDailyCap == null ? 'unlimited' : dec1(p.perAttendeeDailyCap) + ' credits/day';
+      var roster = p.members.length
+        ? p.members.map(function (m) { return esc(m.email); }).join(', ')
+        : '<span class="muted">none yet</span>';
+      var revoke = p.status === 'revoked' ? ''
+        : '<button class="ghost xs" data-revoke="' + p.id + '">revoke</button>';
+      return '<div class="card">' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<strong>' + esc(p.label) + '</strong> ' + state +
+          '<span style="flex:1"></span>' + revoke +
+        '</div>' +
+        '<p class="sub" style="margin:8px 0">' + date(p.startsAt) + ' → ' + date(p.endsAt) +
+          ' · cap ' + cap + ' · spend ' + usdp(p.spend.providerCostUsd) + ' (' + int(p.spend.events) + ' calls)</p>' +
+        '<p style="margin:0 0 10px"><span class="muted">Attendees (' + p.members.length + '):</span> ' + roster + '</p>' +
+        '<div class="row"><div><input data-email="' + p.id + '" placeholder="attendee@example.com" autocomplete="off"></div>' +
+          '<button class="ghost xs" data-add="' + p.id + '">Add attendee</button></div>' +
+        '<div class="msg" data-msg="' + p.id + '"></div>' +
+      '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call($('retreatList').querySelectorAll('[data-revoke]'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Revoke this pass? Coverage stops immediately for every attendee.')) return;
+        api('/retreats/' + btn.getAttribute('data-revoke') + '/revoke', { method: 'POST' })
+          .then(loadRetreats)
+          .catch(function (e) { alert(e.message); });
+      });
+    });
+    Array.prototype.forEach.call($('retreatList').querySelectorAll('[data-add]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-add');
+        var input = $('retreatList').querySelector('[data-email="' + id + '"]');
+        var msg = $('retreatList').querySelector('[data-msg="' + id + '"]');
+        var email = input.value.trim();
+        if (!email) { setMsg(msg, 'Enter an email.', 'err'); return; }
+        btn.disabled = true;
+        api('/retreats/' + id + '/members', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: email }),
+        }).then(function () { input.value = ''; return loadRetreats(); })
+          .catch(function (e) { setMsg(msg, e.message, 'err'); btn.disabled = false; });
+      });
+    });
+  }
+  function createRetreat() {
+    var label = $('rLabel').value.trim();
+    var start = $('rStart').value, end = $('rEnd').value;
+    var capRaw = $('rCap').value.trim();
+    if (!label || !start || !end) { setMsg($('retreatMsg'), 'Label, start, and end dates are required.', 'err'); return; }
+    // Cover the whole end day (local time); send epoch seconds.
+    var startsAt = new Date(start + 'T00:00:00').getTime() / 1000;
+    var endsAt = new Date(end + 'T23:59:59').getTime() / 1000;
+    if (!(endsAt > startsAt)) { setMsg($('retreatMsg'), 'End must be after start.', 'err'); return; }
+    var cap = capRaw === '' ? null : Number(capRaw);
+    $('createRetreat').disabled = true;
+    api('/retreats', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ label: label, startsAt: startsAt, endsAt: endsAt, perAttendeeDailyCap: cap }),
+    }).then(function () {
+      setMsg($('retreatMsg'), 'Created "' + label + '".', 'ok');
+      $('rLabel').value = ''; $('rCap').value = '';
+      return loadRetreats();
+    }).catch(function (e) {
+      setMsg($('retreatMsg'), e.message, 'err');
+    }).then(function () { $('createRetreat').disabled = false; });
+  }
+
   // ---- connect / boot ----------------------------------------------------
   function connect() {
     token = $('tok').value.trim();
@@ -432,7 +531,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       localStorage.setItem(KEY, token);
       setMsg($('authMsg'), 'Connected.', 'ok');
       $('app').classList.remove('hidden');
-      return Promise.all([loadAccounts(), loadConfig(), loadUsage()]);
+      return Promise.all([loadAccounts(), loadConfig(), loadUsage(), loadRetreats()]);
     }).catch(function (e) {
       setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
       $('app').classList.add('hidden');
@@ -451,6 +550,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('refreshRetreats').onclick = function () { loadRetreats().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('createRetreat').onclick = createRetreat;
   $('search').addEventListener('input', renderAccounts);
   $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') connect(); });
   $('gCredits').addEventListener('keydown', function (e) { if (e.key === 'Enter') doGrant(); });
