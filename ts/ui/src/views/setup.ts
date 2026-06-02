@@ -44,7 +44,7 @@ import {
     type ServerVoice,
 } from '../voice-picker.js';
 import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE, creditAmount, MODE_RATE_MULTIPLIER } from '../credit-rate.js';
-import { fetchMe } from '../cloud-auth.js';
+import { fetchMe, ensureCloudToken } from '../cloud-auth.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -288,26 +288,26 @@ export async function mountSetupView(
     // shows it in the tooltip; tap swaps the pill to the balance for a moment
     // (so it works on touch, where there's no hover). Fetched lazily; a null
     // (signed-out / non-cloud) balance leaves the estimate caveat in place.
+    let cloudBalanceText: string | null = null;
     let balanceRevertTimer: ReturnType<typeof setTimeout> | undefined;
-    async function refreshBalance(): Promise<string | null> {
-        const me = await fetchMe().catch(() => null);
-        const el = root.querySelector<HTMLElement>('#session-estimate');
-        if (!el) return null;
-        if (!me) {
-            el.title = RATE_LEGEND_TITLE;
-            return null;
+    async function refreshBalance(): Promise<void> {
+        // Ensure a token first: on the setup screen no session has run yet, so
+        // dev/local has no cached token and fetchMe would no-op. ensureCloudToken
+        // dev-signs-in locally; a hosted build with no session throws (caught)
+        // and we just show no balance — never a forced sign-in popup.
+        try {
+            await ensureCloudToken();
+        } catch {
+            cloudBalanceText = null;
         }
-        const balance = creditAmount(me.creditsRemaining);
-        el.title = `Cloud balance: ${balance}`;
-        return balance;
-    }
-    async function revealBalance(): Promise<void> {
-        const balance = await refreshBalance();
+        const me = await fetchMe().catch(() => null);
+        cloudBalanceText = me ? creditAmount(me.creditsRemaining) : null;
         const el = root.querySelector<HTMLElement>('#session-estimate');
-        if (!el || !balance) return;
-        el.textContent = `${balance} balance`;
-        clearTimeout(balanceRevertTimer);
-        balanceRevertTimer = setTimeout(updateSessionEstimate, 2500);
+        if (el) el.title = cloudBalanceText ? `Cloud balance: ${cloudBalanceText}` : RATE_LEGEND_TITLE;
+    }
+    function showBalanceText(): void {
+        const el = root.querySelector<HTMLElement>('#session-estimate');
+        if (el && cloudBalanceText) el.textContent = `${cloudBalanceText} balance`;
     }
 
     /**
@@ -585,7 +585,17 @@ export async function mountSetupView(
         const estimateEl = root.querySelector<HTMLElement>('#session-estimate');
         if (estimateEl) {
             void refreshBalance();
-            estimateEl.addEventListener('click', () => void revealBalance());
+            // Hover (desktop) and tap (touch) both peek the balance; revert to
+            // the rate on mouse-out, or after a beat on tap.
+            estimateEl.addEventListener('mouseenter', showBalanceText);
+            estimateEl.addEventListener('mouseleave', () => updateSessionEstimate());
+            estimateEl.addEventListener('click', () => {
+                void refreshBalance().then(() => {
+                    showBalanceText();
+                    clearTimeout(balanceRevertTimer);
+                    balanceRevertTimer = setTimeout(() => updateSessionEstimate(), 2500);
+                });
+            });
         }
 
         // Continuation banner — shown when the history view has queued a
@@ -809,6 +819,8 @@ export async function mountSetupView(
                 // Switching to/from noting changes whether an LLM is needed.
                 updateBeginButton();
                 updateAiAvailability();
+                // ...and changes the estimate (noting applies the 0.4 multiplier).
+                updateSessionEstimate();
             });
         });
     }
