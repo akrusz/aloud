@@ -1469,6 +1469,12 @@ function renderDisplaySection(s: AppSettings): string {
                     <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>
                     <span class="settings-saved hidden" id="display-applied">Applied</span>
                 </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
+                        <span>Show live credit balance during sessions (when signed in)</span>
+                    </label>
+                </div>
             </div>
             <div class="display-preview">
                 <div class="text-scale-preview" id="text-scale-preview">
@@ -1495,6 +1501,10 @@ function renderDisplaySection(s: AppSettings): string {
                                 <span>Checkbox</span>
                             </label>
                         </div>
+                        <div class="preview-field">
+                            <span class="preview-field-label">Cloud balance</span>
+                            <span class="preview-pill">balance: 18 <span class="cloud-glyph">☁️</span></span>
+                        </div>
                         <div class="preview-field preview-btn-row">
                             <button type="button" class="btn btn-small btn-primary preview-btn" tabindex="-1">Button 1</button>
                             <button type="button" class="btn btn-small btn-secondary preview-btn" tabindex="-1">Button 2</button>
@@ -1502,13 +1512,6 @@ function renderDisplaySection(s: AppSettings): string {
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
-                <span>Show live credit balance during sessions</span>
-            </label>
-            <span class="form-hint">When signed in. Off by default; a ticking balance can distract mid-session, and it's a tap away on the setup screen.</span>
         </div>
     </section>`;
 }

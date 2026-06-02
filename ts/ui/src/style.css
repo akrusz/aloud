@@ -548,6 +548,19 @@
         drop-shadow(0 1px 0 #281f16) drop-shadow(0 -1px 0 #281f16);
 }
 
+/* Cloud-balance chip in the Display style-preview — mirrors the setup pill
+   (.session-estimate) but inline, and in em so it scales with the preview. */
+.preview-pill {
+    display: inline-block;
+    padding: 0.3em 0.6em;
+    font-size: 0.875em;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    white-space: nowrap;
+}
+
 /* History view: the markup uses the lifted .history-container / .history-header
    / .session-item classes, so styling cascades from the @import. (The earlier
    from-scratch .history-row/.history-list rules were dead and removed.) */
