@@ -17,6 +17,7 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
+import { activeRetreatCoverage } from '../credits/retreat.js';
 import { synthesizeWithGoogle } from '../providers/tts.js';
 import { resolveVoiceId } from '../providers/voice-catalog.js';
 import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
@@ -86,8 +87,11 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('bad_request', 'text required'), ERROR_STATUS.bad_request);
         }
 
-        const balance = await deps.ledger.balance(account.id);
-        if (balance <= 0) {
+        // A retreat pass (meditation-pal-414) covers this synthesis: speak with no
+        // balance gate and no debit. Otherwise gate on balance as usual.
+        const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
+        const balance = pass ? 0 : await deps.ledger.balance(account.id);
+        if (!pass && balance <= 0) {
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
@@ -104,8 +108,10 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
         }
 
+        // Under a pass nothing is debited, but we record the metered credits so
+        // per-retreat spend and the daily-cap sum stay honest.
         const cost = priceTtsChars(text.length, voiceId);
-        const debit = Math.min(cost.credits, balance);
+        const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:google:${text.length}c`);
         await recordUsage(deps.store, {
             accountId: account.id,
@@ -119,12 +125,13 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             seconds: 0,
             chars: text.length,
             providerCostUsd: cost.providerCostUsd,
-            credits: debit,
+            credits: pass ? cost.credits : debit,
+            passId: pass?.id ?? null,
         });
         const remaining = await deps.ledger.balance(account.id);
 
         c.header('content-type', 'audio/mpeg');
-        c.header('X-Credits-Charged', String(cost.credits));
+        c.header('X-Credits-Charged', String(pass ? 0 : cost.credits));
         c.header('X-Credits-Remaining', String(remaining));
         return c.body(audio.buffer as ArrayBuffer);
     });

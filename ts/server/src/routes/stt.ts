@@ -17,6 +17,7 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
+import { activeRetreatCoverage } from '../credits/retreat.js';
 import { transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
 
@@ -46,8 +47,11 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const samples = new Float32Array(raw);
         const seconds = samples.length / sampleRate;
 
-        const balance = await deps.ledger.balance(account.id);
-        if (balance <= 0) {
+        // A retreat pass (meditation-pal-414) covers this leg: transcribe with no
+        // balance gate and no debit. Otherwise gate on balance as usual.
+        const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
+        const balance = pass ? 0 : await deps.ledger.balance(account.id);
+        if (!pass && balance <= 0) {
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
@@ -60,8 +64,10 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
 
         // Debit at cost (fractional), clamped to balance so a race can't overdraw.
+        // Under a pass nothing is debited, but we record the metered credits so
+        // per-retreat spend and the daily-cap sum stay honest.
         const cost = priceSttSeconds(seconds);
-        const debit = Math.min(cost.credits, balance);
+        const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `stt:${stt.provider}:${seconds.toFixed(1)}s`);
         await recordUsage(deps.store, {
             accountId: account.id,
@@ -75,12 +81,13 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             seconds,
             chars: 0,
             providerCostUsd: cost.providerCostUsd,
-            credits: debit,
+            credits: pass ? cost.credits : debit,
+            passId: pass?.id ?? null,
         });
 
         const response: TranscribeResponse = {
             text,
-            creditsCharged: cost.credits,
+            creditsCharged: pass ? 0 : cost.credits,
             creditsRemaining: await deps.ledger.balance(account.id),
         };
         return c.json(response);

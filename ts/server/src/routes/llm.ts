@@ -32,6 +32,7 @@ import { SESSION_HOLD_CREDITS, MAX_OUTPUT_TOKENS, priceLlmTurn, type CostBreakdo
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
+import { activeRetreatCoverage } from '../credits/retreat.js';
 import type { LlmUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
 import { log } from '../logger.js';
@@ -43,7 +44,8 @@ function recordLlmUsage(
     provider: ProviderId,
     model: string,
     usage: LlmUsage,
-    cost: CostBreakdown
+    cost: CostBreakdown,
+    passId: string | null
 ): Promise<void> {
     return recordUsage(deps.store, {
         accountId,
@@ -57,7 +59,10 @@ function recordLlmUsage(
         seconds: 0,
         chars: 0,
         providerCostUsd: cost.providerCostUsd,
+        // Always the metered (would-be) credits, even when a pass covers the
+        // turn — so per-retreat spend and the daily-cap sum both stay honest.
         credits: cost.credits,
+        passId,
     });
 }
 
@@ -112,20 +117,27 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(paused);
         }
 
+        // A retreat pass (meditation-pal-414) covers this turn: forward with no
+        // hold and no charge, but still record usage (tagged with the pass). When
+        // there's no pass, holdId stays null and we take the normal metered path.
+        const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
+
         // Hold up to the per-turn cap, bounded by what the user actually has.
-        const balance = await deps.ledger.balance(account.id);
-        if (balance <= 0) {
-            return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
-        }
-        const holdAmount = Math.min(SESSION_HOLD_CREDITS, balance);
-        let holdId: string;
-        try {
-            holdId = await deps.ledger.placeHold(account.id, holdAmount, `turn:${body.provider}:${body.model}`);
-        } catch (err) {
-            if (err instanceof InsufficientCreditsError) {
+        let holdId: string | null = null;
+        if (!pass) {
+            const balance = await deps.ledger.balance(account.id);
+            if (balance <= 0) {
                 return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
             }
-            throw err;
+            const holdAmount = Math.min(SESSION_HOLD_CREDITS, balance);
+            try {
+                holdId = await deps.ledger.placeHold(account.id, holdAmount, `turn:${body.provider}:${body.model}`);
+            } catch (err) {
+                if (err instanceof InsufficientCreditsError) {
+                    return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
+                }
+                throw err;
+            }
         }
 
         const fwd = {
@@ -151,13 +163,14 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                         }
                         const usage = usageOf(chunk);
                         const cost = priceLlmTurn(body.provider!, body.model!, usage);
-                        await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
+                        if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
                         settled = true;
-                        await recordLlmUsage(deps, account.id, body.provider!, body.model!, usage, cost);
+                        await recordLlmUsage(deps, account.id, body.provider!, body.model!, usage, cost, pass?.id ?? null);
                         final = {
                             text: chunk.text,
                             finishReason: chunk.finishReason ?? null,
-                            creditsCharged: cost.credits,
+                            // A pass-covered turn is free; the balance is untouched.
+                            creditsCharged: pass ? 0 : cost.credits,
                             creditsRemaining: await deps.ledger.balance(account.id),
                         };
                     }
@@ -165,7 +178,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     await sse.writeSSE({ data: JSON.stringify(terminal) });
                 } catch (err) {
                     log.error('stream forward failed', { err: String(err), provider: body.provider });
-                    if (!settled) await deps.ledger.releaseHold(account.id, holdId);
+                    if (!settled && holdId) await deps.ledger.releaseHold(account.id, holdId);
                     await sse.writeSSE({ event: 'error', data: JSON.stringify(apiError('provider_error', 'upstream provider error')) });
                 }
             });
@@ -176,18 +189,19 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             const result = await deps.forwarder.complete(body.messages, fwd);
             const usage = usageOf(result);
             const cost = priceLlmTurn(body.provider, body.model, usage);
-            await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
-            await recordLlmUsage(deps, account.id, body.provider, body.model, usage, cost);
+            if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
+            await recordLlmUsage(deps, account.id, body.provider, body.model, usage, cost, pass?.id ?? null);
             const response: CompleteResponse = {
                 text: result.text,
                 finishReason: result.finishReason,
-                creditsCharged: cost.credits,
+                // A pass-covered turn is free; the balance is untouched.
+                creditsCharged: pass ? 0 : cost.credits,
                 creditsRemaining: await deps.ledger.balance(account.id),
             };
             return c.json(response);
         } catch (err) {
             log.error('forward failed', { err: String(err), provider: body.provider });
-            await deps.ledger.releaseHold(account.id, holdId);
+            if (holdId) await deps.ledger.releaseHold(account.id, holdId);
             return c.json(apiError('provider_error', 'upstream provider error'), ERROR_STATUS.provider_error);
         }
     });
