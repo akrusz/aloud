@@ -20,6 +20,7 @@ import {
 } from './views/noting-session.js';
 import { mountHistoryView } from './views/history.js';
 import { mountSettingsView } from './views/settings.js';
+import { mountAccountView } from './views/account.js';
 import type { SessionSetup } from './settings.js';
 import type { SessionState } from '../../src/facilitation/session.js';
 import { applyChromeSettings, loadAppSettings } from './app-settings.js';
@@ -30,7 +31,7 @@ import { consumePurchaseReturn } from './cloud-billing.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import { showErrorToast, showSuccessToast } from './toast.js';
 
-type View = 'setup' | 'session' | 'history' | 'settings';
+type View = 'setup' | 'session' | 'history' | 'settings' | 'account';
 
 // Paths carry the deploy base ('/' in dev, '/app/' for the hosted subpath
 // build) so pushState + refresh resolve under either — see route-base.ts.
@@ -38,12 +39,14 @@ const ROUTE_FOR_VIEW: Record<Exclude<View, 'session'>, string> = {
     setup: routePath('/'),
     history: routePath('/history'),
     settings: routePath('/settings'),
+    account: routePath('/account'),
 };
 
 function viewFromPath(path: string): Exclude<View, 'session'> {
     const p = appPath(path);
     if (p.startsWith('/history')) return 'history';
     if (p.startsWith('/settings')) return 'settings';
+    if (p.startsWith('/account')) return 'account';
     return 'setup';
 }
 
@@ -78,7 +81,15 @@ export async function bootApp(): Promise<void> {
     // and desktop-only controls can gate themselves to what's reachable.
     // Fire-and-forget — views read the cached value at render and tolerate the
     // initial `false`. (detectCapabilities also populates the is-desktop cache.)
-    void detectCapabilities();
+    // When the probe lands and aloud cloud is reachable, reveal the Account nav
+    // entry (hidden by default, so a fully-local install never shows it).
+    void detectCapabilities().then((caps) => {
+        if (caps.cloud) {
+            document
+                .querySelectorAll('.nav-link-account')
+                .forEach((el) => el.classList.remove('hidden'));
+        }
+    });
 
     wireNav();
     wireMobileMore();
@@ -175,7 +186,7 @@ function wireNav(): void {
         // down silently — covers the in-session History link and any
         // bottom-nav link that's visible. Mirrors the popstate guard.
         if (currentSession || currentNoting) {
-            (currentSession ?? currentNoting)?.requestLeave(view as 'setup' | 'history' | 'settings');
+            (currentSession ?? currentNoting)?.requestLeave(view as Exclude<View, 'session'>);
             return;
         }
         const root = $('app-root');
@@ -211,6 +222,10 @@ function wireMobileMore(): void {
         } else if (t.closest('#moreHistory')) {
             close();
             (currentSession ?? currentNoting)?.requestLeave('history');
+        } else if (t.closest('#moreAccount')) {
+            // Routing is handled by the global data-nav click handler (wireNav);
+            // here we just dismiss the sheet.
+            close();
         } else if (t.closest('#moreAbout')) {
             close();
             document.getElementById('aboutLink')?.click();
@@ -289,6 +304,7 @@ async function routeTo(
     if (view === 'setup') await goSetup(root);
     else if (view === 'history') await goHistory(root);
     else if (view === 'settings') await goSettings(root);
+    else if (view === 'account') await goAccount(root);
 }
 
 function setActiveNav(view: View): void {
@@ -388,6 +404,7 @@ async function goSession(
             // destination's.
             if (destination === 'history') void routeTo(root, 'history');
             else if (destination === 'settings') void routeTo(root, 'settings');
+            else if (destination === 'account') void routeTo(root, 'account');
             else void routeTo(root, 'setup');
         },
         continueFrom
@@ -406,6 +423,7 @@ async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<
         // flow; otherwise setup.
         if (destination === 'history') void routeTo(root, 'history');
         else if (destination === 'settings') void routeTo(root, 'settings');
+        else if (destination === 'account') void routeTo(root, 'account');
         else void routeTo(root, 'setup');
     });
 }
@@ -422,6 +440,12 @@ async function goSettings(root: HTMLElement): Promise<void> {
     teardownInflightSessions();
     setActiveNav('settings');
     await mountSettingsView(root);
+}
+
+async function goAccount(root: HTMLElement): Promise<void> {
+    teardownInflightSessions();
+    setActiveNav('account');
+    await mountAccountView(root);
 }
 
 function teardownInflightSessions(): void {

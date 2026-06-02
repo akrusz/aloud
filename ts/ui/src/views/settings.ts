@@ -39,11 +39,6 @@ import { isDesktopSync } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
-import { fetchMe, clearCloudToken, deleteAccount } from '../cloud-auth.js';
-import { clearKnownBalance } from '../cloud-balance.js';
-import { showBuyCreditsModal } from '../buy-credits-modal.js';
-import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
-import { showSignInModal } from '../sign-in-modal.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
@@ -65,7 +60,7 @@ import {
     type ScoredVoice,
 } from '../voice-picker.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
-import { confirmDialog, alertDialog, confirmTypedDialog } from '../dialog.js';
+import { confirmDialog, alertDialog } from '../dialog.js';
 
 export interface SettingsViewHandle {
     show(): Promise<void>;
@@ -161,93 +156,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wirePacingSection();
         wireNetworkSection();
         wireUpdatesSection();
-        wireDangerZoneSection();
         wireFooter();
-        void wireAccountSection();
-    }
-
-    // ---- Account section (hosted sign-in, meditation-pal-rfb) -----------
-    // The shell always renders; this fills or removes it. Shown whenever an aloud
-    // cloud server is REACHABLE — not gated on Google specifically: email/password
-    // sign-in is always available on any server, and Google/Apple buttons appear
-    // when their ids are advertised. So local installs that can reach the cloud
-    // get sign-in too; the only case we hide it is a genuinely offline / no-cloud
-    // install (caps.cloud === false). We await the probe before deciding rather
-    // than gating the sync template. Async also because the balance comes from
-    // /me; re-renders just its own body on sign-in/out so unsaved settings
-    // elsewhere in the form survive. (meditation-pal-8jc)
-    async function wireAccountSection(): Promise<void> {
-        const body = root.querySelector<HTMLElement>('#account-body');
-        if (!body) return; // section not present in this build
-        const caps = await detectCapabilities();
-        if (!caps.cloud) {
-            // Cloud unreachable — outage, offline, or a stale install whose server
-            // is long gone ("hit by a bus"). Don't vanish the section silently:
-            // say so and point at the still-working alternatives, so the app
-            // degrades gracefully instead of looking broken. meditation-pal-8jc.
-            body.innerHTML = `<p class="provider-hint">aloud cloud is unreachable right now — you can still use your own API keys or a local model. Sign-in and credits return when it's back.</p>`;
-            return;
-        }
-        const account = await fetchMe();
-        if (account) {
-            // An email-only account hasn't claimed its free grant — nudge it to
-            // connect a trusted identity (meditation-pal-116). Connecting from a
-            // signed-in state links to THIS account (cloud-auth sends the bearer).
-            // Only nudge when we POSITIVELY know the account has identities but
-            // none trusted; an empty/absent list (e.g. an older server that
-            // doesn't report providers) shouldn't nag a Google/Apple user.
-            const providers = account.providers ?? [];
-            const needsConnect =
-                providers.length > 0 && !providers.some((p) => p === 'google' || p === 'apple');
-            const connectPrompt = needsConnect
-                ? `<button type="button" class="account-connect-prompt provider-hint" id="account-connect">
-                       Connect Google or Apple to claim your free credits →
-                   </button>`
-                : '';
-            body.innerHTML = `
-                <div class="account-row">
-                    <div class="account-info">
-                        <div class="account-email">${escape(account.email)}</div>
-                        <div class="account-credits provider-hint">${creditAmount(account.creditsRemaining)} remaining</div>
-                    </div>
-                    <div class="account-actions">
-                        <label class="checkbox-label account-balance-toggle">
-                            <input type="checkbox" id="account-show-session-balance"${settings.showSessionBalance ? ' checked' : ''}>
-                            <span>Show live credit balance during sessions</span>
-                        </label>
-                        <button type="button" class="btn btn-primary" id="account-buy-credits">Buy ${RATE_EMOJI}</button>
-                        <button type="button" class="btn btn-secondary" id="account-signout">Sign out</button>
-                    </div>
-                </div>
-                ${connectPrompt}`;
-            body.querySelector('#account-buy-credits')?.addEventListener('click', () => {
-                // Refresh the balance when the modal closes (dismiss path); the
-                // purchase path redirects to Stripe and returns via ?purchase=.
-                void showBuyCreditsModal().then(() => wireAccountSection());
-            });
-            const balanceToggle = body.querySelector<HTMLInputElement>('#account-show-session-balance');
-            balanceToggle?.addEventListener('change', () => {
-                settings.showSessionBalance = balanceToggle.checked;
-                persist();
-            });
-            body.querySelector('#account-connect')?.addEventListener('click', () => {
-                void showSignInModal({
-                    title: 'Claim your free credits',
-                    subtitle: 'Connect Google or Apple to unlock free credits on this account.',
-                }).then(() => wireAccountSection());
-            });
-            body.querySelector('#account-signout')?.addEventListener('click', () => {
-                clearKnownBalance();
-                void clearCloudToken().then(() => wireAccountSection());
-            });
-            return;
-        }
-        body.innerHTML = `
-            <p class="provider-hint">Sign in to use the aloud cloud, which connects to text-to-speech, speech-to-text, and LLMs to power your session with no additional setup. Connect Google or Apple for free credits.</p>
-            <button type="button" class="btn btn-primary" id="account-signin">Sign in or create account</button>`;
-        body.querySelector('#account-signin')?.addEventListener('click', () => {
-            void showSignInModal().then(() => wireAccountSection());
-        });
     }
 
     // ---- Provider section ----------------------------------------------
@@ -1107,51 +1016,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (btn) btn.disabled = true;
     }
 
-    // ---- Danger zone (meditation-pal-8jc) ------------------------------
-    // The BYOK toggle here is wired by wireProviderSection (it lives by id, and
-    // toggling it rebuilds the provider menu). This wires the show/hide reveal
-    // and the type-to-confirm deletion.
-    function wireDangerZoneSection(): void {
-        const toggle = root.querySelector<HTMLButtonElement>('#danger-zone-toggle');
-        const dzBody = root.querySelector<HTMLElement>('#danger-zone-body');
-        toggle?.addEventListener('click', () => {
-            const shown = dzBody?.classList.toggle('hidden') === false;
-            toggle.textContent = shown ? 'Hide' : 'Show';
-            toggle.setAttribute('aria-expanded', String(shown));
-        });
-
-        const del = root.querySelector<HTMLButtonElement>('#s-delete-account');
-        del?.addEventListener('click', () => {
-            void (async () => {
-                const account = await fetchMe();
-                if (!account) {
-                    await alertDialog("You're not signed in, so there's no account to delete.");
-                    return;
-                }
-                // Type-to-confirm: an irreversible, money-forfeiting action gets
-                // more friction than a single click.
-                const ok = await confirmTypedDialog(
-                    `This permanently deletes your account (${account.email}). Any remaining credits are forfeited and it can't be undone — you can sign up again later, but won't get the free credits a second time.\n\nType "delete" to confirm.`,
-                    { requiredText: 'delete', okLabel: 'Delete account', danger: true }
-                );
-                if (!ok) return;
-                del.disabled = true;
-                try {
-                    await deleteAccount();
-                } catch (err) {
-                    del.disabled = false;
-                    await alertDialog(
-                        err instanceof Error ? err.message : 'Could not delete the account.'
-                    );
-                    return;
-                }
-                await alertDialog('Your account has been deleted.');
-                // Reflect the now-signed-out state in the Account section.
-                await wireAccountSection();
-            })();
-        });
-    }
-
     // ---- Footer --------------------------------------------------------
 
     function wireFooter(): void {
@@ -1308,7 +1172,6 @@ function renderHTML(s: AppSettings): string {
         <h1 class="settings-title">Settings</h1>
 
         <form id="settings-form" class="setup-form">
-            ${renderAccountSection()}
             ${renderProviderSection(s)}
             ${renderLanguageSection(s)}
             ${renderTtsSection(s)}
@@ -1319,13 +1182,6 @@ function renderHTML(s: AppSettings): string {
                 // meaningless in a hosted browser tab — they only apply to the
                 // desktop / self-host builds.
                 isWebMode() ? '' : renderNetworkSection(s) + renderUpdatesSection(s)
-            }
-            ${
-                // Danger zone lives last. Shown on the hosted build (for the BYOK
-                // opt-in) and whenever aloud cloud is reachable (for account
-                // deletion — local installs included). Each control inside
-                // self-gates, so the section is never empty. meditation-pal-8jc.
-                isWebMode() || capabilitiesSync().cloud ? renderDangerZoneSection(s) : ''
             }
         </form>
     </div>
@@ -1353,18 +1209,6 @@ function renderHTML(s: AppSettings): string {
         speedLabelId: 's-tts-rate-label',
         speedValue: s.defaultTtsRate,
     })}`;
-}
-
-function renderAccountSection(): string {
-    // Shell only — wireAccountSection() fills #account-body asynchronously
-    // (signed-in email + balance, or the Google sign-in button).
-    return `
-    <section class="settings-section" id="account-section">
-        <h2>Account</h2>
-        <div class="account-body" id="account-body">
-            <p class="provider-hint">Loading…</p>
-        </div>
-    </section>`;
 }
 
 function renderProviderSection(s: AppSettings): string {
@@ -1415,6 +1259,20 @@ function renderProviderSection(s: AppSettings): string {
                 <div id="s-model-slot"></div>
             </div>
         </div>
+
+        ${
+            // BYOK opt-in — web build only (local always shows keys). Wired in
+            // wireProviderSection; toggling rebuilds the provider menu live.
+            byokOpts.webMode
+                ? `<div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
+                <span>Use my own API keys</span>
+            </label>
+            <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead; we don't store user keys, but only enable this if you understand the risks.</span>
+            </div>`
+                : ''
+        }
 
         ${keyRows}
 
@@ -1666,49 +1524,6 @@ function renderUpdatesSection(_s: AppSettings): string {
                 <span class="settings-update-status" id="s-update-status">Current version</span>
                 <button type="button" class="btn btn-small btn-secondary" id="s-check-update" disabled>Check for Updates</button>
             </div>
-        </div>
-    </section>`;
-}
-
-// The genuinely consequential controls, set apart in red (.settings-danger).
-// Each self-gates: the BYOK opt-in is web-only (a footgun on the hosted build;
-// local always shows keys, so the checkbox is pointless there), and account
-// deletion shows wherever there's a cloud account — including locally, for
-// managing test accounts. meditation-pal-8jc.
-function renderDangerZoneSection(s: AppSettings): string {
-    const byok = isWebMode()
-        ? `<div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
-                <span>Use my own API keys</span>
-            </label>
-            <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead; we don't store user keys, but only enable this if you understand the risks.</span>
-        </div>`
-        : '';
-    const del = capabilitiesSync().cloud
-        ? `<div class="form-group">
-            <div class="settings-danger-row">
-                <div>
-                    <div class="settings-danger-label">Delete account</div>
-                    <span class="form-hint">Permanently deletes your account and frees your sign-in to start over. Any remaining credits are forfeited and can't be refunded. This can't be undone.</span>
-                </div>
-                <button type="button" class="btn btn-danger" id="s-delete-account">Delete account</button>
-            </div>
-        </div>`
-        : '';
-    // Collapsed by default — the controls inside are consequential enough that
-    // you should have to deliberately reveal them, not stumble onto them while
-    // scrolling. The "Show" toggle expands the body (meditation-pal-8jc).
-    return `
-    <section class="settings-section settings-danger" id="danger-zone">
-        <div class="settings-danger-head">
-            <h2>Danger zone</h2>
-            <button type="button" class="btn btn-small btn-secondary" id="danger-zone-toggle"
-                aria-expanded="false" aria-controls="danger-zone-body">Show</button>
-        </div>
-        <div class="settings-danger-body hidden" id="danger-zone-body">
-            ${byok}
-            ${del}
         </div>
     </section>`;
 }

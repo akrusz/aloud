@@ -154,7 +154,7 @@ export interface SessionViewHandle {
     requestLeave(destination?: SessionEndDestination): void;
 }
 
-export type SessionEndDestination = 'setup' | 'history' | 'settings';
+export type SessionEndDestination = 'setup' | 'history' | 'settings' | 'account';
 
 export async function mountSessionView(
     root: HTMLElement,
@@ -1268,6 +1268,9 @@ function leaveMessage(destination?: SessionEndDestination): string {
     }
     if (destination === 'settings') {
         return 'Leave session to view settings? This will end your current session.';
+    }
+    if (destination === 'account') {
+        return 'Leave session to view your account? This will end your current session.';
     }
     return 'Leave your session?';
 }
