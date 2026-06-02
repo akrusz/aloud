@@ -31,6 +31,7 @@ import type {
     IdentityProvider,
     LedgerEntry,
     LedgerKind,
+    RetreatInvite,
     RetreatMembership,
     RetreatPass,
     RetreatPassStatus,
@@ -152,6 +153,15 @@ CREATE TABLE IF NOT EXISTS retreat_memberships (
     PRIMARY KEY (pass_id, account_id)
 );
 CREATE INDEX IF NOT EXISTS idx_retreat_members_account ON retreat_memberships(account_id);
+-- Pending invites (meditation-pal-n9kd): a pass member added by email before
+-- they have an account. Resolved to a membership on their first sign-in.
+CREATE TABLE IF NOT EXISTS retreat_invites (
+    pass_id    TEXT NOT NULL REFERENCES retreat_passes(id),
+    email      TEXT NOT NULL,
+    invited_at REAL NOT NULL,
+    PRIMARY KEY (pass_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_retreat_invites_email ON retreat_invites(email);
 `;
 
 type Row = Record<string, string | number | bigint | Uint8Array | null>;
@@ -240,6 +250,14 @@ function rowToRetreatPass(r: Row): RetreatPass {
             r['per_attendee_daily_cap'] != null ? Number(r['per_attendee_daily_cap']) : null,
         status: String(r['status']) as RetreatPassStatus,
         createdAt: Number(r['created_at']),
+    };
+}
+
+function rowToInvite(r: Row): RetreatInvite {
+    return {
+        passId: String(r['pass_id']),
+        email: String(r['email']),
+        invitedAt: Number(r['invited_at']),
     };
 }
 
@@ -705,5 +723,33 @@ export class SqliteCreditsStore implements CreditsStore {
             )
             .get(accountId, sinceTs) as { c: number };
         return Number(row.c);
+    }
+
+    async addRetreatInvite(invite: RetreatInvite): Promise<void> {
+        this.db
+            .prepare(
+                'INSERT OR IGNORE INTO retreat_invites (pass_id, email, invited_at) VALUES (?, ?, ?)'
+            )
+            .run(invite.passId, invite.email, invite.invitedAt);
+    }
+
+    async listRetreatInvites(passId: string): Promise<RetreatInvite[]> {
+        const rows = this.db
+            .prepare('SELECT * FROM retreat_invites WHERE pass_id = ? ORDER BY invited_at')
+            .all(passId) as Row[];
+        return rows.map(rowToInvite);
+    }
+
+    async invitesForEmail(email: string): Promise<RetreatInvite[]> {
+        const rows = this.db
+            .prepare('SELECT * FROM retreat_invites WHERE email = ? ORDER BY invited_at')
+            .all(email) as Row[];
+        return rows.map(rowToInvite);
+    }
+
+    async removeRetreatInvite(passId: string, email: string): Promise<void> {
+        this.db
+            .prepare('DELETE FROM retreat_invites WHERE pass_id = ? AND email = ?')
+            .run(passId, email);
     }
 }

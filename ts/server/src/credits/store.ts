@@ -156,6 +156,16 @@ export interface RetreatMembership {
     joinedAt: number;
 }
 
+/** A pending invite to a pass, addressed to an email that has no account yet
+ *  (meditation-pal-n9kd). Resolved to a real membership on that person's first
+ *  sign-in (matched by email), mirroring how a gift waits for its recipient. */
+export interface RetreatInvite {
+    passId: string;
+    /** Lower-cased email the invite is addressed to. */
+    email: string;
+    invitedAt: number;
+}
+
 export interface CreditsStore {
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
@@ -268,4 +278,15 @@ export interface CreditsStore {
      *  attendee daily-cap backstop. Counts usage whether or not it was charged,
      *  so pass-covered turns still accrue toward the cap. */
     usageCreditsSince(accountId: string, sinceTs: number): Promise<number>;
+
+    // ---- Retreat invites (pending membership by email, meditation-pal-n9kd) --
+    /** Add a pending invite. Idempotent on (passId, email). */
+    addRetreatInvite(invite: RetreatInvite): Promise<void>;
+    /** Pending invites for a pass (for the admin roster). */
+    listRetreatInvites(passId: string): Promise<RetreatInvite[]>;
+    /** All pending invites addressed to an email (lower-cased), across passes —
+     *  resolved to memberships on that account's first sign-in. */
+    invitesForEmail(email: string): Promise<RetreatInvite[]>;
+    /** Remove an invite (after it's claimed into a membership). */
+    removeRetreatInvite(passId: string, email: string): Promise<void>;
 }

@@ -355,20 +355,23 @@ describe('admin routes — retreats', () => {
         expect(list[0]!.members).toEqual([]);
     });
 
-    it('adds an attendee by email (and rejects an unknown one), then revokes', async () => {
+    it('adds a known email as a member, an unknown one as a pending invite, then revokes', async () => {
         const { app, store } = makeApp({ token: TOKEN });
         await seedAccount(store, 'acct-1', 'yogi@example.com');
         const pass = (await (
             await post(app, '/cloud/v1/admin/retreats', { label: 'R', startsAt: 1000, endsAt: 9_999_999_999 })
         ).json()) as { id: string };
 
-        const unknown = await post(app, `/cloud/v1/admin/retreats/${pass.id}/members`, { email: 'ghost@example.com' });
-        expect(unknown.status).toBe(400); // must sign in once first
+        // No account yet → pending invite (no sign-in-first ordering).
+        const invited = await post(app, `/cloud/v1/admin/retreats/${pass.id}/members`, { email: 'Ghost@Example.com' });
+        expect(invited.status).toBe(200);
+        expect((await invited.json()) as { status: string }).toMatchObject({ status: 'invited', email: 'ghost@example.com' });
 
-        const added = await post(app, `/cloud/v1/admin/retreats/${pass.id}/members`, { email: 'YOGI@example.com' });
-        expect(added.status).toBe(200); // case-insensitive match
+        // Has an account → member straight away (case-insensitive).
+        const member = await post(app, `/cloud/v1/admin/retreats/${pass.id}/members`, { email: 'YOGI@example.com' });
+        expect((await member.json()) as { status: string }).toMatchObject({ status: 'member' });
 
-        // Tag a usage row to the pass so the list surfaces real spend.
+        // Tag a usage row to the pass so the list surfaces real spend + bill.
         await store.appendUsage({
             id: 'u1', accountId: 'acct-1', sessionId: null, passId: pass.id, ts: 1_500,
             kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
@@ -377,11 +380,18 @@ describe('admin routes — retreats', () => {
         });
 
         const list = (await (await app.request('/cloud/v1/admin/retreats', { headers: authed() })).json()) as Array<{
-            members: Array<{ email: string }>; spend: { providerCostUsd: number; events: number };
+            members: Array<{ email: string; spend: { providerCostUsd: number }; billableUsd: number }>;
+            invites: string[];
+            spend: { providerCostUsd: number; events: number };
+            billableUsd: number;
         }>;
         expect(list[0]!.members.map((m) => m.email)).toEqual(['yogi@example.com']);
+        expect(list[0]!.invites).toEqual(['ghost@example.com']);
         expect(list[0]!.spend.providerCostUsd).toBeCloseTo(0.02);
-        expect(list[0]!.spend.events).toBe(1);
+        expect(list[0]!.billableUsd).toBeCloseTo(0.05); // 0.02 × 2.5 markup
+        // Per-attendee spend + bill attributed to the one member.
+        expect(list[0]!.members[0]!.spend.providerCostUsd).toBeCloseTo(0.02);
+        expect(list[0]!.members[0]!.billableUsd).toBeCloseTo(0.05);
 
         const revoked = await post(app, `/cloud/v1/admin/retreats/${pass.id}/revoke`, {});
         expect(revoked.status).toBe(200);

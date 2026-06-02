@@ -454,20 +454,37 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         : p.startsAt > now ? '<span class="pill free">scheduled</span>'
         : '<span class="pill free">ended</span>';
       var cap = p.perAttendeeDailyCap == null ? 'unlimited' : dec1(p.perAttendeeDailyCap) + ' credits/day';
-      var roster = p.members.length
-        ? p.members.map(function (m) { return esc(m.email); }).join(', ')
-        : '<span class="muted">none yet</span>';
       var revoke = p.status === 'revoked' ? ''
         : '<button class="ghost xs" data-revoke="' + p.id + '">revoke</button>';
+      // Per-attendee rows: email, their provider cost, and suggested bill.
+      var memberRows = p.members.length
+        ? p.members.map(function (m) {
+            return '<tr><td>' + esc(m.email) + '</td><td class="num">' + usdp(m.spend.providerCostUsd) +
+              '</td><td class="num">' + usdp(m.billableUsd) + '</td></tr>';
+          }).join('')
+        : '<tr><td colspan="3" class="muted">No attendees signed in yet.</td></tr>';
+      // Pending invites (added by email, not yet claimed by a sign-in).
+      var pending = (p.invites && p.invites.length)
+        ? '<p class="sub" style="margin:8px 0 0">Pending (will join on first sign-in): ' +
+            p.invites.map(esc).join(', ') + '</p>'
+        : '';
       return '<div class="card">' +
         '<div style="display:flex;align-items:center;gap:10px">' +
           '<strong>' + esc(p.label) + '</strong> ' + state +
           '<span style="flex:1"></span>' + revoke +
         '</div>' +
         '<p class="sub" style="margin:8px 0">' + date(p.startsAt) + ' → ' + date(p.endsAt) +
-          ' · cap ' + cap + ' · spend ' + usdp(p.spend.providerCostUsd) + ' (' + int(p.spend.events) + ' calls)</p>' +
-        '<p style="margin:0 0 10px"><span class="muted">Attendees (' + p.members.length + '):</span> ' + roster + '</p>' +
-        '<div class="row"><div><input data-email="' + p.id + '" placeholder="attendee@example.com" autocomplete="off"></div>' +
+          ' · cap ' + cap + '</p>' +
+        '<div class="grid" style="margin:0 0 10px">' +
+          '<div class="stat"><div class="k">Provider cost</div><div class="v">' + usdp(p.spend.providerCostUsd) + '</div></div>' +
+          '<div class="stat"><div class="k">Suggested bill</div><div class="v">' + usdp(p.billableUsd) + '</div></div>' +
+          '<div class="stat"><div class="k">Calls</div><div class="v">' + int(p.spend.events) + '</div></div>' +
+          '<div class="stat"><div class="k">Attendees</div><div class="v">' + int(p.members.length) + '</div></div>' +
+        '</div>' +
+        '<table><thead><tr><th>Attendee</th><th class="num">Provider $</th><th class="num">Bill</th></tr></thead>' +
+          '<tbody>' + memberRows + '</tbody></table>' +
+        pending +
+        '<div class="row" style="margin-top:12px"><div><input data-email="' + p.id + '" placeholder="attendee@example.com" autocomplete="off"></div>' +
           '<button class="ghost xs" data-add="' + p.id + '">Add attendee</button></div>' +
         '<div class="msg" data-msg="' + p.id + '"></div>' +
       '</div>';

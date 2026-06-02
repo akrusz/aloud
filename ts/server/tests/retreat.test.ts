@@ -235,6 +235,35 @@ describe('retreat pass — /me retreatCovered flag', () => {
     });
 });
 
+describe('retreat invite — binds on first sign-in', () => {
+    it('an emailed invite becomes coverage when that address signs up', async () => {
+        const config = loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '0' });
+        const store = new MemoryCreditsStore();
+        const app = createApp(buildDeps(config, { store }));
+        const now = Date.now() / 1000;
+        await store.createRetreatPass({
+            id: 'p', label: 'R', startsAt: now - 100, endsAt: now + 3600,
+            perAttendeeDailyCap: null, status: 'active', createdAt: now - 200,
+        });
+        // Operator invites an email that has no account yet.
+        await store.addRetreatInvite({ passId: 'p', email: 'newyogi@example.com', invitedAt: now - 50 });
+
+        // That person signs up (different case) → invite binds during sign-in.
+        const res = await app.request('/cloud/v1/auth/email/signup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: 'NewYogi@example.com', password: 'hunter2hunter2' }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { account: { id: string; retreatCovered: boolean } };
+        expect(body.account.retreatCovered).toBe(true);
+
+        // Membership now exists and the invite is consumed.
+        expect((await store.listRetreatMembers('p')).map((m) => m.accountId)).toEqual([body.account.id]);
+        expect(await store.invitesForEmail('newyogi@example.com')).toEqual([]);
+    });
+});
+
 describe('activeRetreatCoverage — cap boundary', () => {
     it('covers under the cap and falls back at/over it', async () => {
         const store = new MemoryCreditsStore();

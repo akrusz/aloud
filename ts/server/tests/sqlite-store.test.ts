@@ -285,6 +285,22 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect(await store.usageCreditsSince('acct-1', 1000)).toBeCloseTo(5.5);
         expect(await store.usageCreditsSince('acct-1', 0)).toBeCloseTo(10.5);
     });
+
+    it('retreat invites: idempotent add, list by pass + by email, remove', async () => {
+        await store.createRetreatPass({
+            id: 'pass-1', label: 'R', startsAt: 0, endsAt: 1e12,
+            perAttendeeDailyCap: null, status: 'active', createdAt: 0,
+        });
+        await store.addRetreatInvite({ passId: 'pass-1', email: 'a@e.com', invitedAt: 10 });
+        await store.addRetreatInvite({ passId: 'pass-1', email: 'a@e.com', invitedAt: 20 }); // idempotent
+        await store.addRetreatInvite({ passId: 'pass-1', email: 'b@e.com', invitedAt: 30 });
+        expect((await store.listRetreatInvites('pass-1')).map((i) => i.email)).toEqual(['a@e.com', 'b@e.com']);
+        expect((await store.invitesForEmail('a@e.com')).map((i) => i.passId)).toEqual(['pass-1']);
+
+        await store.removeRetreatInvite('pass-1', 'a@e.com');
+        expect((await store.listRetreatInvites('pass-1')).map((i) => i.email)).toEqual(['b@e.com']);
+        expect(await store.invitesForEmail('a@e.com')).toEqual([]);
+    });
 });
 
 describe('SqliteCreditsStore durability', () => {

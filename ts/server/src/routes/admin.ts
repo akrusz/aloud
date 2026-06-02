@@ -22,6 +22,7 @@ import type { Deps } from '../deps.js';
 import type { Account, LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
 import { buildUsageReport } from '../credits/usage.js';
+import { PACK_MARKUP } from '../pricing/meter.js';
 import { ADMIN_PANEL_HTML } from '../admin/panel.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 
@@ -247,26 +248,54 @@ export function adminRoutes(deps: Deps): Hono {
             deps.store.allUsage(),
         ]);
         const emailById = new Map(accounts.map((a) => [a.id, a.email]));
-        const spend = new Map<string, { providerCostUsd: number; credits: number; events: number }>();
-        for (const u of usage) {
-            if (!u.passId) continue;
-            const s = spend.get(u.passId) ?? { providerCostUsd: 0, credits: 0, events: 0 };
+        // Per-account provider spend (only pass-covered usage carries a passId).
+        type Spend = { providerCostUsd: number; credits: number; events: number };
+        const zero = (): Spend => ({ providerCostUsd: 0, credits: 0, events: 0 });
+        const add = (s: Spend, u: { providerCostUsd: number; credits: number }): void => {
             s.providerCostUsd += u.providerCostUsd;
             s.credits += u.credits;
             s.events += 1;
-            spend.set(u.passId, s);
+        };
+        // byAccount keyed by `${passId}\0${accountId}` so we can attribute each
+        // attendee's share for per-head billing.
+        const byPass = new Map<string, Spend>();
+        const byAccount = new Map<string, Spend>();
+        for (const u of usage) {
+            if (!u.passId) continue;
+            const p = byPass.get(u.passId) ?? zero();
+            add(p, u);
+            byPass.set(u.passId, p);
+            const key = `${u.passId} ${u.accountId}`;
+            const a = byAccount.get(key) ?? zero();
+            add(a, u);
+            byAccount.set(key, a);
         }
+        // Suggested bill = provider cost x the same markup credits are sold at,
+        // so a retreat is priced like everything else.
+        const billable = (s: Spend): number => s.providerCostUsd * PACK_MARKUP;
         const rows = await Promise.all(
             passes.map(async (p) => {
-                const members = await deps.store.listRetreatMembers(p.id);
+                const [members, invites] = await Promise.all([
+                    deps.store.listRetreatMembers(p.id),
+                    deps.store.listRetreatInvites(p.id),
+                ]);
+                const passSpend = byPass.get(p.id) ?? zero();
                 return {
                     ...p,
-                    members: members.map((m) => ({
-                        accountId: m.accountId,
-                        email: emailById.get(m.accountId) ?? '(unknown)',
-                        joinedAt: m.joinedAt,
-                    })),
-                    spend: spend.get(p.id) ?? { providerCostUsd: 0, credits: 0, events: 0 },
+                    members: members.map((m) => {
+                        const s = byAccount.get(`${p.id} ${m.accountId}`) ?? zero();
+                        return {
+                            accountId: m.accountId,
+                            email: emailById.get(m.accountId) ?? '(unknown)',
+                            joinedAt: m.joinedAt,
+                            spend: s,
+                            billableUsd: billable(s),
+                        };
+                    }),
+                    // Pending email invites not yet claimed by a sign-in.
+                    invites: invites.map((i) => i.email),
+                    spend: passSpend,
+                    billableUsd: billable(passSpend),
                 };
             })
         );
@@ -317,9 +346,10 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(pass);
     });
 
-    // Add an attendee to a pass by email — reuses the same case-insensitive
-    // account lookup as grant. The attendee must have signed in at least once
-    // (so an account exists to attach coverage to).
+    // Add an attendee to a pass by email. If they already have an account it's a
+    // membership right away; if not, it's recorded as a pending invite that binds
+    // to their account on first sign-in (meditation-pal-n9kd) — so no sign-in-
+    // first ordering. Reuses grant's case-insensitive account lookup.
     app.post('/retreats/:id/members', async (c) => {
         const fail = authFailure(c, deps.config.adminToken);
         if (fail) return fail;
@@ -338,14 +368,14 @@ export function adminRoutes(deps: Deps): Hono {
 
         const accounts = await deps.store.allAccounts();
         const account = findByEmail(accounts, email);
-        if (!account) {
-            return c.json(
-                apiError('bad_request', `no account with email ${email} — they must sign in once first`),
-                ERROR_STATUS.bad_request
-            );
+        const now = Date.now() / 1000;
+        if (account) {
+            await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: now });
+            return c.json({ status: 'member', email: account.email });
         }
-        await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: Date.now() / 1000 });
-        return c.json({ added: { accountId: account.id, email: account.email } });
+        // No account yet → pending invite, claimed when they first sign in.
+        await deps.store.addRetreatInvite({ passId: pass.id, email: email.toLowerCase(), invitedAt: now });
+        return c.json({ status: 'invited', email: email.toLowerCase() });
     });
 
     // Revoke a pass — coverage stops immediately for every member.

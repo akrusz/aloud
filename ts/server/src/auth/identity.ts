@@ -203,6 +203,22 @@ export async function deleteAccount(deps: Deps, account: Account): Promise<void>
     log.info('account deleted', { accountId: account.id, forfeited: balance });
 }
 
+/** Resolve any pending retreat invites (meditation-pal-n9kd) addressed to this
+ *  account's email into real memberships, then forget the invites. Lets an
+ *  operator add attendees by email before they have an account; coverage binds
+ *  on first sign-in, in any order. Matched case-insensitively. */
+async function bindRetreatInvites(deps: Deps, account: Account): Promise<void> {
+    const email = account.email.toLowerCase();
+    const invites = await deps.store.invitesForEmail(email);
+    if (invites.length === 0) return;
+    const now = Date.now() / 1000;
+    for (const invite of invites) {
+        await deps.store.addRetreatMember({ passId: invite.passId, accountId: account.id, joinedAt: now });
+        await deps.store.removeRetreatInvite(invite.passId, email);
+    }
+    log.info('retreat invites bound on sign-in', { accountId: account.id, count: invites.length });
+}
+
 /** Mint a session token + the account view a sign-in route returns. */
 export async function issueAuthResponse(
     deps: Deps,
@@ -210,5 +226,8 @@ export async function issueAuthResponse(
     isNewAccount: boolean
 ): Promise<AuthResponse> {
     const token = await issueSessionToken(account.id, deps.config.sessionSecret);
+    // Claim any invites addressed to this email before building the view, so a
+    // freshly-bound pass shows up as covered in the same response.
+    await bindRetreatInvites(deps, account);
     return { token, isNewAccount, account: await buildAccountView(deps, account) };
 }
