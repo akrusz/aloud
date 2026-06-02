@@ -31,6 +31,9 @@ import type {
     IdentityProvider,
     LedgerEntry,
     LedgerKind,
+    RetreatMembership,
+    RetreatPass,
+    RetreatPassStatus,
 } from './store.js';
 import type { UsageEvent, UsageKind } from './usage.js';
 
@@ -120,10 +123,35 @@ CREATE TABLE IF NOT EXISTS usage_events (
     seconds           REAL NOT NULL,
     chars             INTEGER NOT NULL,
     provider_cost_usd REAL NOT NULL,
-    credits           REAL NOT NULL
+    credits           REAL NOT NULL,
+    -- Retreat pass that covered this call (meditation-pal-414), or NULL when
+    -- metered normally. Lets the admin attribute per-retreat spend.
+    pass_id           TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
+CREATE INDEX IF NOT EXISTS idx_usage_pass ON usage_events(pass_id);
+-- Retreat passes (meditation-pal-414). Operator-created, time-boxed unlimited
+-- access: a member's metered calls bypass billing while now is inside the
+-- window and status='active'. Members are added by the admin (no shareable
+-- code), so there's no seat cap — the operator controls the roster.
+CREATE TABLE IF NOT EXISTS retreat_passes (
+    id                     TEXT PRIMARY KEY,
+    label                  TEXT NOT NULL,
+    starts_at              REAL NOT NULL,
+    ends_at                REAL NOT NULL,
+    -- Per-attendee daily credit-equivalent ceiling; NULL = truly unlimited.
+    per_attendee_daily_cap REAL,
+    status                 TEXT NOT NULL,
+    created_at             REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS retreat_memberships (
+    pass_id    TEXT NOT NULL REFERENCES retreat_passes(id),
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    joined_at  REAL NOT NULL,
+    PRIMARY KEY (pass_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS idx_retreat_members_account ON retreat_memberships(account_id);
 `;
 
 type Row = Record<string, string | number | bigint | Uint8Array | null>;
@@ -186,6 +214,7 @@ function rowToUsage(r: Row): UsageEvent {
         id: String(r['id']),
         accountId: String(r['account_id']),
         sessionId: r['session_id'] != null ? String(r['session_id']) : null,
+        passId: r['pass_id'] != null ? String(r['pass_id']) : null,
         ts: Number(r['ts']),
         kind: String(r['kind']) as UsageKind,
         provider: String(r['provider']),
@@ -198,6 +227,19 @@ function rowToUsage(r: Row): UsageEvent {
         chars: Number(r['chars']),
         providerCostUsd: Number(r['provider_cost_usd']),
         credits: Number(r['credits']),
+    };
+}
+
+function rowToRetreatPass(r: Row): RetreatPass {
+    return {
+        id: String(r['id']),
+        label: String(r['label']),
+        startsAt: Number(r['starts_at']),
+        endsAt: Number(r['ends_at']),
+        perAttendeeDailyCap:
+            r['per_attendee_daily_cap'] != null ? Number(r['per_attendee_daily_cap']) : null,
+        status: String(r['status']) as RetreatPassStatus,
+        createdAt: Number(r['created_at']),
     };
 }
 
@@ -216,6 +258,16 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db.exec(SCHEMA);
         this.migrateLegacyGoogleSub();
         this.migrateAddDeletedAt();
+        this.migrateAddUsagePassId();
+    }
+
+    /** Add usage_events.pass_id to a DB created before retreat passes existed
+     *  (meditation-pal-414). The CREATE in SCHEMA only covers fresh DBs. No-op
+     *  once the column is there. */
+    private migrateAddUsagePassId(): void {
+        const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
+        if (cols.some((c) => String(c['name']) === 'pass_id')) return;
+        this.db.exec('ALTER TABLE usage_events ADD COLUMN pass_id TEXT');
     }
 
     /** Add accounts.deleted_at to a DB created before soft-delete existed
@@ -528,8 +580,8 @@ export class SqliteCreditsStore implements CreditsStore {
                 `INSERT INTO usage_events
                  (id, account_id, session_id, ts, kind, provider, model,
                   tokens_in, tokens_out, cache_read, cache_creation,
-                  seconds, chars, provider_cost_usd, credits)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                  seconds, chars, provider_cost_usd, credits, pass_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .run(
                 event.id,
@@ -546,7 +598,8 @@ export class SqliteCreditsStore implements CreditsStore {
                 event.seconds,
                 event.chars,
                 event.providerCostUsd,
-                event.credits
+                event.credits,
+                event.passId
             );
     }
 
@@ -569,5 +622,88 @@ export class SqliteCreditsStore implements CreditsStore {
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value`
             )
             .run(key, value);
+    }
+
+    async createRetreatPass(pass: RetreatPass): Promise<void> {
+        this.db
+            .prepare(
+                `INSERT INTO retreat_passes
+                    (id, label, starts_at, ends_at, per_attendee_daily_cap, status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`
+            )
+            .run(
+                pass.id,
+                pass.label,
+                pass.startsAt,
+                pass.endsAt,
+                pass.perAttendeeDailyCap,
+                pass.status,
+                pass.createdAt
+            );
+    }
+
+    async getRetreatPass(id: string): Promise<RetreatPass | undefined> {
+        const row = this.db.prepare('SELECT * FROM retreat_passes WHERE id = ?').get(id) as
+            | Row
+            | undefined;
+        return row ? rowToRetreatPass(row) : undefined;
+    }
+
+    async listRetreatPasses(): Promise<RetreatPass[]> {
+        const rows = this.db
+            .prepare('SELECT * FROM retreat_passes ORDER BY created_at DESC')
+            .all() as Row[];
+        return rows.map(rowToRetreatPass);
+    }
+
+    async revokeRetreatPass(id: string): Promise<void> {
+        this.db.prepare("UPDATE retreat_passes SET status = 'revoked' WHERE id = ?").run(id);
+    }
+
+    async addRetreatMember(membership: RetreatMembership): Promise<void> {
+        this.db
+            .prepare(
+                `INSERT OR IGNORE INTO retreat_memberships (pass_id, account_id, joined_at)
+                 VALUES (?, ?, ?)`
+            )
+            .run(membership.passId, membership.accountId, membership.joinedAt);
+    }
+
+    async listRetreatMembers(passId: string): Promise<RetreatMembership[]> {
+        const rows = this.db
+            .prepare('SELECT * FROM retreat_memberships WHERE pass_id = ? ORDER BY joined_at')
+            .all(passId) as Row[];
+        return rows.map((r) => ({
+            passId: String(r['pass_id']),
+            accountId: String(r['account_id']),
+            joinedAt: Number(r['joined_at']),
+        }));
+    }
+
+    async activeRetreatPassForAccount(
+        accountId: string,
+        now: number
+    ): Promise<RetreatPass | undefined> {
+        const row = this.db
+            .prepare(
+                `SELECT p.* FROM retreat_passes p
+                 JOIN retreat_memberships m ON m.pass_id = p.id
+                 WHERE m.account_id = ?
+                   AND p.status = 'active'
+                   AND p.starts_at <= ? AND p.ends_at >= ?
+                 ORDER BY p.ends_at DESC
+                 LIMIT 1`
+            )
+            .get(accountId, now, now) as Row | undefined;
+        return row ? rowToRetreatPass(row) : undefined;
+    }
+
+    async usageCreditsSince(accountId: string, sinceTs: number): Promise<number> {
+        const row = this.db
+            .prepare(
+                'SELECT COALESCE(SUM(credits), 0) AS c FROM usage_events WHERE account_id = ? AND ts >= ?'
+            )
+            .get(accountId, sinceTs) as { c: number };
+        return Number(row.c);
     }
 }

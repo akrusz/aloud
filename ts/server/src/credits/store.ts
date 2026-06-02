@@ -127,6 +127,35 @@ export interface Gift {
     resolvedAt?: number;
 }
 
+/** Retreat passes (meditation-pal-414). A time-boxed grant of unlimited access
+ *  the OPERATOR sets up for a meditation retreat: members use the cloud without
+ *  being metered for the pass's window, then silently fall back to their own
+ *  balance once it ends. Admin-only — members are added by email in the admin
+ *  panel; there's no attendee-facing UI and no shareable code. */
+export type RetreatPassStatus = 'active' | 'revoked';
+
+export interface RetreatPass {
+    id: string;
+    /** Operator-facing label, e.g. "Spring Vipassana 2026". */
+    label: string;
+    /** Coverage window (seconds since epoch). A pass covers an account only when
+     *  startsAt <= now <= endsAt and status === 'active'. */
+    startsAt: number;
+    endsAt: number;
+    /** Optional per-attendee daily credit-equivalent ceiling (null = truly
+     *  unlimited). A cost backstop against a single runaway client; with
+     *  admin-picked members (no leakable code) it's a backstop, not a gate. */
+    perAttendeeDailyCap: number | null;
+    status: RetreatPassStatus;
+    createdAt: number;
+}
+
+export interface RetreatMembership {
+    passId: string;
+    accountId: string;
+    joinedAt: number;
+}
+
 export interface CreditsStore {
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
@@ -215,4 +244,28 @@ export interface CreditsStore {
     getSetting(key: string): Promise<string | undefined>;
     /** Persist a setting value (upsert). */
     setSetting(key: string, value: string): Promise<void>;
+
+    // ---- Retreat passes (meditation-pal-414) --------------------------------
+    // Operator-created, time-boxed unlimited-access grants. Members are added by
+    // account id (the admin route resolves the email first). The metered routes
+    // bypass billing when activeRetreatPassForAccount returns a pass.
+
+    createRetreatPass(pass: RetreatPass): Promise<void>;
+    getRetreatPass(id: string): Promise<RetreatPass | undefined>;
+    /** All passes, newest first (for the admin Retreats list). */
+    listRetreatPasses(): Promise<RetreatPass[]>;
+    /** Flip a pass to 'revoked' — coverage stops immediately. */
+    revokeRetreatPass(id: string): Promise<void>;
+    /** Add an account to a pass. Idempotent on (passId, accountId). */
+    addRetreatMember(membership: RetreatMembership): Promise<void>;
+    /** Members of a pass (for the admin roster / attendee count). */
+    listRetreatMembers(passId: string): Promise<RetreatMembership[]>;
+    /** The pass covering this account right now, if any: an 'active' pass the
+     *  account is a member of whose window contains `now`. Returns the latest-
+     *  ending match (a member is normally on just one). */
+    activeRetreatPassForAccount(accountId: string, now: number): Promise<RetreatPass | undefined>;
+    /** Sum of metered credits recorded for an account since `sinceTs` — the per-
+     *  attendee daily-cap backstop. Counts usage whether or not it was charged,
+     *  so pass-covered turns still accrue toward the cap. */
+    usageCreditsSince(accountId: string, sinceTs: number): Promise<number>;
 }

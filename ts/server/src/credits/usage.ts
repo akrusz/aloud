@@ -35,6 +35,9 @@ export interface UsageEvent {
     accountId: string;
     /** Client-supplied meditation-session id, when available. Null today. */
     sessionId: string | null;
+    /** Retreat pass that covered this call (meditation-pal-414), or null when the
+     *  call was metered normally. Lets the admin attribute per-retreat spend. */
+    passId: string | null;
     /** Seconds since epoch. */
     ts: number;
     kind: UsageKind;
@@ -55,9 +58,9 @@ export interface UsageEvent {
     credits: number;
 }
 
-/** Fields a call site supplies; id/ts/sessionId default here. */
-export type UsageInput = Omit<UsageEvent, 'id' | 'ts' | 'sessionId'> &
-    Partial<Pick<UsageEvent, 'sessionId' | 'ts'>>;
+/** Fields a call site supplies; id/ts/sessionId/passId default here. */
+export type UsageInput = Omit<UsageEvent, 'id' | 'ts' | 'sessionId' | 'passId'> &
+    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId'>>;
 
 /** Record one metered call. Best-effort: never throws into the request path —
  *  a telemetry write must not cost a user their (already-charged) turn. */
@@ -68,6 +71,7 @@ export async function recordUsage(
     const event: UsageEvent = {
         id: randomUUID(),
         sessionId: input.sessionId ?? null,
+        passId: input.passId ?? null,
         ts: input.ts ?? Date.now() / 1000,
         accountId: input.accountId,
         kind: input.kind,

@@ -118,13 +118,13 @@ describe('admin routes — data', () => {
         // Two metered calls on one account: a near-free cached LLM turn and a
         // TTS leg. The report must split cost by service and surface the ratio.
         await h.store.appendUsage({
-            id: 'u1', accountId: 'a1', sessionId: null, ts: 1_000_000,
+            id: 'u1', accountId: 'a1', sessionId: null, passId: null, ts: 1_000_000,
             kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
             tokensIn: 100, tokensOut: 20, cacheRead: 900, cacheCreation: 0,
             seconds: 0, chars: 0, providerCostUsd: 0.0002, credits: 0.004,
         });
         await h.store.appendUsage({
-            id: 'u2', accountId: 'a1', sessionId: null, ts: 1_000_010,
+            id: 'u2', accountId: 'a1', sessionId: null, passId: null, ts: 1_000_010,
             kind: 'tts', provider: 'google', model: 'Leda',
             tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0,
             seconds: 0, chars: 400, providerCostUsd: 0.012, credits: 0.24,

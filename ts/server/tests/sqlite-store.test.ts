@@ -39,6 +39,7 @@ function usageEvent(over: Partial<UsageEvent> = {}): UsageEvent {
         id: 'u-1',
         accountId: 'acct-1',
         sessionId: null,
+        passId: null,
         ts: 1000,
         kind: 'llm',
         provider: 'google',
@@ -224,6 +225,65 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect(await store.getSetting('free_signup_credits')).toBe('0');
         await store.setSetting('free_signup_credits', '7'); // upsert, not duplicate
         expect(await store.getSetting('free_signup_credits')).toBe('7');
+    });
+
+    it('retreat passes: window + status gate, idempotent member, latest-ending wins', async () => {
+        await store.createAccount(ACCOUNT);
+        // A pass covering [100, 200], member added twice (idempotent).
+        await store.createRetreatPass({
+            id: 'pass-1',
+            label: 'Spring Vipassana',
+            startsAt: 100,
+            endsAt: 200,
+            perAttendeeDailyCap: null,
+            status: 'active',
+            createdAt: 50,
+        });
+        await store.addRetreatMember({ passId: 'pass-1', accountId: 'acct-1', joinedAt: 60 });
+        await store.addRetreatMember({ passId: 'pass-1', accountId: 'acct-1', joinedAt: 70 });
+        expect(await store.listRetreatMembers('pass-1')).toHaveLength(1);
+
+        // Active only inside the window.
+        expect(await store.activeRetreatPassForAccount('acct-1', 99)).toBeUndefined();
+        expect((await store.activeRetreatPassForAccount('acct-1', 150))?.id).toBe('pass-1');
+        expect(await store.activeRetreatPassForAccount('acct-1', 201)).toBeUndefined();
+        expect(await store.activeRetreatPassForAccount('acct-1', 100)).toBeDefined(); // inclusive
+        expect(await store.activeRetreatPassForAccount('acct-1', 200)).toBeDefined(); // inclusive
+
+        // A second, later-ending pass overlapping the first → it wins the tie.
+        await store.createRetreatPass({
+            id: 'pass-2',
+            label: 'Summer Sesshin',
+            startsAt: 120,
+            endsAt: 300,
+            perAttendeeDailyCap: 40,
+            status: 'active',
+            createdAt: 80,
+        });
+        await store.addRetreatMember({ passId: 'pass-2', accountId: 'acct-1', joinedAt: 90 });
+        expect((await store.activeRetreatPassForAccount('acct-1', 150))?.id).toBe('pass-2');
+        // listRetreatPasses is newest-created first.
+        expect((await store.listRetreatPasses()).map((p) => p.id)).toEqual(['pass-2', 'pass-1']);
+
+        // Revoke stops coverage immediately, even inside the window.
+        await store.revokeRetreatPass('pass-2');
+        await store.revokeRetreatPass('pass-1');
+        expect(await store.activeRetreatPassForAccount('acct-1', 150)).toBeUndefined();
+        expect((await store.getRetreatPass('pass-1'))?.status).toBe('revoked');
+    });
+
+    it('retreat passes: usageCreditsSince sums an account window for the daily cap', async () => {
+        await store.createAccount(ACCOUNT);
+        await store.createAccount({ ...ACCOUNT, id: 'acct-2' });
+        await store.appendUsage(usageEvent({ id: 'old', ts: 500, credits: 5 }));
+        await store.appendUsage(usageEvent({ id: 'in1', ts: 1500, credits: 3 }));
+        await store.appendUsage(usageEvent({ id: 'in2', ts: 2000, credits: 2.5 }));
+        await store.appendUsage(
+            usageEvent({ id: 'other', accountId: 'acct-2', ts: 1500, credits: 9 })
+        );
+        // Only acct-1 events at/after the cutoff count.
+        expect(await store.usageCreditsSince('acct-1', 1000)).toBeCloseTo(5.5);
+        expect(await store.usageCreditsSince('acct-1', 0)).toBeCloseTo(10.5);
     });
 });
 

@@ -11,6 +11,7 @@ function ev(over: Partial<UsageEvent> = {}): UsageEvent {
         id: Math.random().toString(36).slice(2),
         accountId: 'a1',
         sessionId: null,
+        passId: null,
         ts: 1000,
         kind: 'llm',
         provider: 'google',
