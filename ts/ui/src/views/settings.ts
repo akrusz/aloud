@@ -1323,7 +1323,7 @@ function renderAdvancedSection(s: AppSettings): string {
                     <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
                     <span>Use my own API keys</span>
                 </label>
-                <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead — they're picked above and entered in the provider list. Your keys are stored only on this device, never saved on our servers — but requests are relayed through aloud to reach the provider, so a key passes through our system in transit. Enable only if you're comfortable with that.</span>
+                <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead. They're picked above and entered in the provider list. Your keys are stored only on this device, never saved on our servers, but requests are relayed through aloud to reach the provider, so a key passes through our system in transit. Enable only if you're comfortable with that.</span>
             </div>
         </div>
     </section>`;

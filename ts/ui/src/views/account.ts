@@ -52,7 +52,7 @@ async function render(root: HTMLElement): Promise<void> {
     const account = await fetchMe();
     if (!account) {
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
-            <p class="provider-hint">Sign in to use aloud cloud — hosted speech-to-text, text-to-speech, and LLMs with no setup. Connect Google or Apple for free credits.</p>
+            <p class="provider-hint">Sign in to use aloud cloud for hosted speech-to-text, text-to-speech, and LLMs with no setup. Connect Google or Apple for free credits.</p>
             <button type="button" class="btn btn-primary" id="acct-signin">Sign in or create account</button>
             </section>`;
         body.querySelector('#acct-signin')?.addEventListener('click', () => {
@@ -96,7 +96,7 @@ async function render(root: HTMLElement): Promise<void> {
             returned.length
                 ? `<section class="settings-section" id="giftable-section">
                     <h2>Giftable clouds</h2>
-                    <p class="provider-hint">Gifts that came back to you — re-gift them to someone else, or claim them to your balance.</p>
+                    <p class="provider-hint">Gifts that came back to you. Re-gift them to someone else, or claim them to your balance.</p>
                     <div class="gift-list" id="giftable-list"></div>
                 </section>`
                 : ''
@@ -221,7 +221,7 @@ function wireDangerZone(root: HTMLElement, email: string): void {
     del?.addEventListener('click', () => {
         void (async () => {
             const ok = await confirmTypedDialog(
-                `This permanently deletes your account (${email}). Any remaining credits are forfeited and it can't be undone — you can sign up again later, but won't get the free credits a second time.\n\nType "delete" to confirm.`,
+                `This permanently deletes your account (${email}). Any remaining credits are forfeited and it can't be undone. You can sign up again later, but won't get the free credits a second time.\n\nType "delete" to confirm.`,
                 { requiredText: 'delete', okLabel: 'Delete account', danger: true }
             );
             if (!ok) return;
