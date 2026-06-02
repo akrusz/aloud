@@ -470,13 +470,17 @@
    Begin button. Muted + same-size text so it's transparency, not a nag; tap
    toggles it to the live balance (which stacks two lines, growing the bar a
    touch). The "≈" carries the estimate/per-hour caveat. */
+/* Three columns — pill off to the left, Begin button centered (the equal 1fr
+   gutters keep it centered regardless of the pill's width), right gutter empty. */
 .setup-footer-inner {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 0.75rem;
 }
 .session-estimate {
-    flex: 0 0 auto;
+    grid-column: 1;
+    justify-self: start;
     margin: 0;
     padding: 0.35rem 0.7rem;
     background: var(--bg-surface);
@@ -488,17 +492,26 @@
     white-space: pre-line;
     text-align: center;
 }
-/* The button was full-width; let it flex to fill what's left of the bar beside
-   the pill (so it's narrower, not page-spanning). Overrides the lifted
+/* Expanded (tapped → balance over rate): shrink the type so the two lines stay
+   within the Begin button's height, so the bar never grows taller than it. */
+.session-estimate.expanded {
+    font-size: 0.72rem;
+    line-height: 1.15;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+/* Centered, natural-width button (was full-width). Overrides the lifted
    `.setup-footer .btn-begin { width: 100% }`. */
 .setup-footer-inner .btn-begin {
-    flex: 1 1 auto;
+    grid-column: 2;
     width: auto;
 }
 /* Very narrow: the row gets cramped, so pop the pill out above the bar (the
-   fixed footer is its containing block) and give the button the full width
-   back. */
+   fixed footer is its containing block) and give the button the full width back. */
 @media (max-width: 380px) {
+    .setup-footer-inner {
+        display: block;
+    }
     .session-estimate {
         position: absolute;
         left: 0.75rem;

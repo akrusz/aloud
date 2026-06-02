@@ -285,8 +285,11 @@ export async function mountSetupView(
         // Tapped (and signed in): stack the live balance ABOVE the rate, so the
         // pill grows to two lines. Otherwise just the rate. (white-space:
         // pre-line in the CSS renders the newline.)
-        const plain =
-            pillShowsBalance && cloudBalanceText ? ` balance: ${cloudBalanceText}\n${rate}` : rate;
+        const expanded = !!(pillShowsBalance && cloudBalanceText);
+        const plain = expanded ? ` balance: ${cloudBalanceText}\n${rate}` : rate;
+        // .expanded shrinks the type so the two stacked lines stay within the
+        // Begin button's height (the bar never grows taller than the button).
+        el.classList.toggle('expanded', expanded);
         // Wrap each ☁️ so .cloud-glyph can outline it (emoji ignore text-stroke,
         // and the light cloud washes out on the white pill). Content is all our
         // own numbers + fixed words, so building this HTML directly is safe.
