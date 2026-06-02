@@ -465,6 +465,17 @@
     flex-wrap: wrap;
 }
 
+/* Combined estimated cloud rate for the configured session, above the Begin
+   button (meditation-pal-14s). Ambient + muted — transparency, not a nag. The
+   leading "≈" and the title tooltip carry the "estimate" caveat. */
+.session-estimate {
+    flex-basis: 100%;
+    margin: 0 0 0.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    cursor: help;
+}
+
 /* History view: the markup uses the lifted .history-container / .history-header
    / .session-item classes, so styling cascades from the @import. (The earlier
    from-scratch .history-row/.history-list rules were dead and removed.) */

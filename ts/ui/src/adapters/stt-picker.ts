@@ -207,7 +207,7 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  typical talk profile (mirrors the server's estimateStt). Shown with the same
  *  ☁️ unit as the model/voice pickers instead of the old "uses credits" prose,
  *  so all three credit-spending pickers read consistently. */
-const CLOUD_STT_CREDITS_PER_HOUR = 1;
+export const CLOUD_STT_CREDITS_PER_HOUR = 1;
 
 /**
  * Which STT choices to offer for the current mode, in flow-default order:

@@ -27,6 +27,10 @@ function providerNeedsKey(provider: string): boolean {
 interface ModelOption {
     value: string;
     label: string;
+    /** Typical-session credits/hr for a hosted model (from /me/models). Absent
+     *  for free providers (BYOK/local/Ollama). Lets the setup screen sum a
+     *  combined session estimate without re-fetching. */
+    creditsPerHour?: number | null;
 }
 
 const cache = new Map<string, ModelOption[]>();
@@ -57,6 +61,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             const opts: ModelOption[] = data.models.map((m) => ({
                 value: `${m.provider}/${m.model}`,
                 label: `${m.model}${rateSuffix(m.creditsPerHour)}`,
+                creditsPerHour: m.creditsPerHour ?? null,
             }));
             cache.set(provider, opts);
             return opts;
@@ -127,8 +132,11 @@ export function mountModelPicker(
     initialProvider: string,
     initialValue: string,
     onChange: (value: string) => void
-): { refresh: (provider: string) => Promise<void>; getValue: () => string } {
+): { refresh: (provider: string) => Promise<void>; getValue: () => string; getRate: () => number } {
     let currentValue = initialValue;
+    // The options currently loaded, so getRate() can map the selected value to
+    // its credits/hr without another fetch.
+    let currentModels: ModelOption[] = [];
 
     container.innerHTML = `
         <select id="model-select" disabled>
@@ -136,6 +144,7 @@ export function mountModelPicker(
         </select>`;
 
     function renderSelect(provider: string, models: ModelOption[]): void {
+        currentModels = models;
         const optionsHTML = models
             .map((m) => `<option value="${attr(m.value)}">${escape(m.label)}</option>`)
             .join('');
@@ -159,8 +168,11 @@ export function mountModelPicker(
         } else if (models[0]) {
             sel.value = models[0].value;
             currentValue = models[0].value;
-            onChange(currentValue);
         }
+        // Notify after every (re)load — promoted or matched — so a consumer
+        // (e.g. the setup session-cost estimate) always learns the settled
+        // selection once a provider's models arrive, not only when promoted.
+        onChange(currentValue);
         sel.addEventListener('change', () => {
             currentValue = sel.value;
             onChange(currentValue);
@@ -195,6 +207,7 @@ export function mountModelPicker(
     }
 
     async function refresh(provider: string): Promise<void> {
+        currentModels = [];
         container.innerHTML = `
             <select disabled><option>Loading models…</option></select>`;
         const models = await fetchModels(provider);
@@ -211,6 +224,9 @@ export function mountModelPicker(
     return {
         refresh,
         getValue: () => currentValue,
+        // Credits/hr of the selected hosted model; 0 for free providers (their
+        // options carry no rate). Used to sum the setup session estimate.
+        getRate: () => currentModels.find((m) => m.value === currentValue)?.creditsPerHour ?? 0,
     };
 }
 

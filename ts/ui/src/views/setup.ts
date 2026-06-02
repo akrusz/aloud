@@ -43,11 +43,11 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge } from '../credit-rate.js';
+import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE } from '../credit-rate.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
-import { sttEngineOptions, resolveSttChoice } from '../adapters/stt-picker.js';
+import { sttEngineOptions, resolveSttChoice, CLOUD_STT_CREDITS_PER_HOUR } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
@@ -227,6 +227,11 @@ export async function mountSetupView(
         return scoredVoices.find((v) => v.name === name) ?? null;
     }
 
+    // The selected hosted model's credits/hr, for the session estimate. Wired to
+    // the model picker once it mounts (in a deeper scope); 0 until then / for
+    // free providers.
+    let getModelRate: () => number = () => 0;
+
     function updateVoiceButtonLabel(): void {
         const btn = root.querySelector<HTMLButtonElement>('#setup-voice-btn');
         if (!btn) return;
@@ -244,6 +249,37 @@ export async function mountSetupView(
         } else {
             btn.textContent = scoredVoices.length > 0 ? 'Default' : 'Voice';
         }
+        // The voice leg feeds the combined estimate; refresh it whenever the
+        // voice display does (selection change, or voices finishing loading).
+        updateSessionEstimate();
+    }
+
+    /**
+     * Combined estimated cloud burn for the configured session, shown on the
+     * setup footer (estimate only, per the dev's call — a live in-session
+     * countdown would be distracting with eyes closed; account balance lives
+     * behind the profile button, meditation-pal-e3e). Sums the hosted legs at a
+     * typical talk profile: LLM (only when the provider is the aloud cloud) +
+     * cloud STT (only when picked) + cloud voice. All three rates come from the
+     * same pricing the meter bills with, so the estimate can't drift from real
+     * charges — only the assumed usage profile can. Local/BYOK legs are free and
+     * contribute 0.
+     */
+    function updateSessionEstimate(): void {
+        const el = root.querySelector<HTMLElement>('#session-estimate');
+        if (!el) return;
+        const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
+        const sttChoice = sttSel?.value ?? sttSetupSelected;
+
+        const llm = setup.provider === 'aloud' ? getModelRate() : 0;
+        const stt = sttChoice === 'aloud' ? CLOUD_STT_CREDITS_PER_HOUR : 0;
+        const tts = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
+        const total = llm + stt + tts;
+
+        el.textContent =
+            total > 0
+                ? `≈ ${rateUnits(total)}${RATE_EMOJI} / hour this session`
+                : `No ${RATE_EMOJI} used — local or bring-your-own-key`;
     }
 
     /**
@@ -455,6 +491,9 @@ export async function mountSetupView(
             void modelPicker.refresh(setup.provider);
             updateProviderHint();
             updateBeginButton();
+            // Zero/restore the LLM leg now; the model's actual rate folds in via
+            // the picker's onChange once the new provider's models load.
+            updateSessionEstimate();
         });
         // Model picker — fetches /api/models/<provider> (Flask-backed),
         // falls back to a free-form text input when the endpoint isn't
@@ -467,8 +506,10 @@ export async function mountSetupView(
             (value) => {
                 setup.model = value;
                 persist();
+                updateSessionEstimate();
             }
         );
+        getModelRate = () => modelPicker.getRate();
 
         // Speech-recognition source — app-level (like the default voice), so
         // saving it here mirrors Settings. The visible options are already
@@ -477,6 +518,7 @@ export async function mountSetupView(
         sttSel?.addEventListener('change', async () => {
             const s = await loadAppSettings();
             await saveAppSettings({ ...s, sttEngine: sttSel.value as SttEngineChoice });
+            updateSessionEstimate();
         });
 
         // Provider availability — fetch /api/providers, annotate the
@@ -507,6 +549,9 @@ export async function mountSetupView(
         // Initial gate state (recomputed once /providers status arrives).
         updateBeginButton();
         updateAiAvailability();
+        // Initial estimate (the LLM leg fills in once models load; the voice
+        // leg once voices load — both re-call updateSessionEstimate).
+        updateSessionEstimate();
 
         // Continuation banner — shown when the history view has queued a
         // session for continuation. Matches Python's #continue-banner.
@@ -1366,6 +1411,7 @@ function renderSetupHTML(
          the whole page on wide screens. Matches the original index.html. -->
     <div class="setup-footer">
         <div class="setup-footer-inner">
+            <p class="session-estimate" id="session-estimate" title="${RATE_LEGEND_TITLE}"></p>
             <button id="begin-btn" type="button"
                 class="btn btn-primary btn-begin">Begin Session</button>
         </div>
