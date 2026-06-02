@@ -480,7 +480,7 @@
     background: var(--bg-surface);
     color: var(--text-muted);
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius);
     cursor: pointer;
     /* Tapped state stacks "balance: N☁️" above the rate via a newline. */
     white-space: pre-line;
