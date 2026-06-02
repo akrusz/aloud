@@ -102,6 +102,21 @@
     line-height: 1.45;
     white-space: pre-line;
 }
+.app-dialog-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 1.25rem;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.9rem;
+    background: var(--bg-input, #fff);
+    color: var(--text-primary, #1a1a1a);
+    border: 1px solid var(--border, #ccc);
+    border-radius: var(--radius-sm, 8px);
+}
+.app-dialog-input:focus {
+    outline: none;
+    border-color: var(--danger, #c0503e);
+}
 .app-dialog-buttons {
     display: flex;
     gap: 0.5rem;
@@ -762,16 +777,29 @@
 
 /* Settings "Danger zone" (meditation-pal-8jc) — set apart from the everyday
    settings above with the palette's --danger. Holds the BYOK footgun and
-   irreversible account deletion. */
-.settings-danger {
+   irreversible account deletion, collapsed behind a Show toggle.
+   The compound selector beats `.settings-section:last-of-type`, which zeroes the
+   section border-bottom — without it the box's bottom edge goes missing since
+   the danger zone is the last section. */
+.settings-section.settings-danger {
     border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
     background: color-mix(in srgb, var(--danger) 6%, transparent);
     border-radius: 12px;
-    padding: 1rem 1.25rem 1.25rem;
+    padding: 0.75rem 1.25rem 1rem;
     margin-top: 1.5rem;
 }
-.settings-danger > h2 {
+.settings-danger-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.settings-danger-head h2 {
+    margin: 0;
     color: var(--danger);
+}
+.settings-danger-body:not(.hidden) {
+    margin-top: 1rem;
 }
 .settings-danger-row {
     display: flex;

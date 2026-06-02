@@ -65,7 +65,7 @@ import {
     type ScoredVoice,
 } from '../voice-picker.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
-import { confirmDialog, alertDialog } from '../dialog.js';
+import { confirmDialog, alertDialog, confirmTypedDialog } from '../dialog.js';
 
 export interface SettingsViewHandle {
     show(): Promise<void>;
@@ -1107,10 +1107,19 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (btn) btn.disabled = true;
     }
 
-    // ---- Danger zone (web-only; meditation-pal-8jc) --------------------
+    // ---- Danger zone (meditation-pal-8jc) ------------------------------
     // The BYOK toggle here is wired by wireProviderSection (it lives by id, and
-    // toggling it rebuilds the provider menu). This only wires deletion.
+    // toggling it rebuilds the provider menu). This wires the show/hide reveal
+    // and the type-to-confirm deletion.
     function wireDangerZoneSection(): void {
+        const toggle = root.querySelector<HTMLButtonElement>('#danger-zone-toggle');
+        const dzBody = root.querySelector<HTMLElement>('#danger-zone-body');
+        toggle?.addEventListener('click', () => {
+            const shown = dzBody?.classList.toggle('hidden') === false;
+            toggle.textContent = shown ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-expanded', String(shown));
+        });
+
         const del = root.querySelector<HTMLButtonElement>('#s-delete-account');
         del?.addEventListener('click', () => {
             void (async () => {
@@ -1119,9 +1128,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                     await alertDialog("You're not signed in, so there's no account to delete.");
                     return;
                 }
-                const ok = await confirmDialog(
-                    `Permanently delete the account for ${account.email}? Any remaining credits are forfeited, and this can't be undone. You can sign up again later, but won't get the free credits a second time.`,
-                    { okLabel: 'Delete account', danger: true }
+                // Type-to-confirm: an irreversible, money-forfeiting action gets
+                // more friction than a single click.
+                const ok = await confirmTypedDialog(
+                    `This permanently deletes your account (${account.email}). Any remaining credits are forfeited and it can't be undone — you can sign up again later, but won't get the free credits a second time.\n\nType "delete" to confirm.`,
+                    { requiredText: 'delete', okLabel: 'Delete account', danger: true }
                 );
                 if (!ok) return;
                 del.disabled = true;
@@ -1685,11 +1696,20 @@ function renderDangerZoneSection(s: AppSettings): string {
             </div>
         </div>`
         : '';
+    // Collapsed by default — the controls inside are consequential enough that
+    // you should have to deliberately reveal them, not stumble onto them while
+    // scrolling. The "Show" toggle expands the body (meditation-pal-8jc).
     return `
     <section class="settings-section settings-danger" id="danger-zone">
-        <h2>Danger zone</h2>
-        ${byok}
-        ${del}
+        <div class="settings-danger-head">
+            <h2>Danger zone</h2>
+            <button type="button" class="btn btn-small btn-secondary" id="danger-zone-toggle"
+                aria-expanded="false" aria-controls="danger-zone-body">Show</button>
+        </div>
+        <div class="settings-danger-body hidden" id="danger-zone-body">
+            ${byok}
+            ${del}
+        </div>
     </section>`;
 }
 

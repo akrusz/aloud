@@ -100,3 +100,104 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
 export function alertDialog(message: string, okLabel = 'OK'): Promise<void> {
     return showDialog(message, [{ label: okLabel, value: true, action: true }], true).then(() => undefined);
 }
+
+export interface ConfirmTypedOptions {
+    /** Phrase the user must type (matched trimmed + case-insensitively) before
+     *  the affirmative button enables. */
+    requiredText: string;
+    okLabel?: string;
+    cancelLabel?: string;
+    /** Style the affirmative button as destructive. */
+    danger?: boolean;
+}
+
+/**
+ * A confirm whose affirmative button stays disabled until the user types
+ * `requiredText` — the extra friction irreversible actions (account deletion)
+ * deserve. Resolves true only if they type the phrase and confirm; false on
+ * cancel / backdrop / Escape. Separate from showDialog because it carries an
+ * input.
+ */
+export function confirmTypedDialog(message: string, opts: ConfirmTypedOptions): Promise<boolean> {
+    return new Promise((resolve) => {
+        if (typeof document === 'undefined') {
+            resolve(false);
+            return;
+        }
+        const backdrop = document.createElement('div');
+        backdrop.className = 'app-dialog-backdrop';
+        const box = document.createElement('div');
+        box.className = 'app-dialog';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+
+        const msg = document.createElement('p');
+        msg.className = 'app-dialog-message';
+        msg.textContent = message;
+        box.appendChild(msg);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'app-dialog-input';
+        input.placeholder = opts.requiredText;
+        input.setAttribute('aria-label', `Type ${opts.requiredText} to confirm`);
+        input.autocomplete = 'off';
+        input.autocapitalize = 'off';
+        input.spellcheck = false;
+        box.appendChild(input);
+
+        const btnRow = document.createElement('div');
+        btnRow.className = 'app-dialog-buttons';
+
+        let settled = false;
+        const finish = (v: boolean): void => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            backdrop.remove();
+            resolve(v);
+        };
+        const matches = (): boolean =>
+            input.value.trim().toLowerCase() === opts.requiredText.trim().toLowerCase();
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = opts.cancelLabel ?? 'Cancel';
+        cancelBtn.className = 'btn btn-small btn-secondary';
+        cancelBtn.addEventListener('click', () => finish(false));
+
+        const okBtn = document.createElement('button');
+        okBtn.type = 'button';
+        okBtn.textContent = opts.okLabel ?? 'Confirm';
+        okBtn.className = `btn btn-small ${opts.danger ? 'btn-danger' : 'btn-begin'}`;
+        okBtn.disabled = true;
+        okBtn.addEventListener('click', () => {
+            if (!okBtn.disabled) finish(true);
+        });
+
+        input.addEventListener('input', () => {
+            okBtn.disabled = !matches();
+        });
+
+        const onKey = (e: KeyboardEvent): void => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                finish(false);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (matches()) finish(true);
+            }
+        };
+
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(okBtn);
+        box.appendChild(btnRow);
+        backdrop.appendChild(box);
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) finish(false);
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(backdrop);
+        input.focus();
+    });
+}
