@@ -72,3 +72,12 @@ export function rateSuffix(creditsPerHour: number | null | undefined): string {
     const badge = rateBadge(creditsPerHour);
     return badge ? ` (${badge})` : '';
 }
+
+/** Wrap each ☁️ in `text` with <span class="cloud-glyph"> so the glyph picks up
+ *  the brown outline (legible on light surfaces). Returns HTML, so the caller
+ *  assigns it via innerHTML and must ensure the rest of `text` is safe to inject
+ *  — our rate/balance strings are just numbers + fixed words. Native <select>
+ *  options can't use this (browsers don't style option text). */
+export function withCloudOutline(text: string): string {
+    return text.split(RATE_EMOJI).join(`<span class="cloud-glyph">${RATE_EMOJI}</span>`);
+}

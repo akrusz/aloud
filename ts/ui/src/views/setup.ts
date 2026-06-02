@@ -43,7 +43,7 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, rateUnits, RATE_EMOJI, creditAmount, MODE_RATE_MULTIPLIER } from '../credit-rate.js';
+import { rateBadge, rateUnits, RATE_EMOJI, creditAmount, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
 import { fetchMe, devSignIn } from '../cloud-auth.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
@@ -287,10 +287,9 @@ export async function mountSetupView(
         // pre-line in the CSS renders the newline.)
         // Tapped (and signed in): just the balance, one line. Otherwise the rate.
         const plain = pillShowsBalance && cloudBalanceText ? `balance: ${cloudBalanceText}` : rate;
-        // Wrap each ☁️ so .cloud-glyph can outline it (emoji ignore text-stroke,
-        // and the light cloud washes out on the white pill). Content is all our
-        // own numbers + fixed words, so building this HTML directly is safe.
-        el.innerHTML = plain.split(RATE_EMOJI).join(`<span class="cloud-glyph">${RATE_EMOJI}</span>`);
+        // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
+        // out on the white pill). Content is our own numbers + fixed words, safe.
+        el.innerHTML = withCloudOutline(plain);
     }
 
     // The pill toggles between the rate estimate and a peek at your actual cloud
