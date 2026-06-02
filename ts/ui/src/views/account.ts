@@ -40,20 +40,12 @@ async function render(root: HTMLElement): Promise<void> {
 
     const caps = await detectCapabilities();
     if (!caps.cloud) {
+        // Account = the cloud account, and nothing else. If the cloud's down,
+        // say so plainly and stay in that lane — your own API keys are a Settings
+        // concern (device-scoped), so we don't muddy this page with them.
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
-            <p class="provider-hint">aloud cloud is unreachable right now — you can still use your own API keys or a local model. Sign-in and credits return when it's back.</p>
-            <button type="button" class="btn btn-secondary" id="acct-use-keys">Use my own API keys →</button>
+            <p class="provider-hint">aloud cloud is unreachable right now. Your account, balance, and gifts will be back as soon as it's reachable again.</p>
             </section>`;
-        // One tap to the escape hatch: flip BYOK on, then jump to Settings →
-        // Providers (the top section) where the keys live.
-        body.querySelector('#acct-use-keys')?.addEventListener('click', () => {
-            void (async () => {
-                const s = await loadAppSettings();
-                s.enableByok = true;
-                await saveAppSettings(s);
-                document.querySelector<HTMLElement>('[data-nav="settings"]')?.click();
-            })();
-        });
         return;
     }
 

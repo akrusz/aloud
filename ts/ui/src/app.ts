@@ -83,10 +83,9 @@ export async function bootApp(): Promise<void> {
     // Fire-and-forget — views read the cached value at render and tolerate the
     // initial `false`. (detectCapabilities also populates the is-desktop cache.)
     // Reveal the Account nav entry (hidden by default) on any cloud-capable
-    // build, so it stays reachable even when the cloud is momentarily DOWN — the
-    // Account page is where the "unreachable, use your own keys" escape hatch
-    // lives, so hiding it during an outage would strand the user. A fully-local
-    // build (no cloud URL baked in, never reaches one) keeps it hidden.
+    // build, so the tab is a stable fixture rather than blinking out during a
+    // transient outage (the page shows a calm "back soon" notice then). A
+    // fully-local build (no cloud URL baked in, never reaches one) keeps it hidden.
     const revealAccountNav = (): void =>
         document.querySelectorAll('.nav-link-account').forEach((el) => el.classList.remove('hidden'));
     if (isCloudBuild()) revealAccountNav();

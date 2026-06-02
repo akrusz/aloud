@@ -788,6 +788,20 @@
     padding: 0.75rem 1.25rem 1rem;
     margin-top: 1.5rem;
 }
+/* Collapsed "Advanced" section (BYOK) — same show/hide affordance as the danger
+   zone but neutral (it's at-your-own-risk, not destructive). */
+.settings-advanced-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.settings-advanced-head h2 {
+    margin: 0;
+}
+.settings-advanced-body:not(.hidden) {
+    margin-top: 1rem;
+}
 .settings-danger-head {
     display: flex;
     align-items: center;

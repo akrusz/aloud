@@ -157,6 +157,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireSessionLogsSection();
         wireNetworkSection();
         wireUpdatesSection();
+        wireAdvancedSection();
         wireFooter();
     }
 
@@ -1028,6 +1029,19 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (btn) btn.disabled = true;
     }
 
+    // ---- Advanced (BYOK reveal) ----------------------------------------
+    // The BYOK toggle itself is wired in wireProviderSection (by id); here we
+    // just expand/collapse the section.
+    function wireAdvancedSection(): void {
+        const toggle = root.querySelector<HTMLButtonElement>('#advanced-toggle');
+        const advBody = root.querySelector<HTMLElement>('#advanced-body');
+        toggle?.addEventListener('click', () => {
+            const shown = advBody?.classList.toggle('hidden') === false;
+            toggle.textContent = shown ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-expanded', String(shown));
+        });
+    }
+
     // ---- Footer --------------------------------------------------------
 
     function wireFooter(): void {
@@ -1185,6 +1199,13 @@ function renderHTML(s: AppSettings): string {
 
         <form id="settings-form" class="setup-form">
             ${renderProviderSection(s)}
+            ${
+                // BYOK lives in a collapsed, web-only "Advanced" section: keys are
+                // device-scoped (stored here, not on an account), and using your
+                // own is an at-your-own-risk footgun. Local builds always show
+                // keys, so the opt-in is pointless there. meditation-pal-8jc.
+                isWebMode() ? renderAdvancedSection(s) : ''
+            }
             ${renderLanguageSection(s)}
             ${renderTtsSection(s)}
             ${renderDisplaySection(s)}
@@ -1273,20 +1294,6 @@ function renderProviderSection(s: AppSettings): string {
             </div>
         </div>
 
-        ${
-            // BYOK opt-in — web build only (local always shows keys). Wired in
-            // wireProviderSection; toggling rebuilds the provider menu live.
-            byokOpts.webMode
-                ? `<div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
-                <span>Use my own API keys</span>
-            </label>
-            <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead. Your keys are stored only on this device, never saved on our servers — but requests are relayed through aloud to reach the provider, so a key passes through our system in transit. Enable only if you're comfortable with that.</span>
-            </div>`
-                : ''
-        }
-
         ${keyRows}
 
         <div id="s-provider-status" class="provider-hint hidden"></div>
@@ -1295,6 +1302,30 @@ function renderProviderSection(s: AppSettings): string {
              management. Visible only when provider == "ollama"; populated by
              settings-ollama.ts from /api/providers's ollama.recommendation. -->
         <div id="s-ollama-recommendation" class="ollama-rec-section hidden"></div>
+    </section>`;
+}
+
+// Collapsed "Advanced" section (web build only) — the BYOK opt-in. Device-scoped
+// keys + a footgun, so it's tucked behind a "Show" toggle, kept out of the
+// everyday provider picker. The toggle itself is wired in wireProviderSection
+// (by id; flipping it rebuilds the provider menu live). meditation-pal-8jc.
+function renderAdvancedSection(s: AppSettings): string {
+    return `
+    <section class="settings-section settings-advanced" id="advanced-section">
+        <div class="settings-advanced-head">
+            <h2>Advanced</h2>
+            <button type="button" class="btn btn-small btn-secondary" id="advanced-toggle"
+                aria-expanded="false" aria-controls="advanced-body">Show</button>
+        </div>
+        <div class="settings-advanced-body hidden" id="advanced-body">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
+                    <span>Use my own API keys</span>
+                </label>
+                <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead — they're picked above and entered in the provider list. Your keys are stored only on this device, never saved on our servers — but requests are relayed through aloud to reach the provider, so a key passes through our system in transit. Enable only if you're comfortable with that.</span>
+            </div>
+        </div>
     </section>`;
 }
 
