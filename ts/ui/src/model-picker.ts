@@ -212,7 +212,7 @@ export function mountModelPicker(
         const reason =
             providerNeedsKey(provider) && !(await hasApiKey(provider as Provider))
                 ? `Add a ${provider} API key to load its models.`
-                : `Couldn't load ${provider} models — check the key or your connection.`;
+                : `Couldn't load ${provider} models. Check the key or your connection.`;
         container.innerHTML = `<p class="model-unavailable" id="model-none">${escape(reason)}</p>`;
     }
 
@@ -225,7 +225,7 @@ export function mountModelPicker(
     function renderOllamaEmpty(): void {
         container.innerHTML = `
             <p class="ollama-rec-hint" id="model-ollama-empty">
-                No local models found — install Ollama and download a model below.
+                No local models found. Install Ollama and download a model below.
             </p>`;
     }
 

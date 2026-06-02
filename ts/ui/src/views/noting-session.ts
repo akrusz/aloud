@@ -511,7 +511,7 @@ export async function mountNotingSessionView(
             paused = true;
             clearWait();
             void stt?.stop();
-            setStatus('Paused — unmute to resume');
+            setStatus('Paused, unmute to resume');
         } else if (paused) {
             paused = false;
             setStatus('Resuming…');
@@ -629,7 +629,7 @@ export async function mountNotingSessionView(
     // ---- kick off ----
     setMicButtonState();
     if (sttBackend === 'none') {
-        setStatus('No microphone available — noting needs a mic for your turns.');
+        setStatus('No microphone available. Noting needs a mic for your turns.');
     }
     void (async () => {
         // Prime the STT capture graph before the opener so its onset pre-buffer

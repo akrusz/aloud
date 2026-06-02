@@ -217,7 +217,7 @@ export const CLOUD_STT_CREDITS_PER_HOUR = 1;
  */
 export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
-    if (!webMode) out.push({ value: 'whisper', label: 'Whisper — on this device' });
+    if (!webMode) out.push({ value: 'whisper', label: 'Whisper (on this device)' });
     if (isWebSpeechSupported()) out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
     return out;

@@ -66,7 +66,7 @@ const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }
     {
         value: 'body_sensations',
         name: 'Body & sensations',
-        description: 'Physical experience — texture, temperature, movement',
+        description: 'Physical experience: texture, temperature, movement',
     },
     {
         value: 'emotions',
@@ -1398,7 +1398,7 @@ function renderSetupHTML(
                 <div id="participant-list"></div>
                 <button type="button" id="add-participant-btn" class="btn btn-secondary btn-small"
                     title="Add another participant to the noting circle (up to 4)">+ Add participant</button>
-                <p class="credit-rate-legend">Voices use fewer ☁️ in noting mode — participants speak brief labels, not full sentences.</p>
+                <p class="credit-rate-legend">Voices use fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.</p>
             </div>
 
             <div class="noting-option-row">
@@ -1433,7 +1433,7 @@ function renderSetupHTML(
             </div>
         </div>
 
-        <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle — the AI model isn't used.</p>
+        <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
 
         <div id="provider-hint" class="provider-hint hidden"></div>
 

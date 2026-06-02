@@ -123,9 +123,9 @@ export async function bootApp(): Promise<void> {
     // Fulfilment is the server's webhook, so by the time the user lands back the
     // credits are usually already added; phrase it without over-promising timing.
     if (purchase === 'success') {
-        showSuccessToast('Payment received — your credits have been added.');
+        showSuccessToast('Payment received. Your credits have been added.');
     } else if (purchase === 'cancel') {
-        showErrorToast('Checkout canceled — you have not been charged.');
+        showErrorToast('Checkout canceled. You have not been charged.');
     }
 
     // Prompt to accept any clouds gifted to this account (no-op when signed out

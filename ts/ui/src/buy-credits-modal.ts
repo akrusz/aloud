@@ -28,7 +28,7 @@ export interface BuyCreditsModalOptions {
 }
 
 const DEFAULT_TITLE = 'Buy credits';
-const DEFAULT_SUBTITLE = 'Credits pay for the aloud cloud — speech, the facilitator, and voice.';
+const DEFAULT_SUBTITLE = 'Credits pay for the aloud cloud: speech, the facilitator, and voice.';
 
 function dollars(cents: number): string {
     return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
@@ -177,7 +177,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     const { credits, creditsRemaining } = await payWithUsdc(pack.id);
                     setKnownBalance(creditsRemaining);
                     showSuccess(
-                        `Added ${creditAmount(credits, 0)} — balance ${creditAmount(creditsRemaining, 0)}.`
+                        `Added ${creditAmount(credits, 0)}, balance ${creditAmount(creditsRemaining, 0)}.`
                     );
                     setTimeout(() => close(true), 1600);
                 } catch (err) {

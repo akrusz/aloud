@@ -356,7 +356,7 @@ function renderTier(t: Tier, recommendedModel: string | undefined): string {
 
     return `<div class="${rowClass}">
         <div class="ollama-tier-info">
-            <div class="ollama-tier-head"><strong>${escapeHtml(t.model)}</strong> — ${escapeHtml(t.label)}${badge}</div>
+            <div class="ollama-tier-head"><strong>${escapeHtml(t.model)}</strong> - ${escapeHtml(t.label)}${badge}</div>
             <div class="ollama-tier-size">${sizeText}</div>
             ${t.note ? `<div class="ollama-tier-note">${escapeHtml(t.note)}</div>` : ''}
         </div>

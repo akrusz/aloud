@@ -476,7 +476,7 @@ export async function mountSessionView(
         micBtn.disabled = true;
         micBtn.classList.add('disabled');
         const hint =
-            'No microphone available — try Chrome or Edge for built-in speech ' +
+            'No microphone available. Try Chrome or Edge for built-in speech ' +
             'recognition, or check your microphone permissions.';
         micBtn.title = hint;
         setStatus('Mic unavailable');
@@ -501,7 +501,7 @@ export async function mountSessionView(
                 appendMessage(ex.role, ex.content);
             }
         }
-        insertDivider('— resumed —');
+        insertDivider('resumed');
     }
 
     // Show the intention as a faint first line of context, if set.
@@ -604,7 +604,7 @@ export async function mountSessionView(
             if (enterHold) {
                 silenceMode = true;
                 pacing.enterSilenceMode();
-                setStatus('Holding space — anything you say resumes');
+                setStatus('Holding space, anything you say resumes');
                 setOrbHolding(true);
             } else {
                 setStatus(stt ? 'Listening…' : 'Mic unavailable');
@@ -766,7 +766,7 @@ export async function mountSessionView(
             setMicButtonState();
             // Clear the 'Muted' status — the listen loop resumes but doesn't
             // re-announce, so without this the status line stays "Muted".
-            setStatus(silenceMode ? 'Holding space — anything you say resumes' : stt ? 'Listening…' : 'Ready');
+            setStatus(silenceMode ? 'Holding space, anything you say resumes' : stt ? 'Listening…' : 'Ready');
             startMeter();
             void listenLoop();
         } else {
@@ -803,7 +803,7 @@ export async function mountSessionView(
             listenBtn.classList.add('active');
             pacing.enterSilenceMode();
             setOrbHolding(true);
-            setStatus('Holding space — anything you say resumes');
+            setStatus('Holding space, anything you say resumes');
         }
     });
 
@@ -1304,16 +1304,16 @@ function stripVoicePrefix(voice: string | null): string | null {
  */
 function describeCloudError(msg: string): string | null {
     if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
-        return 'aloud cloud requires credits — purchase more, or choose a different provider in Settings.';
+        return 'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.';
     }
     if (/unauthenticated|endpoint 401/i.test(msg)) {
-        return 'aloud cloud needs you to sign in again — check Settings.';
+        return 'aloud cloud needs you to sign in again. Check Settings.';
     }
     if (/email_unverified|endpoint 403/i.test(msg)) {
         return 'Verify your email to use aloud cloud, then try again.';
     }
     if (/quota_exceeded|endpoint 429/i.test(msg)) {
-        return "You've hit aloud's rate limit — wait a moment and try again.";
+        return "You've hit aloud's rate limit. Wait a moment and try again.";
     }
     return null;
 }
@@ -1326,10 +1326,10 @@ function describeSttError(err: unknown): string {
     if (hosted) return hosted;
     // Common cases that benefit from plain-English status text.
     if (/Whisper endpoint 5\d\d/.test(msg) || /failed to fetch/i.test(msg)) {
-        return 'Speech-recognition backend unreachable — check your connection.';
+        return 'Speech-recognition backend unreachable. Check your connection.';
     }
     if (/Whisper endpoint 503/.test(msg)) {
-        return 'Whisper model still loading — try again in a moment.';
+        return 'Whisper model still loading. Try again in a moment.';
     }
     if (/permission/i.test(msg) || /denied/i.test(msg) || /NotAllowed/.test(msg)) {
         return 'Mic permission denied. Allow microphone access and try again.';
@@ -1373,7 +1373,7 @@ function renderSessionHTML(): string {
                     </svg>
                 </button>
                 <button id="listen-btn" class="btn btn-listen"
-                    title="Hold space — the facilitator stays quiet. Anything you say resumes the conversation.">
+                    title="Hold space. The facilitator stays quiet. Anything you say resumes the conversation.">
                     Just Listen
                 </button>
             </div>

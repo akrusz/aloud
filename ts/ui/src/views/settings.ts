@@ -381,7 +381,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                     input.value = text;
                     await setApiKey(provider, text);
                     if (prefix && !text.startsWith(prefix)) {
-                        status.textContent = `Pasted — but didn't start with "${prefix}". Double-check.`;
+                        status.textContent = `Pasted, but didn't start with "${prefix}". Double-check.`;
                         status.classList.add('is-warn');
                     } else {
                         status.textContent = 'Pasted ✓';
@@ -543,7 +543,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             typeof navigator !== 'undefined' ? navigator.platform || '' : ''
         );
         const openSettingsLink = isDesktopSync()
-            ? ' <a href="#" data-open-voice-settings>Download Premium voices</a> — in the System Voice row, click the <b>ⓘ</b> then click Voice.'
+            ? ' <a href="#" data-open-voice-settings>Download Premium voices</a>. In the System Voice row, click the <b>ⓘ</b> then click Voice.'
             : '';
         const hints: Record<TtsEngineChoice, string> = {
             macos:
@@ -634,7 +634,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         ELEVENLABS_KEY_INFO.prefix &&
                         !text.startsWith(ELEVENLABS_KEY_INFO.prefix)
                     ) {
-                        status.textContent = `Pasted — but didn't start with "${ELEVENLABS_KEY_INFO.prefix}".`;
+                        status.textContent = `Pasted, but didn't start with "${ELEVENLABS_KEY_INFO.prefix}".`;
                         status.classList.add('is-warn');
                     } else {
                         status.textContent = 'Pasted ✓';
@@ -661,7 +661,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
         // Pre-populate placeholder if a key is already stored.
         const existing = localStorage.getItem('apikey:elevenlabs');
-        if (existing) input.placeholder = 'Saved — type to replace';
+        if (existing) input.placeholder = 'Saved, type to replace';
 
         row.appendChild(actions);
         row.appendChild(status);
@@ -1276,10 +1276,10 @@ function renderProviderSection(s: AppSettings): string {
     <section class="settings-section">
         <h2>LLM Provider <button type="button" class="info-btn" id="llm-info-btn" aria-label="LLM provider info">?</button></h2>
         <div class="info-panel hidden" id="llm-info-panel">
-            <p><strong>What is an LLM?</strong> — A large language model is the AI that listens to what you say and generates thoughtful responses to guide your meditation.</p>
-            <p><strong>Anthropic (Subscription)</strong> — Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> CLI. Desktop only.</p>
-            <p><strong>Ollama (Local)</strong> — Free and private. Runs the AI entirely on your computer.</p>
-            <p><strong>API Key providers</strong> — Pay-per-use cloud AI. Sign up with the provider, paste the key here.</p>
+            <p><strong>What is an LLM?</strong> - A large language model is the AI that listens to what you say and generates thoughtful responses to guide your meditation.</p>
+            <p><strong>Anthropic (Subscription)</strong> - Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> CLI. Desktop only.</p>
+            <p><strong>Ollama (Local)</strong> - Free and private. Runs the AI entirely on your computer.</p>
+            <p><strong>API Key providers</strong> - Pay-per-use cloud AI. Sign up with the provider, paste the key here.</p>
         </div>
         <p class="settings-desc">Choose how aloud connects to a language model.</p>
 
@@ -1394,10 +1394,10 @@ function renderTtsSection(s: AppSettings): string {
     <section class="settings-section">
         <h2>Text-to-Speech <button type="button" class="info-btn" id="tts-info-btn" aria-label="TTS engine info">?</button></h2>
         <div class="info-panel hidden" id="tts-info-panel">
-            <p><strong>macOS</strong> — Built-in system voices. Zero latency, works offline.</p>
-            <p><strong>Piper</strong> — Fast local neural TTS, ~60–100 MB per voice.</p>
-            <p><strong>Browser</strong> — Uses your browser's speechSynthesis. No install needed.</p>
-            <p><strong>ElevenLabs</strong> — Cloud TTS with the most natural voices. Requires an API key.</p>
+            <p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
+            <p><strong>Piper</strong> - Fast local neural TTS, ~60–100 MB per voice.</p>
+            <p><strong>Browser</strong> - Uses your browser's speechSynthesis. No install needed.</p>
+            <p><strong>ElevenLabs</strong> - Cloud TTS with the most natural voices. Requires an API key.</p>
         </div>
         <div class="form-row form-row-tts">
             <div class="form-group form-group-half" id="s-tts-engine-group">

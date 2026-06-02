@@ -259,7 +259,7 @@ function showLLMStep(): void {
             ollamaDesc += ' Recommended model: <strong>' + tourOptions.ollamaRec + '</strong>';
         }
         html += '<button class="tour-choice" data-action="provider" data-value="ollama">';
-        html += '<strong>Ollama — free, runs locally</strong>';
+        html += '<strong>Ollama: free, runs locally</strong>';
         html += '<small>' + ollamaDesc + '</small>';
         html += '</button>';
 
@@ -418,7 +418,7 @@ function showVoiceStep(): void {
 
         if (tourOptions.piperAvailable) {
             html += '<button class="tour-choice" data-action="voice" data-value="piper">';
-            html += '<strong>Piper — free, natural sounding</strong>';
+            html += '<strong>Piper: free, natural sounding</strong>';
             html += '<small>Local neural TTS. Pick and download a voice (~60–100 MB).</small>';
             html += '</button>';
         }
@@ -438,7 +438,7 @@ function showVoiceStep(): void {
         }
 
         html += '<button class="tour-choice" data-action="voice" data-value="skip">';
-        html += '<strong>Skip — I’ll pick later</strong>';
+        html += '<strong>Skip, I’ll pick later</strong>';
         html += '</button>';
 
         html += '</div>';
