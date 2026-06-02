@@ -131,7 +131,11 @@ CREATE TABLE IF NOT EXISTS usage_events (
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
-CREATE INDEX IF NOT EXISTS idx_usage_pass ON usage_events(pass_id);
+-- NOTE: idx_usage_pass (on the pass_id column) is created in the constructor
+-- AFTER migrateAddUsagePassId(), not here. On a DB created before retreat passes
+-- the usage_events table predates pass_id, so indexing it inside SCHEMA (which
+-- runs before the column migration) throws "no such column: pass_id". See the
+-- constructor.
 -- Retreat passes (meditation-pal-414). Operator-created, time-boxed unlimited
 -- access: a member's metered calls bypass billing while now is inside the
 -- window and status='active'. Members are added by the admin (no shareable
@@ -277,6 +281,10 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateLegacyGoogleSub();
         this.migrateAddDeletedAt();
         this.migrateAddUsagePassId();
+        // Index on pass_id AFTER the column migration above — on a pre-retreat
+        // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
+        // so this can't live in SCHEMA (which runs first). See idx note there.
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_usage_pass ON usage_events(pass_id)');
     }
 
     /** Add usage_events.pass_id to a DB created before retreat passes existed
