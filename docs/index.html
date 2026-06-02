@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>aloud. &nbsp;a voice-based meditation facilitator</title>
-  <meta name="description" content="Your voice is an overpowered and underrated tool for meditation and inner work. aloud is a meditation facilitator that listens and responds.">
+  <meta name="description" content="Your voice is an overpowered and underrated tool for meditation and inner work. aloud is a meditation facilitator that listens and responds. Open it in your browser or download it for desktop.">
 
   <meta property="og:title" content="aloud. a voice-based meditation facilitator">
-  <meta property="og:description" content="Speak what you notice, and aloud will ask thoughtful questions to guide you. For somatic exploration, parts work, and noting meditation. Open source and uses the LLM you choose.">
+  <meta property="og:description" content="Speak what you notice, and aloud will ask thoughtful questions to guide you. For somatic exploration, parts work, and noting meditation. Open source, and free to use in your browser or on your desktop.">
   <meta property="og:site_name" content="aloud.">
   <meta property="og:locale" content="en_US">
   <meta property="og:type" content="website">
@@ -19,7 +19,7 @@
   <meta property="og:image:alt" content="aloud. a glowing orb with the aloud. wordmark and the tagline 'a voice-based meditation facilitator'">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="aloud. a voice-based meditation facilitator">
-  <meta name="twitter:description" content="Speak what you notice, and aloud will ask thoughtful questions to guide you. For somatic exploration, parts work, and noting meditation. Open source and uses the LLM you choose.">
+  <meta name="twitter:description" content="Speak what you notice, and aloud will ask thoughtful questions to guide you. For somatic exploration, parts work, and noting meditation. Open source, and free to use in your browser or on your desktop.">
   <meta name="twitter:image" content="https://aloud.rest/assets/aloud-share.png">
   <meta name="twitter:site" content="@alexkrusz">
   <meta name="twitter:creator" content="@alexkrusz">
@@ -57,6 +57,7 @@
 
   <nav class="nav">
     <a class="nav-brand" href="./">aloud.</a>
+    <a class="nav-link" href="/app/">open app</a>
     <a class="nav-link" href="https://krusz.net" target="_blank" rel="noopener">krusz.net</a>
     <a class="nav-link" href="https://github.com/akrusz/aloud" target="_blank" rel="noopener">github</a>
     <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
@@ -71,11 +72,12 @@
     <p class="hero-sub">a meditation facilitator that listens and responds. speak what you're noticing, and it asks thoughtful questions to help you explore.</p>
     <p class="hero-pun">here, feeling good is aloud.</p>
     <div class="hero-cta">
-      <a class="btn btn-primary" href="#download">download</a>
+      <a class="btn btn-primary" href="/app/">open the app<span class="beta-mark">beta</span></a>
+      <a class="btn btn-ghost" href="#download">download</a>
       <a class="btn btn-ghost" href="#what">how it works</a>
     </div>
-    <p class="hero-platforms">macOS · Windows · Linux · free &amp; open source</p>
-    <p class="hero-platforms hero-soon"><a href="https://alexkrusz.substack.com/">subscribe to my substack</a> or <a href="https://x.com/AlexKrusz">follow me on Twitter</a> for news on iOS, Android, and web versions</p>
+    <p class="hero-platforms">browser · macOS · Windows · Linux · free &amp; open source</p>
+    <p class="hero-platforms hero-soon">the web app is in early access. <a href="https://alexkrusz.substack.com/">subscribe to my substack</a> or <a href="https://x.com/AlexKrusz">follow me on Twitter</a> for news, including iOS and Android.</p>
   </header>
 
   <section class="section" id="what">
@@ -110,8 +112,8 @@
     </div>
   </section>
 
-  <section class="section">
-    <h2 class="section-title">choose your model</h2>
+  <section class="section section-models">
+    <h2 class="section-title">bring your own model</h2>
     <p class="section-lead"><span class="brand-mark">aloud.</span> works with whatever LLM you prefer and makes setup easy.</p>
     <div class="providers">
       <div class="provider-pill"><strong>fully local</strong><span>ollama, nothing leaves your machine. can install for you.</span></div>
@@ -120,10 +122,25 @@
     </div>
   </section>
 
+  <section class="section section-cloud" id="cloud">
+    <div class="cloud-card">
+      <h2 class="cloud-title">or let <span class="brand-mark">aloud.</span> host it for you. ☁️</h2>
+      <p class="cloud-lead"><strong>aloud cloud</strong> is the cozy path: open the app, sign in, and start. we relay to hand-picked AI and voice providers, so there's nothing to install and no keys to wrangle. new accounts get free credits, then you top up prepaid credits only as you go.</p>
+      <ul class="cloud-points">
+        <li><span class="cloud-emoji">🤫</span><span><strong>we keep nothing.</strong> your audio, words, and the AI's replies pass through only to reach the providers, never stored.</span></li>
+        <li><span class="cloud-emoji">🎛️</span><span><strong>mix and match.</strong> use cloud for just the AI and keep text-to-speech on your own device, bring your own keys, or run fully local on desktop.</span></li>
+      </ul>
+      <div class="cloud-cta">
+        <a class="btn btn-primary" href="/app/">open the app<span class="beta-mark">beta</span></a>
+        <span class="cloud-fine">optional &amp; in early access · <a href="/privacy/">privacy</a> · <a href="/terms/">terms</a></span>
+      </div>
+    </div>
+  </section>
+
   <section class="section section-tip">
     <div class="tip-card">
       <h2 class="tip-title">aloud is open source.</h2>
-      <p class="tip-body">there's no paywall, no tracking, no account. the source is on GitHub and you can build it yourself in a minute.</p>
+      <p class="tip-body">no paywall, no tracking. run it your own way and there's no account at all. the source is on GitHub and you can build it yourself in a minute. (aloud cloud, above, is an optional convenience, never a requirement.)</p>
       <p class="tip-body">if it helps you and you're able, chip in to help keep it going. your tip pays for the Apple developer license, hosting, and updates.</p>
       <div class="tip-buttons">
         <a class="btn btn-tip" href="https://ko-fi.com/alexkrusz" target="_blank" rel="noopener">ko-fi</a>
@@ -156,7 +173,7 @@
       </a>
     </div>
 
-    <p class="download-alt">prefer to build from source? <a href="https://github.com/akrusz/aloud#running-from-source">it's a clone + one script.</a></p>
+    <p class="download-alt">don't want to install anything? <a href="/app/">open aloud right in your browser</a> (early access). prefer to build from source? <a href="https://github.com/akrusz/aloud#running-from-source">it's a clone + one script.</a></p>
   </section>
 
   <section class="section section-faq" id="faq">
@@ -186,9 +203,17 @@
         <p><span class="brand-mark">aloud.</span> can be a partner for your parts work if you choose the "parts" focus.</p>
       </details>
       <details class="faq-item">
+        <summary>can I use it without installing anything?</summary>
+        <p>yes. the web app runs right in your browser at <a href="/app/">aloud.rest/app</a>, no download needed. it's in early access while we finish polishing it. if you want the most private, fully-offline setup, the desktop app can run entirely on your own machine.</p>
+      </details>
+      <details class="faq-item">
+        <summary>do I need an account?</summary>
+        <p>only for aloud cloud, the optional hosted service. you sign in, and that's how your credits are tracked. running <span class="brand-mark">aloud.</span> your own way, with your own providers or fully local, needs no account at all.</p>
+      </details>
+      <details class="faq-item">
         <summary>are my conversations or other data stored anywhere?</summary>
-        <p>your session transcripts are stored on your device but you can opt to not save sessions or delete them later. if you use a cloud AI model, your words go to that provider to generate a response, under their terms. if you choose cloud text-to-speech, they are only sent the AI's responses, not your words.</p>
-        <p><span class="brand-mark">aloud.</span> itself has no account, no tracking, and no server collecting your sessions. see <a href="/privacy/">privacy</a> for details.</p>
+        <p>your session transcripts are saved on your own device (in the desktop app, or in your browser for the web app), and you can opt not to save them, or delete them later. if you use a cloud AI model, your words go to that provider to generate a response, under their terms. if you choose cloud text-to-speech, it only receives the AI's responses, not your words.</p>
+        <p>when you run <span class="brand-mark">aloud.</span> your own way there's no account and no server in the middle. aloud cloud, the optional hosted service, relays your session to the providers but doesn't store any of it. see <a href="/privacy/">privacy</a> for details.</p>
       </details>
       <details class="faq-item">
         <summary>is this therapy?</summary>
@@ -196,7 +221,7 @@
       </details>
       <details class="faq-item">
         <summary>do i have to pay anything?</summary>
-        <p>no. <span class="brand-mark">aloud.</span> is open source, and can be run for free. you can run it fully local with ollama, or use a cloud provider's free tier if available. you can also purchase credits to use our selected providers for text-to-speech, speech-to-text, and the AI guide.</p>
+        <p>no. <span class="brand-mark">aloud.</span> is open source and can be run for free. run it fully local with ollama, use a cloud provider's free tier if available, or bring your own API keys. aloud cloud is the pay-as-you-go option that uses the providers we've picked for text-to-speech, speech-to-text, and the AI guide, and new accounts get free starting credits to try it.</p>
         <p>tips are deeply appreciated - hundreds of hours of care have gone into making this app the best it can be. tips also help offset expenses like developer licenses, hosting, and signup credits.</p>
       </details>
     </div>
