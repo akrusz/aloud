@@ -57,6 +57,17 @@ fly secrets set \
   ALOUD_ADMIN_TOKEN=$(openssl rand -hex 32)
 ```
 
+Then set the **R2 backup secrets** (see [Backups](#backups-litestream--r2) for why this
+is not optional — the ledger is real money on a single volume):
+
+```bash
+fly secrets set \
+  R2_BUCKET=aloud-cloud \
+  R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+  R2_ACCESS_KEY_ID=<r2-access-key-id> \
+  R2_SECRET_ACCESS_KEY=<r2-secret-access-key>
+```
+
 Required vs optional in production is enforced at boot (`loadConfig`, strict
 mode): the server **refuses to start** without `ALOUD_SESSION_SECRET`,
 `GOOGLE_CLIENT_IDS`, **`ALOUD_DB_PATH`** (set in `fly.toml` → the volume), and
@@ -87,6 +98,59 @@ volume binds to one machine, this app is **single-machine by design**
 trial scale. To scale out later: implement `CreditsStore` over Postgres
 (`ts/server/src/credits/store.ts` is the whole interface — the ledger logic on
 top is storage-agnostic) and drop the `[mounts]` block.
+
+### Backups (Litestream → R2)
+
+A Fly volume is a **single copy on one physical host** — Fly's own docs warn that
+hardware failure can destroy it, so the ledger needs an off-Fly backup. (Fly's
+daily volume snapshots are a nice-to-have second line, not the strategy.) Stripe
+is only a partial backstop: it can reconstruct *purchases* but knows nothing about
+usage debits or free grants, so the ledger file is the real source of truth.
+
+We replicate it with **[Litestream](https://litestream.io)** — purpose-built for a
+single SQLite file on a single machine. It streams the WAL (we already run
+`PRAGMA journal_mode = WAL`) to **Cloudflare R2** continuously (~1s lag) and gives
+point-in-time restore. Because the ledger is append-only, a slightly-stale replica
+just misses the most recent rows — no torn-write hazard.
+
+Wiring (already in the image):
+
+- `ts/server/litestream.yml` — replica config (db `${ALOUD_DB_PATH}` → R2 bucket),
+  copied to `/etc/litestream.yml`.
+- `ts/server/docker-entrypoint.sh` — the container entrypoint. On boot, if the
+  volume has **no** ledger (fresh/replaced volume) it runs `litestream restore`
+  from R2 first; then it runs the server under `litestream replicate -exec`. If
+  the `R2_*` secrets are **absent** it just runs the server directly (so dev and
+  self-host need zero backup setup).
+- The Dockerfile copies the `litestream` binary from `litestream/litestream:0.3.13`.
+
+One-time R2 setup (Cloudflare dashboard → R2): create a bucket (e.g.
+`aloud-cloud`) and an **API token** scoped to it (Object Read & Write). That
+gives you the Access Key ID / Secret Access Key and your account's S3 endpoint
+(`https://<account-id>.r2.cloudflarestorage.com`). Set them as the `R2_*` secrets
+above, then `fly deploy`.
+
+> If you see an S3 `region` error on boot, change `region: auto` in
+> `litestream.yml` to `us-east-1` — some SDK versions are picky with R2.
+
+**Verify replication** (after a deploy, once the server has taken a write):
+
+```bash
+fly ssh console -a aloud-cloud -C "litestream snapshots /data/aloud.db"   # lists snapshots in R2
+fly logs -a aloud-cloud | grep litestream                                  # "replicating to" lines
+```
+
+**Restore** (disaster recovery is automatic on a fresh volume; this is the manual
+form, e.g. to a local file for inspection):
+
+```bash
+# On the box (or anywhere the R2_* env vars + litestream.yml are present):
+litestream restore -o /tmp/aloud-restored.db /data/aloud.db
+```
+
+To force a full rebuild from R2 on the server: stop the machine, delete (or
+recreate) the volume, and redeploy — the entrypoint restores automatically because
+`/data/aloud.db` will be missing.
 
 ### Render / VPS alternative
 
@@ -220,6 +284,9 @@ You have an Apple Developer membership; this is what to create (all in
 - [ ] Server deployed; `GET /health` returns `ok:true` with your providers.
 - [ ] Volume mounted; `ALOUD_DB_PATH=/data/aloud.db` (balances persist across a
       `fly deploy`).
+- [ ] R2 backup wired: `R2_*` secrets set; `fly logs | grep litestream` shows
+      replication and `litestream snapshots /data/aloud.db` lists a snapshot
+      (see [Backups](#backups-litestream--r2)).
 - [ ] Google OAuth web client id created; `GOOGLE_CLIENT_IDS` set on the server.
       The UI then serves the sign-in button to any install via `/cloud/v1/config`
       (baking `VITE_GOOGLE_CLIENT_ID` is optional — it only avoids a one-probe

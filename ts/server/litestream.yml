@@ -1,0 +1,19 @@
+# Litestream replication for the SQLite credit ledger → Cloudflare R2.
+#
+# Read by `litestream replicate` / `litestream restore` at its default config
+# path (/etc/litestream.yml — the Dockerfile copies this there). All values
+# come from Fly secrets (the R2_* set), so nothing sensitive lives in the repo.
+# Full runbook: dev-docs/deploy.md → "Backups (Litestream → R2)".
+#
+# The ledger is append-only, so a replica that's a second stale just misses the
+# most recent rows — there's no torn-write hazard. Litestream syncs ~once/sec.
+dbs:
+  - path: ${ALOUD_DB_PATH}            # = /data/aloud.db (fly.toml [env] / Dockerfile)
+    replicas:
+      - type: s3                      # R2 speaks the S3 API
+        bucket: ${R2_BUCKET}
+        path: aloud.db                # key prefix within the bucket
+        endpoint: ${R2_ENDPOINT}      # https://<account-id>.r2.cloudflarestorage.com
+        region: auto                  # R2 ignores region; "auto" is Cloudflare's S3 value
+        access-key-id: ${R2_ACCESS_KEY_ID}
+        secret-access-key: ${R2_SECRET_ACCESS_KEY}

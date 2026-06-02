@@ -11,8 +11,20 @@
 #
 # Node 22 because the durable ledger uses the built-in `node:sqlite`
 # (SqliteCreditsStore); no native module to compile.
+
+# Litestream binary, copied from its official image — continuously replicates
+# the SQLite ledger to Cloudflare R2 and restores it after a volume loss. See
+# server/litestream.yml + docker-entrypoint.sh, and dev-docs/deploy.md → Backups.
+FROM litestream/litestream:0.3.13 AS litestream
+
 FROM node:22-slim
 WORKDIR /app
+COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
+# node:22-slim ships without a CA bundle; Litestream is a static Go binary that
+# verifies R2's TLS against the system trust store, so without this it fails with
+# "x509: certificate signed by unknown authority". ~200KB, worth it.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Manifests first so `npm ci` is cached across source-only changes. Both the
 # workspace root and the server package manifests are needed for the install.
@@ -34,4 +46,11 @@ ENV PORT=8787
 ENV ALOUD_DB_PATH=/data/aloud.db
 EXPOSE 8787
 
-CMD ["npm", "run", "start", "--workspace", "@aloud/server"]
+# Litestream config at its default path, plus the entrypoint that restores the
+# ledger from R2 on a fresh volume then runs the server under replication. With
+# no R2_* secrets set, the entrypoint runs the server directly (no backups) —
+# see docker-entrypoint.sh.
+COPY server/litestream.yml /etc/litestream.yml
+COPY server/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+CMD ["/usr/local/bin/docker-entrypoint.sh"]
