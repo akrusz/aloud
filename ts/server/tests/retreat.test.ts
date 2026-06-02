@@ -9,13 +9,34 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps, type Deps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import type { AuthResponse, CompleteResponse } from '../src/contract.js';
+import type { AuthResponse, CompleteResponse, TranscribeResponse } from '../src/contract.js';
 import type { Forwarder } from '../src/providers/forward.js';
 import { activeRetreatCoverage } from '../src/credits/retreat.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
 const realFetch = globalThis.fetch;
+
+// One fetch stub for both metered upstreams the routes reach directly (STT to
+// Fireworks, TTS to Google) — the LLM path is stubbed via deps.forwarder below.
+beforeEach(() => {
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('fireworks.ai') || u.includes('groq.com')) {
+            return new Response(JSON.stringify({ text: 'hello world' }), { status: 200 });
+        }
+        if (u.includes('texttospeech.googleapis.com')) {
+            return new Response(
+                JSON.stringify({ audioContent: Buffer.from(FAKE_MP3).toString('base64') }),
+                { status: 200 }
+            );
+        }
+        return realFetch(url, init);
+    }) as typeof fetch;
+});
+afterEach(() => {
+    globalThis.fetch = realFetch;
+});
 
 /** A forwarder that never touches the network: a fixed turn with a real token
  *  split, so pricing yields a positive (would-be) cost. */
@@ -45,10 +66,13 @@ interface Harness {
     accountId: string;
 }
 
-async function setup(opts: { member?: boolean; cap?: number | null } = {}): Promise<Harness> {
+async function setup(
+    opts: { member?: boolean; cap?: number | null; startOffset?: number; endOffset?: number } = {}
+): Promise<Harness> {
     const config = loadConfig({
         GEMINI_API_KEY: 'gk-test',
         GOOGLE_TTS_API_KEY: 'tts-key',
+        FIREWORKS_API_KEY: 'fw-test',
         ALOUD_FREE_SIGNUP_CREDITS: '20',
     });
     const deps = buildDeps(config, { store: new MemoryCreditsStore() });
@@ -64,8 +88,8 @@ async function setup(opts: { member?: boolean; cap?: number | null } = {}): Prom
         await deps.store.createRetreatPass({
             id: 'pass-1',
             label: 'Spring Retreat',
-            startsAt: now - 100,
-            endsAt: now + 3600,
+            startsAt: now + (opts.startOffset ?? -100),
+            endsAt: now + (opts.endOffset ?? 3600),
             perAttendeeDailyCap: opts.cap ?? null,
             status: 'active',
             createdAt: now - 200,
@@ -120,6 +144,15 @@ describe('retreat pass — LLM metering bypass', () => {
         expect((await h.deps.store.allUsage())[0]!.passId).toBeNull();
     });
 
+    it('reverts to metering once the pass window has ended', async () => {
+        const h = await setup({ startOffset: -7200, endOffset: -3600 }); // ended an hour ago
+        const res = await complete(h);
+        const body = (await res.json()) as CompleteResponse;
+        expect(body.creditsCharged).toBeGreaterThan(0);
+        expect(await h.deps.ledger.balance(h.accountId)).toBeLessThan(20);
+        expect((await h.deps.store.allUsage())[0]!.passId).toBeNull();
+    });
+
     it('falls back to metering once the per-attendee daily cap is spent', async () => {
         const h = await setup({ cap: 1 });
         // Pre-load 2 credits of usage in the trailing window — over the cap of 1.
@@ -138,22 +171,30 @@ describe('retreat pass — LLM metering bypass', () => {
     });
 });
 
-describe('retreat pass — TTS metering bypass', () => {
-    beforeEach(() => {
-        globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-            if (String(url).includes('texttospeech.googleapis.com')) {
-                return new Response(
-                    JSON.stringify({ audioContent: Buffer.from(FAKE_MP3).toString('base64') }),
-                    { status: 200 }
-                );
-            }
-            return realFetch(url, init);
-        }) as typeof fetch;
-    });
-    afterEach(() => {
-        globalThis.fetch = realFetch;
-    });
+describe('retreat pass — STT metering bypass', () => {
+    it('covers a member: free transcription, balance untouched, usage tagged', async () => {
+        const h = await setup();
+        const res = await h.app.request('/cloud/v1/stt?sample_rate=16000', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${h.token}`, 'content-type': 'application/octet-stream' },
+            body: new Float32Array(16_000 * 10).buffer, // 10s of audio
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(body.text).toBe('hello world');
+        expect(body.creditsCharged).toBe(0);
+        expect(body.creditsRemaining).toBe(20);
+        expect(await h.deps.ledger.balance(h.accountId)).toBe(20);
 
+        const usage = await h.deps.store.allUsage();
+        expect(usage).toHaveLength(1);
+        expect(usage[0]!.kind).toBe('stt');
+        expect(usage[0]!.passId).toBe('pass-1');
+        expect(usage[0]!.credits).toBeGreaterThan(0);
+    });
+});
+
+describe('retreat pass — TTS metering bypass', () => {
     it('covers a member: free synthesis, balance untouched, usage tagged', async () => {
         const h = await setup();
         const res = await h.app.request('/cloud/v1/tts', {
