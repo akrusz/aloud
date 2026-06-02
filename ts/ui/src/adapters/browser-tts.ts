@@ -49,7 +49,13 @@ export class BrowserTtsEngine implements TtsEngine {
                 const voice = speechSynthesis
                     .getVoices()
                     .find((v) => v.voiceURI === voiceName || v.name === voiceName);
-                if (voice) utterance.voice = voice;
+                if (voice) {
+                    utterance.voice = voice;
+                    // Firefox for Android ignores `utterance.voice` on its own and
+                    // keeps the system default unless `lang` is also set to the
+                    // voice's locale. Harmless on browsers that honor `.voice`.
+                    if (voice.lang) utterance.lang = voice.lang;
+                }
             }
             utterance.onend = () => this.finish(utterance);
             utterance.onerror = () => this.finish(utterance);
