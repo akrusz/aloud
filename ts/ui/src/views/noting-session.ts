@@ -22,7 +22,10 @@ import {
 } from '../../../src/facilitation/index.js';
 import { OllamaProvider, type LLMProvider } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
+import type { SessionState } from '../../../src/facilitation/session.js';
 import { buildProvider, type SessionEndDestination } from './session.js';
+import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
+import { loadAppSettings } from '../app-settings.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import {
     createBestStt,
@@ -59,6 +62,7 @@ export async function mountNotingSessionView(
     onEnd: (destination?: SessionEndDestination) => void
 ): Promise<NotingSessionViewHandle> {
     const participants = setup.notingParticipants ?? [];
+    const appSettings = await loadAppSettings();
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession();
 
@@ -391,6 +395,7 @@ export async function mountNotingSessionView(
                 recentLabels.push(note);
                 session.addUserMessage(note, 'You');
                 appendMessage('user', note, 'You');
+                void autosaveSession();
                 // Clear the "Your turn" prompt immediately — otherwise it
                 // lingers through the next participant's breathing delay,
                 // reading as "still my turn" after the note is already shown.
@@ -461,6 +466,9 @@ export async function mountNotingSessionView(
             }
         }
         if (torn || paused) return;
+        // Persist the labels accumulated this round so a crash mid-circle keeps
+        // them. No-op unless logging is on.
+        void autosaveSession();
         scheduleNextTurn(300);
     }
 
@@ -541,35 +549,32 @@ export async function mountNotingSessionView(
      * call so a re-open doesn't carry the previous click's destination.
      */
     function showEndConfirm(message: string, destination: SessionEndDestination | undefined): void {
-        const overlay = root.querySelector<HTMLElement>('#session-confirm');
-        const text = root.querySelector<HTMLElement>('#confirm-text');
-        const yes = root.querySelector<HTMLButtonElement>('#confirm-yes');
-        const no = root.querySelector<HTMLButtonElement>('#confirm-no');
-        const skip = root.querySelector<HTMLButtonElement>('#confirm-skip-save');
-        if (!overlay || !text || !yes || !no || !skip) return;
+        wireEndConfirm(root, message, {
+            saveByDefault: appSettings.saveSessionLogs,
+            end: (skipSave) => void endSession(destination, skipSave),
+        });
+    }
 
-        text.textContent = message;
-        skip.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-
-        const cleanup = () => {
-            overlay.classList.add('hidden');
-            yes.removeEventListener('click', onYes);
-            no.removeEventListener('click', onNo);
-            skip.removeEventListener('click', onSkip);
+    /**
+     * Persist the in-progress circle to local storage without an LLM summary,
+     * so a crash or going offline still leaves a recoverable transcript. No-op
+     * when "Save session logs" is off, or before any user turn exists. The
+     * detailed summary is generated only on a clean end (see endSession).
+     */
+    async function autosaveSession(): Promise<void> {
+        if (!appSettings.saveSessionLogs) return;
+        const state = session.state;
+        if (!state || !state.exchanges.some((ex) => ex.role === 'user')) return;
+        const snapshot: SessionState = {
+            ...state,
+            endTime: Math.floor(Date.now() / 1000),
+            meditationType: 'noting',
         };
-        const onYes = () => {
-            cleanup();
-            void endSession(destination, false);
-        };
-        const onNo = () => cleanup();
-        const onSkip = () => {
-            cleanup();
-            void endSession(destination, true);
-        };
-        yes.addEventListener('click', onYes);
-        no.addEventListener('click', onNo);
-        skip.addEventListener('click', onSkip);
+        try {
+            await sessionStore.save(snapshot);
+        } catch (err) {
+            console.warn('Session autosave failed', err);
+        }
     }
 
     async function endSession(destination?: SessionEndDestination, skipSave = false): Promise<void> {

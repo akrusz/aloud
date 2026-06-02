@@ -38,6 +38,13 @@ export interface AppSettings {
      *  ticking balance is distracting mid-meditation; the balance is always a tap
      *  away on the setup pill and in Settings). meditation-pal-14s. */
     showSessionBalance: boolean;
+    /** Keep a local log of sessions (on by default). When on, the session also
+     *  autosaves every turn without an LLM summary, so a crash or going offline
+     *  still leaves a recoverable transcript (the detailed summary is generated
+     *  only on a clean end). When off, nothing is saved by default — the
+     *  end-session dialog still offers a one-tap save, but discarding is the
+     *  obvious choice. */
+    saveSessionLogs: boolean;
 
     // TTS preferences
     ttsEngine: TtsEngineChoice;
@@ -69,6 +76,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     textScale: 1.0,
     themeMode: 'auto',
     showSessionBalance: false,
+    saveSessionLogs: true,
     ttsEngine: 'browser',
     defaultVoice: null,
     defaultTtsRate: 160,

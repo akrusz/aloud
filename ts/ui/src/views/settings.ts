@@ -154,6 +154,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireTtsSection();
         wireDisplaySection();
         wirePacingSection();
+        wireSessionLogsSection();
         wireNetworkSection();
         wireUpdatesSection();
         wireFooter();
@@ -971,6 +972,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
     }
 
+    function wireSessionLogsSection(): void {
+        const saveLogs = root.querySelector<HTMLInputElement>('#s-save-session-logs');
+        if (saveLogs) {
+            saveLogs.checked = settings.saveSessionLogs;
+            saveLogs.addEventListener('change', () => {
+                settings.saveSessionLogs = saveLogs.checked;
+                persist();
+            });
+        }
+    }
+
     function wireStepper(
         id: string,
         initialValue: number,
@@ -1177,6 +1189,7 @@ function renderHTML(s: AppSettings): string {
             ${renderTtsSection(s)}
             ${renderDisplaySection(s)}
             ${renderPacingSection(s)}
+            ${renderSessionLogsSection(s)}
             ${
                 // Network (host binding) and Updates (desktop auto-updater) are
                 // meaningless in a hosted browser tab — they only apply to the
@@ -1496,6 +1509,20 @@ function renderPacingSection(s: AppSettings): string {
                 </label>
                 <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Some smaller models are over-eager to enter this mode.</span>
             </div>
+        </div>
+    </section>`;
+}
+
+function renderSessionLogsSection(s: AppSettings): string {
+    return `
+    <section class="settings-section">
+        <h2>Session History</h2>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="s-save-session-logs"${s.saveSessionLogs ? ' checked' : ''}>
+                <span>Save session logs (locally)</span>
+            </label>
+            <span class="form-hint">Keep a local transcript of each session, autosaved every turn so a crash or going offline still leaves it recoverable. When off, nothing is saved unless you choose to save from the end-session dialog.</span>
         </div>
     </section>`;
 }

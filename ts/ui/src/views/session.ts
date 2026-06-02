@@ -48,6 +48,7 @@ import { CloudWhisperSttEngine } from '../adapters/cloud-whisper-stt.js';
 import { type SessionSetup, dirStepToBackend } from '../settings.js';
 import { loadAppSettings } from '../app-settings.js';
 import { sessionStore } from '../state.js';
+import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { getApiKey } from '../api-keys.js';
 import {
     mountEmberContainer,
@@ -629,6 +630,10 @@ export async function mountSessionView(
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {
             busy = false;
+            // Persist the turn (user message + whatever response or error)
+            // every round, so an offline LLM call or a crash still leaves the
+            // transcript recoverable. No-op unless logging is on.
+            void autosaveSession();
         }
     }
 
@@ -1096,6 +1101,9 @@ export async function mountSessionView(
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {
             busy = false;
+            // Capture facilitator-initiated lines (check-ins) too, so a crash
+            // between turns doesn't lose them. No-op unless logging is on.
+            void autosaveSession();
         }
     }
 
@@ -1135,37 +1143,11 @@ export async function mountSessionView(
         message: string,
         destination: SessionEndDestination | undefined
     ): void {
-        const overlay = root.querySelector<HTMLElement>('#session-confirm');
-        const text = root.querySelector<HTMLElement>('#confirm-text');
-        const yes = root.querySelector<HTMLButtonElement>('#confirm-yes');
-        const no = root.querySelector<HTMLButtonElement>('#confirm-no');
-        const skip = root.querySelector<HTMLButtonElement>('#confirm-skip-save');
-        if (!overlay || !text || !yes || !no || !skip) return;
-
-        text.textContent = message;
-        skip.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-
-        const cleanup = () => {
-            overlay.classList.add('hidden');
-            yes.removeEventListener('click', onYes);
-            no.removeEventListener('click', onNo);
-            skip.removeEventListener('click', onSkip);
-        };
-        const onYes = () => {
-            cleanup();
-            showSavingOverlay();
-            void endSession(destination, false);
-        };
-        const onNo = () => cleanup();
-        const onSkip = () => {
-            cleanup();
-            showSavingOverlay();
-            void endSession(destination, true);
-        };
-        yes.addEventListener('click', onYes);
-        no.addEventListener('click', onNo);
-        skip.addEventListener('click', onSkip);
+        wireEndConfirm(root, message, {
+            saveByDefault: appSettings.saveSessionLogs,
+            onBeforeSave: () => showSavingOverlay(),
+            end: (skipSave) => void endSession(destination, skipSave),
+        });
     }
 
     function showSavingOverlay(): void {
@@ -1250,6 +1232,34 @@ export async function mountSessionView(
         // At least one real user turn — skip saving empty sessions
         // started and immediately ended by an accidental click.
         return exchanges.some((e) => e.role === 'user');
+    }
+
+    /**
+     * Persist the in-progress session to local storage without an LLM summary,
+     * so a crash or going offline still leaves a recoverable transcript. No-op
+     * when the user has turned off "Save session logs", or before any user turn
+     * exists. The detailed summary is generated only on a clean end (see
+     * endSession); until then the "Exploration" type label stands in for it in
+     * the history list.
+     */
+    async function autosaveSession(): Promise<void> {
+        if (!appSettings.saveSessionLogs) return;
+        const state = session.state;
+        if (!state || !hasUserContent(state.exchanges)) return;
+        // Snapshot with a provisional endTime so an interrupted session still
+        // shows a sensible duration in history; the live state stays active
+        // (endTime null) so the running loop is unaffected. A clean end
+        // overwrites this row with the real endTime + summary.
+        const snapshot: SessionState = {
+            ...state,
+            endTime: Math.floor(Date.now() / 1000),
+            meditationType: 'exploration',
+        };
+        try {
+            await sessionStore.save(snapshot);
+        } catch (err) {
+            console.warn('Session autosave failed', err);
+        }
     }
 
     return {
