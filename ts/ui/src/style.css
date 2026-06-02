@@ -841,17 +841,6 @@
     margin-right: 4px;
     white-space: nowrap;
 }
-/* Live-balance toggle shares the action row with Buy / Sign out: it sits left,
-   margin-right:auto shoves the buttons to the right edge, and they wrap together
-   on narrow widths. Override .settings-section .checkbox-label's top margin so
-   it lines up with the buttons. */
-.account-actions {
-    align-items: center;
-}
-.account-actions .account-balance-toggle {
-    margin-top: 0;
-    margin-right: auto;
-}
 
 /* Returned-gift row (meditation-pal-bd5): the re-gift email + its two buttons
    share the actions area and wrap together on narrow widths. */

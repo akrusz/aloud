@@ -906,6 +906,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             }
         });
         updateApplyDisplayState();
+
+        // Live in-session balance — a plain auto-applying toggle (not part of the
+        // preview/Apply dance above). Only meaningful signed in (meditation-pal-14s).
+        const balanceToggle = root.querySelector<HTMLInputElement>('#s-show-session-balance');
+        if (balanceToggle) {
+            balanceToggle.checked = settings.showSessionBalance;
+            balanceToggle.addEventListener('change', () => {
+                settings.showSessionBalance = balanceToggle.checked;
+                persist();
+            });
+        }
     }
 
     function resolvePreviewTheme(mode: ThemeMode): 'dark' | 'light' {
@@ -1491,6 +1502,13 @@ function renderDisplaySection(s: AppSettings): string {
                     </div>
                 </div>
             </div>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
+                <span>Show live credit balance during sessions</span>
+            </label>
+            <span class="form-hint">When signed in. Off by default; a ticking balance can distract mid-session, and it's a tap away on the setup screen.</span>
         </div>
     </section>`;
 }

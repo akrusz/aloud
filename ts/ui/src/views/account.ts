@@ -23,7 +23,6 @@ import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { showSignInModal } from '../sign-in-modal.js';
 import { confirmTypedDialog, alertDialog } from '../dialog.js';
 import { showSuccessToast, showErrorToast } from '../toast.js';
-import { loadAppSettings, saveAppSettings } from '../app-settings.js';
 
 export async function mountAccountView(root: HTMLElement): Promise<void> {
     root.innerHTML = `
@@ -61,7 +60,6 @@ async function render(root: HTMLElement): Promise<void> {
         return;
     }
 
-    const settings = await loadAppSettings();
     const returned = await fetchReturnedGifts();
 
     const providers = account.providers ?? [];
@@ -82,10 +80,6 @@ async function render(root: HTMLElement): Promise<void> {
                     <div class="account-credits provider-hint">${creditAmount(account.creditsRemaining)} remaining</div>
                 </div>
                 <div class="account-actions">
-                    <label class="checkbox-label account-balance-toggle">
-                        <input type="checkbox" id="acct-show-session-balance"${settings.showSessionBalance ? ' checked' : ''}>
-                        <span>Show live credit balance during sessions</span>
-                    </label>
                     <button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>
                     <button type="button" class="btn btn-secondary" id="acct-signout">Sign out</button>
                 </div>
@@ -120,12 +114,12 @@ async function render(root: HTMLElement): Promise<void> {
             </div>
         </section>`;
 
-    wireAccountSection(root, account.email, settings.showSessionBalance);
+    wireAccountSection(root);
     if (returned.length) wireGiftableList(root, returned);
     wireDangerZone(root, account.email);
 }
 
-function wireAccountSection(root: HTMLElement, _email: string, showBalance: boolean): void {
+function wireAccountSection(root: HTMLElement): void {
     root.querySelector('#acct-buy')?.addEventListener('click', () => {
         void showBuyCreditsModal().then(() => render(root));
     });
@@ -139,17 +133,6 @@ function wireAccountSection(root: HTMLElement, _email: string, showBalance: bool
             subtitle: 'Connect Google or Apple to unlock free credits on this account.',
         }).then(() => render(root));
     });
-    const toggle = root.querySelector<HTMLInputElement>('#acct-show-session-balance');
-    if (toggle) {
-        toggle.checked = showBalance;
-        toggle.addEventListener('change', () => {
-            void (async () => {
-                const s = await loadAppSettings();
-                s.showSessionBalance = toggle.checked;
-                await saveAppSettings(s);
-            })();
-        });
-    }
 }
 
 function wireGiftableList(root: HTMLElement, gifts: ReturnedGiftView[]): void {
