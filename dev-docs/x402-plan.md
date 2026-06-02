@@ -6,9 +6,10 @@ all landed and green (202 server tests). HTTP paywall smoke-verified:
 enabled+authed+unpaid → 402 advertising the right USDC amount / network / USDC
 asset / payTo / EIP-712 domain; mainnet path refuses loudly (no half-settle).
 Flag-gated OFF. The viem/x402-hono middleware was tried then reverted — see the
-decision note below.
+decision note below. **Phase 2 (client "Pay with USDC" UI) is also BUILT**
+(injected-wallet, no viem in the bundle) — see the Phase 2 section.
 **Not yet done:** a live Base Sepolia end-to-end with a funded test wallet
-(plan step 8), Phase 2 (client wallet UI), Phase 3 (ops/off-ramp/refunds/tax).
+(plan step 8), Phase 3 (mainnet CDP auth + ops/off-ramp/refunds/tax).
 The sections below are kept as the as-built record + the remaining roadmap.
 
 ## Decisions locked (do not re-litigate)
@@ -150,14 +151,28 @@ Funded Base Sepolia wallet + a tiny `x402-fetch` client script hitting
 
 ---
 
-## Phase 2 — client UI (overlaps meditation-pal-0gn)
+## Phase 2 — client UI ✅ BUILT (commit 71538e0)
 
-Humans paying in the web app need a wallet to sign the EIP-3009 authorization:
-`x402-fetch` + an injected/EIP-1193 provider in `ui/src/buy-credits-modal.ts`.
-**This shares wallet-connect plumbing with the tip-jar "Send" follow-up
-(meditation-pal-0gn)** — build the wallet-connect layer once and reuse. Until
-Phase 2, the Phase 1 endpoint is fully usable by agents / any x402 client, which
-is the agent-native use case du9 is really about.
+A "Pay with USDC" path in the buy-credits modal, the LEAN way — **no viem/web3
+in the bundle** (+~14KB plain JS vs hundreds of KB for `x402-fetch`). We talk to
+the injected EIP-1193 wallet directly; it signs.
+- `ui/src/x402-sign.ts` — pure x402 `exact` signing (TransferWithAuthorization /
+  EIP-3009): buildAuthorization, buildTypedData, encodeXPayment. Verified to
+  match the x402 reference field-for-field.
+- `ui/src/x402-pay.ts` — the flow: POST buy (402) → connect wallet + switch to
+  Base → eth_signTypedData_v4 → re-POST with X-PAYMENT → settled result. Adds
+  the Base chain if the wallet lacks it; friendly WalletError on reject/no-wallet.
+- `ui/src/buy-credits-modal.ts` — Card | USDC toggle (shown only when the
+  channel is live, per `/me/packs`). USDC is self-only for now (no gift flow);
+  settles in-place (no redirect), updates the live balance, shows a success line.
+- `server/routes/me.ts` — `/me/packs` advertises `{ x402: { enabled, network } }`.
+
+**To see it locally:** set `X402_ENABLED=1`, `X402_PAY_TO_ADDRESS=0x…`,
+`X402_NETWORK=base-sepolia` on the server → the modal shows the USDC toggle.
+**NOT yet verified end-to-end** — the wallet→sign→settle→credit round-trip needs
+a real browser + a Base Sepolia wallet holding test USDC. That's the remaining
+manual test (and the wallet-connect plumbing now exists to reuse for the tip-jar
+"Send" follow-up, meditation-pal-0gn).
 
 ## Phase 3 — ops, BEFORE enabling on mainnet (not blocking testnet MVP)
 - Real treasury address + CDP mainnet API keys.
