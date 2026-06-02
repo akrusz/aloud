@@ -15,7 +15,8 @@
 
 import { fetchPacks, startCheckout, type CreditPack, type X402Capability } from './cloud-billing.js';
 import { payWithUsdc, WalletError } from './x402-pay.js';
-import { setKnownBalance } from './cloud-balance.js';
+import { getKnownBalance, setKnownBalance, subscribeBalance } from './cloud-balance.js';
+import { fetchMe } from './cloud-auth.js';
 import { creditAmount } from './credit-rate.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
@@ -54,6 +55,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="Close">&times;</button>
                 </div>
                 <p class="provider-hint buy-credits-subtitle">${escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE)}</p>
+                <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
                     <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab">Card</button>
                     <button type="button" class="buy-credits-target-btn" data-method="usdc" role="tab">USDC ⟠</button>
@@ -79,10 +81,12 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         document.body.appendChild(overlay);
 
         let settled = false;
+        let unsubscribeBalance: (() => void) | null = null;
         const close = (result: boolean): void => {
             if (settled) return;
             settled = true;
             document.removeEventListener('keydown', onKey);
+            unsubscribeBalance?.();
             overlay.remove();
             resolve(result);
         };
@@ -107,6 +111,24 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             if (e.target === overlay) close(false);
         });
         document.addEventListener('keydown', onKey);
+
+        // Live balance readout under the subtitle. Show the last-known value
+        // instantly, then reconcile with /me. Subscribing keeps it current when
+        // a USDC top-up settles in-place (buy() calls setKnownBalance), and
+        // fetchMe also feeds the shared balance, so the subscription handles the
+        // reconcile too. A null (signed out / unknown) balance leaves it hidden.
+        const balanceEl = overlay.querySelector<HTMLElement>('#buy-credits-balance')!;
+        const renderBalance = (bal: number | null): void => {
+            if (bal == null) {
+                balanceEl.classList.add('hidden');
+                return;
+            }
+            balanceEl.textContent = `Balance: ${creditAmount(bal)}`;
+            balanceEl.classList.remove('hidden');
+        };
+        renderBalance(getKnownBalance());
+        unsubscribeBalance = subscribeBalance(renderBalance);
+        void fetchMe().catch(() => null);
 
         const methodRow = overlay.querySelector<HTMLElement>('#buy-credits-method')!;
         const audienceRow = overlay.querySelector<HTMLElement>('#buy-credits-audience')!;

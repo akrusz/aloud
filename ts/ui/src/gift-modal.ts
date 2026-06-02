@@ -28,7 +28,7 @@ function showGiftModal(gifts: GiftView[]): void {
     overlay.innerHTML = `
         <div class="voice-modal gift-modal" role="dialog" aria-modal="true" aria-label="Gifted clouds">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">You've been gifted clouds ☁️</span>
+                <span class="voice-modal-title">You've been gifted clouds ☁️!</span>
                 <button type="button" class="voice-modal-close" id="gift-modal-close" aria-label="Close">&times;</button>
             </div>
             <p class="provider-hint gift-modal-subtitle">Accept to add them to your balance, or decline to send them back to the sender.</p>

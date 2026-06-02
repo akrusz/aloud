@@ -43,9 +43,8 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, rateUnits, RATE_EMOJI, creditAmount, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
-import { fetchMe, devSignIn } from '../cloud-auth.js';
-import { getKnownBalance } from '../cloud-balance.js';
+import { rateBadge, rateUnits, RATE_EMOJI, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
+import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -279,49 +278,21 @@ export async function mountSetupView(
         // Noting mode burns far less than the exploration-calibrated legs imply.
         const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1);
 
+        // No cloud spend (local/BYOK across every leg) → hide the pill entirely
+        // rather than show a bare "0☁️". There's nothing to meter and nothing to
+        // buy, so the indicator (and its buy-credits tap target) has no purpose.
+        if (total <= 0) {
+            el.classList.add('hidden');
+            el.innerHTML = '';
+            return;
+        }
+        el.classList.remove('hidden');
         // Compact for the floating pill; the "≈" carries the estimate/per-hour
-        // caveat. Zero (local/BYOK) needs no prose.
-        const rate = total > 0 ? `≈ ${rateUnits(total)}${RATE_EMOJI}/hr` : `0${RATE_EMOJI}`;
-
-        // Tapped (and signed in): stack the live balance ABOVE the rate, so the
-        // pill grows to two lines. Otherwise just the rate. (white-space:
-        // pre-line in the CSS renders the newline.)
-        // Tapped (and signed in): just the balance, one line. Otherwise the rate.
-        const plain = pillShowsBalance && cloudBalanceText ? `balance: ${cloudBalanceText}` : rate;
+        // caveat.
+        const rate = `≈ ${rateUnits(total)}${RATE_EMOJI}/hr`;
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
-        el.innerHTML = withCloudOutline(plain);
-    }
-
-    // The pill toggles between the rate estimate and a peek at your actual cloud
-    // balance on tap — a lightweight stand-in until the full profile button
-    // (meditation-pal-e3e) lands. Balance is fetched lazily; a null (signed-out
-    // / non-cloud) balance just leaves the rate showing.
-    let cloudBalanceText: string | null = null;
-    let pillShowsBalance = false;
-    async function refreshBalance(): Promise<void> {
-        // Show the last-known balance instantly (e.g. just back from a session
-        // that ticked it down), then reconcile with a live /me below.
-        const cached = getKnownBalance();
-        if (cached != null) cloudBalanceText = creditAmount(cached);
-        let me = await fetchMe().catch(() => null);
-        if (!me) {
-            // Balance-peek fallback. On the setup screen no session has run yet,
-            // so there may be no token; and when the server advertises Google
-            // sign-in, a stale token (e.g. after a dev-server restart rotates
-            // its JWT secret) can't be re-minted by fetchMe's self-heal — it
-            // refuses the dev route when Google is configured. Mint a dev token
-            // directly: works locally, and is a no-op in production where
-            // /auth/dev is disabled (404 → throws → caught), so the pill just
-            // shows no balance there rather than a forced sign-in.
-            try {
-                await devSignIn();
-                me = await fetchMe().catch(() => null);
-            } catch {
-                /* production / offline — nothing to peek */
-            }
-        }
-        cloudBalanceText = me ? creditAmount(me.creditsRemaining) : null;
+        el.innerHTML = withCloudOutline(rate);
     }
 
     /**
@@ -594,16 +565,14 @@ export async function mountSetupView(
         // Initial estimate (the LLM leg fills in once models load; the voice
         // leg once voices load — both re-call updateSessionEstimate).
         updateSessionEstimate();
-        // Pill = peek at your cloud balance on hover/tap. Prime the tooltip and
-        // wire the tap reveal.
+        // The cloud-rate pill doubles as the buy-credits entry point: tapping it
+        // opens the buy-credits modal (which shows the live balance). It's only
+        // visible when the session actually spends clouds (see
+        // updateSessionEstimate), so the tap always lands somewhere meaningful.
         const estimateEl = root.querySelector<HTMLElement>('#session-estimate');
         if (estimateEl) {
-            void refreshBalance();
-            // Tap toggles the pill between the rate estimate and the balance.
             estimateEl.addEventListener('click', () => {
-                pillShowsBalance = !pillShowsBalance;
-                if (pillShowsBalance) void refreshBalance().then(updateSessionEstimate);
-                updateSessionEstimate();
+                void showBuyCreditsModal();
             });
         }
 

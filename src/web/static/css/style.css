@@ -2825,6 +2825,13 @@ html:has(.nav-brand.has-update) .update-btn {
 .buy-credits-subtitle {
     margin: 1rem 1.25rem 1rem;
 }
+/* Live balance, tucked just under the subtitle. Emphasized by weight/color
+   (not opacity), per house style. */
+.buy-credits-balance {
+    margin: -0.5rem 1.25rem 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
 
 .buy-credits-packs {
     display: flex;
