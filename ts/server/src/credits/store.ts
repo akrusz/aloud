@@ -96,9 +96,21 @@ export interface Identity {
 }
 
 /** A purchased gift of clouds, addressed to an email. Funded by a CLEARED Stripe
- *  payment, so it never cancels: the clouds are granted exactly once — to the
- *  recipient on accept, or back to the buyer on decline/expiry. (meditation-pal-bd5) */
-export type GiftStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+ *  payment, so it never cancels: the clouds are granted exactly once. Lifecycle:
+ *  the recipient accepts ('accepted'); or it bounces — declined or 30-day
+ *  unclaimed — to 'returned', held for the buyer to RE-GIFT ('regifted', spawning
+ *  a fresh pending gift) or CLAIM to their own balance ('claimed'). No refunds;
+ *  value always stays in the credit system. ('declined'/'expired' are legacy
+ *  terminal states from before re-gifting, when a bounce credited the buyer
+ *  directly — kept so old rows still read.) (meditation-pal-bd5) */
+export type GiftStatus =
+    | 'pending'
+    | 'accepted'
+    | 'returned'
+    | 'regifted'
+    | 'claimed'
+    | 'declined'
+    | 'expired';
 
 export interface Gift {
     id: string;
@@ -157,11 +169,17 @@ export interface CreditsStore {
     getGiftByStripeSession(stripeSessionId: string): Promise<Gift | undefined>;
     /** Pending gifts addressed to an email (lower-cased), for the accept prompt. */
     getPendingGiftsForEmail(email: string): Promise<Gift[]>;
+    /** Returned (bounced) gifts a buyer can re-gift or claim (meditation-pal-bd5). */
+    getReturnedGiftsForBuyer(buyerAccountId: string): Promise<Gift[]>;
     /** All pending gifts created on/before `cutoff` (the expiry sweep). */
     pendingGiftsCreatedBefore(cutoff: number): Promise<Gift[]>;
-    /** Move a gift to a terminal state. Implementations should no-op if it isn't
-     *  still 'pending' (so concurrent accept/decline/expire can't double-resolve). */
+    /** Move a gift out of 'pending'. No-ops if it isn't still pending (so
+     *  concurrent accept/decline/expire can't double-resolve). */
     resolveGift(id: string, status: Exclude<GiftStatus, 'pending'>, resolvedAt: number): Promise<boolean>;
+    /** Atomic compare-and-set on status: transition only if currently `from`.
+     *  Returns true if this call made the change. Used for the buyer acting on a
+     *  'returned' gift (→ 'regifted' / 'claimed'), so two clicks can't both fire. */
+    transitionGift(id: string, from: GiftStatus, to: GiftStatus, resolvedAt: number): Promise<boolean>;
 
     /** Append a ledger entry. Implementations must make this atomic. */
     appendEntry(entry: LedgerEntry): Promise<void>;

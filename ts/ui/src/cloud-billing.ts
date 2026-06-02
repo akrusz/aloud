@@ -126,8 +126,54 @@ export async function acceptGift(id: string): Promise<void> {
     if (!res.ok) throw new Error('This gift is no longer available.');
 }
 
-/** Decline a gift → its clouds return to the buyer. */
+/** Decline a gift → it bounces back to the buyer as a returned gift. */
 export async function declineGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/decline`, { method: 'POST' });
+    if (!res.ok) throw new Error('This gift is no longer available.');
+}
+
+/** A returned (bounced) gift the signed-in BUYER can re-gift or claim. Mirrors
+ *  server ReturnedGiftView (meditation-pal-bd5). */
+export interface ReturnedGiftView {
+    id: string;
+    credits: number;
+    toEmail: string;
+    createdAt: number;
+}
+
+/** GET /cloud/v1/gifts/returned — gifts that bounced back to the signed-in buyer.
+ *  Returns [] on any error so a hiccup never blocks the app. */
+export async function fetchReturnedGifts(): Promise<ReturnedGiftView[]> {
+    try {
+        const res = await authed('/gifts/returned');
+        if (!res.ok) return [];
+        return ((await res.json()) as { gifts?: ReturnedGiftView[] }).gifts ?? [];
+    } catch {
+        return [];
+    }
+}
+
+/** Re-gift a returned gift to a new recipient (no new charge). Surfaces the
+ *  server's message (e.g. bad email) when present. */
+export async function regiftReturned(id: string, email: string): Promise<void> {
+    const res = await authed(`/gifts/${encodeURIComponent(id)}/regift`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+        let msg = 'Could not re-gift this.';
+        try {
+            msg = ((await res.json()) as { error?: { message?: string } }).error?.message ?? msg;
+        } catch {
+            /* non-JSON */
+        }
+        throw new Error(msg);
+    }
+}
+
+/** Claim a returned gift to the signed-in account's own balance. */
+export async function claimReturnedGift(id: string): Promise<void> {
+    const res = await authed(`/gifts/${encodeURIComponent(id)}/claim`, { method: 'POST' });
     if (!res.ok) throw new Error('This gift is no longer available.');
 }

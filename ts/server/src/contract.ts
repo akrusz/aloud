@@ -169,7 +169,8 @@ export interface CheckoutRequest {
     returnPath?: string;
     /** When set, this purchase is a GIFT to that email (meditation-pal-bd5): the
      *  payment still clears immediately, but the clouds become a pending gift the
-     *  recipient accepts on next sign-in (declined/expired → returned to buyer). */
+     *  recipient accepts on next sign-in (declined/unclaimed → held for the buyer
+     *  to re-gift or claim). */
     giftToEmail?: string;
 }
 
@@ -180,6 +181,21 @@ export interface GiftView {
     /** Buyer's email, for "a gift from …" — omitted if unknown. */
     fromEmail?: string;
     createdAt: number;
+}
+
+/** A returned (bounced) gift the signed-in BUYER can re-gift or claim
+ *  (GET /cloud/v1/gifts/returned; meditation-pal-bd5). */
+export interface ReturnedGiftView {
+    id: string;
+    credits: number;
+    /** Who it was last addressed to, for "your gift to … came back". */
+    toEmail: string;
+    createdAt: number;
+}
+
+/** Body for POST /cloud/v1/gifts/:id/regift — the new recipient. */
+export interface RegiftRequest {
+    email: string;
 }
 
 export interface CheckoutResponse {

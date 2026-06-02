@@ -838,3 +838,24 @@
     margin-top: 0;
     margin-right: auto;
 }
+
+/* Returned-gift row (meditation-pal-bd5): the re-gift email + its two buttons
+   share the actions area and wrap together on narrow widths. */
+.gift-row-returned .gift-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.gift-regift-email {
+    flex: 1 1 12rem;
+    min-width: 9rem;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.875rem;
+    background: var(--bg-input, #fff);
+    color: var(--text-primary, #1a1a1a);
+    border: 1px solid var(--border, #ccc);
+    border-radius: var(--radius-sm, 8px);
+}
+.gift-regift-email:focus {
+    outline: none;
+    border-color: var(--accent, #df3f88);
+}

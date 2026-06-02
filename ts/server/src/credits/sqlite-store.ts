@@ -428,6 +428,13 @@ export class SqliteCreditsStore implements CreditsStore {
         return rows.map(rowToGift);
     }
 
+    async getReturnedGiftsForBuyer(buyerAccountId: string): Promise<Gift[]> {
+        const rows = this.db
+            .prepare("SELECT * FROM gifts WHERE buyer_account_id = ? AND status = 'returned' ORDER BY created_at")
+            .all(buyerAccountId) as Row[];
+        return rows.map(rowToGift);
+    }
+
     async pendingGiftsCreatedBefore(cutoff: number): Promise<Gift[]> {
         const rows = this.db
             .prepare("SELECT * FROM gifts WHERE status = 'pending' AND created_at <= ? ORDER BY created_at")
@@ -445,6 +452,20 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db
             .prepare("UPDATE gifts SET status = ?, resolved_at = ? WHERE id = ? AND status = 'pending'")
             .run(status, resolvedAt, id);
+        const changed = this.db.prepare('SELECT changes() AS n').get() as { n: number };
+        return changed.n > 0;
+    }
+
+    async transitionGift(
+        id: string,
+        from: GiftStatus,
+        to: GiftStatus,
+        resolvedAt: number
+    ): Promise<boolean> {
+        // Atomic CAS: only the caller that finds it in `from` makes the change.
+        this.db
+            .prepare('UPDATE gifts SET status = ?, resolved_at = ? WHERE id = ? AND status = ?')
+            .run(to, resolvedAt, id, from);
         const changed = this.db.prepare('SELECT changes() AS n').get() as { n: number };
         return changed.n > 0;
     }
