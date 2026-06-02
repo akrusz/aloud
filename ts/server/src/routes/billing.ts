@@ -25,6 +25,7 @@ import {
     parseCheckoutCompleted,
     verifyStripeSignature,
 } from '../billing/stripe.js';
+import { x402Configured, x402Routes } from '../billing/x402.js';
 import { log } from '../logger.js';
 
 /** Loose email shape check for gift recipients (mirrors routes/auth.ts). */
@@ -133,6 +134,18 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
         return c.json({ received: true });
     });
+
+    // x402 channel (meditation-pal-du9): USDC-on-Base credit purchases. Mounted
+    // only when configured; otherwise the buy path reports not-configured so the
+    // surface is discoverable (mirrors /checkout's behavior without a Stripe key).
+    const x402 = x402Configured(deps);
+    if (x402) {
+        app.route('/x402', x402Routes(deps, x402));
+    } else {
+        app.post('/x402/buy/:packId', (c) =>
+            c.json(apiError('internal', 'x402 billing not configured on this server'), ERROR_STATUS.internal)
+        );
+    }
 
     return app;
 }
