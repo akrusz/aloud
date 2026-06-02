@@ -523,11 +523,11 @@
    directions — a thin dark edge that reads on white and is invisible on dark. */
 .cloud-glyph {
     display: inline-block;
+    /* A hair of side margin so the outline can't bleed into adjacent text. */
+    margin: 0 1.5px;
     filter:
-        drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000)
-        drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000)
-        drop-shadow(1px 1px 0 #000) drop-shadow(-1px 1px 0 #000)
-        drop-shadow(1px -1px 0 #000) drop-shadow(-1px -1px 0 #000);
+        drop-shadow(0.5px 0 0 #000) drop-shadow(-0.5px 0 0 #000)
+        drop-shadow(0 0.5px 0 #000) drop-shadow(0 -0.5px 0 #000);
 }
 
 /* History view: the markup uses the lifted .history-container / .history-header
