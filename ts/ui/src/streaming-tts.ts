@@ -45,6 +45,10 @@ export interface StreamCompletionResult {
     ttsDone: Promise<void>;
     /** LLM usage split from this completion (for session usage tracking). */
     usage: LlmUsage;
+    /** Provider/proxy finish reason from the final chunk. The cloud proxy uses
+     *  it to flag canned billing turns (e.g. 'billing_paused'); null when the
+     *  provider doesn't report one. */
+    finishReason: string | null;
 }
 
 /**
@@ -73,6 +77,7 @@ export async function streamCompletionWithChunkedTts(
             text: result.text,
             ttsDone: tts.speak(result.text, ttsOptions),
             usage: usageFrom(result),
+            finishReason: result.finishReason ?? null,
         };
     }
 
@@ -85,6 +90,7 @@ export async function streamCompletionWithChunkedTts(
     // sequentially and we can return a single "all done" promise.
     let ttsQueue: Promise<void> = Promise.resolve();
     let usage: LlmUsage = {};
+    let finishReason: string | null = null;
 
     function enqueueSpeak(text: string): void {
         if (!text.trim() || inHoldMode) return;
@@ -131,6 +137,7 @@ export async function streamCompletionWithChunkedTts(
         }
         if (chunk.done) {
             usage = usageFrom(chunk);
+            finishReason = chunk.finishReason ?? null;
             checkHoldPrefix(true);
             if (!inHoldMode && pendingTtsText.trim()) {
                 enqueueSpeak(pendingTtsText);
@@ -139,7 +146,7 @@ export async function streamCompletionWithChunkedTts(
         }
     }
 
-    return { text: fullText, ttsDone: ttsQueue, usage };
+    return { text: fullText, ttsDone: ttsQueue, usage, finishReason };
 }
 
 const HOLD_PREFIX = '[HOLD]';

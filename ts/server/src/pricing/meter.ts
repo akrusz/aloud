@@ -142,6 +142,15 @@ export function packPriceUsd(credits: number): number {
  *  settle. At cost-denominated credits this is a few cents of headroom. */
 export const SESSION_HOLD_CREDITS = 10;
 
+/** Hard ceiling on output tokens per turn, enforced server-side regardless of
+ *  what the client asks for (meditation-pal-aa8). Bounds the priciest leg of a
+ *  turn so a single response can't blow past the pre-auth hold. ~512 tokens is
+ *  roughly a minute of spoken guidance — plenty for light-ish facilitation (the
+ *  cloud default is 400) — and at Opus output rates only ~0.15 credits, leaving
+ *  nearly all of SESSION_HOLD_CREDITS for input/context. Only clips pathological
+ *  requests. */
+export const MAX_OUTPUT_TOKENS = 512;
+
 export interface PackLike {
     id: string;
     credits: number;

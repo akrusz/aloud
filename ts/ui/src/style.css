@@ -354,6 +354,22 @@
     font-style: italic;
 }
 
+/* Inline "Buy clouds to continue" affordance under the out-of-credits apology
+   bubble — one-tap recovery right in the transcript (meditation-pal-4l5). */
+.buy-clouds-inline {
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    background: var(--accent);
+    color: white;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    font: inherit;
+    cursor: pointer;
+}
+.buy-clouds-inline:hover {
+    background: var(--accent-dim);
+}
+
 /* Noting participant rows + cue use the lifted .participant-* / .noting-option
    / .sound-pick-btn classes (from the imported stylesheet) — no overrides here. */
 /* Trailing "…" marks speech that's transcribed but not yet submitted (the

@@ -110,3 +110,77 @@ describe('POST /cloud/v1/tts', () => {
         expect(res.status).toBe(502);
     });
 });
+
+describe('POST /cloud/v1/tts/canned', () => {
+    /** An app whose accounts start with ZERO credits — the case the canned
+     *  endpoint exists for (the metered /tts 402s here). */
+    function brokeApp() {
+        const config = loadConfig({ GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '0' });
+        return createApp(buildDeps(config));
+    }
+
+    it('voices the apology for a zero-balance account (no charge, no balance gate)', async () => {
+        const a = brokeApp();
+        const token = await devToken(a);
+
+        // The metered path is closed at zero balance...
+        const metered = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'hi' }),
+        });
+        expect(metered.status).toBe(402);
+
+        // ...but the canned apology still speaks.
+        const res = await a.request('/cloud/v1/tts/canned', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ reason: 'insufficient_credits', voice: 'en-US-Chirp3-HD-Achernar' }),
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toBe('audio/mpeg');
+        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
+        // No metering headers — it's free.
+        expect(res.headers.get('X-Credits-Charged')).toBeNull();
+    });
+
+    it('synthesizes once per (reason, voice) and serves the cache thereafter', async () => {
+        const a = brokeApp();
+        const token = await devToken(a);
+        const call = () =>
+            a.request('/cloud/v1/tts/canned', {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ reason: 'paused', voice: 'en-US-Chirp3-HD-Achernar' }),
+            });
+        await call();
+        await call();
+        // Cache is process-lifetime, so the prior test's insufficient_credits
+        // synth may also be present; the key invariant is this voice+reason
+        // synthesized at most once across the two calls above.
+        const pausedCalls = googleCalls.filter(
+            (c) => (c.body as { input: { text: string } }).input.text.includes('limit of free credit')
+        );
+        expect(pausedCalls).toHaveLength(1);
+    });
+
+    it('400s on an unknown reason', async () => {
+        const a = brokeApp();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts/canned', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ reason: 'whatever' }),
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('requires auth', async () => {
+        const res = await brokeApp().request('/cloud/v1/tts/canned', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ reason: 'paused' }),
+        });
+        expect(res.status).toBe(401);
+    });
+});

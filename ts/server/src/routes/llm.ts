@@ -26,9 +26,9 @@ import {
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
-import { isMeteredBlocked, FREE_LIMIT_MESSAGE } from '../admin/runtime-config.js';
+import { isMeteredBlocked, FREE_LIMIT_MESSAGE, BILLING_PAUSED_FINISH } from '../admin/runtime-config.js';
 import { isModelAllowed } from '../pricing/providers.js';
-import { SESSION_HOLD_CREDITS, priceLlmTurn, type CostBreakdown } from '../pricing/meter.js';
+import { SESSION_HOLD_CREDITS, MAX_OUTPUT_TOKENS, priceLlmTurn, type CostBreakdown } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
@@ -93,7 +93,9 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (isMeteredBlocked(deps, account.email)) {
             const paused: CompleteResponse = {
                 text: FREE_LIMIT_MESSAGE,
-                finishReason: 'stop',
+                // Sentinel (not 'stop') so the client keeps this turn out of the
+                // saved transcript and resumes from the last real one.
+                finishReason: BILLING_PAUSED_FINISH,
                 creditsCharged: 0,
                 creditsRemaining: await deps.ledger.balance(account.id),
             };
@@ -129,7 +131,9 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const fwd = {
             provider: body.provider,
             model: body.model,
-            ...(body.maxTokens ? { maxTokens: body.maxTokens } : {}),
+            // Clamp output length server-side — the client can't request a
+            // turn pricier than the pre-auth hold was sized for (meditation-pal-aa8).
+            maxTokens: Math.min(body.maxTokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
             ...(body.system ? { system: body.system } : {}),
         };
         const reason = `llm:${body.provider}:${body.model}`;

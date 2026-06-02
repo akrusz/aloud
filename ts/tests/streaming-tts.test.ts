@@ -174,6 +174,36 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(result.usage).toMatchObject({ tokensIn: 10, tokensOut: 5 });
     });
 
+    it('surfaces the finishReason from the final stream chunk', async () => {
+        // The cloud proxy stamps a sentinel finishReason on a canned billing
+        // turn; the session view keys off it to keep the turn out of history.
+        class PausedProvider implements LLMProvider {
+            readonly model = 'fake';
+            async complete(): Promise<CompletionResult> {
+                return { text: 'paused', finishReason: 'billing_paused', tokensUsed: null };
+            }
+            async *completeStream(): AsyncIterable<StreamChunk> {
+                yield { text: 'Come back soon.', done: false };
+                yield { text: '', done: true, finishReason: 'billing_paused' };
+            }
+        }
+        const result = await streamCompletionWithChunkedTts(new PausedProvider(), new RecordingTts(), [
+            { role: 'user', content: 'hi' },
+        ]);
+        await result.ttsDone;
+        expect(result.finishReason).toBe('billing_paused');
+    });
+
+    it('surfaces the finishReason from the non-streaming fallback', async () => {
+        const result = await streamCompletionWithChunkedTts(
+            new FakeNonStreamingProvider('Hi.'),
+            new RecordingTts(),
+            [{ role: 'user', content: 'hi' }]
+        );
+        await result.ttsDone;
+        expect(result.finishReason).toBe('stop');
+    });
+
     it('forwards onTextDelta with the cumulative text after each chunk', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider(['Hello', ' there.']);

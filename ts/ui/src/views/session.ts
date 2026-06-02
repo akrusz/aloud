@@ -56,6 +56,8 @@ import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle } from '../theme.js';
 import { showErrorToast } from '../toast.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
+import { playCannedApology } from '../canned-apology.js';
+import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isTauri } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
@@ -382,6 +384,38 @@ export async function mountSessionView(
         return el;
     }
 
+    /** Render a billing apology (paused / out-of-credits) as a transient
+     *  facilitator bubble. It is deliberately NOT added to session history, so
+     *  the saved transcript — and the next LLM call's context — resume from the
+     *  last real turn once the user tops up or switches to a local/BYOK
+     *  provider. With showBuy, an inline button opens the top-up modal right in
+     *  the conversation (only useful out-of-credits; a top-up can't lift a
+     *  soft-launch pause). */
+    function appendBillingApology(text: string, showBuy: boolean): void {
+        const el = appendMessage('assistant', text);
+        if (!showBuy) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'buy-clouds-inline';
+        btn.textContent = 'Buy clouds to continue';
+        btn.addEventListener('click', () => {
+            void showBuyCreditsModal({
+                title: "You're out of clouds",
+                subtitle: 'Top up to keep going, or switch to a local/BYOK provider in Settings.',
+            });
+        });
+        el.appendChild(btn);
+    }
+
+    /** The voice name to voice a canned apology in. Strips the `aloud:` prefix
+     *  for the hosted endpoint; returns null (server default, then browser
+     *  fallback) for a browser-side voice or non-hosted provider. */
+    function cannedVoice(): string | null {
+        const v = setup.voice;
+        if (setup.provider === 'aloud' && v?.startsWith('aloud:')) return v.slice('aloud:'.length);
+        return null;
+    }
+
     // The lifted CSS hides the bubble with `.typing-bubble { display: none }`
     // and reveals it via `.typing-bubble.visible` — so toggle the class, not
     // the `hidden` attribute (which that display rule overrides). Matches
@@ -519,7 +553,7 @@ export async function mountSessionView(
             // because the [HOLD] prefix (if any) hasn't been stripped from
             // the early deltas. Render the cleaned full text at the end.
             setStatus('Speaking…');
-            const { text: rawText, ttsDone, usage } = await streamCompletionWithChunkedTts(
+            const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
                 session.getContextMessages(),
@@ -527,7 +561,12 @@ export async function mountSessionView(
             );
             const { signal, cleanText } = parseHoldSignal(rawText);
             hideTyping();
-            session.addAssistantMessage(cleanText, undefined, usage);
+            // A soft-launch-pause canned turn (proxy spoke a graceful apology,
+            // charged nothing): show it transiently but keep it OUT of session
+            // history/logs, so we resume from the last real turn. No buy prompt
+            // and no silence mode — a top-up can't lift the pause.
+            const ephemeral = finishReason === BILLING_PAUSED_FINISH;
+            if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
             appendMessage('assistant', cleanText);
 
             // Wait for any in-flight TTS chunks to finish so the next
@@ -540,7 +579,7 @@ export async function mountSessionView(
             // Honor pacingConfig.silenceModeEnabled — when false, the
             // [HOLD] signal is dropped and we treat the response as a
             // normal one.
-            const enterHold = signal === 'hold' && pacingConfig.silenceModeEnabled;
+            const enterHold = !ephemeral && signal === 'hold' && pacingConfig.silenceModeEnabled;
             if (enterHold) {
                 silenceMode = true;
                 pacing.enterSilenceMode();
@@ -552,18 +591,20 @@ export async function mountSessionView(
             pacing.onResponseEnd();
         } catch (err) {
             hideTyping();
-            // A transient toast is more visible than the small status line,
-            // and the loop resumes listening so the session isn't wedged.
-            // Hosted credit/auth failures get a clear, actionable message.
             const msg = (err as Error).message;
-            showErrorToast(describeCloudError(msg) ?? `Something went wrong: ${msg}`);
-            // Out of credits is a dead end mid-session, so make recovery one tap:
-            // surface the buy-credits modal alongside the toast. (meditation-pal-44o)
+            // Running out of credits is a graceful stop, not an error. Show the
+            // same ephemeral apology (NOT saved to history — we resume from the
+            // last real turn once topped up or switched to local/BYOK), voice it
+            // via the free canned endpoint, and offer a one-tap top-up right in
+            // the transcript. (meditation-pal-44o, meditation-pal-4l5)
             if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
-                void showBuyCreditsModal({
-                    title: "You're out of credits",
-                    subtitle: 'Top up to keep going, or switch to a local/BYOK provider in Settings.',
-                });
+                appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
+                void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
+            } else {
+                // Other failures: a transient toast is more visible than the
+                // small status line, and the loop resumes listening so the
+                // session isn't wedged.
+                showErrorToast(describeCloudError(msg) ?? `Something went wrong: ${msg}`);
             }
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {

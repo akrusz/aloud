@@ -57,9 +57,34 @@ export function effectiveConfig(deps: Deps): EffectiveConfig {
 
 /** The in-character turn the facilitator returns (instead of a real, billed LLM
  *  response) when a blocked account makes a conversation call — graceful enough
- *  that the session winds down and saves cleanly. */
+ *  that the session winds down. The client renders it transiently but does NOT
+ *  retain it (see BILLING_PAUSED_FINISH), so the saved transcript resumes from
+ *  the last real turn. */
 export const FREE_LIMIT_MESSAGE =
     "Apologies, but we've reached the limit of free credit usage. Please try back later, or buy credits to continue.";
+
+/** The gentle turn shown when an account has simply run out of credits mid-
+ *  session (balance <= 0). Distinct from the soft-launch pause: here a top-up
+ *  DOES unblock them, so the client pairs this with an inline buy affordance.
+ *  Kept here (server-owned) because the free /tts/canned endpoint voices this
+ *  exact text; the client mirrors the string for the on-screen bubble. */
+export const OUT_OF_CREDITS_MESSAGE =
+    "We've used up the clouds for this session. Add more to keep going, or switch to a local or bring-your-own-key provider in settings.";
+
+/** finishReason sentinel on a paused canned turn. The web client keys off it to
+ *  (a) keep the apology out of session history/logs and (b) skip a buy prompt
+ *  (a top-up can't lift the pause). Out-of-credits uses the 402 path instead. */
+export const BILLING_PAUSED_FINISH = 'billing_paused';
+
+/** The fixed canned text the free /tts/canned endpoint will synthesize, by
+ *  reason. Server-controlled strings only — that's what makes voicing them
+ *  without a balance check safe (a user can't coax arbitrary free TTS). */
+export const CANNED_MESSAGES = {
+    paused: FREE_LIMIT_MESSAGE,
+    insufficient_credits: OUT_OF_CREDITS_MESSAGE,
+} as const;
+
+export type CannedReason = keyof typeof CANNED_MESSAGES;
 
 /** True when this account may NOT spend on conversation right now: the
  *  soft-launch pause is on and the account isn't on the tester allowlist. The

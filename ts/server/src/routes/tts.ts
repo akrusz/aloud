@@ -19,10 +19,55 @@ import { priceTtsChars } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
 import { synthesizeWithGoogle } from '../providers/tts.js';
 import { resolveVoiceId } from '../providers/voice-catalog.js';
+import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
+
+/** Synthesized canned-apology audio, keyed `${reason}:${voiceId}`. The texts are
+ *  fixed and server-owned, so each (reason, voice) pair is synthesized once for
+ *  the whole process lifetime and then served free — no per-user provider cost.
+ *  Re-synthesized lazily after a restart; negligible. */
+const CANNED_AUDIO = new Map<string, Uint8Array>();
 
 export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
+
+    // Voice the fixed out-of-credits / paused apology. UNMETERED and with NO
+    // balance gate by design: the whole point is to speak gracefully to an
+    // account that has run out (the metered POST / below would 402). Safe to
+    // give away because the text is one of a few server-controlled constants —
+    // a caller can't turn this into free synthesis of arbitrary input.
+    app.post('/canned', requireAuth(deps), async (c) => {
+        const account = c.get('account');
+        const key = deps.config.googleTtsApiKey;
+        if (!key) {
+            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
+        }
+        if (!deps.rateGuard.allow(account.id)) {
+            return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
+        }
+
+        const body = (await c.req.json().catch(() => ({}))) as { reason?: string; voice?: string };
+        const reason = body.reason as CannedReason;
+        const message = CANNED_MESSAGES[reason];
+        if (!message) {
+            return c.json(apiError('bad_request', 'unknown canned reason'), ERROR_STATUS.bad_request);
+        }
+        const voiceId = resolveVoiceId(body.voice);
+        const cacheKey = `${reason}:${voiceId}`;
+
+        let audio = CANNED_AUDIO.get(cacheKey);
+        if (!audio) {
+            try {
+                audio = await synthesizeWithGoogle(message, voiceId, 1, key);
+            } catch (err) {
+                log.error('canned tts synth failed', { err: String(err) });
+                return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
+            }
+            CANNED_AUDIO.set(cacheKey, audio);
+        }
+        c.header('content-type', 'audio/mpeg');
+        return c.body(audio.buffer as ArrayBuffer);
+    });
 
     app.post('/', requireAuth(deps), async (c) => {
         const account = c.get('account');
