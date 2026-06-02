@@ -1,15 +1,28 @@
 # x402 credit-purchase channel — implementation plan (meditation-pal-du9)
 
-Status: **planned, not started.** Written with context to spare so a fresh
-session can execute Phase 1 end-to-end. Read this top-to-bottom, then build.
+Status: **Phase 1 (server MVP) BUILT, hand-rolled (no SDK)** — channel +
+commission + config + `billing/x402.ts` + buy route + idempotency fix + tests
+all landed and green (202 server tests). HTTP paywall smoke-verified:
+enabled+authed+unpaid → 402 advertising the right USDC amount / network / USDC
+asset / payTo / EIP-712 domain; mainnet path refuses loudly (no half-settle).
+Flag-gated OFF. The viem/x402-hono middleware was tried then reverted — see the
+decision note below.
+**Not yet done:** a live Base Sepolia end-to-end with a funded test wallet
+(plan step 8), Phase 2 (client wallet UI), Phase 3 (ops/off-ramp/refunds/tax).
+The sections below are kept as the as-built record + the remaining roadmap.
 
 ## Decisions locked (do not re-litigate)
 
-- **Verification: `x402-hono` middleware** (Coinbase's maintained pkg) + the
-  `@coinbase/x402` facilitator config. We accept the dep (pulls `viem`) in
-  exchange for correct EIP-712/EIP-3009 signature handling — the part that is
-  genuinely risky to hand-roll. This is a deliberate departure from the no-SDK
-  Stripe integration (`billing/stripe.ts`), justified by crypto-correctness.
+- **Verification: hand-rolled over `fetch`, NO SDK** (matches `billing/stripe.ts`).
+  Originally built on `x402-hono` + `@coinbase/x402`, then reverted: reading the
+  code showed the server owns NO cryptographic verification in either design —
+  the payer's wallet signs (client side) and the facilitator verifies + settles
+  on-chain. `viem` was used only for address checksumming / payment decode /
+  price math (utilities). So the middleware added ~108MB + ~500 transitive
+  packages of supply-chain surface (`node_modules` 717M→104M after revert) for a
+  thin HTTP broker, with no crypto-risk delta. The hand-roll is ~200 lines +
+  static constants (USDC addresses, EIP-712 domain, facilitator URLs), zero new
+  deps (`fetch` + `jose`, already present). See commit abdc65f.
 - **Treasury: dedicated self-custody Base wallet + CDP facilitator.** A NEW
   Base address we hold keys to (NOT `krusz.eth` / the tip-jar address — keep
   business revenue separate from personal tips for tax sanity). CDP facilitator
