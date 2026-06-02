@@ -28,8 +28,8 @@ export interface BuyCreditsModalOptions {
     subtitle?: string;
 }
 
-const DEFAULT_TITLE = 'Buy credits';
-const DEFAULT_SUBTITLE = 'Credits pay for the aloud cloud: speech, the facilitator, and voice.';
+const DEFAULT_TITLE = 'Buy ☁️';
+const DEFAULT_SUBTITLE = 'aloud cloud uses ☁️ to power high-quality speech, voice recognition, and facilitation AI.';
 
 function dollars(cents: number): string {
     return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
@@ -72,6 +72,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 <div class="buy-credits-packs" id="buy-credits-packs">
                     <p class="provider-hint">Loading…</p>
                 </div>
+                <div class="buy-credits-custom hidden" id="buy-credits-custom"></div>
                 <div class="provider-hint buy-credits-usdc-note hidden" id="buy-credits-usdc-note">
                     Pay in USDC on Base from a connected wallet. Credited to your account on settlement.
                 </div>
@@ -217,7 +218,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 return;
             }
             setPacksDisabled(true);
-            startCheckout(pack.id, to.email)
+            startCheckout({ packId: pack.id }, to.email)
                 .then((url) => window.location.assign(url))
                 .catch((err: unknown) => {
                     setPacksDisabled(false);
@@ -225,17 +226,91 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 });
         };
 
+        // Custom amount → Stripe (card only; USDC stays pack-based). Mirrors the
+        // card branch of buy(): resolve the gift recipient, then redirect.
+        const buyCustom = (credits: number): void => {
+            showError('');
+            const to = recipient();
+            if (to.error) {
+                showError(to.error);
+                return;
+            }
+            const customBtn = overlay.querySelector<HTMLButtonElement>('#buy-credits-custom-btn');
+            setPacksDisabled(true);
+            if (customBtn) customBtn.disabled = true;
+            startCheckout({ credits }, to.email)
+                .then((url) => window.location.assign(url))
+                .catch((err: unknown) => {
+                    setPacksDisabled(false);
+                    if (customBtn) customBtn.disabled = false;
+                    showError(err instanceof Error ? err.message : String(err));
+                });
+        };
+
         const packsHost = overlay.querySelector<HTMLElement>('#buy-credits-packs')!;
+        const customHost = overlay.querySelector<HTMLElement>('#buy-credits-custom')!;
         void fetchPacks()
-            .then(({ packs, x402 }) => {
+            .then(({ packs, x402, custom }) => {
                 applyChannels(methodRow, x402);
                 renderPacks(packsHost, packs, buy);
+                if (custom) {
+                    renderCustom(customHost, custom, buyCustom);
+                    // Custom is card-only; hide it whenever USDC is the method.
+                    const syncCustom = (): void => {
+                        customHost.classList.toggle('hidden', method === 'usdc');
+                    };
+                    syncCustom();
+                    methodRow
+                        .querySelectorAll('.buy-credits-target-btn')
+                        .forEach((b) => b.addEventListener('click', syncCustom));
+                }
             })
             .catch((err: unknown) => {
                 packsHost.innerHTML = '';
                 showError(err instanceof Error ? err.message : String(err));
             });
     });
+}
+
+/** A "type your own amount" row: a credits input that previews the price and
+ *  only enables Buy at or above the floor. Server re-prices authoritatively. */
+function renderCustom(
+    host: HTMLElement,
+    custom: { centsPerCredit: number; minCredits: number; maxCredits: number },
+    onBuy: (credits: number) => void
+): void {
+    host.classList.remove('hidden');
+    host.innerHTML = `
+        <p class="provider-hint buy-credits-custom-label">Or choose your own amount</p>
+        <div class="buy-credits-custom-row">
+            <input type="number" class="signin-input buy-credits-custom-amount" id="buy-credits-custom-amount"
+                min="${custom.minCredits}" step="1" inputmode="numeric"
+                placeholder="Credits (min ${custom.minCredits})" autocomplete="off" />
+            <button type="button" class="btn btn-secondary buy-credits-custom-btn" id="buy-credits-custom-btn" disabled>Buy</button>
+        </div>
+        <p class="provider-hint buy-credits-custom-hint" id="buy-credits-custom-hint"></p>`;
+    const input = host.querySelector<HTMLInputElement>('#buy-credits-custom-amount')!;
+    const btn = host.querySelector<HTMLButtonElement>('#buy-credits-custom-btn')!;
+    const hint = host.querySelector<HTMLElement>('#buy-credits-custom-hint')!;
+
+    const parsed = (): number => Math.floor(Number(input.value));
+    const update = (): void => {
+        const n = parsed();
+        const empty = input.value.trim() === '';
+        const valid = Number.isInteger(n) && n >= custom.minCredits && n <= custom.maxCredits;
+        btn.disabled = !valid;
+        btn.textContent = valid ? `Buy ${n} ☁️ — ${dollars(Math.round(n * custom.centsPerCredit))}` : 'Buy';
+        if (empty) hint.textContent = '';
+        else if (n < custom.minCredits) hint.textContent = `Minimum ${custom.minCredits} ☁️.`;
+        else if (n > custom.maxCredits) hint.textContent = `Maximum ${custom.maxCredits.toLocaleString()} ☁️.`;
+        else hint.textContent = '';
+    };
+    input.addEventListener('input', update);
+    btn.addEventListener('click', () => {
+        const n = parsed();
+        if (Number.isInteger(n) && n >= custom.minCredits && n <= custom.maxCredits) onBuy(n);
+    });
+    update();
 }
 
 /** Reveal the Card/USDC toggle only when the x402 channel is live. */

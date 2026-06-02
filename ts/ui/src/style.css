@@ -875,3 +875,31 @@
     outline: none;
     border-color: var(--accent, #df3f88);
 }
+
+/* Buy-credits custom amount (type-your-own) — a labelled input + Buy button,
+   set off from the preset packs above it. */
+.buy-credits-custom {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+}
+.buy-credits-custom-label {
+    margin: 0 0 8px;
+}
+.buy-credits-custom-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.buy-credits-custom-amount {
+    flex: 1;
+    min-width: 0;
+}
+.buy-credits-custom-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.buy-credits-custom-hint {
+    margin: 8px 0 0;
+    min-height: 1em;
+}

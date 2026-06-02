@@ -161,7 +161,12 @@ export type SignInProvider = 'google' | 'apple' | 'email';
 /** POST /cloud/v1/billing/checkout — start a credit purchase. Returns a URL the
  *  client opens (web: redirect; mobile: external link, per meditation-pal-czr). */
 export interface CheckoutRequest {
-    packId: string;
+    /** A preset pack id. Omit when buying a custom amount (see `credits`). */
+    packId?: string;
+    /** A custom credit quantity to buy at the flat list rate, instead of a preset
+     *  pack. Must be a whole number at or above the smallest preset. The server
+     *  prices it (never trusts a client-sent price). */
+    credits?: number;
     channel: PurchaseChannel;
     /** ISO 3166-1 alpha-2; selects the commission rate (US vs EU differ). */
     jurisdiction?: string;

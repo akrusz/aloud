@@ -23,10 +23,20 @@ export interface X402Capability {
     network?: 'base' | 'base-sepolia';
 }
 
+/** Custom "type your own amount" pricing — flat list rate, with the smallest
+ *  preset as the floor (card checkout only). Mirrors the server's /me/packs. */
+export interface CustomCredits {
+    centsPerCredit: number;
+    minCredits: number;
+    maxCredits: number;
+}
+
 /** Packs for sale plus the available alternative payment channels. */
 export interface BillingPacks {
     packs: CreditPack[];
     x402: X402Capability;
+    /** Present when the server allows custom amounts (older servers omit it). */
+    custom?: CustomCredits;
 }
 
 /** GET /cloud/v1/me/packs — the packs for sale + channel availability (public).
@@ -34,8 +44,16 @@ export interface BillingPacks {
 export async function fetchPacks(): Promise<BillingPacks> {
     const res = await fetch(cloudUrl('/me/packs'));
     if (!res.ok) throw new Error(`Couldn't load credit packs (${res.status}).`);
-    const data = (await res.json()) as { packs?: CreditPack[]; x402?: X402Capability };
-    return { packs: data.packs ?? [], x402: data.x402 ?? { enabled: false } };
+    const data = (await res.json()) as {
+        packs?: CreditPack[];
+        x402?: X402Capability;
+        custom?: CustomCredits;
+    };
+    return {
+        packs: data.packs ?? [],
+        x402: data.x402 ?? { enabled: false },
+        ...(data.custom ? { custom: data.custom } : {}),
+    };
 }
 
 /**
@@ -47,14 +65,18 @@ export async function fetchPacks(): Promise<BillingPacks> {
  * the caller shows the message. Side-effect-free (no redirect) so it's testable
  * and the redirect stays at the call site.
  */
-export async function startCheckout(packId: string, giftToEmail?: string): Promise<string> {
+export async function startCheckout(
+    selection: { packId: string } | { credits: number },
+    giftToEmail?: string
+): Promise<string> {
     const token = await getCloudToken();
     if (!token) throw new Error('Sign in to buy credits.');
     const res = await fetch(cloudUrl('/billing/checkout'), {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
         body: JSON.stringify({
-            packId,
+            // Either a preset pack id or a custom credit amount (server-priced).
+            ...selection,
             channel: 'web_stripe',
             returnPath: import.meta.env.BASE_URL ?? '/',
             // When gifting, the payment still clears now but the clouds become a

@@ -11,7 +11,12 @@ import { requireAuth } from '../auth/middleware.js';
 import { buildAccountView, deleteAccount } from '../auth/identity.js';
 import { allowedModels } from '../pricing/providers.js';
 import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
-import { CREDIT_PACKS } from '../billing/stripe.js';
+import {
+    CREDIT_PACKS,
+    CUSTOM_CENTS_PER_CREDIT,
+    MIN_CUSTOM_CREDITS,
+    MAX_CUSTOM_CREDITS,
+} from '../billing/stripe.js';
 import { x402Configured } from '../billing/x402.js';
 import {
     TYPICAL_SESSION_MINUTES,
@@ -62,6 +67,13 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         return c.json({
             packs: CREDIT_PACKS,
             x402: x402 ? { enabled: true, network: x402.network } : { enabled: false },
+            // Lets the UI offer a "type your own amount" field, priced at the flat
+            // list rate with the smallest preset as the floor (card checkout only).
+            custom: {
+                centsPerCredit: CUSTOM_CENTS_PER_CREDIT,
+                minCredits: MIN_CUSTOM_CREDITS,
+                maxCredits: MAX_CUSTOM_CREDITS,
+            },
         });
     });
 

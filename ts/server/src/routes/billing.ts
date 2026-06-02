@@ -21,9 +21,13 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import {
     createCheckoutSession,
+    customPack,
+    isValidCustomCredits,
     packById,
     parseCheckoutCompleted,
     verifyStripeSignature,
+    MIN_CUSTOM_CREDITS,
+    MAX_CUSTOM_CREDITS,
 } from '../billing/stripe.js';
 import { x402Configured, x402Routes } from '../billing/x402.js';
 import { log } from '../logger.js';
@@ -52,9 +56,21 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
         const account = c.get('account');
         const body = (await c.req.json().catch(() => ({}))) as Partial<CheckoutRequest>;
-        const pack = body.packId ? packById(body.packId) : undefined;
-        if (!pack) {
-            return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
+        // A custom amount (server-priced) takes precedence over a preset pack id.
+        let pack;
+        if (body.credits !== undefined) {
+            if (!isValidCustomCredits(body.credits)) {
+                return c.json(
+                    apiError('bad_request', `credits must be a whole number from ${MIN_CUSTOM_CREDITS} to ${MAX_CUSTOM_CREDITS}`),
+                    ERROR_STATUS.bad_request
+                );
+            }
+            pack = customPack(body.credits);
+        } else {
+            pack = body.packId ? packById(body.packId) : undefined;
+            if (!pack) {
+                return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
+            }
         }
         // Optional gift recipient. Validate the shape now so a typo fails fast at
         // checkout rather than minting an undeliverable gift after payment.

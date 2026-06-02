@@ -14,6 +14,7 @@
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 
 /** A purchasable credit pack. Price embeds the margin (Model B — see meter.ts):
  *  credits debit at COST, so a pack is priced at the provider cost its credits
@@ -41,6 +42,40 @@ export const CREDIT_PACKS: CreditPack[] = [
 
 export function packById(id: string): CreditPack | undefined {
     return CREDIT_PACKS.find((p) => p.id === id);
+}
+
+// ---- Custom amounts (meditation-pal: type-your-own credits) -----------------
+// A buyer can name any whole-credit amount instead of a preset. It's priced at
+// the flat list rate (no volume discount): provider cost x the standard markup.
+// The floor is the smallest preset — we don't undercut a pack — and a high
+// ceiling guards against a fat-fingered charge. Server-priced; the client's
+// number is only a preview.
+
+/** Cents per credit for a custom amount = $0.05 cost x 2.5 markup = 12.5¢. */
+export const CUSTOM_CENTS_PER_CREDIT = USD_PER_CREDIT * PACK_MARKUP * 100;
+/** Floor: never below the smallest preset pack (kept in sync with CREDIT_PACKS). */
+export const MIN_CUSTOM_CREDITS = Math.min(...CREDIT_PACKS.map((p) => p.credits));
+/** Ceiling: a sanity cap so a typo can't trigger a four-figure charge. */
+export const MAX_CUSTOM_CREDITS = 100_000;
+
+/** Whether a requested custom amount is a whole number within bounds. */
+export function isValidCustomCredits(credits: number): boolean {
+    return (
+        Number.isInteger(credits) &&
+        credits >= MIN_CUSTOM_CREDITS &&
+        credits <= MAX_CUSTOM_CREDITS
+    );
+}
+
+/** Build a synthetic pack for a custom amount so the checkout/webhook path is
+ *  identical to a preset. Price is rounded to the cent. */
+export function customPack(credits: number): CreditPack {
+    return {
+        id: 'custom',
+        credits,
+        priceUsdCents: Math.round(credits * CUSTOM_CENTS_PER_CREDIT),
+        label: `${credits} credits`,
+    };
 }
 
 /**

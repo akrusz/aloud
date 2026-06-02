@@ -4,6 +4,12 @@ import {
     parseCheckoutCompleted,
     verifyStripeSignature,
     packById,
+    customPack,
+    isValidCustomCredits,
+    CREDIT_PACKS,
+    CUSTOM_CENTS_PER_CREDIT,
+    MIN_CUSTOM_CREDITS,
+    MAX_CUSTOM_CREDITS,
 } from '../src/billing/stripe.js';
 import { safeReturnPath } from '../src/routes/billing.js';
 
@@ -68,6 +74,26 @@ describe('packById', () => {
     it('looks up known packs', () => {
         expect(packById('starter')?.credits).toBe(50);
         expect(packById('nope')).toBeUndefined();
+    });
+});
+
+describe('custom amounts', () => {
+    it('floors at the smallest preset and caps at the ceiling', () => {
+        const smallestPreset = Math.min(...CREDIT_PACKS.map((p) => p.credits));
+        expect(MIN_CUSTOM_CREDITS).toBe(smallestPreset);
+        expect(isValidCustomCredits(MIN_CUSTOM_CREDITS)).toBe(true);
+        expect(isValidCustomCredits(MIN_CUSTOM_CREDITS - 1)).toBe(false); // below smallest pack
+        expect(isValidCustomCredits(MAX_CUSTOM_CREDITS)).toBe(true);
+        expect(isValidCustomCredits(MAX_CUSTOM_CREDITS + 1)).toBe(false);
+        expect(isValidCustomCredits(80.5)).toBe(false); // whole credits only
+    });
+
+    it('prices at the flat list rate (cost x markup), rounded to the cent', () => {
+        expect(CUSTOM_CENTS_PER_CREDIT).toBeCloseTo(12.5); // $0.05 x 2.5
+        const pack = customPack(100);
+        expect(pack).toMatchObject({ id: 'custom', credits: 100, priceUsdCents: 1250 });
+        // Odd amount rounds to the nearest cent (75 x 12.5 = 937.5 → 938).
+        expect(customPack(75).priceUsdCents).toBe(938);
     });
 });
 
