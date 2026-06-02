@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
-import { buildAccountView } from '../auth/identity.js';
+import { buildAccountView, deleteAccount } from '../auth/identity.js';
 import { allowedModels } from '../pricing/providers.js';
 import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 import { CREDIT_PACKS } from '../billing/stripe.js';
@@ -24,6 +24,15 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     app.get('/', requireAuth(deps), async (c) => {
         return c.json(await buildAccountView(deps, c.get('account')));
+    });
+
+    // Delete the signed-in account (meditation-pal-8jc). Soft-delete: anonymize +
+    // tombstone, free the identities, forfeit any remaining balance. Irreversible;
+    // the client confirms first. The token is dead afterward (requireAuth rejects
+    // a tombstoned account), so the client clears it and signs out.
+    app.delete('/', requireAuth(deps), async (c) => {
+        await deleteAccount(deps, c.get('account'));
+        return c.json({ deleted: true });
     });
 
     // Public pricing transparency — no auth needed; the margin is published.

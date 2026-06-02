@@ -22,6 +22,7 @@ import type {
 } from '../../../src/llm/index.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
+import { setKnownBalance } from '../cloud-balance.js';
 
 /** Providers the server is willing to forward to (mirrors contract.ts ProviderId). */
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
@@ -120,11 +121,14 @@ export class CloudLlmProvider implements LLMProvider {
         const res = await this.post(messages, options, false);
         if (!res.ok) return this.throwFromError(res);
         const data = (await res.json()) as CompleteResponseBody;
+        // The server hands back the authoritative post-turn balance every call;
+        // publish it so balance surfaces stay live without an extra /me round-trip
+        // (meditation-pal-14s).
+        if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
         return {
             text: data.text ?? '',
             finishReason: data.finishReason ?? null,
-            // Token usage stays server-side (private); credits are the user-facing
-            // unit. The live cost meter reads creditsCharged separately (14s).
+            // Token usage stays server-side (private); credits are the user-facing unit.
             tokensUsed: null,
         };
     }
@@ -138,6 +142,7 @@ export class CloudLlmProvider implements LLMProvider {
         if (!res.body) {
             // No streaming body (some environments) — degrade to one chunk.
             const data = (await res.json()) as CompleteResponseBody;
+            if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
             yield { text: data.text ?? '', done: false };
             yield { text: '', done: true, finishReason: data.finishReason ?? null };
             return;
@@ -175,6 +180,9 @@ export class CloudLlmProvider implements LLMProvider {
                 const chunk = JSON.parse(data) as CompleteChunkBody;
                 if (chunk.done) {
                     finishReason = chunk.result?.finishReason ?? null;
+                    if (typeof chunk.result?.creditsRemaining === 'number') {
+                        setKnownBalance(chunk.result.creditsRemaining);
+                    }
                 } else if (chunk.text) {
                     yield { text: chunk.text, done: false };
                 }

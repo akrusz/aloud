@@ -14,6 +14,7 @@
 
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import { cloudUrl } from './cloud-base.js';
+import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
@@ -142,6 +143,9 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     }
     if (!res.ok) return null;
     const account = (await res.json()) as AuthResponse['account'];
+    // Seed the shared balance store with this authoritative reading (live
+    // surfaces subscribe to it — meditation-pal-14s).
+    if (typeof account.creditsRemaining === 'number') setKnownBalance(account.creditsRemaining);
     // `providers` is newer than some deployed servers; default it so callers can
     // always `.some()`/`.map()` it (a missing field crashed the account panel
     // against a not-yet-redeployed server).
@@ -150,6 +154,35 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
 
 export async function clearCloudToken(): Promise<void> {
     await kv().delete(TOKEN_KEY);
+}
+
+/** DELETE /cloud/v1/me — permanently delete the signed-in account
+ *  (meditation-pal-8jc). Soft-delete server-side: identities freed, balance
+ *  forfeit, the account anonymized and unable to sign in again. Clears the local
+ *  session on success. Throws (with the server message when present) on failure. */
+export async function deleteAccount(): Promise<void> {
+    const token = await getCloudToken();
+    if (!token) {
+        // Nothing to delete; treat as already signed out.
+        await clearCloudToken();
+        clearKnownBalance();
+        return;
+    }
+    const res = await fetchImpl(cloudUrl('/me'), {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        let serverMsg = '';
+        try {
+            serverMsg = ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
+        } catch {
+            /* non-JSON body */
+        }
+        throw new Error(serverMsg || `Could not delete the account (${res.status}).`);
+    }
+    await clearCloudToken();
+    clearKnownBalance();
 }
 
 /** POST /v1/auth/dev — mint (or reuse) the local dev session. */

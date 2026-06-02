@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS accounts (
     email         TEXT NOT NULL,
     email_verified INTEGER NOT NULL,
     created_at    REAL NOT NULL,
-    signup_ip     TEXT
+    signup_ip     TEXT,
+    -- Soft-delete tombstone (meditation-pal-8jc): set ⇒ anonymized + can't sign
+    -- in; the row stays so the append-only ledger's FKs survive.
+    deleted_at    REAL
 );
 -- Sign-in identities (meditation-pal-116). (provider, sub) is globally unique:
 -- one external identity → at most one account, ever. granted_credits records
@@ -91,6 +94,14 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+-- Grant-eligibility keys (anti-farming, meditation-pal-8jc). Append-only log of
+-- email-derived hashes (auth/email-key.ts) that have ever received the free
+-- grant. Outlives the accounts/identities it came from, so deleting and
+-- recreating an account can't re-claim the freebie. Never stores the address.
+CREATE TABLE IF NOT EXISTS grant_keys (
+    key_hash   TEXT PRIMARY KEY,
+    created_at REAL NOT NULL
+);
 -- Raw per-call usage telemetry (cost attribution), separate from the money
 -- ledger above. One row per metered provider call. provider_cost_usd is full
 -- precision; credits is the fractional amount debited. See usage.ts.
@@ -126,6 +137,7 @@ function rowToAccount(r: Row): Account {
     };
     // exactOptionalPropertyTypes: only attach signupIp when actually present.
     if (r['signup_ip'] != null) account.signupIp = String(r['signup_ip']);
+    if (r['deleted_at'] != null) account.deletedAt = Number(r['deleted_at']);
     return account;
 }
 
@@ -203,6 +215,16 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db.exec('PRAGMA foreign_keys = ON');
         this.db.exec(SCHEMA);
         this.migrateLegacyGoogleSub();
+        this.migrateAddDeletedAt();
+    }
+
+    /** Add accounts.deleted_at to a DB created before soft-delete existed
+     *  (meditation-pal-8jc). The CREATE in SCHEMA only covers fresh DBs; an
+     *  already-deployed prod DB needs this ALTER. No-op once the column is there. */
+    private migrateAddDeletedAt(): void {
+        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
+        if (cols.some((c) => String(c['name']) === 'deleted_at')) return;
+        this.db.exec('ALTER TABLE accounts ADD COLUMN deleted_at REAL');
     }
 
     /**
@@ -330,6 +352,35 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db
             .prepare('UPDATE identities SET granted_credits = 1 WHERE provider = ? AND sub = ?')
             .run(provider, sub);
+    }
+
+    async deleteIdentitiesForAccount(accountId: string): Promise<void> {
+        this.db.prepare('DELETE FROM identities WHERE account_id = ?').run(accountId);
+    }
+
+    async markAccountDeleted(
+        accountId: string,
+        deletedAt: number,
+        anonymizedEmail: string
+    ): Promise<void> {
+        this.db
+            .prepare(
+                'UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0 WHERE id = ?'
+            )
+            .run(deletedAt, anonymizedEmail, accountId);
+    }
+
+    async hasGrantKey(keyHash: string): Promise<boolean> {
+        const row = this.db
+            .prepare('SELECT 1 FROM grant_keys WHERE key_hash = ?')
+            .get(keyHash) as Row | undefined;
+        return row != null;
+    }
+
+    async recordGrantKey(keyHash: string, createdAt: number): Promise<void> {
+        this.db
+            .prepare('INSERT OR IGNORE INTO grant_keys (key_hash, created_at) VALUES (?, ?)')
+            .run(keyHash, createdAt);
     }
 
     async createGift(gift: Gift): Promise<void> {

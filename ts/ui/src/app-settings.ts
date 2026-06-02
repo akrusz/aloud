@@ -34,6 +34,10 @@ export interface AppSettings {
     // Display
     textScale: number;
     themeMode: ThemeMode;
+    /** Show the live cloud credit balance during a session (off by default — a
+     *  ticking balance is distracting mid-meditation; the balance is always a tap
+     *  away on the setup pill and in Settings). meditation-pal-14s. */
+    showSessionBalance: boolean;
 
     // TTS preferences
     ttsEngine: TtsEngineChoice;
@@ -64,6 +68,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     enableByok: false,
     textScale: 1.0,
     themeMode: 'auto',
+    showSessionBalance: false,
     ttsEngine: 'browser',
     defaultVoice: null,
     defaultTtsRate: 160,

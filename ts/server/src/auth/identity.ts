@@ -18,6 +18,7 @@ import type { Account, IdentityProvider } from '../credits/store.js';
 import type { AccountView, AuthResponse } from '../contract.js';
 import { decideConnectGrant } from '../quota/freetier.js';
 import { issueSessionToken } from './session.js';
+import { emailGrantKey } from './email-key.js';
 import { log } from '../logger.js';
 
 /** An identity whose proof the route has already validated (OAuth token verified,
@@ -107,11 +108,18 @@ export async function connectIdentity(
     // granted?" check must not count the row we're about to add).
     const existingIdentities = await deps.store.getIdentitiesForAccount(account.id);
     const accountAlreadyGranted = existingIdentities.some((i) => i.grantedCredits);
+    // The email-derived grant key survives account deletion, so a deleted-then-
+    // recreated user can't re-farm the freebie (meditation-pal-8jc). Empty email
+    // (Apple omits it on repeat sign-ins) ⇒ no key to check; the identity/account
+    // gates still apply.
+    const grantKey = ident.email ? emailGrantKey(ident.email) : null;
+    const emailKeyAlreadyGranted = grantKey ? await deps.store.hasGrantKey(grantKey) : false;
     const decision = decideConnectGrant({
         provider: ident.provider,
         emailVerified: ident.emailVerified,
         accountAlreadyGranted,
         identityAlreadyGranted: false, // brand-new identity
+        emailKeyAlreadyGranted,
         freeCredits: deps.config.freeSignupCredits,
     });
 
@@ -134,6 +142,9 @@ export async function connectIdentity(
         if (deps.grantBreaker.tryConsume(decision.grantCredits)) {
             await deps.ledger.grant(account.id, decision.grantCredits, decision.reason);
             await deps.store.markIdentityGranted(ident.provider, ident.sub);
+            // Burn the email key so this mailbox can't claim the freebie again,
+            // even after deleting and recreating the account (meditation-pal-8jc).
+            if (grantKey) await deps.store.recordGrantKey(grantKey, now);
             granted = decision.grantCredits;
         } else {
             breakerTripped = true;
@@ -164,6 +175,28 @@ export async function buildAccountView(deps: Deps, account: Account): Promise<Ac
         creditsRemaining: await deps.ledger.balance(account.id),
         providers: identities.map((i) => i.provider),
     };
+}
+
+/**
+ * Soft-delete an account at the user's request (meditation-pal-8jc). We:
+ *   - zero any remaining balance with a `debit` entry (credits are forfeit, not
+ *     refunded — the ledger stays a complete, append-only audit trail),
+ *   - delete the account's identities so each (provider, sub) is free to sign in
+ *     fresh later (a genuine clean start for the human), and
+ *   - anonymize + tombstone the account row (scrub email, stamp deletedAt) so it
+ *     can no longer authenticate while its ledger foreign keys still resolve.
+ * The email's grant key (recorded at grant time) is deliberately KEPT, so the
+ * person can return and buy credits but can't re-claim the free grant.
+ */
+export async function deleteAccount(deps: Deps, account: Account): Promise<void> {
+    const now = Date.now() / 1000;
+    const balance = await deps.ledger.balance(account.id);
+    if (balance > 0) {
+        await deps.ledger.debit(account.id, balance, 'account_deleted:balance_zeroed');
+    }
+    await deps.store.deleteIdentitiesForAccount(account.id);
+    await deps.store.markAccountDeleted(account.id, now, `deleted+${account.id}@deleted.invalid`);
+    log.info('account deleted', { accountId: account.id, forfeited: balance });
 }
 
 /** Mint a session token + the account view a sign-in route returns. */

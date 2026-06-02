@@ -38,8 +38,11 @@ export interface GrantDecision {
  * (meditation-pal-116). Granted only when ALL hold:
  *   - the provider is TRUSTED (Google/Apple — not a bare email signup),
  *   - the provider asserts a VERIFIED email,
- *   - the account has not already been granted (one grant per account), and
- *   - this identity has not granted before (one grant per identity, ever).
+ *   - the account has not already been granted (one grant per account),
+ *   - this identity has not granted before (one grant per identity, ever), and
+ *   - this email (normalized) has not granted before — the lever that survives
+ *     account deletion, so delete-and-recreate can't re-farm the freebie
+ *     (meditation-pal-8jc).
  * This is the "credits come from connecting a hard-to-mint identity, not from
  * signing up" lever — email accounts get nothing until they connect Google/Apple.
  */
@@ -48,10 +51,17 @@ export function decideConnectGrant(params: {
     emailVerified: boolean;
     accountAlreadyGranted: boolean;
     identityAlreadyGranted: boolean;
+    emailKeyAlreadyGranted: boolean;
     freeCredits: number;
 }): GrantDecision {
-    const { provider, emailVerified, accountAlreadyGranted, identityAlreadyGranted, freeCredits } =
-        params;
+    const {
+        provider,
+        emailVerified,
+        accountAlreadyGranted,
+        identityAlreadyGranted,
+        emailKeyAlreadyGranted,
+        freeCredits,
+    } = params;
     if (!isTrustedProvider(provider)) {
         return {
             grantCredits: 0,
@@ -66,6 +76,9 @@ export function decideConnectGrant(params: {
     }
     if (identityAlreadyGranted) {
         return { grantCredits: 0, reason: 'identity_already_granted: one free grant per identity' };
+    }
+    if (emailKeyAlreadyGranted) {
+        return { grantCredits: 0, reason: 'email_already_granted: one free grant per email, ever' };
     }
     return { grantCredits: freeCredits, reason: `verified ${provider} connect grant` };
 }

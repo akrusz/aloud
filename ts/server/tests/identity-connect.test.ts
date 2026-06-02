@@ -12,6 +12,7 @@ import { buildDeps } from '../src/deps.js';
 import type { Deps } from '../src/deps.js';
 import {
     connectIdentity,
+    deleteAccount,
     IdentityConflictError,
     type VerifiedIdentity,
 } from '../src/auth/identity.js';
@@ -143,12 +144,60 @@ describe('connectIdentity — free-grant breaker', () => {
     });
 });
 
+describe('deleteAccount — soft-delete + anti-farming (meditation-pal-8jc)', () => {
+    it('anonymizes, frees identities, zeroes the balance, and blocks re-auth', async () => {
+        const d = deps();
+        const r = await connectIdentity(d, google());
+        expect(await d.ledger.balance(r.account.id)).toBe(20);
+
+        await deleteAccount(d, r.account);
+
+        const after = await d.store.getAccountById(r.account.id);
+        expect(after?.deletedAt).toBeTypeOf('number');
+        expect(after?.email).not.toBe('a@example.com'); // scrubbed
+        expect(await d.ledger.balance(r.account.id)).toBe(0); // forfeited
+        // The Google identity is freed (so the human can sign in fresh).
+        expect(await d.store.getIdentity('google', 'g-1')).toBeUndefined();
+    });
+
+    it('a deleted user can return but does NOT get the free grant again', async () => {
+        const d = deps();
+        const first = await connectIdentity(d, google());
+        await deleteAccount(d, first.account);
+
+        // Same person signs in again with the same Google login → brand-new
+        // account (identity was freed), but the email grant key is burned.
+        const second = await connectIdentity(d, google());
+        expect(second.isNewAccount).toBe(true);
+        expect(second.account.id).not.toBe(first.account.id);
+        expect(second.granted).toBe(0);
+        expect(await d.ledger.balance(second.account.id)).toBe(0);
+    });
+
+    it('normalized email variants (dots/+tags) share one grant — no re-farming', async () => {
+        const d = deps();
+        const a = await connectIdentity(d, google({ sub: 'g-a', email: 'john.doe@gmail.com' }));
+        expect(a.granted).toBe(20);
+        // A different Google login but the SAME mailbox (dots + tag tricks).
+        const b = await connectIdentity(d, google({ sub: 'g-b', email: 'johndoe+promo@googlemail.com' }));
+        expect(b.granted).toBe(0);
+    });
+
+    it('a genuinely different email still gets its own grant (no false collision)', async () => {
+        const d = deps();
+        await connectIdentity(d, google({ sub: 'g-a', email: 'a@example.com' }));
+        const other = await connectIdentity(d, google({ sub: 'g-b', email: 'b@example.com' }));
+        expect(other.granted).toBe(20);
+    });
+});
+
 describe('decideConnectGrant (pure rules)', () => {
     const base = {
         provider: 'google' as const,
         emailVerified: true,
         accountAlreadyGranted: false,
         identityAlreadyGranted: false,
+        emailKeyAlreadyGranted: false,
         freeCredits: 20,
     };
     it('grants for a trusted, verified, first-time connect', () => {
@@ -161,6 +210,9 @@ describe('decideConnectGrant (pure rules)', () => {
         expect(decideConnectGrant({ ...base, emailVerified: false }).grantCredits).toBe(0);
         expect(decideConnectGrant({ ...base, accountAlreadyGranted: true }).grantCredits).toBe(0);
         expect(decideConnectGrant({ ...base, identityAlreadyGranted: true }).grantCredits).toBe(0);
+    });
+    it('withholds when the email was already granted (delete-and-recreate farming)', () => {
+        expect(decideConnectGrant({ ...base, emailKeyAlreadyGranted: true }).grantCredits).toBe(0);
     });
     it('classifies trusted providers', () => {
         expect(isTrustedProvider('google')).toBe(true);

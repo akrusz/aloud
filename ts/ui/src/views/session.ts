@@ -31,7 +31,9 @@ import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
 import { wrapTtsWithBargeIn } from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
-import { ensureCloudToken } from '../cloud-auth.js';
+import { ensureCloudToken, fetchMe } from '../cloud-auth.js';
+import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
+import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
 
 import {
     createSttForChoice,
@@ -516,6 +518,24 @@ export async function mountSessionView(
     let voiceModalOpen = false;
     let currentPartial: HTMLElement | null = null;
     let scoredVoices: ScoredVoice[] = [];
+
+    // Live in-session balance (opt-in; meditation-pal-14s). Off by default — a
+    // ticking credit count is distracting mid-meditation — so this stays hidden
+    // unless the user enabled it. When on, it reads the shared balance store the
+    // LLM proxy feeds every turn, so it updates live without extra round-trips.
+    let unsubscribeBalance: (() => void) | null = null;
+    const balanceEl = root.querySelector<HTMLElement>('#session-balance');
+    if (balanceEl && appSettings.showSessionBalance) {
+        const paintBalance = (b: number | null): void => {
+            balanceEl.textContent = b == null ? '' : `${creditAmount(b)}${RATE_EMOJI}`;
+            balanceEl.classList.toggle('hidden', b == null);
+        };
+        paintBalance(getKnownBalance());
+        unsubscribeBalance = subscribeBalance(paintBalance);
+        // Seed from /me if we haven't observed a balance yet this load (fetchMe
+        // publishes into the store, which repaints via the subscription).
+        if (getKnownBalance() == null) void fetchMe();
+    }
 
     async function respondTo(userText: string): Promise<void> {
         if (busy) return;
@@ -1162,6 +1182,7 @@ export async function mountSessionView(
     ): Promise<void> {
         if (torn) return;
         torn = true;
+        unsubscribeBalance?.();
         if (checkInTimer) clearInterval(checkInTimer);
         clearInterval(timerInterval);
         pacing.endSession();
@@ -1317,6 +1338,9 @@ function renderSessionHTML(): string {
         <div class="input-area">
             <div class="input-row">
                 <div id="voice-status" class="voice-status">Connecting…</div>
+                <!-- Live cloud balance — hidden unless the user opts in
+                     (Settings → "Show credit balance during sessions"). -->
+                <span class="session-balance hidden" id="session-balance" title="Cloud credits remaining"></span>
                 <span class="session-timer" id="timer">0:00</span>
                 <button id="tts-toggle" class="btn btn-tts active" title="Read responses aloud" aria-label="Toggle text-to-speech">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">

@@ -153,6 +153,16 @@ nothing needs baking into the build.
   the free grant.
 - **Apple** — set `APPLE_CLIENT_IDS`. Trusted, same as Google.
 
+**Account deletion + anti-farming (meditation-pal-8jc).** Settings → *Danger zone*
+→ *Delete account* calls `DELETE /cloud/v1/me`, a **soft-delete**: the account is
+anonymized and tombstoned (can't sign in), its identities are freed (so the same
+Google/Apple/email can start fresh), and any remaining balance is forfeited — but
+the append-only ledger rows stay for audit. Because the free grant costs real
+money, it's gated on a hash of the **normalized email** (`auth/email-key.ts` —
+case-, dot-, and `+tag`-invariant), recorded in an append-only `grant_keys` log
+that **survives deletion**. So a deleted user can return and buy credits but can't
+re-claim the freebie. No config; works on any store.
+
 ### Sign in with Apple — one-time Apple Developer setup
 
 You have an Apple Developer membership; this is what to create (all in

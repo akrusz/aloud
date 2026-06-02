@@ -56,6 +56,11 @@ export interface Account {
      *  (mass-account creation tends to cluster by IP/subnet). Optional — absent
      *  when behind a proxy that doesn't forward it. */
     signupIp?: string;
+    /** When the user deleted this account (soft-delete, meditation-pal-8jc).
+     *  Set ⇒ the account is anonymized, its identities freed, balance zeroed; it
+     *  can no longer sign in. The row itself is kept so the append-only ledger's
+     *  foreign keys (its audit trail) survive. Absent on live accounts. */
+    deletedAt?: number;
 }
 
 /** The sign-in methods an account can carry. TRUSTED providers (google, apple)
@@ -124,6 +129,24 @@ export interface CreditsStore {
     getIdentitiesForAccount(accountId: string): Promise<Identity[]>;
     /** Flip an identity's grantedCredits flag to true after a grant settles. */
     markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void>;
+    /** Remove every identity linked to an account, freeing each (provider, sub)
+     *  so the same Google/Apple/email can sign in fresh later. Used by account
+     *  deletion (meditation-pal-8jc). */
+    deleteIdentitiesForAccount(accountId: string): Promise<void>;
+    /** Anonymize + tombstone an account in place (soft-delete). Scrubs the email
+     *  to `anonymizedEmail` and stamps `deletedAt`; keeps the row so ledger FKs
+     *  hold. */
+    markAccountDeleted(accountId: string, deletedAt: number, anonymizedEmail: string): Promise<void>;
+
+    // ---- Grant-eligibility keys (anti-farming, meditation-pal-8jc) ----------
+    // An append-only log of email-derived keys (see auth/email-key.ts) that have
+    // ever received the free grant. Survives account deletion, so a deleted-then-
+    // recreated account can't claim the freebie twice. Never carries the address.
+
+    /** True if this grant key has ever been recorded (i.e. already granted). */
+    hasGrantKey(keyHash: string): Promise<boolean>;
+    /** Record that this grant key received a free grant. Idempotent. */
+    recordGrantKey(keyHash: string, createdAt: number): Promise<void>;
 
     // ---- Gifts (gift-clouds, meditation-pal-bd5) ---------------------------
     /** Record a purchased gift (status 'pending'). Idempotent on stripeSessionId:

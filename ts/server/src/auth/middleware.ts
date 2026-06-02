@@ -27,7 +27,10 @@ export function requireAuth(deps: Deps): MiddlewareHandler {
         const token = bearer(c);
         const claims = token ? await verifySessionToken(token, deps.config.sessionSecret) : undefined;
         const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
-        if (!account) {
+        // A deleted (soft-deleted) account keeps its row for ledger FKs but must
+        // not authenticate — treat its still-valid-signature token as signed out
+        // (meditation-pal-8jc).
+        if (!account || account.deletedAt != null) {
             return c.json(apiError('unauthenticated', 'sign in required'), ERROR_STATUS.unauthenticated);
         }
         c.set('account', account);

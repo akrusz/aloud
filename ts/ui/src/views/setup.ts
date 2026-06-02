@@ -45,6 +45,7 @@ import {
 } from '../voice-picker.js';
 import { rateBadge, rateUnits, RATE_EMOJI, creditAmount, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
 import { fetchMe, devSignIn } from '../cloud-auth.js';
+import { getKnownBalance } from '../cloud-balance.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -299,6 +300,10 @@ export async function mountSetupView(
     let cloudBalanceText: string | null = null;
     let pillShowsBalance = false;
     async function refreshBalance(): Promise<void> {
+        // Show the last-known balance instantly (e.g. just back from a session
+        // that ticked it down), then reconcile with a live /me below.
+        const cached = getKnownBalance();
+        if (cached != null) cloudBalanceText = creditAmount(cached);
         let me = await fetchMe().catch(() => null);
         if (!me) {
             // Balance-peek fallback. On the setup screen no session has run yet,

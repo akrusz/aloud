@@ -115,19 +115,31 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             overlay.querySelector('#signin-oauth')?.remove();
             overlay.querySelector('.signin-divider')?.remove();
         } else {
+            const oauth = overlay.querySelector<HTMLElement>('#signin-oauth')!;
             const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
             const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
+            // Drop the whole OAuth block + its "or" divider once we know neither
+            // button rendered (e.g. a reachable server configured with only
+            // email/password) — otherwise a lone "or" dangles above the form.
+            const dropEmptyOauth = (): void => {
+                if (oauth.childElementCount === 0) {
+                    oauth.remove();
+                    overlay.querySelector('.signin-divider')?.remove();
+                }
+            };
             void renderGoogleSignInButton(googleHost, {
                 onSignedIn,
                 onError: (e) => showError(e.message),
             }).then((ok) => {
                 if (!ok) googleHost.remove();
+                dropEmptyOauth();
             });
             void renderAppleSignInButton(appleHost, {
                 onSignedIn,
                 onError: (e) => showError(e.message),
             }).then((ok) => {
                 if (!ok) appleHost.remove();
+                dropEmptyOauth();
             });
         }
 
