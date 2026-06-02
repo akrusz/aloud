@@ -215,6 +215,26 @@ describe('retreat pass — TTS metering bypass', () => {
     });
 });
 
+describe('retreat pass — /me retreatCovered flag', () => {
+    function me(h: Harness) {
+        return h.app.request('/cloud/v1/me', { headers: { authorization: `Bearer ${h.token}` } });
+    }
+
+    it('is true for a covered member', async () => {
+        const h = await setup();
+        const body = (await (await me(h)).json()) as { retreatCovered: boolean };
+        expect(body.retreatCovered).toBe(true);
+    });
+
+    it('is false without a pass, and false once the window has ended', async () => {
+        const none = await setup({ member: false });
+        expect(((await (await me(none)).json()) as { retreatCovered: boolean }).retreatCovered).toBe(false);
+
+        const expired = await setup({ startOffset: -7200, endOffset: -3600 });
+        expect(((await (await me(expired)).json()) as { retreatCovered: boolean }).retreatCovered).toBe(false);
+    });
+});
+
 describe('activeRetreatCoverage — cap boundary', () => {
     it('covers under the cap and falls back at/over it', async () => {
         const store = new MemoryCreditsStore();

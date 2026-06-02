@@ -12,6 +12,7 @@
 import { detectCapabilities } from '../capabilities.js';
 import { fetchMe, clearCloudToken, deleteAccount } from '../cloud-auth.js';
 import { clearKnownBalance } from '../cloud-balance.js';
+import { clearRetreatCovered } from '../cloud-coverage.js';
 import {
     fetchReturnedGifts,
     regiftReturned,
@@ -77,10 +78,14 @@ async function render(root: HTMLElement): Promise<void> {
             <div class="account-row">
                 <div class="account-info">
                     <div class="account-email">${escape(account.email)}</div>
-                    <div class="account-credits provider-hint">${creditAmount(account.creditsRemaining)} remaining</div>
+                    <div class="account-credits provider-hint">${
+                        account.retreatCovered
+                            ? 'Retreat access — usage is on your retreat for now'
+                            : `${creditAmount(account.creditsRemaining)} remaining`
+                    }</div>
                 </div>
                 <div class="account-actions">
-                    <button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>
+                    ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>`}
                     <button type="button" class="btn btn-secondary" id="acct-signout">Sign out</button>
                 </div>
             </div>
@@ -125,6 +130,7 @@ function wireAccountSection(root: HTMLElement): void {
     });
     root.querySelector('#acct-signout')?.addEventListener('click', () => {
         clearKnownBalance();
+        clearRetreatCovered();
         void clearCloudToken().then(() => render(root));
     });
     root.querySelector('#acct-connect')?.addEventListener('click', () => {

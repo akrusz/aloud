@@ -168,12 +168,16 @@ export async function connectIdentity(
  *  response). Centralised so both paths report `providers` consistently. */
 export async function buildAccountView(deps: Deps, account: Account): Promise<AccountView> {
     const identities = await deps.store.getIdentitiesForAccount(account.id);
+    // "Covered" tracks an active in-window pass, NOT the daily-cap check — a
+    // member who hits their cap for the day shouldn't suddenly see buy prompts.
+    const pass = await deps.store.activeRetreatPassForAccount(account.id, Date.now() / 1000);
     return {
         id: account.id,
         email: account.email,
         emailVerified: account.emailVerified,
         creditsRemaining: await deps.ledger.balance(account.id),
         providers: identities.map((i) => i.provider),
+        retreatCovered: pass != null,
     };
 }
 

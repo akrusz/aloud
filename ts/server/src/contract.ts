@@ -147,6 +147,10 @@ export interface AccountView {
      *  Google/Apple to claim free credits" only when no trusted identity is
      *  linked yet (meditation-pal-116). Mirrors store.ts IdentityProvider. */
     providers: SignInProvider[];
+    /** True when an active retreat pass (meditation-pal-414) currently covers
+     *  this account — usage is free for the window. The UI uses it to drop the
+     *  spend prompts and cloud-cost estimates these users shouldn't see. */
+    retreatCovered: boolean;
 }
 
 /** Sign-in method linked to an account (mirrors store.ts IdentityProvider). */

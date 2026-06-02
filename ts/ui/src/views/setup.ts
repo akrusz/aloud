@@ -45,6 +45,8 @@ import {
 } from '../voice-picker.js';
 import { rateBadge, rateUnits, RATE_EMOJI, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
+import { fetchMe } from '../cloud-auth.js';
+import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -269,6 +271,15 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
+
+        // Retreat attendees aren't metered (meditation-pal-414) — drop the
+        // cloud-rate estimate and its buy-credits tap target entirely.
+        if (getRetreatCovered()) {
+            el.classList.add('hidden');
+            el.innerHTML = '';
+            return;
+        }
+
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
         const sttChoice = sttSel?.value ?? sttSetupSelected;
 
@@ -565,6 +576,10 @@ export async function mountSetupView(
         // Initial estimate (the LLM leg fills in once models load; the voice
         // leg once voices load — both re-call updateSessionEstimate).
         updateSessionEstimate();
+        // Learn retreat coverage (meditation-pal-414) so the pill can hide for
+        // covered attendees. fetchMe is a no-op when signed out; repaint once it
+        // resolves (it populates the coverage store synchronously before then).
+        void fetchMe().then(() => updateSessionEstimate()).catch(() => {});
         // The cloud-rate pill doubles as the buy-credits entry point: tapping it
         // opens the buy-credits modal (which shows the live balance). It's only
         // visible when the session actually spends clouds (see

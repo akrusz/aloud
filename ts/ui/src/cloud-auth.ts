@@ -15,6 +15,7 @@
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import { cloudUrl } from './cloud-base.js';
 import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
+import { setRetreatCovered, clearRetreatCovered } from './cloud-coverage.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
@@ -31,6 +32,10 @@ export interface AccountView {
     /** Linked sign-in methods — drives the "connect Google/Apple for credits"
      *  affordance (meditation-pal-116). */
     providers: SignInProvider[];
+    /** True when a retreat pass currently covers this account (meditation-pal-414)
+     *  — usage is free, so the UI drops spend prompts + cost estimates. Optional:
+     *  absent from servers deployed before retreat passes (treated as false). */
+    retreatCovered?: boolean;
 }
 
 export interface AuthResponse {
@@ -146,6 +151,7 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     // Seed the shared balance store with this authoritative reading (live
     // surfaces subscribe to it — meditation-pal-14s).
     if (typeof account.creditsRemaining === 'number') setKnownBalance(account.creditsRemaining);
+    setRetreatCovered(account.retreatCovered === true);
     // `providers` is newer than some deployed servers; default it so callers can
     // always `.some()`/`.map()` it (a missing field crashed the account panel
     // against a not-yet-redeployed server).
@@ -166,6 +172,7 @@ export async function deleteAccount(): Promise<void> {
         // Nothing to delete; treat as already signed out.
         await clearCloudToken();
         clearKnownBalance();
+        clearRetreatCovered();
         return;
     }
     const res = await fetchImpl(cloudUrl('/me'), {
@@ -183,6 +190,7 @@ export async function deleteAccount(): Promise<void> {
     }
     await clearCloudToken();
     clearKnownBalance();
+    clearRetreatCovered();
 }
 
 /** POST /v1/auth/dev — mint (or reuse) the local dev session. */

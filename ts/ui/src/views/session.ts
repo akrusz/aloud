@@ -33,6 +33,7 @@ import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { ensureCloudToken, fetchMe } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
+import { getRetreatCovered } from '../cloud-coverage.js';
 import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
 
 import {
@@ -397,6 +398,9 @@ export async function mountSessionView(
     function appendBillingApology(text: string, showBuy: boolean): void {
         const el = appendMessage('assistant', text);
         if (!showBuy) return;
+        // A retreat attendee (meditation-pal-414) shouldn't be nudged to buy —
+        // their cap reset is what restores access, not a top-up.
+        if (getRetreatCovered()) return;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'buy-clouds-inline';
@@ -526,7 +530,9 @@ export async function mountSessionView(
     // LLM proxy feeds every turn, so it updates live without extra round-trips.
     let unsubscribeBalance: (() => void) | null = null;
     const balanceEl = root.querySelector<HTMLElement>('#session-balance');
-    if (balanceEl && appSettings.showSessionBalance) {
+    // Covered retreat attendees have no meaningful balance to tick down, so the
+    // live readout would only show a frozen number — skip it (meditation-pal-414).
+    if (balanceEl && appSettings.showSessionBalance && !getRetreatCovered()) {
         const paintBalance = (b: number | null): void => {
             balanceEl.textContent = b == null ? '' : `${creditAmount(b)}${RATE_EMOJI}`;
             balanceEl.classList.toggle('hidden', b == null);
