@@ -44,7 +44,7 @@ import {
     type ServerVoice,
 } from '../voice-picker.js';
 import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE, creditAmount, MODE_RATE_MULTIPLIER } from '../credit-rate.js';
-import { fetchMe, ensureCloudToken } from '../cloud-auth.js';
+import { fetchMe, devSignIn } from '../cloud-auth.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -291,16 +291,23 @@ export async function mountSetupView(
     let cloudBalanceText: string | null = null;
     let balanceRevertTimer: ReturnType<typeof setTimeout> | undefined;
     async function refreshBalance(): Promise<void> {
-        // Ensure a token first: on the setup screen no session has run yet, so
-        // dev/local has no cached token and fetchMe would no-op. ensureCloudToken
-        // dev-signs-in locally; a hosted build with no session throws (caught)
-        // and we just show no balance — never a forced sign-in popup.
-        try {
-            await ensureCloudToken();
-        } catch {
-            cloudBalanceText = null;
+        let me = await fetchMe().catch(() => null);
+        if (!me) {
+            // Balance-peek fallback. On the setup screen no session has run yet,
+            // so there may be no token; and when the server advertises Google
+            // sign-in, a stale token (e.g. after a dev-server restart rotates
+            // its JWT secret) can't be re-minted by fetchMe's self-heal — it
+            // refuses the dev route when Google is configured. Mint a dev token
+            // directly: works locally, and is a no-op in production where
+            // /auth/dev is disabled (404 → throws → caught), so the pill just
+            // shows no balance there rather than a forced sign-in.
+            try {
+                await devSignIn();
+                me = await fetchMe().catch(() => null);
+            } catch {
+                /* production / offline — nothing to peek */
+            }
         }
-        const me = await fetchMe().catch(() => null);
         cloudBalanceText = me ? creditAmount(me.creditsRemaining) : null;
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (el) el.title = cloudBalanceText ? `Cloud balance: ${cloudBalanceText}` : RATE_LEGEND_TITLE;
