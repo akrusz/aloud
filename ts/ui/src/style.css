@@ -465,14 +465,22 @@
     flex-wrap: wrap;
 }
 
-/* Combined estimated cloud rate for the configured session, above the Begin
-   button (meditation-pal-14s). Ambient + muted — transparency, not a nag. The
-   leading "≈" and the title tooltip carry the "estimate" caveat. */
+/* Combined estimated cloud rate for the configured session (meditation-pal-14s).
+   A small floating pill at the bottom-left, anchored just above the setup bar's
+   top edge (the fixed footer is its containing block) — absolutely positioned so
+   it adds NO height to the bar and obscures as little content as possible.
+   Opaque so it stays legible over scrolled content; muted + same-size text so
+   it's transparency, not a nag. The "≈" + title tooltip carry the caveat. */
 .session-estimate {
-    flex-basis: 100%;
-    margin: 0 0 0.5rem;
-    text-align: center;
+    position: absolute;
+    left: 0.75rem;
+    bottom: calc(100% + 0.5rem);
+    margin: 0;
+    padding: 0.25rem 0.6rem;
+    background: var(--bg-surface);
     color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
     cursor: help;
 }
 

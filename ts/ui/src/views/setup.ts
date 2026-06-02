@@ -276,10 +276,9 @@ export async function mountSetupView(
         const tts = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
         const total = llm + stt + tts;
 
-        el.textContent =
-            total > 0
-                ? `≈ ${rateUnits(total)}${RATE_EMOJI} / hour this session`
-                : `No ${RATE_EMOJI} used — local or bring-your-own-key`;
+        // Compact for the floating pill; the "≈" + title tooltip carry the
+        // estimate/per-hour caveat. Zero (local/BYOK) needs no prose.
+        el.textContent = total > 0 ? `≈ ${rateUnits(total)}${RATE_EMOJI}/hr` : `0${RATE_EMOJI}`;
     }
 
     /**
@@ -1410,8 +1409,10 @@ function renderSetupHTML(
          wrapper caps width to 640 px so the Begin button doesn't span
          the whole page on wide screens. Matches the original index.html. -->
     <div class="setup-footer">
+        <!-- Floating cloud-rate pill, anchored above the bar's top-left so it
+             doesn't add height to (and so obscure content behind) the bar. -->
+        <p class="session-estimate" id="session-estimate" title="${RATE_LEGEND_TITLE}"></p>
         <div class="setup-footer-inner">
-            <p class="session-estimate" id="session-estimate" title="${RATE_LEGEND_TITLE}"></p>
             <button id="begin-btn" type="button"
                 class="btn btn-primary btn-begin">Begin Session</button>
         </div>
