@@ -88,6 +88,47 @@ repo secret and a `production` environment). Verify:
 curl https://<your-app>.fly.dev/health      # {"ok":true,"providers":[...],...}
 ```
 
+### Deploy hygiene (read before `fly deploy`)
+
+A few non-obvious things that have bitten us. This is a money server (the credit
+ledger) — treat a deploy as a production change, not a save button.
+
+1. **`fly deploy` ships your whole working tree, not a commit.** The Docker build
+   context is whatever's in `ts/` *right now* — uncommitted edits, and every
+   commit on your current branch that isn't live yet. So deploying from a feature
+   branch pushes that entire branch's divergence to prod, even the part you
+   weren't thinking about. **Habit:** before deploying, run `git status` (clean?)
+   and know what's on this branch vs what's running. Deploy from `main` or a
+   branch you've deliberately readied — not "whatever I happen to have checked
+   out." (This is how a half-finished schema change once rode along with an
+   unrelated deploy and crashed the boot.)
+
+2. **A release marked `complete` does NOT mean the server booted.** Because
+   `min_machines_running = 0`, the machine only actually starts on the first
+   request. `fly releases` showing "complete" just means the *config* rolled out.
+   A broken image can sit there looking fine until someone hits it and it
+   crash-loops. **So always actually wake + check after deploying:**
+
+   ```bash
+   curl https://aloud-cloud.fly.dev/health     # forces a cold start
+   fly logs -a aloud-cloud                      # watch it boot; look for "aloud cloud up"
+   ```
+
+3. **Rolling back is one command** — your escape hatch when a deploy goes bad.
+   Every release keeps its image; redeploy a previous one by digest:
+
+   ```bash
+   fly releases -a aloud-cloud --image          # find a known-good DOCKER IMAGE ref
+   fly deploy --image <that-ref> --config server/fly.toml -a aloud-cloud
+   ```
+
+   The volume (and thus the ledger) is untouched by a rollback — you're only
+   swapping the code image, not the data.
+
+4. **Build it locally first when the Dockerfile changed.** `docker build -f
+   server/Dockerfile -t aloud-cloud .` from `ts/` runs the exact same build Fly
+   does, so a typo fails on your laptop in seconds instead of after a push.
+
 ### Durability & scale
 
 The credit ledger is a SQLite file (`SqliteCreditsStore`, `node:sqlite`) on the
