@@ -481,7 +481,7 @@
     color: var(--text-muted);
     border: 1px solid var(--border);
     border-radius: 999px;
-    cursor: help;
+    cursor: pointer;
 }
 
 /* History view: the markup uses the lifted .history-container / .history-header

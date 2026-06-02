@@ -43,7 +43,7 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE, creditAmount, MODE_RATE_MULTIPLIER } from '../credit-rate.js';
+import { rateBadge, rateUnits, RATE_EMOJI, creditAmount, MODE_RATE_MULTIPLIER } from '../credit-rate.js';
 import { fetchMe, devSignIn } from '../cloud-auth.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
@@ -269,6 +269,13 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
+        // Balance mode (toggled by tapping the pill): show the live balance and
+        // ignore config changes until toggled back. Falls through to the rate
+        // when no balance is available (signed out / non-cloud).
+        if (pillShowsBalance && cloudBalanceText) {
+            el.textContent = `balance: ${cloudBalanceText}`;
+            return;
+        }
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
         const sttChoice = sttSel?.value ?? sttSetupSelected;
 
@@ -278,18 +285,17 @@ export async function mountSetupView(
         // Noting mode burns far less than the exploration-calibrated legs imply.
         const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1);
 
-        // Compact for the floating pill; the "≈" + title tooltip carry the
-        // estimate/per-hour caveat. Zero (local/BYOK) needs no prose.
+        // Compact for the floating pill; the "≈" carries the estimate/per-hour
+        // caveat. Zero (local/BYOK) needs no prose.
         el.textContent = total > 0 ? `≈ ${rateUnits(total)}${RATE_EMOJI}/hr` : `0${RATE_EMOJI}`;
     }
 
-    // The pill doubles as a peek at your actual cloud balance — a lightweight
-    // stand-in until the full profile button (meditation-pal-e3e) lands. Hover
-    // shows it in the tooltip; tap swaps the pill to the balance for a moment
-    // (so it works on touch, where there's no hover). Fetched lazily; a null
-    // (signed-out / non-cloud) balance leaves the estimate caveat in place.
+    // The pill toggles between the rate estimate and a peek at your actual cloud
+    // balance on tap — a lightweight stand-in until the full profile button
+    // (meditation-pal-e3e) lands. Balance is fetched lazily; a null (signed-out
+    // / non-cloud) balance just leaves the rate showing.
     let cloudBalanceText: string | null = null;
-    let balanceRevertTimer: ReturnType<typeof setTimeout> | undefined;
+    let pillShowsBalance = false;
     async function refreshBalance(): Promise<void> {
         let me = await fetchMe().catch(() => null);
         if (!me) {
@@ -309,12 +315,6 @@ export async function mountSetupView(
             }
         }
         cloudBalanceText = me ? creditAmount(me.creditsRemaining) : null;
-        const el = root.querySelector<HTMLElement>('#session-estimate');
-        if (el) el.title = cloudBalanceText ? `Cloud balance: ${cloudBalanceText}` : RATE_LEGEND_TITLE;
-    }
-    function showBalanceText(): void {
-        const el = root.querySelector<HTMLElement>('#session-estimate');
-        if (el && cloudBalanceText) el.textContent = `${cloudBalanceText} balance`;
     }
 
     /**
@@ -592,16 +592,11 @@ export async function mountSetupView(
         const estimateEl = root.querySelector<HTMLElement>('#session-estimate');
         if (estimateEl) {
             void refreshBalance();
-            // Hover (desktop) and tap (touch) both peek the balance; revert to
-            // the rate on mouse-out, or after a beat on tap.
-            estimateEl.addEventListener('mouseenter', showBalanceText);
-            estimateEl.addEventListener('mouseleave', () => updateSessionEstimate());
+            // Tap toggles the pill between the rate estimate and the balance.
             estimateEl.addEventListener('click', () => {
-                void refreshBalance().then(() => {
-                    showBalanceText();
-                    clearTimeout(balanceRevertTimer);
-                    balanceRevertTimer = setTimeout(() => updateSessionEstimate(), 2500);
-                });
+                pillShowsBalance = !pillShowsBalance;
+                if (pillShowsBalance) void refreshBalance().then(updateSessionEstimate);
+                updateSessionEstimate();
             });
         }
 
@@ -1465,8 +1460,9 @@ function renderSetupHTML(
          the whole page on wide screens. Matches the original index.html. -->
     <div class="setup-footer">
         <!-- Floating cloud-rate pill, anchored above the bar's top-left so it
-             doesn't add height to (and so obscure content behind) the bar. -->
-        <p class="session-estimate" id="session-estimate" title="${RATE_LEGEND_TITLE}"></p>
+             doesn't add height to (and so obscure content behind) the bar. Tap
+             toggles it to your cloud balance. -->
+        <p class="session-estimate" id="session-estimate"></p>
         <div class="setup-footer-inner">
             <button id="begin-btn" type="button"
                 class="btn btn-primary btn-begin">Begin Session</button>
