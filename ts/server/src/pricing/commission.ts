@@ -47,6 +47,17 @@ const TABLE: Record<PurchaseChannel, Record<string, CommissionRate>> = {
     iap_google: {
         US: { rate: 0.15, note: 'Google Play small-business rate (15%); 30% above $1M/yr' },
     },
+    // On-chain USDC via x402 on Base (meditation-pal-du9). The CDP facilitator
+    // settles USDC for free and gas on Base is sub-cent, so the take-rate is
+    // effectively just dust. No on-chain chargebacks.
+    //
+    // EU CAVEAT: if x402 is ever exposed *inside the iOS app* in the EU, Apple's
+    // Core Technology Commission could apply just like web_stripe.EU. The MVP
+    // offers x402 on web/agent only (no Apple surface), so no store cut — add an
+    // EU row mirroring web_stripe.EU before enabling it there.
+    x402: {
+        US: { rate: 0.001, note: 'Base gas + CDP facilitator (~0); USDC settled on-chain, no chargebacks' },
+    },
 };
 
 /** The single highest commission across all configured channels. Margin

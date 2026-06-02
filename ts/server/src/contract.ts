@@ -22,8 +22,10 @@ import type { Message } from '@aloud/core/llm';
 export type ProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
 
 /** Channel a credit purchase flowed through. Drives the commission lookup —
- *  see pricing/commission.ts and the meditation-pal-8sj addendum. */
-export type PurchaseChannel = 'web_stripe' | 'iap_apple' | 'iap_google';
+ *  see pricing/commission.ts and the meditation-pal-8sj addendum. `x402` is the
+ *  on-chain USDC channel (meditation-pal-du9): pay-per-pack over the x402
+ *  protocol on Base, ~0 commission. */
+export type PurchaseChannel = 'web_stripe' | 'iap_apple' | 'iap_google' | 'x402';
 
 // ---- POST /cloud/v1/llm/complete --------------------------------------------------
 

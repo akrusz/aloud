@@ -137,6 +137,28 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect(await ledger.balance('acct-1')).toBe(18);
     });
 
+    it('credits a purchase only once on a replayed payment proof (idempotent)', async () => {
+        await store.createAccount(ACCOUNT);
+        const ledger = new Ledger(store, () => 100);
+        // reason embeds the unique external ref (here an x402 settlement tx hash).
+        const reason = 'purchase:plus:x402:0xdeadbeef';
+        await ledger.purchase('acct-1', 110, reason);
+        // A webhook retry / resubmitted settlement carries the SAME ref.
+        await ledger.purchase('acct-1', 110, reason);
+        expect(await ledger.balance('acct-1')).toBe(110);
+        const purchases = (await store.listEntries('acct-1')).filter((e) => e.kind === 'purchase');
+        expect(purchases).toHaveLength(1);
+    });
+
+    it('only purchases are deduped — same reason on other kinds still applies', async () => {
+        await store.createAccount(ACCOUNT);
+        const ledger = new Ledger(store, () => 100);
+        await ledger.grant('acct-1', 20, 'dup');
+        await ledger.debit('acct-1', 5, 'dup');
+        await ledger.debit('acct-1', 5, 'dup'); // not a purchase → not swallowed
+        expect(await ledger.balance('acct-1')).toBe(10);
+    });
+
     it('aggregation reads see every account and entry', async () => {
         await store.createAccount(ACCOUNT);
         await store.createAccount({ ...ACCOUNT, id: 'acct-2' });

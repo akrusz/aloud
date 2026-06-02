@@ -113,6 +113,18 @@ export interface Config {
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
 
+    /** x402 (meditation-pal-du9) — accept USDC credit-pack purchases on Base via
+     *  the x402 protocol. The x402 buy route reports "not configured" unless
+     *  `x402Enabled` is on AND `x402PayToAddress` is set (a Base address we hold
+     *  keys to — kept separate from the personal tip-jar address). CDP
+     *  facilitator keys are only needed for mainnet settlement; Base Sepolia
+     *  testing uses the keyless testnet facilitator. */
+    x402Enabled?: boolean;
+    x402PayToAddress?: string;
+    x402Network?: 'base' | 'base-sepolia';
+    cdpApiKeyId?: string;
+    cdpApiKeySecret?: string;
+
     /** Bearer token for the /cloud/v1/admin/* spend-monitoring endpoints. When unset,
      *  those endpoints are disabled (404) rather than open. */
     adminToken?: string;
@@ -170,6 +182,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (env['GOOGLE_TTS_API_KEY']) config.googleTtsApiKey = env['GOOGLE_TTS_API_KEY'];
     if (env['STRIPE_SECRET_KEY']) config.stripeSecretKey = env['STRIPE_SECRET_KEY'];
     if (env['STRIPE_WEBHOOK_SECRET']) config.stripeWebhookSecret = env['STRIPE_WEBHOOK_SECRET'];
+    if (env['X402_ENABLED'] === '1') config.x402Enabled = true;
+    if (env['X402_PAY_TO_ADDRESS']) config.x402PayToAddress = env['X402_PAY_TO_ADDRESS'];
+    const x402Net = env['X402_NETWORK'];
+    if (x402Net === 'base' || x402Net === 'base-sepolia') config.x402Network = x402Net;
+    if (env['CDP_API_KEY_ID']) config.cdpApiKeyId = env['CDP_API_KEY_ID'];
+    if (env['CDP_API_KEY_SECRET']) config.cdpApiKeySecret = env['CDP_API_KEY_SECRET'];
     if (env['ALOUD_ADMIN_TOKEN']) config.adminToken = env['ALOUD_ADMIN_TOKEN'];
     if (env['ALOUD_UI_DIR']) config.uiDir = env['ALOUD_UI_DIR'];
     if (env['ALOUD_DB_PATH']) config.dbPath = env['ALOUD_DB_PATH'];

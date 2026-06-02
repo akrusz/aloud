@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS ledger (
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_account ON ledger(account_id);
+-- Idempotent purchases (meditation-pal-0g6 / du9): at most one credit per
+-- payment proof. A purchase reason embeds the unique external ref (Stripe
+-- session id, or x402 settlement tx hash), so a replayed webhook / resubmitted
+-- settlement hits this constraint instead of double-crediting. Partial index:
+-- only 'purchase' rows are constrained; debits/holds/grants are unaffected.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_purchase_ref
+    ON ledger(reason) WHERE kind = 'purchase';
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -392,20 +399,35 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async appendEntry(entry: LedgerEntry): Promise<void> {
-        this.db
-            .prepare(
-                `INSERT INTO ledger (id, account_id, kind, amount, hold_id, reason, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`
-            )
-            .run(
-                entry.id,
-                entry.accountId,
-                entry.kind,
-                entry.amount,
-                entry.holdId ?? null,
-                entry.reason,
-                entry.createdAt
-            );
+        try {
+            this.db
+                .prepare(
+                    `INSERT INTO ledger (id, account_id, kind, amount, hold_id, reason, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`
+                )
+                .run(
+                    entry.id,
+                    entry.accountId,
+                    entry.kind,
+                    entry.amount,
+                    entry.holdId ?? null,
+                    entry.reason,
+                    entry.createdAt
+                );
+        } catch (err) {
+            // Idempotent purchases (idx_ledger_purchase_ref): a duplicate
+            // (kind='purchase', reason) is a replayed payment proof — a Stripe
+            // webhook retry or a resubmitted x402 settlement. Swallow it so the
+            // account is credited exactly once. Any other constraint failure is
+            // a real bug, so only purchases are forgiven.
+            if (
+                entry.kind === 'purchase' &&
+                (String(err).includes('UNIQUE') || String(err).includes('constraint'))
+            ) {
+                return;
+            }
+            throw err;
+        }
     }
 
     async listEntries(accountId: string): Promise<LedgerEntry[]> {

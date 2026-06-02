@@ -25,4 +25,13 @@ describe('commissionFor', () => {
     it('worst-case constant bounds the table', () => {
         expect(commissionFor('web_stripe', 'EU').rate).toBeLessThanOrEqual(WORST_CASE_COMMISSION);
     });
+
+    it('x402 (on-chain USDC) is the cheapest channel of all', () => {
+        const x402 = commissionFor('x402', 'US').rate;
+        expect(x402).toBeLessThan(commissionFor('web_stripe', 'US').rate);
+        expect(x402).toBeLessThan(commissionFor('iap_apple', 'US').rate);
+        // Still > 0 (gas/facilitator dust), and never raises the worst case.
+        expect(x402).toBeGreaterThan(0);
+        expect(x402).toBeLessThanOrEqual(WORST_CASE_COMMISSION);
+    });
 });

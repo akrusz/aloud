@@ -177,6 +177,7 @@ export function assertSolvent(packs: readonly PackLike[]): SolvencyReport[] {
         ['web_stripe', 'EU'],
         ['iap_apple', 'US'],
         ['iap_google', 'US'],
+        ['x402', 'US'],
     ];
     const worstCommission = Math.max(
         ...channels.map(([c, j]) => commissionFor(c, j).rate),
