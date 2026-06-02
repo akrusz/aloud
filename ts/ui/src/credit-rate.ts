@@ -41,13 +41,24 @@ export function creditAmount(credits: number, digits = 1): string {
     return `${credits.toFixed(digits)}${RATE_EMOJI}`;
 }
 
-/** Whole emoji-units for a credits/hr rate. Rounds to the nearest unit, but
- *  never below 1 for a genuinely paid option — so a cheap-but-not-free choice
- *  can't read as free. A zero/negative rate (local/BYOK) returns 0. */
+/** Whole emoji-units for a credits/hr rate. Rounds DOWN (the estimates run high,
+ *  so flooring keeps the badge from overstating), but never below 1 for a
+ *  genuinely paid option — so a cheap-but-not-free choice can't read as free. A
+ *  zero/negative rate (local/BYOK) returns 0. */
 export function rateUnits(creditsPerHour: number | null | undefined): number {
     if (!creditsPerHour || creditsPerHour <= 0) return 0;
-    return Math.max(1, Math.round(creditsPerHour / CREDITS_PER_EMOJI));
+    return Math.max(1, Math.floor(creditsPerHour / CREDITS_PER_EMOJI));
 }
+
+/** Per-mode estimate multiplier. Noting mode speaks short labels, not full
+ *  sentences, so it burns far fewer ☁️ than the exploration-calibrated base
+ *  rates suggest; scale a combined session estimate by the active mode before
+ *  rounding. (Applied to the composed session total, not the per-component
+ *  picker badges, which stay exploration-calibrated with their own caveat.) */
+export const MODE_RATE_MULTIPLIER: Record<'exploration' | 'noting', number> = {
+    exploration: 1,
+    noting: 0.4,
+};
 
 /** Badge text for a rate, e.g. "3☁️". Empty string when free (0). */
 export function rateBadge(creditsPerHour: number | null | undefined): string {

@@ -122,6 +122,43 @@ describe('fetchMe — tolerant of an older server', () => {
         expect(me?.providers).toEqual([]);
         expect(me?.creditsRemaining).toBe(5);
     });
+
+    it('self-heals a stale token: on 401 it re-mints (dev) and retries /me', async () => {
+        await kv.set('server:token', 'stale');
+        let meCalls = 0;
+        let devSignIns = 0;
+        setCloudAuthFetch(async (url) => {
+            const u = String(url);
+            if (u.endsWith('/auth/dev')) {
+                devSignIns++;
+                return new Response(JSON.stringify({ ...AUTH_BODY, token: 'tok-fresh' }), { status: 200 });
+            }
+            // /me: reject the stale token once, accept the re-minted one.
+            meCalls++;
+            return meCalls === 1
+                ? new Response('unauthorized', { status: 401 })
+                : new Response(
+                      JSON.stringify({ id: 'a1', email: 'u@e.com', emailVerified: true, creditsRemaining: 7, providers: [] }),
+                      { status: 200 }
+                  );
+        });
+
+        const me = await fetchMe();
+        expect(devSignIns).toBe(1); // cleared the stale token, re-signed-in once
+        expect(meCalls).toBe(2); // 401, then retried with the fresh token
+        expect(me?.creditsRemaining).toBe(7);
+        expect(await getCloudToken()).toBe('tok-fresh');
+    });
+
+    it('returns null (no throw, no sign-in loop) when the retry also fails', async () => {
+        await kv.set('server:token', 'stale');
+        setCloudAuthFetch(async (url) =>
+            String(url).endsWith('/auth/dev')
+                ? new Response(JSON.stringify({ ...AUTH_BODY, token: 'tok-fresh' }), { status: 200 })
+                : new Response('unauthorized', { status: 401 })
+        );
+        expect(await fetchMe()).toBeNull();
+    });
 });
 
 describe('additional sign-in methods (meditation-pal-s75)', () => {

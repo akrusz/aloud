@@ -43,7 +43,7 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE, creditAmount } from '../credit-rate.js';
+import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE, creditAmount, MODE_RATE_MULTIPLIER } from '../credit-rate.js';
 import { fetchMe } from '../cloud-auth.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
@@ -275,7 +275,8 @@ export async function mountSetupView(
         const llm = setup.provider === 'aloud' ? getModelRate() : 0;
         const stt = sttChoice === 'aloud' ? CLOUD_STT_CREDITS_PER_HOUR : 0;
         const tts = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
-        const total = llm + stt + tts;
+        // Noting mode burns far less than the exploration-calibrated legs imply.
+        const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1);
 
         // Compact for the floating pill; the "≈" + title tooltip carry the
         // estimate/per-hour caveat. Zero (local/BYOK) needs no prose.

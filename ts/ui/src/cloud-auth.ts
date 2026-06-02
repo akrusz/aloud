@@ -125,7 +125,21 @@ export async function getCloudToken(): Promise<string | null> {
 export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     const token = await getCloudToken();
     if (!token) return null;
-    const res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
+    let res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
+    if (res.status === 401) {
+        // Stale / secret-rotated token — clear and re-mint once, then retry,
+        // matching the LLM/TTS proxies' self-heal. dev/local re-signs-in
+        // silently; a hosted build with no live session can't, so we surface
+        // null (signed out) rather than throwing or popping a sign-in.
+        await clearCloudToken();
+        let fresh: string;
+        try {
+            fresh = await ensureCloudToken();
+        } catch {
+            return null;
+        }
+        res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${fresh}` } });
+    }
     if (!res.ok) return null;
     const account = (await res.json()) as AuthResponse['account'];
     // `providers` is newer than some deployed servers; default it so callers can
