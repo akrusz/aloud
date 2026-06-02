@@ -24,6 +24,29 @@ function providerNeedsKey(provider: string): boolean {
     return !['aloud', 'ollama', 'claude_proxy'].includes(provider);
 }
 
+/** Friendly display names for the aloud cloud allowlist, so the dropdown reads
+ *  "Claude Opus 4.8" rather than the raw "claude-opus-4-8" id. Unknown ids fall
+ *  back to a generic prettifier (drop any date stamp, Title-Case the words). The
+ *  option VALUE keeps the raw id — only the label changes. */
+const CLOUD_MODEL_NAMES: Record<string, string> = {
+    'claude-opus-4-8': 'Claude Opus 4.8',
+    'claude-sonnet-4-6': 'Claude Sonnet 4.6',
+    'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
+    'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
+};
+
+function prettyModelName(model: string): string {
+    const known = CLOUD_MODEL_NAMES[model];
+    if (known) return known;
+    return model
+        .replace(/[-_]\d{6,8}$/, '') // strip a trailing yyyymmdd date stamp
+        .split('/')
+        .pop()!
+        .split(/[-_]/)
+        .map((w) => (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(' ');
+}
+
 interface ModelOption {
     value: string;
     label: string;
@@ -60,7 +83,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             // to the label — the only provider where the picker shows it.
             const opts: ModelOption[] = data.models.map((m) => ({
                 value: `${m.provider}/${m.model}`,
-                label: `${m.model}${rateSuffix(m.creditsPerHour)}`,
+                label: `${prettyModelName(m.model)}${rateSuffix(m.creditsPerHour)}`,
                 creditsPerHour: m.creditsPerHour ?? null,
             }));
             cache.set(provider, opts);

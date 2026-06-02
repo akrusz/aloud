@@ -43,7 +43,8 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE } from '../credit-rate.js';
+import { rateBadge, rateUnits, RATE_EMOJI, RATE_LEGEND_TITLE, creditAmount } from '../credit-rate.js';
+import { fetchMe } from '../cloud-auth.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
@@ -279,6 +280,33 @@ export async function mountSetupView(
         // Compact for the floating pill; the "≈" + title tooltip carry the
         // estimate/per-hour caveat. Zero (local/BYOK) needs no prose.
         el.textContent = total > 0 ? `≈ ${rateUnits(total)}${RATE_EMOJI}/hr` : `0${RATE_EMOJI}`;
+    }
+
+    // The pill doubles as a peek at your actual cloud balance — a lightweight
+    // stand-in until the full profile button (meditation-pal-e3e) lands. Hover
+    // shows it in the tooltip; tap swaps the pill to the balance for a moment
+    // (so it works on touch, where there's no hover). Fetched lazily; a null
+    // (signed-out / non-cloud) balance leaves the estimate caveat in place.
+    let balanceRevertTimer: ReturnType<typeof setTimeout> | undefined;
+    async function refreshBalance(): Promise<string | null> {
+        const me = await fetchMe().catch(() => null);
+        const el = root.querySelector<HTMLElement>('#session-estimate');
+        if (!el) return null;
+        if (!me) {
+            el.title = RATE_LEGEND_TITLE;
+            return null;
+        }
+        const balance = creditAmount(me.creditsRemaining);
+        el.title = `Cloud balance: ${balance}`;
+        return balance;
+    }
+    async function revealBalance(): Promise<void> {
+        const balance = await refreshBalance();
+        const el = root.querySelector<HTMLElement>('#session-estimate');
+        if (!el || !balance) return;
+        el.textContent = `${balance} balance`;
+        clearTimeout(balanceRevertTimer);
+        balanceRevertTimer = setTimeout(updateSessionEstimate, 2500);
     }
 
     /**
@@ -551,6 +579,13 @@ export async function mountSetupView(
         // Initial estimate (the LLM leg fills in once models load; the voice
         // leg once voices load — both re-call updateSessionEstimate).
         updateSessionEstimate();
+        // Pill = peek at your cloud balance on hover/tap. Prime the tooltip and
+        // wire the tap reveal.
+        const estimateEl = root.querySelector<HTMLElement>('#session-estimate');
+        if (estimateEl) {
+            void refreshBalance();
+            estimateEl.addEventListener('click', () => void revealBalance());
+        }
 
         // Continuation banner — shown when the history view has queued a
         // session for continuation. Matches Python's #continue-banner.
