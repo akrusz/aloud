@@ -1512,8 +1512,7 @@ function renderDisplaySection(s: AppSettings): string {
                             </label>
                         </div>
                         <div class="preview-field${s.showSessionBalance ? '' : ' hidden'}" id="preview-balance-field">
-                            <span class="preview-field-label">Cloud balance</span>
-                            <span class="preview-pill">balance: 18 <span class="cloud-glyph">☁️</span></span>
+                            <span class="preview-pill">18<span class="cloud-glyph">☁️</span></span>
                         </div>
                         <div class="preview-field preview-btn-row">
                             <button type="button" class="btn btn-small btn-primary preview-btn" tabindex="-1">Button 1</button>
