@@ -285,8 +285,12 @@ export async function mountSetupView(
         // Tapped (and signed in): stack the live balance ABOVE the rate, so the
         // pill grows to two lines. Otherwise just the rate. (white-space:
         // pre-line in the CSS renders the newline.)
-        el.textContent =
-            pillShowsBalance && cloudBalanceText ? `balance: ${cloudBalanceText}\n${rate}` : rate;
+        const plain =
+            pillShowsBalance && cloudBalanceText ? ` balance: ${cloudBalanceText}\n${rate}` : rate;
+        // Wrap each ☁️ so .cloud-glyph can outline it (emoji ignore text-stroke,
+        // and the light cloud washes out on the white pill). Content is all our
+        // own numbers + fixed words, so building this HTML directly is safe.
+        el.innerHTML = plain.split(RATE_EMOJI).join(`<span class="cloud-glyph">${RATE_EMOJI}</span>`);
     }
 
     // The pill toggles between the rate estimate and a peek at your actual cloud
@@ -1458,11 +1462,11 @@ function renderSetupHTML(
          wrapper caps width to 640 px so the Begin button doesn't span
          the whole page on wide screens. Matches the original index.html. -->
     <div class="setup-footer">
-        <!-- Floating cloud-rate pill, anchored above the bar's top-left so it
-             doesn't add height to (and so obscure content behind) the bar. Tap
-             toggles it to your cloud balance. -->
-        <p class="session-estimate" id="session-estimate"></p>
+        <!-- Cloud-rate pill sits in the bar beside (a narrower) Begin button;
+             tap toggles it to your cloud balance. At very narrow widths it pops
+             out above the bar instead (see .session-estimate media query). -->
         <div class="setup-footer-inner">
+            <p class="session-estimate" id="session-estimate"></p>
             <button id="begin-btn" type="button"
                 class="btn btn-primary btn-begin">Begin Session</button>
         </div>

@@ -466,17 +466,19 @@
 }
 
 /* Combined estimated cloud rate for the configured session (meditation-pal-14s).
-   A small floating pill at the bottom-left, anchored just above the setup bar's
-   top edge (the fixed footer is its containing block) — absolutely positioned so
-   it adds NO height to the bar and obscures as little content as possible.
-   Opaque so it stays legible over scrolled content; muted + same-size text so
-   it's transparency, not a nag. The "≈" + title tooltip carry the caveat. */
+   A small rounded pill that lives IN the setup bar beside a (now narrower)
+   Begin button. Muted + same-size text so it's transparency, not a nag; tap
+   toggles it to the live balance (which stacks two lines, growing the bar a
+   touch). The "≈" carries the estimate/per-hour caveat. */
+.setup-footer-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
 .session-estimate {
-    position: absolute;
-    left: 0.75rem;
-    bottom: calc(100% + 0.5rem);
+    flex: 0 0 auto;
     margin: 0;
-    padding: 0.25rem 0.6rem;
+    padding: 0.35rem 0.7rem;
     background: var(--bg-surface);
     color: var(--text-muted);
     border: 1px solid var(--border);
@@ -485,6 +487,38 @@
     /* Tapped state stacks "balance: N☁️" above the rate via a newline. */
     white-space: pre-line;
     text-align: center;
+}
+/* The button was full-width; let it flex to fill what's left of the bar beside
+   the pill (so it's narrower, not page-spanning). Overrides the lifted
+   `.setup-footer .btn-begin { width: 100% }`. */
+.setup-footer-inner .btn-begin {
+    flex: 1 1 auto;
+    width: auto;
+}
+/* Very narrow: the row gets cramped, so pop the pill out above the bar (the
+   fixed footer is its containing block) and give the button the full width
+   back. */
+@media (max-width: 380px) {
+    .session-estimate {
+        position: absolute;
+        left: 0.75rem;
+        bottom: calc(100% + 0.5rem);
+    }
+    .setup-footer-inner .btn-begin {
+        width: 100%;
+    }
+}
+
+/* The ☁️ unit glyph is pale and washes out on a light surface. Color emoji
+   ignore -webkit-text-stroke, so ring it with tight black drop-shadows in four
+   directions — a thin dark edge that reads on white and is invisible on dark. */
+.cloud-glyph {
+    display: inline-block;
+    filter:
+        drop-shadow(0.6px 0 0 rgba(0, 0, 0, 0.85))
+        drop-shadow(-0.6px 0 0 rgba(0, 0, 0, 0.85))
+        drop-shadow(0 0.6px 0 rgba(0, 0, 0, 0.85))
+        drop-shadow(0 -0.6px 0 rgba(0, 0, 0, 0.85));
 }
 
 /* History view: the markup uses the lifted .history-container / .history-header
