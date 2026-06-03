@@ -371,7 +371,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       var x = padX + i * bw, y = padTop + (plotH - h);
       return '<rect x="' + (x + 0.7).toFixed(1) + '" y="' + y.toFixed(1) +
         '" width="' + Math.max(0.5, bw - 1.4).toFixed(1) + '" height="' + h.toFixed(1) +
-        '" rx="1.5" fill="var(--accent)"><title>' + esc(date(b.dayStartTs) + ' — ' + m.fmt(v)) + '</title></rect>';
+        '" rx="1.5" fill="var(--accent)"><title>' + esc(date(b.dayStartTs) + ': ' + m.fmt(v)) + '</title></rect>';
     }).join('');
     var baseY = padTop + plotH;
     var axis = '<line x1="' + padX + '" y1="' + baseY + '" x2="' + (W - padX) + '" y2="' + baseY +
