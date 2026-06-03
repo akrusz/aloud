@@ -46,13 +46,14 @@ describe('Ledger', () => {
         expect(await ledger.balance(ACCOUNT.id)).toBe(100);
     });
 
-    it('settling twice does not double-release (idempotent on the hold magnitude)', async () => {
+    it('settling twice is idempotent: the second settle does not re-charge', async () => {
         await ledger.grant(ACCOUNT.id, 100);
         const holdId = await ledger.placeHold(ACCOUNT.id, 25, 'turn');
         await ledger.settleHold(ACCOUNT.id, holdId, 4, 'llm');
-        await ledger.settleHold(ACCOUNT.id, holdId, 4, 'llm'); // already released
-        // second settle finds 0 held -> releases 0, debits another 4
-        expect(await ledger.balance(ACCOUNT.id)).toBe(92);
+        await ledger.settleHold(ACCOUNT.id, holdId, 4, 'llm'); // already released -> no-op
+        // first settle: released the 25 hold, debited the real 4 -> 96.
+        // second settle finds 0 held and bails before the debit (no double-charge).
+        expect(await ledger.balance(ACCOUNT.id)).toBe(96);
     });
 
     it('refuses a hold that exceeds available balance', async () => {
@@ -68,5 +69,36 @@ describe('Ledger', () => {
         await expect(ledger.debit(ACCOUNT.id, 10, 'x')).rejects.toBeInstanceOf(
             InsufficientCreditsError
         );
+    });
+
+    // Regression (meditation-pal): the balance check and the hold append are a
+    // read-then-write across an `await`. Concurrent same-account requests must
+    // not both pass the check and overdraw — per-account serialization closes it.
+    it('concurrent holds on one account never overdraw the balance', async () => {
+        await ledger.grant(ACCOUNT.id, 10);
+        // Five requests race to hold the whole balance at once. Only one can win;
+        // the rest must see the depleted balance and be refused.
+        const attempts = await Promise.allSettled(
+            Array.from({ length: 5 }, () => ledger.placeHold(ACCOUNT.id, 10, 'turn'))
+        );
+        const granted = attempts.filter((a) => a.status === 'fulfilled').length;
+        const refused = attempts.filter(
+            (a) => a.status === 'rejected' && a.reason instanceof InsufficientCreditsError
+        ).length;
+        expect(granted).toBe(1);
+        expect(refused).toBe(4);
+        // The invariant that matters: balance never went negative.
+        expect(await ledger.balance(ACCOUNT.id)).toBe(0);
+    });
+
+    it('concurrent settles of one hold charge exactly once', async () => {
+        await ledger.grant(ACCOUNT.id, 100);
+        const holdId = await ledger.placeHold(ACCOUNT.id, 25, 'turn');
+        await Promise.all([
+            ledger.settleHold(ACCOUNT.id, holdId, 4, 'llm'),
+            ledger.settleHold(ACCOUNT.id, holdId, 4, 'llm'),
+        ]);
+        // Released the 25 hold and debited the real 4 once -> 96, not 92.
+        expect(await ledger.balance(ACCOUNT.id)).toBe(96);
     });
 });

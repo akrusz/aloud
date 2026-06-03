@@ -10,6 +10,18 @@
  * Spendable balance already reflects outstanding holds because the hold entry
  * is negative. Settling swaps the estimate for the real cost atomically from
  * the caller's perspective.
+ *
+ * Concurrency (meditation-pal): every spend operation is a read-then-write —
+ * read the balance, then append a hold/debit. The read does `await
+ * store.listEntries`, which yields the event loop, so two concurrent requests
+ * for the SAME account could both read "enough" before either writes and
+ * overdraw the balance. `node:sqlite` is synchronous, so these async wrappers
+ * are the only interleaving point in the store; we close it by serializing all
+ * compound (read-modify-write) ops PER ACCOUNT through a keyed promise chain
+ * (runExclusive). Different accounts never contend; same-account ops queue. This
+ * mirrors the atomic compare-and-set the gift code already uses for the same
+ * hazard. Single-append ops (grant/purchase) don't read first, so they don't
+ * need the lock — purchase idempotency is the store's unique index, not this.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -26,12 +38,41 @@ export class InsufficientCreditsError extends Error {
 export class Ledger {
     private readonly now: () => number;
 
+    /** Per-account tail of the in-flight op chain. A spend op for an account
+     *  awaits the prior op for that same account, so balance()->append() can't
+     *  interleave. Keyed by accountId; entries are pruned when their chain is
+     *  the current tail and has settled (keeps the map from growing unbounded). */
+    private readonly chains = new Map<string, Promise<unknown>>();
+
     constructor(
         private readonly store: CreditsStore,
         clock?: Clock
     ) {
         // core's Clock is `() => number` (seconds since epoch).
         this.now = clock ?? (() => Date.now() / 1000);
+    }
+
+    /** Run `fn` with exclusive access to `accountId`: it starts only after the
+     *  previous op for that account finishes (success OR failure), so the
+     *  read-then-write inside it is atomic against other same-account ops. A
+     *  rejecting fn doesn't poison the chain — the stored tail swallows the
+     *  error so the next op still runs. */
+    private runExclusive<T>(accountId: string, fn: () => Promise<T>): Promise<T> {
+        const prev = this.chains.get(accountId) ?? Promise.resolve();
+        const result = prev.then(fn, fn);
+        // Tail used only for ordering — swallow errors so a failed op doesn't
+        // reject every queued successor.
+        const tail = result.then(
+            () => undefined,
+            () => undefined
+        );
+        this.chains.set(accountId, tail);
+        // Prune once settled, but only if we're still the latest tail (else a
+        // newer op already owns the slot and must keep it).
+        void tail.then(() => {
+            if (this.chains.get(accountId) === tail) this.chains.delete(accountId);
+        });
+        return result;
     }
 
     async balance(accountId: string): Promise<number> {
@@ -73,42 +114,58 @@ export class Ledger {
 
     /** Place a pre-auth hold, failing if spendable balance can't cover it.
      *  The hold entry is tagged with its own holdId so settle/release can find
-     *  it. */
-    async placeHold(accountId: string, credits: number, reason: string): Promise<string> {
-        const available = await this.balance(accountId);
-        if (available < credits) throw new InsufficientCreditsError(credits, available);
-        const holdId = randomUUID();
-        await this.append(accountId, 'hold', -Math.abs(credits), reason, holdId);
-        return holdId;
+     *  it. Serialized per account so the balance check and the hold append are
+     *  atomic against a concurrent hold for the same account. */
+    placeHold(accountId: string, credits: number, reason: string): Promise<string> {
+        return this.runExclusive(accountId, async () => {
+            const available = await this.balance(accountId);
+            if (available < credits) throw new InsufficientCreditsError(credits, available);
+            const holdId = randomUUID();
+            await this.append(accountId, 'hold', -Math.abs(credits), reason, holdId);
+            return holdId;
+        });
     }
 
     /** Settle a hold to an actual cost: release the held amount, then debit
-     *  the real cost. Net effect on balance is -actual. */
-    async settleHold(
+     *  the real cost. Net effect on balance is -actual. Idempotent: if the hold
+     *  is already released (held == 0), this is a no-op — without that guard a
+     *  second settle for the same holdId would re-fire the debit and double-
+     *  charge (the release would be a harmless +0, but the debit isn't). */
+    settleHold(
         accountId: string,
         holdId: string,
         actualCredits: number,
         reason: string
     ): Promise<void> {
-        const held = await this.heldAmount(accountId, holdId);
-        await this.append(accountId, 'hold_release', held, `release:${holdId}`, holdId);
-        if (actualCredits > 0) {
-            await this.append(accountId, 'debit', -Math.abs(actualCredits), reason, holdId);
-        }
+        return this.runExclusive(accountId, async () => {
+            const held = await this.heldAmount(accountId, holdId);
+            if (held <= 0) return; // already settled/released, or never held
+            await this.append(accountId, 'hold_release', held, `release:${holdId}`, holdId);
+            if (actualCredits > 0) {
+                await this.append(accountId, 'debit', -Math.abs(actualCredits), reason, holdId);
+            }
+        });
     }
 
-    /** Release a hold with no charge (session aborted before any usage). */
-    async releaseHold(accountId: string, holdId: string): Promise<void> {
-        const held = await this.heldAmount(accountId, holdId);
-        await this.append(accountId, 'hold_release', held, `release:${holdId}`, holdId);
+    /** Release a hold with no charge (session aborted before any usage).
+     *  Idempotent for the same reason as settleHold. */
+    releaseHold(accountId: string, holdId: string): Promise<void> {
+        return this.runExclusive(accountId, async () => {
+            const held = await this.heldAmount(accountId, holdId);
+            if (held <= 0) return;
+            await this.append(accountId, 'hold_release', held, `release:${holdId}`, holdId);
+        });
     }
 
     /** Direct debit with no prior hold (e.g. reconciling a turn outside a held
-     *  session). Throws if it would overdraw. */
-    async debit(accountId: string, credits: number, reason: string): Promise<void> {
-        const available = await this.balance(accountId);
-        if (available < credits) throw new InsufficientCreditsError(credits, available);
-        await this.append(accountId, 'debit', -Math.abs(credits), reason);
+     *  session). Throws if it would overdraw. Serialized per account so the
+     *  check and the debit append are atomic against concurrent same-account ops. */
+    debit(accountId: string, credits: number, reason: string): Promise<void> {
+        return this.runExclusive(accountId, async () => {
+            const available = await this.balance(accountId);
+            if (available < credits) throw new InsufficientCreditsError(credits, available);
+            await this.append(accountId, 'debit', -Math.abs(credits), reason);
+        });
     }
 
     /** The magnitude of an outstanding hold (positive). 0 if already released. */
