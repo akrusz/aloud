@@ -24,6 +24,7 @@
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitation/pacing.js';
+import { getCloudSessionId } from '../cloud-session.js';
 
 const TARGET_SAMPLE_RATE = 16_000;
 const FRAME_SIZE = 4096;
@@ -353,8 +354,12 @@ export class CloudWhisperSttEngine implements SttEngine {
                     const token = await this.opts.authProvider();
                     if (token) headers['authorization'] = `Bearer ${token}`;
                 }
+                // Tag the transcription with the session group when one is active
+                // (cloud cost report); omitted otherwise. Flask's STT ignores it.
+                const sessionId = getCloudSessionId();
+                const sessionParam = sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : '';
                 const response = await this.opts.fetchImpl(
-                    `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}`,
+                    `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}`,
                     {
                         method: 'POST',
                         headers,

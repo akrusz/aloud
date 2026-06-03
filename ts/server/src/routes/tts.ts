@@ -113,8 +113,10 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const cost = priceTtsChars(text.length, voiceId);
         const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:google:${text.length}c`);
+        const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
         await recordUsage(deps.store, {
             accountId: account.id,
+            sessionId,
             kind: 'tts',
             provider: 'google',
             model: voiceId,

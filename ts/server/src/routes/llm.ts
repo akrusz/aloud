@@ -45,13 +45,15 @@ function recordLlmUsage(
     model: string,
     usage: LlmUsage,
     cost: CostBreakdown,
-    passId: string | null
+    passId: string | null,
+    sessionId: string | null
 ): Promise<void> {
     return recordUsage(deps.store, {
         accountId,
         kind: 'llm',
         provider,
         model,
+        sessionId,
         tokensIn: usage.tokensIn ?? 0,
         tokensOut: usage.tokensOut ?? 0,
         cacheRead: usage.cacheRead ?? 0,
@@ -149,6 +151,8 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             ...(body.system ? { system: body.system } : {}),
         };
         const reason = `llm:${body.provider}:${body.model}`;
+        // Opaque per-session grouping id, when the client sends one (usage.ts).
+        const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
 
         // ---- streaming branch ----
         if (body.stream) {
@@ -165,7 +169,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                         const cost = priceLlmTurn(body.provider!, body.model!, usage);
                         if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
                         settled = true;
-                        await recordLlmUsage(deps, account.id, body.provider!, body.model!, usage, cost, pass?.id ?? null);
+                        await recordLlmUsage(deps, account.id, body.provider!, body.model!, usage, cost, pass?.id ?? null, sessionId);
                         final = {
                             text: chunk.text,
                             finishReason: chunk.finishReason ?? null,
@@ -190,7 +194,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             const usage = usageOf(result);
             const cost = priceLlmTurn(body.provider, body.model, usage);
             if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
-            await recordLlmUsage(deps, account.id, body.provider, body.model, usage, cost, pass?.id ?? null);
+            await recordLlmUsage(deps, account.id, body.provider, body.model, usage, cost, pass?.id ?? null, sessionId);
             const response: CompleteResponse = {
                 text: result.text,
                 finishReason: result.finishReason,

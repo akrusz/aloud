@@ -41,6 +41,11 @@ export interface CompleteRequest {
     /** When true, the response is an SSE stream of CompleteChunk events
      *  terminated by a final event carrying usage + cost. */
     stream?: boolean;
+    /** Opaque client-generated id grouping all of one meditation session's
+     *  metered calls, so the admin cost report attributes them to one session
+     *  exactly instead of inferring boundaries by time gaps. Carries no PII and
+     *  no content — a random per-session token, used only for aggregate stats. */
+    sessionId?: string;
 }
 
 /** Non-streaming response, or the shape carried by the terminal SSE event. */
@@ -65,9 +70,10 @@ export interface CompleteChunk {
 
 // ---- POST /cloud/v1/stt -----------------------------------------------------------
 // Request body is raw 16-bit-equivalent Float32 PCM (mono), with the sample
-// rate in the `sample_rate` query param. The server computes duration from the
-// byte length (authoritative — the client can't under-report to underpay),
-// wraps it to WAV, and forwards to Groq Whisper.
+// rate in the `sample_rate` query param (and an optional `session_id` param —
+// the per-session grouping token, see CompleteRequest.sessionId). The server
+// computes duration from the byte length (authoritative — the client can't
+// under-report to underpay), wraps it to WAV, and forwards to Groq Whisper.
 
 export interface TranscribeResponse {
     text: string;
@@ -85,6 +91,9 @@ export interface SpeakRequest {
     voice?: string;
     /** Speaking rate multiplier (1.0 = normal). */
     rate?: number;
+    /** Opaque per-session grouping id (see CompleteRequest.sessionId). Optional;
+     *  carries no PII or content. */
+    sessionId?: string;
 }
 
 /** Audio is returned as the raw response body (audio/mpeg); cost rides in

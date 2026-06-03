@@ -69,8 +69,10 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const cost = priceSttSeconds(seconds);
         const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `stt:${stt.provider}:${seconds.toFixed(1)}s`);
+        const sessionId = c.req.query('session_id') || null;
         await recordUsage(deps.store, {
             accountId: account.id,
+            sessionId,
             kind: 'stt',
             provider: stt.provider,
             model: stt.model,

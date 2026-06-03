@@ -21,7 +21,7 @@ import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { Account, LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
-import { buildUsageReport } from '../credits/usage.js';
+import { buildUsageReport, buildUsageHistory } from '../credits/usage.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
 import { ADMIN_PANEL_HTML } from '../admin/panel.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
@@ -93,6 +93,20 @@ export function adminRoutes(deps: Deps): Hono {
 
         const events = await deps.store.allUsage();
         return c.json(buildUsageReport(events, now, windowSinceTs));
+    });
+
+    // Daily usage history for the trend charts — sessions, turns, spend, and
+    // duration per day over the last `days` days. Computed live from the
+    // retained usage_events (no rollup table needed at this scale), so it's real
+    // history bounded only by how far back the telemetry goes.
+    app.get('/usage/history', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
+        const now = Date.now() / 1000;
+        const events = await deps.store.allUsage();
+        return c.json({ generatedAt: now, days, buckets: buildUsageHistory(events, now, days) });
     });
 
     // Every account with derived balance, lifetime granted/spent, and whether

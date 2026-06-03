@@ -46,6 +46,7 @@ import {
 import { isWebMode } from '../app-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { CloudWhisperSttEngine } from '../adapters/cloud-whisper-stt.js';
+import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import { type SessionSetup, dirStepToBackend } from '../settings.js';
 import { loadAppSettings } from '../app-settings.js';
 import { sessionStore } from '../state.js';
@@ -177,6 +178,10 @@ export async function mountSessionView(
     });
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession();
+    // Tag every metered cloud call this session makes with one opaque grouping
+    // id, so the server's cost report attributes them to one session exactly
+    // (cloud-session.ts). Carries no content/PII; cleared at endSession().
+    startCloudSession();
 
     // If continuing from a previous session, hydrate the new session
     // with the old exchanges so the LLM has context.
@@ -1231,6 +1236,9 @@ export async function mountSessionView(
             }
         }
 
+        // Done after the summary completion above (an off-transcript LLM turn we
+        // want grouped with this session), so the next session starts a new group.
+        clearCloudSession();
         onEnd(destination);
     }
 

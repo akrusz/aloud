@@ -143,6 +143,34 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       </table>
     </div>
 
+    <h2>Usage over time
+      <span style="float:right;display:flex;gap:8px;align-items:center">
+        <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:14px">
+          <option value="sessions">sessions</option>
+          <option value="turns">turns</option>
+          <option value="cost">provider $</option>
+          <option value="credits">credits</option>
+          <option value="duration">avg min / session</option>
+        </select>
+        <select id="historyDays" style="width:auto;padding:4px 8px;font-size:14px">
+          <option value="7">last 7d</option>
+          <option value="30" selected>last 30d</option>
+          <option value="90">last 90d</option>
+        </select>
+        <button class="ghost" id="refreshHistory" style="padding:4px 10px;font-size:14px">refresh</button>
+      </span>
+    </h2>
+    <p class="sub" style="margin:-4px 0 12px">Daily trend, one bar per day. Each session is counted on the day it began. Hover a bar for the exact value.</p>
+    <div class="card">
+      <div id="historyChart"><p class="muted" style="margin:0">Connect to load.</p></div>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
+        <tbody id="historyRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
+      </table>
+    </div>
+
     <h2>Free credits</h2>
     <div class="card">
       <p class="sub" style="margin:0 0 14px">Tune the free tier live — no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
@@ -243,6 +271,9 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   function int(n) { return Number(n || 0).toLocaleString(); }
   // Credit amounts are fractional (TTS debits sub-credit), so show one decimal.
   function dec1(n) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+  // Counts that can be fractional means (turns/session) — up to one decimal, no
+  // forced trailing zero, so a clean integer median still reads as "6".
+  function num1(n) { return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }); }
   function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
 
   // ---- metrics dashboard -------------------------------------------------
@@ -278,6 +309,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         ['Sessions', int(s.count)],
         ['Avg cost / session', usdp(s.costUsd.mean)],
         ['Median credits / session', dec1(s.credits.p50)],
+        ['Avg turns / session', num1(s.turns.mean)],
         ['Avg session length', (Number(s.meanDurationMin) || 0).toFixed(1) + ' min'],
       ];
       $('usageStats').innerHTML = cards.map(function (c) {
@@ -301,8 +333,86 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
           '</td><td class="num">' + fmt(d.max) + '</td><td class="num">' + fmt(d.mean) + '</td></tr>';
       }
       $('usageSessionRows').innerHTML = s.count
-        ? distRow('Provider $ / session', s.costUsd, usdp) + distRow('Credits / session', s.credits, dec1)
+        ? distRow('Provider $ / session', s.costUsd, usdp) +
+          distRow('Credits / session', s.credits, dec1) +
+          distRow('Turns / session', s.turns, num1)
         : '<tr><td colspan="5" class="muted">No sessions in this window.</td></tr>';
+    });
+  }
+
+  // ---- usage over time (daily trend) -------------------------------------
+  // Each metric: a label, a per-day value getter, and a value formatter.
+  var HISTORY = [];
+  var METRICS = {
+    sessions: { label: 'Sessions', val: function (b) { return b.sessions; }, fmt: int },
+    turns: { label: 'Turns', val: function (b) { return b.turns; }, fmt: int },
+    cost: { label: 'Provider $', val: function (b) { return b.providerCostUsd; }, fmt: usdp },
+    credits: { label: 'Credits', val: function (b) { return b.credits; }, fmt: dec1 },
+    duration: {
+      label: 'Avg min / session',
+      val: function (b) { return b.sessions ? b.durationMin / b.sessions : 0; },
+      fmt: function (n) { return (Number(n || 0)).toFixed(1); },
+    },
+  };
+
+  // Inline-SVG bar chart — no deps, scales to the window. One bar per day, a
+  // dashed max gridline, and first/mid/last date ticks so it stays legible at
+  // 90 bars. Each bar carries a <title> for hover-to-read the exact value.
+  function barChart(buckets, metricKey) {
+    var m = METRICS[metricKey] || METRICS.sessions;
+    if (!buckets.length) return '<p class="muted" style="margin:0">No usage in this window.</p>';
+    var vals = buckets.map(m.val);
+    var max = Math.max.apply(null, vals.concat([0]));
+    var W = 760, H = 180, padX = 8, padTop = 16, padBot = 22;
+    var n = buckets.length, bw = (W - padX * 2) / n, plotH = H - padTop - padBot;
+    var bars = buckets.map(function (b, i) {
+      var v = m.val(b);
+      var h = max > 0 ? plotH * (v / max) : 0;
+      var x = padX + i * bw, y = padTop + (plotH - h);
+      return '<rect x="' + (x + 0.7).toFixed(1) + '" y="' + y.toFixed(1) +
+        '" width="' + Math.max(0.5, bw - 1.4).toFixed(1) + '" height="' + h.toFixed(1) +
+        '" rx="1.5" fill="var(--accent)"><title>' + esc(date(b.dayStartTs) + ' — ' + m.fmt(v)) + '</title></rect>';
+    }).join('');
+    var baseY = padTop + plotH;
+    var axis = '<line x1="' + padX + '" y1="' + baseY + '" x2="' + (W - padX) + '" y2="' + baseY +
+      '" stroke="var(--line)" stroke-width="1"/>';
+    // Dashed gridline + label at the max.
+    var grid = max > 0
+      ? '<line x1="' + padX + '" y1="' + padTop + '" x2="' + (W - padX) + '" y2="' + padTop +
+        '" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>' +
+        '<text x="' + (W - padX) + '" y="' + (padTop - 4) + '" text-anchor="end" font-size="11" fill="var(--dim)">' +
+          esc(m.fmt(max)) + '</text>'
+      : '';
+    // Date ticks: first, middle, last.
+    var ticks = [0, Math.floor(n / 2), n - 1].filter(function (v, i, a) { return a.indexOf(v) === i; });
+    var labels = ticks.map(function (i) {
+      var x = padX + i * bw + bw / 2;
+      var anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+      return '<text x="' + x.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor +
+        '" font-size="11" fill="var(--dim)">' + esc(date(buckets[i].dayStartTs)) + '</text>';
+    }).join('');
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H +
+      '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(m.label) + ' per day">' +
+      grid + bars + axis + labels + '</svg>';
+  }
+
+  function renderHistory() {
+    $('historyChart').innerHTML = barChart(HISTORY, $('historyMetric').value);
+    $('historyRows').innerHTML = HISTORY.slice().reverse().map(function (b) {
+      var avgMin = b.sessions ? b.durationMin / b.sessions : 0;
+      return '<tr><td class="muted">' + date(b.dayStartTs) + '</td>' +
+        '<td class="num">' + int(b.sessions) + '</td>' +
+        '<td class="num">' + int(b.turns) + '</td>' +
+        '<td class="num">' + usdp(b.providerCostUsd) + '</td>' +
+        '<td class="num">' + dec1(b.credits) + '</td>' +
+        '<td class="num">' + avgMin.toFixed(1) + '</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="muted">No usage yet.</td></tr>';
+  }
+
+  function loadUsageHistory() {
+    return api('/usage/history?days=' + $('historyDays').value).then(function (h) {
+      HISTORY = h.buckets || [];
+      renderHistory();
     });
   }
 
@@ -548,7 +658,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       localStorage.setItem(KEY, token);
       setMsg($('authMsg'), 'Connected.', 'ok');
       $('app').classList.remove('hidden');
-      return Promise.all([loadAccounts(), loadConfig(), loadUsage(), loadRetreats()]);
+      return Promise.all([loadAccounts(), loadConfig(), loadUsage(), loadUsageHistory(), loadRetreats()]);
     }).catch(function (e) {
       setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
       $('app').classList.add('hidden');
@@ -566,6 +676,10 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
+  $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('historyDays').addEventListener('change', function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
+  // Metric switch is a pure client-side re-render — no refetch needed.
+  $('historyMetric').addEventListener('change', renderHistory);
   $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('refreshRetreats').onclick = function () { loadRetreats().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('createRetreat').onclick = createRetreat;

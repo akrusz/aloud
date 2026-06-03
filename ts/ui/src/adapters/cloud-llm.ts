@@ -23,6 +23,7 @@ import type {
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
 import { setKnownBalance } from '../cloud-balance.js';
+import { getCloudSessionId } from '../cloud-session.js';
 
 /** Providers the server is willing to forward to (mirrors contract.ts ProviderId). */
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
@@ -70,6 +71,7 @@ export class CloudLlmProvider implements LLMProvider {
     }
 
     private body(messages: Message[], options: CompletionOptions, stream: boolean): string {
+        const sessionId = getCloudSessionId();
         return JSON.stringify({
             provider: this.provider,
             model: this.model,
@@ -77,6 +79,8 @@ export class CloudLlmProvider implements LLMProvider {
             maxTokens: options.maxTokens ?? this.maxTokens,
             ...(options.system ? { system: options.system } : {}),
             stream,
+            // Group this turn with the rest of the session for the cost report.
+            ...(sessionId ? { sessionId } : {}),
         });
     }
 

@@ -144,9 +144,27 @@ export interface UsageReport {
         count: number;
         costUsd: Distribution;
         credits: Distribution;
+        /** Facilitator turns per session — one per LLM call (STT/TTS legs don't
+         *  count). The conversational length of a real session. */
+        turns: Distribution;
         /** Mean wall-clock minutes per session (first→last event). */
         meanDurationMin: number;
     };
+}
+
+/** One day of aggregated usage for the admin trend charts. */
+export interface UsageHistoryBucket {
+    /** UTC start-of-day, seconds since epoch — the bucket's x-axis key. */
+    dayStartTs: number;
+    sessions: number;
+    /** Facilitator turns (LLM calls) across the day's sessions. */
+    turns: number;
+    /** Metered calls (all legs) across the day's sessions. */
+    events: number;
+    providerCostUsd: number;
+    credits: number;
+    /** Total session wall-clock minutes (sum of per-session first→last). */
+    durationMin: number;
 }
 
 function emptyDist(): Distribution {
@@ -260,6 +278,7 @@ export function buildUsageReport(
     const sessions = clusterSessions(inWindow);
     const sessionCosts = sessions.map((s) => s.reduce((sum, e) => sum + e.providerCostUsd, 0));
     const sessionCredits = sessions.map((s) => s.reduce((sum, e) => sum + e.credits, 0));
+    const sessionTurns = sessions.map((s) => s.filter((e) => e.kind === 'llm').length);
     const sessionDurations = sessions.map((s) => {
         if (s.length < 2) return 0;
         return (s[s.length - 1]!.ts - s[0]!.ts) / 60;
@@ -281,7 +300,59 @@ export function buildUsageReport(
             count: sessions.length,
             costUsd: distribution(sessionCosts),
             credits: distribution(sessionCredits),
+            turns: distribution(sessionTurns),
             meanDurationMin,
         },
     };
+}
+
+/** Seconds in a UTC day — the history bucket width. */
+const DAY_SEC = 24 * 60 * 60;
+
+/** Daily time-series for the admin trend charts. Reconstructs sessions over the
+ *  whole window, then attributes each to the UTC day of its FIRST event — so a
+ *  session is counted once, on the day it began, and never splits at midnight.
+ *  Emits one row per day for the last `days` days ending at `now`, zero-filled
+ *  so the chart has no gaps, oldest→newest. Pure (mirrors buildUsageReport).
+ *
+ *  History depth is bounded only by usage_events retention: the raw rows persist
+ *  (nothing prunes them today), so this is real history, not a rolling snapshot. */
+export function buildUsageHistory(
+    events: UsageEvent[],
+    now: number,
+    days: number
+): UsageHistoryBucket[] {
+    const dayCount = Math.max(1, Math.floor(days));
+    const todayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
+    const firstDay = todayStart - (dayCount - 1) * DAY_SEC;
+
+    const buckets = new Map<number, UsageHistoryBucket>();
+    for (let d = firstDay; d <= todayStart; d += DAY_SEC) {
+        buckets.set(d, {
+            dayStartTs: d,
+            sessions: 0,
+            turns: 0,
+            events: 0,
+            providerCostUsd: 0,
+            credits: 0,
+            durationMin: 0,
+        });
+    }
+
+    const sessions = clusterSessions(events.filter((e) => e.ts >= firstDay));
+    for (const s of sessions) {
+        const day = Math.floor(s[0]!.ts / DAY_SEC) * DAY_SEC;
+        const b = buckets.get(day);
+        if (!b) continue; // first event sits in the trimmed window edge — skip
+        b.sessions += 1;
+        b.events += s.length;
+        for (const e of s) {
+            if (e.kind === 'llm') b.turns += 1;
+            b.providerCostUsd += e.providerCostUsd;
+            b.credits += e.credits;
+        }
+        if (s.length >= 2) b.durationMin += (s[s.length - 1]!.ts - s[0]!.ts) / 60;
+    }
+
+    return [...buckets.values()].sort((a, b) => a.dayStartTs - b.dayStartTs);
 }

@@ -13,6 +13,7 @@
 
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.js';
 import { appUrl } from '../app-base.js';
+import { getCloudSessionId } from '../cloud-session.js';
 
 /**
  * The UI carries TTS rate as words-per-minute (≈160 neutral; see
@@ -128,6 +129,10 @@ export class CloudTtsEngine implements TtsEngine {
             const body: Record<string, unknown> = { text };
             if (this.voiceId) body['voice'] = this.voiceId;
             if (options?.rate !== undefined) body['rate'] = wpmToMultiplier(options.rate);
+            // Group in-session synthesis with the rest of the session for the cost
+            // report; null outside a session (e.g. a Settings voice preview).
+            const sessionId = getCloudSessionId();
+            if (sessionId) body['sessionId'] = sessionId;
             return { url: this.endpointUrl, init: { method: 'POST', headers, body: JSON.stringify(body), signal } };
         }
         const params = new URLSearchParams({ voice: this.voiceId, text });
