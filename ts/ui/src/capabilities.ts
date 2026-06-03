@@ -65,17 +65,48 @@ async function probeCloud(): Promise<CloudConfig> {
     }
 }
 
+/** Probe cloud a few times with short backoff before concluding it's down, so a
+ *  transient blip at boot — a Fly cold start, or the dev server mid-`tsx watch`
+ *  restart — isn't frozen into a session-long false negative. */
+async function probeCloudWithRetry(): Promise<CloudConfig> {
+    const backoffMs = [300, 900];
+    let result = await probeCloud();
+    for (const ms of backoffMs) {
+        if (result.reachable) return result;
+        await new Promise((resolve) => setTimeout(resolve, ms));
+        result = await probeCloud();
+    }
+    return result;
+}
+
 export async function detectCapabilities(): Promise<Capabilities> {
-    if (cached) return cached;
+    // A positive cache holds for the session. A negative `cloud`, though, is the
+    // fragile axis — usually a transient blip — so we don't freeze it: re-probe
+    // cloud (only) on the next call so sign-in/credits self-heal as the user
+    // navigates, without re-hammering the structural flask/ollama probes (which
+    // are legitimately absent on the website and stable for the session).
+    if (cached?.cloud) return cached;
     if (inflight) return inflight;
     inflight = (async () => {
+        // Re-probe path: cloud was previously unreachable. Recheck just that
+        // axis (single attempt — the next navigation retries) and keep the rest.
+        const base = cached;
+        if (base) {
+            const cloud = await probeCloud();
+            setRuntimeGoogleClientId(cloud.googleClientId);
+            setRuntimeAppleClientId(cloud.appleClientId);
+            cached = { ...base, cloud: cloud.reachable };
+            inflight = null;
+            return cached;
+        }
+        // First detect: retry the cloud probe to ride out cold-start/restart.
+        // /cloud/v1/* is aloud cloud (proxied in dev; absolute in prod); its
+        // public /config route proves reachability and carries the Google client
+        // id (→ runtime sign-in, build-agnostic). Ollama is the dev proxy
+        // (/ollama → :11434), which 404s on the website.
         const [flask, cloud, ollama] = await Promise.all([
             detectIsDesktop(), // GET /api/system-info
-            // /cloud/v1/* is aloud cloud (proxied in dev; absolute in prod). The
-            // public /config route proves reachability and carries the Google
-            // client id (→ runtime sign-in, build-agnostic).
-            probeCloud(),
-            // Ollama via the dev proxy (/ollama → :11434); 404s on the website.
+            probeCloudWithRetry(),
             reachable('/ollama/api/tags'),
         ]);
         setRuntimeGoogleClientId(cloud.googleClientId);
