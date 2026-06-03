@@ -55,15 +55,6 @@
     <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
   </nav>
 
-  <!-- PRE-PUBLISH CHECKLIST — confirm these specifics before launch so the policy
-       (and your App Store / Play Data Safety answers) stay truthful:
-        1. aloud cloud account fields — what we actually collect to sign in (email? OAuth?).
-        2. Payment processor name (e.g. Stripe) — named in "Accounts, credits, and billing".
-        3. The exact provider list aloud cloud relays to (STT / LLM / TTS) — keep "Third-party services" current.
-        4. Operational-log retention window and what those logs contain.
-        5. Whether the public web build still allows users to enter their own provider keys
-           (the "Your own API keys" section) or restricts web users to aloud cloud.
-        6. Mobile build data flows, if/when shipped, match what's described here. -->
   <main class="legal">
     <h1>Privacy Policy</h1>
     <p class="updated">Last updated: June 2, 2026</p>
@@ -108,21 +99,15 @@
 
     <h2>aloud cloud: accounts, credits, and what we keep</h2>
     <p>If you use aloud cloud, we process a limited amount of information to run the service. None of it includes the content of your sessions.</p>
-    <!-- PRE-PUBLISH: confirm the exact account identifier(s) below and the payment processor name. -->
     <ul>
-      <li><strong>Account.</strong> The sign-in details needed to give you an account. Today that means signing in through a third-party provider (such as Google), which shares a basic identifier like your email address; more sign-in options are planned. We use this only to identify your account and credit balance, so keep your sign-in secure.</li>
-      <li><strong>Credits and usage.</strong> Your credit balance and a metered record of usage (for example, the amount of audio or text processed) so we can charge credits accurately and prevent abuse. This is operational metering for billing and reliability, <em>not</em> behavioral profiling, and it does not include the content of your sessions.</li>
-      <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our third-party payment processor, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
+      <li><strong>Account.</strong> The sign-in details needed to give you an account. You can sign in with Google or Apple (which share a basic identifier such as your email address), or with an email address and password. We use this only to identify your account and credit balance, so keep your sign-in secure.</li>
+      <li><strong>Credits and usage.</strong> Your credit balance and a metered record of usage (for example, the amount of audio or text processed, and aggregate per-session totals such as how many turns a session ran) so we can charge credits accurately, understand our costs, and prevent abuse. This is operational metering for billing and reliability, <em>not</em> behavioral profiling, and it does not include the content of your sessions.</li>
+      <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our payment processor, <strong>Stripe</strong>, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
       <li><strong>Operational logs.</strong> We may keep minimal, short-lived technical logs (for diagnostics, security, and abuse prevention) that do not contain your session content.</li>
     </ul>
     <p><strong>We don't retain the content of your sessions on aloud cloud. None of it.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
 
     <h2>Your own API keys</h2>
-    <!-- PRE-PUBLISH: this reflects allowing users to enter their own provider keys on
-         the web build (relayed transiently through aloud cloud, never stored). If you
-         decide to restrict the public web build to aloud cloud only, replace the
-         second sentence with: "On the web app we don't accept your own provider keys;
-         use aloud cloud or run aloud locally." -->
     <p>On some platforms you can supply your own provider API keys instead of using credits. On <strong>local platforms</strong> those keys stay on your device. On the <strong>web app</strong>, where requests must be relayed through aloud cloud, your key is sent to our server and used only transiently, in memory, to make the request to your provider. We don't store it, and we don't log it.</p>
 
     <h2>What we don't do</h2>
@@ -136,9 +121,7 @@
 
     <h2>Third-party services</h2>
     <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
-    <!-- PRE-PUBLISH: keep this provider list accurate. This is the transparency commitment
-         about which providers aloud cloud uses; update STT / LLM / TTS / payment as they change. -->
-    <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use providers such as Anthropic, OpenAI, OpenRouter, Venice, and Groq for language models, and dedicated speech-to-text and text-to-speech providers for transcription and voice; payments are handled by a third-party payment processor. We'll keep this list current as our providers change.</p>
+    <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use <strong>Anthropic, Google, Groq, and OpenRouter</strong> for language models; <strong>Fireworks or Groq</strong> (Whisper) for speech-to-text; and <strong>Google Cloud Text-to-Speech</strong> for voice. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
 
     <h2>Your control</h2>
     <ul>

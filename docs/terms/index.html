@@ -99,20 +99,11 @@
       <li>are consumed in proportion to usage, at rates that may change over time (we'll reflect current rates in the app);</li>
       <li>may include <strong>complimentary credits</strong> we choose to grant (for example, a starting balance for new accounts). Complimentary credits are a discretionary courtesy; they may expire, may be changed or withdrawn at any time, and are never refundable.</li>
     </ul>
-    <!-- PRE-PUBLISH: confirm the refund stance below before launch. The draft is
-         conservative (purchased credits non-refundable except where law requires).
-         If you intend to offer refunds, or sell in jurisdictions with mandatory
-         consumer-withdrawal rights (e.g. EU/UK 14-day), adjust this paragraph. -->
-    <p>You can buy credits using the payment methods we offer at the time, for example card payments or supported on-chain stablecoin payments. Purchases of credits are final and non-refundable except where a refund is required by applicable law. We may change pricing and the features of aloud cloud, and we may discontinue the service; if we discontinue it, we'll make a reasonable effort to give notice.</p>
+    <p>You can buy credits using the payment methods we offer at the time, for example card payments (processed by Stripe) or supported on-chain stablecoin payments. Purchases of credits are final and non-refundable except where a refund is required by applicable law. We may change pricing and the features of aloud cloud, and we may discontinue the service; if we discontinue it, we'll make a reasonable effort to give notice.</p>
     <h3>What we keep</h3>
     <p>We don't retain the content of your sessions on aloud cloud. Your audio, transcripts, and the AI's responses pass through only to reach the providers that fulfill them. We do process the limited account, credit-usage, and payment information needed to run the service, as described in the <a href="/privacy/">privacy policy</a>.</p>
 
     <h2>Using your own provider keys</h2>
-    <!-- PRE-PUBLISH: this paragraph assumes the web app still allows users to
-         enter their own provider API keys (relayed transiently through aloud
-         server, never stored). If you decide to disable BYO keys on the public
-         web build, replace this section with a short note that web users must
-         use aloud cloud, and keep BYO-key language scoped to native platforms. -->
     <p>On some platforms you may choose to supply your own provider API keys instead of using credits. You are responsible for keeping those keys valid and for any usage and charges your providers bill to them. On local platforms your keys stay on your device. On the web app, where requests must be relayed through aloud cloud, your key is used only transiently to make the request to your provider and is never stored. Even so, only enter a key you're comfortable entrusting to a relay, and you remain bound by your provider's terms regarding key use.</p>
 
     <h2>License and open source</h2>
@@ -120,10 +111,7 @@
     <p>If anything in these terms conflicts with the AGPL-3.0 as it applies to the software itself, the AGPL-3.0 controls for the software. These terms otherwise govern your use of the aloud application and this website.</p>
 
     <h2>Third-party providers</h2>
-    <p>aloud relies on AI and voice providers to do the actual speech-to-text, language, and text-to-speech work, for example Anthropic, OpenAI, OpenRouter, Venice, Groq, ElevenLabs, or local on-device models. These providers reach your data in one of two ways: providers <strong>you connect yourself</strong> with your own keys, or providers that <strong>aloud cloud relays to on your behalf</strong>.</p>
-    <!-- PRE-PUBLISH: keep the privacy policy's list of providers aloud cloud
-         uses (STT / LLM / TTS / payment processor) accurate and in sync. The
-         commitment to transparency about which providers we use lives there. -->
+    <p>aloud relies on AI and voice providers to do the actual speech-to-text, language, and text-to-speech work, for example Anthropic, Google, OpenAI, OpenRouter, Venice, Groq, Fireworks, ElevenLabs, or local on-device models. These providers reach your data in one of two ways: providers <strong>you connect yourself</strong> with your own keys, or providers that <strong>aloud cloud relays to on your behalf</strong>.</p>
     <p>In both cases:</p>
     <ul>
       <li>Your use of each provider's service is governed by <strong>that provider's own terms and privacy policy</strong>, not ours.</li>
