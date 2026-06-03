@@ -19,7 +19,8 @@ import { verifyGoogleIdToken } from '../auth/google.js';
 import { verifyAppleIdToken } from '../auth/apple.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { verifySessionToken } from '../auth/session.js';
-import { connectIdentity, issueAuthResponse, IdentityConflictError } from '../auth/identity.js';
+import { connectIdentity, issueAuthResponse, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
+import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
 /** Loose email shape check — enough to reject obvious garbage; real validity is
@@ -73,7 +74,7 @@ export function authRoutes(deps: Deps): Hono {
             );
             return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
         } catch (err) {
-            if (err instanceof IdentityConflictError) {
+            if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
                 return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
             }
             log.error('google connect failed', { err: String(err) });
@@ -112,7 +113,7 @@ export function authRoutes(deps: Deps): Hono {
             );
             return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
         } catch (err) {
-            if (err instanceof IdentityConflictError) {
+            if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
                 return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
             }
             log.error('apple connect failed', { err: String(err) });
@@ -135,7 +136,16 @@ export function authRoutes(deps: Deps): Hono {
                 ERROR_STATUS.bad_request
             );
         }
-        if (await deps.store.getIdentity('email', email)) {
+        // Canonical mailbox is the identity key, so j.o.h.n+x@gmail.com and
+        // john@gmail.com are one password identity (sign-up once, log in with any
+        // variant). Guard against BOTH a duplicate password identity and the
+        // mailbox already owning an account via Google/Apple — an unverified
+        // signup must never attach to (or shadow) a verified account.
+        const canonicalSub = normalizeEmail(email);
+        if (
+            (await deps.store.getIdentity('email', canonicalSub)) ||
+            (await deps.store.findLiveAccountByEmail(email))
+        ) {
             return c.json(
                 apiError('bad_request', 'an account with this email already exists — try signing in'),
                 ERROR_STATUS.bad_request
@@ -149,7 +159,7 @@ export function authRoutes(deps: Deps): Hono {
         try {
             const result = await connectIdentity(
                 deps,
-                { provider: 'email', sub: email, email, emailVerified: false },
+                { provider: 'email', sub: canonicalSub, email, emailVerified: false },
                 {
                     secretHash: hashPassword(password),
                     ...(signupIp ? { signupIp } : {}),
@@ -172,7 +182,9 @@ export function authRoutes(deps: Deps): Hono {
         const reject = () =>
             c.json(apiError('unauthenticated', 'incorrect email or password'), ERROR_STATUS.unauthenticated);
 
-        const identity = await deps.store.getIdentity('email', email);
+        // Match the canonical mailbox used at signup, so any dot/+tag variant of
+        // the same address logs into the one password identity.
+        const identity = await deps.store.getIdentity('email', normalizeEmail(email));
         if (!identity?.secretHash || !verifyPassword(password, identity.secretHash)) {
             return reject();
         }

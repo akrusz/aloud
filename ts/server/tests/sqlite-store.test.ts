@@ -84,6 +84,17 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect('signupIp' in got!).toBe(false);
     });
 
+    it('finds a live account by canonical mailbox (Gmail dots / +tag), excluding deleted', async () => {
+        await store.createAccount({ ...ACCOUNT, id: 'gm', email: 'john.doe@gmail.com' });
+        // A dot/+tag variant of the same inbox resolves to it.
+        expect((await store.findLiveAccountByEmail('johndoe+promo@googlemail.com'))?.id).toBe('gm');
+        // A genuinely different mailbox does not collide.
+        expect(await store.findLiveAccountByEmail('someoneelse@gmail.com')).toBeUndefined();
+        // Once tombstoned, the mailbox is free again (so a deleted user can return).
+        await store.markAccountDeleted('gm', 200, 'deleted+gm@deleted.invalid');
+        expect(await store.findLiveAccountByEmail('john.doe@gmail.com')).toBeUndefined();
+    });
+
     it('round-trips an identity by (provider, sub) and lists by account', async () => {
         await store.createAccount(ACCOUNT);
         await store.createIdentity(IDENTITY);
@@ -162,7 +173,7 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
 
     it('aggregation reads see every account and entry', async () => {
         await store.createAccount(ACCOUNT);
-        await store.createAccount({ ...ACCOUNT, id: 'acct-2' });
+        await store.createAccount({ ...ACCOUNT, id: 'acct-2', email: 'b@example.com' });
         const ledger = new Ledger(store, () => 100);
         await ledger.grant('acct-1', 20);
         await ledger.grant('acct-2', 30);
@@ -274,7 +285,7 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
 
     it('retreat passes: usageCreditsSince sums an account window for the daily cap', async () => {
         await store.createAccount(ACCOUNT);
-        await store.createAccount({ ...ACCOUNT, id: 'acct-2' });
+        await store.createAccount({ ...ACCOUNT, id: 'acct-2', email: 'b@example.com' });
         await store.appendUsage(usageEvent({ id: 'old', ts: 500, credits: 5 }));
         await store.appendUsage(usageEvent({ id: 'in1', ts: 1500, credits: 3 }));
         await store.appendUsage(usageEvent({ id: 'in2', ts: 2000, credits: 2.5 }));
@@ -300,6 +311,44 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         await store.removeRetreatInvite('pass-1', 'a@e.com');
         expect((await store.listRetreatInvites('pass-1')).map((i) => i.email)).toEqual(['b@e.com']);
         expect(await store.invitesForEmail('a@e.com')).toEqual([]);
+    });
+});
+
+describe('SqliteCreditsStore — canonical-email unique index (duplicate-account guard)', () => {
+    it('rejects a second LIVE account for the same canonical mailbox', async () => {
+        const store = new SqliteCreditsStore(':memory:');
+        await store.createAccount({ ...ACCOUNT, id: 'a', email: 'john.doe@gmail.com' });
+        await expect(
+            store.createAccount({ ...ACCOUNT, id: 'b', email: 'johndoe+x@gmail.com' })
+        ).rejects.toThrow(/unique|constraint/i);
+        store.close();
+    });
+
+    it('frees the mailbox after the first account is tombstoned', async () => {
+        const store = new SqliteCreditsStore(':memory:');
+        await store.createAccount({ ...ACCOUNT, id: 'a', email: 'john@gmail.com' });
+        await store.markAccountDeleted('a', 200, 'deleted+a@deleted.invalid');
+        // The partial index is WHERE deleted_at IS NULL, so the tombstone doesn't block this.
+        await store.createAccount({ ...ACCOUNT, id: 'b', email: 'john@gmail.com' });
+        expect((await store.findLiveAccountByEmail('john@gmail.com'))?.id).toBe('b');
+        store.close();
+    });
+
+    it('backfills canonical_email and builds the index when reopening an existing DB', async () => {
+        // A DB seeded via raw SQL without canonical_email (simulating a pre-migration
+        // file) gets it backfilled on open, and the uniqueness guard then holds.
+        const dir = mkdtempSync(join(tmpdir(), 'aloud-canon-'));
+        const path = join(dir, 'db.sqlite');
+        try {
+            const first = new SqliteCreditsStore(path);
+            await first.createAccount({ ...ACCOUNT, id: 'a', email: 'jane@gmail.com' });
+            first.close();
+            const reopened = new SqliteCreditsStore(path);
+            expect((await reopened.findLiveAccountByEmail('j.a.n.e@gmail.com'))?.id).toBe('a');
+            reopened.close();
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });
 

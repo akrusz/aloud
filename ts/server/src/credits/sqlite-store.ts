@@ -37,6 +37,8 @@ import type {
     RetreatPassStatus,
 } from './store.js';
 import type { UsageEvent, UsageKind } from './usage.js';
+import { normalizeEmail } from '../auth/email-key.js';
+import { log } from '../logger.js';
 
 /** SQL DDL — created on open if absent. Idempotent (IF NOT EXISTS). */
 const SCHEMA = `
@@ -48,7 +50,11 @@ CREATE TABLE IF NOT EXISTS accounts (
     signup_ip     TEXT,
     -- Soft-delete tombstone (meditation-pal-8jc): set ⇒ anonymized + can't sign
     -- in; the row stays so the append-only ledger's FKs survive.
-    deleted_at    REAL
+    deleted_at    REAL,
+    -- Canonical mailbox (normalizeEmail: case, +tag, Gmail dots). The
+    -- one-account-per-mailbox key for sign-in linking + the duplicate guard.
+    -- Backfilled and uniquely indexed (live rows only) by migrateAddCanonicalEmail.
+    canonical_email TEXT
 );
 -- Sign-in identities (meditation-pal-116). (provider, sub) is globally unique:
 -- one external identity → at most one account, ever. granted_credits records
@@ -280,6 +286,7 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db.exec(SCHEMA);
         this.migrateLegacyGoogleSub();
         this.migrateAddDeletedAt();
+        this.migrateAddCanonicalEmail();
         this.migrateAddUsagePassId();
         // Index on pass_id AFTER the column migration above — on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
@@ -294,6 +301,42 @@ export class SqliteCreditsStore implements CreditsStore {
         const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
         if (cols.some((c) => String(c['name']) === 'pass_id')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN pass_id TEXT');
+    }
+
+    /** Add accounts.canonical_email + its live-only unique index (meditation-pal
+     *  duplicate-account guard). Canonicalization (Gmail dots, +tag, case) is JS,
+     *  not SQL, so the backfill runs row by row. The UNIQUE index is partial
+     *  (WHERE deleted_at IS NULL) so tombstoned rows don't collide and a deleted
+     *  mailbox can sign up fresh. Creating that index THROWS if duplicate live
+     *  accounts already share a mailbox (exactly the bug we're fixing); we catch
+     *  it, warn, and carry on — the app-level guard still prevents new dupes, and
+     *  the index is created automatically on the next boot once the operator
+     *  resolves the duplicate via the admin panel. Self-healing. */
+    private migrateAddCanonicalEmail(): void {
+        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
+        if (!cols.some((c) => String(c['name']) === 'canonical_email')) {
+            this.db.exec('ALTER TABLE accounts ADD COLUMN canonical_email TEXT');
+        }
+        // Backfill any rows missing it (fresh DBs have none; existing DBs get all).
+        const stale = this.db
+            .prepare('SELECT id, email FROM accounts WHERE canonical_email IS NULL')
+            .all() as Row[];
+        const set = this.db.prepare('UPDATE accounts SET canonical_email = ? WHERE id = ?');
+        for (const r of stale) set.run(normalizeEmail(String(r['email'])), String(r['id']));
+
+        try {
+            this.db.exec(
+                `CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_canonical_live
+                 ON accounts(canonical_email) WHERE deleted_at IS NULL`
+            );
+        } catch (err) {
+            // Duplicate live mailboxes block the unique index. Don't fail startup:
+            // log loudly so the operator deletes a dup in the admin panel, after
+            // which the next restart creates the index.
+            log.warn('canonical_email unique index deferred — duplicate live accounts share a mailbox', {
+                err: String(err),
+            });
+        }
     }
 
     /** Add accounts.deleted_at to a DB created before soft-delete existed
@@ -374,16 +417,30 @@ export class SqliteCreditsStore implements CreditsStore {
     async createAccount(account: Account): Promise<void> {
         this.db
             .prepare(
-                `INSERT INTO accounts (id, email, email_verified, created_at, signup_ip)
-                 VALUES (?, ?, ?, ?, ?)`
+                `INSERT INTO accounts (id, email, email_verified, created_at, signup_ip, canonical_email)
+                 VALUES (?, ?, ?, ?, ?, ?)`
             )
             .run(
                 account.id,
                 account.email,
                 account.emailVerified ? 1 : 0,
                 account.createdAt,
-                account.signupIp ?? null
+                account.signupIp ?? null,
+                normalizeEmail(account.email)
             );
+    }
+
+    async findLiveAccountByEmail(email: string): Promise<Account | undefined> {
+        // Oldest live row wins if duplicates somehow coexist (index temporarily
+        // absent). rowid is monotonic with INSERT, so it stands in for created_at.
+        const row = this.db
+            .prepare(
+                `SELECT * FROM accounts
+                 WHERE canonical_email = ? AND deleted_at IS NULL
+                 ORDER BY rowid LIMIT 1`
+            )
+            .get(normalizeEmail(email)) as Row | undefined;
+        return row ? rowToAccount(row) : undefined;
     }
 
     async getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined> {

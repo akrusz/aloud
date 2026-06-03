@@ -69,6 +69,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
           font-size: 14px; font-weight: 600; }
   .pill.paid { background: rgba(127,179,137,.18); color: var(--good); }
   .pill.free { background: rgba(168,154,140,.16); color: var(--dim); }
+  .prov { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 13px;
+          border: 1px solid var(--line); color: var(--dim); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
   .stat { background: #100d0b; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
   .stat .k { font-size: 14px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
@@ -169,6 +171,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
         <tbody id="historyRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
       </table>
+      <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
 
     <h2>Free credits</h2>
@@ -230,8 +233,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         <div><input id="search" placeholder="filter by email…" autocomplete="off"></div>
       </div>
       <table>
-        <thead><tr><th>Email</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th></th></tr></thead>
-        <tbody id="acctRows"><tr><td colspan="7" class="muted">Connect to load accounts.</td></tr></tbody>
+        <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th></th></tr></thead>
+        <tbody id="acctRows"><tr><td colspan="8" class="muted">Connect to load accounts.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -398,9 +401,21 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       grid + bars + axis + labels + '</svg>';
   }
 
+  // The table paginates (newest day first) so a 90-day window stays scannable;
+  // the chart above always shows the whole window.
+  var HISTORY_PAGE_SIZE = 10;
+  var historyPage = 0;
+
   function renderHistory() {
     $('historyChart').innerHTML = barChart(HISTORY, $('historyMetric').value);
-    $('historyRows').innerHTML = HISTORY.slice().reverse().map(function (b) {
+
+    var days = HISTORY.slice().reverse(); // newest first
+    var pages = Math.max(1, Math.ceil(days.length / HISTORY_PAGE_SIZE));
+    if (historyPage > pages - 1) historyPage = pages - 1;
+    if (historyPage < 0) historyPage = 0;
+    var page = days.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
+
+    $('historyRows').innerHTML = page.map(function (b) {
       var avgMin = b.sessions ? b.durationMin / b.sessions : 0;
       return '<tr><td class="muted">' + date(b.dayStartTs) + '</td>' +
         '<td class="num">' + int(b.sessions) + '</td>' +
@@ -409,11 +424,24 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         '<td class="num">' + dec1(b.credits) + '</td>' +
         '<td class="num">' + avgMin.toFixed(1) + '</td></tr>';
     }).join('') || '<tr><td colspan="6" class="muted">No usage yet.</td></tr>';
+
+    // Pager: only when there's more than one page.
+    if (pages <= 1) {
+      $('historyPager').innerHTML = '';
+    } else {
+      $('historyPager').innerHTML =
+        '<button class="ghost xs" id="histPrev"' + (historyPage === 0 ? ' disabled' : '') + '>← newer</button>' +
+        '<span class="muted" style="font-size:13px">page ' + (historyPage + 1) + ' of ' + pages + '</span>' +
+        '<button class="ghost xs" id="histNext"' + (historyPage >= pages - 1 ? ' disabled' : '') + '>older →</button>';
+      $('histPrev').onclick = function () { if (historyPage > 0) { historyPage--; renderHistory(); } };
+      $('histNext').onclick = function () { if (historyPage < pages - 1) { historyPage++; renderHistory(); } };
+    }
   }
 
   function loadUsageHistory() {
     return api('/usage/history?days=' + $('historyDays').value).then(function (h) {
       HISTORY = h.buckets || [];
+      historyPage = 0; // fresh data / new window → back to the first page
       renderHistory();
     });
   }
@@ -468,19 +496,21 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     var q = $('search').value.trim().toLowerCase();
     var rows = allAccounts.filter(function (a) { return !q || a.email.toLowerCase().indexOf(q) >= 0; });
     if (!rows.length) {
-      $('acctRows').innerHTML = '<tr><td colspan="7" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
+      $('acctRows').innerHTML = '<tr><td colspan="8" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
       return;
     }
     $('acctRows').innerHTML = rows.map(function (a) {
-      var pill = a.purchased ? '<span class="pill paid">paid</span>' : '<span class="pill free">free</span>';
-      return '<tr data-id="' + a.id + '">' +
+      var pill = a.deleted ? '<span class="pill free">deleted</span>'
+        : a.purchased ? '<span class="pill paid">paid</span>' : '<span class="pill free">free</span>';
+      return '<tr data-id="' + a.id + '"' + (a.deleted ? ' class="muted"' : '') + '>' +
         '<td>' + esc(a.email) + '</td>' +
+        '<td>' + providerBadges(a.providers) + '</td>' +
         '<td>' + pill + '</td>' +
         '<td class="num">' + dec1(a.balance) + '</td>' +
         '<td class="num">' + dec1(a.granted) + '</td>' +
         '<td class="num">' + dec1(a.debited) + '</td>' +
         '<td class="muted">' + date(a.createdAt) + '</td>' +
-        '<td><button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button></td>' +
+        '<td>' + (a.deleted ? '' : '<button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button>') + '</td>' +
         '</tr>';
     }).join('');
     Array.prototype.forEach.call($('acctRows').querySelectorAll('tr'), function (tr) {
@@ -506,6 +536,15 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     });
   }
 
+  // Sign-in methods as small labelled pills (Google / Apple / Email).
+  var PROVIDER_LABEL = { google: 'Google', apple: 'Apple', email: 'Email' };
+  function providerBadges(providers) {
+    if (!providers || !providers.length) return '<span class="muted">none</span>';
+    return providers.map(function (p) {
+      return '<span class="prov">' + esc(PROVIDER_LABEL[p] || p) + '</span>';
+    }).join(' ');
+  }
+
   // ---- per-account ledger modal -----------------------------------------
   function openLedger(id) {
     api('/accounts/' + encodeURIComponent(id)).then(function (d) {
@@ -516,18 +555,41 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
         return '<tr><td class="muted">' + date(e.createdAt) + '</td><td>' + esc(e.kind) +
           '</td><td>' + esc(e.reason) + '</td><td class="num" style="color:var(--' + cls + ')">' + amt + '</td></tr>';
       }).join('') || '<tr><td colspan="4" class="muted">No ledger entries.</td></tr>';
+      var deleted = d.account.deletedAt != null;
+      var sign = providerBadges(d.account.providers);
+      var footer = deleted
+        ? '<p class="sub" style="margin:14px 0 0;color:var(--bad)">This account is deleted (anonymized, identities freed, balance zeroed).</p>'
+        : '<div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">' +
+            '<span class="muted" style="font-size:13px">Soft-delete: anonymizes the email, frees the sign-ins, zeroes the balance. Used to clear a duplicate.</span>' +
+            '<button class="ghost xs" id="delAcct" data-id="' + esc(d.account.id) +
+              '" style="color:var(--bad);border-color:var(--bad)">Delete account</button></div>';
       $('modalRoot').innerHTML =
         '<div class="modal-bg" id="mbg"><div class="modal">' +
         '<button class="x" id="mx">&times;</button>' +
         '<h3>' + esc(d.account.email) + '</h3>' +
         '<p class="sub" style="margin:0 0 14px">Balance <strong>' + dec1(d.balance) + '</strong> credits · ' +
-        'id <code>' + esc(d.account.id) + '</code></p>' +
+        'sign-in ' + sign + ' · id <code>' + esc(d.account.id) + '</code></p>' +
         '<table><thead><tr><th>When</th><th>Kind</th><th>Reason</th><th class="num">Δ</th></tr></thead><tbody>' +
-        rows + '</tbody></table></div></div>';
+        rows + '</tbody></table>' + footer + '</div></div>';
       $('mx').onclick = $('mbg').onclick = function (e) {
         if (e.target === $('mbg') || e.target === $('mx')) $('modalRoot').innerHTML = '';
       };
+      if (!deleted && $('delAcct')) $('delAcct').onclick = function () { doDeleteAccount(d.account); };
     }).catch(function (e) { alert(e.message); });
+  }
+
+  // Soft-delete an account (clearing a duplicate). Double-confirms because it's
+  // destructive, then refreshes the table + spend stats.
+  function doDeleteAccount(account) {
+    if (!confirm('Delete ' + account.email + '?\n\nThis anonymizes the account, frees its sign-in methods, and zeroes its balance. It cannot sign in afterward.')) return;
+    var btn = $('delAcct');
+    if (btn) btn.disabled = true;
+    api('/accounts/' + encodeURIComponent(account.id) + '/delete', { method: 'POST' })
+      .then(function () {
+        $('modalRoot').innerHTML = '';
+        return Promise.all([loadAccounts(), loadMetrics()]);
+      })
+      .catch(function (e) { alert(e.message); if (btn) btn.disabled = false; });
   }
 
   // ---- grant -------------------------------------------------------------

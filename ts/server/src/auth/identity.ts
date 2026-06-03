@@ -61,6 +61,19 @@ export class IdentityConflictError extends Error {
     }
 }
 
+/** Raised on a cold sign-in when this mailbox already has a live account we
+ *  can't safely auto-link to (a new login can only join an existing account when
+ *  BOTH are email-verified). The human should sign in with the method they
+ *  already have, then connect this one from settings — which is the
+ *  authenticated, safe path. Prevents both duplicate accounts and an unverified
+ *  signup grafting onto someone's verified account. */
+export class EmailInUseError extends Error {
+    constructor() {
+        super('An account already exists for this email. Sign in with your original method, then connect this one in settings.');
+        this.name = 'EmailInUseError';
+    }
+}
+
 export async function connectIdentity(
     deps: Deps,
     ident: VerifiedIdentity,
@@ -93,15 +106,31 @@ export async function connectIdentity(
     if (linked) {
         account = linked;
     } else {
-        account = {
-            id: randomUUID(),
-            email: ident.email,
-            emailVerified: ident.emailVerified,
-            createdAt: now,
-            ...(opts.signupIp ? { signupIp: opts.signupIp } : {}),
-        };
-        await deps.store.createAccount(account);
-        isNewAccount = true;
+        // Cold sign-in (no caller session). Before minting a fresh account, see if
+        // this mailbox already has one — canonical match, so Gmail dot/+tag
+        // variants of the same inbox count as the same person. If it does, only
+        // attach this identity when BOTH sides are email-verified (Google/Apple
+        // vouch for the address): that safely reunites a split Google+Apple login
+        // into one account. Otherwise refuse, rather than silently fork a
+        // duplicate or let an unverified signup graft onto a verified account.
+        const sibling = await deps.store.findLiveAccountByEmail(ident.email);
+        if (sibling) {
+            if (ident.emailVerified && sibling.emailVerified) {
+                account = sibling;
+            } else {
+                throw new EmailInUseError();
+            }
+        } else {
+            account = {
+                id: randomUUID(),
+                email: ident.email,
+                emailVerified: ident.emailVerified,
+                createdAt: now,
+                ...(opts.signupIp ? { signupIp: opts.signupIp } : {}),
+            };
+            await deps.store.createAccount(account);
+            isNewAccount = true;
+        }
     }
 
     // Decide the grant BEFORE creating the identity (the account "already

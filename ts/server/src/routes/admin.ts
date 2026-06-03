@@ -22,6 +22,7 @@ import type { Deps } from '../deps.js';
 import type { Account, LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
 import { buildUsageReport, buildUsageHistory } from '../credits/usage.js';
+import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
 import { ADMIN_PANEL_HTML } from '../admin/panel.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
@@ -129,6 +130,15 @@ export function adminRoutes(deps: Deps): Hono {
             else if (e.kind === 'purchase') purchased.add(e.accountId);
             else if (e.kind === 'debit') debited.set(e.accountId, (debited.get(e.accountId) ?? 0) - e.amount);
         }
+        // Sign-in methods per account (google/apple/email), so the operator can
+        // eyeball how someone signed up and spot a would-be duplicate at a glance.
+        const providersByAccount = new Map<string, string[]>();
+        await Promise.all(
+            accounts.map(async (a) => {
+                const ids = await deps.store.getIdentitiesForAccount(a.id);
+                providersByAccount.set(a.id, ids.map((i) => i.provider));
+            })
+        );
         const rows = accounts
             .map((a) => ({
                 id: a.id,
@@ -138,6 +148,8 @@ export function adminRoutes(deps: Deps): Hono {
                 granted: granted.get(a.id) ?? 0,
                 debited: debited.get(a.id) ?? 0,
                 purchased: purchased.has(a.id),
+                providers: providersByAccount.get(a.id) ?? [],
+                deleted: a.deletedAt != null,
             }))
             .sort((x, y) => y.createdAt - x.createdAt);
         return c.json(rows);
@@ -153,7 +165,26 @@ export function adminRoutes(deps: Deps): Hono {
         if (!account) return c.json(apiError('bad_request', 'no such account'), ERROR_STATUS.bad_request);
         const entries = await deps.store.listEntries(account.id);
         const balance = entries.reduce((s, e) => s + e.amount, 0);
-        return c.json({ account, balance, entries });
+        const identities = await deps.store.getIdentitiesForAccount(account.id);
+        return c.json({ account: { ...account, providers: identities.map((i) => i.provider) }, balance, entries });
+    });
+
+    // Operator account deletion — same soft-delete as the user's own "delete my
+    // account" (auth/identity.deleteAccount): zero the balance, free the
+    // identities so each login can sign in fresh, and anonymize + tombstone the
+    // row (its ledger FKs survive). The use case is clearing a duplicate-mailbox
+    // account; once the dup is gone, the canonical_email unique index can build.
+    app.post('/accounts/:id/delete', async (c) => {
+        const fail = authFailure(c, deps.config.adminToken);
+        if (fail) return fail;
+
+        const account = await deps.store.getAccountById(c.req.param('id'));
+        if (!account) return c.json(apiError('bad_request', 'no such account'), ERROR_STATUS.bad_request);
+        if (account.deletedAt != null) {
+            return c.json(apiError('bad_request', 'account is already deleted'), ERROR_STATUS.bad_request);
+        }
+        await deleteAccount(deps, account);
+        return c.json({ id: account.id, deleted: true });
     });
 
     // Operator-tunable runtime config (free-credit knobs). GET reads the live

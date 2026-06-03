@@ -169,6 +169,13 @@ export interface RetreatInvite {
 export interface CreditsStore {
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
+    /** The live (non-deleted) account whose email canonicalizes to the same
+     *  mailbox as `email` — using auth/email-key normalizeEmail (case, +tag,
+     *  Gmail dots / googlemail), so j.o.h.n+x@gmail.com and john@gmail.com match.
+     *  This is the one-account-per-mailbox key behind sign-in linking and the
+     *  duplicate-account guard. Tombstoned accounts are excluded so a deleted
+     *  mailbox can sign up fresh. */
+    findLiveAccountByEmail(email: string): Promise<Account | undefined>;
 
     // ---- Identities (sign-in methods, meditation-pal-116) -------------------
     /** Look up an identity by its globally-unique (provider, sub). */

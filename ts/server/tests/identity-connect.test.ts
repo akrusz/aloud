@@ -14,6 +14,7 @@ import {
     connectIdentity,
     deleteAccount,
     IdentityConflictError,
+    EmailInUseError,
     type VerifiedIdentity,
 } from '../src/auth/identity.js';
 import { decideConnectGrant, isTrustedProvider } from '../src/quota/freetier.js';
@@ -99,6 +100,63 @@ describe('connectIdentity — email signup vs connecting an identity', () => {
         );
         expect(apple.granted).toBe(0); // account already granted via Google
         expect(await d.ledger.balance(r.account.id)).toBe(20);
+    });
+});
+
+describe('connectIdentity — cold sign-in links a second method by verified email', () => {
+    const apple = (over: Partial<VerifiedIdentity> = {}): VerifiedIdentity => ({
+        provider: 'apple',
+        sub: 'ap-1',
+        email: 'a@example.com',
+        emailVerified: true,
+        ...over,
+    });
+
+    it('Google then Apple for the same verified mailbox is ONE account, not two', async () => {
+        const d = deps();
+        const g = await connectIdentity(d, google());
+        const a = await connectIdentity(d, apple()); // cold, no linkToAccountId
+        expect(a.isNewAccount).toBe(false);
+        expect(a.account.id).toBe(g.account.id); // linked, not duplicated
+        expect(a.granted).toBe(0); // account already granted via Google
+        const ids = await d.store.getIdentitiesForAccount(g.account.id);
+        expect(ids.map((i) => i.provider).sort()).toEqual(['apple', 'google']);
+    });
+
+    it('links across Gmail dot/+tag variants of the same mailbox', async () => {
+        const d = deps();
+        const g = await connectIdentity(d, google({ email: 'john.doe@gmail.com' }));
+        const a = await connectIdentity(d, apple({ email: 'johndoe+promo@googlemail.com' }));
+        expect(a.account.id).toBe(g.account.id);
+    });
+
+    it('refuses to auto-link onto an UNVERIFIED account (email/password squatter)', async () => {
+        const d = deps();
+        // An unverified password account claims the mailbox first.
+        await connectIdentity(d, {
+            provider: 'email', sub: 'a@example.com', email: 'a@example.com', emailVerified: false,
+        });
+        // A verified Google sign-in for the same mailbox must NOT graft onto it.
+        await expect(connectIdentity(d, google())).rejects.toBeInstanceOf(EmailInUseError);
+    });
+
+    it('refuses an UNVERIFIED new identity onto a verified account', async () => {
+        const d = deps();
+        await connectIdentity(d, google()); // verified account for a@example.com
+        await expect(
+            connectIdentity(d, {
+                provider: 'email', sub: 'a@example.com', email: 'a@example.com', emailVerified: false,
+            })
+        ).rejects.toBeInstanceOf(EmailInUseError);
+    });
+
+    it('a deleted account frees the mailbox for a fresh, separate sign-up', async () => {
+        const d = deps();
+        const first = await connectIdentity(d, google());
+        await deleteAccount(d, first.account);
+        const second = await connectIdentity(d, google({ sub: 'g-2' }));
+        expect(second.isNewAccount).toBe(true);
+        expect(second.account.id).not.toBe(first.account.id);
     });
 });
 
