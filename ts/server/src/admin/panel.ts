@@ -360,9 +360,11 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   // 90 bars. Each bar carries a <title> for hover-to-read the exact value.
   function barChart(buckets, metricKey) {
     var m = METRICS[metricKey] || METRICS.sessions;
-    if (!buckets.length) return '<p class="muted" style="margin:0">No usage in this window.</p>';
     var vals = buckets.map(m.val);
     var max = Math.max.apply(null, vals.concat([0]));
+    // Every day zero-fills, so buckets is never empty; the real "nothing to show"
+    // case is an all-zero window. Say so instead of drawing a flat, empty axis.
+    if (max <= 0) return '<p class="muted" style="margin:0">No metered usage in this window yet.</p>';
     var W = 760, H = 180, padX = 8, padTop = 16, padBot = 22;
     var n = buckets.length, bw = (W - padX * 2) / n, plotH = H - padTop - padBot;
     var bars = buckets.map(function (b, i) {
