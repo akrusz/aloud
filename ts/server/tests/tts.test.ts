@@ -184,3 +184,49 @@ describe('POST /cloud/v1/tts/canned', () => {
         expect(res.status).toBe(401);
     });
 });
+
+describe('GET /cloud/v1/tts/preview', () => {
+    it('previews a curated voice with no auth and no charge', async () => {
+        const a = app();
+        // No Authorization header at all — the endpoint is public.
+        const res = await a.request('/cloud/v1/tts/preview?voice=Leda');
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toBe('audio/mpeg');
+        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
+        // Free: no metering headers.
+        expect(res.headers.get('X-Credits-Charged')).toBeNull();
+        // Spoke the server-owned phrase through Leda's Google id.
+        expect(googleCalls).toHaveLength(1);
+        const sent = googleCalls[0]!.body as {
+            voice: { name: string };
+            input: { text: string };
+        };
+        expect(sent.voice.name).toBe('en-US-Chirp3-HD-Leda');
+        expect(sent.input.text).toContain('Welcome to aloud');
+    });
+
+    it('synthesizes once per voice, then serves the cache', async () => {
+        const a = app();
+        // Vega is used only here, so the per-test googleCalls reset means a cold
+        // cache: first call synthesizes, second is served from PREVIEW_AUDIO.
+        await a.request('/cloud/v1/tts/preview?voice=Vega');
+        await a.request('/cloud/v1/tts/preview?voice=Vega');
+        const vegaCalls = googleCalls.filter(
+            (c) => (c.body as { voice: { name: string } }).voice.name === 'en-US-Neural2-F'
+        );
+        expect(vegaCalls).toHaveLength(1);
+    });
+
+    it('400s on a non-curated voice (no free arbitrary synthesis)', async () => {
+        const res = await app().request('/cloud/v1/tts/preview?voice=en-US-Chirp3-HD-Achernar');
+        expect(res.status).toBe(400);
+        expect(googleCalls).toHaveLength(0);
+    });
+
+    it('reports provider_error without a TTS key', async () => {
+        const config = loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const a = createApp(buildDeps(config));
+        const res = await a.request('/cloud/v1/tts/preview?voice=Leda');
+        expect(res.status).toBe(502);
+    });
+});

@@ -73,6 +73,7 @@ import {
     fetchCloudVoices,
     prefixedVoiceId,
     previewVoice as runVoicePreview,
+    previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
     stopPreview as stopVoicePreview,
@@ -896,7 +897,9 @@ export async function mountSessionView(
             const entry = scoredVoices.find((v) => v.name === name);
             if (target.closest('.voice-row-preview')) {
                 if (row.classList.contains('voice-row-locked')) return;
-                void runVoicePreview(name, setup.ttsRate, entry?.engine);
+                runVoicePreview(name, setup.ttsRate, entry?.engine).catch((err) => {
+                    showErrorToast(previewErrorMessage(err));
+                });
                 return;
             }
             if (row.classList.contains('voice-row-locked')) return;

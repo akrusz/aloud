@@ -20,7 +20,7 @@
 
 import type { TtsEngine } from '../../src/platform/index.js';
 
-import { createTtsForVoice } from './adapters/tts-picker.js';
+import { createTtsForVoice, createCloudAloudPreviewTts } from './adapters/tts-picker.js';
 import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE, withCloudOutline } from './credit-rate.js';
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
@@ -459,6 +459,12 @@ let activePreviewEngine: TtsEngine | null = null;
  * 'browser:' prefixed id used by SessionSetup) — matches Python's
  * previewVoice() signature. Engine override lets callers force a
  * specific backend when the same voice name exists across engines.
+ *
+ * Rejects on a real failure (not signed in, out of credits, server
+ * unreachable, autoplay blocked) so the caller can tell the user *why*
+ * a preview produced no sound — previously every failure was swallowed,
+ * which hid hosted-voice problems (especially on mobile) entirely.
+ * Cancelling one preview by starting another resolves quietly (no error).
  */
 export async function previewVoice(
     voiceName: string,
@@ -467,23 +473,22 @@ export async function previewVoice(
 ): Promise<void> {
     stopPreview();
     try {
-        // Build a prefixed id that createTtsForVoice understands. We
-        // assume server voices unless the engine is explicitly 'browser' or
-        // 'aloud' (the hosted Google voices).
-        const id =
-            engine === 'browser'
-                ? `browser:${voiceName}`
-                : engine === 'aloud'
-                  ? `aloud:${voiceName}`
-                  : `server:${voiceName}`;
-        const { engine: ttsEngine } = await createTtsForVoice(id);
+        let ttsEngine: TtsEngine;
+        if (engine === 'aloud') {
+            // Hosted Google voices preview through the PUBLIC, free preview
+            // endpoint — no sign-in, no credits. (Selecting one for a real
+            // session still synthesizes through the authed, metered path.)
+            ttsEngine = createCloudAloudPreviewTts(voiceName);
+        } else {
+            // Build a prefixed id that createTtsForVoice understands. We
+            // assume server voices unless the engine is explicitly 'browser'.
+            const id = engine === 'browser' ? `browser:${voiceName}` : `server:${voiceName}`;
+            ({ engine: ttsEngine } = await createTtsForVoice(id));
+        }
         activePreviewEngine = ttsEngine;
         const text =
             voiceName === 'Zarvox' ? 'Come. On. Fahoogwuhgods.' : PREVIEW_PHRASE;
         await ttsEngine.speak(text, rate !== undefined ? { rate } : undefined);
-    } catch {
-        // Preview failures are non-fatal — the user can try a different
-        // voice or check that Flask is running.
     } finally {
         if (activePreviewEngine) {
             // Best-effort cleanup; the engine handles double-cancel safely.
@@ -491,6 +496,32 @@ export async function previewVoice(
             activePreviewEngine = null;
         }
     }
+}
+
+/**
+ * Turn a previewVoice() rejection into a short, user-facing line. Kept here so
+ * all three pickers (setup / settings / in-session) report the same way.
+ * Matches on error name/message rather than importing the cloud error classes,
+ * so this stays free of cloud-auth coupling (and node-testable).
+ */
+export function previewErrorMessage(err: unknown): string {
+    const name = err instanceof Error ? err.name : '';
+    const msg = err instanceof Error ? err.message : String(err);
+    if (name === 'CloudSignInRequiredError') {
+        return 'Sign in to aloud cloud (in Settings) to preview these voices.';
+    }
+    // Browsers reject HTMLAudioElement.play() with NotAllowedError when audio
+    // isn't allowed yet (the mobile/iOS autoplay gate). The fetch consumed the
+    // tap's user-gesture window, so the play that follows is blocked.
+    if (name === 'NotAllowedError') {
+        return 'Tap preview again to play this voice (your browser blocked the first play).';
+    }
+    if (/\b401\b/.test(msg)) return 'aloud cloud needs you to sign in again (in Settings).';
+    if (/\b402\b/.test(msg) || /credit/i.test(msg)) {
+        return 'aloud cloud voices need credits to preview. Add credits, or pick a free voice.';
+    }
+    if (/\b403\b/.test(msg)) return 'Verify your email to use aloud cloud voices.';
+    return "Couldn't play that voice preview. Check your connection and try again.";
 }
 
 export function stopPreview(): void {

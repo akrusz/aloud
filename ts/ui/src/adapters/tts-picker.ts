@@ -69,6 +69,23 @@ export function createCloudAloudTts(voice = '', options: CreateTtsOptions = {}):
     return new CloudTtsEngine(opts);
 }
 
+/**
+ * Hosted-voice preview via the server's PUBLIC `/cloud/v1/tts/preview` — no auth,
+ * no credits. The server speaks its own fixed phrase for a curated voice and
+ * caches the clip, so signed-out visitors can audition the aloud cloud voices.
+ * Distinct from createCloudAloudTts (the authed, metered session path): preview
+ * is free, real synthesis is paid. `voice` is a curated short name ("Leda").
+ */
+export function createCloudAloudPreviewTts(voice: string): TtsEngine {
+    return new CloudTtsEngine({
+        voice,
+        endpointUrl: cloudUrl('/tts/preview'),
+        // GET, no bearer — the endpoint is public and ignores any sent text in
+        // favor of its server-owned phrase, so nothing here needs auth.
+        usePost: false,
+    });
+}
+
 export async function createTtsForVoice(
     voiceId: string | null,
     options: CreateTtsOptions = {}

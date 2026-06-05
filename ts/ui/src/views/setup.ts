@@ -35,6 +35,7 @@ import {
     invalidateServerVoicesCache,
     prefixedVoiceId,
     previewVoice as runPreview,
+    previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
     setModelDownloadsDisabled,
@@ -374,7 +375,9 @@ export async function mountSetupView(
             if (target2.closest('.voice-row-preview')) {
                 if (row.classList.contains('voice-row-locked')) return;
                 const entry = findVoice(name);
-                void runPreview(name, setup.ttsRate, entry?.engine);
+                runPreview(name, setup.ttsRate, entry?.engine).catch((err) => {
+                    void alertDialog(previewErrorMessage(err));
+                });
                 return;
             }
             if (row.classList.contains('voice-row-locked')) return;

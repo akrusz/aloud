@@ -50,6 +50,15 @@ export function defaultVoice(): CuratedVoice {
 }
 
 /**
+ * The fixed phrase spoken by the public voice-preview endpoint. Server-owned
+ * (like the canned-apology texts) so the free, unauthenticated preview route
+ * can only ever synthesize this one line per curated voice — never arbitrary
+ * caller input. Mirrors the client's PREVIEW_PHRASE (ui/src/voice-picker.ts);
+ * keep the two in sync.
+ */
+export const PREVIEW_PHRASE = "Welcome to aloud. I'll be your facilitator.";
+
+/**
  * Resolve a client-supplied voice to a Google voice id. Accepts a curated
  * short name ("Leda"), a raw Google id (passes through, for power users), or
  * empty/unknown → the default. The meter bills per character regardless of

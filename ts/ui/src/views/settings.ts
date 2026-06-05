@@ -51,6 +51,7 @@ import {
     invalidateServerVoicesCache,
     prefixedVoiceId,
     previewVoice as runPreview,
+    previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
     setModelDownloadsDisabled,
@@ -798,7 +799,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const entry = scoredVoices.find((v) => v.name === name);
             if (target.closest('.voice-row-preview')) {
                 if (row.classList.contains('voice-row-locked')) return;
-                void runPreview(name, settings.defaultTtsRate, entry?.engine);
+                runPreview(name, settings.defaultTtsRate, entry?.engine).catch((err) => {
+                    void alertDialog(previewErrorMessage(err));
+                });
                 return;
             }
             // Download button — stream the model down (live percent on the

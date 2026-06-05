@@ -62,6 +62,13 @@ export class BrowserTtsEngine implements TtsEngine {
             this.currentUtterance = utterance;
             this.currentResolve = resolve;
             speechSynthesis.speak(utterance);
+            // Android Chrome leaves the speech queue *paused* after a preceding
+            // cancel() (the voice picker calls cancel() then speak() to preview),
+            // so the utterance sits silent until something resumes it. This is
+            // why browser-voice previews were mute on Android while in-session
+            // playback (no cancel/speak churn) worked. resume() is a harmless
+            // no-op when the queue isn't paused.
+            speechSynthesis.resume();
         });
     }
 

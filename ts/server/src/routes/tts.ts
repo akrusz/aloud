@@ -19,7 +19,7 @@ import { priceTtsChars } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
 import { synthesizeWithGoogle } from '../providers/tts.js';
-import { resolveVoiceId } from '../providers/voice-catalog.js';
+import { CURATED_VOICES, PREVIEW_PHRASE, resolveVoiceId } from '../providers/voice-catalog.js';
 import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
 
@@ -28,6 +28,13 @@ import { log } from '../logger.js';
  *  the whole process lifetime and then served free — no per-user provider cost.
  *  Re-synthesized lazily after a restart; negligible. */
 const CANNED_AUDIO = new Map<string, Uint8Array>();
+
+/** Synthesized voice-preview audio, keyed by Google voice id. Same rationale as
+ *  CANNED_AUDIO: the phrase is fixed (PREVIEW_PHRASE) and the voice must be one
+ *  we curate, so each curated voice is synthesized at most once per process
+ *  lifetime and then served free to anyone — a handful of short clips per
+ *  deploy, re-warmed lazily after a restart. */
+const PREVIEW_AUDIO = new Map<string, Uint8Array>();
 
 export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -67,6 +74,40 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             CANNED_AUDIO.set(cacheKey, audio);
         }
         c.header('content-type', 'audio/mpeg');
+        return c.body(audio.buffer as ArrayBuffer);
+    });
+
+    // Public, UNAUTHENTICATED, UNMETERED preview of a curated voice. No sign-in
+    // and no balance gate by design: the spoken text is the server-owned
+    // PREVIEW_PHRASE and the voice must be one we curate, so a caller can't turn
+    // this into free synthesis of arbitrary input. Each curated voice is
+    // synthesized at most once per process (cached in PREVIEW_AUDIO) and then
+    // served from memory, so signed-out visitors can audition voices for the
+    // cost of a few short clips per deploy. Real, metered synthesis stays on the
+    // authed POST / below. GET so the result is plainly cacheable downstream.
+    app.get('/preview', async (c) => {
+        const key = deps.config.googleTtsApiKey;
+        if (!key) {
+            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
+        }
+        const curated = CURATED_VOICES.find((v) => v.name === (c.req.query('voice') ?? ''));
+        if (!curated) {
+            return c.json(apiError('bad_request', 'unknown preview voice'), ERROR_STATUS.bad_request);
+        }
+
+        let audio = PREVIEW_AUDIO.get(curated.googleId);
+        if (!audio) {
+            try {
+                audio = await synthesizeWithGoogle(PREVIEW_PHRASE, curated.googleId, 1, key);
+            } catch (err) {
+                log.error('preview tts synth failed', { err: String(err) });
+                return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
+            }
+            PREVIEW_AUDIO.set(curated.googleId, audio);
+        }
+        c.header('content-type', 'audio/mpeg');
+        // Fixed phrase per voice — safe to cache hard in the browser/CDN.
+        c.header('cache-control', 'public, max-age=86400');
         return c.body(audio.buffer as ArrayBuffer);
     });
 

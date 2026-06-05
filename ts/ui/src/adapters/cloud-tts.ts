@@ -189,7 +189,7 @@ export class CloudTtsEngine implements TtsEngine {
         // any small lead-in gap and keeps playback stable end-to-end.
         audio.preload = 'auto';
 
-        return new Promise<void>((resolve) => {
+        return new Promise<void>((resolve, reject) => {
             const cleanup = () => {
                 URL.revokeObjectURL(url);
                 if (this.currentAudio === audio) {
@@ -212,7 +212,26 @@ export class CloudTtsEngine implements TtsEngine {
             this.currentAudio = audio;
             this.currentUrl = url;
             this.currentResolve = resolve;
-            audio.play().catch(() => cleanup());
+            audio.play().catch((err: unknown) => {
+                // A cancel() mid-play rejects with AbortError — that's expected,
+                // so finalize quietly. Any other rejection (notably the mobile
+                // /iOS autoplay gate's NotAllowedError) means the audio never
+                // actually played: reject instead of resolving as if it had, so
+                // the voice preview can say why and in-session callers (which
+                // already try/catch speak) aren't told a silent failure spoke.
+                if ((err as { name?: string })?.name === 'AbortError') {
+                    cleanup();
+                    return;
+                }
+                URL.revokeObjectURL(url);
+                if (this.currentAudio === audio) {
+                    this.currentAudio = null;
+                    this.currentUrl = null;
+                    this.currentAbort = null;
+                }
+                this.currentResolve = null;
+                reject(err instanceof Error ? err : new Error(String(err)));
+            });
         });
     }
 
