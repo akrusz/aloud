@@ -18,7 +18,11 @@
 
 import { detectIsDesktop, isDesktopSync } from './is-desktop.js';
 import { cloudUrl } from './cloud-base.js';
-import { setRuntimeGoogleClientId, setRuntimeAppleClientId } from './cloud-auth.js';
+import {
+    setRuntimeGoogleClientId,
+    setRuntimeGoogleDesktopClientId,
+    setRuntimeAppleClientId,
+} from './cloud-auth.js';
 
 export type Capability = 'flask' | 'cloud' | 'ollama';
 
@@ -47,21 +51,34 @@ async function reachable(url: string): Promise<boolean> {
 interface CloudConfig {
     reachable: boolean;
     googleClientId: string;
+    googleDesktopClientId: string;
     appleClientId: string;
 }
+
+const NO_CLOUD: CloudConfig = {
+    reachable: false,
+    googleClientId: '',
+    googleDesktopClientId: '',
+    appleClientId: '',
+};
 
 async function probeCloud(): Promise<CloudConfig> {
     try {
         const r = await fetch(cloudUrl('/config'), { method: 'GET' });
-        if (!r.ok) return { reachable: false, googleClientId: '', appleClientId: '' };
-        const data = (await r.json()) as { googleClientId?: string; appleClientId?: string };
+        if (!r.ok) return NO_CLOUD;
+        const data = (await r.json()) as {
+            googleClientId?: string;
+            googleDesktopClientId?: string;
+            appleClientId?: string;
+        };
         return {
             reachable: true,
             googleClientId: data.googleClientId ?? '',
+            googleDesktopClientId: data.googleDesktopClientId ?? '',
             appleClientId: data.appleClientId ?? '',
         };
     } catch {
-        return { reachable: false, googleClientId: '', appleClientId: '' };
+        return NO_CLOUD;
     }
 }
 
@@ -94,6 +111,7 @@ export async function detectCapabilities(): Promise<Capabilities> {
         if (base) {
             const cloud = await probeCloud();
             setRuntimeGoogleClientId(cloud.googleClientId);
+            setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
             setRuntimeAppleClientId(cloud.appleClientId);
             cached = { ...base, cloud: cloud.reachable };
             inflight = null;
@@ -110,6 +128,7 @@ export async function detectCapabilities(): Promise<Capabilities> {
             reachable('/ollama/api/tags'),
         ]);
         setRuntimeGoogleClientId(cloud.googleClientId);
+        setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
         setRuntimeAppleClientId(cloud.appleClientId);
         cached = { flask, cloud: cloud.reachable, ollama };
         inflight = null;

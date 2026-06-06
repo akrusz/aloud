@@ -14,14 +14,16 @@ function app(env: Record<string, string>) {
 }
 
 describe('GET /cloud/v1/config', () => {
-    it('advertises the first Google + Apple client ids when configured', async () => {
+    it('advertises the first Google + Apple ids and the desktop client id when configured', async () => {
         const res = await app({
             GOOGLE_CLIENT_IDS: 'web-client-1,ios-client-2',
+            GOOGLE_DESKTOP_CLIENT_ID: 'desktop-client-3',
             APPLE_CLIENT_IDS: 'app.aloud.web',
         }).request('/cloud/v1/config');
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({
             googleClientId: 'web-client-1',
+            googleDesktopClientId: 'desktop-client-3',
             appleClientId: 'app.aloud.web',
         });
     });
@@ -29,7 +31,11 @@ describe('GET /cloud/v1/config', () => {
     it('returns empty ids when none are configured (client keeps dev sign-in)', async () => {
         const res = await app({}).request('/cloud/v1/config');
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ googleClientId: '', appleClientId: '' });
+        expect(await res.json()).toEqual({
+            googleClientId: '',
+            googleDesktopClientId: '',
+            appleClientId: '',
+        });
     });
 
     it('needs no auth (it runs before sign-in)', async () => {

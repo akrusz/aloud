@@ -122,6 +122,20 @@ export interface GoogleAuthRequest {
     idToken: string;
 }
 
+/** POST /cloud/v1/auth/google/desktop — finish the desktop (Tauri) loopback PKCE
+ *  flow: the app sends the authorization code it caught on the loopback and the
+ *  server exchanges it for an ID token (holding the client secret), so no secret
+ *  ships in the desktop binary. (meditation-pal-fae) */
+export interface GoogleDesktopAuthRequest {
+    /** Authorization code from the loopback redirect. */
+    code: string;
+    /** PKCE verifier paired with the challenge sent to the auth endpoint. */
+    codeVerifier: string;
+    /** The exact loopback redirect_uri used in the auth request (must match at
+     *  the token endpoint). */
+    redirectUri: string;
+}
+
 /** POST /cloud/v1/auth/apple — exchange a Sign in with Apple ID token. */
 export interface AppleAuthRequest {
     /** The identity token (JWT) from Sign in with Apple on the client. */

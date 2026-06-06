@@ -21,7 +21,14 @@
  * the chosen spot then.
  */
 
-import { googleClientId, googleSignIn, type AuthResponse } from './cloud-auth.js';
+import {
+    googleClientId,
+    googleDesktopClientId,
+    googleSignIn,
+    desktopGoogleSignIn,
+    type AuthResponse,
+} from './cloud-auth.js';
+import { appUrl } from './app-base.js';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -160,5 +167,62 @@ export async function promptGoogleOneTap(handlers: SignInHandlers): Promise<bool
     } catch (err) {
         handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
         return false;
+    }
+}
+
+/**
+ * Desktop (Tauri) Google sign-in. The GIS button can't run in the webview's
+ * custom-scheme origin, so render a plain button that runs the loopback PKCE
+ * flow: POST to the embedded local server (`/app/v1/google-oauth`) which opens
+ * the system browser and catches the redirect on 127.0.0.1, then finish at the
+ * hosted `/cloud/v1/auth/google/desktop`. Returns false when no desktop client
+ * id is configured (the caller then removes the host). (meditation-pal-fae)
+ */
+export function renderDesktopGoogleSignInButton(
+    container: HTMLElement,
+    handlers: SignInHandlers
+): boolean {
+    if (!googleDesktopClientId()) return false;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-secondary signin-google-desktop-btn';
+    btn.textContent = 'Continue with Google';
+    btn.addEventListener('click', () => void runDesktopGoogleSignIn(btn, handlers));
+    container.appendChild(btn);
+    return true;
+}
+
+async function runDesktopGoogleSignIn(
+    btn: HTMLButtonElement,
+    handlers: SignInHandlers
+): Promise<void> {
+    const clientId = googleDesktopClientId();
+    if (!clientId) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Waiting for your browser…';
+    try {
+        // The embedded server runs the browser dance and returns the code; it
+        // blocks until the user finishes (or it times out), so this awaits.
+        const res = await fetch(appUrl('/google-oauth'), {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ client_id: clientId }),
+        });
+        if (!res.ok) {
+            const msg = ((await res.json().catch(() => ({}))) as { error?: string }).error;
+            throw new Error(msg || `Google sign-in failed (${res.status}).`);
+        }
+        const out = (await res.json()) as {
+            code: string;
+            codeVerifier: string;
+            redirectUri: string;
+        };
+        handlers.onSignedIn(await desktopGoogleSignIn(out));
+    } catch (err) {
+        handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
     }
 }

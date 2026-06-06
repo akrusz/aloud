@@ -9,7 +9,7 @@
  * copy says so. Reuses the `.voice-modal-*` classes for visual consistency.
  */
 
-import { renderGoogleSignInButton } from './google-signin.js';
+import { renderGoogleSignInButton, renderDesktopGoogleSignInButton } from './google-signin.js';
 import { renderAppleSignInButton } from './apple-signin.js';
 import { isDesktopSync } from './is-desktop.js';
 import { checkAndShowGifts } from './gift-modal.js';
@@ -105,28 +105,32 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         });
         document.addEventListener('keydown', onKey);
 
-        // Google/Apple use web popups (GIS / Apple JS) that can't run in the
-        // desktop (Tauri) webview — its custom-scheme origin isn't a valid OAuth
-        // JavaScript origin, so the popups just fail. Hide them there until a
-        // native OAuth flow is wired (meditation-pal — desktop sign-in); email
-        // works everywhere. On web/local each button still no-ops + removes its
-        // host when unconfigured.
+        // Google/Apple web popups (GIS / Apple JS) can't run in the desktop
+        // (Tauri) webview — its custom-scheme origin isn't a valid OAuth
+        // JavaScript origin. So on desktop we swap Google for a native loopback
+        // PKCE flow (system browser → 127.0.0.1, meditation-pal-fae) and still
+        // hide Apple (its native flow isn't wired yet). On web/local each button
+        // no-ops + removes its host when unconfigured. Email works everywhere.
+        const oauth = overlay.querySelector<HTMLElement>('#signin-oauth')!;
+        const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
+        const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
+        // Drop the whole OAuth block + its "or" divider once we know nothing
+        // rendered — otherwise a lone "or" dangles above the form.
+        const dropEmptyOauth = (): void => {
+            if (oauth.childElementCount === 0) {
+                oauth.remove();
+                overlay.querySelector('.signin-divider')?.remove();
+            }
+        };
         if (isDesktopSync()) {
-            overlay.querySelector('#signin-oauth')?.remove();
-            overlay.querySelector('.signin-divider')?.remove();
+            appleHost.remove(); // desktop Apple OAuth not wired yet (meditation-pal-fae)
+            const ok = renderDesktopGoogleSignInButton(googleHost, {
+                onSignedIn,
+                onError: (e) => showError(e.message),
+            });
+            if (!ok) googleHost.remove();
+            dropEmptyOauth();
         } else {
-            const oauth = overlay.querySelector<HTMLElement>('#signin-oauth')!;
-            const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
-            const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
-            // Drop the whole OAuth block + its "or" divider once we know neither
-            // button rendered (e.g. a reachable server configured with only
-            // email/password) — otherwise a lone "or" dangles above the form.
-            const dropEmptyOauth = (): void => {
-                if (oauth.childElementCount === 0) {
-                    oauth.remove();
-                    overlay.querySelector('.signin-divider')?.remove();
-                }
-            };
             void renderGoogleSignInButton(googleHost, {
                 onSignedIn,
                 onError: (e) => showError(e.message),

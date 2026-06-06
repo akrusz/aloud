@@ -13,9 +13,15 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { ERROR_STATUS, apiError } from '../contract.js';
-import type { AppleAuthRequest, AuthResponse, EmailAuthRequest, GoogleAuthRequest } from '../contract.js';
+import type {
+    AppleAuthRequest,
+    AuthResponse,
+    EmailAuthRequest,
+    GoogleAuthRequest,
+    GoogleDesktopAuthRequest,
+} from '../contract.js';
 import type { Deps } from '../deps.js';
-import { verifyGoogleIdToken } from '../auth/google.js';
+import { verifyGoogleIdToken, exchangeGoogleCode } from '../auth/google.js';
 import { verifyAppleIdToken } from '../auth/apple.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { verifySessionToken } from '../auth/session.js';
@@ -38,6 +44,41 @@ async function callerAccountId(c: Context, deps: Deps): Promise<string | undefin
     return claims?.accountId;
 }
 
+/** Shared tail for federated (Google/Apple) sign-in once an identity is verified:
+ *  connect/create the account (linking to the caller's account when a bearer
+ *  token is present), grant credits per the rules, and issue a session. */
+async function finishFederatedSignIn(
+    c: Context,
+    deps: Deps,
+    provider: 'google' | 'apple',
+    identity: { sub: string; email: string; emailVerified: boolean }
+): Promise<Response> {
+    // Client IP for velocity-based abuse detection (mass-account creation
+    // clusters by IP/subnet). x-forwarded-for is set by Fly/Render; first hop.
+    const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    const signupIp = fwd || c.req.header('x-real-ip') || undefined;
+    const linkToAccountId = await callerAccountId(c, deps);
+    try {
+        const result = await connectIdentity(
+            deps,
+            {
+                provider,
+                sub: identity.sub,
+                email: identity.email,
+                emailVerified: identity.emailVerified,
+            },
+            { ...(signupIp ? { signupIp } : {}), ...(linkToAccountId ? { linkToAccountId } : {}) }
+        );
+        return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
+    } catch (err) {
+        if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
+            return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
+        }
+        log.error(`${provider} connect failed`, { err: String(err) });
+        return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
+    }
+}
+
 export function authRoutes(deps: Deps): Hono {
     const app = new Hono();
 
@@ -54,32 +95,42 @@ export function authRoutes(deps: Deps): Hono {
             log.warn('google verify failed', { err: String(err) });
             return c.json(apiError('unauthenticated', 'invalid Google sign-in'), ERROR_STATUS.unauthenticated);
         }
+        return finishFederatedSignIn(c, deps, 'google', identity);
+    });
 
-        // Client IP for velocity-based abuse detection (mass-account creation
-        // clusters by IP/subnet). x-forwarded-for is set by Fly/Render; first hop.
-        const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-        const signupIp = fwd || c.req.header('x-real-ip') || undefined;
-        const linkToAccountId = await callerAccountId(c, deps);
-
-        try {
-            const result = await connectIdentity(
-                deps,
-                {
-                    provider: 'google',
-                    sub: identity.sub,
-                    email: identity.email,
-                    emailVerified: identity.emailVerified,
-                },
-                { ...(signupIp ? { signupIp } : {}), ...(linkToAccountId ? { linkToAccountId } : {}) }
+    // Desktop (Tauri) loopback PKCE: the app caught an authorization code on its
+    // 127.0.0.1 listener; redeem it here (the client secret stays server-side) and
+    // finish exactly like /google. (meditation-pal-fae)
+    app.post('/google/desktop', async (c) => {
+        const body = (await c.req.json().catch(() => ({}))) as Partial<GoogleDesktopAuthRequest>;
+        if (!body.code || !body.codeVerifier || !body.redirectUri) {
+            return c.json(
+                apiError('bad_request', 'code, codeVerifier, redirectUri required'),
+                ERROR_STATUS.bad_request
             );
-            return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
-        } catch (err) {
-            if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
-                return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
-            }
-            log.error('google connect failed', { err: String(err) });
-            return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
         }
+        const { googleDesktopClientId, googleDesktopClientSecret } = deps.config;
+        if (!googleDesktopClientId || !googleDesktopClientSecret) {
+            return c.json(
+                apiError('internal', 'desktop Google sign-in is not configured'),
+                ERROR_STATUS.internal
+            );
+        }
+        let identity;
+        try {
+            const idToken = await exchangeGoogleCode({
+                code: body.code,
+                codeVerifier: body.codeVerifier,
+                redirectUri: body.redirectUri,
+                clientId: googleDesktopClientId,
+                clientSecret: googleDesktopClientSecret,
+            });
+            identity = await verifyGoogleIdToken(idToken, deps.config.googleClientIds);
+        } catch (err) {
+            log.warn('google desktop verify failed', { err: String(err) });
+            return c.json(apiError('unauthenticated', 'invalid Google sign-in'), ERROR_STATUS.unauthenticated);
+        }
+        return finishFederatedSignIn(c, deps, 'google', identity);
     });
 
     app.post('/apple', async (c) => {
@@ -95,30 +146,7 @@ export function authRoutes(deps: Deps): Hono {
             log.warn('apple verify failed', { err: String(err) });
             return c.json(apiError('unauthenticated', 'invalid Apple sign-in'), ERROR_STATUS.unauthenticated);
         }
-
-        const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-        const signupIp = fwd || c.req.header('x-real-ip') || undefined;
-        const linkToAccountId = await callerAccountId(c, deps);
-
-        try {
-            const result = await connectIdentity(
-                deps,
-                {
-                    provider: 'apple',
-                    sub: identity.sub,
-                    email: identity.email,
-                    emailVerified: identity.emailVerified,
-                },
-                { ...(signupIp ? { signupIp } : {}), ...(linkToAccountId ? { linkToAccountId } : {}) }
-            );
-            return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
-        } catch (err) {
-            if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
-                return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
-            }
-            log.error('apple connect failed', { err: String(err) });
-            return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
-        }
+        return finishFederatedSignIn(c, deps, 'apple', identity);
     });
 
     // Email/password. Signup creates an UNTRUSTED 'email' identity — an account

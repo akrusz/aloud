@@ -903,3 +903,10 @@
     margin: 8px 0 0;
     min-height: 1em;
 }
+
+/* Desktop (Tauri) Google sign-in button. On desktop the GIS button can't run in
+   the webview, so the loopback PKCE flow uses a plain button here; make it span
+   the modal width like the GIS/Apple buttons it replaces. (meditation-pal-fae) */
+.signin-google-desktop-btn {
+    width: 100%;
+}

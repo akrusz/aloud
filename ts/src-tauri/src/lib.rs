@@ -1,4 +1,5 @@
 mod llm;
+mod oauth;
 mod ollama;
 mod ollama_tools;
 mod providers;

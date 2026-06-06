@@ -73,6 +73,10 @@ export function createApp(deps: Deps): Hono {
         c.json({
             googleClientId: deps.config.googleClientIds[0] ?? '',
             appleClientId: deps.config.appleClientIds[0] ?? '',
+            // Desktop (Tauri) uses a separate "Desktop app" OAuth client for the
+            // loopback PKCE flow; the id is public (it appears in the auth URL the
+            // user sees), the secret stays server-side. Empty disables it.
+            googleDesktopClientId: deps.config.googleDesktopClientId ?? '',
         })
     );
 

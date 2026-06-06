@@ -77,6 +77,12 @@ export interface Config {
      *  of incoming Apple ID tokens. Empty disables Apple sign-in (optional, not
      *  required in strict mode). meditation-pal-s75. */
     appleClientIds: string[];
+    /** Desktop (Tauri) Google OAuth client for the loopback PKCE flow. The server
+     *  performs the code→token exchange so the secret never ships in the desktop
+     *  binary; the resulting ID token is verified against googleClientIds like any
+     *  other. Empty disables desktop Google sign-in. (meditation-pal-fae) */
+    googleDesktopClientId: string;
+    googleDesktopClientSecret: string;
 
     /** Provider API keys, server-held. The whole point: the client never sees these. */
     providerKeys: ProviderKeys;
@@ -170,6 +176,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         sessionSecret: env['ALOUD_SESSION_SECRET'] ?? (strict ? '' : 'dev-insecure-secret'),
         googleClientIds: list(env['GOOGLE_CLIENT_IDS']),
         appleClientIds: list(env['APPLE_CLIENT_IDS']),
+        googleDesktopClientId: env['GOOGLE_DESKTOP_CLIENT_ID'] ?? '',
+        googleDesktopClientSecret: env['GOOGLE_DESKTOP_CLIENT_SECRET'] ?? '',
         providerKeys,
         freeSignupCredits: Number(env['ALOUD_FREE_SIGNUP_CREDITS'] ?? 20),
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),

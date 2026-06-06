@@ -93,6 +93,20 @@ export function isGoogleSignInConfigured(): boolean {
     return googleClientId() !== '';
 }
 
+/** Google "Desktop app" OAuth client id for the desktop (Tauri) loopback PKCE
+ *  flow. Public (it appears in the auth URL the user sees); the secret stays on
+ *  the server. Discovered from the cloud `/config` like the web id; '' disables
+ *  desktop Google sign-in. (meditation-pal-fae) */
+let runtimeGoogleDesktopClientId = '';
+
+export function setRuntimeGoogleDesktopClientId(id: string): void {
+    runtimeGoogleDesktopClientId = id;
+}
+
+export function googleDesktopClientId(): string {
+    return runtimeGoogleDesktopClientId;
+}
+
 // Sign in with Apple — same runtime-discovery pattern as Google (the Services ID
 // comes from the server's /config; meditation-pal-s75). No build-time bake today.
 let runtimeAppleClientId: string | null = null;
@@ -250,6 +264,21 @@ async function postAuthAndCache(
  *  google-signin.ts. */
 export function googleSignIn(idToken: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/google', { idToken }, (status) =>
+        status === 401
+            ? 'Google sign-in was rejected. Please try again.'
+            : `aloud cloud sign-in failed (${status}).`
+    );
+}
+
+/** POST /cloud/v1/auth/google/desktop — finish the desktop loopback PKCE flow:
+ *  hand the server the code the app caught on its loopback; it redeems it with
+ *  the held secret and verifies. Same session/credits as web. (meditation-pal-fae) */
+export function desktopGoogleSignIn(args: {
+    code: string;
+    codeVerifier: string;
+    redirectUri: string;
+}): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/google/desktop', args, (status) =>
         status === 401
             ? 'Google sign-in was rejected. Please try again.'
             : `aloud cloud sign-in failed (${status}).`

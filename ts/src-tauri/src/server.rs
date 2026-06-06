@@ -71,6 +71,7 @@ fn router(state: Shared) -> Router {
         .route("/llm/claude_proxy/complete", post(llm_claude_proxy_complete))
         .route("/providers", get(providers))
         .route("/models/{provider}", get(models))
+        .route("/google-oauth", post(google_oauth))
         .route("/ollama/pull", post(ollama_pull))
         .route("/ollama/delete", post(ollama_delete))
         .route("/ollama/restart", post(ollama_restart))
@@ -421,6 +422,31 @@ async fn models(
 ) -> Json<Value> {
     let key = headers.get("x-provider-key").and_then(|v| v.to_str().ok());
     Json(crate::providers::models(&provider, key))
+}
+
+/// `POST /app/v1/google-oauth` — desktop Google sign-in via the loopback PKCE
+/// flow (meditation-pal-fae). Opens the system browser, catches the redirect on
+/// an ephemeral 127.0.0.1 port, and returns `{code, codeVerifier, redirectUri}`
+/// for the UI to finish at the hosted `/cloud/v1/auth/google/desktop` (which
+/// holds the client secret). The (public) client id comes from the UI's cloud
+/// `/config`. Long-lived: it waits for the user to finish in the browser.
+async fn google_oauth(Json(body): Json<crate::oauth::OauthStart>) -> Response {
+    if body.client_id.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "client_id required" })))
+            .into_response();
+    }
+    match crate::oauth::google_loopback(&body.client_id).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(json!({
+                "code": r.code,
+                "codeVerifier": r.code_verifier,
+                "redirectUri": r.redirect_uri,
+            })),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, Json(json!({ "error": e }))).into_response(),
+    }
 }
 
 /// `POST /app/v1/ollama/pull` — stream a model pull as NDJSON progress lines.

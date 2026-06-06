@@ -80,10 +80,13 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "log",
  "piper-rs",
+ "rand",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tauri",
  "tauri-build",

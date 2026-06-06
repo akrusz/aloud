@@ -46,6 +46,11 @@ tower-http = { version = "0.6", features = ["cors"] }
 which = "7"
 whisper-rs = "0.16.0"
 ureq = { version = "3.2.1", features = ["json"] }
+# Desktop Google sign-in (loopback PKCE, meditation-pal-fae): SHA-256 + URL-safe
+# base64 for the PKCE challenge, random bytes for the verifier/state nonce.
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
 # Native Piper TTS (ONNX via `ort`, espeak-ng phonemization via `espeak-rs`).
 # Cross-platform neural voices; macOS `say` is a local fallback on Darwin.
 piper-rs = "0.2"
