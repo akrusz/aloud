@@ -212,10 +212,18 @@ Reuses the existing Pages + cert + domain; the SPA router is base-path aware
 
 ### Deploy (recommended): the workflow
 
-Run the **Deploy web app (UI → docs/app)** GitHub Action
-(`.github/workflows/deploy-web.yml`, manual). It builds the hosted UI and commits
-the result into `docs/app/` on the branch you run it from; Pages publishes
-`docs/` automatically. One-time: set two repo **Variables** (Settings → Secrets
+Run the **Deploy web app (UI → GitHub Pages)** GitHub Action
+(`.github/workflows/deploy-web.yml`, manual). It builds the hosted UI into
+`docs/app/` in the runner, then uploads the whole `docs/` tree (marketing site +
+built app) straight to Pages as an artifact. **Nothing is committed back to the
+branch**, so there's nothing to pull after a deploy.
+
+One-time setup: set **Pages source to "GitHub Actions"** (Settings → Pages →
+Build and deployment → Source). The custom domain (`aloud.rest`) is preserved via
+`docs/CNAME`, which rides along in the artifact. The build output `docs/app/` is
+gitignored — local `ui:build:hosted` runs won't dirty the tree.
+
+Also set two repo **Variables** (Settings → Secrets
 and variables → Actions → Variables):
 
 - `ALOUD_CLOUD_URL` — the hosted `/cloud` origin (e.g. `https://aloud-cloud.fly.dev`).
@@ -233,8 +241,9 @@ and variables → Actions → Variables):
 cd ts
 VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev \
   VITE_GOOGLE_CLIENT_ID=<web-oauth-client-id> \
-  npm run ui:build:hosted          # → repo-root docs/app/
-git add docs/app && git commit -m "build hosted app" && git push
+  npm run ui:build:hosted          # → repo-root docs/app/ (gitignored)
+# Then publish docs/ to Pages yourself, e.g. via the gh-pages CLI or by
+# re-running the workflow. docs/app/ is no longer committed.
 ```
 
 Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin

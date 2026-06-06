@@ -60,8 +60,9 @@ export default defineConfig({
         },
     },
     build: {
-        // Hosted build commits into the repo, so write to docs/app (repo root,
-        // two levels up from ui/) and skip sourcemaps to keep the tree lean.
+        // Hosted build writes to docs/app (repo root, two levels up from ui/)
+        // where deploy-web.yml picks it up and publishes docs/ to Pages as an
+        // artifact — the output is gitignored, not committed. Skip sourcemaps.
         outDir: HOSTED ? resolve(__dirname, '../../docs/app') : resolve(__dirname, 'dist'),
         emptyOutDir: true,
         sourcemap: !HOSTED,

@@ -15,6 +15,10 @@ dist/
 # Generated
 *.iconset
 
+# Hosted UI build output — published to Pages by deploy-web.yml as an
+# ephemeral artifact, no longer committed (avoids stale build drift).
+docs/app/
+
 # Update cache
 .update-cache.json
 
