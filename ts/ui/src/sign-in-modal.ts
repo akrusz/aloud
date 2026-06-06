@@ -13,7 +13,7 @@ import { renderGoogleSignInButton, renderDesktopGoogleSignInButton } from './goo
 import { renderAppleSignInButton } from './apple-signin.js';
 import { isDesktopSync } from './is-desktop.js';
 import { checkAndShowGifts } from './gift-modal.js';
-import { emailLogin, emailSignup, type AuthResponse } from './cloud-auth.js';
+import { emailLogin, emailSignup, isAppleSignInConfigured, type AuthResponse } from './cloud-auth.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
@@ -130,6 +130,18 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             });
             if (!ok) googleHost.remove();
             dropEmptyOauth();
+            // Apple sign-in works on web but not yet in the desktop app (Apple
+            // forbids the loopback redirect the Google flow uses). Point an
+            // Apple-only user at a path that works here today. Only shown when
+            // Apple is actually configured upstream, so it reads as "coming soon"
+            // rather than a feature that doesn't exist. (meditation-pal-fae)
+            if (isAppleSignInConfigured()) {
+                const note = document.createElement('p');
+                note.className = 'provider-hint signin-apple-soon';
+                note.textContent =
+                    'Sign in with Apple is coming soon on desktop. For now, use Google above, or set a password on the web app and sign in with email.';
+                overlay.querySelector('.signin-modal')?.appendChild(note);
+            }
         } else {
             void renderGoogleSignInButton(googleHost, {
                 onSignedIn,
