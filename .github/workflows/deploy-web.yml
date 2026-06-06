@@ -1,24 +1,20 @@
 name: Deploy web app (UI → GitHub Pages)
 
-# Manual only — builds the hosted browser app and publishes the whole docs/
-# tree (marketing site + freshly built app) straight to GitHub Pages as an
-# artifact. NOTHING is committed back to the branch, so there's nothing to pull
-# after a deploy. This replaces the older "commit docs/app to the branch" flow.
+# Builds the hosted browser app and publishes the whole docs/ tree (marketing
+# site + freshly built app) straight to GitHub Pages as an artifact. NOTHING is
+# committed back to the branch, so there's nothing to pull after a deploy. This
+# replaces the older "commit docs/app to the branch" flow.
 #
 # REQUIRES Pages source = "GitHub Actions" (Settings → Pages → Build and
 # deployment → Source). With the old "Deploy from a branch" source this workflow
 # does nothing useful. The custom domain (aloud.rest) is preserved via docs/CNAME,
 # which is included in the uploaded artifact.
 #
-# Kept manual (workflow_dispatch), like deploy-server.yml: a UI ship is a
-# deliberate act, and the build bakes in build-time config you choose when you
-# run it. Flip on the `push` trigger below if you later want CD on every merge.
-#
-# BRANCHES: the UI code lives on `ts-core`; this file is also committed to `main`
-# only so the "Run workflow" button shows (workflow_dispatch needs the file on
-# the default branch). When you run it, pick **Use workflow from: ts-core** — it
-# builds the app from whatever branch you dispatch from. The guard step fails
-# fast if you forget. (Drop the note + guard at the ts-core→main cutover.)
+# TRIGGERS: auto-deploys on pushes to `main` that touch the UI (the planned home
+# once ts-core merges back), plus a manual button. Before that merge `main` has
+# neither this file nor ts/ui, so the push trigger is dormant — use the manual
+# button (Use workflow from: ts-core) if you need to ship pre-merge. If auto runs
+# too often after merging, narrow the paths or gate on a tag/release marker.
 #
 # Required repo settings (Settings → Secrets and variables → Actions → Variables):
 #   - ALOUD_CLOUD_URL   the hosted /cloud origin, e.g. https://aloud-cloud.fly.dev
@@ -27,9 +23,9 @@ name: Deploy web app (UI → GitHub Pages)
 #                        server). NOT secret — it's baked into the public client.
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [ts-core]
-  #   paths: ['ts/ui/**', 'ts/src/**', 'ts/package.json', 'ts/package-lock.json']
+  push:
+    branches: [main]
+    paths: ['ts/ui/**', 'ts/src/**', 'ts/package.json', 'ts/package-lock.json']
 
 # Pages deployment needs these; contents:read is enough since we no longer push.
 permissions:
