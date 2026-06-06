@@ -1,1 +1,0 @@
-import{i}from"./core-RciSkj6z.js";async function o(n,e){await i("plugin:opener|open_url",{url:n,with:e})}async function r(n,e){await i("plugin:opener|open_path",{path:n,with:e})}async function p(n){return i("plugin:opener|reveal_item_in_dir",{paths:typeof n=="string"?[n]:n})}export{r as openPath,o as openUrl,p as revealItemInDir};
