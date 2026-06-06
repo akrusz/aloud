@@ -17,7 +17,9 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Node 22 (>=22.5): the @aloud/server package uses the built-in
+          # node:sqlite module (credits/sqlite-store.ts), absent in Node 20.
+          node-version: "22"
           cache: npm
           cache-dependency-path: ts/package-lock.json
       # Installs the root package AND the server workspace from one lockfile.

@@ -79,7 +79,9 @@ source to keep in sync. They're downscaled to 1800px wide and WebP-encoded
 
 - [x] privacy/terms PRE-PUBLISH checklist resolved (2026-06-02): sign-in methods
       (Google/Apple/email), Stripe named, cloud provider list synced to the code
-      (Anthropic/Google/Groq/OpenRouter LLM, Fireworks/Groq STT, Google TTS).
-      Still operator decisions if they change: refund stance and BYO-key-on-web.
+      (Anthropic/Google LLM, Fireworks STT, Google TTS; Groq/OpenRouter are no
+      longer hosted LLMs per ts/server/src/pricing/providers.ts — Groq stays a
+      BYOK/STT option). Still operator decisions if they change: refund stance
+      and BYO-key-on-web.
 - [ ] revisit the web app's "early access / beta" framing on `index.html` once
       the launch-blockers land, and drop the beta badge when it's ready

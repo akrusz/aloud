@@ -4,7 +4,11 @@ your voice is an overpowered and underrated tool for meditation and inner work.
 
 **aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
 
-aloud works on macOS, Linux, and Windows. choose your LLM — run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
+aloud works in your browser and on macOS, Linux, and Windows. choose your LLM — run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
+
+### try it in your browser
+
+no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the hosted web app runs on **aloud cloud**, a managed service that handles the AI for you, so there's nothing to set up. sign in with google, apple, or email to get free starter credits, then top up if you'd like to keep going. prefer your own keys? switch on bring-your-own-key in settings. the downloadable app below stays fully local and free.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/aloud-screen-dark.webp">
