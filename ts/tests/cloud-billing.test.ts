@@ -53,8 +53,11 @@ describe('fetchPacks', () => {
             vi.fn(async () => new Response(JSON.stringify({ packs: [{ id: 'plus', credits: 110, priceUsdCents: 1200, label: '110 — $12' }] }), { status: 200 }))
         );
         const packs = await fetchPacks();
-        expect(packs).toHaveLength(1);
-        expect(packs[0]).toMatchObject({ id: 'plus', credits: 110 });
+        // fetchPacks returns the full BillingPacks ({ packs, x402, custom? }),
+        // not a bare array — the server's /me/packs shape.
+        expect(packs.packs).toHaveLength(1);
+        expect(packs.packs[0]).toMatchObject({ id: 'plus', credits: 110 });
+        expect(packs.x402).toEqual({ enabled: false });
     });
 
     it('throws a friendly message on a non-OK response', async () => {
@@ -66,7 +69,7 @@ describe('fetchPacks', () => {
 describe('startCheckout', () => {
     it('refuses without a session token (sign-in required)', async () => {
         vi.stubGlobal('fetch', vi.fn());
-        await expect(startCheckout('plus')).rejects.toThrow(/sign in/i);
+        await expect(startCheckout({ packId: 'plus' })).rejects.toThrow(/sign in/i);
     });
 
     it('POSTs packId + channel + returnPath with the bearer token and returns the url', async () => {
@@ -80,7 +83,7 @@ describe('startCheckout', () => {
             })
         );
 
-        const url = await startCheckout('plus');
+        const url = await startCheckout({ packId: 'plus' });
 
         expect(url).toBe('https://checkout.stripe.com/c/abc');
         expect(seen!.url).toMatch(/\/cloud\/v1\/billing\/checkout$/);
@@ -95,7 +98,7 @@ describe('startCheckout', () => {
     it('maps a 500 to a try-again-later message', async () => {
         await kv.set('server:token', 'tok-abc');
         vi.stubGlobal('fetch', vi.fn(async () => new Response('boom', { status: 500 })));
-        await expect(startCheckout('plus')).rejects.toThrow(/temporarily unavailable/i);
+        await expect(startCheckout({ packId: 'plus' })).rejects.toThrow(/temporarily unavailable/i);
     });
 
     it('includes giftToEmail when gifting, and omits it otherwise', async () => {
@@ -108,8 +111,8 @@ describe('startCheckout', () => {
                 return new Response(JSON.stringify({ checkoutUrl: 'https://x' }), { status: 200 });
             })
         );
-        await startCheckout('plus', 'friend@e.com');
-        await startCheckout('plus');
+        await startCheckout({ packId: 'plus' }, 'friend@e.com');
+        await startCheckout({ packId: 'plus' });
         expect(bodies[0]?.['giftToEmail']).toBe('friend@e.com');
         expect('giftToEmail' in (bodies[1] ?? {})).toBe(false);
     });
