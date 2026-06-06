@@ -39,6 +39,11 @@ import { isDesktopSync } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
+import {
+    computeProviderMarker,
+    stripMarker,
+    type ProviderStatusMap,
+} from '../provider-markers.js';
 import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
@@ -87,6 +92,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         themeMode: settings.themeMode,
         showSessionBalance: settings.showSessionBalance,
     };
+
+    // Provider availability for the ✘/✱ markers on the Default Provider menu
+    // and the selected-provider status hint. Unlike setup, settings only
+    // annotates — it never reorders or auto-switches the saved default.
+    // Populated from /app/v1/providers (providerStatus) + the BYOK key store
+    // (keyPresent); see provider-markers.ts.
+    let providerStatus: ProviderStatusMap | null = null;
+    let keyPresent: Record<string, boolean> = {};
 
     const ELEVENLABS_KEY_STORE = 'apikey:elevenlabs';
 
@@ -150,6 +163,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wire();
         await loadVoiceCatalog();
         await refreshApiKeyRows();
+        await refreshProviderMarkers();
     }
 
     function wire(): void {
@@ -159,7 +173,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireDisplaySection();
         wirePacingSection();
         wireSessionLogsSection();
-        wireNetworkSection();
         wireUpdatesSection();
         wireAdvancedSection();
         wireFooter();
@@ -187,6 +200,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             void refreshApiKeyRows();
             void modelPicker.refresh(settings.defaultProvider);
             syncOllamaSection();
+            // Markers don't change on a mere selection, but the status hint
+            // tracks the newly-selected provider.
+            updateProviderStatusHint();
         });
 
         // Model picker — same /api/models/<provider> backing as the
@@ -264,7 +280,83 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 void refreshApiKeyRows();
                 void modelPicker.refresh(settings.defaultProvider);
             }
+            // Re-annotate the freshly rebuilt menu (newly-shown BYOK providers
+            // get ✘ until a key is entered).
+            applyProviderMarkers();
         });
+    }
+
+    /**
+     * Fetch provider availability + BYOK key presence, then annotate the
+     * Default Provider menu and the status hint. Called on mount and after any
+     * change that can flip availability (provider switch, key save/remove,
+     * BYOK toggle). Network failures leave the menu unmarked — never blocked.
+     */
+    async function refreshProviderMarkers(): Promise<void> {
+        const [statusResult] = await Promise.all([
+            fetch(appUrl('/providers'))
+                .then((r) => (r.ok ? (r.json() as Promise<ProviderStatusMap>) : null))
+                .catch(() => null),
+            refreshKeyPresence(),
+        ]);
+        if (statusResult) providerStatus = statusResult;
+        applyProviderMarkers();
+    }
+
+    async function refreshKeyPresence(): Promise<void> {
+        const entries = await Promise.all(
+            ALL_PROVIDERS.filter((p) => p.needsKey).map(
+                async (p) => [p.value, await hasApiKey(p.value)] as const
+            )
+        );
+        keyPresent = Object.fromEntries(entries);
+    }
+
+    /**
+     * Annotate the Default Provider <option>s with ✘/✱ from the cached
+     * provider status, and refresh the selected-provider status hint. Pure DOM
+     * + cached state, so it's safe to call after a menu rebuild. Unlike setup's
+     * applyProviderIndicators, it does NOT reorder or auto-select — a settings
+     * default shouldn't silently change out from under the user.
+     */
+    function applyProviderMarkers(): void {
+        const sel = root.querySelector<HTMLSelectElement>('#s-provider');
+        if (sel) {
+            for (const opt of Array.from(sel.options)) {
+                const { suffix, unavailable } = computeProviderMarker(
+                    opt.value,
+                    providerStatus,
+                    keyPresent
+                );
+                opt.textContent = stripMarker(opt.textContent ?? '') + suffix;
+                opt.classList.toggle('provider-unavailable', unavailable);
+            }
+        }
+        updateProviderStatusHint();
+    }
+
+    /**
+     * Surface why the selected default provider can't run right now: a missing
+     * BYOK key, the desktop claude_proxy without the `claude` CLI logged in, or
+     * a stopped Ollama. Reuses each provider's backend hint (the claude_proxy
+     * "install Claude Code, run `claude` to log in" line comes straight from
+     * the Rust /providers handler). Hidden when the provider is usable.
+     */
+    function updateProviderStatusHint(): void {
+        const statusEl = root.querySelector<HTMLElement>('#s-provider-status');
+        if (!statusEl) return;
+        const p = settings.defaultProvider;
+        const { suffix } = computeProviderMarker(p, providerStatus, keyPresent);
+        let msg = '';
+        if (suffix) {
+            if (providerNeedsKey(p) && keyPresent[p] === false) {
+                msg = 'Selected provider has no API key. Paste one above before starting a session.';
+            } else {
+                msg = providerStatus?.[p]?.hint ?? '';
+            }
+        }
+        statusEl.textContent = msg;
+        statusEl.classList.toggle('hidden', !msg);
     }
 
     /**
@@ -290,6 +382,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
         }
+        // A key just added/removed flips a provider's ✘ marker and the status
+        // hint. (Cheap: re-reads the local key store, no network.)
+        await refreshKeyPresence();
+        applyProviderMarkers();
     }
 
     // ---- API key helpers (Get a key + Paste) ---------------------------
@@ -1034,15 +1130,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
     }
 
-    // ---- Network -------------------------------------------------------
-
-    function wireNetworkSection(): void {
-        // Network host is a Flask-server concern; in the TS-on-mobile
-        // world it doesn't apply. Render the control but disable + note.
-        const host = root.querySelector<HTMLSelectElement>('#s-host');
-        if (host) host.disabled = true;
-    }
-
     // ---- Updates -------------------------------------------------------
 
     function wireUpdatesSection(): void {
@@ -1152,20 +1239,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     await refresh();
     applyChromeSettings(settings);
-
-    // Surface the BYOK-needs-key warning at the top of the page if a
-    // BYOK provider is selected but no key is stored.
-    void (async () => {
-        const p = settings.defaultProvider;
-        if (providerNeedsKey(p) && !(await hasApiKey(p))) {
-            const status = root.querySelector<HTMLElement>('#s-provider-status');
-            if (status) {
-                status.textContent =
-                    'Selected provider has no API key. Paste one above before starting a session.';
-                status.classList.remove('hidden');
-            }
-        }
-    })();
+    // The selected-provider status hint (missing key / claude_proxy CLI /
+    // stopped Ollama) is set by refreshProviderMarkers() inside refresh().
 
     return {
         async show() {
@@ -1236,10 +1311,9 @@ function renderHTML(s: AppSettings): string {
             ${renderPacingSection(s)}
             ${renderSessionLogsSection(s)}
             ${
-                // Network (host binding) and Updates (desktop auto-updater) are
-                // meaningless in a hosted browser tab — they only apply to the
-                // desktop / self-host builds.
-                isWebMode() ? '' : renderNetworkSection(s) + renderUpdatesSection(s)
+                // Updates (desktop auto-updater) is meaningless in a hosted
+                // browser tab — it only applies to the desktop / self-host builds.
+                isWebMode() ? '' : renderUpdatesSection(s)
             }
         </form>
     </div>
@@ -1587,21 +1661,6 @@ function renderSessionLogsSection(s: AppSettings): string {
                 <span>Save session logs (locally)</span>
             </label>
             <span class="form-hint">Keep a local transcript of each session, autosaved every turn so a crash or going offline still leaves it recoverable. When off, nothing is saved unless you choose to save from the end-session dialog.</span>
-        </div>
-    </section>`;
-}
-
-function renderNetworkSection(_s: AppSettings): string {
-    return `
-    <section class="settings-section">
-        <h2>Network</h2>
-        <div class="form-group">
-            <label for="s-host">Network Access</label>
-            <select id="s-host" style="max-width:280px" disabled>
-                <option value="127.0.0.1">Local only (127.0.0.1)</option>
-                <option value="0.0.0.0">LAN access (0.0.0.0)</option>
-            </select>
-            <span class="form-hint">LAN access lets other devices on your network connect. Requires restart.</span>
         </div>
     </section>`;
 }

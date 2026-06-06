@@ -56,6 +56,11 @@ import { sessionStore } from '../state.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
+import {
+    computeProviderMarker,
+    stripMarker,
+    type ProviderStatusMap,
+} from '../provider-markers.js';
 import { alertDialog } from '../dialog.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import {
@@ -622,13 +627,8 @@ export async function mountSetupView(
         })();
     }
 
-    // Provider status from /api/providers — same shape Python uses.
-    interface ProviderInfo {
-        available: boolean;
-        installed?: boolean;
-        hint?: string;
-    }
-    let providerStatus: Record<string, ProviderInfo> | null = null;
+    // Provider status from /app/v1/providers — see provider-markers.ts.
+    let providerStatus: ProviderStatusMap | null = null;
     // Whether a BYOK provider has a key stored. A keyless API provider is
     // marked ✘ (unavailable) — you can't run it without a key. Populated from
     // the localStorage BYOK store on each availability refresh.
@@ -647,7 +647,7 @@ export async function mountSetupView(
         await refreshKeyPresence();
         try {
             const resp = await fetch(appUrl('/providers'));
-            if (resp.ok) providerStatus = (await resp.json()) as Record<string, ProviderInfo>;
+            if (resp.ok) providerStatus = (await resp.json()) as ProviderStatusMap;
         } catch {
             // Backend not reachable — leave provider status unknown; the
             // key-presence ✘ marks below still apply, and the session view
@@ -731,37 +731,17 @@ export async function mountSetupView(
         const available: HTMLOptionElement[] = [];
         const unavailable: HTMLOptionElement[] = [];
         for (const opt of Array.from(providerSel.options)) {
-            let info = providerStatus?.[opt.value];
-            // Ollama: trust the direct /ollama probe (capabilities) over the app
-            // backend's report. A browser dev preview talks to Hono, which
-            // hardcodes ollama-unavailable; but a local daemon reached via the
-            // /ollama proxy is genuinely usable, so don't ✘ a running Ollama.
-            // (Web mode hides Ollama upstream, so this only bites in local mode.)
-            if (opt.value === 'ollama' && capabilitiesSync().ollama) info = { available: true };
-            opt.textContent = (opt.textContent ?? '').replace(/ [✘✱]$/, '');
-            opt.classList.remove('provider-unavailable');
-            const needsKeyMissing =
-                providerNeedsKey(opt.value as Provider) && keyPresent[opt.value] === false;
-            if (needsKeyMissing) {
-                // API provider with no key stored — not runnable until a key is
-                // added (in Settings). Mark ✘ and sort to the unavailable group.
-                opt.classList.add('provider-unavailable');
-                opt.textContent += ' ✘';
-                unavailable.push(opt);
-            } else if (info && !info.available) {
-                if (info.installed) {
-                    // Installed but not running — still selectable; sorts with
-                    // the available group under a subtle marker.
-                    opt.textContent += ' ✱';
-                    available.push(opt);
-                } else {
-                    opt.classList.add('provider-unavailable');
-                    opt.textContent += ' ✘';
-                    unavailable.push(opt);
-                }
-            } else {
-                available.push(opt);
-            }
+            const { suffix, unavailable: isUnavailable } = computeProviderMarker(
+                opt.value,
+                providerStatus,
+                keyPresent
+            );
+            opt.textContent = stripMarker(opt.textContent ?? '') + suffix;
+            opt.classList.toggle('provider-unavailable', isUnavailable);
+            // ✘ providers can't run (no key / not installed) → unavailable group;
+            // ✱ (installed but not running, e.g. Ollama stopped) stays selectable.
+            if (isUnavailable) unavailable.push(opt);
+            else available.push(opt);
         }
         available.sort((a, b) => (a.value === 'claude_proxy' ? -1 : b.value === 'claude_proxy' ? 1 : 0));
         for (const opt of [...available, ...unavailable]) providerSel.appendChild(opt);

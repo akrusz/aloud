@@ -62,25 +62,31 @@ export interface ProviderAvailabilityOpts {
     allowByok?: boolean;
 }
 
-/** Whether a provider is usable in the current environment.
- *  - Local-only capabilities (Ollama, the desktop claude_proxy) are hidden in
- *    web mode regardless of what a local probe found — the hosted demo is
- *    server-only, and a forced-web dev session shouldn't surface a stray local
- *    daemon.
- *  - Other `requires` providers (aloud cloud) need that capability.
- *  - BYOK providers (no `requires`): shown by default, but hidden in web mode
- *    unless the user explicitly enables BYOK (asking a public site's visitors
- *    for their own API key feels wrong; opt-in instead). */
+/** Whether a provider belongs in the menu at all on this platform — a
+ *  structural filter, NOT a runtime-readiness check. Runtime readiness (a key
+ *  entered, the Ollama daemon up, the `claude` CLI logged in) is shown via the
+ *  ✘/✱ markers (provider-markers.ts), not by removing the option.
+ *
+ *  - Web (the hosted demo): only browser-runnable providers. Ollama (local
+ *    daemon) and claude_proxy (local CLI) can NEVER run in a tab, so they're
+ *    hidden regardless of what a stray local probe found; aloud cloud needs the
+ *    service; BYOK API providers are opt-in (asking a public site's visitors for
+ *    their own key feels wrong).
+ *  - Local (desktop / full dev): nothing is removed — every provider is
+ *    platform-possible, and the markers say which are ready.
+ *  - A future mobile build would filter here too (hide claude_proxy; decide
+ *    whether BYOK defaults on). */
 export function isProviderAvailable(
     meta: ProviderMeta,
     caps: Capabilities,
     opts: ProviderAvailabilityOpts = {}
 ): boolean {
-    if (meta.requires) {
-        if (opts.webMode && (meta.requires === 'ollama' || meta.requires === 'flask')) return false;
-        return caps[meta.requires];
+    if (opts.webMode) {
+        if (meta.requires === 'ollama' || meta.requires === 'flask') return false;
+        if (meta.requires === 'cloud') return caps.cloud;
+        return opts.allowByok === true;
     }
-    return !opts.webMode || opts.allowByok === true;
+    return true;
 }
 
 export function providerNeedsKey(p: Provider): boolean {

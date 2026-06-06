@@ -24,8 +24,10 @@ import { fetchModels } from '../providers/models.js';
 
 /** BYOK providers the picker may show. Availability is client-key-gated (the
  *  server never sees the key), so we report them available and let the client
- *  decide; Ollama is local-only and never available on the web. */
-const WEB_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'venice', 'groq', 'claude_proxy'];
+ *  decide. Ollama and claude_proxy are local-only and never available on the
+ *  web — reported unavailable so a forced-local browser-dev session (which
+ *  shows every provider) marks them ✘ rather than as usable. */
+const WEB_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'venice', 'groq'];
 
 export function appBackendRoutes(_deps: Deps): Hono {
     const app = new Hono();
@@ -52,6 +54,11 @@ export function appBackendRoutes(_deps: Deps): Hono {
                     available: false,
                     installed: false,
                     hint: 'Ollama runs on your own machine — use the desktop app for local models.',
+                },
+                claude_proxy: {
+                    available: false,
+                    installed: false,
+                    hint: 'Anthropic (Subscription) uses the local Claude Code CLI — use the desktop app.',
                 },
             };
         for (const p of WEB_PROVIDERS) providers[p] = { available: true };

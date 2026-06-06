@@ -30,14 +30,20 @@ describe('isProviderAvailable', () => {
         expect(mod.isProviderAvailable(byok, caps({}))).toBe(true);
     });
 
-    it('gates aloud cloud on the service, Ollama on a local daemon, claude_proxy on Flask', () => {
+    it('local mode (desktop): removes nothing — even with no capability reachable', () => {
+        // Runtime readiness is shown via the ✘/✱ markers (provider-markers.ts),
+        // so the menu keeps every provider in local mode. caps all-false stands
+        // in for "Ollama not running, cloud offline, CLI not logged in".
         const get = (v: string) => mod.ALL_PROVIDERS.find((p) => p.value === v)!;
-        expect(mod.isProviderAvailable(get('aloud'), caps({ cloud: true }))).toBe(true);
-        expect(mod.isProviderAvailable(get('aloud'), caps({}))).toBe(false);
-        expect(mod.isProviderAvailable(get('ollama'), caps({ ollama: true }))).toBe(true);
-        expect(mod.isProviderAvailable(get('ollama'), caps({}))).toBe(false);
-        expect(mod.isProviderAvailable(get('claude_proxy'), caps({ flask: true }))).toBe(true);
-        expect(mod.isProviderAvailable(get('claude_proxy'), caps({}))).toBe(false);
+        for (const v of ['aloud', 'ollama', 'claude_proxy', 'openai', 'anthropic']) {
+            expect(mod.isProviderAvailable(get(v), caps({}))).toBe(true);
+        }
+    });
+
+    it('web mode: aloud still needs the cloud service to be reachable', () => {
+        const get = (v: string) => mod.ALL_PROVIDERS.find((p) => p.value === v)!;
+        expect(mod.isProviderAvailable(get('aloud'), caps({ cloud: true }), { webMode: true })).toBe(true);
+        expect(mod.isProviderAvailable(get('aloud'), caps({}), { webMode: true })).toBe(false);
     });
 
     it('in local mode, BYOK shows by default', () => {
