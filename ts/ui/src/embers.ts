@@ -65,14 +65,14 @@ function existingContainer(): HTMLElement | null {
 
 /** Called by the session view on mount. */
 export function mountEmberContainer(): void {
-    if (existingContainer()) {
-        // Already there — likely a previous session that didn't tear down.
-        return;
+    // The session/noting views render their own `.ember-container` in the
+    // template; reuse it when present, otherwise create one at body level.
+    if (!existingContainer()) {
+        const el = document.createElement('div');
+        el.className = 'ember-container';
+        document.body.appendChild(el);
+        containerEl = el;
     }
-    const el = document.createElement('div');
-    el.className = 'ember-container';
-    document.body.appendChild(el);
-    containerEl = el;
     if (!levelLoaded) {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved !== null) {
@@ -81,6 +81,11 @@ export function mountEmberContainer(): void {
         }
         levelLoaded = true;
     }
+    // Always generate for the current level. Previously this bailed whenever a
+    // container already existed — but the views always render one in their
+    // template, so the early return meant embers never started on a fresh
+    // session until the user nudged the level (which calls setEmberLevel
+    // directly). (meditation-pal-q7bg)
     setEmberLevel(state.level);
 }
 
