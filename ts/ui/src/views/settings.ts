@@ -411,7 +411,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         actions.className = 'api-key-actions';
 
         // "Get a key" anchor — opens in a new tab. Lives as an <a>
-        // rather than a button so pywebview/Electron route it to the
+        // rather than a button so the desktop webview routes it to the
         // system browser.
         const getBtn = document.createElement('a');
         getBtn.href = url;
@@ -426,7 +426,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         status.className = 'api-key-paste-status';
 
         // Paste button — only rendered when the clipboard API exists.
-        // If clipboard reads fail at runtime (some Safari, pywebview
+        // If clipboard reads fail at runtime (some Safari, the desktop
         // WKWebView), mark the button unavailable and fold a manual
         // ⌘V/Ctrl+V hint into the input placeholder.
         const hasClipboard =

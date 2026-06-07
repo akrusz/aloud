@@ -54,7 +54,7 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 
 - **Protocol/adapter-based providers**: LLM and TTS providers implement a shared interface; add one by implementing it and registering in the factory.
 - **Composable prompts**: system prompts are assembled from orthogonal dimensions — focuses (body, emotions, parts, open awareness), qualities (playful, compassionate, spacious, …), directiveness, verbosity.
-- **`[HOLD]` signal**: the LLM can prefix a response with `[HOLD]` to enter silence mode; it's stripped on parse and exited when the user speaks again.
+- **`[HOLD]` signal**: the LLM can prefix a response with `[HOLD]` to enter silence mode; it's stripped on parse. While holding, speech doesn't auto-resume — each utterance is buffered and a lightweight resume-intent classifier (`resume-intent.ts`) decides whether the user means to continue, then submits the buffered turn.
 - **Pacing state machine**: IDLE → LISTENING → PROCESSING → RESPONDING → SILENT_HOLD; a canned (non-LLM) check-in fires after a silence interval and the timer resets.
 - **Context strategies**: `full` (all history) or `rolling` (last N exchanges) context windows.
 
