@@ -47,7 +47,7 @@ import {
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
-import { CloudWhisperSttEngine } from '../adapters/cloud-whisper-stt.js';
+import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import { type SessionSetup, dirStepToBackend } from '../settings.js';
 import { loadAppSettings } from '../app-settings.js';
@@ -273,6 +273,24 @@ export async function mountSessionView(
     // facilitator's own voice — the self-barge-in bug). Other STT backends
     // (web-speech, capacitor) have no such stream, so they keep the wrapper.
     const engineDrivenBargeIn = sttBackend === 'server-whisper';
+    // Continuous capture (meditation-pal-57gl): on the engine-driven (server-
+    // Whisper) path the mic stays live through the LLM+TTS window instead of
+    // pausing while `busy`, so the user is never "deaf" mid-response. Its VAD
+    // rejects TTS echo (the 0.015 energy gate vs ~0.005 echo), so this is safe
+    // there; web-speech / capacitor can't reject echo in their recognizers, so
+    // they keep the pause-while-busy behavior + the separate barge-in wrapper.
+    const continuousCapture = engineDrivenBargeIn;
+    // Turn supersession + barge-in plumbing (see respondTo / the barge-in
+    // handler). turnGen bumps each turn so a stale (superseded) turn bails;
+    // activeFullAbort stops a superseded turn generating; activeTtsAbort hushes
+    // the in-flight reply on barge-in without discarding it.
+    let turnGen = 0;
+    let activeFullAbort: AbortController | null = null;
+    let activeTtsAbort: AbortController | null = null;
+    // The continuous-capture engine, when that's the live backend — used for
+    // barge-in wiring and per-device echo calibration (setTtsActive below).
+    const whisperEngine =
+        continuousCapture && stt instanceof WhisperPcmSttEngine ? stt : null;
     async function buildTts(voiceId: string | null) {
         // Server-side synthesis is billable compute — fold chars into usage.
         const ttsOpts = { onServerSynthesize: (chars: number) => session.recordTts(chars) };
@@ -309,10 +327,20 @@ export async function mountSessionView(
     // Outer wrapper: respect the TTS toggle button. When the user mutes
     // TTS, speak() becomes a no-op and any in-flight playback is
     // cancelled. Cheaper than tearing down the whole barge-in wrapper.
+    // Depth of in-flight speak() calls — while > 0, the facilitator's audio is
+    // actually playing, which the capture engine uses to calibrate this device's
+    // echo floor (and gate it out). Bracketing real speak() calls keeps the
+    // signal tight to playback, NOT the silent "thinking" phase.
+    let ttsSpeakingDepth = 0;
     const tts = {
         async speak(text: string, options?: import('../../../src/platform/index.js').TtsOptions): Promise<void> {
             if (!ttsEnabled) return;
-            return activeTts.speak(text, options);
+            if (whisperEngine && ++ttsSpeakingDepth === 1) whisperEngine.setTtsActive(true);
+            try {
+                return await activeTts.speak(text, options);
+            } finally {
+                if (whisperEngine && --ttsSpeakingDepth === 0) whisperEngine.setTtsActive(false);
+            }
         },
         cancel(): Promise<void> {
             return activeTts.cancel();
@@ -324,9 +352,19 @@ export async function mountSessionView(
     // For the server-Whisper STT path, barge-in is detected on its continuous
     // (echo-cancelled) capture stream — see setBargeInHandler below. Wiring it
     // up here, after the tts wrapper exists; the engine cancels the live TTS.
-    if (sttBackend === 'server-whisper' && stt instanceof CloudWhisperSttEngine) {
-        stt.setBargeInHandler(() => {
+    if (whisperEngine) {
+        whisperEngine.setBargeInHandler(() => {
+            // Only meaningful while the facilitator is actively responding: hush
+            // it so the user isn't talked over. The utterance keeps being
+            // captured and gets its own turn when it lands (which fully
+            // supersedes the current one). This only mutes TTS — a false trigger
+            // doesn't lose the in-flight reply, it just finishes silently into
+            // the transcript. In a silence hold there's nothing to interrupt
+            // (busy is false) and the resume classifier owns leaving the hold,
+            // so we don't clear it here.
+            if (!busy) return;
             void tts.cancel();
+            activeTtsAbort?.abort();
             onBargeIn();
         });
     }
@@ -604,7 +642,6 @@ export async function mountSessionView(
         userText: string,
         opts: { skipUserBubble?: boolean } = {}
     ): Promise<void> {
-        if (busy) return;
         // Drop transcriptions that are only non-speech markers (e.g. "[cough]",
         // "[BLANK_AUDIO]", "(wind blowing)", "*sighs*") or otherwise carry no
         // words — a cough, breath, or background noise shouldn't take the user's
@@ -612,6 +649,20 @@ export async function mountSessionView(
         // isNonSpeechOnly guard; the partial bubble is already cleared by the
         // listen loop before this runs.)
         if (isNonSpeechOnly(userText)) return;
+        // Supersede any in-flight turn: bump the generation, stop the previous
+        // turn generating (it then bails without recording), and cut its audio.
+        // With continuous capture this is how an interrupting utterance takes
+        // over — the old `if (busy) return` used to just drop it on the floor.
+        const myGen = ++turnGen;
+        activeFullAbort?.abort();
+        void tts.cancel();
+        const myFullAbort = new AbortController();
+        const myTtsAbort = new AbortController();
+        activeFullAbort = myFullAbort;
+        activeTtsAbort = myTtsAbort;
+        // True once a newer turn (or teardown) has taken over — at each such
+        // point we bail silently so the live turn owns the transcript + dots.
+        const superseded = (): boolean => torn || myGen !== turnGen;
         // Remember whether we were holding when this turn arrived. If the user
         // just spoke to break a silence hold, a [HOLD] in the reply shouldn't
         // snap us straight back into silence on the same turn — otherwise it
@@ -644,12 +695,15 @@ export async function mountSessionView(
             if (provider instanceof OllamaProvider) {
                 setFacilitatorHint(await provider.coldLoadMessage());
             }
+            if (superseded()) return;
 
             const systemPrompt = builder.buildSystemPrompt();
             // Streaming + sentence-chunked TTS — falls back to non-streaming
             // when the provider doesn't implement completeStream. The
             // facilitator's first sentence starts speaking before the
-            // remainder finishes generating.
+            // remainder finishes generating. The two signals let a barge-in
+            // hush the audio (ttsSignal) and a newer turn abort outright
+            // (signal) without losing the transcript in the first case.
             //
             // We don't render the partial text into the transcript here
             // because the [HOLD] prefix (if any) hasn't been stripped from
@@ -659,8 +713,16 @@ export async function mountSessionView(
                 provider,
                 tts,
                 session.getContextMessages(),
-                { system: systemPrompt, ttsOptions: { rate: setup.ttsRate } }
+                {
+                    system: systemPrompt,
+                    ttsOptions: { rate: setup.ttsRate },
+                    signal: myFullAbort.signal,
+                    ttsSignal: myTtsAbort.signal,
+                }
             );
+            // A newer utterance took over while we were generating — drop this
+            // reply entirely; the live turn owns the typing dots + history.
+            if (superseded()) return;
             const { signal, cleanText } = parseHoldSignal(rawText);
             hideTyping();
             // A soft-launch-pause canned turn (proxy spoke a graceful apology,
@@ -678,6 +740,7 @@ export async function mountSessionView(
             } catch {
                 /* non-fatal */
             }
+            if (superseded()) return;
             // Honor pacingConfig.silenceModeEnabled — when false, the
             // [HOLD] signal is dropped and we treat the response as a
             // normal one.
@@ -694,6 +757,7 @@ export async function mountSessionView(
             }
             pacing.onResponseEnd();
         } catch (err) {
+            if (superseded()) return;
             hideTyping();
             const msg = (err as Error).message;
             // Running out of credits is a graceful stop, not an error. Show the
@@ -712,7 +776,14 @@ export async function mountSessionView(
             }
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {
-            busy = false;
+            // Only the latest turn owns the shared flags — a superseded turn
+            // unwinding later must not clear the busy/abort state the live one
+            // set, or it would re-open the gate mid-response.
+            if (myGen === turnGen) {
+                busy = false;
+                activeFullAbort = null;
+                activeTtsAbort = null;
+            }
             // Persist the turn (user message + whatever response or error)
             // every round, so an offline LLM call or a crash still leaves the
             // transcript recoverable. No-op unless logging is on.
@@ -721,15 +792,17 @@ export async function mountSessionView(
     }
 
     /**
-     * Always-on listening loop — matches the existing app's behavior.
-     * Each iteration runs a single STT utterance; when speech ends, we
-     * dispatch the transcription to respondTo() (which awaits TTS),
-     * then loop back. Pauses while busy (LLM call + TTS playback) so
-     * the mic doesn't pick up the speaker output as user input.
+     * Always-on listening loop. Each iteration runs one STT utterance; when
+     * speech ends we dispatch the transcription, then loop back.
      *
-     * Barge-in handling — interrupting TTS by speaking — is the real
-     * app's behavior and lives in meditation-pal-1au for a separate
-     * lift-first pass.
+     * On the engine-driven (server-Whisper) path the loop runs CONTINUOUSLY —
+     * it doesn't pause while the facilitator is thinking or speaking, so the
+     * user is never "deaf" mid-response (meditation-pal-57gl). That path's VAD
+     * rejects TTS echo, and a barge-in hushes the facilitator; an utterance
+     * landing during a response supersedes it (respondTo handles that), so the
+     * response isn't awaited here. On other backends (web-speech, capacitor),
+     * whose recognizers would transcribe the facilitator's own TTS, the loop
+     * still pauses while `busy` and relies on the separate barge-in wrapper.
      */
     async function listenLoop(): Promise<void> {
         if (!stt || listenLoopRunning) return;
@@ -740,7 +813,14 @@ export async function mountSessionView(
         let lastMicErrorToast: string | null = null;
         try {
             while (!torn && !muted) {
-                while ((busy || voiceModalOpen) && !torn && !muted) {
+                // Always pause for the voice-picker modal; pause for `busy` only
+                // on backends that can't capture during playback. The engine
+                // path keeps listening through the response.
+                while (
+                    (voiceModalOpen || (!continuousCapture && busy)) &&
+                    !torn &&
+                    !muted
+                ) {
                     await new Promise<void>((r) => setTimeout(r, 100));
                 }
                 if (torn || muted) break;
@@ -787,6 +867,11 @@ export async function mountSessionView(
                     // for resume intent rather than each taking a turn.
                     if (silenceMode) {
                         await handleSilenceUtterance(finalText.trim());
+                    } else if (continuousCapture) {
+                        // Don't block the mic on the response — keep capturing
+                        // so an interrupting utterance is caught. respondTo
+                        // supersedes any in-flight turn itself.
+                        void respondTo(finalText.trim());
                     } else {
                         await respondTo(finalText.trim());
                     }
@@ -1260,6 +1345,8 @@ export async function mountSessionView(
     ): Promise<void> {
         if (torn) return;
         torn = true;
+        // Stop any in-flight turn from generating/speaking into a torn-down view.
+        activeFullAbort?.abort();
         unsubscribeBalance?.();
         if (checkInTimer) clearInterval(checkInTimer);
         clearInterval(timerInterval);

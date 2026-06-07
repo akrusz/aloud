@@ -4,13 +4,13 @@
  *
  *   1. Capacitor native plugin   — best on iOS/Android (no network)
  *   2. Web Speech API            — fine on Chrome / Edge / Android Chrome
- *   3. Server Whisper            — universal fallback when Flask is up
+ *   3. Server Whisper            — universal fallback when a Whisper endpoint is up
  *   4. null                      — text-only mode
  *
  * Server Whisper is preferred over `null` because it works on Firefox,
  * Safari, and anywhere else the Web Speech API doesn't cover. It does
- * require the Flask backend to be reachable — that's the user's
- * desktop runtime, so it's reliable in development.
+ * require a Whisper endpoint to be reachable — the desktop (Tauri) Rust
+ * shell's /app/v1/stt/whisper — so it's reliable in the desktop runtime.
  *
  * Detection is async (Capacitor + server probe) and the result is
  * cached so the picker stays cheap.
@@ -21,7 +21,7 @@ import type { PacingConfig } from '../../../src/facilitation/pacing.js';
 
 import { rateSuffix } from '../credit-rate.js';
 import { CapacitorSttEngine } from './capacitor-stt.js';
-import { CloudWhisperSttEngine } from './cloud-whisper-stt.js';
+import { WhisperPcmSttEngine } from './whisper-pcm-stt.js';
 import {
     WebSpeechSttEngine,
     isWebSpeechSupported,
@@ -44,13 +44,13 @@ type VadOpts = Partial<
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 
 // Resolved through appUrl() so it targets the desktop's embedded Rust backend
-// (127.0.0.1:<port>) under Tauri, or the relative path (Flask via the Vite
+// (127.0.0.1:<port>) under Tauri, or the relative /app path (Hono via the Vite
 // proxy / same-origin) in the browser dev + web builds.
 const SERVER_WHISPER_PATH = '/stt/whisper';
 let cachedBackend: SttBackend | null = null;
 
 async function isServerWhisperReachable(): Promise<boolean> {
-    if (!CloudWhisperSttEngine.isAvailable()) return false;
+    if (!WhisperPcmSttEngine.isAvailable()) return false;
     try {
         // Empty POST → the backend returns 400 (route exists, body missing) or
         // 503 (model still loading). Either proves the STT route is wired. A 5xx
@@ -68,23 +68,23 @@ async function isServerWhisperReachable(): Promise<boolean> {
 
 /**
  * Force a re-probe on the next detectSttBackend / createBestStt call.
- * Call this when Flask was started after the page loaded — otherwise
- * the picker caches "none" and the user has to reload.
+ * Call this when the Whisper backend came up after the page loaded —
+ * otherwise the picker caches "none" and the user has to reload.
  */
 export function invalidateSttBackendCache(): void {
     cachedBackend = null;
 }
 
 /**
- * STT that routes mic audio through the aloud cloud's authed /v1/stt (Groq
- * Whisper) instead of Flask. Same client-side capture/VAD as server-Whisper —
+ * STT that routes mic audio through the aloud cloud's authed /cloud/v1/stt (Groq
+ * Whisper). Same client-side capture/VAD as desktop server-Whisper —
  * only the endpoint and a bearer token differ. Used when a session is on the
  * hosted ('aloud') provider so the whole pipeline runs against @aloud/server.
  * Returns null when mic capture isn't available in this environment.
  */
 export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
-    if (!CloudWhisperSttEngine.isAvailable()) return null;
-    return new CloudWhisperSttEngine({
+    if (!WhisperPcmSttEngine.isAvailable()) return null;
+    return new WhisperPcmSttEngine({
         ...vadOpts,
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
@@ -148,7 +148,7 @@ export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | 
         case 'web-speech':
             return new WebSpeechSttEngine(webSpeechOpts(vadOpts));
         case 'server-whisper':
-            return new CloudWhisperSttEngine({
+            return new WhisperPcmSttEngine({
                 ...vadOpts,
                 endpointUrl: appUrl(SERVER_WHISPER_PATH),
             });
@@ -186,7 +186,7 @@ export async function createSttForChoice(
             return isWebSpeechSupported() ? new WebSpeechSttEngine(webSpeechOpts(vadOpts)) : null;
         case 'whisper':
             return (await isServerWhisperReachable())
-                ? new CloudWhisperSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
+                ? new WhisperPcmSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
                 : null;
     }
 }

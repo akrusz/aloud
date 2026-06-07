@@ -1,11 +1,14 @@
 /**
- * Server-Whisper STT adapter — captures mic audio in the browser, VADs
- * it client-side, sends 16 kHz Float32 PCM to the Flask /api/stt/whisper
- * endpoint, and emits a `final` event when transcription returns.
+ * Whisper-over-HTTP STT adapter — captures mic audio in the browser, VADs it
+ * client-side, sends 16 kHz Float32 PCM to a Whisper transcription endpoint,
+ * and emits a `final` event when transcription returns.
  *
- * This is the universal fallback: works on Firefox, Safari, and any
- * browser the Web Speech API doesn't cover. Trade-off vs. native /
- * Web Speech: requires a running Flask backend with Whisper.cpp.
+ * Endpoint-agnostic: the same capture/VAD pipeline drives BOTH on-device
+ * desktop Whisper (the Tauri Rust shell's /app/v1/stt/whisper) and aloud cloud
+ * (the authed /cloud/v1/stt) — only the endpoint URL + optional bearer token
+ * differ (see stt-picker.ts). It's the universal fallback: works on Firefox,
+ * Safari, and anywhere the Web Speech API doesn't cover, as long as a Whisper
+ * endpoint is reachable.
  *
  * VAD: RMS-energy threshold over an adaptive noise floor, with an adaptive
  * silence timeout (base + speech×ramp, capped at max). After a short pause it
@@ -48,14 +51,33 @@ const PRE_BUFFER_MS = 2000;
 const BARGE_IN_THRESHOLD = 0.03;
 const BARGE_IN_REQUIRED_CHUNKS = 3;
 
+// Per-device echo calibration. With continuous capture the mic stays armed
+// while the facilitator speaks, so on hardware with weak echo-cancellation the
+// facilitator's own voice (leaking into the capture stream as echo) could clear
+// the VAD/barge-in gates and be transcribed as a phantom user turn. Echo level
+// varies a lot by device, so rather than trust the fixed ~0.005 assumption we
+// MEASURE it: while TTS is actually playing and the user isn't speaking, the
+// captured energy IS this device's echo floor. We track it as a slow EMA and
+// gate it out during playback only.
+//
+// The three knobs below are starting points — tune against real hardware:
+//   MARGIN: how far above the measured echo the gate sits (covers echo peaks
+//           above its average). GATE_MAX: a ceiling so the gate can never climb
+//           into real-speech territory (~0.04+) and swallow genuine speech.
+//           ALPHA: EMA smoothing — low enough that a brief bit of user speech
+//           during calibration barely moves it.
+const ECHO_EMA_ALPHA = 0.05;
+const ECHO_GATE_MARGIN = 2.0;
+const ECHO_GATE_MAX = 0.035;
+
 /** The subset of PacingConfig fields the VAD here cares about. */
 type VadFields = Pick<
     PacingConfig,
     'silenceBaseMs' | 'silenceMaxMs' | 'silenceRampRate' | 'minSpeechDurationMs'
 >;
 
-export interface CloudWhisperSttEngineOptions extends Partial<VadFields> {
-    /** Endpoint URL. Default '/api/stt/whisper' — Vite proxies in dev. */
+export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
+    /** Endpoint URL. Default '/app/v1/stt/whisper' — Vite proxies in dev. */
     endpointUrl?: string;
     /** RMS energy floor below which a frame is counted as silence. */
     energyThreshold?: number;
@@ -64,14 +86,14 @@ export interface CloudWhisperSttEngineOptions extends Partial<VadFields> {
     /** Custom fetch (tests). */
     fetchImpl?: typeof fetch;
     /** When present, each transcription request carries `Authorization: Bearer
-     *  <token>`. Used to target the aloud cloud's authed /v1/stt (vs the
-     *  open Flask /api/stt/whisper). Returning null sends no auth header. */
+     *  <token>`. Used to target the aloud cloud's authed /cloud/v1/stt (vs the
+     *  open desktop /app/v1/stt/whisper). Returning null sends no auth header. */
     authProvider?: () => Promise<string | null>;
 }
 
-export class CloudWhisperSttEngine implements SttEngine {
+export class WhisperPcmSttEngine implements SttEngine {
     private readonly opts: Required<
-        Omit<CloudWhisperSttEngineOptions, 'fetchImpl' | 'authProvider'>
+        Omit<WhisperPcmSttEngineOptions, 'fetchImpl' | 'authProvider'>
     > & {
         fetchImpl: typeof fetch;
         authProvider: (() => Promise<string | null>) | null;
@@ -99,8 +121,15 @@ export class CloudWhisperSttEngine implements SttEngine {
     private bargeInHandler: (() => void) | null = null;
     private bargeInChunks = 0;
     private bargeInFired = false;
+    // Per-device echo calibration (see ECHO_* constants). ttsActive is set by
+    // the caller while the facilitator's audio is actually playing; echoFloor is
+    // the EMA of capture energy measured during those windows.
+    private ttsActive = false;
+    // Seeded with the typical echo-cancelled echo level so the gate is sensible
+    // from the first frame; the EMA then adapts it to this device.
+    private echoFloor = 0.005;
 
-    constructor(options: CloudWhisperSttEngineOptions = {}) {
+    constructor(options: WhisperPcmSttEngineOptions = {}) {
         this.opts = {
             endpointUrl: options.endpointUrl ?? '/app/v1/stt/whisper',
             energyThreshold: options.energyThreshold ?? 0.015,
@@ -147,34 +176,50 @@ export class CloudWhisperSttEngine implements SttEngine {
         const energy = Math.sqrt(sum / frame.length);
         const now = performance.now();
 
+        // While the facilitator is audibly speaking, lift the gates above this
+        // device's measured echo floor so the echo can't be mistaken for the
+        // user. Zero when TTS isn't playing (no echo to reject), so a silent gap
+        // keeps the normal, sensitive thresholds. Capped so it never reaches
+        // real-speech level.
+        const echoGate = this.ttsActive
+            ? Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX)
+            : 0;
+
+        // Barge-in: watch this echo-cancelled stream for the user's voice so
+        // they can interrupt the facilitator. Runs in BOTH idle and capturing
+        // states — with continuous capture the mic stays armed across turns, so
+        // a barge-in arrives while capturing=true, not just between turns. The
+        // gate clears measured echo (echoGate) during playback; sustained real
+        // speech beats it. Fires once per start()/utterance — start() re-arms it.
+        if (this.bargeInHandler && !this.bargeInFired) {
+            if (energy > Math.max(BARGE_IN_THRESHOLD, echoGate)) {
+                if (++this.bargeInChunks >= BARGE_IN_REQUIRED_CHUNKS) {
+                    this.bargeInFired = true;
+                    this.bargeInHandler();
+                }
+            } else {
+                this.bargeInChunks = 0;
+            }
+        }
+
         // Between turns (including while the facilitator is speaking): keep the
         // onset pre-buffer warm so a barge-in's first word is already captured.
         // Don't fold this audio into the noise floor — it may be TTS echo, which
         // would inflate the ambient estimate and desensitize the VAD.
         if (!this.capturing) {
             this.pushPre(frame);
-            // Barge-in: while idle (the facilitator is speaking), watch this
-            // echo-cancelled stream for the user's voice. TTS echo sits ~0.005
-            // here so it won't trip the 0.03 gate; sustained real speech does.
-            // Fires once per idle period — start() re-arms it.
-            if (this.bargeInHandler && !this.bargeInFired) {
-                if (energy > BARGE_IN_THRESHOLD) {
-                    if (++this.bargeInChunks >= BARGE_IN_REQUIRED_CHUNKS) {
-                        this.bargeInFired = true;
-                        this.bargeInHandler();
-                    }
-                } else {
-                    this.bargeInChunks = 0;
-                }
-            }
             return;
         }
         if (this.utteranceDone) return;
 
-        // Threshold is whichever is higher: the static floor, or 3x the running
-        // noise floor. The 3x multiplier matches the existing audio.js heuristic
-        // and gives reliable separation in normal rooms.
-        const threshold = Math.max(this.opts.energyThreshold, this.noiseFloor * 3);
+        // Threshold is whichever is higher: the static floor, 3x the running
+        // noise floor (the audio.js heuristic — reliable separation in normal
+        // rooms), or the measured echo gate while the facilitator is speaking.
+        const threshold = Math.max(
+            this.opts.energyThreshold,
+            this.noiseFloor * 3,
+            echoGate
+        );
 
         if (energy > threshold) {
             if (!this.speechStarted) {
@@ -196,9 +241,17 @@ export class CloudWhisperSttEngine implements SttEngine {
                 this.opts.silenceMaxMs
             );
             if (now - this.lastSpeechMs >= needed) this.utteranceDone = true;
+        } else if (this.ttsActive) {
+            // Capturing, pre-speech, facilitator audibly speaking — this energy
+            // is the device's echo, not the user. Fold it into the echo floor
+            // (NOT the ambient noise floor, which must stay echo-free) so the
+            // gates above can reject it. Keep the onset pre-buffer warm too.
+            this.echoFloor = (1 - ECHO_EMA_ALPHA) * this.echoFloor + ECHO_EMA_ALPHA * energy;
+            this.pushPre(frame);
         } else {
-            // Capturing but pre-speech — calibrate the noise floor (fast for the
-            // first 100 samples, then slow) and keep the onset pre-buffer warm.
+            // Capturing but pre-speech and quiet — calibrate the noise floor
+            // (fast for the first 100 samples, then slow) and keep the onset
+            // pre-buffer warm.
             const alpha = this.noiseSamples < 100 ? 0.1 : 0.01;
             this.noiseFloor = (1 - alpha) * this.noiseFloor + alpha * energy;
             this.noiseSamples++;
@@ -311,6 +364,18 @@ export class CloudWhisperSttEngine implements SttEngine {
         this.bargeInHandler = handler;
     }
 
+    /**
+     * Tell the engine whether the facilitator's audio is currently playing.
+     * While active, the capture energy is sampled into this device's echo floor
+     * (see ECHO_* constants) and that floor gates the VAD/barge-in so the
+     * facilitator's own echo can't be mistaken for the user speaking. The caller
+     * brackets this around actual TTS playback — NOT the silent "thinking" phase,
+     * where the user should still be able to interrupt at the normal threshold.
+     */
+    setTtsActive(active: boolean): void {
+        this.ttsActive = active;
+    }
+
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
         try {
@@ -355,7 +420,7 @@ export class CloudWhisperSttEngine implements SttEngine {
                     if (token) headers['authorization'] = `Bearer ${token}`;
                 }
                 // Tag the transcription with the session group when one is active
-                // (cloud cost report); omitted otherwise. Flask's STT ignores it.
+                // (cloud cost report); omitted otherwise. The desktop STT ignores it.
                 const sessionId = getCloudSessionId();
                 const sessionParam = sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : '';
                 const response = await this.opts.fetchImpl(

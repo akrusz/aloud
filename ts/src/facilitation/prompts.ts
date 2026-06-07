@@ -361,18 +361,36 @@ export const RESUME_INTENT_SYSTEM_PROMPT =
 
 export type HoldSignal = 'hold' | 'none';
 
+/** The literal token the LLM prefixes to a reply to request silence mode. */
+export const HOLD_PREFIX = '[HOLD]';
+
+/** True when a response opens with the [HOLD] token (ignoring leading space). */
+export function startsWithHold(text: string): boolean {
+    return text.trimStart().toUpperCase().startsWith(HOLD_PREFIX);
+}
+
+/**
+ * Remove a leading [HOLD] token (and the whitespace after it), leaving the
+ * warm acknowledgment that follows — which IS meant to be spoken, then silence.
+ * Returns the text unchanged when there's no prefix.
+ */
+export function stripHoldPrefix(text: string): string {
+    const leading = text.trimStart();
+    return startsWithHold(leading) ? leading.slice(HOLD_PREFIX.length).trimStart() : text;
+}
+
 /**
  * Parse a [HOLD] prefix from an LLM response.
  *
  * Returns { signal, cleanText }:
  *   - "hold" → activate silence mode immediately
  *   - "none" → normal response
- * cleanText has the prefix stripped.
+ * cleanText has the prefix stripped (but keeps the acknowledgment to speak).
  */
 export function parseHoldSignal(response: string): { signal: HoldSignal; cleanText: string } {
     const stripped = response.trim();
-    if (stripped.toUpperCase().startsWith('[HOLD]')) {
-        return { signal: 'hold', cleanText: stripped.slice(6).trim() };
+    if (startsWithHold(stripped)) {
+        return { signal: 'hold', cleanText: stripHoldPrefix(stripped).trim() };
     }
     return { signal: 'none', cleanText: stripped };
 }

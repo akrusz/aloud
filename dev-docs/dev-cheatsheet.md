@@ -46,8 +46,10 @@ shell's embedded backend serves `/app/v1/*` on a loopback port.
 For hosted features (accounts/credits/hosted voices) the Hono server must also be
 running; without it, `/cloud/v1/*` calls fail with `ECONNREFUSED` and the UI
 degrades to "hosted unavailable" (expected, harmless). `desktop:dev` is the
-Tauri analog of `web:dev`: it runs the shell + Hono in one terminal (Ctrl-C stops
-both) so hosted features resolve.
+Tauri analog of `web:dev`: it runs the shell + Hono in one terminal so hosted
+features resolve. Both combined launchers go through `scripts/dev.mjs`: a single
+Ctrl-C stops everything, and if either side exits on its own (e.g. you close the
+Tauri window) the other is torn down too.
 
 ### Web UI in a browser (Vite)
 
@@ -56,8 +58,9 @@ cd ts && npm run web:dev         # UI (:4649) + Hono server (:8787) together
 cd ts && npm run ui:dev          # UI only (:4649) — needs the Hono server too (below)
 ```
 
-`web:dev` runs both in one terminal (Ctrl-C stops both); use it for browser
-preview so STT/voices/providers/billing resolve.
+`web:dev` runs both in one terminal (one Ctrl-C, or either side exiting, stops
+both — see `scripts/dev.mjs`); use it for browser preview so
+STT/voices/providers/billing resolve.
 
 The Vite proxy (`ui/vite.config.ts`) forwards:
 - `/app/v1/*` → **Hono** on :8787 (the app-backend surface; no rewrite — Hono

@@ -19,6 +19,7 @@ import type {
     StreamChunk,
 } from '../../src/llm/index.js';
 import type { LlmUsage } from '../../src/facilitation/index.js';
+import { HOLD_PREFIX, startsWithHold, stripHoldPrefix } from '../../src/facilitation/index.js';
 import type { TtsEngine, TtsOptions } from '../../src/platform/index.js';
 
 /** Pull the usage split out of a completion result or final stream chunk. */
@@ -36,6 +37,13 @@ export interface StreamCompletionOptions extends CompletionOptions {
     onTextDelta?: (cumulativeText: string) => void;
     /** Forwarded to tts.speak() for each sentence. */
     ttsOptions?: TtsOptions;
+    /** Abort the whole completion — stop consuming the LLM stream AND speaking.
+     *  Used when a newer turn supersedes this one (the reply is discarded). */
+    signal?: AbortSignal;
+    /** Hush TTS but keep generating, so the full reply still lands in the
+     *  transcript. Used on barge-in: stop talking over the user without losing
+     *  the in-progress response. */
+    ttsSignal?: AbortSignal;
 }
 
 export interface StreamCompletionResult {
@@ -67,20 +75,19 @@ export async function streamCompletionWithChunkedTts(
     messages: Message[],
     options: StreamCompletionOptions = {}
 ): Promise<StreamCompletionResult> {
-    const { onTextDelta, ttsOptions, ...completionOpts } = options;
+    const { onTextDelta, ttsOptions, signal, ttsSignal, ...completionOpts } = options;
+    const hushed = (): boolean => !!signal?.aborted || !!ttsSignal?.aborted;
 
     if (!provider.completeStream) {
         // Non-streaming fallback — call complete(), then speak in one go.
         const result = await provider.complete(messages, completionOpts);
         if (onTextDelta) onTextDelta(result.text);
-        // Mirror the streaming path's [HOLD] handling: a reply that opens with
-        // [HOLD] is asking for silence, so speaking the acknowledgement aloud
-        // defeats the point — suppress TTS entirely. The caller still receives
-        // the full text and parses the signal to render the transcript.
-        const isHold = result.text.trimStart().toUpperCase().startsWith(HOLD_PREFIX);
+        // Strip a leading [HOLD] token but DO speak the warm acknowledgment
+        // after it ("I'll be right here") — the caller enters silence mode once
+        // it's spoken. Only the token is silenced, not the reassurance.
         return {
             text: result.text,
-            ttsDone: isHold ? Promise.resolve() : tts.speak(result.text, ttsOptions),
+            ttsDone: hushed() ? Promise.resolve() : tts.speak(stripHoldPrefix(result.text), ttsOptions),
             usage: usageFrom(result),
             finishReason: result.finishReason ?? null,
         };
@@ -88,9 +95,7 @@ export async function streamCompletionWithChunkedTts(
 
     let fullText = '';
     let pendingTtsText = ''; // text not yet handed to TTS
-    let holdChecked = false; // have we decided whether [HOLD] is present?
-    let inHoldMode = false;  // true → suppress TTS entirely (the LLM is asking
-                             //         for silence, speaking it aloud defeats the point)
+    let holdChecked = false; // have we decided about a leading [HOLD] token yet?
     // TTS queue — each entry awaits the previous one so utterances play
     // sequentially and we can return a single "all done" promise.
     let ttsQueue: Promise<void> = Promise.resolve();
@@ -98,41 +103,44 @@ export async function streamCompletionWithChunkedTts(
     let finishReason: string | null = null;
 
     function enqueueSpeak(text: string): void {
-        if (!text.trim() || inHoldMode) return;
-        ttsQueue = ttsQueue.then(() => tts.speak(text, ttsOptions)).catch(() => {
-            /* non-fatal */
-        });
+        if (!text.trim() || hushed()) return;
+        ttsQueue = ttsQueue
+            .then(() => (hushed() ? undefined : tts.speak(text, ttsOptions)))
+            .catch(() => {
+                /* non-fatal */
+            });
     }
 
     /**
-     * Once the buffer has enough characters (or the stream is done),
-     * decide whether the response opened with [HOLD]. If so, strip the
-     * prefix from pendingTtsText and don't speak the brief
-     * acknowledgement that follows — entering silence mode out loud
-     * defeats the point. Caller still gets the full text + signal so it
-     * can render the acknowledgement to the transcript.
+     * Once the buffer has enough characters (or the stream is done), strip a
+     * leading [HOLD] token from pendingTtsText so it isn't spoken — but keep
+     * the warm acknowledgment that follows ("I'll be right here"), which IS
+     * meant to be heard before the session goes quiet. The caller parses the
+     * signal separately to actually enter silence mode after.
      */
     function checkHoldPrefix(force = false): void {
         if (holdChecked) return;
-        if (!force && pendingTtsText.length < HOLD_PREFIX.length) return;
-        const leading = pendingTtsText.trimStart();
-        if (leading.toUpperCase().startsWith(HOLD_PREFIX)) {
-            inHoldMode = true;
-            // Drop the [HOLD] prefix from the buffer; if the LLM emits an
-            // acknowledgement after it, we still won't speak (inHoldMode).
-            pendingTtsText = '';
+        // Wait until we have enough non-space chars to tell (or the stream
+        // ended) — the token can arrive split across chunks ("[HOL" + "D]").
+        if (!force && pendingTtsText.trimStart().length < HOLD_PREFIX.length) return;
+        if (startsWithHold(pendingTtsText)) {
+            pendingTtsText = stripHoldPrefix(pendingTtsText);
         }
         holdChecked = true;
     }
 
     for await (const chunk of provider.completeStream(messages, completionOpts)) {
+        // Superseded by a newer turn — stop consuming and return what we have.
+        if (signal?.aborted) break;
         if (chunk.text) {
             fullText += chunk.text;
             pendingTtsText += chunk.text;
             if (onTextDelta) onTextDelta(fullText);
 
             checkHoldPrefix();
-            if (inHoldMode) continue;
+            // Hold speaking until the prefix decision is made, so a partial
+            // "[HOL" is never voiced; the token is stripped first.
+            if (!holdChecked) continue;
 
             const split = splitOffSentences(pendingTtsText);
             for (const sentence of split.complete) {
@@ -144,7 +152,7 @@ export async function streamCompletionWithChunkedTts(
             usage = usageFrom(chunk);
             finishReason = chunk.finishReason ?? null;
             checkHoldPrefix(true);
-            if (!inHoldMode && pendingTtsText.trim()) {
+            if (pendingTtsText.trim()) {
                 enqueueSpeak(pendingTtsText);
                 pendingTtsText = '';
             }
@@ -153,8 +161,6 @@ export async function streamCompletionWithChunkedTts(
 
     return { text: fullText, ttsDone: ttsQueue, usage, finishReason };
 }
-
-const HOLD_PREFIX = '[HOLD]';
 
 /**
  * Split a string into completed sentences + a trailing remainder.

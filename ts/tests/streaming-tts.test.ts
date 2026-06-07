@@ -132,7 +132,7 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(tts.spoken).toEqual(['Hello there.', 'How are you?', 'Good']);
     });
 
-    it('suppresses TTS entirely when the response opens with [HOLD]', async () => {
+    it('strips the [HOLD] token but still speaks the acknowledgment', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider([
             '[HOLD',
@@ -143,12 +143,14 @@ describe('streamCompletionWithChunkedTts', () => {
             { role: 'user', content: 'quiet please' },
         ]);
         await result.ttsDone;
+        // Full text (token intact) returned so the caller parses the signal…
         expect(result.text).toBe("[HOLD] I'll be right here.");
-        // No speech — entering silence mode out loud defeats the point.
-        expect(tts.spoken).toEqual([]);
+        // …but the spoken text drops the token and keeps the warm
+        // acknowledgment — the meditator hears they were heard, then silence.
+        expect(tts.spoken).toEqual(["I'll be right here."]);
     });
 
-    it('suppresses TTS on a [HOLD] reply via the non-streaming fallback', async () => {
+    it('strips the [HOLD] token but still speaks via the non-streaming fallback', async () => {
         const tts = new RecordingTts();
         const result = await streamCompletionWithChunkedTts(
             new FakeNonStreamingProvider("[HOLD] I'll be right here."),
@@ -158,7 +160,46 @@ describe('streamCompletionWithChunkedTts', () => {
         await result.ttsDone;
         // Full text still returned so the caller can parse the signal…
         expect(result.text).toBe("[HOLD] I'll be right here.");
-        // …but nothing is spoken — same as the streaming path.
+        // …and the acknowledgment is spoken with the token stripped.
+        expect(tts.spoken).toEqual(["I'll be right here."]);
+    });
+
+    it('ttsSignal hushes speech but still returns the full reply text', async () => {
+        const tts = new RecordingTts();
+        const ac = new AbortController();
+        ac.abort(); // barge-in already fired before this turn even speaks
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['Hello there.', ' How are you?']),
+            tts,
+            [{ role: 'user', content: 'hi' }],
+            { ttsSignal: ac.signal }
+        );
+        await result.ttsDone;
+        // Full text lands in the transcript…
+        expect(result.text).toBe('Hello there. How are you?');
+        // …but nothing is spoken — the user is talking over it.
+        expect(tts.spoken).toEqual([]);
+    });
+
+    it('signal aborts generation mid-stream and stops speaking', async () => {
+        const tts = new RecordingTts();
+        const ac = new AbortController();
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['One.', ' Two.', ' Three.']),
+            tts,
+            [{ role: 'user', content: 'hi' }],
+            {
+                signal: ac.signal,
+                // A newer turn supersedes this one once "Two" arrives.
+                onTextDelta: (t) => {
+                    if (t.includes('Two')) ac.abort();
+                },
+            }
+        );
+        await result.ttsDone;
+        // Stopped consuming the stream after the chunk that tripped the abort —
+        // "Three." is never pulled.
+        expect(result.text).toBe('One. Two.');
         expect(tts.spoken).toEqual([]);
     });
 
