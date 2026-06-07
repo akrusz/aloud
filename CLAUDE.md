@@ -40,7 +40,8 @@ All `npm` commands run from `ts/`. Full list + ports in the cheatsheet.
 
 ```bash
 cd ts && npm run tauri:dev     # desktop shell + Vite UI on :4649 (primary dev target)
-cd ts && npm run ui:dev        # web UI in a browser on :4649 (needs the Hono server)
+cd ts && npm run web:dev       # browser preview: Vite UI (:4649) + Hono (:8787) together
+cd ts && npm run ui:dev        # UI only on :4649 (pair with the Hono server below)
 cd ts/server && npm run dev    # aloud cloud (Hono) on :8787
 cd ts && npm test              # core + UI vitest
 cd ts && npm run typecheck

@@ -25,6 +25,7 @@
         "ui:build": "vite build --config ui/vite.config.ts",
         "ui:build:hosted": "ALOUD_HOSTED=1 vite build --config ui/vite.config.ts",
         "ui:preview": "vite preview --config ui/vite.config.ts",
+        "web:dev": "(trap 'kill 0' SIGINT; npm run ui:dev & npm run dev -w server & wait)",
         "tauri": "tauri",
         "tauri:dev": "tauri dev",
         "tauri:build": "tauri build",

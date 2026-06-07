@@ -49,8 +49,12 @@ UI degrades to "hosted unavailable" (expected, harmless).
 ### Web UI in a browser (Vite)
 
 ```bash
-cd ts && npm run ui:dev          # UI on :4649
+cd ts && npm run web:dev         # UI (:4649) + Hono server (:8787) together
+cd ts && npm run ui:dev          # UI only (:4649) — needs the Hono server too (below)
 ```
+
+`web:dev` runs both in one terminal (Ctrl-C stops both); use it for browser
+preview so STT/voices/providers/billing resolve.
 
 The Vite proxy (`ui/vite.config.ts`) forwards:
 - `/app/v1/*` → **Hono** on :8787 (the app-backend surface; no rewrite — Hono
