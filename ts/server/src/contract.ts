@@ -73,7 +73,8 @@ export interface CompleteChunk {
 // rate in the `sample_rate` query param (and an optional `session_id` param —
 // the per-session grouping token, see CompleteRequest.sessionId). The server
 // computes duration from the byte length (authoritative — the client can't
-// under-report to underpay), wraps it to WAV, and forwards to Groq Whisper.
+// under-report to underpay), wraps it to WAV, and forwards to the configured
+// Whisper backend (Fireworks whisper-v3-turbo by default).
 
 export interface TranscribeResponse {
     text: string;

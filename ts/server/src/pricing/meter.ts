@@ -92,9 +92,9 @@ export function priceLlmTurn(provider: ProviderId, model: string, usage: LlmUsag
 
 /** Price `seconds` of cloud STT — fractional credits, like every other leg.
  *  A turn fires several short STT passes (speculative + final), each a real
- *  Groq call; debiting the exact proportional cost keeps a fraction-of-a-cent
- *  leg from being rounded up by orders of magnitude. The balance is a real
- *  number; the UI rounds for display. */
+ *  Whisper-backend call; debiting the exact proportional cost keeps a
+ *  fraction-of-a-cent leg from being rounded up by orders of magnitude. The
+ *  balance is a real number; the UI rounds for display. */
 export function priceSttSeconds(seconds: number): CostBreakdown {
     const providerCostUsd = Math.max(0, seconds) * STT_USD_PER_SECOND;
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };

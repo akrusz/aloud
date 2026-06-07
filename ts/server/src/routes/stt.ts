@@ -1,7 +1,8 @@
 /**
  * POST /v1/stt — metered speech-to-text. Accepts raw mono Float32 PCM (body),
- * with the sample rate in the `sample_rate` query param. Forwards to Groq
- * Whisper, debits fractional credits by audio duration, returns the transcript.
+ * with the sample rate in the `sample_rate` query param. Forwards to the
+ * configured Whisper backend, debits fractional credits by audio duration,
+ * returns the transcript.
  *
  * Duration is computed server-side from the byte length, so a client can't
  * under-report seconds to underpay. Like the LLM proxy, this is stateless:
