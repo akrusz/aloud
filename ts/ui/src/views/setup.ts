@@ -229,6 +229,12 @@ export async function mountSetupView(
         updateVoiceButtonLabel();
         // Voices just arrived — repopulate participant voice dropdowns.
         renderParticipantList();
+        // Guide a user with zero usable voices toward fixing TTS. Checked only
+        // after the catalog finishes loading (server + cloud + browser voices
+        // all resolved above) so it doesn't flash during the load — the
+        // equivalent of Python's post-timeout no-voices banner.
+        const noVoicesBanner = root.querySelector<HTMLElement>('#setup-no-voices');
+        if (noVoicesBanner) noVoicesBanner.classList.toggle('hidden', scoredVoices.length > 0);
     }
 
     function findVoice(name: string | null): ScoredVoice | null {
@@ -1347,6 +1353,9 @@ function renderSetupHTML(
                 <div class="form-group">
                     <label>Voice</label>
                     <button type="button" id="setup-voice-btn" class="setup-voice-btn">Default</button>
+                    <div id="setup-no-voices" class="no-voices-banner inline hidden" role="alert">
+                        <p>No speech voices found. <a href="#" data-nav="settings">Set up TTS in Settings</a>.</p>
+                    </div>
                 </div>
             </div>
 

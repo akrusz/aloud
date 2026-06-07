@@ -1201,14 +1201,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 const isMac = /Mac/.test(
                     typeof navigator !== 'undefined' ? navigator.platform || '' : ''
                 );
-                // TODO(post-port): piper availability comes from a Flask
-                // template flag in the Python UI (`data-piper-available`
-                // on #settings-data). Plumb the same signal into the TS
-                // settings view (likely via /api/providers or a new
-                // /api/tts-engines endpoint) so the Piper option appears
-                // when the engine is installed.
+                // Piper is a local neural TTS engine the desktop (Rust) shell
+                // provides; the hosted web app has no local TTS, so it's never
+                // available there. Gate the tour's Piper recommendation on
+                // desktop rather than the old hardcoded `true` (which offered
+                // Piper even on the web app, where it can't run). isDesktopSync
+                // is populated by the detectCapabilities() await above.
                 void resetSettingsTour({
-                    piperAvailable: true,
+                    piperAvailable: isDesktopSync(),
                     isMac,
                 });
             });

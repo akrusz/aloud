@@ -560,6 +560,12 @@ export async function mountSessionView(
         // isNonSpeechOnly guard; the partial bubble is already cleared by the
         // listen loop before this runs.)
         if (isNonSpeechOnly(userText)) return;
+        // Remember whether we were holding when this turn arrived. If the user
+        // just spoke to break a silence hold, a [HOLD] in the reply shouldn't
+        // snap us straight back into silence on the same turn — otherwise it
+        // reads as "I can't get out of silence mode." (Ports the Python
+        // wasSilent guard in message_handlers.handle_user_message.)
+        const wasSilent = silenceMode;
         busy = true;
         try {
             // Speech-end event into the pacing controller — auto-exits
@@ -620,7 +626,8 @@ export async function mountSessionView(
             // Honor pacingConfig.silenceModeEnabled — when false, the
             // [HOLD] signal is dropped and we treat the response as a
             // normal one.
-            const enterHold = !ephemeral && signal === 'hold' && pacingConfig.silenceModeEnabled;
+            const enterHold =
+                !ephemeral && !wasSilent && signal === 'hold' && pacingConfig.silenceModeEnabled;
             if (enterHold) {
                 silenceMode = true;
                 pacing.enterSilenceMode();
