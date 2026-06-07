@@ -7,15 +7,19 @@
  * styling lands automatically.
  *
  * Scoring tiers (descending):
- *   3  Good     — Piper (desktop), explicit "Premium" in name
- *   2  Quality  — "Enhanced", "Online", "Natural"
- *   1  Standard — Google, known-good macOS voice list
- *   0  Other    — everything else
+ *   4  Very Good — explicit "Premium" in name (Apple Premium) + the hosted
+ *                  Neural2 ("value") voices
+ *   3  Good      — Piper (desktop)
+ *   2  Quality   — "Enhanced", "Online", "Natural"
+ *   1  Standard  — Google, known-good macOS voice list
+ *   0  Other     — everything else
  *
- * A separate "Best" group appears above the tiers and is reserved for the
- * genuinely top-quality voices: the hosted (aloud cloud) voices and Chrome's
- * cloud voices. Local engines (macOS Premium, Piper) are good but sort into the
- * Premium/Standard tiers below rather than Best.
+ * A separate "Best" group appears above the tiers, reserved for the genuinely
+ * top-quality voices: the hosted Chirp3-HD ("premium") voices and Chrome's
+ * cloud voices. The hosted Neural2 ("value") voices and local Apple Premium
+ * drop one rung into "Very Good"; Piper sits in "Good". (Per the developer's
+ * preference: cloud-neural beats local, and the cheaper Neural2 tier sits a
+ * notch below the top Chirp3-HD picks.)
  */
 
 import type { TtsEngine } from '../../src/platform/index.js';
@@ -81,6 +85,7 @@ export interface ScoredVoice {
 }
 
 export const TIER_LABELS: Record<number, string> = {
+    4: 'Very Good',
     3: 'Good',
     2: 'Quality',
     1: 'Standard',
@@ -119,7 +124,10 @@ function isMac(): boolean {
 
 export function scoreVoice(name: string, engine?: string): number {
     const baseName = name.replace(/\s*\(.*\)$/, '');
-    if (/Premium/i.test(name)) return 3;
+    // Apple "Premium" system voices — the best local option, a rung below
+    // cloud-neural; they get their own "Very Good" tier (alongside hosted
+    // Neural2, scored in buildScoredVoiceList).
+    if (/Premium/i.test(name)) return 4;
     // ElevenLabs is premium cloud TTS; keep it in the Quality tier even though
     // its voice names carry no quality keyword (it no longer rides the server
     // "recommended" flag — see buildScoredVoiceList).
@@ -166,12 +174,17 @@ export function buildScoredVoiceList(
     // (macOS Premium, Piper) sort into Premium/Standard below, per the
     // developer's preference (they're good, but not as good as cloud neural).
     for (const hv of hostedVoices) {
+        // Chirp3-HD ("premium") voices lead the Best tier. The cheaper Neural2
+        // ("value") voices are still excellent but drop one rung into "Very
+        // Good" (score 4) alongside Apple Premium — Best stays the very top. An
+        // older server that omits tier defaults to Best (the safe direction).
+        const isValue = hv.tier === 'value';
         scored.push({
             name: hv.name,
             lang: 'en-US',
-            score: 3,
+            score: isValue ? 4 : 3,
             engine: 'aloud',
-            recommended: true,
+            ...(isValue ? {} : { recommended: true }),
             note: hv.gender,
             ...(hv.tier ? { costTier: hv.tier } : {}),
             ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
@@ -302,7 +315,7 @@ export function renderVoiceList(
         for (const v of recommended) appendRow(listEl, v, selectedName, options);
     }
 
-    for (const tier of [3, 2, 1, 0] as const) {
+    for (const tier of [4, 3, 2, 1, 0] as const) {
         const items = tiers[tier];
         if (!items || items.length === 0) continue;
         appendTierLabel(listEl, TIER_LABELS[tier] ?? 'Other');

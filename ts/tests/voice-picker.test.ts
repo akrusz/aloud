@@ -51,6 +51,20 @@ describe('buildScoredVoiceList with hosted voices', () => {
         expect(pul.note).toBe('androgynous');
     });
 
+    it('keeps Chirp3-HD (premium) in Best but drops Neural2 (value) into Very Good', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(null, false, [
+            { name: 'Leda', gender: 'female', tier: 'premium' },
+            { name: 'Vega', gender: 'female', tier: 'value' },
+        ]);
+        const leda = scored.find((v) => v.name === 'Leda')!;
+        expect(leda.recommended).toBe(true); // Chirp3-HD → Best
+        const vega = scored.find((v) => v.name === 'Vega')!;
+        expect(vega.recommended).toBeFalsy(); // Neural2 → not Best…
+        expect(vega.score).toBe(4); // …it lands in the Very Good tier
+        expect(vega.costTier).toBe('value'); // still badged as a paid voice
+    });
+
     it('defaults to no hosted voices (availability-driven) when none are passed', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         const scored = buildScoredVoiceList(null, false);
@@ -161,9 +175,10 @@ describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', ()
             false
         );
         const ava = scored.find((v) => v.name === 'Ava (Premium)')!;
-        expect(ava.score).toBe(3); // Premium tier…
+        expect(ava.score).toBe(4); // Very Good tier…
         expect(ava.recommended).toBeFalsy(); // …but NOT Best
         const piper = scored.find((v) => v.name.startsWith('Libritts'))!;
+        expect(piper.score).toBe(3); // Good tier (below Very Good)
         expect(piper.recommended).toBeFalsy();
     });
 
