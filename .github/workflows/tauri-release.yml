@@ -1,19 +1,15 @@
-name: Build Release (Tauri)
+name: Build Release
 
-# Sibling to build.yml (PyInstaller). Per meditation-pal-9vh we run BOTH for one
-# cycle to validate the Tauri artifacts against the proven Python ones before
-# cutting PyInstaller over (meditation-pal-sk8). Tauri artifacts carry a
-# `-tauri` suffix so they don't collide with the PyInstaller uploads on the same
-# release; drop the suffix (and delete build.yml) at cutover.
-#
-# UNTESTED until a real release runs this — see dev-docs/desktop.md. Required
+# THE desktop release workflow (Tauri). Replaced the PyInstaller build.yml at
+# the meditation-pal-9vh cutover (validated green on v1.0.4), so artifacts now
+# use the canonical names (no `-tauri` suffix). See dev-docs/desktop.md. Required
 # repo config:
 #   - var  ALOUD_CLOUD_URL          hosted /cloud/v1 origin baked into the
 #                                    desktop UI so credits work (else cloud off)
-#   - secrets (macOS signing + notarization; same ones build.yml already uses):
+#   - secrets (macOS signing + notarization):
 #     MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD, MACOS_SIGN_IDENTITY,
 #     APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
-# Windows is unsigned (parity with the current PyInstaller build).
+# Windows is unsigned.
 
 on:
   release:
@@ -64,7 +60,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           SRC=$(find ts/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -n1)
           mkdir -p staging
-          cp "$SRC" "staging/aloud-${VERSION}-macOS-tauri.dmg"
+          cp "$SRC" "staging/aloud-${VERSION}-macOS.dmg"
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -96,8 +92,8 @@ jobs:
           mkdir -p staging
           MSI=$(find ts/src-tauri/target/release/bundle/msi -name '*.msi' | head -n1)
           EXE=$(find ts/src-tauri/target/release/bundle/nsis -name '*.exe' | head -n1)
-          cp "$MSI" "staging/aloud-${VERSION}-Windows-tauri.msi"
-          cp "$EXE" "staging/aloud-${VERSION}-Windows-tauri.exe"
+          cp "$MSI" "staging/aloud-${VERSION}-Windows.msi"
+          cp "$EXE" "staging/aloud-${VERSION}-Windows.exe"
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -146,8 +142,8 @@ jobs:
           mkdir -p staging
           APP=$(find ts/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -n1)
           DEB=$(find ts/src-tauri/target/release/bundle/deb -name '*.deb' | head -n1)
-          cp "$APP" "staging/aloud-${VERSION}-Linux-tauri.AppImage"
-          cp "$DEB" "staging/aloud-${VERSION}-Linux-tauri.deb"
+          cp "$APP" "staging/aloud-${VERSION}-Linux.AppImage"
+          cp "$DEB" "staging/aloud-${VERSION}-Linux.deb"
 
       - uses: softprops/action-gh-release@v2
         with:
