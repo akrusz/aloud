@@ -34,9 +34,18 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
 }
 
 // Tag the document for the Tauri desktop shell so CSS can apply app-like
-// chrome (block text selection, pad the nav clear of the macOS traffic
-// lights). Set before first paint to avoid a flash of selectable web chrome.
-if (isTauri()) document.documentElement.setAttribute('data-shell', 'tauri');
+// chrome (block text selection, etc.). Set before first paint to avoid a flash
+// of selectable web chrome.
+if (isTauri()) {
+    document.documentElement.setAttribute('data-shell', 'tauri');
+    // The overlaid title bar (traffic lights drawn over the top-left of the
+    // webview) is macOS-only — lib.rs gates title_bar_style(Overlay) on Darwin.
+    // Mark it so only macOS pads the nav clear of the buttons; Windows/Linux
+    // have a normal native title bar and must not get that left gap.
+    if (/Mac|iPhone|iPad/.test(navigator.platform || '')) {
+        document.documentElement.setAttribute('data-titlebar', 'overlay');
+    }
+}
 
 // Apply theme before the app renders so the FOUC is invisible.
 applyTheme(resolveTheme());

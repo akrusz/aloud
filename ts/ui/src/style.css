@@ -627,8 +627,10 @@
 
 /* macOS titleBarStyle "Overlay" draws the traffic-light buttons over the
    top-left of the webview. The nav is the title bar (data-tauri-drag-region),
-   so pad the brand clear of the buttons. */
-[data-shell="tauri"] .nav-start {
+   so pad the brand clear of the buttons. macOS-only (data-titlebar="overlay"):
+   Windows/Linux have a normal native title bar and would otherwise show an
+   unexplained left gap. */
+[data-shell="tauri"][data-titlebar="overlay"] .nav-start {
     padding-left: 72px;
 }
 

@@ -102,21 +102,16 @@ fn pct_decode(s: &str) -> String {
 }
 
 /// Open `url` in the user's default browser (the system handler, not the webview).
+///
+/// Routed through the opener plugin (ShellExecuteW on Windows, `open`/`xdg-open`
+/// on macOS/Linux). A hand-rolled `cmd /C start "" <url>` on Windows mangles the
+/// auth URL: cmd treats the `&` query-param separators as command delimiters, so
+/// only `?response_type=code` survives and everything after it (client_id,
+/// redirect_uri, …) is dropped — sign-in then fails. ShellExecuteW takes the URL
+/// whole, sidestepping that.
 fn open_browser(url: &str) -> Result<(), String> {
-    use std::process::Command;
-    #[cfg(target_os = "macos")]
-    let mut cmd = Command::new("open");
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut cmd = Command::new("xdg-open");
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        // `start` is a cmd builtin; the empty "" is the (required) window title.
-        let mut c = Command::new("cmd");
-        c.args(["/C", "start", ""]);
-        c
-    };
-    cmd.arg(url);
-    cmd.spawn().map(|_| ()).map_err(|e| format!("could not open the browser: {e}"))
+    tauri_plugin_opener::open_url(url, None::<&str>)
+        .map_err(|e| format!("could not open the browser: {e}"))
 }
 
 /// Run the loopback Google OAuth dance and return the code + PKCE verifier.
