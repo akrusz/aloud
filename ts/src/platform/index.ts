@@ -4,6 +4,7 @@ export {
     InMemorySttEngine,
     type InMemorySttEngineOptions,
     collectFinal,
+    isNonSpeechOnly,
 } from './stt.js';
 
 export {

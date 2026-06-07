@@ -27,6 +27,7 @@ import {
     type LLMProvider,
 } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
+import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
 import { wrapTtsWithBargeIn } from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
@@ -552,6 +553,13 @@ export async function mountSessionView(
 
     async function respondTo(userText: string): Promise<void> {
         if (busy) return;
+        // Drop transcriptions that are only non-speech markers (e.g. "[cough]",
+        // "[BLANK_AUDIO]", "(wind blowing)", "*sighs*") or otherwise carry no
+        // words — a cough, breath, or background noise shouldn't take the user's
+        // turn or wake us from a silence hold. (Ports the Python app's
+        // isNonSpeechOnly guard; the partial bubble is already cleared by the
+        // listen loop before this runs.)
+        if (isNonSpeechOnly(userText)) return;
         busy = true;
         try {
             // Speech-end event into the pacing controller — auto-exits

@@ -22,6 +22,7 @@ import {
 } from '../../../src/facilitation/index.js';
 import { OllamaProvider, type LLMProvider } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
+import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import { buildProvider, type SessionEndDestination } from './session.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
@@ -388,7 +389,10 @@ export async function mountNotingSessionView(
             const note = (await listenOnce()).trim();
             if (torn || paused) return;
             const tooSoon = Date.now() - userTurnStart < ECHO_REJECT_MS;
-            if (note && !tooSoon) {
+            // A cough/breath that transcribes to only non-speech markers
+            // (e.g. "[cough]", "(sigh)") shouldn't become a noting label —
+            // fall through and re-listen, same as silence/echo.
+            if (note && !tooSoon && !isNonSpeechOnly(note)) {
                 const cadence = Date.now() - userTurnStart;
                 userCadences.push(cadence);
                 if (userCadences.length > 5) userCadences.shift();

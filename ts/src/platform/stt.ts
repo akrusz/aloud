@@ -88,6 +88,33 @@ export class InMemorySttEngine implements SttEngine {
 }
 
 /**
+ * True when a transcript carries no actual speech — only non-speech markers
+ * or punctuation — so it shouldn't take the user's turn.
+ *
+ * STT engines annotate non-verbal audio with parentheses, brackets, or
+ * asterisks: whisper.cpp and cloud Whisper emit things like "[BLANK_AUDIO]",
+ * "[inaudible]", "(coughing)", "(wind blowing)"; some outputs add "*sighs*".
+ * We strip those markered spans and, if no Unicode letter remains, treat the
+ * whole utterance as silence — a cough, breath, or background noise shouldn't
+ * trigger an LLM turn. (Browser Web Speech rarely emits markers — it yields
+ * words or nothing — so this is effectively a no-op there.)
+ *
+ * Note: this only catches utterances that are *entirely* markers/punctuation.
+ * A bare hallucinated word (Whisper's "you"/"Thank you" on silence) still has
+ * letters and is intentionally left alone, matching the original behavior.
+ *
+ * Ported from the Python app's isNonSpeechOnly (was src/web/static/js/noting.js).
+ */
+export function isNonSpeechOnly(text: string): boolean {
+    if (!text) return true;
+    const stripped = text
+        .replace(/\([^)]*\)/g, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/\*[^*]*\*/g, '');
+    return !/\p{L}/u.test(stripped);
+}
+
+/**
  * Helper: drain an STT iterator down to its final transcript, ignoring
  * partials. Returns null if the stream ends with an error or no final.
  */

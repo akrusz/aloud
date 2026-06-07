@@ -6,6 +6,7 @@ import {
     InMemoryKvStorage,
     SessionStore,
     collectFinal,
+    isNonSpeechOnly,
     getJson,
     setJson,
     type SttEvent,
@@ -59,6 +60,39 @@ describe('InMemorySttEngine', () => {
             script: [{ type: 'error', error: new Error('mic off') }],
         });
         expect(await collectFinal(stt)).toBe(null);
+    });
+});
+
+describe('isNonSpeechOnly', () => {
+    it('treats empty / whitespace as non-speech', () => {
+        expect(isNonSpeechOnly('')).toBe(true);
+        expect(isNonSpeechOnly('   ')).toBe(true);
+    });
+
+    it('drops utterances that are only Whisper non-speech markers', () => {
+        expect(isNonSpeechOnly('[BLANK_AUDIO]')).toBe(true);
+        expect(isNonSpeechOnly('[inaudible]')).toBe(true);
+        expect(isNonSpeechOnly('(coughing)')).toBe(true);
+        expect(isNonSpeechOnly('(wind blowing)')).toBe(true);
+        expect(isNonSpeechOnly('*sighs*')).toBe(true);
+        expect(isNonSpeechOnly('[cough] (sniff)')).toBe(true);
+    });
+
+    it('drops marker-plus-punctuation with no real words', () => {
+        expect(isNonSpeechOnly('[BLANK_AUDIO].')).toBe(true);
+        expect(isNonSpeechOnly('... (pause) ...')).toBe(true);
+    });
+
+    it('keeps real speech, including speech alongside a marker', () => {
+        expect(isNonSpeechOnly('I notice warmth')).toBe(false);
+        expect(isNonSpeechOnly('um [cough]')).toBe(false);
+        expect(isNonSpeechOnly('(laughs) yeah')).toBe(false);
+    });
+
+    it('leaves bare hallucinated words alone (matches original behavior)', () => {
+        // Whisper's classic silence hallucination — has letters, not filtered.
+        expect(isNonSpeechOnly('you')).toBe(false);
+        expect(isNonSpeechOnly('Thank you.')).toBe(false);
     });
 });
 
