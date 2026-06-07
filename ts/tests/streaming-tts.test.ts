@@ -148,6 +148,20 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(tts.spoken).toEqual([]);
     });
 
+    it('suppresses TTS on a [HOLD] reply via the non-streaming fallback', async () => {
+        const tts = new RecordingTts();
+        const result = await streamCompletionWithChunkedTts(
+            new FakeNonStreamingProvider("[HOLD] I'll be right here."),
+            tts,
+            [{ role: 'user', content: 'quiet please' }]
+        );
+        await result.ttsDone;
+        // Full text still returned so the caller can parse the signal…
+        expect(result.text).toBe("[HOLD] I'll be right here.");
+        // …but nothing is spoken — same as the streaming path.
+        expect(tts.spoken).toEqual([]);
+    });
+
     it('surfaces the usage split from the final stream chunk', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider(['Hello', ' there.']);

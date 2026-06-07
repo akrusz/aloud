@@ -73,9 +73,14 @@ export async function streamCompletionWithChunkedTts(
         // Non-streaming fallback — call complete(), then speak in one go.
         const result = await provider.complete(messages, completionOpts);
         if (onTextDelta) onTextDelta(result.text);
+        // Mirror the streaming path's [HOLD] handling: a reply that opens with
+        // [HOLD] is asking for silence, so speaking the acknowledgement aloud
+        // defeats the point — suppress TTS entirely. The caller still receives
+        // the full text and parses the signal to render the transcript.
+        const isHold = result.text.trimStart().toUpperCase().startsWith(HOLD_PREFIX);
         return {
             text: result.text,
-            ttsDone: tts.speak(result.text, ttsOptions),
+            ttsDone: isHold ? Promise.resolve() : tts.speak(result.text, ttsOptions),
             usage: usageFrom(result),
             finishReason: result.finishReason ?? null,
         };

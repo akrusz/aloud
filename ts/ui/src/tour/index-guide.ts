@@ -412,12 +412,28 @@ export async function autoStart(): Promise<void> {
     if (await sharedKv.get(GUIDE_DONE_KEY)) return;
     if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(GUIDE_REMIND_KEY)) return;
     // If the user has already started at least one session, they know the
-    // app — don't pop up the tour. (aloud-client-id is set on first
-    // session start in session.js.)
+    // app — don't pop up the tour. The marker is set by markSessionStarted()
+    // when a session view mounts (see session.ts / noting-session.ts).
     if (await sharedKv.get(CLIENT_ID_KEY)) return;
     setTimeout(function () {
         startGuide();
     }, 250);
+}
+
+/**
+ * Record that the user has started at least one session, so the setup-page
+ * tour won't pop up again on a later boot. Called on session mount.
+ *
+ * Set unconditionally — NOT gated on the "Save session logs" setting the way
+ * sessionStore is. The tour is only for genuinely new users; someone who has
+ * run a session knows their way around whether or not they keep transcripts
+ * (so the session history list isn't a reliable "new user" signal). Restores
+ * the aloud-client-id marker the Python app set on first session start, which
+ * autoStart() checked but the TS port never wrote.
+ */
+export async function markSessionStarted(): Promise<void> {
+    if (await sharedKv.get(CLIENT_ID_KEY)) return;
+    await sharedKv.set(CLIENT_ID_KEY, '1');
 }
 
 export function closeIfActive(): void {

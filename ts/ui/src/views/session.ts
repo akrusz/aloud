@@ -52,6 +52,7 @@ import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import { type SessionSetup, dirStepToBackend } from '../settings.js';
 import { loadAppSettings } from '../app-settings.js';
 import { sessionStore } from '../state.js';
+import { markSessionStarted } from '../tour/index-guide.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { getApiKey } from '../api-keys.js';
 import {
@@ -181,6 +182,9 @@ export async function mountSessionView(
     });
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession();
+    // Mark the user as no-longer-new so the setup-page tour stops auto-popping
+    // on later boots (fire-and-forget; gating it on this is cheap).
+    void markSessionStarted();
     // Tag every metered cloud call this session makes with one opaque grouping
     // id, so the server's cost report attributes them to one session exactly
     // (cloud-session.ts). Carries no content/PII; cleared at endSession().
@@ -238,7 +242,7 @@ export async function mountSessionView(
     const onBargeIn = () => {
         // Visual cue: drop the holding-orb if it was up. The listen loop will
         // pick up the user's next utterance naturally.
-        setOrbHolding(false);
+        setHolding(false);
     };
 
     // Re-probe each time the user starts a session: Flask may have come up
@@ -370,8 +374,14 @@ export async function mountSessionView(
     // with `orb-holding` layered on during silence mode. Richer states
     // (listening / thinking / speaking variants) are tracked in
     // meditation-pal-1au.
-    function setOrbHolding(holding: boolean): void {
+    // Reflect silence-hold state in the UI: the orb's holding glow AND the
+    // "Just Listen" button highlight. Drives both from one place so every
+    // entry/exit path — the manual button, an LLM [HOLD], and resuming by
+    // speaking — keeps them in sync (otherwise the button only lit up on a
+    // manual toggle, never on an auto [HOLD]).
+    function setHolding(holding: boolean): void {
         if (orbEl) orbEl.classList.toggle('orb-holding', holding);
+        listenBtn.classList.toggle('active', holding);
     }
 
     function setStatus(text: string): void {
@@ -616,7 +626,7 @@ export async function mountSessionView(
             pacing.onTranscription(userText);
             if (silenceMode) {
                 silenceMode = false;
-                setOrbHolding(false);
+                setHolding(false);
             }
             // On a resume from silence, the buffered utterances are already
             // on screen as user bubbles — don't double-render them; just record
@@ -678,7 +688,7 @@ export async function mountSessionView(
                 silenceBuffer = [];
                 pacing.enterSilenceMode();
                 setStatus("Holding space, say when you're ready to continue");
-                setOrbHolding(true);
+                setHolding(true);
             } else {
                 setStatus(stt ? 'Listening…' : 'Mic unavailable');
             }
@@ -879,16 +889,14 @@ export async function mountSessionView(
     listenBtn.addEventListener('click', () => {
         if (silenceMode) {
             silenceMode = false;
-            listenBtn.classList.remove('active');
             pacing.exitSilenceMode();
-            setOrbHolding(false);
+            setHolding(false);
             setStatus(stt ? 'Listening…' : 'Ready');
         } else {
             silenceMode = true;
             silenceBuffer = [];
-            listenBtn.classList.add('active');
             pacing.enterSilenceMode();
-            setOrbHolding(true);
+            setHolding(true);
             setStatus("Holding space, say when you're ready to continue");
         }
     });

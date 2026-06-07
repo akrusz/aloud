@@ -396,6 +396,11 @@ export class CloudWhisperSttEngine implements SttEngine {
             // speculative pass re-transcribes the growing buffer.
             let lastSpecChunkCount = 0;
             let specInFlight = false;
+            // Did we already show the user a real (non-empty) speculative
+            // transcript? If so we must finalize the turn even if it's short —
+            // otherwise the preview bubble appears and then vanishes with the
+            // turn silently dropped (a deliberate one-word "alright" hits this).
+            let emittedPartial = false;
             while (!this.utteranceDone && !this.stopRequested) {
                 await new Promise<void>((r) => setTimeout(r, 200));
                 if (this.utteranceDone || this.stopRequested) break;
@@ -413,6 +418,7 @@ export class CloudWhisperSttEngine implements SttEngine {
                     // Drop the preview if the turn ended while it was in flight
                     // (the final pass will emit the authoritative text).
                     if (!this.utteranceDone && result.ok && result.text) {
+                        emittedPartial = true;
                         yield { type: 'partial', text: result.text };
                     }
                 }
@@ -424,8 +430,14 @@ export class CloudWhisperSttEngine implements SttEngine {
             if (!this.speechStarted) return;
 
             const speechDuration = this.lastSpeechMs - this.speechStartMs;
-            if (speechDuration < this.opts.minSpeechDurationMs) {
-                return; // sound too short — likely a cough / mic bump
+            // Too short to be speech — likely a cough or mic bump — so skip the
+            // (billable) final pass. But if we already showed a real preview,
+            // honor it and finalize anyway: the user saw their word land and a
+            // deliberate short utterance ("alright", "okay") is a real turn.
+            // Genuine noise that slipped through is still caught downstream by
+            // isNonSpeechOnly, which drops marker-only transcripts.
+            if (speechDuration < this.opts.minSpeechDurationMs && !emittedPartial) {
+                return;
             }
 
             const result = await transcribeChunks(this.chunks);

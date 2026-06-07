@@ -34,6 +34,7 @@ import {
     invalidateSttBackendCache,
 } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
+import { markSessionStarted } from '../tour/index-guide.js';
 import { initThemeToggle } from '../theme.js';
 import {
     mountEmberContainer,
@@ -66,6 +67,9 @@ export async function mountNotingSessionView(
     const appSettings = await loadAppSettings();
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession();
+    // Mark the user as no-longer-new so the setup-page tour stops auto-popping
+    // on later boots (fire-and-forget).
+    void markSessionStarted();
 
     let provider: LLMProvider;
     try {
