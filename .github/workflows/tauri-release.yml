@@ -106,7 +106,11 @@ jobs:
             staging/*.exe
 
   tauri-linux:
-    runs-on: ubuntu-22.04
+    # 24.04 (glibc 2.39) not 22.04 (2.35): the onnxruntime prebuilt pulled by
+    # `ort` (piper-rs) references C23 glibc symbols (__isoc23_*, glibc >=2.38),
+    # so it won't link on 22.04. Tradeoff: the AppImage's glibc floor is now
+    # ~2.39. (meditation-pal-9vh)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
