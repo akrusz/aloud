@@ -1,38 +1,12 @@
-*.pyc
-__pycache__/
-sessions/
 .DS_Store
+sessions/
 
-# Virtual environments
-.venv/
-venv/
-
-# PyInstaller
-build/
-dist/
-*.spec.bak
-
-# Generated
+# Generated icon set (scripts/generate-icon.sh)
 *.iconset
 
 # Hosted UI build output — published to Pages by deploy-web.yml as an
 # ephemeral artifact, no longer committed (avoids stale build drift).
 docs/app/
-
-# Update cache
-.update-cache.json
-
-# Window geometry (user-specific, saved in config dir but just in case)
-window_geometry.json
-
-# Nix
-result
-result-*
-.direnv/
-*.startlock
-
-# Stray pip/uv output
-=*
 
 # Recreational Claude scratchpad
 recess.md

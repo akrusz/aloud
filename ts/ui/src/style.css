@@ -1,18 +1,16 @@
-/* TS preview stylesheet.
+/* aloud UI stylesheet.
  *
- * The big move: we import the existing app's stylesheet directly so the
- * TS preview gets visual parity for free — same variables, same class
- * names, same animations, same responsive rules. Any tweak the user
- * makes in the existing app flows into the TS preview too.
+ * app-base.css is the core stylesheet — variables, class names, animations,
+ * responsive rules. It was vendored here (from the original app's static/css)
+ * when Python was removed (meditation-pal-sk8) and is now the single source
+ * of truth for the base styles.
  *
- * Everything below the @import is for TS-preview-specific concerns that
- * don't exist in the original app (the in-page history view, partial-
- * message styling for streaming Web Speech results, etc.). When a
- * concept lands in the TS app that also exists in the original, we
- * delete the override here so the existing rule takes over.
+ * Everything below the @import layers UI-specific concerns on top of the base
+ * (the in-page history view, partial-message styling for streaming Web Speech
+ * results, etc.).
  */
 
-@import url('../../../src/web/static/css/style.css');
+@import url('./app-base.css');
 
 /* ============================================
    TS-preview-only additions

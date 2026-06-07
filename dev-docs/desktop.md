@@ -126,27 +126,26 @@ Endpoint progress (replacing Flask `/api/*`, now served at `/app/v1/*`):
 
 ## Release (CI) — meditation-pal-9vh
 
-`.github/workflows/tauri-release.yml` builds the Tauri app for macOS / Windows /
-Linux on `release: created`, **alongside** the PyInstaller `build.yml` (we run
-both for one cycle to validate Tauri before cutting Python over —
-meditation-pal-sk8). Tauri artifacts carry a `-tauri` suffix so they don't
-collide with the PyInstaller uploads on the same release.
+`.github/workflows/tauri-release.yml` is **the** desktop release workflow — it
+builds the Tauri app for macOS / Windows / Linux on `release: created`. (It
+replaced the PyInstaller `build.yml` at the meditation-pal-9vh cutover, validated
+green on v1.0.4; Python was removed in meditation-pal-sk8.) Artifacts use the
+canonical names — no `-tauri` suffix.
 
 - **macOS**: signed + notarized via Tauri's bundler env (`APPLE_CERTIFICATE` =
   the existing `MACOS_CERTIFICATE` secret, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
-  `APPLE_PASSWORD`, `APPLE_TEAM_ID`). Produces `aloud-X.Y.Z-macOS-tauri.dmg`.
-- **Windows**: MSI + NSIS, unsigned (parity with the current Python build).
+  `APPLE_PASSWORD`, `APPLE_TEAM_ID`). Produces `aloud-X.Y.Z-macOS.dmg`.
+- **Windows**: MSI + NSIS, unsigned. Produces `aloud-X.Y.Z-Windows.msi` / `.exe`.
 - **Linux**: AppImage + .deb. Needs the WebKitGTK 4.1 / GTK / appindicator /
-  rsvg stack + CMake/build-essential (whisper-rs, espeak-rs).
+  rsvg stack + CMake/build-essential (whisper-rs, espeak-rs). Produces
+  `aloud-X.Y.Z-Linux.AppImage` / `.deb`.
 - The desktop UI build bakes `VITE_ALOUD_CLOUD_URL` (repo var `ALOUD_CLOUD_URL`)
   so the app reaches the hosted `/cloud/v1` service for accounts + credits;
   local providers work without it.
 
-`scripts/release.sh` now also bumps `tauri.conf.json` + `ts/package.json` in
-lockstep with `src/__init__.py`, and lints the TS/Rust stack (typecheck +
-`cargo check` + `cargo deny`) alongside ruff. **Cutover (sk8):** delete
-`build.yml`, drop the `-tauri` suffix, make `tauri.conf.json` the version source,
-and remove the ruff/PyInstaller bits from `release.sh`.
+`scripts/release.sh` reads the version from `tauri.conf.json` (the source of
+truth), bumps it + `ts/package.json` in lockstep, and lints the TS/Rust stack
+(typecheck + `cargo check` + `cargo deny`).
 
 > Untested end-to-end until a real release runs the workflow — validate the
 > three signed/notarized-where-applicable artifacts launch and their embedded

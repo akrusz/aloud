@@ -23,9 +23,8 @@ export default defineConfig({
     root: __dirname,
     base: HOSTED ? '/app/' : '/',
     server: {
-        // Allow Vite to read CSS / TS sources from outside ui/ — we
-        // import the existing app's CSS verbatim from src/web/static/.
-        // Repo root is two levels up (../..).
+        // Allow Vite to read TS sources from outside ui/ — the UI imports the
+        // shared engine from ts/src (@core). Repo root is two levels up (../..).
         fs: {
             allow: [resolve(__dirname, '../..')],
         },

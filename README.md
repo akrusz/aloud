@@ -70,40 +70,17 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 ## running from source
 
-```bash
-git clone https://github.com/akrusz/aloud.git
-cd aloud
-./scripts/start.sh          # bootstraps on first run, then launches
-```
-
-on first run, `start.sh` installs dependencies, creates a Python environment, and writes a default config. configure your LLM provider and other settings in the web UI. requires python 3.10+ and [uv](https://docs.astral.sh/uv/) (installed automatically if missing).
-
-there are also double-click launchers in `scripts/` (`Start-Mac.command`, `Start-Windows.bat`, `Start-Linux.desktop`).
-
-### one-line install
-
-```bash
-# macOS/Linux
-curl -fsSL https://raw.githubusercontent.com/akrusz/aloud/main/scripts/setup.sh | bash
-```
-```bash
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/akrusz/aloud/main/scripts/setup.ps1 | iex
-```
-
-### nix
-
-if you have nix with flakes enabled:
+aloud is a TypeScript + Rust app. you need [Node.js](https://nodejs.org) (18+) and, for the desktop shell, the [Rust toolchain](https://rustup.rs) plus the [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
 ```bash
 git clone https://github.com/akrusz/aloud.git
-cd aloud
-nix develop                             # browser-only (lighter): nix develop .#browser
-./scripts/start.sh                      # auto-bootstraps config and launches
+cd aloud/ts
+npm install
+npm run tauri:dev      # desktop app (Tauri shell + web UI)
 ```
 
-the flake provides portaudio, ffmpeg, python, uv, and GTK/WebKit2 (for pywebview) via the nix binary cache. python packages are installed via uv into a local venv on first entry.
+configure your LLM provider and other settings in the app. for the browser-only dev preview and the full developer reference (ports, tests, releasing), see [dev-docs/dev-cheatsheet.md](dev-docs/dev-cheatsheet.md).
 
 ## building
 
-release builds are automated via GitHub Actions — creating a release tagged `vX.X.X` triggers builds for all three platforms and attaches the artifacts. see [dev-docs/building.md](dev-docs/building.md) for manual build instructions.
+release builds are automated via GitHub Actions — creating a release tagged `vX.X.X` triggers builds for all three platforms and attaches the artifacts. see [dev-docs/desktop.md](dev-docs/desktop.md) for the Tauri build and signing flow.

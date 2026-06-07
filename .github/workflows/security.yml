@@ -1,5 +1,5 @@
 # Dependency security gate. Runs as a CI check (like the test job in ci.yml) —
-# NOT part of the release build (build.yml) or any build script. It answers
+# NOT part of the release build (tauri-release.yml) or any build script. It answers
 # "are our dependencies free of known advisories?" on every PR/push and weekly
 # (to catch advisories published against deps we already shipped).
 name: Security audit

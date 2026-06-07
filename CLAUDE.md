@@ -11,7 +11,7 @@ It ships three ways:
 - **Desktop app** — a Tauri (Rust) shell, distributed as DMG / MSI / AppImage.
 - **(Coming) mobile** — a Capacitor wrapper around the same web UI.
 
-The codebase is **mid-migration from Python/Flask to a TypeScript + Rust stack**. The TS/Rust stack under `ts/` is the active one; the Python app (`src/`, `tests/`) is legacy, still shipped via PyInstaller this cycle, and being deleted (meditation-pal-sk8). **Default to working in `ts/`** — don't grep `src/web` expecting the live code.
+The codebase is a **TypeScript + Rust stack** under `ts/`. (It was migrated from a Python/Flask app, removed in meditation-pal-sk8 — if old docs or commits reference `src/web` or `uv run python -m src.web`, that code is gone.) **All work happens in `ts/`.**
 
 ## Source of truth
 
@@ -27,7 +27,6 @@ Two stacks live side by side under `ts/`:
 | `ts/ui/` | TS — Vite, vanilla ES modules | The web UI (`ui/src/` → `ui/dist/`). No framework. |
 | `ts/server/` | TS — Hono | **aloud cloud**: Google/Apple/email auth, accounts, credit ledger, Stripe + x402 billing, metered LLM/STT/TTS forwarding. |
 | `ts/src-tauri/` | Rust — Tauri 2 | Desktop shell: an embedded `axum` backend (native Whisper/Piper/Ollama/claude-CLI) + the webview that loads `ui/`. |
-| `src/`, `tests/` | Python / Flask (legacy) | Original app; being removed (sk8). |
 
 **Two backend namespaces** (see `ui/src/app-base.ts` / `cloud-base.ts`):
 - **`/app/v1/*`** — the app's *own* backend (provider/voice/model catalogs, system-info; on desktop also STT/TTS/Ollama/claude-proxy/shell). Served by the **Rust shell** on desktop, by **Hono** on web.
@@ -49,7 +48,7 @@ cd ts/server && npm test       # hosted server vitest
 cargo check --manifest-path ts/src-tauri/Cargo.toml   # Rust shell
 ```
 
-CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + server tests). Legacy Python: `uv run python -m src.web`, `uv run pytest tests/`.
+CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + server tests).
 
 ## Key patterns (the core engine, now in `ts/src/`)
 
@@ -64,11 +63,10 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 - **aloud cloud**: `ts/server/.env` (copy `.env.example`) — provider keys, `ALOUD_SESSION_SECRET`, `GOOGLE_CLIENT_IDS` / `GOOGLE_DESKTOP_CLIENT_ID(+SECRET)`, Stripe keys, etc.
 - **UI build**: `VITE_ALOUD_CLOUD_URL` bakes the hosted origin into a static/desktop build (unset in dev; the Vite proxy handles it). Repo var `ALOUD_CLOUD_URL` feeds it in CI.
 - **BYOK keys** entered in the UI live in browser localStorage and are forwarded per-request (`x-provider-key` / `x-api-key`); never persisted server-side.
-- **Legacy Python**: `config/default.yaml` + `~/.config/aloud/config.yaml`.
 
 ## Workflow notes
 
-- **Working dir**: TS work runs from `ts/` via `npm`. Use `uv` (`uv run`, `uv pip`) for the legacy Python only — never `.venv/bin/python` directly.
+- **Working dir**: all work runs from `ts/` via `npm` (core/UI) plus `cargo` for the Rust shell.
 - **No git push access** — Claude Code is not configured to push. End sessions with `git commit` only; the user pushes.
 - **Pre-release check** — when asked, or before a release, work through `dev-docs/pre-release-checklist.md`: verify docs/copy still match the code and flag downstream consequences.
 - **Docs reference code by file + symbol, not line numbers** — line numbers rot; a `file.ts` path plus a function/constant name stays greppable.

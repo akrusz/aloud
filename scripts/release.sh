@@ -13,7 +13,7 @@
 
 set -e
 
-# Run from project root so relative paths (src/, tests/, README.md) resolve
+# Run from project root so relative paths (ts/, README.md) resolve
 # regardless of the caller's cwd.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -23,25 +23,9 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
     exit 1
 fi
 
-# Lint check
-if command -v ruff >/dev/null 2>&1; then
-    if ! ruff check src/ tests/; then
-        echo "Error: ruff found lint errors — fix them before releasing" >&2
-        exit 1
-    fi
-elif command -v uv >/dev/null 2>&1 && uv run ruff --version >/dev/null 2>&1; then
-    if ! uv run ruff check src/ tests/; then
-        echo "Error: ruff found lint errors — fix them before releasing" >&2
-        exit 1
-    fi
-else
-    echo "  Warning: ruff not found, skipping lint check. Proceeding anyway."
-fi
-
-# TS + Rust lint (the Tauri/web stack — meditation-pal-9vh). Both the Python and
-# Tauri build paths ship this cycle, so we lint both. At the Python cutover
-# (meditation-pal-sk8) the ruff block above goes away and these become the only
-# gate. Guarded so a missing toolchain warns rather than blocks.
+# TS + Rust lint (the Tauri/web stack). The only release gate now that Python is
+# gone (meditation-pal-sk8). Guarded so a missing toolchain warns rather than
+# blocks.
 if [ -f ts/package.json ]; then
     if command -v npm >/dev/null 2>&1; then
         if ! (cd ts && npm run --silent typecheck); then
@@ -70,8 +54,8 @@ if [ -f ts/package.json ]; then
     fi
 fi
 
-# Read current version from src/__init__.py
-CURRENT=$(python3 -c "import re; print(re.search(r'__version__\s*=\s*\"(.+?)\"', open('src/__init__.py').read()).group(1))")
+# Read current version from tauri.conf.json (the source of truth)
+CURRENT=$(grep -m1 '"version"' ts/src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([0-9][0-9.]*)".*/\1/')
 IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
 
 ARG="${1:-patch}"
@@ -180,13 +164,9 @@ else
     esac
 fi
 
-# Bump __version__ (Python build — source of truth this cycle)
-sed -i.bak "s/__version__ = \".*\"/__version__ = \"${VERSION}\"/" src/__init__.py
-rm -f src/__init__.py.bak
-
-# Keep the Tauri/web stack's version in lockstep so its release artifacts carry
-# the same version (meditation-pal-9vh). At the Python cutover (sk8), make
-# tauri.conf.json the source of truth and bump src/__init__.py here instead.
+# Bump the version across the TS/Rust stack. tauri.conf.json is the source of
+# truth (read above); ts/package.json is kept in lockstep so the release
+# artifacts carry the same version.
 if [ -f ts/src-tauri/tauri.conf.json ]; then
     sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/src-tauri/tauri.conf.json
     rm -f ts/src-tauri/tauri.conf.json.bak
@@ -203,7 +183,7 @@ sed -i.bak "s/aloud-[0-9][0-9.]*-/aloud-${VERSION}-/g" README.md
 sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
 rm -f README.md.bak
 
-git add src/__init__.py README.md
+git add README.md
 [ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
 [ -f ts/package.json ] && git add ts/package.json
 git diff --cached --quiet || git commit -m "v${VERSION}"

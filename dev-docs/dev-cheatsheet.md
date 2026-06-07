@@ -1,17 +1,15 @@
 # Development Cheatsheet
 
 Quick reference for the current structure and how to run, test, and release
-aloud. The codebase is mid-migration from Python/Flask to a TypeScript + Rust
-stack; both ship this cycle, so both are covered. See
-[ts-migration-status.md](ts-migration-status.md) for where the port stands.
+aloud — a TypeScript + Rust stack under `ts/` (migrated off the original
+Python/Flask app, removed in meditation-pal-sk8).
 
 ## Structure
 
-Two stacks live side by side:
+The stack lives under `ts/`:
 
 | Path | Stack | Role |
 |------|-------|------|
-| `src/`, `tests/` | **Python / Flask** (legacy) | The original app + dev-preview backend. Still ships via PyInstaller this cycle; being removed (meditation-pal-sk8). |
 | `ts/src/` | TS — `@aloud/core` | Shared engine: pacing, prompts, session, noting, LLM providers, platform adapters. |
 | `ts/ui/` | TS — Vite, vanilla ES modules | The web UI (`ui/src/`, builds to `ui/dist/`). No framework, no build step beyond Vite. |
 | `ts/server/` | TS — Hono | **aloud cloud**: Google auth, credit ledger, metered LLM/STT/TTS forwarding, billing. |
@@ -34,7 +32,7 @@ port) so `/app/v1` resolves locally; `/cloud/v1` points at the aloud cloud
 
 ## Running
 
-All `npm` commands run from `ts/`. Use `uv` for Python.
+All `npm` commands run from `ts/`.
 
 ### Desktop app (Tauri) — the primary dev target
 
@@ -43,7 +41,7 @@ cd ts && npm run tauri:dev
 ```
 
 Starts Vite (UI on **:4649**) + compiles and runs the Rust shell. The shell's
-embedded backend serves `/app/v1/*` on a loopback port — **no Flask needed**.
+embedded backend serves `/app/v1/*` on a loopback port.
 For hosted features (accounts/credits/hosted voices) also start the Hono
 server (below); without it, `/cloud/v1/*` calls fail with `ECONNREFUSED` and the
 UI degrades to "hosted unavailable" (expected, harmless).
@@ -55,13 +53,13 @@ cd ts && npm run ui:dev          # UI on :4649
 ```
 
 The Vite proxy (`ui/vite.config.ts`) forwards:
-- `/app/v1/*` → **Hono** on :8787 (the app-backend surface; no Flask, no
-  rewrite — Hono speaks `/app/v1` natively). meditation-pal-5d9.
+- `/app/v1/*` → **Hono** on :8787 (the app-backend surface; no rewrite — Hono
+  speaks `/app/v1` natively).
 - `/cloud/v1/*` → **Hono** on :8787 (same server; hosted accounts/credits/proxy).
 - `/ollama/*` → local Ollama daemon on :11434.
 
-So browser preview needs only the Hono server running (next section) — **no
-Flask**. Run `cd ts/server && npm run dev` and load :4649.
+So browser preview needs only the Hono server running (next section). Run
+`cd ts/server && npm run dev` and load :4649.
 
 **Local vs web mode (dev override).** The app runs in `local` mode (all
 providers: Ollama + every BYOK API) or `web` mode (the hosted demo: Ollama
@@ -96,26 +94,13 @@ Boots with in-memory stores + stubs in dev (no secrets required). Config comes
 from `ts/server/.env` — copy `ts/server/.env.example` and fill what you need.
 Deeper operational notes: [ts-server.md](ts-server.md).
 
-### Legacy Python / Flask
-
-```bash
-uv run python -m src.web                       # native window (pywebview), :4649
-uv run python -m src.web --browser             # system browser, no native window
-uv run python -m src.web --host 0.0.0.0 --port 8080
-uv run python -m src.web --debug               # verbose src.* logging
-```
-
 ### Ports at a glance
 
 | Port | Who |
 |------|-----|
-| 4649 | Vite UI — both `tauri:dev` and `ui:dev` (reuses the retired Flask port) |
+| 4649 | Vite UI — both `tauri:dev` and `ui:dev` |
 | 8787 | Hono server — both `/cloud/v1` and `/app/v1` (the `ui:dev` `/app` + `/cloud` proxy target) |
 | 11434 | Ollama daemon |
-
-(Legacy Flask, if you still run it, is also :4649 — but it's native-window only
-now and no longer a dev proxy target, so it won't collide with `ui:dev` unless
-you run both at once.)
 
 ## Tests & checks
 
@@ -132,10 +117,6 @@ cd ts/server && npx tsc --noEmit -p tsconfig.json
 cargo check --manifest-path ts/src-tauri/Cargo.toml
 cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips are #[ignore]
 (cd ts/src-tauri && cargo deny check)                   # supply-chain gate (CI enforces)
-
-# Legacy Python
-uv run pytest tests/ -v
-uv run pytest tests/test_pacing.py::TestStateTransitions::test_initial_state_is_idle -v
 ```
 
 ## Building & releasing
@@ -153,22 +134,19 @@ scripts/release.sh minor|major|1.2.3
 scripts/release.sh same               # re-release current version (moves tag)
 ```
 
-It bumps `src/__init__.py` **and** `ts/src-tauri/tauri.conf.json` +
+It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
 `ts/package.json` in lockstep, lints TS (`typecheck`) + Rust (`cargo check` +
-`cargo deny`) alongside ruff, and offers the pre-release doc check
+`cargo deny`), and offers the pre-release doc check
 ([pre-release-checklist.md](pre-release-checklist.md)). **Prerequisites:** clean
 tree, `gh` authenticated.
 
-**CI** runs two workflows on `release: created`, in parallel for one validation
-cycle:
-- `build.yml` — the legacy PyInstaller DMG/EXE/AppImage.
-- `tauri-release.yml` — the Tauri bundles (artifacts carry a `-tauri` suffix so
-  they don't collide). macOS signs + notarizes via the existing `APPLE_*` /
-  `MACOS_*` secrets; the desktop UI build bakes `VITE_ALOUD_CLOUD_URL` from the
-  repo var `ALOUD_CLOUD_URL`.
+**CI**: `tauri-release.yml` runs on `release: created` and builds the Tauri
+bundles for all three platforms. macOS signs + notarizes via the `APPLE_*` /
+`MACOS_*` secrets; the desktop UI build bakes `VITE_ALOUD_CLOUD_URL` from the
+repo var `ALOUD_CLOUD_URL`.
 
-Full build/signing detail: [building.md](building.md) (PyInstaller) and
-[desktop.md](desktop.md) (Tauri — endpoint list, prereqs, release + cutover).
+Full build/signing detail: [desktop.md](desktop.md) (Tauri — endpoint list,
+prereqs, release + cutover).
 
 ## Config & environment
 
@@ -182,36 +160,15 @@ Full build/signing detail: [building.md](building.md) (PyInstaller) and
   static/desktop build so `/app/v1` + `/cloud/v1` resolve off-origin (unset in
   dev; the Vite proxy handles it).
 - **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono — both `/app` and `/cloud`
-  proxy targets), `OLLAMA_URL`. (`ALOUD_BACKEND_URL`/Flask is gone since the
-  `/app` cutover, meditation-pal-5d9.)
+  proxy targets), `OLLAMA_URL`.
 - **BYOK keys** entered in the UI live in the browser's localStorage and are
   forwarded per-request (`x-provider-key` for model lists; `x-api-key` for the
   Anthropic proxy) — never persisted server-side.
-- **Legacy Python**: `~/.config/aloud/config.yaml` (created on first settings
-  save); defaults + all options in `config/default.yaml` (supports `${ENV_VAR}`).
-
-## Legacy Flask debug flags
-
-Still valid for `uv run python -m src.web` (the browser dev-preview backend):
-
-| Flag | What it does |
-|------|-------------|
-| `--fresh` | First-run settings UI; clears localStorage (voice prefs, embers, quality prompt) |
-| `--hide-premium` | Drops Premium/Enhanced voices from the voice list |
-| `--no-voices` | Voices endpoint returns `[]` — tests the empty-voices state |
-| `--reset-piper` | Hides Piper from the engine dropdown, quality modal, and hints |
-| `--no-providers` | All LLM providers report unavailable — tests zero-provider setup |
-| `--no-ollama` | Ollama appears not installed — tests the install flow |
-| `--debug` | DEBUG level for all `src.*` loggers |
-| `--browser` | System browser instead of the pywebview window |
-
-Combine freely, e.g. `uv run python -m src.web --browser --fresh --hide-premium`.
 
 ## Sessions
 
-Legacy Flask saves sessions as `<id>.json`/`.txt` under `session.save_directory`
-(default `sessions/`), viewable at `/history`. The TS UI stores session state in
-the browser (localStorage) via `ts/src/platform/storage.ts`.
+The UI stores session state in the browser (localStorage) via
+`ts/src/platform/storage.ts`.
 
 ## Dev gotchas
 
