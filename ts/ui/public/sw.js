@@ -1,10 +1,10 @@
 /* Service worker — offline shell for PWA install.
-   Lifted from src/web/templates/sw.js. In the Python build this file is
-   a Jinja template rendered at request time so the cache version stays
-   in lockstep with the app version (`{{ app_version|tojson }}`). In the
-   TS build it lives in /public/ and is served as-is, so the VERSION
-   constant below has to be bumped by hand on each release (or wired
-   into a vite build step later).
+   This file ships from /public/ and is served as-is (no build-time
+   templating), so the VERSION constant below — which keys the cache
+   names — must change on each release for the activate handler to roll
+   old caches over. scripts/release.sh bumps it in lockstep with
+   tauri.conf.json / package.json, so it tracks the app version
+   automatically; only edit it by hand for an out-of-band SW change.
 
    Served from the origin root at /sw.js (root scope required so it
    controls every page on the origin, not just /static/).
@@ -20,7 +20,7 @@
      never touched — straight to the network.
 */
 
-// TODO(post-port): wire this to ts/package.json so it doesn't drift.
+// Bumped by scripts/release.sh on each release (see header).
 const VERSION = "0.12.1";
 const SHELL_CACHE = 'aloud-shell-v' + VERSION;
 const RUNTIME_CACHE = 'aloud-runtime-v' + VERSION;

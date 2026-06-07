@@ -177,6 +177,14 @@ if [ -f ts/package.json ]; then
     sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
     rm -f ts/package.json.bak
 fi
+# Service worker cache version. sw.js ships from ui/public/ served as-is (no
+# build-time templating), so its VERSION — which keys the SHELL_CACHE /
+# RUNTIME_CACHE names and drives the activate-time cache cleanup — has to be
+# bumped here on each release, or the hosted PWA's caches never roll over.
+if [ -f ts/ui/public/sw.js ]; then
+    sed -i.bak "s/const VERSION = \"[0-9][0-9.]*\"/const VERSION = \"${VERSION}\"/" ts/ui/public/sw.js
+    rm -f ts/ui/public/sw.js.bak
+fi
 
 # Update README download links
 sed -i.bak "s/aloud-[0-9][0-9.]*-/aloud-${VERSION}-/g" README.md
@@ -186,6 +194,7 @@ rm -f README.md.bak
 git add README.md
 [ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
 [ -f ts/package.json ] && git add ts/package.json
+[ -f ts/ui/public/sw.js ] && git add ts/ui/public/sw.js
 git diff --cached --quiet || git commit -m "v${VERSION}"
 
 # Re-release: move existing tag to this commit
