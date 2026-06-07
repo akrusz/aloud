@@ -21,7 +21,7 @@
 */
 
 // Bumped by scripts/release.sh on each release (see header).
-const VERSION = "0.12.1";
+const VERSION = "1.0.5";
 const SHELL_CACHE = 'aloud-shell-v' + VERSION;
 const RUNTIME_CACHE = 'aloud-runtime-v' + VERSION;
 
