@@ -181,6 +181,12 @@ The UI stores session state in the browser (localStorage) via
   (injected base); `ui:dev` proxies it to the Hono server on :8787. So a UI
   fetch that works in the browser preview but not in `tauri:dev` (or vice-versa)
   usually means the wrong backend is the one running.
+- **No mic in a browser at :4649?** Whisper STT is **desktop-only** (the Rust
+  loopback backend; Hono has no whisper route), so the picker only offers
+  "Whisper (on this device)" under Tauri (`isTauri()` gate in `stt-picker.ts`).
+  In a browser, STT falls to **web-speech** (Chrome/Edge only) or **aloud cloud**
+  (needs the Hono server + sign-in). So a Chrome tab works out of the box;
+  Firefox needs the Hono server running + a signed-in cloud session.
 
 ## Landing site
 

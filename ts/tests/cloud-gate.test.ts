@@ -5,13 +5,25 @@
  * ('aloud') STT choice must still trip the gate. A regression here would let a
  * hosted STT session start unauthenticated and fail mid-utterance.
  *
- * sessionUsesCloud is pure (webMode passed in) so these assertions don't depend
- * on the runtime environment.
+ * sessionUsesCloud takes webMode as a param, but it also resolves the STT
+ * choice (resolveSttChoice → sttEngineOptions), which gates the on-device
+ * Whisper option on isTauri(). We mock isTauri so the "on desktop" case is
+ * deterministic; the hosted-STT cases don't depend on it ('aloud' is always
+ * offered).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../ui/src/is-desktop.js')>();
+    return { ...actual, isTauri: vi.fn(() => false) };
+});
+
 import { sessionUsesCloud } from '../ui/src/cloud-gate.js';
+import { isTauri } from '../ui/src/is-desktop.js';
 import type { SessionSetup } from '../ui/src/settings.js';
 import type { AppSettings } from '../ui/src/app-settings.js';
+
+const isTauriMock = vi.mocked(isTauri);
 
 // Only .provider / .sttEngine are read; cast minimal fixtures.
 const setupWith = (provider: string): SessionSetup =>
@@ -33,8 +45,9 @@ describe('sessionUsesCloud', () => {
     });
 
     it('is false for a local LLM + local Whisper STT on desktop (no cloud touched)', () => {
-        // Desktop (webMode=false) offers local 'whisper', so it resolves to
-        // itself — no token needed.
+        // Desktop (Tauri, webMode=false) offers local 'whisper', so it resolves
+        // to itself — no token needed.
+        isTauriMock.mockReturnValue(true);
         expect(sessionUsesCloud(setupWith('ollama'), settingsWith('whisper'), false)).toBe(false);
     });
 });

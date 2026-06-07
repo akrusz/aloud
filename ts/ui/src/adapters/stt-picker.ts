@@ -217,7 +217,13 @@ export const CLOUD_STT_CREDITS_PER_HOUR = 1;
  */
 export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
-    if (!webMode) out.push({ value: 'whisper', label: 'Whisper (on this device)' });
+    // "Whisper (on this device)" only exists where there's an on-device backend:
+    // the desktop (Tauri) Rust shell. A browser has no local Whisper — the
+    // /app whisper route is desktop-only (Hono doesn't serve it), and the
+    // desktop's loopback backend isn't reachable from a separate browser — so
+    // offering it there gives a dead mic. Browsers fall through to web-speech
+    // (Chrome) / aloud cloud, which actually work.
+    if (!webMode && isTauri()) out.push({ value: 'whisper', label: 'Whisper (on this device)' });
     if (isWebSpeechSupported()) out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
     return out;
