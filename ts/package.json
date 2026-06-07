@@ -28,6 +28,7 @@
         "web:dev": "(trap 'kill 0' SIGINT; npm run ui:dev & npm run dev -w server & wait)",
         "tauri": "tauri",
         "tauri:dev": "tauri dev",
+        "desktop:dev": "(trap 'kill 0' SIGINT; npm run dev -w server & npm run tauri:dev & wait)",
         "tauri:build": "tauri build",
         "cap:sync": "npm run ui:build && cap sync",
         "cap:ios": "npm run ui:build && cap sync ios && cap open ios",

@@ -37,14 +37,17 @@ All `npm` commands run from `ts/`.
 ### Desktop app (Tauri) — the primary dev target
 
 ```bash
-cd ts && npm run tauri:dev
+cd ts && npm run tauri:dev       # desktop shell only
+cd ts && npm run desktop:dev     # desktop shell + Hono server (:8787) together
 ```
 
-Starts Vite (UI on **:4649**) + compiles and runs the Rust shell. The shell's
-embedded backend serves `/app/v1/*` on a loopback port.
-For hosted features (accounts/credits/hosted voices) also start the Hono
-server (below); without it, `/cloud/v1/*` calls fail with `ECONNREFUSED` and the
-UI degrades to "hosted unavailable" (expected, harmless).
+`tauri:dev` starts Vite (UI on **:4649**) + compiles and runs the Rust shell. The
+shell's embedded backend serves `/app/v1/*` on a loopback port.
+For hosted features (accounts/credits/hosted voices) the Hono server must also be
+running; without it, `/cloud/v1/*` calls fail with `ECONNREFUSED` and the UI
+degrades to "hosted unavailable" (expected, harmless). `desktop:dev` is the
+Tauri analog of `web:dev`: it runs the shell + Hono in one terminal (Ctrl-C stops
+both) so hosted features resolve.
 
 ### Web UI in a browser (Vite)
 
