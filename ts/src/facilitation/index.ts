@@ -22,6 +22,7 @@ export {
 } from './session.js';
 
 export { generateSessionSummary } from './summary.js';
+export { classifyResumeIntent } from './resume-intent.js';
 
 export {
     generateNotingLabel,

@@ -14,6 +14,7 @@ import {
     TurnDecision,
     parseHoldSignal,
     generateSessionSummary,
+    classifyResumeIntent,
     defaultPacingConfig,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
@@ -525,6 +526,11 @@ export async function mountSessionView(
     let listenLoopRunning = false;
     let torn = false;
     let silenceMode = false;
+    // Utterances spoken during a silence hold, accumulated until the meditator
+    // signals (via the resume-intent classifier) that they want to continue —
+    // then the whole buffer becomes the resume turn's context. Cleared on each
+    // entry into hold. (Ports the Python state.silenceBuffer flow.)
+    let silenceBuffer: string[] = [];
     // True while the voice-picker modal is open: pause listening so the
     // mic doesn't transcribe a voice preview's own audio and "respond" to it.
     let voiceModalOpen = false;
@@ -551,7 +557,43 @@ export async function mountSessionView(
         if (getKnownBalance() == null) void fetchMe();
     }
 
-    async function respondTo(userText: string): Promise<void> {
+    // Handle an utterance spoken while the facilitator is holding silence.
+    // The meditator can think out loud without the facilitator jumping in on
+    // every word: each utterance is shown and buffered, and a lightweight LLM
+    // classification (no history) judges whether it means "I'm ready to
+    // continue." Only on a yes do we exit the hold and submit the whole buffer
+    // as the resume turn. On a no we stay in the hold and keep listening.
+    // (Ports the Python state.silenceBuffer + classify_resume_intent flow;
+    // meditation-pal-k1yc.) Check-ins are suppressed during a hold (pacing
+    // returns Hold), and the listen loop awaits this, so there's no race with
+    // respondTo / the check-in timer.
+    async function handleSilenceUtterance(userText: string): Promise<void> {
+        if (isNonSpeechOnly(userText)) return;
+        appendMessage('user', userText);
+        silenceBuffer.push(userText);
+        setStatus('Holding space, one moment…');
+        const resume = await classifyResumeIntent(provider, userText, {
+            onUsage: (u) => session.recordLlmUsage(u),
+        });
+        // The user may have toggled out of the hold (or the view may have torn
+        // down) during the classifier round-trip — bail if we're no longer
+        // holding so we don't resurrect a finished hold.
+        if (torn || !silenceMode) return;
+        if (!resume) {
+            setStatus("Holding space, say when you're ready to continue");
+            return;
+        }
+        const joined = silenceBuffer.join(' ');
+        silenceBuffer = [];
+        // Bubbles for each buffered utterance are already on screen; respondTo
+        // records the joined text in history and runs the resume turn.
+        await respondTo(joined, { skipUserBubble: true });
+    }
+
+    async function respondTo(
+        userText: string,
+        opts: { skipUserBubble?: boolean } = {}
+    ): Promise<void> {
         if (busy) return;
         // Drop transcriptions that are only non-speech markers (e.g. "[cough]",
         // "[BLANK_AUDIO]", "(wind blowing)", "*sighs*") or otherwise carry no
@@ -576,7 +618,10 @@ export async function mountSessionView(
                 silenceMode = false;
                 setOrbHolding(false);
             }
-            appendMessage('user', userText);
+            // On a resume from silence, the buffered utterances are already
+            // on screen as user bubbles — don't double-render them; just record
+            // the joined text in session history for the LLM turn.
+            if (!opts.skipUserBubble) appendMessage('user', userText);
             session.addUserMessage(userText);
             // Show the "…" bubble the instant we submit, before any network
             // round-trips, so the user sees their turn was received.
@@ -630,8 +675,9 @@ export async function mountSessionView(
                 !ephemeral && !wasSilent && signal === 'hold' && pacingConfig.silenceModeEnabled;
             if (enterHold) {
                 silenceMode = true;
+                silenceBuffer = [];
                 pacing.enterSilenceMode();
-                setStatus('Holding space, anything you say resumes');
+                setStatus("Holding space, say when you're ready to continue");
                 setOrbHolding(true);
             } else {
                 setStatus(stt ? 'Listening…' : 'Mic unavailable');
@@ -727,7 +773,13 @@ export async function mountSessionView(
 
                 if (finalText.trim()) {
                     lastMicErrorToast = null;
-                    await respondTo(finalText.trim());
+                    // During a silence hold, utterances are buffered + judged
+                    // for resume intent rather than each taking a turn.
+                    if (silenceMode) {
+                        await handleSilenceUtterance(finalText.trim());
+                    } else {
+                        await respondTo(finalText.trim());
+                    }
                 } else if (micError) {
                     setStatus(micError);
                     if (micError !== lastMicErrorToast) {
@@ -793,7 +845,13 @@ export async function mountSessionView(
             setMicButtonState();
             // Clear the 'Muted' status — the listen loop resumes but doesn't
             // re-announce, so without this the status line stays "Muted".
-            setStatus(silenceMode ? 'Holding space, anything you say resumes' : stt ? 'Listening…' : 'Ready');
+            setStatus(
+                silenceMode
+                    ? "Holding space, say when you're ready to continue"
+                    : stt
+                      ? 'Listening…'
+                      : 'Ready'
+            );
             startMeter();
             void listenLoop();
         } else {
@@ -827,10 +885,11 @@ export async function mountSessionView(
             setStatus(stt ? 'Listening…' : 'Ready');
         } else {
             silenceMode = true;
+            silenceBuffer = [];
             listenBtn.classList.add('active');
             pacing.enterSilenceMode();
             setOrbHolding(true);
-            setStatus('Holding space, anything you say resumes');
+            setStatus("Holding space, say when you're ready to continue");
         }
     });
 
