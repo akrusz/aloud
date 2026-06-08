@@ -801,14 +801,20 @@
     padding: 0.75rem 1.25rem 1rem;
     margin-top: 1.5rem;
 }
-/* "Show advanced settings" toggle (BYOK opt-in) — sits inline on the
-   provider/model row after the model dropdown instead of a titled section, to
-   save space. Its row-mates carry labels above their controls, so align-self
-   pins the button to the controls' baseline; flex 0 0 auto keeps it compact
-   rather than claiming a third of the row. */
-.provider-row > .settings-advanced-toggle {
-    align-self: flex-end;
+/* "Show advanced settings" toggle (BYOK opt-in, web build only) sits in its own
+   compact column on the provider/model row, lined up with the two dropdowns
+   instead of a titled section. The .form-label-spacer above it matches the
+   dropdowns' label line, so the button aligns to the select tops; matching the
+   select padding gives it the same height. The column is top-packed, so the
+   model column's caption below can't drag it down, and flex 0 0 auto keeps it
+   the width of its text rather than claiming a third of the row. */
+.provider-row > .provider-advanced-col {
     flex: 0 0 auto;
+    min-width: 0;
+}
+.settings-advanced-toggle {
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
     white-space: nowrap;
 }
 /* The revealed BYOK body, neutral (at-your-own-risk, not destructive). */

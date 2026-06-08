@@ -1385,11 +1385,17 @@ function renderProviderSection(s: AppSettings): string {
             </div>
             ${
                 // Web build only: the BYOK opt-in lives behind this inline
-                // toggle instead of its own titled section, sitting after the
-                // model dropdown to save vertical space. meditation-pal-8jc.
+                // toggle instead of its own titled section, to save space. Its
+                // own column with a label-height spacer lines the button up with
+                // the dropdown controls (top-packed, so the model column's
+                // caption below can't drag it down); matching the select padding
+                // gives it the same height. meditation-pal-8jc.
                 isWebMode()
-                    ? `<button type="button" class="btn btn-small btn-secondary settings-advanced-toggle" id="advanced-toggle"
-                aria-expanded="false" aria-controls="advanced-body">Show advanced settings</button>`
+                    ? `<div class="form-group provider-advanced-col">
+                <label class="form-label-spacer" aria-hidden="true">&nbsp;</label>
+                <button type="button" class="btn btn-secondary settings-advanced-toggle" id="advanced-toggle"
+                    aria-expanded="false" aria-controls="advanced-body">Show advanced settings</button>
+            </div>`
                     : ''
             }
         </div>
@@ -1418,7 +1424,7 @@ function renderAdvancedBody(s: AppSettings): string {
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
-                    <span>Use my own API keys</span>
+                    <span>Enable providers that require API keys</span>
                 </label>
                 <span class="form-hint">Enables you to enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Your keys are stored only on this device and never saved on our servers, but your key passes through our system in transit. Enable only if you're comfortable with that. Downloadable versions of aloud don't pipe your keys through our servers.</span>
             </div>
