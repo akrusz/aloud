@@ -1520,6 +1520,12 @@ function describeSttError(err: unknown): string {
     if (/permission/i.test(msg) || /denied/i.test(msg) || /NotAllowed/.test(msg)) {
         return 'Mic permission denied. Allow microphone access and try again.';
     }
+    // Web Speech's `network` error means its cloud recognizer was unreachable.
+    // Most often that's a Chromium build (Brave, others) where Google blocks the
+    // speech endpoint, so it can never succeed - point at the paths that work.
+    if (msg === 'network') {
+        return 'Browser speech recognition is blocked in this browser. Switch speech recognition to aloud cloud in Settings, or use Chrome.';
+    }
     return `Mic error: ${msg}`;
 }
 

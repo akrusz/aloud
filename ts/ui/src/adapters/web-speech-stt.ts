@@ -2,8 +2,11 @@
  * Web Speech API adapter for the SttEngine interface.
  *
  * Coverage:
- *   - Desktop Chrome, Edge, Brave: ✓ (uses Google's cloud recognizer)
+ *   - Desktop Chrome, Edge:         ✓ (uses Google's cloud recognizer)
  *   - Android Chrome:               ✓
+ *   - Brave (any platform):         ✗ (ships the API but Google blocks the
+ *                                       speech endpoint for non-Chrome Chromium,
+ *                                       so it only ever errors `network`)
  *   - Desktop Safari (Sequoia+):    partial — requires on-device dictation
  *   - iOS Safari, iOS Capacitor:    ✗ (Apple doesn't expose SpeechRecognition;
  *                                       use a Capacitor speech plugin instead)
@@ -61,7 +64,19 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
     return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/**
+ * Brave injects `navigator.brave` as its own marker. We treat it as a hard
+ * "no Web Speech" signal: Brave exposes `webkitSpeechRecognition` but Google
+ * disabled the speech endpoint for non-Chrome Chromium, so recognition always
+ * fails with a `network` error. Reporting it unsupported steers the STT picker
+ * to aloud cloud instead of defaulting to a mic that can't work.
+ */
+function isBrave(): boolean {
+    return typeof navigator !== 'undefined' && 'brave' in navigator;
+}
+
 export function isWebSpeechSupported(): boolean {
+    if (isBrave()) return false;
     return getSpeechRecognitionCtor() !== null;
 }
 
