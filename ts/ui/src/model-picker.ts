@@ -211,7 +211,7 @@ export function mountModelPicker(
     async function renderUnavailable(provider: string): Promise<void> {
         const reason =
             providerNeedsKey(provider) && !(await hasApiKey(provider as Provider))
-                ? `Add a ${provider} API key to load its models.`
+                ? `Add an API key to load models.`
                 : `Couldn't load ${provider} models. Check the key or your connection.`;
         container.innerHTML = `<p class="model-unavailable" id="model-none">${escape(reason)}</p>`;
     }
