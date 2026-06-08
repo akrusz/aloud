@@ -1147,7 +1147,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const advBody = root.querySelector<HTMLElement>('#advanced-body');
         toggle?.addEventListener('click', () => {
             const shown = advBody?.classList.toggle('hidden') === false;
-            toggle.textContent = shown ? 'Hide' : 'Show';
+            toggle.textContent = shown ? 'Hide advanced settings' : 'Show advanced settings';
             toggle.setAttribute('aria-expanded', String(shown));
         });
     }
@@ -1298,13 +1298,6 @@ function renderHTML(s: AppSettings): string {
 
         <form id="settings-form" class="setup-form">
             ${renderProviderSection(s)}
-            ${
-                // BYOK lives in a collapsed, web-only "Advanced" section: keys are
-                // device-scoped (stored here, not on an account), and using your
-                // own is an at-your-own-risk footgun. Local builds always show
-                // keys, so the opt-in is pointless there. meditation-pal-8jc.
-                isWebMode() ? renderAdvancedSection(s) : ''
-            }
             ${renderLanguageSection(s)}
             ${renderTtsSection(s)}
             ${renderDisplaySection(s)}
@@ -1381,7 +1374,7 @@ function renderProviderSection(s: AppSettings): string {
         </div>
         <p class="settings-desc">Choose how aloud connects to a language model.</p>
 
-        <div class="form-row">
+        <div class="form-row provider-row">
             <div class="form-group form-group-half">
                 <label for="s-provider">Default Provider</label>
                 <select id="s-provider" name="provider">${providerOptions}</select>
@@ -1390,7 +1383,18 @@ function renderProviderSection(s: AppSettings): string {
                 <label>Default Model</label>
                 <div id="s-model-slot"></div>
             </div>
+            ${
+                // Web build only: the BYOK opt-in lives behind this inline
+                // toggle instead of its own titled section, sitting after the
+                // model dropdown to save vertical space. meditation-pal-8jc.
+                isWebMode()
+                    ? `<button type="button" class="btn btn-small btn-secondary settings-advanced-toggle" id="advanced-toggle"
+                aria-expanded="false" aria-controls="advanced-body">Show advanced settings</button>`
+                    : ''
+            }
         </div>
+
+        ${isWebMode() ? renderAdvancedBody(s) : ''}
 
         ${keyRows}
 
@@ -1403,28 +1407,22 @@ function renderProviderSection(s: AppSettings): string {
     </section>`;
 }
 
-// Collapsed "Advanced" section (web build only) — the BYOK opt-in. Device-scoped
-// keys + a footgun, so it's tucked behind a "Show" toggle, kept out of the
-// everyday provider picker. The toggle itself is wired in wireProviderSection
-// (by id; flipping it rebuilds the provider menu live). meditation-pal-8jc.
-function renderAdvancedSection(s: AppSettings): string {
+// Collapsed BYOK opt-in body (web build only) — revealed by the inline "Show
+// advanced settings" toggle on the provider/model row, rather than its own
+// titled section, to save space. Device-scoped keys + a footgun, so it stays
+// tucked away by default. The checkbox is wired in wireProviderSection (by id;
+// flipping it rebuilds the provider menu live). meditation-pal-8jc.
+function renderAdvancedBody(s: AppSettings): string {
     return `
-    <section class="settings-section settings-advanced" id="advanced-section">
-        <div class="settings-advanced-head">
-            <h2>Advanced</h2>
-            <button type="button" class="btn btn-small btn-secondary" id="advanced-toggle"
-                aria-expanded="false" aria-controls="advanced-body">Show</button>
-        </div>
         <div class="settings-advanced-body hidden" id="advanced-body">
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
                     <span>Use my own API keys</span>
                 </label>
-                <span class="form-hint">aloud's hosted models need no key. Turn this on to use your own provider keys instead. They're picked above and entered in the provider list. Your keys are stored only on this device, never saved on our servers, but requests are relayed through aloud to reach the provider, so a key passes through our system in transit. Enable only if you're comfortable with that.</span>
+                <span class="form-hint">Enables you to enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Your keys are stored only on this device and never saved on our servers, but your key passes through our system in transit. Enable only if you're comfortable with that. Downloadable versions of aloud don't pipe your keys through our servers.</span>
             </div>
-        </div>
-    </section>`;
+        </div>`;
 }
 
 function renderLanguageSection(s: AppSettings): string {

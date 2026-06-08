@@ -801,17 +801,17 @@
     padding: 0.75rem 1.25rem 1rem;
     margin-top: 1.5rem;
 }
-/* Collapsed "Advanced" section (BYOK) — same show/hide affordance as the danger
-   zone but neutral (it's at-your-own-risk, not destructive). */
-.settings-advanced-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+/* "Show advanced settings" toggle (BYOK opt-in) — sits inline on the
+   provider/model row after the model dropdown instead of a titled section, to
+   save space. Its row-mates carry labels above their controls, so align-self
+   pins the button to the controls' baseline; flex 0 0 auto keeps it compact
+   rather than claiming a third of the row. */
+.provider-row > .settings-advanced-toggle {
+    align-self: flex-end;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
-.settings-advanced-head h2 {
-    margin: 0;
-}
+/* The revealed BYOK body, neutral (at-your-own-risk, not destructive). */
 .settings-advanced-body:not(.hidden) {
     margin-top: 1rem;
 }
