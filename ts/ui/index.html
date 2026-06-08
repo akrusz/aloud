@@ -10,8 +10,12 @@
         />
 
         <!-- Favicon. %BASE_URL% is replaced by Vite with the deploy base ('/'
-             in dev/desktop, '/app/' on the hosted build), so the icon resolves
-             under either base; the file ships from ui/public/aloud.png. -->
+             in dev/desktop, '/app/' on the hosted build), so the icons resolve
+             under either base; the files ship from ui/public/. The .ico is
+             declared first and matters for Safari: it largely ignores a lone
+             512px `rel=icon` PNG and falls back to /favicon.ico, so without the
+             .ico the tab icon is blank there (Firefox/Chrome use the PNG fine). -->
+        <link rel="icon" href="%BASE_URL%favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="%BASE_URL%aloud.png" />
         <link rel="apple-touch-icon" href="%BASE_URL%aloud.png" />
 
