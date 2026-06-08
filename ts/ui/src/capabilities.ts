@@ -120,12 +120,18 @@ export async function detectCapabilities(): Promise<Capabilities> {
         // First detect: retry the cloud probe to ride out cold-start/restart.
         // /cloud/v1/* is aloud cloud (proxied in dev; absolute in prod); its
         // public /config route proves reachability and carries the Google client
-        // id (→ runtime sign-in, build-agnostic). Ollama is the dev proxy
-        // (/ollama → :11434), which 404s on the website.
+        // id (→ runtime sign-in, build-agnostic).
+        //
+        // The ollama axis rides the Vite dev proxy (/ollama → :11434), the ONLY
+        // place that raw path resolves. A production build — hosted web, desktop,
+        // self-host — has no such route, so the probe could only 404 (the
+        // console noise users were seeing on aloud.rest); skip it there and
+        // report unreachable. Desktop Ollama availability comes from
+        // /app/v1/providers (see provider-markers.ts), not this axis.
         const [flask, cloud, ollama] = await Promise.all([
-            detectIsDesktop(), // GET /api/system-info
+            detectIsDesktop(), // GET /app/v1/system-info
             probeCloudWithRetry(),
-            reachable('/ollama/api/tags'),
+            import.meta.env.DEV ? reachable('/ollama/api/tags') : Promise.resolve(false),
         ]);
         setRuntimeGoogleClientId(cloud.googleClientId);
         setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
