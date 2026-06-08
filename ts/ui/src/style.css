@@ -817,6 +817,16 @@
     font-size: 0.95rem;
     white-space: nowrap;
 }
+/* The "Add an API key to load models" stand-in that replaces the model <select>
+   when no list can be fetched. A bare <p> sits at the top of the slot, reading
+   higher than the provider dropdown beside it — match the select's height and
+   center the text so the two line up. */
+.model-unavailable {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+}
 /* The revealed BYOK body, neutral (at-your-own-risk, not destructive). */
 .settings-advanced-body:not(.hidden) {
     margin-top: 1rem;
