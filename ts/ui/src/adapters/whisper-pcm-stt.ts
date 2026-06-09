@@ -99,10 +99,14 @@ type VadFields = Pick<
 export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Endpoint URL. Default '/app/v1/stt/whisper' — Vite proxies in dev. */
     endpointUrl?: string;
-    /** Hard cap on a single utterance — auto-submit after this. Default 60s:
-     *  long enough for a meditative ramble (the cap cuts mid-sentence with no
-     *  regard for incompleteness, so it should be a backstop, not a boundary
-     *  users actually hit). */
+    /** Hard cap on a single utterance — auto-submit after this. Default 120s.
+     *  This is the runaway valve (background speech can hold the VAD open
+     *  forever), NOT a conversational boundary: it cuts mid-sentence with no
+     *  incompleteness regard, and the post-cut hole grows with buffer length
+     *  (only the 2s pre-buffer survives the final transcription's latency) —
+     *  so it must sit well past any real ramble, which the adaptive silence
+     *  window (a turn only gets here with no ~5s gap at all) already makes
+     *  rare. Raising it further mostly costs final-pass latency at submit. */
     maxUtteranceMs?: number;
     /** Custom fetch (tests). */
     fetchImpl?: typeof fetch;
@@ -183,7 +187,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // adopt the PacingConfig default but allow caller override.
             minSpeechDurationMs:
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
-            maxUtteranceMs: options.maxUtteranceMs ?? 60_000,
+            maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
         };
