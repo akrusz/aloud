@@ -24,5 +24,6 @@ export {
 
 export {
     SessionStore,
+    type SessionStoreApi,
     type SessionStoreOptions,
 } from './session-store.js';

@@ -49,6 +49,11 @@ pub struct AppState {
     piper_dir: PathBuf,
     // LRU-of-1 cache of the last-loaded Piper model (see tts::PiperCache).
     piper: crate::tts::PiperCache,
+    // On-disk session logs — one JSON file per session, served by the
+    // /app/v1/sessions routes and revealed by /app/v1/open-sessions-folder. In
+    // a desktop build the TS UI persists here (BackendSessionStore) instead of
+    // webview localStorage, so saved sessions are durable, openable files.
+    sessions_dir: PathBuf,
     // Root app-data dir — surfaced by /app/v1/open-config-folder for "show me
     // where my data lives" buttons in the TS UI.
     data_dir: PathBuf,
@@ -77,6 +82,11 @@ fn router(state: Shared) -> Router {
         .route("/ollama/restart", post(ollama_restart))
         .route("/ollama/upgrade", post(ollama_upgrade))
         .route("/install/{tool}", post(install_tool))
+        .route("/sessions", get(sessions_list))
+        .route(
+            "/sessions/{id}",
+            get(sessions_get).put(sessions_put).delete(sessions_delete),
+        )
         .route("/open-config-folder", post(open_config_folder))
         .route("/open-sessions-folder", post(open_sessions_folder))
         .route("/open-voice-settings", post(open_voice_settings));
@@ -112,6 +122,7 @@ pub fn start(data_dir: PathBuf) -> u16 {
         model_dir: data_dir.join("models"),
         piper_dir: data_dir.join("piper-models"),
         piper: Mutex::new(None),
+        sessions_dir: data_dir.join("sessions"),
         data_dir,
     });
 
@@ -584,11 +595,99 @@ async fn open_config_folder(State(state): State<Shared>) -> (StatusCode, Json<Va
     open_dir_response(&state.data_dir)
 }
 
-/// `POST /app/v1/open-sessions-folder` — desktop sessions don't live on disk yet
-/// (the TS UI persists to webview storage), so this falls back to the same
-/// app-data dir as a "here's where your data lives" gesture.
+/// `POST /app/v1/open-sessions-folder` — reveal the on-disk session-logs dir
+/// (created on first save). In a desktop build the TS UI persists each session
+/// as a JSON file here, so this opens the folder the user actually wants.
 async fn open_sessions_folder(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
-    open_dir_response(&state.data_dir)
+    open_dir_response(&state.sessions_dir)
+}
+
+// --- /app/v1/sessions — on-disk session logs (desktop persistence) ------------
+
+/// Session ids are `YYYY-MM-DD-HHMMSS`, but the client is untrusted, so allow
+/// only a safe filename charset — this is what keeps `{id}` from escaping the
+/// sessions dir (`..`, `/`, NUL, etc. are all rejected).
+fn safe_session_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn session_path(state: &AppState, id: &str) -> Option<PathBuf> {
+    if safe_session_id(id) {
+        Some(state.sessions_dir.join(format!("{id}.json")))
+    } else {
+        None
+    }
+}
+
+/// `GET /app/v1/sessions` — list saved session ids (filenames sans `.json`).
+async fn sessions_list(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
+    let mut ids: Vec<String> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&state.sessions_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if let Some(stem) = name.to_string_lossy().strip_suffix(".json") {
+                ids.push(stem.to_string());
+            }
+        }
+    }
+    (StatusCode::OK, Json(json!({ "ids": ids })))
+}
+
+/// `GET /app/v1/sessions/{id}` — read one session's JSON (404 if absent).
+async fn sessions_get(
+    State(state): State<Shared>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    let Some(path) = session_path(&state, &id) else {
+        return (StatusCode::BAD_REQUEST, "bad session id").into_response();
+    };
+    match std::fs::read(&path) {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "application/json")], bytes).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// `PUT /app/v1/sessions/{id}` — write one session's JSON (body is the state).
+async fn sessions_put(
+    State(state): State<Shared>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    body: Bytes,
+) -> (StatusCode, Json<Value>) {
+    let Some(path) = session_path(&state, &id) else {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "bad session id" })));
+    };
+    let _ = std::fs::create_dir_all(&state.sessions_dir);
+    match std::fs::write(&path, &body) {
+        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("could not save session: {e}") })),
+        ),
+    }
+}
+
+/// `DELETE /app/v1/sessions/{id}` — remove one session's JSON (idempotent).
+async fn sessions_delete(
+    State(state): State<Shared>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> (StatusCode, Json<Value>) {
+    let Some(path) = session_path(&state, &id) else {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "bad session id" })));
+    };
+    match std::fs::remove_file(&path) {
+        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            (StatusCode::OK, Json(json!({ "status": "ok" })))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("could not delete session: {e}") })),
+        ),
+    }
 }
 
 fn open_dir_response(path: &Path) -> (StatusCode, Json<Value>) {

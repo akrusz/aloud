@@ -17,7 +17,19 @@ export interface SessionStoreOptions {
     prefix?: string;
 }
 
-export class SessionStore {
+/**
+ * The persistence surface the UI depends on. Implemented by SessionStore (over
+ * any KvStorage — localStorage on web) and by the UI's BackendSessionStore
+ * (HTTP to the desktop shell, which writes one JSON file per session to disk).
+ */
+export interface SessionStoreApi {
+    save(state: SessionState): Promise<void>;
+    load(sessionId: string): Promise<SessionState | null>;
+    delete(sessionId: string): Promise<void>;
+    list(): Promise<string[]>;
+}
+
+export class SessionStore implements SessionStoreApi {
     private readonly prefix: string;
 
     constructor(private readonly storage: KvStorage, options: SessionStoreOptions = {}) {
