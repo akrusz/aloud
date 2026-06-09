@@ -587,6 +587,11 @@ export async function mountSessionView(
     let listenLoopRunning = false;
     let torn = false;
     let silenceMode = false;
+    // Wall-clock of the last USER activity (a completed turn), for the
+    // auto-quit-after-silence timer. Facilitator check-ins deliberately don't
+    // reset it — otherwise check-ins would keep a forgotten session alive
+    // forever. Seeded at mount so a session opened and abandoned still quits.
+    let lastActivityAt = Date.now();
     // The current session recap, refreshed in the background on a throttle (see
     // refreshSummaryThrottled). Persisted into autosaves so an interrupted
     // session still has a history label AND a cheap-resume seed — not just the
@@ -805,6 +810,8 @@ export async function mountSessionView(
                 activeFullAbort = null;
                 activeTtsAbort = null;
             }
+            // A completed user turn is the activity signal for auto-quit.
+            lastActivityAt = Date.now();
             // Persist the turn (user message + whatever response or error)
             // every round, so an offline LLM call or a crash still leaves the
             // transcript recoverable. No-op unless logging is on.
@@ -1282,6 +1289,19 @@ export async function mountSessionView(
           }, CHECK_IN_POLL_MS)
         : null;
 
+    // Auto-quit-after-silence: poll the idle clock and, once a session has gone
+    // untouched past the configured window, save (if logging is on) and end it.
+    // An open session keeps listening + checking in, which slowly uses cloud
+    // credit, so a forgotten one shouldn't run indefinitely. The settings are
+    // read at fire time, so toggling them mid-session takes effect immediately.
+    const AUTO_QUIT_POLL_MS = 30_000;
+    const idleQuitTimer = setInterval(() => {
+        if (torn || busy) return;
+        if (!appSettings.autoQuitAfterSilence) return;
+        if (Date.now() - lastActivityAt < appSettings.autoQuitSilenceMin * 60_000) return;
+        void endSession(undefined, !appSettings.saveSessionLogs);
+    }, AUTO_QUIT_POLL_MS);
+
     /**
      * Speak a facilitator-initiated line (check-in, not response to user
      * input). Adds it to the transcript + session history + plays TTS.
@@ -1370,6 +1390,7 @@ export async function mountSessionView(
         activeFullAbort?.abort();
         unsubscribeBalance?.();
         if (checkInTimer) clearInterval(checkInTimer);
+        clearInterval(idleQuitTimer);
         clearInterval(timerInterval);
         pacing.endSession();
         const finalState = session.endSession();

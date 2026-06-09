@@ -1109,6 +1109,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 persist();
             });
         }
+        const autoQuit = root.querySelector<HTMLInputElement>('#s-auto-quit');
+        if (autoQuit) {
+            autoQuit.checked = settings.autoQuitAfterSilence;
+            autoQuit.addEventListener('change', () => {
+                settings.autoQuitAfterSilence = autoQuit.checked;
+                persist();
+            });
+        }
+        wireStepper('s-auto-quit-min', settings.autoQuitSilenceMin, (v) => {
+            settings.autoQuitSilenceMin = v;
+            persist();
+        });
     }
 
     function wireStepper(
@@ -1664,6 +1676,12 @@ function renderPacingSection(s: AppSettings): string {
 }
 
 function renderSessionLogsSection(s: AppSettings): string {
+    const stepper = (id: string, value: number, min: number, max: number, step: number) => `
+        <div class="stepper">
+            <button type="button" class="stepper-btn stepper-dec" data-target="${id}" aria-label="Decrease">−</button>
+            <input type="number" id="${id}" class="stepper-value" min="${min}" max="${max}" step="${step}" value="${value}">
+            <button type="button" class="stepper-btn stepper-inc" data-target="${id}" aria-label="Increase">+</button>
+        </div>`;
     return `
     <section class="settings-section">
         <h2>Session History</h2>
@@ -1672,14 +1690,22 @@ function renderSessionLogsSection(s: AppSettings): string {
                 <input type="checkbox" id="s-save-session-logs"${s.saveSessionLogs ? ' checked' : ''}>
                 <span>Save session logs (locally)</span>
             </label>
-            <span class="form-hint">Keep a local transcript of each session, autosaved every turn so a crash or going offline still leaves it recoverable. When off, nothing is saved unless you choose to save from the end-session dialog.</span>
+            <span class="form-hint">A local transcript of each session, autosaved every turn. When off, nothing's saved unless you save it from the end dialog.</span>
         </div>
         <div class="form-group">
             <label class="checkbox-label">
                 <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
                 <span>Resume from a recap (cheaper)</span>
             </label>
-            <span class="form-hint">When you continue a saved session, give the facilitator a short recap plus your last few exchanges instead of the whole transcript. You still see the full history; this just keeps a long session from costing a lot to reload. When off, the entire transcript is sent each time.</span>
+            <span class="form-hint">Continuing a session sends a short recap plus your recent exchanges, not the whole transcript, so a long one is cheap to reload. You still see the full history.</span>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="s-auto-quit"${s.autoQuitAfterSilence ? ' checked' : ''}>
+                <span>Auto-save and quit after silence (min)</span>
+            </label>
+            ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
+            <span class="form-hint">An open session keeps listening and checking in, which slowly uses cloud credit.</span>
         </div>
     </section>`;
 }

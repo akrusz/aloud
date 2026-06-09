@@ -51,6 +51,12 @@ export interface AppSettings {
      *  what's sent to the model, so a long session resumes for a few cents
      *  instead of re-priming the entire history cold. On by default. */
     resumeFromSummary: boolean;
+    /** Auto-save and end a session after this many minutes with no user
+     *  activity. An open session keeps listening and checking in, which slowly
+     *  uses cloud TTS/STT credit, so we close a forgotten one. On by default;
+     *  minutes are clamped 10-300. */
+    autoQuitAfterSilence: boolean;
+    autoQuitSilenceMin: number;
 
     // TTS preferences
     ttsEngine: TtsEngineChoice;
@@ -84,6 +90,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     showSessionBalance: false,
     saveSessionLogs: true,
     resumeFromSummary: true,
+    autoQuitAfterSilence: true,
+    autoQuitSilenceMin: 120,
     ttsEngine: 'browser',
     defaultVoice: null,
     defaultTtsRate: 160,
