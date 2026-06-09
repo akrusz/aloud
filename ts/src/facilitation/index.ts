@@ -22,6 +22,12 @@ export {
 } from './session.js';
 
 export { generateSessionSummary } from './summary.js';
+export {
+    buildResumeContext,
+    RESUME_COMPRESS_OVER,
+    RESUME_RECENT_KEEP,
+    type ResumeMessage,
+} from './resume.js';
 export { classifyResumeIntent } from './resume-intent.js';
 
 export {

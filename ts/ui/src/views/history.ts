@@ -11,7 +11,6 @@
 
 import type { SessionState, Exchange } from '../../../src/facilitation/index.js';
 import { sessionStore } from '../state.js';
-import { appUrl } from '../app-base.js';
 import { confirmDialog } from '../dialog.js';
 
 export interface HistoryViewHandle {
@@ -36,12 +35,8 @@ export async function mountHistoryView(
         root.innerHTML = renderShellHTML(sessions);
         wireEvents(sessions);
 
-        const folderBtn = root.querySelector<HTMLButtonElement>('#btn-open-sessions-folder');
-        folderBtn?.addEventListener('click', () => {
-            // Best-effort; only meaningful when a local backend (Flask in dev,
-            // the embedded Rust server in desktop) is present.
-            void fetch(appUrl('/open-sessions-folder'), { method: 'POST' }).catch(() => {});
-        });
+        const exportBtn = root.querySelector<HTMLButtonElement>('#btn-export-sessions');
+        exportBtn?.addEventListener('click', () => exportSessions(sessions));
     }
 
     function wireEvents(sessions: readonly SessionState[]): void {
@@ -147,16 +142,40 @@ export async function mountHistoryView(
     return { show: loadAndRender };
 }
 
+/** Download all saved sessions as a single JSON file. Sessions live in
+ *  localStorage (no folder to open), so this is how a user gets their data
+ *  off the device — for backup or to move it elsewhere. */
+function exportSessions(sessions: readonly SessionState[]): void {
+    try {
+        const blob = new Blob([JSON.stringify(sessions, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aloud-sessions-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.warn('Session export failed', err);
+    }
+}
+
 // ---- rendering ----
 
 function renderShellHTML(sessions: readonly SessionState[]): string {
-    // "Open sessions folder" is a local/desktop affordance — it POSTs to the
-    // Flask backend, which opens the folder on the machine running it. Harmless
-    // in local dev; a hosted web deploy should hide it (TODO when that lands).
+    // Sessions live in localStorage (no folder on any platform), so "export"
+    // downloads them as JSON rather than opening a directory. The old
+    // "Open sessions folder" button POSTed to the removed Flask backend and
+    // opened the wrong directory. Hidden when there's nothing to export.
     const header = `
         <div class="history-header">
             <h1>Past Sessions</h1>
-            <button class="btn-config-path" id="btn-open-sessions-folder" type="button">Open sessions folder</button>
+            ${
+                sessions.length > 0
+                    ? `<button class="btn-config-path" id="btn-export-sessions" type="button">Export sessions</button>`
+                    : ''
+            }
         </div>`;
 
     const body =

@@ -45,6 +45,12 @@ export interface AppSettings {
      *  end-session dialog still offers a one-tap save, but discarding is the
      *  obvious choice. */
     saveSessionLogs: boolean;
+    /** When continuing a saved session, seed the facilitator's context from the
+     *  stored recap + the last few exchanges instead of replaying the whole
+     *  transcript. The full transcript still shows in the UI; this only changes
+     *  what's sent to the model, so a long session resumes for a few cents
+     *  instead of re-priming the entire history cold. On by default. */
+    resumeFromSummary: boolean;
 
     // TTS preferences
     ttsEngine: TtsEngineChoice;
@@ -77,6 +83,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     themeMode: 'auto',
     showSessionBalance: false,
     saveSessionLogs: true,
+    resumeFromSummary: true,
     ttsEngine: 'browser',
     defaultVoice: null,
     defaultTtsRate: 160,

@@ -1101,6 +1101,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 persist();
             });
         }
+        const resumeSummary = root.querySelector<HTMLInputElement>('#s-resume-from-summary');
+        if (resumeSummary) {
+            resumeSummary.checked = settings.resumeFromSummary;
+            resumeSummary.addEventListener('change', () => {
+                settings.resumeFromSummary = resumeSummary.checked;
+                persist();
+            });
+        }
     }
 
     function wireStepper(
@@ -1665,6 +1673,13 @@ function renderSessionLogsSection(s: AppSettings): string {
                 <span>Save session logs (locally)</span>
             </label>
             <span class="form-hint">Keep a local transcript of each session, autosaved every turn so a crash or going offline still leaves it recoverable. When off, nothing is saved unless you choose to save from the end-session dialog.</span>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
+                <span>Resume from a recap (cheaper)</span>
+            </label>
+            <span class="form-hint">When you continue a saved session, give the facilitator a short recap plus your last few exchanges instead of the whole transcript. You still see the full history; this just keeps a long session from costing a lot to reload. When off, the entire transcript is sent each time.</span>
         </div>
     </section>`;
 }

@@ -14,6 +14,7 @@ import {
     TurnDecision,
     parseHoldSignal,
     generateSessionSummary,
+    buildResumeContext,
     classifyResumeIntent,
     defaultPacingConfig,
 } from '../../../src/facilitation/index.js';
@@ -163,6 +164,11 @@ export interface SessionViewHandle {
 
 export type SessionEndDestination = 'setup' | 'history' | 'settings' | 'account';
 
+/** Re-generate the background recap only after this many new exchanges land,
+ *  so a recap refresh (an LLM call, though a cheap warm-cache one) fires a few
+ *  times an hour, not every turn. See refreshSummaryThrottled. */
+const SUMMARY_MIN_NEW_EXCHANGES = 6;
+
 export async function mountSessionView(
     root: HTMLElement,
     setup: SessionSetup,
@@ -190,16 +196,20 @@ export async function mountSessionView(
     // (cloud-session.ts). Carries no content/PII; cleared at endSession().
     startCloudSession();
 
-    // If continuing from a previous session, hydrate the new session
-    // with the old exchanges so the LLM has context.
-    if (continueFrom && continueFrom.exchanges.length > 0) {
-        session.loadExchanges(continueFrom.exchanges);
-    }
-
     // Pacing config — read from persisted app settings so the values the
     // user tunes in the settings page actually affect the running
     // session. Falls back to defaults when nothing is persisted.
     const appSettings = await loadAppSettings();
+
+    // If continuing from a previous session, hydrate the new session with
+    // context. By default (resumeFromSummary) a long session is seeded from its
+    // stored recap + the last few exchanges instead of the whole transcript —
+    // the model gets continuity for a few cents instead of re-priming the
+    // entire history cold. The full transcript still renders in the UI below
+    // (that's free); this only controls what the model sees.
+    if (continueFrom && continueFrom.exchanges.length > 0) {
+        session.loadExchanges(buildResumeContext(continueFrom, appSettings.resumeFromSummary));
+    }
     const pacingConfig = {
         ...defaultPacingConfig,
         responseDelayMs: appSettings.responseDelayMs,
@@ -574,6 +584,14 @@ export async function mountSessionView(
     let listenLoopRunning = false;
     let torn = false;
     let silenceMode = false;
+    // The current session recap, refreshed in the background on a throttle (see
+    // refreshSummaryThrottled). Persisted into autosaves so an interrupted
+    // session still has a history label AND a cheap-resume seed — not just the
+    // clean-exit recap. Seeded from a resumed session's prior recap; autosave
+    // falls back to the intention when there's no recap yet.
+    let currentSummary = continueFrom?.notes ?? '';
+    let summaryAtExchangeCount = 0;
+    let summaryRefreshing = false;
     // Utterances spoken during a silence hold, accumulated until the meditator
     // signals (via the resume-intent classifier) that they want to continue —
     // then the whole buffer becomes the resume turn's context. Cleared on each
@@ -1394,6 +1412,7 @@ export async function mountSessionView(
                 // (same object reference as session.state, so recording still
                 // mutates it after endSession()).
                 summary = await generateSessionSummary(provider, finalState.exchanges, {
+                    systemPrompt: builder.buildSystemPrompt(),
                     onUsage: (u) => session.recordLlmUsage(u),
                 });
             } catch {
@@ -1435,16 +1454,56 @@ export async function mountSessionView(
         // Snapshot with a provisional endTime so an interrupted session still
         // shows a sensible duration in history; the live state stays active
         // (endTime null) so the running loop is unaffected. A clean end
-        // overwrites this row with the real endTime + summary.
+        // overwrites this row with the real endTime + a final recap.
+        //
+        // notes carries the latest background recap (or the intention as a
+        // fallback) so an interrupted session is never blank in history and
+        // can be resumed cheaply from the recap — see refreshSummaryThrottled.
         const snapshot: SessionState = {
             ...state,
             endTime: Math.floor(Date.now() / 1000),
             meditationType: 'exploration',
+            notes: currentSummary || setup.intention.trim(),
         };
         try {
             await sessionStore.save(snapshot);
         } catch (err) {
             console.warn('Session autosave failed', err);
+        }
+        // Kick a throttled recap refresh for next time (fire-and-forget).
+        void refreshSummaryThrottled();
+    }
+
+    /**
+     * Refresh `currentSummary` in the background, throttled. Generating a recap
+     * is an LLM call, so we cap it to once per SUMMARY_REFRESH_MS and only when
+     * new exchanges have accumulated since the last recap. It reuses the warm
+     * prompt cache (the facilitation system prompt) so the transcript reads at
+     * ~0.1x — an in-session refresh is cheap. Never runs mid-turn (busy) or into
+     * a torn-down view, and its token cost folds into the session tally.
+     */
+    async function refreshSummaryThrottled(): Promise<void> {
+        if (!appSettings.saveSessionLogs) return;
+        if (summaryRefreshing || busy || torn) return;
+        const state = session.state;
+        if (!state || !hasUserContent(state.exchanges)) return;
+        const exCount = state.exchanges.length;
+        // Only re-summarize once a few new exchanges have landed.
+        if (exCount - summaryAtExchangeCount < SUMMARY_MIN_NEW_EXCHANGES) return;
+        summaryRefreshing = true;
+        try {
+            const recap = await generateSessionSummary(provider, state.exchanges, {
+                systemPrompt: builder.buildSystemPrompt(),
+                onUsage: (u) => session.recordLlmUsage(u),
+            });
+            if (!torn && recap) {
+                currentSummary = recap;
+                summaryAtExchangeCount = exCount;
+            }
+        } catch {
+            /* non-fatal — a missing recap just falls back to the intention */
+        } finally {
+            summaryRefreshing = false;
         }
     }
 
