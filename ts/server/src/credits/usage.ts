@@ -27,6 +27,8 @@
 import { randomUUID } from 'node:crypto';
 import { log } from '../logger.js';
 import type { CreditsStore } from './store.js';
+import { pricingFor } from '../pricing/providers.js';
+import type { ProviderId } from '../contract.js';
 
 export type UsageKind = 'llm' | 'stt' | 'tts';
 
@@ -50,6 +52,10 @@ export interface UsageEvent {
     tokensOut: number;
     cacheRead: number;
     cacheCreation: number;
+    /** Subset of cacheCreation written at the 1h TTL (the anchor breakpoint),
+     *  billed at 2x input vs the 5m default's 1.25x. Zero for non-LLM legs and
+     *  for providers without a TTL breakdown. */
+    cacheCreation1h: number;
     seconds: number; // STT audio seconds
     chars: number; // TTS characters
     /** Full-precision provider cost in USD (NOT rounded to credits). */
@@ -58,9 +64,13 @@ export interface UsageEvent {
     credits: number;
 }
 
-/** Fields a call site supplies; id/ts/sessionId/passId default here. */
-export type UsageInput = Omit<UsageEvent, 'id' | 'ts' | 'sessionId' | 'passId'> &
-    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId'>>;
+/** Fields a call site supplies; id/ts/sessionId/passId default here, and
+ *  cacheCreation1h defaults to 0 so non-LLM legs don't have to pass it. */
+export type UsageInput = Omit<
+    UsageEvent,
+    'id' | 'ts' | 'sessionId' | 'passId' | 'cacheCreation1h'
+> &
+    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId' | 'cacheCreation1h'>>;
 
 /** Record one metered call. Best-effort: never throws into the request path —
  *  a telemetry write must not cost a user their (already-charged) turn. */
@@ -81,6 +91,7 @@ export async function recordUsage(
         tokensOut: input.tokensOut,
         cacheRead: input.cacheRead,
         cacheCreation: input.cacheCreation,
+        cacheCreation1h: input.cacheCreation1h ?? 0,
         seconds: input.seconds,
         chars: input.chars,
         providerCostUsd: input.providerCostUsd,
@@ -118,6 +129,43 @@ export interface ModelAgg {
     credits: number;
 }
 
+/** Prompt-cache breakdown for the LLM leg — the read/write/fresh token split,
+ *  the hit ratio, and the dollars caching actually saved vs a no-cache baseline
+ *  (everything cached re-priced at full input). The decision input for tuning
+ *  cache strategy and TTL. */
+export interface CacheAgg {
+    /** Uncached input tokens billed at full rate. */
+    freshInputTokens: number;
+    /** Tokens served from cache (~0.1x input). */
+    cacheReadTokens: number;
+    /** Tokens written to cache (Anthropic ~1.25x input at 5m TTL; 0 for the
+     *  OpenAI/Google auto-cache shapes, which don't surface a write count). */
+    cacheCreationTokens: number;
+    /** Subset of cacheCreationTokens written at the 1h TTL (the anchor, billed
+     *  at 2x). A rising number here means holds are forcing 1h re-anchors —
+     *  the signal for whether the anchor strategy is earning its 2x premium. */
+    cacheCreation1hTokens: number;
+    /** cacheRead / (fresh + read + creation), 0..1. */
+    hitRatio: number;
+    /** Actual provider $ for these LLM calls (what we paid). */
+    costUsd: number;
+    /** Provider $ the same calls would cost with NO caching (reads + writes
+     *  re-priced at full input). Only counts models with a known price table;
+     *  unknown models contribute their actual cost so savings isn't inflated. */
+    costNoCacheUsd: number;
+    /** costNoCacheUsd - costUsd: dollars caching saved in the window. */
+    savedUsd: number;
+}
+
+/** Per-provider LLM cache breakdown (anthropic vs google vs openai). Caching
+ *  works differently per provider — Anthropic needs explicit breakpoints;
+ *  OpenAI/Google cache automatically on a stable prefix — so the per-provider
+ *  hit rate is how you tell whether each path is actually caching. */
+export interface ProviderCacheAgg extends CacheAgg {
+    provider: string;
+    events: number;
+}
+
 export interface Distribution {
     count: number;
     mean: number;
@@ -137,6 +185,11 @@ export interface UsageReport {
      *  across all LLM events in the window. The single most useful number for
      *  predicting real session cost (a warm cache is ~10x cheaper than cold). */
     llmCacheHitRatio: number;
+    /** Full prompt-cache economics for the LLM leg (token split + $ saved). */
+    llmCache: CacheAgg;
+    /** Same breakdown split by provider — anthropic / google / openai cache
+     *  differently, so this shows whether each path is actually hitting. */
+    llmCacheByProvider: ProviderCacheAgg[];
     /** Per-model / per-voice cost, biggest first. */
     byModel: ModelAgg[];
     /** Reconstructed-session economics — what a real session actually costs. */
@@ -242,6 +295,14 @@ export function buildUsageReport(
     let totalCredits = 0;
     let cacheReadTokens = 0;
     let cacheableTokens = 0; // input + cacheRead + cacheCreation
+    // LLM cache economics (overall + per provider).
+    let llmFresh = 0;
+    let llmRead = 0;
+    let llmCreate = 0;
+    let llmCreate1h = 0;
+    let llmCost = 0;
+    let llmNoCacheCost = 0;
+    const providerCache = new Map<string, { provider: string; events: number; fresh: number; read: number; create: number; create1h: number; cost: number; noCache: number }>();
 
     for (const e of inWindow) {
         const svc = services[e.kind];
@@ -268,6 +329,42 @@ export function buildUsageReport(
         if (e.kind === 'llm') {
             cacheReadTokens += e.cacheRead;
             cacheableTokens += e.tokensIn + e.cacheRead + e.cacheCreation;
+
+            // What this turn would cost with NO caching: every cached token
+            // (read + write) re-priced at full input. Unknown models contribute
+            // their actual cost so savings is never inflated by a missing rate.
+            const p = pricingFor(e.provider as ProviderId, e.model);
+            const noCache = p
+                ? e.tokensIn * p.input +
+                  e.tokensOut * p.output +
+                  (e.cacheRead + e.cacheCreation) * p.input
+                : e.providerCostUsd;
+
+            llmFresh += e.tokensIn;
+            llmRead += e.cacheRead;
+            llmCreate += e.cacheCreation;
+            llmCreate1h += e.cacheCreation1h;
+            llmCost += e.providerCostUsd;
+            llmNoCacheCost += noCache;
+
+            const pc = providerCache.get(e.provider) ?? {
+                provider: e.provider,
+                events: 0,
+                fresh: 0,
+                read: 0,
+                create: 0,
+                create1h: 0,
+                cost: 0,
+                noCache: 0,
+            };
+            pc.events += 1;
+            pc.fresh += e.tokensIn;
+            pc.read += e.cacheRead;
+            pc.create += e.cacheCreation;
+            pc.create1h += e.cacheCreation1h;
+            pc.cost += e.providerCostUsd;
+            pc.noCache += noCache;
+            providerCache.set(e.provider, pc);
         }
     }
 
@@ -288,6 +385,35 @@ export function buildUsageReport(
             ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length
             : 0;
 
+    const hitRatioOf = (read: number, fresh: number, create: number): number => {
+        const denom = fresh + read + create;
+        return denom > 0 ? read / denom : 0;
+    };
+    const llmCache: CacheAgg = {
+        freshInputTokens: llmFresh,
+        cacheReadTokens: llmRead,
+        cacheCreationTokens: llmCreate,
+        cacheCreation1hTokens: llmCreate1h,
+        hitRatio: hitRatioOf(llmRead, llmFresh, llmCreate),
+        costUsd: llmCost,
+        costNoCacheUsd: llmNoCacheCost,
+        savedUsd: llmNoCacheCost - llmCost,
+    };
+    const llmCacheByProvider: ProviderCacheAgg[] = [...providerCache.values()]
+        .map((pc) => ({
+            provider: pc.provider,
+            events: pc.events,
+            freshInputTokens: pc.fresh,
+            cacheReadTokens: pc.read,
+            cacheCreationTokens: pc.create,
+            cacheCreation1hTokens: pc.create1h,
+            hitRatio: hitRatioOf(pc.read, pc.fresh, pc.create),
+            costUsd: pc.cost,
+            costNoCacheUsd: pc.noCache,
+            savedUsd: pc.noCache - pc.cost,
+        }))
+        .sort((a, b) => b.costUsd - a.costUsd);
+
     return {
         generatedAt: now,
         windowSinceTs,
@@ -295,6 +421,8 @@ export function buildUsageReport(
         totals: { providerCostUsd: totalCost, credits: totalCredits },
         byService: Object.values(services),
         llmCacheHitRatio: cacheableTokens > 0 ? cacheReadTokens / cacheableTokens : 0,
+        llmCache,
+        llmCacheByProvider,
         byModel: [...models.values()].sort((a, b) => b.providerCostUsd - a.providerCostUsd),
         sessions: {
             count: sessions.length,

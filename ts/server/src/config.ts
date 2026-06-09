@@ -15,6 +15,8 @@ export interface ProviderKeys {
     groq?: string;
     openrouter?: string;
     google?: string;
+    /** OpenAI — the metered GPT flagship LLM (and, via fallback, TTS). */
+    openai?: string;
 }
 
 /** Default OpenAI-compatible Whisper endpoints, by provider label. The STT
@@ -112,8 +114,14 @@ export interface Config {
     testerEmails: string[];
 
     /** Google Cloud Text-to-Speech API key (separate from the Gemini LLM key).
-     *  When set, /cloud/v1/tts synthesizes via Google Cloud TTS. */
+     *  When set, /cloud/v1/tts can synthesize Google (Chirp3-HD/Neural2) voices. */
     googleTtsApiKey?: string;
+
+    /** OpenAI API key for gpt-4o-mini-tts (separate from any OpenAI STT key).
+     *  When set, /cloud/v1/tts can synthesize the curated OpenAI voices. Either
+     *  this or googleTtsApiKey enables hosted TTS; each provider's voices appear
+     *  only when its key is present. */
+    openaiTtsApiKey?: string;
 
     /** Stripe — optional; billing routes report "not configured" without it. */
     stripeSecretKey?: string;
@@ -169,6 +177,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (env['OPENROUTER_API_KEY']) providerKeys.openrouter = env['OPENROUTER_API_KEY'];
     // Gemini direct (AI Studio key) — value tier without the OpenRouter fee.
     if (env['GEMINI_API_KEY']) providerKeys.google = env['GEMINI_API_KEY'];
+    // OpenAI direct — the metered GPT flagship. The same key also backs OpenAI
+    // TTS below (one key with "Model capabilities: Write" covers both).
+    if (env['OPENAI_API_KEY']) providerKeys.openai = env['OPENAI_API_KEY'];
 
     const config: Config = {
         port: Number(env['PORT'] ?? 8787),
@@ -188,6 +199,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const sttConfig = resolveSttConfig(env);
     if (sttConfig) config.sttConfig = sttConfig;
     if (env['GOOGLE_TTS_API_KEY']) config.googleTtsApiKey = env['GOOGLE_TTS_API_KEY'];
+    // TTS reuses the OpenAI LLM key by default — one OPENAI_API_KEY lights up both
+    // GPT and gpt-4o-mini-tts. Set OPENAI_TTS_API_KEY only to split them onto
+    // separate keys. NOTE: `||`, not `??` — a present-but-blank OPENAI_TTS_API_KEY=
+    // line (the .env template) is the empty STRING, which `??` would NOT fall
+    // through; `||` treats blank as absent and uses the LLM key.
+    const openaiTtsKey = env['OPENAI_TTS_API_KEY'] || env['OPENAI_API_KEY'];
+    if (openaiTtsKey) config.openaiTtsApiKey = openaiTtsKey;
     if (env['STRIPE_SECRET_KEY']) config.stripeSecretKey = env['STRIPE_SECRET_KEY'];
     if (env['STRIPE_WEBHOOK_SECRET']) config.stripeWebhookSecret = env['STRIPE_WEBHOOK_SECRET'];
     if (env['X402_ENABLED'] === '1') config.x402Enabled = true;

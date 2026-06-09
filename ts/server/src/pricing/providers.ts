@@ -16,6 +16,7 @@
  */
 
 import type { ProviderId } from '../contract.js';
+import type { TtsProvider } from '../providers/voice-catalog.js';
 
 export interface TokenRates {
     /** USD per input token. */
@@ -24,8 +25,14 @@ export interface TokenRates {
     output: number;
     /** USD per cached-read input token. */
     cacheRead: number;
-    /** USD per cache-write (creation) input token. */
+    /** USD per cache-write (creation) input token at the DEFAULT 5-minute TTL
+     *  (Anthropic ~1.25x input). */
     cacheCreation: number;
+    /** USD per cache-write at the 1-hour TTL (Anthropic 2x input). Used by the
+     *  "anchor" breakpoint that survives long [HOLD] silences. For providers
+     *  with automatic caching (OpenAI/Google) there's no 1h write and none is
+     *  reported, so this is set to the input rate and never actually accrues. */
+    cacheCreation1h: number;
 }
 
 export interface ModelPricing extends TokenRates {
@@ -43,7 +50,8 @@ const MODELS: Record<string, ModelPricing> = {
         input: 5 / M,
         output: 25 / M,
         cacheRead: 0.5 / M,
-        cacheCreation: 6.25 / M,
+        cacheCreation: 6.25 / M, // 5m write, 1.25x input
+        cacheCreation1h: 10 / M, // 1h write, 2x input
     },
     'anthropic:claude-sonnet-4-6': {
         provider: 'anthropic',
@@ -51,7 +59,8 @@ const MODELS: Record<string, ModelPricing> = {
         input: 3 / M,
         output: 15 / M,
         cacheRead: 0.3 / M,
-        cacheCreation: 3.75 / M,
+        cacheCreation: 3.75 / M, // 5m write, 1.25x input
+        cacheCreation1h: 6 / M, // 1h write, 2x input
     },
     'anthropic:claude-haiku-4-5-20251001': {
         provider: 'anthropic',
@@ -59,7 +68,8 @@ const MODELS: Record<string, ModelPricing> = {
         input: 1 / M,
         output: 5 / M,
         cacheRead: 0.1 / M,
-        cacheCreation: 1.25 / M,
+        cacheCreation: 1.25 / M, // 5m write, 1.25x input
+        cacheCreation1h: 2 / M, // 1h write, 2x input
     },
     // (Groq llama-3.3-70b was removed as a hosted option: it has NO prompt
     // caching, so on this ~98%-re-sent-history workload the whole transcript
@@ -81,6 +91,39 @@ const MODELS: Record<string, ModelPricing> = {
         output: 0.4 / M,
         cacheRead: 0.01 / M, // Google list price for cached-input read (text), ~90% off input
         cacheCreation: 0.1 / M,
+        cacheCreation1h: 0.1 / M, // no 1h write on automatic caching; never accrues
+    },
+    // OpenAI flagship, the GPT counterpart to Opus in the premium tier. PINNED to
+    // an exact version (like claude-opus-4-8), NOT the moving chatgpt-latest
+    // alias: the debit math bills against THIS price table, so the model must be
+    // a known quantity (a new flagship at a different price can't bill at a stale
+    // rate). Cache-capable — essential on this ~98%-re-sent-history workload —
+    // via OpenAI automatic prompt caching: cached input ~90% off, surfaced as
+    // prompt_tokens_details.cached_tokens (OpenAIProvider parses it into
+    // cacheRead). Automatic caching has no write surcharge and cacheCreation
+    // never accrues for the OpenAI usage shape, so it's left at input rate
+    // harmlessly (mirrors gemini above). $5/$30 per 1M, $0.50 cached (Apr 2026).
+    'openai:gpt-5.5': {
+        provider: 'openai',
+        model: 'gpt-5.5',
+        input: 5 / M,
+        output: 30 / M,
+        cacheRead: 0.5 / M,
+        cacheCreation: 5 / M,
+        cacheCreation1h: 5 / M, // no 1h write on automatic caching; never accrues
+    },
+    // OpenAI midrange — the prior flagship, ~half the price of 5.5 and roughly the
+    // Sonnet cost tier. Same family caching (cached input ~90% off) and the same
+    // pinned-version / cacheCreation-at-input-rate treatment as 5.5 above.
+    // $2.50/$15 per 1M, $0.25 cached (Mar 2026).
+    'openai:gpt-5.4': {
+        provider: 'openai',
+        model: 'gpt-5.4',
+        input: 2.5 / M,
+        output: 15 / M,
+        cacheRead: 0.25 / M,
+        cacheCreation: 2.5 / M,
+        cacheCreation1h: 2.5 / M, // no 1h write on automatic caching; never accrues
     },
 };
 
@@ -110,6 +153,15 @@ const GOOGLE_TTS_TIER_USD_PER_CHAR = {
  *  whole-session estimate assumes (meter.priceSession, which has no voice). */
 export const TTS_USD_PER_CHAR = GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd; // $30/1M (Google Chirp3-HD)
 
+/** OpenAI gpt-4o-mini-tts list price, expressed per CHARACTER to fit our meter.
+ *  OpenAI bills by AUDIO OUTPUT tokens ($12/1M) plus a small text-input leg
+ *  ($0.60/1M tokens) — about $0.015 per minute of speech. A slow, pause-heavy
+ *  meditation pace (~120 wpm ≈ 720 chars/min) puts that near $0.015/720 ≈
+ *  $21/1M chars; we round UP to $22/1M so a slow delivery can never under-bill
+ *  (same conservative stance as the Google tiers above) while staying under the
+ *  Chirp3-HD ceiling. Verify vs openai.com/api/pricing as rates drift. */
+export const OPENAI_TTS_USD_PER_CHAR = 22 / M; // ~$22/1M (OpenAI gpt-4o-mini-tts, slow-pace estimate)
+
 /** Per-character cost for a specific Google voice, read from its id. Google
  *  voice ids encode the tier — en-US-Chirp3-HD-Leda, en-US-Neural2-C,
  *  en-US-Standard-B, en-US-Studio-O — so the tier comes straight from the name.
@@ -124,6 +176,15 @@ export function googleTtsRateFor(voiceId: string | undefined): number {
         return GOOGLE_TTS_TIER_USD_PER_CHAR.premium;
     if (v.includes('standard')) return GOOGLE_TTS_TIER_USD_PER_CHAR.standard;
     return TTS_USD_PER_CHAR;
+}
+
+/** Per-character TTS cost for a resolved (provider, voiceId). OpenAI is a flat
+ *  per-char rate (the voice doesn't change the price); Google's rate is read
+ *  from the voice id's tier. The single rate authority the meter and the
+ *  picker's credits/hr estimate both bill through, so a shown rate can never
+ *  drift from the real charge. */
+export function ttsRateFor(provider: TtsProvider, voiceId: string | undefined): number {
+    return provider === 'openai' ? OPENAI_TTS_USD_PER_CHAR : googleTtsRateFor(voiceId);
 }
 
 export function pricingFor(provider: ProviderId, model: string): ModelPricing | undefined {

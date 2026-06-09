@@ -27,6 +27,7 @@ function ev(over: Partial<UsageEvent> = {}): UsageEvent {
         tokensOut: 0,
         cacheRead: 0,
         cacheCreation: 0,
+        cacheCreation1h: 0,
         seconds: 0,
         chars: 0,
         providerCostUsd: 0,
@@ -59,6 +60,59 @@ describe('buildUsageReport', () => {
         ];
         const r = buildUsageReport(events, 2000, 0);
         expect(r.llmCacheHitRatio).toBeCloseTo(900 / 1000, 9);
+    });
+
+    it('computes cache economics — token split, $ saved vs no-cache, per provider', () => {
+        const M = 1_000_000;
+        // Opus 4.8 rates: in 5/M, out 25/M, read 0.5/M, write 6.25/M.
+        const actual = (1000 * 5 + 200 * 25 + 10_000 * 0.5 + 1000 * 6.25) / M;
+        const noCache = (1000 * 5 + 200 * 25 + (10_000 + 1000) * 5) / M;
+        const events = [
+            ev({
+                kind: 'llm',
+                provider: 'anthropic',
+                model: 'claude-opus-4-8',
+                tokensIn: 1000,
+                tokensOut: 200,
+                cacheRead: 10_000,
+                cacheCreation: 1000,
+                cacheCreation1h: 250,
+                providerCostUsd: actual,
+            }),
+            // STT must not touch the cache aggregates.
+            ev({ kind: 'stt', seconds: 30, providerCostUsd: 0.001 }),
+        ];
+        const r = buildUsageReport(events, 2000, 0);
+
+        expect(r.llmCache.freshInputTokens).toBe(1000);
+        expect(r.llmCache.cacheReadTokens).toBe(10_000);
+        expect(r.llmCache.cacheCreationTokens).toBe(1000);
+        expect(r.llmCache.cacheCreation1hTokens).toBe(250);
+        expect(r.llmCache.hitRatio).toBeCloseTo(10_000 / 12_000, 9);
+        expect(r.llmCache.costUsd).toBeCloseTo(actual, 12);
+        expect(r.llmCache.costNoCacheUsd).toBeCloseTo(noCache, 12);
+        expect(r.llmCache.savedUsd).toBeCloseTo(noCache - actual, 12);
+
+        expect(r.llmCacheByProvider).toHaveLength(1);
+        expect(r.llmCacheByProvider[0]!.provider).toBe('anthropic');
+        expect(r.llmCacheByProvider[0]!.savedUsd).toBeCloseTo(noCache - actual, 12);
+    });
+
+    it('unknown-model cache savings is zero (no price table → actual cost as baseline)', () => {
+        const events = [
+            ev({
+                kind: 'llm',
+                provider: 'anthropic',
+                model: 'some-unpriced-model',
+                tokensIn: 100,
+                cacheRead: 5000,
+                providerCostUsd: 0.003,
+            }),
+        ];
+        const r = buildUsageReport(events, 2000, 0);
+        // No rate → costNoCache falls back to actual, so savings can't be faked.
+        expect(r.llmCache.costNoCacheUsd).toBeCloseTo(0.003, 12);
+        expect(r.llmCache.savedUsd).toBeCloseTo(0, 12);
     });
 
     it('ranks per-model cost biggest first', () => {

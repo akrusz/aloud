@@ -19,7 +19,7 @@ import type { Message } from '@aloud/core/llm';
 /** Providers the aloud cloud is willing to forward to. The web tier's
  *  ONLY LLM source is this server; on-device + bring-your-own-key live in
  *  the app-store / desktop builds and never touch this contract. */
-export type ProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
+export type ProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google' | 'openai';
 
 /** Channel a credit purchase flowed through. Drives the commission lookup —
  *  see pricing/commission.ts and the meditation-pal-8sj addendum. `x402` is the

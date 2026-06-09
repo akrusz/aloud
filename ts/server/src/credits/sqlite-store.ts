@@ -133,7 +133,10 @@ CREATE TABLE IF NOT EXISTS usage_events (
     credits           REAL NOT NULL,
     -- Retreat pass that covered this call (meditation-pal-414), or NULL when
     -- metered normally. Lets the admin attribute per-retreat spend.
-    pass_id           TEXT
+    pass_id           TEXT,
+    -- Subset of cache_creation written at the 1h TTL (the anchor breakpoint),
+    -- billed at 2x input. Added after the table existed → also a migration.
+    cache_creation_1h INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
@@ -243,6 +246,7 @@ function rowToUsage(r: Row): UsageEvent {
         tokensOut: Number(r['tokens_out']),
         cacheRead: Number(r['cache_read']),
         cacheCreation: Number(r['cache_creation']),
+        cacheCreation1h: Number(r['cache_creation_1h'] ?? 0),
         seconds: Number(r['seconds']),
         chars: Number(r['chars']),
         providerCostUsd: Number(r['provider_cost_usd']),
@@ -288,10 +292,20 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddDeletedAt();
         this.migrateAddCanonicalEmail();
         this.migrateAddUsagePassId();
+        this.migrateAddUsageCacheCreation1h();
         // Index on pass_id AFTER the column migration above — on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
         // so this can't live in SCHEMA (which runs first). See idx note there.
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_usage_pass ON usage_events(pass_id)');
+    }
+
+    /** Add usage_events.cache_creation_1h to a DB created before the 1h cache
+     *  anchor existed. The CREATE in SCHEMA only covers fresh DBs; existing rows
+     *  default to 0 (no 1h writes were billed before the anchor shipped). */
+    private migrateAddUsageCacheCreation1h(): void {
+        const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
+        if (cols.some((c) => String(c['name']) === 'cache_creation_1h')) return;
+        this.db.exec('ALTER TABLE usage_events ADD COLUMN cache_creation_1h INTEGER NOT NULL DEFAULT 0');
     }
 
     /** Add usage_events.pass_id to a DB created before retreat passes existed
@@ -663,8 +677,9 @@ export class SqliteCreditsStore implements CreditsStore {
                 `INSERT INTO usage_events
                  (id, account_id, session_id, ts, kind, provider, model,
                   tokens_in, tokens_out, cache_read, cache_creation,
-                  seconds, chars, provider_cost_usd, credits, pass_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                  seconds, chars, provider_cost_usd, credits, pass_id,
+                  cache_creation_1h)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .run(
                 event.id,
@@ -682,7 +697,8 @@ export class SqliteCreditsStore implements CreditsStore {
                 event.chars,
                 event.providerCostUsd,
                 event.credits,
-                event.passId
+                event.passId,
+                event.cacheCreation1h ?? 0
             );
     }
 

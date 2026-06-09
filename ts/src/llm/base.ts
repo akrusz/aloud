@@ -31,6 +31,11 @@ export interface CompletionResult {
     outputTokens?: number | null;
     cacheReadTokens?: number | null;
     cacheCreationTokens?: number | null;
+    /** Subset of cacheCreationTokens written at the 1-hour TTL (Anthropic
+     *  reports this as cache_creation.ephemeral_1h_input_tokens). Priced higher
+     *  than the 5m default (2x vs 1.25x input), so it's tracked separately for
+     *  billing. Null when the provider doesn't report a TTL breakdown. */
+    cacheCreation1hTokens?: number | null;
 }
 
 export interface CompletionOptions {
@@ -54,6 +59,7 @@ export interface StreamChunk {
     outputTokens?: number | null;
     cacheReadTokens?: number | null;
     cacheCreationTokens?: number | null;
+    cacheCreation1hTokens?: number | null;
 }
 
 export interface LLMProvider {

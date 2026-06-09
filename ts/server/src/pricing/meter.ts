@@ -31,10 +31,11 @@ import type { PurchaseChannel } from '../contract.js';
 import {
     STT_USD_PER_SECOND,
     TTS_USD_PER_CHAR,
-    googleTtsRateFor,
+    ttsRateFor,
     pricingFor,
 } from './providers.js';
 import type { ProviderId } from '../contract.js';
+import type { TtsProvider } from '../providers/voice-catalog.js';
 
 /** Provider COST that one credit represents, in USD. Margin is NOT here — it's
  *  added at purchase (PACK_MARKUP). Tentative $0.05; with a ~2.5x pack markup
@@ -53,14 +54,20 @@ export const PACK_MARKUP = 2.5;
 export function llmCostUsd(provider: ProviderId, model: string, usage: LlmUsage): number {
     const p = pricingFor(provider, model);
     if (!p) return 0;
-    // Cache CREATION is billed (Anthropic ~1.25x input) — not free. With
-    // history caching on it's a real leg, so it must be charged here or the
-    // proxy under-bills. cache READ is the cheap ~0.1x leg.
+    // Cache CREATION is billed (not free) and split by TTL: the 5m default
+    // costs ~1.25x input, the 1h "anchor" write ~2x. We bill the 1h portion
+    // (Anthropic's reported ephemeral_1h_input_tokens) at the higher rate and
+    // the rest at the 5m rate, or the proxy under-bills the anchor. cache READ
+    // is the cheap ~0.1x leg.
+    const cacheCreation = usage.cacheCreation ?? 0;
+    const cacheCreation1h = Math.min(cacheCreation, Math.max(0, usage.cacheCreation1h ?? 0));
+    const cacheCreation5m = cacheCreation - cacheCreation1h;
     return (
         (usage.tokensIn ?? 0) * p.input +
         (usage.tokensOut ?? 0) * p.output +
         (usage.cacheRead ?? 0) * p.cacheRead +
-        (usage.cacheCreation ?? 0) * p.cacheCreation
+        cacheCreation5m * p.cacheCreation +
+        cacheCreation1h * p.cacheCreation1h
     );
 }
 
@@ -101,11 +108,16 @@ export function priceSttSeconds(seconds: number): CostBreakdown {
 }
 
 /** Price `chars` of cloud TTS — fractional credits, same rationale as STT. The
- *  rate depends on the Google voice tier actually synthesized (Chirp3-HD vs the
- *  cheaper Neural2/Standard tiers differ 2-8x), so pass the resolved voice id;
- *  omitting it falls back to the Chirp3-HD default (providers.googleTtsRateFor). */
-export function priceTtsChars(chars: number, voiceId?: string): CostBreakdown {
-    const providerCostUsd = Math.max(0, chars) * googleTtsRateFor(voiceId);
+ *  rate depends on the provider and (for Google) the voice tier actually
+ *  synthesized — Chirp3-HD vs cheaper Neural2/Standard differ 2-8x, and OpenAI
+ *  is its own flat rate — so pass the resolved (provider, voiceId). Omitting
+ *  the options falls back to the Google Chirp3-HD default
+ *  (providers.ttsRateFor), the most conservative rate we offer. */
+export function priceTtsChars(
+    chars: number,
+    opts: { provider?: TtsProvider; voiceId?: string } = {}
+): CostBreakdown {
+    const providerCostUsd = Math.max(0, chars) * ttsRateFor(opts.provider ?? 'google', opts.voiceId);
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
 }
 

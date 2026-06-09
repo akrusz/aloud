@@ -18,10 +18,29 @@ import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
-import { synthesizeWithGoogle } from '../providers/tts.js';
-import { CURATED_VOICES, PREVIEW_PHRASE, resolveVoiceId } from '../providers/voice-catalog.js';
+import { synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
+import {
+    CURATED_VOICES,
+    PREVIEW_PHRASE,
+    resolveVoice,
+    type ResolvedVoice,
+} from '../providers/voice-catalog.js';
 import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
+
+/** A bound synth call for a resolved voice, or null when that voice's provider
+ *  has no key configured (the caller maps null to a provider_error). Centralizes
+ *  the provider→(key, synth fn) dispatch so the three routes below stay uniform:
+ *  any curated voice "just works" once its provider key is present. */
+type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
+function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
+    if (resolved.provider === 'openai') {
+        const key = deps.config.openaiTtsApiKey;
+        return key ? (text, rate) => synthesizeWithOpenAI(text, resolved.voiceId, rate, key) : null;
+    }
+    const key = deps.config.googleTtsApiKey;
+    return key ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, rate, key) : null;
+}
 
 /** Synthesized canned-apology audio, keyed `${reason}:${voiceId}`. The texts are
  *  fixed and server-owned, so each (reason, voice) pair is synthesized once for
@@ -46,10 +65,6 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     // a caller can't turn this into free synthesis of arbitrary input.
     app.post('/canned', requireAuth(deps), async (c) => {
         const account = c.get('account');
-        const key = deps.config.googleTtsApiKey;
-        if (!key) {
-            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
-        }
         if (!deps.rateGuard.allow(account.id)) {
             return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
         }
@@ -60,13 +75,17 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!message) {
             return c.json(apiError('bad_request', 'unknown canned reason'), ERROR_STATUS.bad_request);
         }
-        const voiceId = resolveVoiceId(body.voice);
-        const cacheKey = `${reason}:${voiceId}`;
+        const resolved = resolveVoice(body.voice);
+        const synth = synthFor(deps, resolved);
+        if (!synth) {
+            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
+        }
+        const cacheKey = `${reason}:${resolved.provider}:${resolved.voiceId}`;
 
         let audio = CANNED_AUDIO.get(cacheKey);
         if (!audio) {
             try {
-                audio = await synthesizeWithGoogle(message, voiceId, 1, key);
+                audio = await synth(message, 1);
             } catch (err) {
                 log.error('canned tts synth failed', { err: String(err) });
                 return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
@@ -86,24 +105,26 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     // cost of a few short clips per deploy. Real, metered synthesis stays on the
     // authed POST / below. GET so the result is plainly cacheable downstream.
     app.get('/preview', async (c) => {
-        const key = deps.config.googleTtsApiKey;
-        if (!key) {
-            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
-        }
         const curated = CURATED_VOICES.find((v) => v.name === (c.req.query('voice') ?? ''));
         if (!curated) {
             return c.json(apiError('bad_request', 'unknown preview voice'), ERROR_STATUS.bad_request);
         }
+        const resolved: ResolvedVoice = { provider: curated.provider, voiceId: curated.providerVoiceId };
+        const synth = synthFor(deps, resolved);
+        if (!synth) {
+            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
+        }
 
-        let audio = PREVIEW_AUDIO.get(curated.googleId);
+        const cacheKey = `${resolved.provider}:${resolved.voiceId}`;
+        let audio = PREVIEW_AUDIO.get(cacheKey);
         if (!audio) {
             try {
-                audio = await synthesizeWithGoogle(PREVIEW_PHRASE, curated.googleId, 1, key);
+                audio = await synth(PREVIEW_PHRASE, 1);
             } catch (err) {
                 log.error('preview tts synth failed', { err: String(err) });
                 return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
             }
-            PREVIEW_AUDIO.set(curated.googleId, audio);
+            PREVIEW_AUDIO.set(cacheKey, audio);
         }
         c.header('content-type', 'audio/mpeg');
         // Fixed phrase per voice — safe to cache hard in the browser/CDN.
@@ -114,10 +135,6 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     app.post('/', requireAuth(deps), async (c) => {
         const account = c.get('account');
 
-        const key = deps.config.googleTtsApiKey;
-        if (!key) {
-            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
-        }
         if (!deps.rateGuard.allow(account.id)) {
             return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
         }
@@ -128,6 +145,17 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('bad_request', 'text required'), ERROR_STATUS.bad_request);
         }
 
+        // Resolve a curated short name ("Leda", "Lyra") or raw Google id to its
+        // (provider, voiceId) once, and reuse it for synthesis, pricing (the
+        // rate is provider/tier-specific), and telemetry — so the charge matches
+        // the voice actually synthesized. A null synth means the resolved
+        // provider has no key configured on this server.
+        const resolved = resolveVoice(body.voice);
+        const synth = synthFor(deps, resolved);
+        if (!synth) {
+            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
+        }
+
         // A retreat pass (meditation-pal-414) covers this synthesis: speak with no
         // balance gate and no debit. Otherwise gate on balance as usual.
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
@@ -136,14 +164,9 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
-        // Resolve a curated short name ("Leda") or raw id to a Google voice once,
-        // and reuse it for synthesis, pricing (the rate is tier-specific), and
-        // telemetry — so the charge matches the voice actually synthesized.
-        const voiceId = resolveVoiceId(body.voice);
-
         let audio: Uint8Array;
         try {
-            audio = await synthesizeWithGoogle(text, voiceId, body.rate ?? 1, key);
+            audio = await synth(text, body.rate ?? 1);
         } catch (err) {
             log.error('tts forward failed', { err: String(err) });
             return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
@@ -151,16 +174,16 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         // Under a pass nothing is debited, but we record the metered credits so
         // per-retreat spend and the daily-cap sum stay honest.
-        const cost = priceTtsChars(text.length, voiceId);
+        const cost = priceTtsChars(text.length, { provider: resolved.provider, voiceId: resolved.voiceId });
         const debit = pass ? 0 : Math.min(cost.credits, balance);
-        if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:google:${text.length}c`);
+        if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${text.length}c`);
         const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
         await recordUsage(deps.store, {
             accountId: account.id,
             sessionId,
             kind: 'tts',
-            provider: 'google',
-            model: voiceId,
+            provider: resolved.provider,
+            model: resolved.voiceId,
             tokensIn: 0,
             tokensOut: 0,
             cacheRead: 0,

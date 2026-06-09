@@ -59,7 +59,7 @@ export function createApp(deps: Deps): Hono {
             billing: Boolean(deps.config.stripeSecretKey),
             // Which media capabilities the client can route here (vs Flask/native).
             stt: Boolean(deps.config.sttConfig),
-            tts: Boolean(deps.config.googleTtsApiKey),
+            tts: Boolean(deps.config.googleTtsApiKey || deps.config.openaiTtsApiKey),
         })
     );
 
@@ -83,14 +83,18 @@ export function createApp(deps: Deps): Hono {
     // Public: the curated hosted voices, or [] when TTS isn't configured. The
     // client merges these into its voice picker (availability-driven menus).
     app.get('/cloud/v1/voices', (c) => {
-        const voices: CloudVoice[] = deps.config.googleTtsApiKey
-            ? CURATED_VOICES.map((v) => ({
-                  name: v.name,
-                  gender: v.gender,
-                  tier: v.tier,
-                  creditsPerHourTypical: voiceCreditsPerHourTypical(v.googleId),
-              }))
-            : [];
+        // Each provider's voices appear only when its key is configured, so the
+        // picker never offers a voice the server can't actually synthesize.
+        const hasKey = {
+            google: Boolean(deps.config.googleTtsApiKey),
+            openai: Boolean(deps.config.openaiTtsApiKey),
+        };
+        const voices: CloudVoice[] = CURATED_VOICES.filter((v) => hasKey[v.provider]).map((v) => ({
+            name: v.name,
+            gender: v.gender,
+            tier: v.tier,
+            creditsPerHourTypical: voiceCreditsPerHourTypical(v.provider, v.providerVoiceId),
+        }));
         return c.json(voices);
     });
 

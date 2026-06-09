@@ -33,6 +33,8 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-sonnet-4-6': 'Claude Sonnet 4.6',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
     'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
+    'gpt-5.5': 'GPT-5.5',
+    'gpt-5.4': 'GPT-5.4',
 };
 
 function prettyModelName(model: string): string {

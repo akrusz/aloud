@@ -52,6 +52,9 @@ export interface LlmUsage {
     tokensOut?: number | null;
     cacheRead?: number | null;
     cacheCreation?: number | null;
+    /** Subset of cacheCreation written at the 1h TTL (priced at 2x input vs the
+     *  5m default's 1.25x). Null/absent when the turn used no 1h breakpoint. */
+    cacheCreation1h?: number | null;
 }
 
 export function emptyUsage(): SessionUsage {

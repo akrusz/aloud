@@ -231,6 +231,40 @@
     }
 }
 
+/* The ElevenLabs key field uses a single-column internal grid: label, then a
+   full-width input, then the Get-a-key / Paste actions on their own line below
+   (the same shape app-base.css gives every key row on mobile). The id scope
+   leaves the narrower LLM-provider key rows on their side-by-side layout.
+   align-content keeps the content packed to the TOP if the flex row stretches
+   this column taller than its content (so the header lines up with the engine /
+   voice headers rather than floating to the vertical middle). */
+#s-elevenlabs-key-row.has-key-helper {
+    grid-template-columns: 1fr;
+    align-content: start;
+}
+#s-elevenlabs-key-row > .api-key-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+}
+
+/* Wide widths: the key is a third COLUMN in the TTS row (engine | key | voices),
+   not a full-width field dropped below — so its label + input top-align with the
+   engine selector and voice button, the actions hanging beneath the input. The
+   id+class selector outranks `.form-row-tts > .form-group-fullrow` (flex 1 1 100%)
+   to pull it back into the row. The <=767px block keeps the field stacked
+   full-width, which already reads correctly there. */
+@media (min-width: 768px) {
+    .form-row-tts > #s-elevenlabs-key-row.form-group-fullrow {
+        flex: 1;
+    }
+    .form-row-tts > #s-elevenlabs-key-row {
+        order: 2;
+    }
+    .form-row-tts > #s-voice-group {
+        order: 3;
+    }
+}
+
 /* Whisper model column: when STT isn't Whisper the field is hidden, but at
    widths where all three columns sit on one row we keep its empty slot so
    Language/Recognition stay a third each (stretching them to halves as you

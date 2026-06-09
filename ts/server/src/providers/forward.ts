@@ -18,6 +18,7 @@ import {
     GroqProvider,
     OpenRouterProvider,
     GoogleProvider,
+    OpenAIProvider,
     type CompletionResult,
     type LLMProvider,
     type Message,
@@ -55,6 +56,10 @@ function buildProvider(keys: ProviderKeys, opts: ForwardOptions): LLMProvider {
         case 'google':
             if (!keys.google) throw new ProviderNotConfiguredError('google');
             return new GoogleProvider({ apiKey: keys.google, ...common });
+        case 'openai':
+            if (!keys.openai) throw new ProviderNotConfiguredError('openai');
+            // Direct to api.openai.com (OpenAIProvider's default base URL).
+            return new OpenAIProvider({ apiKey: keys.openai, ...common });
     }
 }
 
@@ -65,6 +70,7 @@ export function usageOf(r: CompletionResult | StreamChunk): LlmUsage {
         tokensOut: r.outputTokens ?? null,
         cacheRead: r.cacheReadTokens ?? null,
         cacheCreation: r.cacheCreationTokens ?? null,
+        cacheCreation1h: r.cacheCreation1hTokens ?? null,
     };
 }
 
@@ -100,6 +106,7 @@ export class Forwarder {
             outputTokens: result.outputTokens ?? null,
             cacheReadTokens: result.cacheReadTokens ?? null,
             cacheCreationTokens: result.cacheCreationTokens ?? null,
+            cacheCreation1hTokens: result.cacheCreation1hTokens ?? null,
         };
     }
 }

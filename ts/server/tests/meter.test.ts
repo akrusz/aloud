@@ -22,6 +22,31 @@ describe('llmCostUsd', () => {
         expect(cost).toBeCloseTo(3 + 15 + 0.3, 6);
     });
 
+    it('prices the 1h cache anchor at 2x and the rest of cache-creation at 5m (1.25x)', () => {
+        // opus: 5/M in, 0.5/M read, 6.25/M (5m write), 10/M (1h write).
+        // 1000 creation tokens, 400 of them at the 1h TTL.
+        const cost = llmCostUsd('anthropic', 'claude-opus-4-8', {
+            cacheCreation: 1000,
+            cacheCreation1h: 400,
+        });
+        const expected = (600 * 6.25 + 400 * 10) / 1_000_000;
+        expect(cost).toBeCloseTo(expected, 9);
+    });
+
+    it('clamps a bogus 1h count to the cache-creation total (never over-bills)', () => {
+        // 1h reported higher than the total → cap at the total, all at 1h rate.
+        const cost = llmCostUsd('anthropic', 'claude-opus-4-8', {
+            cacheCreation: 500,
+            cacheCreation1h: 9999,
+        });
+        expect(cost).toBeCloseTo((500 * 10) / 1_000_000, 9);
+    });
+
+    it('treats absent 1h split as all-5m (back-compat with non-anchor turns)', () => {
+        const cost = llmCostUsd('anthropic', 'claude-opus-4-8', { cacheCreation: 1000 });
+        expect(cost).toBeCloseTo((1000 * 6.25) / 1_000_000, 9);
+    });
+
     it('returns 0 for an unknown model rather than throwing', () => {
         expect(llmCostUsd('anthropic', 'no-such-model', { tokensIn: 1000 })).toBe(0);
     });
@@ -80,22 +105,29 @@ describe('priceTtsChars', () => {
     const N = 100_000; // chars
 
     it('prices a Chirp3-HD voice at $30/1M', () => {
-        const cost = priceTtsChars(N, 'en-US-Chirp3-HD-Leda');
+        const cost = priceTtsChars(N, { voiceId: 'en-US-Chirp3-HD-Leda' });
         expect(cost.providerCostUsd).toBeCloseTo(N * (30 / 1_000_000), 9);
     });
 
     it('prices cheaper Google tiers correctly — Neural2 $16/1M, Standard $4/1M', () => {
-        expect(priceTtsChars(N, 'en-US-Neural2-C').providerCostUsd).toBeCloseTo(N * (16 / 1_000_000), 9);
-        expect(priceTtsChars(N, 'en-US-Standard-B').providerCostUsd).toBeCloseTo(N * (4 / 1_000_000), 9);
+        expect(priceTtsChars(N, { voiceId: 'en-US-Neural2-C' }).providerCostUsd).toBeCloseTo(N * (16 / 1_000_000), 9);
+        expect(priceTtsChars(N, { voiceId: 'en-US-Standard-B' }).providerCostUsd).toBeCloseTo(N * (4 / 1_000_000), 9);
+    });
+
+    it('prices an OpenAI voice at its flat rate (~$22/1M), not the Google default', () => {
+        // OpenAI voice ids ('coral') carry no Google tier marker — without
+        // provider-aware pricing this would wrongly fall back to Chirp3-HD $30.
+        const cost = priceTtsChars(N, { provider: 'openai', voiceId: 'coral' });
+        expect(cost.providerCostUsd).toBeCloseTo(N * (22 / 1_000_000), 9);
     });
 
     it('falls back to the Chirp3-HD default when no voice is given', () => {
-        const explicit = priceTtsChars(N, 'en-US-Chirp3-HD-Leda').providerCostUsd;
+        const explicit = priceTtsChars(N, { voiceId: 'en-US-Chirp3-HD-Leda' }).providerCostUsd;
         expect(priceTtsChars(N).providerCostUsd).toBeCloseTo(explicit, 9);
     });
 
     it('debits fractional credits at cost (not ceiled)', () => {
-        const cost = priceTtsChars(N, 'en-US-Chirp3-HD-Leda');
+        const cost = priceTtsChars(N, { voiceId: 'en-US-Chirp3-HD-Leda' });
         expect(cost.credits).toBeCloseTo(cost.providerCostUsd / USD_PER_CREDIT, 9);
     });
 });

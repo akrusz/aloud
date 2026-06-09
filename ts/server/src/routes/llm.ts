@@ -58,6 +58,7 @@ function recordLlmUsage(
         tokensOut: usage.tokensOut ?? 0,
         cacheRead: usage.cacheRead ?? 0,
         cacheCreation: usage.cacheCreation ?? 0,
+        cacheCreation1h: usage.cacheCreation1h ?? 0,
         seconds: 0,
         chars: 0,
         providerCostUsd: cost.providerCostUsd,

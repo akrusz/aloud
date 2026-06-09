@@ -48,6 +48,7 @@ function usageEvent(over: Partial<UsageEvent> = {}): UsageEvent {
         tokensOut: 20,
         cacheRead: 4000,
         cacheCreation: 0,
+        cacheCreation1h: 0,
         seconds: 0,
         chars: 0,
         providerCostUsd: 0.000123,

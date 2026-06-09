@@ -6,11 +6,13 @@ import type { AuthResponse } from '../src/contract.js';
 
 // MP3 bytes Google would return, base64-encoded as audioContent.
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
-let googleCalls: Array<{ url: string; body: unknown }> = [];
+let googleCalls: Array<{ url: string; body: any }> = [];
+let openaiCalls: Array<{ url: string; body: any; auth: string | null }> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
     googleCalls = [];
+    openaiCalls = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url);
         if (u.includes('texttospeech.googleapis.com')) {
@@ -19,6 +21,16 @@ beforeEach(() => {
                 JSON.stringify({ audioContent: Buffer.from(FAKE_MP3).toString('base64') }),
                 { status: 200 }
             );
+        }
+        if (u.includes('api.openai.com/v1/audio/speech')) {
+            const headers = (init?.headers ?? {}) as Record<string, string>;
+            openaiCalls.push({
+                url: u,
+                body: JSON.parse(init?.body as string),
+                auth: headers['authorization'] ?? null,
+            });
+            // OpenAI returns the audio as the raw response body (not base64 JSON).
+            return new Response(FAKE_MP3, { status: 200 });
         }
         return realFetch(url, init);
     }) as typeof fetch;
@@ -228,5 +240,63 @@ describe('GET /cloud/v1/tts/preview', () => {
         const a = createApp(buildDeps(config));
         const res = await a.request('/cloud/v1/tts/preview?voice=Leda');
         expect(res.status).toBe(502);
+    });
+
+    it('previews an OpenAI voice via OpenAI when its key is set', async () => {
+        const config = loadConfig({ OPENAI_TTS_API_KEY: 'oai-key' });
+        const a = createApp(buildDeps(config));
+        const res = await a.request('/cloud/v1/tts/preview?voice=Lyra'); // Lyra → shimmer
+        expect(res.status).toBe(200);
+        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
+        expect(googleCalls).toHaveLength(0);
+        expect(openaiCalls).toHaveLength(1);
+        expect(openaiCalls[0]!.body.voice).toBe('shimmer');
+        expect(openaiCalls[0]!.body.input).toContain('Welcome to aloud');
+    });
+});
+
+describe('POST /cloud/v1/tts — OpenAI voices', () => {
+    function openaiApp() {
+        const config = loadConfig({ OPENAI_TTS_API_KEY: 'oai-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        return createApp(buildDeps(config));
+    }
+
+    it('routes a curated OpenAI voice to OpenAI (not Google) and bills it', async () => {
+        const a = openaiApp();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'Breathe in.', voice: 'Lyra', rate: 0.9 }),
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toBe('audio/mpeg');
+        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
+        expect(Number(res.headers.get('X-Credits-Charged'))).toBeGreaterThan(0);
+
+        // It went to OpenAI, with the resolved voice + model + a steering instruction.
+        expect(googleCalls).toHaveLength(0);
+        expect(openaiCalls).toHaveLength(1);
+        const sent = openaiCalls[0]!.body;
+        expect(sent.model).toBe('gpt-4o-mini-tts');
+        expect(sent.voice).toBe('shimmer'); // Lyra → shimmer
+        expect(sent.response_format).toBe('mp3');
+        expect(typeof sent.instructions).toBe('string');
+        expect(openaiCalls[0]!.auth).toBe('Bearer oai-key');
+    });
+
+    it('502s for an OpenAI voice when only the Google key is configured', async () => {
+        const config = loadConfig({ GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const a = createApp(buildDeps(config));
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'hi', voice: 'Lyra' }),
+        });
+        expect(res.status).toBe(502);
+        // Neither provider was actually called — it fails fast on the missing key.
+        expect(openaiCalls).toHaveLength(0);
+        expect(googleCalls).toHaveLength(0);
     });
 });

@@ -132,8 +132,103 @@ describe('AnthropicProvider', () => {
         expect(body.system).toEqual([
             { type: 'text', text: 'be warm', cache_control: { type: 'ephemeral' } },
         ]);
-        // System messages are filtered out of the messages array
-        expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
+        // System messages are filtered out; the last message carries the cache
+        // breakpoint (its content becomes a block array) so the whole prefix
+        // is cached for the next turn.
+        expect(body.messages).toEqual([
+            { role: 'user', content: [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral' } }] },
+        ]);
+    });
+
+    it('puts the cache breakpoint on the last message only, leaving earlier turns plain', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockJsonResponse({
+                content: [{ type: 'text', text: 'ok' }],
+                stop_reason: 'end_turn',
+                usage: { input_tokens: 10, output_tokens: 2 },
+            })
+        );
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+
+        await provider.complete(
+            [
+                { role: 'user', content: 'first' },
+                { role: 'assistant', content: 'reply' },
+                { role: 'user', content: 'second' },
+            ],
+            { system: 'be warm' }
+        );
+
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        // Earlier turns stay plain strings — only the final message is a cached
+        // block so the breakpoint sits at the end of the accumulated prefix.
+        expect(body.messages).toEqual([
+            { role: 'user', content: 'first' },
+            { role: 'assistant', content: 'reply' },
+            { role: 'user', content: [{ type: 'text', text: 'second', cache_control: { type: 'ephemeral' } }] },
+        ]);
+    });
+
+    it('adds a 1h-TTL anchor breakpoint every 16 messages in a long conversation', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockJsonResponse({
+                content: [{ type: 'text', text: 'ok' }],
+                stop_reason: 'end_turn',
+                usage: { input_tokens: 10, output_tokens: 2 },
+            })
+        );
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+
+        // 18 messages (indices 0..17). Anchor boundary = floor((17-1)/16)*16 = 16.
+        const convo = Array.from({ length: 18 }, (_v, i) => ({
+            role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+            content: `m${i}`,
+        }));
+        await provider.complete(convo, { system: 'be warm' });
+
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        // Index 16 → 1h anchor; index 17 (last) → 5m rolling tail; rest plain.
+        expect(body.messages[16].content).toEqual([
+            { type: 'text', text: 'm16', cache_control: { type: 'ephemeral', ttl: '1h' } },
+        ]);
+        expect(body.messages[17].content).toEqual([
+            { type: 'text', text: 'm17', cache_control: { type: 'ephemeral' } },
+        ]);
+        expect(body.messages[0]).toEqual({ role: 'user', content: 'm0' });
+        expect(body.messages[15]).toEqual({ role: 'assistant', content: 'm15' });
+        // Exactly two cached blocks (anchor + tail), not one per turn.
+        const cached = body.messages.filter((m: { content: unknown }) => Array.isArray(m.content));
+        expect(cached).toHaveLength(2);
+    });
+
+    it('parses the per-TTL cache_creation breakdown (ephemeral_1h_input_tokens)', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockJsonResponse({
+                content: [{ type: 'text', text: 'hi' }],
+                stop_reason: 'end_turn',
+                usage: {
+                    input_tokens: 100,
+                    output_tokens: 20,
+                    cache_read_input_tokens: 80,
+                    cache_creation_input_tokens: 12,
+                    cache_creation: { ephemeral_5m_input_tokens: 8, ephemeral_1h_input_tokens: 4 },
+                },
+            })
+        );
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        const result = await provider.complete([{ role: 'user', content: 'hi' }]);
+        // Flat total stays the sum; the 1h subset is broken out for billing.
+        expect(result.cacheCreationTokens).toBe(12);
+        expect(result.cacheCreation1hTokens).toBe(4);
     });
 
     it('omits the system field when no system prompt provided', async () => {

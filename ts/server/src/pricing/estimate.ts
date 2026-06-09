@@ -21,8 +21,8 @@
 import type { SessionUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
 import { priceSession, usdToCredits } from './meter.js';
-import { allowedModels, googleTtsRateFor } from './providers.js';
-import { CURATED_VOICES } from '../providers/voice-catalog.js';
+import { allowedModels, ttsRateFor } from './providers.js';
+import { CURATED_VOICES, type TtsProvider } from '../providers/voice-catalog.js';
 
 /** Representative ~50-min session, history-caching ON. See file header. */
 export const TYPICAL_SESSION_MINUTES = 50;
@@ -120,8 +120,8 @@ export function estimateStt(): LegEstimate {
 /** Typical-profile credits/hr for a Google voice id — the concrete "how fast
  *  does this burn my credits" number the picker shows next to a voice, computed
  *  from the SAME rate the meter bills with (so it can't drift). One decimal. */
-export function voiceCreditsPerHourTypical(googleId: string): number {
-    const usdPerHour = TTS_CHAR_PROFILES.typical * googleTtsRateFor(googleId) * PER_HOUR;
+export function voiceCreditsPerHourTypical(provider: TtsProvider, voiceId: string): number {
+    const usdPerHour = TTS_CHAR_PROFILES.typical * ttsRateFor(provider, voiceId) * PER_HOUR;
     return Math.round(usdToCredits(usdPerHour) * 10) / 10;
 }
 
@@ -138,31 +138,34 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
 
 /**
  * Per-voice TTS leg, as a band across the talk profile. Reflects the voices a
- * user can ACTUALLY pick: the free local engines plus the curated Google cloud
- * voices (voice-catalog.ts — all Chirp3-HD today), each priced via the same
- * Google tier authority the meter bills with (providers.googleTtsRateFor), so a
- * shown line can never drift from the real charge.
+ * user can ACTUALLY pick: the free local engines plus the curated cloud voices
+ * (voice-catalog.ts — Google Chirp3-HD/Neural2 and OpenAI gpt-4o-mini-tts),
+ * each priced via the same rate authority the meter bills with
+ * (providers.ttsRateFor), so a shown line can never drift from the real charge.
  *
- * Cheaper cloud engines we may wire later (meditation-pal-b7i) are NOT offered
- * yet, so they're deliberately absent here rather than advertised at a rate the
- * server can't actually deliver: Google Neural2/WaveNet ($16/1M, half Chirp3-HD)
- * and Standard ($4/1M) are a one-line catalog add; off-Google options to weigh
+ * Other engines we may wire later (meditation-pal-b7i) are deliberately absent
+ * rather than advertised at a rate the server can't actually deliver: Google
+ * Standard ($4/1M) is a one-line catalog add; off-roster options to weigh
  * include Unreal Speech (~$8/1M), Hume Octave (~$7.60/1M), Deepgram Aura
  * ($15/1M), and self-hosted Kokoro (~$0.70/1M, but breaks the stateless proxy).
  */
+function voiceEngineLabel(v: { provider: TtsProvider; tier: string }): string {
+    if (v.provider === 'openai') return 'OpenAI gpt-4o-mini-tts';
+    return v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
+}
+
 export function estimateVoices(): VoiceEstimate[] {
     const free = [
         freeVoice('browser-default', 'Device voice (free)'),
         freeVoice('os-premium', 'System premium voice (free)'),
     ];
     const cloud = CURATED_VOICES.map((v): VoiceEstimate => {
-        const rate = googleTtsRateFor(v.googleId);
+        const rate = ttsRateFor(v.provider, v.providerVoiceId);
         const perHour = (chars: number): number =>
             Math.ceil(usdToCredits(chars * rate) * PER_HOUR);
-        const tierLabel = v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
         return {
-            voiceId: v.googleId,
-            label: `Cloud voice — ${v.name} (${tierLabel})`,
+            voiceId: v.providerVoiceId,
+            label: `Cloud voice — ${v.name} (${voiceEngineLabel(v)})`,
             creditsPerHour: {
                 spacious: perHour(TTS_CHAR_PROFILES.spacious),
                 typical: perHour(TTS_CHAR_PROFILES.typical),

@@ -57,41 +57,53 @@ describe('estimateVoices', () => {
         expect(browser.creditsPerHour.engaged).toBe(0);
     });
 
-    it('lists exactly the offered voices: the free locals + the curated Google cloud set', () => {
+    it('lists exactly the offered voices: the free locals + the curated cloud set', () => {
         const ids = voices.map((v) => v.voiceId);
         expect(ids).toContain('browser-default');
         expect(ids).toContain('os-premium');
-        // Every curated voice (both tiers) is estimated, by its real Google id.
-        for (const v of CURATED_VOICES) expect(ids).toContain(v.googleId);
+        // Every curated voice (every provider + tier) is estimated, by its real
+        // provider voice id.
+        for (const v of CURATED_VOICES) expect(ids).toContain(v.providerVoiceId);
         expect(voices).toHaveLength(2 + CURATED_VOICES.length);
         // No aspirational engines the server can't synthesize.
         expect(ids.some((id) => id.includes('elevenlabs') || id.includes('hume'))).toBe(false);
     });
 
     it('cloud voice cost rises across the talk band (spacious < typical < engaged)', () => {
-        const leda = voices.find((v) => v.voiceId === defaultVoice().googleId)!;
+        const leda = voices.find((v) => v.voiceId === defaultVoice().providerVoiceId)!;
         expect(leda.creditsPerHour.spacious).toBeLessThan(leda.creditsPerHour.typical);
         expect(leda.creditsPerHour.typical).toBeLessThan(leda.creditsPerHour.engaged);
     });
 
     it('prices the value (Neural2) tier below the premium (Chirp3-HD) tier', () => {
         const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
-        const premium = CURATED_VOICES.find((v) => v.tier === 'premium')!;
-        const value = CURATED_VOICES.find((v) => v.tier === 'value')!;
-        expect(rateOf(value.googleId)).toBeGreaterThan(0);
-        expect(rateOf(value.googleId)).toBeLessThan(rateOf(premium.googleId));
+        // Pin to Google voices specifically (OpenAI is also 'value' but a
+        // different flat rate) so the 16/30 tier ratio stays exact.
+        const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
+        const value = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'value')!;
+        expect(rateOf(value.providerVoiceId)).toBeGreaterThan(0);
+        expect(rateOf(value.providerVoiceId)).toBeLessThan(rateOf(premium.providerVoiceId));
         // Neural2 ($16/1M) is ~half Chirp3-HD ($30/1M).
-        expect(rateOf(value.googleId) / rateOf(premium.googleId)).toBeCloseTo(16 / 30, 2);
+        expect(rateOf(value.providerVoiceId) / rateOf(premium.providerVoiceId)).toBeCloseTo(16 / 30, 2);
+    });
+
+    it('prices the OpenAI voices below the Chirp3-HD cost (premium-bucket, cheaper burn)', () => {
+        const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
+        const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
+        const openai = CURATED_VOICES.find((v) => v.provider === 'openai')!;
+        // ~$22/1M < $30/1M Chirp3-HD — stays under the cost ceiling.
+        expect(rateOf(openai.providerVoiceId)).toBeGreaterThan(0);
+        expect(rateOf(openai.providerVoiceId)).toBeLessThan(rateOf(premium.providerVoiceId));
     });
 });
 
 describe('voiceCreditsPerHourTypical', () => {
     it('matches the per-voice estimate and ranks value below premium', () => {
-        const premium = CURATED_VOICES.find((v) => v.tier === 'premium')!;
-        const value = CURATED_VOICES.find((v) => v.tier === 'value')!;
-        expect(voiceCreditsPerHourTypical(value.googleId)).toBeGreaterThan(0);
-        expect(voiceCreditsPerHourTypical(value.googleId)).toBeLessThan(
-            voiceCreditsPerHourTypical(premium.googleId)
+        const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
+        const value = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'value')!;
+        expect(voiceCreditsPerHourTypical(value.provider, value.providerVoiceId)).toBeGreaterThan(0);
+        expect(voiceCreditsPerHourTypical(value.provider, value.providerVoiceId)).toBeLessThan(
+            voiceCreditsPerHourTypical(premium.provider, premium.providerVoiceId)
         );
     });
 });

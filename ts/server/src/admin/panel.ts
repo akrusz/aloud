@@ -124,6 +124,14 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     <p class="sub" style="margin:-4px 0 12px">What real sessions actually cost — the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
     <div class="grid" id="usageStats"></div>
     <div class="card">
+      <p class="sub" style="margin:0 0 10px">LLM prompt cache — the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently — the per-provider hit rate is how you tell each path is actually caching.</p>
+      <div class="grid" id="cacheStats" style="margin-bottom:12px"></div>
+      <table>
+        <thead><tr><th>Provider</th><th class="num">Hit</th><th class="num">Fresh tok</th><th class="num">Read tok</th><th class="num">Write tok</th><th class="num">Cost $</th><th class="num">Saved $</th></tr></thead>
+        <tbody id="cacheProviderRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card">
       <p class="sub" style="margin:0 0 10px">Cost split by service — what drives the bill.</p>
       <table>
         <thead><tr><th>Service</th><th class="num">Provider $</th><th class="num">Share</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
@@ -318,6 +326,30 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       $('usageStats').innerHTML = cards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
       }).join('');
+
+      // ---- LLM prompt cache breakdown ----
+      var lc = u.llmCache || { freshInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheCreation1hTokens: 0, hitRatio: 0, costUsd: 0, costNoCacheUsd: 0, savedUsd: 0 };
+      var savedPct = lc.costNoCacheUsd > 0 ? lc.savedUsd / lc.costNoCacheUsd : 0;
+      var cacheCards = [
+        ['Cache hit', pct(lc.hitRatio)],
+        ['Fresh input tok', int(lc.freshInputTokens)],
+        ['Cache reads tok', int(lc.cacheReadTokens)],
+        ['Cache writes tok', int(lc.cacheCreationTokens)],
+        // 1h-TTL writes (the anchor, billed 2x). Rising = holds forcing re-anchors.
+        ['1h-anchor writes tok', int(lc.cacheCreation1hTokens || 0)],
+        ['LLM cost', usdp(lc.costUsd)],
+        ['Cost w/o cache', usdp(lc.costNoCacheUsd)],
+        ['Saved by cache', usdp(lc.savedUsd) + ' (' + pct(savedPct) + ')'],
+      ];
+      $('cacheStats').innerHTML = cacheCards.map(function (c) {
+        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
+      }).join('');
+      $('cacheProviderRows').innerHTML = (u.llmCacheByProvider || []).map(function (p) {
+        return '<tr><td><code>' + esc(p.provider) + '</code></td><td class="num">' + pct(p.hitRatio) +
+          '</td><td class="num">' + int(p.freshInputTokens) + '</td><td class="num">' + int(p.cacheReadTokens) +
+          '</td><td class="num">' + int(p.cacheCreationTokens) + '</td><td class="num">' + usdp(p.costUsd) +
+          '</td><td class="num">' + usdp(p.savedUsd) + '</td></tr>';
+      }).join('') || '<tr><td colspan="7" class="muted">No LLM usage in this window.</td></tr>';
 
       var svc = u.byService.slice().sort(function (a, b) { return b.providerCostUsd - a.providerCostUsd; });
       $('usageServiceRows').innerHTML = svc.map(function (v) {

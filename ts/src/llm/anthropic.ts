@@ -1,9 +1,14 @@
 /**
  * Anthropic API provider — direct fetch, no SDK.
  *
- * Mirrors the Python implementation's use of cache_control on the system
- * prompt: repeat calls within a session pay ~10% input cost for the
- * cached prefix, which is a big deal for long facilitation sessions.
+ * Prompt caching: we set TWO ephemeral breakpoints — one on the system prompt
+ * and one on the LAST message. The system breakpoint alone is nearly useless
+ * here: the assembled facilitation system prompt is ~1.1-2k tokens, below the
+ * per-model minimum cacheable prefix (2048 on Sonnet 4.6, 4096 on Opus), so a
+ * system-only breakpoint usually writes nothing. The breakpoint on the last
+ * message caches the whole system+conversation prefix, so each subsequent turn
+ * reads the entire transcript at ~0.1x instead of re-billing it as fresh input
+ * every turn — the dominant cost on this input-heavy (~45:1) workload.
  */
 
 import type {
@@ -19,6 +24,33 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const DEFAULT_MAX_TOKENS = 300;
+
+/**
+ * Ephemeral cache breakpoints come in two TTLs: 5m (default; write costs 1.25x
+ * input) and 1h (write costs 2x). We use BOTH:
+ *   - 5m on the rolling tail (last message): refreshed by each active turn's
+ *     read, so the prefix stays warm cheaply during normal facilitation.
+ *   - 1h on a slowly-advancing "anchor" (see ANCHOR_STEP): survives a long
+ *     [HOLD] silence (>5min) so a resume reads the bulk of the transcript at
+ *     ~0.1x instead of re-billing the whole thing as fresh input.
+ *
+ * The 1h write is priced at 2x in the server table (providers.ts cacheCreation1h)
+ * and billed from Anthropic's reported ephemeral_1h_input_tokens — keep the two
+ * in lockstep.
+ */
+const CACHE_5M = { type: 'ephemeral' } as const;
+const CACHE_1H = { type: 'ephemeral', ttl: '1h' } as const;
+
+/**
+ * The 1h anchor advances every ANCHOR_STEP messages and sits at a fixed,
+ * re-readable position in between. It's bounded by Anthropic's 20-content-block
+ * cache-lookback window: the anchor must stay within 20 blocks of the tail to
+ * remain reachable (and survive a hold), and each message is one block — so the
+ * max anchor-to-tail gap (= ANCHOR_STEP) must be < 20. 16 (= 8 facilitator
+ * exchanges) leaves margin. Beyond ~10 exchanges the anchor would fall out of
+ * the window and a mid-stretch hold would lose the whole prefix anyway.
+ */
+const ANCHOR_STEP = 16;
 
 export interface AnthropicProviderOptions {
     /**
@@ -45,6 +77,12 @@ interface AnthropicUsage {
     output_tokens?: number;
     cache_read_input_tokens?: number;
     cache_creation_input_tokens?: number;
+    /** Per-TTL breakdown of cache_creation_input_tokens, present when a 1h
+     *  breakpoint is used. The flat field above stays the total (5m + 1h). */
+    cache_creation?: {
+        ephemeral_5m_input_tokens?: number;
+        ephemeral_1h_input_tokens?: number;
+    };
 }
 
 interface AnthropicMessagesResponse {
@@ -80,16 +118,33 @@ export class AnthropicProvider implements LLMProvider {
         options: CompletionOptions,
         stream: boolean
     ): { url: string; init: RequestInit } {
-        const anthropicMessages = messages
-            .filter((m) => m.role !== 'system')
-            .map((m) => ({ role: m.role, content: m.content }));
+        const convo = messages.filter((m) => m.role !== 'system');
+        const lastIndex = convo.length - 1;
+        // The 1h anchor: the largest ANCHOR_STEP boundary strictly behind the
+        // tail. It's stable for a stretch of ANCHOR_STEP messages (re-read every
+        // turn, refreshing its 1h TTL), then jumps forward — so a long session
+        // accrues one cheap 1h write per stretch while never dropping out of the
+        // 20-block lookback window. -1 (skip) until the convo is long enough to
+        // need hold-protection and to clear the cacheable minimum.
+        const anchorBoundary = Math.floor((lastIndex - 1) / ANCHOR_STEP) * ANCHOR_STEP;
+        const anchorIndex = anchorBoundary >= ANCHOR_STEP ? anchorBoundary : -1;
+
+        // Tail (last message) → 5m rolling breakpoint; anchor → 1h; rest plain.
+        // The tail writes a cache entry for the full system+conversation prefix
+        // so the NEXT turn reads it at ~0.1x instead of re-billing the transcript.
+        const anthropicMessages = convo.map((m, i) => {
+            const ttl = i === lastIndex ? CACHE_5M : i === anchorIndex ? CACHE_1H : null;
+            return ttl
+                ? { role: m.role, content: [{ type: 'text', text: m.content, cache_control: ttl }] }
+                : { role: m.role, content: m.content };
+        });
 
         const systemParam = options.system
             ? [
                   {
                       type: 'text',
                       text: options.system,
-                      cache_control: { type: 'ephemeral' },
+                      cache_control: CACHE_5M,
                   },
               ]
             : undefined;
@@ -195,6 +250,7 @@ function usageToResult(usage: AnthropicUsage | undefined): {
     outputTokens: number | null;
     cacheReadTokens: number | null;
     cacheCreationTokens: number | null;
+    cacheCreation1hTokens: number | null;
 } {
     if (!usage) {
         return {
@@ -203,6 +259,7 @@ function usageToResult(usage: AnthropicUsage | undefined): {
             outputTokens: null,
             cacheReadTokens: null,
             cacheCreationTokens: null,
+            cacheCreation1hTokens: null,
         };
     }
     const inputTokens = usage.input_tokens ?? 0;
@@ -213,6 +270,7 @@ function usageToResult(usage: AnthropicUsage | undefined): {
         outputTokens,
         cacheReadTokens: usage.cache_read_input_tokens ?? null,
         cacheCreationTokens: usage.cache_creation_input_tokens ?? null,
+        cacheCreation1hTokens: usage.cache_creation?.ephemeral_1h_input_tokens ?? null,
     };
 }
 
