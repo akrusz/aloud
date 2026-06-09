@@ -12,6 +12,7 @@
 import type { SessionState, Exchange } from '../../../src/facilitation/index.js';
 import { sessionStore } from '../state.js';
 import { confirmDialog } from '../dialog.js';
+import { isTauri } from '../is-desktop.js';
 
 export interface HistoryViewHandle {
     show(): Promise<void>;
@@ -36,7 +37,7 @@ export async function mountHistoryView(
         wireEvents(sessions);
 
         const exportBtn = root.querySelector<HTMLButtonElement>('#btn-export-sessions');
-        exportBtn?.addEventListener('click', () => exportSessions(sessions));
+        exportBtn?.addEventListener('click', () => void exportSessions(sessions, exportBtn));
     }
 
     function wireEvents(sessions: readonly SessionState[]): void {
@@ -142,12 +143,28 @@ export async function mountHistoryView(
     return { show: loadAndRender };
 }
 
-/** Download all saved sessions as a single JSON file. Sessions live in
- *  localStorage (no folder to open), so this is how a user gets their data
- *  off the device — for backup or to move it elsewhere. */
-function exportSessions(sessions: readonly SessionState[]): void {
+/** Get all saved sessions out as JSON (for backup or moving devices). Sessions
+ *  live in localStorage, so there's no folder to open. On the web we trigger a
+ *  real file download; in the Tauri desktop webview a programmatic `<a download>`
+ *  is blocked and the app doesn't ship the fs/dialog plugins, so we copy the
+ *  JSON to the clipboard instead (the user pastes it into a file). */
+async function exportSessions(
+    sessions: readonly SessionState[],
+    btn?: HTMLButtonElement
+): Promise<void> {
+    const json = JSON.stringify(sessions, null, 2);
+    if (isTauri()) {
+        try {
+            await navigator.clipboard.writeText(json);
+            flashLabel(btn, 'Copied to clipboard');
+            return;
+        } catch (err) {
+            // Clipboard denied — fall through and try a download as a last resort.
+            console.warn('Session export via clipboard failed; trying download', err);
+        }
+    }
     try {
-        const blob = new Blob([JSON.stringify(sessions, null, 2)], { type: 'application/json' });
+        const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -158,7 +175,20 @@ function exportSessions(sessions: readonly SessionState[]): void {
         URL.revokeObjectURL(url);
     } catch (err) {
         console.warn('Session export failed', err);
+        flashLabel(btn, 'Export failed');
     }
+}
+
+/** Briefly swap a button's label to give click feedback, then restore it. */
+function flashLabel(btn: HTMLButtonElement | undefined, text: string): void {
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.textContent = text;
+    btn.disabled = true;
+    setTimeout(() => {
+        btn.textContent = original;
+        btn.disabled = false;
+    }, 1800);
 }
 
 // ---- rendering ----
@@ -173,7 +203,9 @@ function renderShellHTML(sessions: readonly SessionState[]): string {
             <h1>Past Sessions</h1>
             ${
                 sessions.length > 0
-                    ? `<button class="btn-config-path" id="btn-export-sessions" type="button">Export sessions</button>`
+                    ? `<button class="btn-config-path" id="btn-export-sessions" type="button">${
+                          isTauri() ? 'Copy sessions (JSON)' : 'Export sessions'
+                      }</button>`
                     : ''
             }
         </div>`;
