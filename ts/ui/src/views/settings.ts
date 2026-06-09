@@ -1671,6 +1671,14 @@ function renderPacingSection(s: AppSettings): string {
                 </label>
                 <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Some smaller models are over-eager to enter this mode.</span>
             </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-auto-quit"${s.autoQuitAfterSilence ? ' checked' : ''}>
+                    <span>Auto-save and quit after silence (min)</span>
+                </label>
+                ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
+                <span class="form-hint">An open session keeps listening and checking in, which slowly uses cloud credit.</span>
+            </div>
         </div>
     </section>`;
 }
@@ -1685,27 +1693,21 @@ function renderSessionLogsSection(s: AppSettings): string {
     return `
     <section class="settings-section">
         <h2>Session History</h2>
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="s-save-session-logs"${s.saveSessionLogs ? ' checked' : ''}>
-                <span>Save session logs (locally)</span>
-            </label>
-            <span class="form-hint">A local transcript of each session, autosaved every turn. When off, nothing's saved unless you save it from the end dialog.</span>
-        </div>
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
-                <span>Resume from a recap (cheaper)</span>
-            </label>
-            <span class="form-hint">Continuing a session sends a short recap plus your recent exchanges, not the whole transcript, so a long one is cheap to reload. You still see the full history.</span>
-        </div>
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="s-auto-quit"${s.autoQuitAfterSilence ? ' checked' : ''}>
-                <span>Auto-save and quit after silence (min)</span>
-            </label>
-            ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
-            <span class="form-hint">An open session keeps listening and checking in, which slowly uses cloud credit.</span>
+        <div class="form-row">
+          <div class="form-group">
+              <label class="checkbox-label">
+                  <input type="checkbox" id="s-save-session-logs"${s.saveSessionLogs ? ' checked' : ''}>
+                  <span>Save session logs (locally)</span>
+              </label>
+              <span class="form-hint">A local transcript of each session, autosaved every turn. When off, nothing's saved unless you save it from the end dialog.</span>
+          </div>
+          <div class="form-group">
+              <label class="checkbox-label">
+                  <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
+                  <span>Resume from a recap (cheaper)</span>
+              </label>
+              <span class="form-hint">Continuing a session sends a short recap plus your recent exchanges, not the whole transcript, so a long one is cheap to reload. You still see the full history.</span>
+          </div>
         </div>
     </section>`;
 }
