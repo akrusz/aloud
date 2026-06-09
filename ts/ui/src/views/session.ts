@@ -164,10 +164,13 @@ export interface SessionViewHandle {
 
 export type SessionEndDestination = 'setup' | 'history' | 'settings' | 'account';
 
-/** Re-generate the background recap only after this many new exchanges land,
- *  so a recap refresh (an LLM call, though a cheap warm-cache one) fires a few
- *  times an hour, not every turn. See refreshSummaryThrottled. */
-const SUMMARY_MIN_NEW_EXCHANGES = 6;
+/** Re-generate the background recap only after this many new exchanges land.
+ *  A refresh is an LLM call (cheap — warm prompt cache — but non-zero for cloud
+ *  users), so keep it infrequent: roughly once or twice in a long session, not
+ *  every turn. It can afford to lag because summary-based resume keeps the last
+ *  RESUME_RECENT_KEEP exchanges verbatim anyway — the recap only has to cover
+ *  the older portion. See refreshSummaryThrottled. */
+const SUMMARY_MIN_NEW_EXCHANGES = 12;
 
 export async function mountSessionView(
     root: HTMLElement,
