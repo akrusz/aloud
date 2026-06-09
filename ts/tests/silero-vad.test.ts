@@ -11,16 +11,20 @@ import { SileroFrameVad, type SileroModel } from '../ui/src/adapters/silero-vad.
 
 function fakeModel(probFor: (chunkIndex: number) => number): SileroModel & {
     chunks: Float32Array[];
+    resets: number;
 } {
     const chunks: Float32Array[] = [];
     return {
         chunks,
+        resets: 0,
         async process(frame: Float32Array) {
             chunks.push(frame.slice());
             const isSpeech = probFor(chunks.length - 1);
             return { isSpeech, notSpeech: 1 - isSpeech };
         },
-        reset_state() {},
+        reset_state() {
+            this.resets++;
+        },
         async release() {},
     };
 }
@@ -75,6 +79,26 @@ describe('SileroFrameVad', () => {
         await vad.release();
         expect(vad.speaking).toBe(false);
         expect(vad.lastProb).toBeCloseTo(0.3, 6);
+    });
+
+    it('reset clears stream state and resets the model behind in-flight chunks', async () => {
+        const model = fakeModel(() => 0.9);
+        const vad = new SileroFrameVad(model);
+        vad.feed(new Float32Array(700), 16_000); // one chunk + partial fill
+        await vad.release();
+        expect(vad.speaking).toBe(true);
+
+        vad.reset();
+        await vad.release();
+        expect(vad.speaking).toBe(false);
+        expect(vad.lastProb).toBe(0);
+        expect(model.resets).toBe(1);
+
+        // Stream state cleared: the leftover partial fill is gone, so a fresh
+        // 512-sample feed produces exactly one whole new chunk.
+        vad.feed(new Float32Array(513), 16_000);
+        await vad.release();
+        expect(model.chunks.length).toBe(2);
     });
 
     it('drops chunks instead of queueing unboundedly when inference stalls', () => {

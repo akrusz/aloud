@@ -14,9 +14,11 @@
  * assets (Vite `?url` imports → hashed files in the build, served by GitHub
  * Pages / bundled into the desktop app) and inference runs on-device.
  *
- * This module is loaded lazily (dynamic import from whisper-pcm-stt.ts) so the
- * ort runtime stays out of the main bundle and a load failure anywhere —
- * import, WASM init, model fetch — degrades to the energy VAD in one place.
+ * This module is loaded lazily (dynamic import) so the ort runtime stays out
+ * of the main bundle. The loaded model is an app-lifetime singleton
+ * (loadSileroVad) shared across engines/sessions: the setup view preloads it
+ * while the user configures, and the engine's prime()/start() await the same
+ * promise — so by the time a session starts, the download is usually done.
  */
 
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
@@ -142,9 +144,39 @@ export class SileroFrameVad {
             });
     }
 
+    /**
+     * Clear streaming state for a fresh capture stream (new session adopting
+     * the shared instance): resampler residue, chunk fill, speech state, and —
+     * serialized behind any in-flight chunks — the model's recurrent state.
+     */
+    reset(): void {
+        this.residue = new Float32Array(0);
+        this.phase = 0;
+        this.chunkFill = 0;
+        this.speaking = false;
+        this.lastProb = 0;
+        this.queue = this.queue
+            .then(() => this.model.reset_state())
+            .catch(() => {});
+    }
+
     /** Drain in-flight inference and free the ort session. */
     async release(): Promise<void> {
         await this.queue.catch(() => {});
         await this.model.release();
     }
+}
+
+// App-lifetime singleton: one ort session shared by every engine instance.
+// Memoized on the promise so concurrent callers (setup-page preload + the
+// session's prime()) share one load; reset on failure so a later session
+// retries (e.g. a transient network error fetching the model).
+let pendingLoad: Promise<SileroFrameVad> | null = null;
+
+export function loadSileroVad(): Promise<SileroFrameVad> {
+    pendingLoad ??= SileroFrameVad.create().catch((err) => {
+        pendingLoad = null;
+        throw err;
+    });
+    return pendingLoad;
 }

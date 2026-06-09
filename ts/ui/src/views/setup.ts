@@ -51,7 +51,12 @@ import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
 import { hasApiKey } from '../api-keys.js';
-import { sttEngineOptions, resolveSttChoice, CLOUD_STT_CREDITS_PER_HOUR } from '../adapters/stt-picker.js';
+import {
+    sttEngineOptions,
+    resolveSttChoice,
+    sttBackendForChoice,
+    CLOUD_STT_CREDITS_PER_HOUR,
+} from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
@@ -154,6 +159,18 @@ export async function mountSetupView(
     // (and changeable) before starting a session. Edits the app-level default,
     // same as the Voice control. The select itself is built in renderSetupHTML.
     const sttSetupSelected = resolveSttChoice(appSettings.sttEngine, isWebMode());
+    // Warm the Silero VAD while the user configures: the whisper-pcm engine's
+    // prime() awaits the same app-lifetime singleton (loadSileroVad), so by the
+    // time they click Begin the model download (multi-MB on a cold web cache)
+    // is usually done. Only when this mode's STT choice actually uses it -
+    // web-speech and capacitor never load the model.
+    if (sttBackendForChoice(sttSetupSelected) === 'server-whisper') {
+        void import('../adapters/silero-vad.js')
+            .then((m) => m.loadSileroVad())
+            .catch(() => {
+                /* best-effort warmup; the session start surfaces real errors */
+            });
+    }
     // Scored voice list for the modal. Lazy-loaded; the setup form is
     // interactive while voices fetch in the background.
     let scoredVoices: ScoredVoice[] = [];

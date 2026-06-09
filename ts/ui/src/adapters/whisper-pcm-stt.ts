@@ -10,16 +10,17 @@
  * Safari, and anywhere the Web Speech API doesn't cover, as long as a Whisper
  * endpoint is reachable.
  *
- * VAD: the speech signal is Silero v5 (silero-vad.ts — a neural per-chunk
- * speech probability, robust to quiet mics and soft trailing speech), loaded
- * lazily with the original RMS-energy-over-adaptive-noise-floor threshold as
- * the always-available fallback. Both modes share the adaptive silence timeout
- * (base + speech×ramp, capped at max) and the measured echo gate — Silero
- * scores the facilitator's own TTS echo as speech (it IS speech), so speaker
- * rejection stays energy-based. After a short pause the engine fires a
- * SPECULATIVE transcription and emits it as a `partial` (so the user sees
- * their words during the pause), then submits the `final` once the full
- * adaptive silence elapses — mirroring audio.js's speculative submission.
+ * VAD: the speech signal is Silero v5 (silero-vad.ts) — a neural per-chunk
+ * speech probability, robust to quiet mics and soft trailing speech, loaded
+ * once per app (loadSileroVad) and awaited by prime()/start(); the setup view
+ * preloads it so the wait is usually zero. RMS energy is no longer a speech
+ * detector — it remains only as the echo reference: Silero scores the
+ * facilitator's own TTS echo as speech (it IS speech), so while TTS plays a
+ * frame must also clear the measured echo gate to count as the user. The
+ * adaptive silence timeout (base + speech×ramp, capped at max) is unchanged.
+ * After a short pause the engine fires a SPECULATIVE transcription and emits
+ * it as a `partial` (so the user sees their words during the pause), then
+ * submits the `final` once the full adaptive silence elapses.
  *
  * Onset capture: the mic stream, AudioContext, AND the audio callback are
  * opened once and run continuously for the engine's lifetime (only `stop()` —
@@ -33,7 +34,7 @@
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitation/pacing.js';
 import { getCloudSessionId } from '../cloud-session.js';
-// Type-only: the module itself is dynamic-imported in ensureSilero() so the
+// Type-only: the module itself is dynamic-imported in acquireSilero() so the
 // ort runtime + model assets stay out of the main bundle (and out of node-env
 // tests, which never call it).
 import type { SileroFrameVad } from './silero-vad.js';
@@ -88,11 +89,10 @@ type VadFields = Pick<
 export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Endpoint URL. Default '/app/v1/stt/whisper' — Vite proxies in dev. */
     endpointUrl?: string;
-    /** RMS energy floor below which a frame is counted as silence. */
+    /** Minimum RMS for a frame to count as the *user* while the facilitator's
+     *  TTS is audibly playing — the floor under the measured echo gate. Not a
+     *  speech detector (Silero is); purely echo rejection. */
     energyThreshold?: number;
-    /** Use the Silero neural VAD as the speech signal once it loads (energy
-     *  threshold until then / on load failure). Default true. */
-    useSileroVad?: boolean;
     /** Hard cap on a single utterance — auto-submit after this. */
     maxUtteranceMs?: number;
     /** Custom fetch (tests). */
@@ -119,8 +119,6 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Continuous capture state — the audio callback runs across turns, so this
     // lives on the instance (not in a start()-scoped closure).
     private capturing = false;
-    private noiseFloor = 0.005;
-    private noiseSamples = 0;
     private preBuffer: Float32Array[] = [];
     private preBufferFrames = 0;
     // Per-utterance accumulators, reset at the top of each start().
@@ -129,9 +127,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     private speechStartMs = 0;
     private lastSpeechMs = 0;
     private utteranceDone = false;
-    // Loudest speech frame this utterance — diagnostic only, to see how close
-    // the user's voice runs to the silence threshold (soft speech that dips
-    // below it reads as a false pause).
+    // Loudest speech frame this utterance — diagnostic only (how loud this
+    // user/mic combination runs; informs the echo-gate margins).
     private peakEnergy = 0;
     // Rolling per-frame energy (+ neural prob, -1 when Silero is off) history
     // (~85ms per frame at 48 kHz) for the submit diagnostic — peak/thr alone
@@ -150,10 +147,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Seeded with the typical echo-cancelled echo level so the gate is sensible
     // from the first frame; the EMA then adapts it to this device.
     private echoFloor = 0.005;
-    // Neural VAD (Silero v5), loaded lazily by ensureSilero(). Only 'active'
-    // switches the speech signal; 'loading'/'failed' keep the energy fallback.
+    // The shared Silero VAD (see loadSileroVad) — acquired by prime()/start(),
+    // null until then. It IS the speech signal: no model, no speech detection,
+    // which is why start() treats a load failure as a hard error.
     private silero: SileroFrameVad | null = null;
-    private sileroState: 'unloaded' | 'loading' | 'active' | 'failed' = 'unloaded';
     // Device sample rate, cached for the audio callback (feeds the resampler).
     private nativeRate = 48_000;
 
@@ -169,35 +166,22 @@ export class WhisperPcmSttEngine implements SttEngine {
             minSpeechDurationMs:
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 30_000,
-            useSileroVad: options.useSileroVad ?? true,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
         };
     }
 
-    /** Kick off the lazy Silero load (once). Any failure — module import, WASM
-     *  init, model fetch — leaves the energy VAD in charge. */
-    private ensureSilero(): void {
-        if (!this.opts.useSileroVad || this.sileroState !== 'unloaded') return;
-        this.sileroState = 'loading';
-        import('./silero-vad.js')
-            .then((m) => m.SileroFrameVad.create())
-            .then((vad) => {
-                if (this.stopRequested) {
-                    // stop() arrived while loading: free the session; a later
-                    // start() reloads (model + WASM are HTTP-cached).
-                    this.sileroState = 'unloaded';
-                    void vad.release();
-                    return;
-                }
-                this.silero = vad;
-                this.sileroState = 'active';
-                console.info('[vad] silero v5 active (neural speech detection)');
-            })
-            .catch((err) => {
-                this.sileroState = 'failed';
-                console.warn('[vad] silero load failed, using energy fallback:', err);
-            });
+    /** Await the shared Silero instance (kicking off the load if the setup
+     *  view's preload didn't already), and reset its streaming state when this
+     *  engine first adopts it — a fresh capture stream shouldn't inherit
+     *  recurrent state from a previous session. */
+    private async acquireSilero(): Promise<void> {
+        const { loadSileroVad } = await import('./silero-vad.js');
+        const vad = await loadSileroVad();
+        if (this.silero !== vad) {
+            vad.reset();
+            this.silero = vad;
+        }
     }
 
     /**
@@ -263,8 +247,6 @@ export class WhisperPcmSttEngine implements SttEngine {
 
         // Between turns (including while the facilitator is speaking): keep the
         // onset pre-buffer warm so a barge-in's first word is already captured.
-        // Don't fold this audio into the noise floor — it may be TTS echo, which
-        // would inflate the ambient estimate and desensitize the VAD.
         if (!this.capturing) {
             this.pushPre(frame);
             return;
@@ -279,30 +261,19 @@ export class WhisperPcmSttEngine implements SttEngine {
             return;
         }
 
-        const neural = this.sileroState === 'active' ? this.silero : null;
-        this.energyHistory.push({ t: now, e: energy, p: neural ? neural.lastProb : -1 });
+        this.energyHistory.push({ t: now, e: energy, p: this.silero ? this.silero.lastProb : -1 });
         while (this.energyHistory.length > 0 && now - this.energyHistory[0]!.t > 10_000) {
             this.energyHistory.shift();
         }
 
-        // Threshold is whichever is higher: the static floor, 3x the running
-        // noise floor (the audio.js heuristic — reliable separation in normal
-        // rooms), or the measured echo gate while the facilitator is speaking.
-        const threshold = Math.max(
-            this.opts.energyThreshold,
-            this.noiseFloor * 3,
-            echoGate
-        );
-
-        // Speech signal: Silero's debounced per-chunk classification when the
-        // model is up, the energy threshold otherwise. In neural mode the
-        // energy gates still apply while TTS plays — Silero scores the
-        // facilitator's echo as speech (it IS speech), so telling the speaker
-        // apart needs the energy reference.
-        const isSpeech = neural
-            ? neural.speaking &&
-              (echoGate === 0 || energy > Math.max(echoGate, this.opts.energyThreshold))
-            : energy > threshold;
+        // Speech signal: Silero's debounced per-chunk classification. While
+        // TTS is audibly playing the frame must also clear the energy gates —
+        // Silero scores the facilitator's echo as speech (it IS speech), so
+        // telling the speaker apart needs the energy reference.
+        const isSpeech =
+            this.silero !== null &&
+            this.silero.speaking &&
+            (echoGate === 0 || energy > Math.max(echoGate, this.opts.energyThreshold));
 
         if (isSpeech) {
             if (!this.speechStarted) {
@@ -327,25 +298,22 @@ export class WhisperPcmSttEngine implements SttEngine {
             const silence = now - this.lastSpeechMs;
             if (silence >= needed) {
                 this.utteranceDone = true;
-                // Diagnostic for tuning the VAD: how long you spoke, the trailing
-                // silence we required vs what elapsed, and your loudest speech
-                // (peak) vs the silence threshold (thr). If speech << your real
-                // talk time, or peak is barely above thr, the detector is losing
-                // your voice mid-utterance. console.info so it shows without
+                // Diagnostic for tuning the VAD: how long you spoke, the
+                // trailing silence we required vs what elapsed, plus loudness
+                // and the echo floor (for the echo-gate margins) and any
+                // inference backpressure. console.info so it shows without
                 // toggling Verbose. (Temporary — remove once the VAD is dialed in.)
                 console.info(
                     `[vad] submit speech=${Math.round(speechDur)}ms ` +
                         `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
-                        `peak=${this.peakEnergy.toFixed(3)} thr=${threshold.toFixed(3)} ` +
-                        `floor=${this.noiseFloor.toFixed(4)} ` +
-                        `mode=${neural ? `silero(dropped=${neural.droppedChunks})` : 'energy'}`
+                        `peak=${this.peakEnergy.toFixed(3)} ` +
+                        `echoFloor=${this.echoFloor.toFixed(4)} ` +
+                        `dropped=${this.silero?.droppedChunks ?? 0}`
                 );
-                // Energy trace of the last 8s in 0.5s buckets (max frame RMS per
-                // bucket, oldest first). Read against thr: buckets at 0.008-0.014
-                // during the trailing window mean soft speech is dipping below
-                // the gate (lower it / add a release band); buckets at the noise
-                // floor mean the pause was real (end-of-turn logic, not energy,
-                // is the fix).
+                // Energy + speech-prob traces of the last 8s in 0.5s buckets
+                // (max per bucket, oldest first). The prob row shows what the
+                // model thought during the trailing "silence" — held speech vs
+                // a real pause; the energy row contextualizes the echo gate.
                 const buckets = new Array<number>(16).fill(0);
                 for (const { t, e } of this.energyHistory) {
                     const idx = Math.floor((now - t) / 500);
@@ -356,7 +324,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                     `[vad] tail 8s->now (max rms / 0.5s): ` +
                         buckets.map((b) => b.toFixed(3)).join(' ')
                 );
-                if (neural) {
+                if (this.silero) {
                     const probs = new Array<number>(16).fill(-1);
                     for (const { t, p } of this.energyHistory) {
                         const idx = Math.floor((now - t) / 500);
@@ -372,17 +340,11 @@ export class WhisperPcmSttEngine implements SttEngine {
         } else if (this.ttsActive) {
             // Capturing, pre-speech, facilitator audibly speaking — this energy
             // is the device's echo, not the user. Fold it into the echo floor
-            // (NOT the ambient noise floor, which must stay echo-free) so the
-            // gates above can reject it. Keep the onset pre-buffer warm too.
+            // so the gates above can reject it. Keep the onset pre-buffer warm.
             this.echoFloor = (1 - ECHO_EMA_ALPHA) * this.echoFloor + ECHO_EMA_ALPHA * energy;
             this.pushPre(frame);
         } else {
-            // Capturing but pre-speech and quiet — calibrate the noise floor
-            // (fast for the first 100 samples, then slow) and keep the onset
-            // pre-buffer warm.
-            const alpha = this.noiseSamples < 100 ? 0.1 : 0.01;
-            this.noiseFloor = (1 - alpha) * this.noiseFloor + alpha * energy;
-            this.noiseSamples++;
+            // Capturing, pre-speech, quiet — keep the onset pre-buffer warm.
             this.pushPre(frame);
         }
 
@@ -475,12 +437,12 @@ export class WhisperPcmSttEngine implements SttEngine {
     async prime(): Promise<void> {
         if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
         this.stopRequested = false;
-        this.ensureSilero();
-        try {
-            await this.ensureCaptureGraph();
-        } catch {
-            /* best-effort priming; start() will retry + report the error */
-        }
+        // Warm the model and the capture graph together. Both are usually
+        // instant — the setup view preloads the model, the graph persists
+        // across turns — and the caller holds `busy` through the opening
+        // greeting, so a cold first-run model download hides behind it.
+        // Best-effort: start() re-awaits both and reports real errors.
+        await Promise.allSettled([this.acquireSilero(), this.ensureCaptureGraph()]);
     }
 
     /**
@@ -508,8 +470,10 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
-        this.ensureSilero();
         try {
+            // The model IS the speech signal — a load failure here is a hard
+            // error for this engine (surfaced to the UI), not a degraded mode.
+            await this.acquireSilero();
             await this.ensureCaptureGraph();
         } catch (err) {
             yield { type: 'error', error: err };
@@ -517,7 +481,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         }
         const nativeRate = this.context!.sampleRate;
 
-        // Begin a fresh utterance. The pre-buffer + noise floor persist (warmed
+        // Begin a fresh utterance. The pre-buffer + echo floor persist (warmed
         // between turns); only the per-utterance accumulators reset.
         this.chunks = [];
         this.speechStarted = false;
@@ -693,15 +657,9 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.context = null;
         this.releaseStream();
         this.preBuffer = [];
-        this.noiseFloor = 0.005;
-        this.noiseSamples = 0;
-        if (this.silero) {
-            void this.silero.release();
-            this.silero = null;
-        }
-        // 'loading' resolves via the stopRequested check in ensureSilero();
-        // anything else resets so the next session retries the load.
-        if (this.sileroState !== 'loading') this.sileroState = 'unloaded';
+        // Drop our reference only — the model is an app-lifetime singleton;
+        // the next session reuses it (acquireSilero resets its stream state).
+        this.silero = null;
     }
 
     private releaseStream(): void {

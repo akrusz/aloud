@@ -289,9 +289,9 @@ export async function mountSessionView(
     // Continuous capture (meditation-pal-57gl): on the engine-driven (server-
     // Whisper) path the mic stays live through the LLM+TTS window instead of
     // pausing while `busy`, so the user is never "deaf" mid-response. Its VAD
-    // rejects TTS echo (the 0.015 energy gate vs ~0.005 echo), so this is safe
-    // there; web-speech / capacitor can't reject echo in their recognizers, so
-    // they keep the pause-while-busy behavior + the separate barge-in wrapper.
+    // rejects TTS echo (the measured echo gate + energy floor vs ~0.005 echo),
+    // so this is safe there; web-speech / capacitor can't reject echo in their
+    // recognizers, so they keep pause-while-busy + the barge-in wrapper.
     const continuousCapture = engineDrivenBargeIn;
     // Turn supersession + barge-in plumbing (see respondTo / the barge-in
     // handler). turnGen bumps each turn so a stale (superseded) turn bails;
