@@ -387,7 +387,23 @@ export class WhisperPcmSttEngine implements SttEngine {
             // keeps the user's (near-end) onset. Matches the barge-in detector
             // stream (barge-in.ts) and the old audio.js capture.
             this.stream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true },
+                audio: {
+                    echoCancellation: true,
+                    // macOS's voice processing includes a noise gate that can
+                    // hard-zero soft speech MID-UTTERANCE — observed as RMS of
+                    // exactly 0.000 for seconds while the user was still
+                    // talking, with Whisper returning [BLANK_AUDIO] for spans
+                    // that had words in them. The gate rides with noise
+                    // suppression, not echo cancellation, so ask for NS off
+                    // while keeping EC (continuous capture requires EC — see
+                    // the class header).
+                    noiseSuppression: false,
+                    // On-by-default everywhere, but pinned: the VAD's input
+                    // level depends on it (it lifts quiet mics toward a usable
+                    // range), so a browser default change shouldn't silently
+                    // alter behavior.
+                    autoGainControl: true,
+                },
             });
             this.teardownGraph(); // any prior nodes belong to a dead stream
 
@@ -400,6 +416,16 @@ export class WhisperPcmSttEngine implements SttEngine {
             // are logged for the same investigation.
             const stream = this.stream;
             const track = stream.getAudioTracks()[0];
+            // Whether the platform honored the constraints (WebKit may bundle
+            // NS into its voice-processing unit and ignore ns=false — this log
+            // is how we find out). Temporary, part of the VAD diagnostics.
+            if (track?.getSettings) {
+                const s = track.getSettings();
+                console.info(
+                    `[vad] capture settings: ec=${String(s.echoCancellation)} ` +
+                        `ns=${String(s.noiseSuppression)} agc=${String(s.autoGainControl)}`
+                );
+            }
             track?.addEventListener('ended', () => {
                 if (this.stopRequested || this.stream !== stream) return;
                 console.warn('[vad] capture track ended unexpectedly — reacquiring mic');
