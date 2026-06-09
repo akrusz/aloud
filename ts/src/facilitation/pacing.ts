@@ -70,7 +70,11 @@ export const defaultPacingConfig: PacingConfig = {
     silenceModeEnabled: true,
     silenceBaseMs: 3000,
     silenceMaxMs: 5000,
-    silenceRampRate: 0.12,
+    // Extra ms of trailing-silence tolerance per ms of speech. At 0.25, a
+    // ~8 s share reaches the silenceMaxMs cap — so a moderate ramble actually
+    // gets the "extended pause," instead of only a 17 s+ monologue (the old
+    // 0.12 ramp). Bounded by silenceMaxMs, so this can't stall a turn.
+    silenceRampRate: 0.25,
     minSpeechDurationMs: 500,
 };
 

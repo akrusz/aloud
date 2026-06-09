@@ -220,8 +220,18 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.noiseFloor * 3,
             echoGate
         );
+        // Hysteresis: once speech has started, hold the turn open with a LOWER
+        // threshold, so soft or trailing speech (or the mic AEC briefly ducking
+        // the user) doesn't read as silence and submit mid-utterance. Still kept
+        // above ambient (noiseFloor), so true room tone won't keep it open.
+        const continueThreshold = Math.max(
+            this.opts.energyThreshold * 0.5,
+            this.noiseFloor * 2,
+            echoGate
+        );
+        const speechThreshold = this.speechStarted ? continueThreshold : threshold;
 
-        if (energy > threshold) {
+        if (energy > speechThreshold) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
                 this.speechStartMs = now;
