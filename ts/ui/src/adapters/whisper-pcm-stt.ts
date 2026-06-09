@@ -219,7 +219,15 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.pushPre(frame);
             return;
         }
-        if (this.utteranceDone) return;
+        if (this.utteranceDone) {
+            // Submit fired but the final transcription is still in flight. If
+            // the VAD ended the turn while the user was actually still talking
+            // (the false-cutoff case), these frames are their continuing words —
+            // keep the onset pre-buffer warm so the next turn's start() recovers
+            // the most recent 2s instead of losing them entirely.
+            this.pushPre(frame);
+            return;
+        }
 
         this.energyHistory.push({ t: now, e: energy });
         while (this.energyHistory.length > 0 && now - this.energyHistory[0]!.t > 10_000) {
