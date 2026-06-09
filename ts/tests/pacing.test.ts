@@ -157,8 +157,8 @@ describe('PacingConfig defaults', () => {
             silenceCheckinsEnabled: true,
             silenceModeEnabled: true,
             silenceBaseMs: 3000,
-            silenceMaxMs: 5000,
-            silenceRampRate: 0.25,
+            silenceMaxMs: 6000,
+            silenceRampRate: 0.16,
             minSpeechDurationMs: 500,
         });
     });

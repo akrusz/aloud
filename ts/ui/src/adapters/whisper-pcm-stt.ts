@@ -220,18 +220,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.noiseFloor * 3,
             echoGate
         );
-        // Hysteresis: once speech has started, hold the turn open with a LOWER
-        // threshold, so soft or trailing speech (or the mic AEC briefly ducking
-        // the user) doesn't read as silence and submit mid-utterance. Still kept
-        // above ambient (noiseFloor), so true room tone won't keep it open.
-        const continueThreshold = Math.max(
-            this.opts.energyThreshold * 0.5,
-            this.noiseFloor * 2,
-            echoGate
-        );
-        const speechThreshold = this.speechStarted ? continueThreshold : threshold;
 
-        if (energy > speechThreshold) {
+        if (energy > threshold) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
                 this.speechStartMs = now;
@@ -250,7 +240,18 @@ export class WhisperPcmSttEngine implements SttEngine {
                 this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
                 this.opts.silenceMaxMs
             );
-            if (now - this.lastSpeechMs >= needed) this.utteranceDone = true;
+            const silence = now - this.lastSpeechMs;
+            if (silence >= needed) {
+                this.utteranceDone = true;
+                // Diagnostic for tuning the pause settings: how long you spoke,
+                // how much trailing silence we required, and what actually
+                // elapsed. Visible in devtools at the Verbose/Debug log level.
+                // (Temporary — remove once the VAD defaults are dialed in.)
+                console.debug(
+                    `[vad] submit speech=${Math.round(speechDur)}ms ` +
+                        `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms`
+                );
+            }
         } else if (this.ttsActive) {
             // Capturing, pre-speech, facilitator audibly speaking — this energy
             // is the device's echo, not the user. Fold it into the echo floor
