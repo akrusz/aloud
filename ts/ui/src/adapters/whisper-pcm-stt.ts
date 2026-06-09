@@ -121,6 +121,11 @@ export class WhisperPcmSttEngine implements SttEngine {
     // the user's voice runs to the silence threshold (soft speech that dips
     // below it reads as a false pause).
     private peakEnergy = 0;
+    // Rolling per-frame energy history (~85ms per frame at 48 kHz) for the
+    // submit diagnostic — peak/thr alone can't show what the detector heard
+    // during the trailing "silence" window (soft speech vs breath vs true
+    // quiet), and that distinction is the whole tuning question.
+    private energyHistory: { t: number; e: number }[] = [];
     // Barge-in detection on the continuous (echo-cancelled) idle stream.
     private bargeInHandler: (() => void) | null = null;
     private bargeInChunks = 0;
@@ -216,6 +221,11 @@ export class WhisperPcmSttEngine implements SttEngine {
         }
         if (this.utteranceDone) return;
 
+        this.energyHistory.push({ t: now, e: energy });
+        while (this.energyHistory.length > 0 && now - this.energyHistory[0]!.t > 10_000) {
+            this.energyHistory.shift();
+        }
+
         // Threshold is whichever is higher: the static floor, 3x the running
         // noise floor (the audio.js heuristic — reliable separation in normal
         // rooms), or the measured echo gate while the facilitator is speaking.
@@ -257,7 +267,24 @@ export class WhisperPcmSttEngine implements SttEngine {
                 console.info(
                     `[vad] submit speech=${Math.round(speechDur)}ms ` +
                         `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
-                        `peak=${this.peakEnergy.toFixed(3)} thr=${threshold.toFixed(3)}`
+                        `peak=${this.peakEnergy.toFixed(3)} thr=${threshold.toFixed(3)} ` +
+                        `floor=${this.noiseFloor.toFixed(4)}`
+                );
+                // Energy trace of the last 8s in 0.5s buckets (max frame RMS per
+                // bucket, oldest first). Read against thr: buckets at 0.008-0.014
+                // during the trailing window mean soft speech is dipping below
+                // the gate (lower it / add a release band); buckets at the noise
+                // floor mean the pause was real (end-of-turn logic, not energy,
+                // is the fix).
+                const buckets = new Array<number>(16).fill(0);
+                for (const { t, e } of this.energyHistory) {
+                    const idx = Math.floor((now - t) / 500);
+                    if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, e);
+                }
+                buckets.reverse();
+                console.info(
+                    `[vad] tail 8s->now (max rms / 0.5s): ` +
+                        buckets.map((b) => b.toFixed(3)).join(' ')
                 );
             }
         } else if (this.ttsActive) {
@@ -413,6 +440,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.lastSpeechMs = 0;
         this.utteranceDone = false;
         this.peakEnergy = 0;
+        this.energyHistory = [];
         // Re-arm barge-in detection for the next idle period (after this turn
         // ends and the facilitator speaks again).
         this.bargeInFired = false;
