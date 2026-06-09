@@ -28,26 +28,29 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font: 17px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif;
     padding: 24px; max-width: 980px; margin-inline: auto;
   }
   h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px; }
   h1 .dot { color: var(--accent); }
-  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+  h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
        color: var(--dim); margin: 28px 0 12px; font-weight: 600; }
-  .sub { color: var(--dim); font-size: 14px; margin: 0 0 20px; }
+  .sub { color: var(--dim); font-size: 16px; margin: 0 0 20px; }
+  /* Explainer paragraphs are toggled as a group — hidden by default, revealed
+     by the "Show explanations" button in the header. */
+  body.hide-help .help-text { display: none; }
   .card { background: var(--panel); border: 1px solid var(--line);
           border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
-  label { display: block; font-size: 14px; color: var(--dim); margin-bottom: 5px; }
+  label { display: block; font-size: 16px; color: var(--dim); margin-bottom: 5px; }
   input, textarea {
     width: 100%; padding: 9px 11px; background: #100d0b; color: var(--ink);
     border: 1px solid var(--line); border-radius: 8px; font: inherit;
   }
   textarea { resize: vertical; min-height: 60px; }
   input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-  .check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 14px; }
+  .check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 16px; }
   .check input { width: auto; }
-  button.xs { padding: 3px 9px; font-size: 14px; }
+  button.xs { padding: 4px 10px; font-size: 15px; }
   button {
     padding: 9px 16px; background: var(--accent); color: #1a1208; border: none;
     border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
@@ -58,30 +61,30 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .row > div { flex: 1; min-width: 140px; }
   .row > button { flex: 0 0 auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  th { color: var(--dim); font-weight: 600; font-size: 14px;
+  th { color: var(--dim); font-weight: 600; font-size: 15px;
        text-transform: uppercase; letter-spacing: .6px; }
   tbody tr { cursor: pointer; }
   tbody tr:hover { background: #221d19; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px;
-          font-size: 14px; font-weight: 600; }
+          font-size: 15px; font-weight: 600; }
   .pill.paid { background: rgba(127,179,137,.18); color: var(--good); }
   .pill.free { background: rgba(168,154,140,.16); color: var(--dim); }
-  .prov { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 13px;
+  .prov { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 15px;
           border: 1px solid var(--line); color: var(--dim); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
   .stat { background: #100d0b; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .stat .k { font-size: 14px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+  .stat .k { font-size: 15px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
   .stat .v { font-size: 20px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
   .stat .v.warn { color: var(--bad); }
-  .msg { font-size: 15px; margin-top: 10px; min-height: 18px; }
+  .msg { font-size: 16px; margin-top: 10px; min-height: 18px; }
   .msg.ok { color: var(--good); }
   .msg.err { color: var(--bad); }
   .muted { color: var(--dim); }
   .hidden { display: none; }
-  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 14px; }
+  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 15px; }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6);
               display: flex; align-items: center; justify-content: center; padding: 20px; }
   .modal { background: var(--panel); border: 1px solid var(--line);
@@ -92,9 +95,9 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
        font-size: 22px; cursor: pointer; padding: 0; line-height: 1; }
 </style>
 </head>
-<body>
-  <h1>aloud<span class="dot">.</span> admin</h1>
-  <p class="sub">Operator console — spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
+<body class="hide-help">
+  <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button></h1>
+  <p class="sub help-text">Operator console — spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
 
   <div class="card" id="authCard">
     <label for="tok">Admin token (<code>ALOUD_ADMIN_TOKEN</code>)</label>
@@ -107,24 +110,24 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   </div>
 
   <div id="app" class="hidden">
-    <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
+    <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
     <div class="grid" id="stats"></div>
 
     <h2>Cost attribution
       <span style="float:right;display:flex;gap:8px;align-items:center">
-        <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:14px">
+        <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
           <option value="1000000">all time</option>
         </select>
-        <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:14px">refresh</button>
+        <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
-    <p class="sub" style="margin:-4px 0 12px">What real sessions actually cost — the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
+    <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost — the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
     <div class="grid" id="usageStats"></div>
     <div class="card">
-      <p class="sub" style="margin:0 0 10px">LLM prompt cache — the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently — the per-provider hit rate is how you tell each path is actually caching.</p>
+      <p class="sub help-text" style="margin:0 0 10px">LLM prompt cache — the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently — the per-provider hit rate is how you tell each path is actually caching.</p>
       <div class="grid" id="cacheStats" style="margin-bottom:12px"></div>
       <table>
         <thead><tr><th>Provider</th><th class="num">Hit</th><th class="num">Fresh tok</th><th class="num">Read tok</th><th class="num">Write tok</th><th class="num">Cost $</th><th class="num">Saved $</th></tr></thead>
@@ -132,21 +135,21 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       </table>
     </div>
     <div class="card">
-      <p class="sub" style="margin:0 0 10px">Cost split by service — what drives the bill.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Cost split by service — what drives the bill.</p>
       <table>
         <thead><tr><th>Service</th><th class="num">Provider $</th><th class="num">Share</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageServiceRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
       </table>
     </div>
     <div class="card">
-      <p class="sub" style="margin:0 0 10px">Per-model / per-voice cost, biggest first.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Per-model / per-voice cost, biggest first.</p>
       <table>
         <thead><tr><th>Service</th><th>Model / voice</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageModelRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
       </table>
     </div>
     <div class="card">
-      <p class="sub" style="margin:0 0 10px">Per-session distribution — sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
+      <p class="sub help-text" style="margin:0 0 10px">Per-session distribution — sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
       <table>
         <thead><tr><th>Metric</th><th class="num">Median</th><th class="num">p90</th><th class="num">Max</th><th class="num">Mean</th></tr></thead>
         <tbody id="usageSessionRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
@@ -155,22 +158,22 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
 
     <h2>Usage over time
       <span style="float:right;display:flex;gap:8px;align-items:center">
-        <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:14px">
+        <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="sessions">sessions</option>
           <option value="turns">turns</option>
           <option value="cost">provider $</option>
           <option value="credits">credits</option>
           <option value="duration">avg min / session</option>
         </select>
-        <select id="historyDays" style="width:auto;padding:4px 8px;font-size:14px">
+        <select id="historyDays" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="7">last 7d</option>
           <option value="30" selected>last 30d</option>
           <option value="90">last 90d</option>
         </select>
-        <button class="ghost" id="refreshHistory" style="padding:4px 10px;font-size:14px">refresh</button>
+        <button class="ghost" id="refreshHistory" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
-    <p class="sub" style="margin:-4px 0 12px">Daily trend, one bar per day. Each session is counted on the day it began. Hover a bar for the exact value.</p>
+    <p class="sub help-text" style="margin:-4px 0 12px">Daily trend, one bar per day. Each session is counted on the day it began. Hover a bar for the exact value.</p>
     <div class="card">
       <div id="historyChart"><p class="muted" style="margin:0">Connect to load.</p></div>
     </div>
@@ -184,7 +187,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
 
     <h2>Free credits</h2>
     <div class="card">
-      <p class="sub" style="margin:0 0 14px">Tune the free tier live — no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
+      <p class="sub help-text" style="margin:0 0 14px">Tune the free tier live — no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
       <div class="row">
         <div>
           <label for="cSignup">Free credits per new signup</label>
@@ -201,7 +204,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
 
     <h2>Soft launch — pause spending</h2>
     <div class="card">
-      <p class="sub" style="margin:0 0 14px">While paused, signed-in users keep their credits, but a conversation turn returns a polite "come back later" message instead of a real (billed) facilitator response — so nobody spends yet, and their session still saves. Tester emails below bypass the pause so you can keep testing.</p>
+      <p class="sub help-text" style="margin:0 0 14px">While paused, signed-in users keep their credits, but a conversation turn returns a polite "come back later" message instead of a real (billed) facilitator response — so nobody spends yet, and their session still saves. Tester emails below bypass the pause so you can keep testing.</p>
       <label class="check"><input type="checkbox" id="cPaused"> <span>Pause metered usage (conversations return the canned apology)</span></label>
       <div style="margin-top:14px">
         <label for="cTesters">Tester emails — exempt from the pause (one per line)</label>
@@ -221,9 +224,9 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
-    <h2>Retreats <button class="ghost" id="refreshRetreats" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
+    <h2>Retreats <button class="ghost" id="refreshRetreats" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
     <div class="card">
-      <p class="sub" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
+      <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
       <div class="row">
         <div><label for="rLabel">Label</label><input id="rLabel" placeholder="Spring Vipassana 2026" autocomplete="off"></div>
         <div style="flex:0 0 150px"><label for="rStart">Starts</label><input id="rStart" type="date"></div>
@@ -235,7 +238,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     </div>
     <div id="retreatList"></div>
 
-    <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:14px">refresh</button></h2>
+    <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="filter by email…" autocomplete="off"></div>
@@ -417,7 +420,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     var grid = max > 0
       ? '<line x1="' + padX + '" y1="' + padTop + '" x2="' + (W - padX) + '" y2="' + padTop +
         '" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>' +
-        '<text x="' + (W - padX) + '" y="' + (padTop - 4) + '" text-anchor="end" font-size="11" fill="var(--dim)">' +
+        '<text x="' + (W - padX) + '" y="' + (padTop - 4) + '" text-anchor="end" font-size="13" fill="var(--dim)">' +
           esc(m.fmt(max)) + '</text>'
       : '';
     // Date ticks: first, middle, last.
@@ -426,7 +429,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       var x = padX + i * bw + bw / 2;
       var anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
       return '<text x="' + x.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor +
-        '" font-size="11" fill="var(--dim)">' + esc(date(buckets[i].dayStartTs)) + '</text>';
+        '" font-size="13" fill="var(--dim)">' + esc(date(buckets[i].dayStartTs)) + '</text>';
     }).join('');
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H +
       '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(m.label) + ' per day">' +
@@ -463,7 +466,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     } else {
       $('historyPager').innerHTML =
         '<button class="ghost xs" id="histPrev"' + (historyPage === 0 ? ' disabled' : '') + '>← newer</button>' +
-        '<span class="muted" style="font-size:13px">page ' + (historyPage + 1) + ' of ' + pages + '</span>' +
+        '<span class="muted" style="font-size:15px">page ' + (historyPage + 1) + ' of ' + pages + '</span>' +
         '<button class="ghost xs" id="histNext"' + (historyPage >= pages - 1 ? ' disabled' : '') + '>older →</button>';
       $('histPrev').onclick = function () { if (historyPage > 0) { historyPage--; renderHistory(); } };
       $('histNext').onclick = function () { if (historyPage < pages - 1) { historyPage++; renderHistory(); } };
@@ -592,7 +595,7 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       var footer = deleted
         ? '<p class="sub" style="margin:14px 0 0;color:var(--bad)">This account is deleted (anonymized, identities freed, balance zeroed).</p>'
         : '<div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">' +
-            '<span class="muted" style="font-size:13px">Soft-delete: anonymizes the email, frees the sign-ins, zeroes the balance. Used to clear a duplicate.</span>' +
+            '<span class="muted" style="font-size:15px">Soft-delete: anonymizes the email, frees the sign-ins, zeroes the balance. Used to clear a duplicate.</span>' +
             '<button class="ghost xs" id="delAcct" data-id="' + esc(d.account.id) +
               '" style="color:var(--bad);border-color:var(--bad)">Delete account</button></div>';
       $('modalRoot').innerHTML =
@@ -782,6 +785,23 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   $('search').addEventListener('input', renderAccounts);
   $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') connect(); });
   $('gCredits').addEventListener('keydown', function (e) { if (e.key === 'Enter') doGrant(); });
+
+  // Explanations toggle — show/hide the help paragraphs as a group. Hidden by
+  // default (body.hide-help) so the panel stays dense; click to reveal.
+  (function () {
+    var btn = $('toggleHelp');
+    if (!btn) return;
+    var sync = function () {
+      btn.textContent = document.body.classList.contains('hide-help')
+        ? 'Show explanations'
+        : 'Hide explanations';
+    };
+    btn.addEventListener('click', function () {
+      document.body.classList.toggle('hide-help');
+      sync();
+    });
+    sync();
+  })();
 
   var saved = localStorage.getItem(KEY);
   if (saved) { $('tok').value = saved; connect(); }
