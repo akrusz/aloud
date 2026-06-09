@@ -151,6 +151,12 @@ export class WhisperPcmSttEngine implements SttEngine {
     // null until then. It IS the speech signal: no model, no speech detection,
     // which is why start() treats a load failure as a hard error.
     private silero: SileroFrameVad | null = null;
+    // Mic input-level listener (the session view's mic-button ring). Fed from
+    // this engine's own frames so the UI never opens a second mic stream — on
+    // macOS the voice-processing unit attaches to ONE input, and a competing
+    // capture's lifecycle can glitch or hard-zero this one (suspected cause of
+    // mid-utterance digital-zero dropouts).
+    private levelListener: ((rms: number) => void) | null = null;
     // Device sample rate, cached for the audio callback (feeds the resampler).
     private nativeRate = 48_000;
 
@@ -198,6 +204,13 @@ export class WhisperPcmSttEngine implements SttEngine {
         );
     }
 
+    /** Register (or clear, with null) a per-frame mic-level listener — RMS of
+     *  each ~85ms capture frame, whenever the mic is open (capturing or not).
+     *  Lets the UI render an input meter without opening its own mic stream. */
+    setLevelListener(listener: ((rms: number) => void) | null): void {
+        this.levelListener = listener;
+    }
+
     /** Keep the onset pre-buffer ring filled with the most recent frame. */
     private pushPre(frame: Float32Array): void {
         this.preBuffer.push(frame);
@@ -213,6 +226,8 @@ export class WhisperPcmSttEngine implements SttEngine {
         for (let i = 0; i < frame.length; i++) sum += frame[i]! * frame[i]!;
         const energy = Math.sqrt(sum / frame.length);
         const now = performance.now();
+
+        this.levelListener?.(energy);
 
         // Keep the neural VAD fed on every frame, capturing or not — its
         // recurrent state assumes an unbroken stream, and classifying during
@@ -375,6 +390,30 @@ export class WhisperPcmSttEngine implements SttEngine {
                 audio: { echoCancellation: true },
             });
             this.teardownGraph(); // any prior nodes belong to a dead stream
+
+            // Diagnose + self-heal capture-track death. A dead track keeps the
+            // graph "running" but feeds digital zeros — the session goes deaf
+            // with no error anywhere. Seen in the wild alongside WebKit's
+            // "capture MediaStreamTrack was destroyed without having been
+            // stopped" warning; on 'ended' we log it and re-acquire the mic.
+            // 'mute'/'unmute' (media stops flowing without the track ending)
+            // are logged for the same investigation.
+            const stream = this.stream;
+            const track = stream.getAudioTracks()[0];
+            track?.addEventListener('ended', () => {
+                if (this.stopRequested || this.stream !== stream) return;
+                console.warn('[vad] capture track ended unexpectedly — reacquiring mic');
+                this.releaseStream();
+                void this.ensureCaptureGraph().catch((err) => {
+                    console.warn('[vad] mic reacquire failed:', err);
+                });
+            });
+            track?.addEventListener('mute', () => {
+                console.warn('[vad] capture track muted (no media flowing)');
+            });
+            track?.addEventListener('unmute', () => {
+                console.info('[vad] capture track unmuted');
+            });
         }
 
         const AC =

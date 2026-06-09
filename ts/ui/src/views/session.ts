@@ -932,23 +932,30 @@ export async function mountSessionView(
         );
     }
 
-    // Mic input-level ring (the .btn-voice.active --mic-level box-shadow). Its
-    // own small analyser stream, since Web Speech hides its audio. Cosmetic —
-    // failures are swallowed. Web-Speech only: the server-Whisper adapter
-    // already holds its own mic stream + AudioContext, and stacking a second
-    // pair was a likely contributor to the Firefox/WebRender instability.
-    // (A server-Whisper meter can later reuse that adapter's existing energy.)
+    // Mic input-level ring (the .btn-voice.active --mic-level box-shadow).
+    // server-Whisper: fed from the engine's own per-frame RMS — NEVER a second
+    // mic stream. The old desktop-only analyser stream made macOS re-arbitrate
+    // its single voice-processing input between two captures, which could
+    // glitch or hard-zero the engine's stream mid-utterance (lost words no VAD
+    // can recover). Web Speech hides its audio entirely, so it keeps the small
+    // dedicated meter stream (cosmetic — failures swallowed).
     let micMeter: MicMeter | null = null;
+    let engineMeterOn = false;
     function startMeter(): void {
-        if (micMeter) return;
-        // Web Speech hides its audio, so it always needs the dedicated meter.
-        // server-Whisper holds its own stream; stacking a second meter stream
-        // was implicated in Firefox/WebRender instability, so we only add it in
-        // the Tauri desktop shell (WKWebView, where that concern doesn't apply
-        // and server-Whisper is the default STT path).
-        const wantMeter =
-            sttBackend === 'web-speech' || (sttBackend === 'server-whisper' && isTauri());
-        if (!wantMeter) return;
+        if (whisperEngine) {
+            if (engineMeterOn) return;
+            engineMeterOn = true;
+            // Same level mapping as mic-meter.ts (GAIN 4); smoothing retuned
+            // for the ~85ms frame cadence vs its 60fps rAF.
+            let smoothed = 0;
+            whisperEngine.setLevelListener((rms) => {
+                const level = Math.min(1, rms * 4);
+                smoothed = smoothed * 0.6 + level * 0.4;
+                micBtn.style.setProperty('--mic-level', smoothed.toFixed(3));
+            });
+            return;
+        }
+        if (micMeter || sttBackend !== 'web-speech') return;
         void startMicMeter(micBtn)
             .then((m) => {
                 if (torn || muted) m.stop(); // raced with teardown/mute
@@ -957,6 +964,11 @@ export async function mountSessionView(
             .catch(() => {});
     }
     function stopMeter(): void {
+        if (engineMeterOn) {
+            whisperEngine?.setLevelListener(null);
+            micBtn.style.removeProperty('--mic-level');
+            engineMeterOn = false;
+        }
         micMeter?.stop();
         micMeter = null;
     }
