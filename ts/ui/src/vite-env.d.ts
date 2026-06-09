@@ -33,3 +33,11 @@ interface ImportMetaEnv {
 interface ImportMeta {
     readonly env: ImportMetaEnv;
 }
+
+/** Vite `?url` asset imports (the Silero model + ort WASM binary in
+ *  silero-vad.ts): the module resolves to the asset's served URL. Declared
+ *  here because the UI tsconfig deliberately omits `vite/client`. */
+declare module '*?url' {
+    const src: string;
+    export default src;
+}

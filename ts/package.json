@@ -48,6 +48,7 @@
         "@capacitor/android": "^8.3.4",
         "@capacitor/core": "^8.3.4",
         "@capacitor/ios": "^8.3.4",
+        "@ricky0123/vad-web": "^0.0.30",
         "@tauri-apps/api": "^2.11.0",
         "@tauri-apps/plugin-opener": "^2.5.4"
     }
