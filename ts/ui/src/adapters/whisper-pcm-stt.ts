@@ -117,6 +117,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     private speechStartMs = 0;
     private lastSpeechMs = 0;
     private utteranceDone = false;
+    // Loudest speech frame this utterance — diagnostic only, to see how close
+    // the user's voice runs to the silence threshold (soft speech that dips
+    // below it reads as a false pause).
+    private peakEnergy = 0;
     // Barge-in detection on the continuous (echo-cancelled) idle stream.
     private bargeInHandler: (() => void) | null = null;
     private bargeInChunks = 0;
@@ -230,6 +234,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 this.preBuffer.length = 0;
             }
             this.lastSpeechMs = now;
+            this.peakEnergy = Math.max(this.peakEnergy, energy);
             this.chunks.push(frame);
         } else if (this.speechStarted) {
             this.chunks.push(frame);
@@ -243,13 +248,16 @@ export class WhisperPcmSttEngine implements SttEngine {
             const silence = now - this.lastSpeechMs;
             if (silence >= needed) {
                 this.utteranceDone = true;
-                // Diagnostic for tuning the pause settings: how long you spoke,
-                // how much trailing silence we required, and what actually
-                // elapsed. Visible in devtools at the Verbose/Debug log level.
-                // (Temporary — remove once the VAD defaults are dialed in.)
-                console.debug(
+                // Diagnostic for tuning the VAD: how long you spoke, the trailing
+                // silence we required vs what elapsed, and your loudest speech
+                // (peak) vs the silence threshold (thr). If speech << your real
+                // talk time, or peak is barely above thr, the detector is losing
+                // your voice mid-utterance. console.info so it shows without
+                // toggling Verbose. (Temporary — remove once the VAD is dialed in.)
+                console.info(
                     `[vad] submit speech=${Math.round(speechDur)}ms ` +
-                        `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms`
+                        `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
+                        `peak=${this.peakEnergy.toFixed(3)} thr=${threshold.toFixed(3)}`
                 );
             }
         } else if (this.ttsActive) {
@@ -404,6 +412,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.speechStartMs = 0;
         this.lastSpeechMs = 0;
         this.utteranceDone = false;
+        this.peakEnergy = 0;
         // Re-arm barge-in detection for the next idle period (after this turn
         // ends and the facilitator speaks again).
         this.bargeInFired = false;
