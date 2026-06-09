@@ -637,8 +637,12 @@ export class WhisperPcmSttEngine implements SttEngine {
             // a speculative transcription so the user sees their words during
             // the pause (a partial, shown with the "…" marker); the adaptive
             // `needed` silence (set in the audio callback) ends the turn. Each
-            // speculative pass re-transcribes the growing buffer.
-            let lastSpecChunkCount = 0;
+            // speculative pass re-transcribes the buffer — but only ONE pass per
+            // pause: the buffer also "grows" with appended silence frames, and
+            // re-transcribing speech + ever-more silence yields the same preview
+            // and the same dangling-clause verdict while burning local CPU (and
+            // billed seconds on the cloud path, m56t). New SPEECH re-arms it.
+            let lastSpecSpeechMs = 0;
             let specInFlight = false;
             // Did we already show the user a real (non-empty) speculative
             // transcript? If so we must finalize the turn even if it's short —
@@ -653,10 +657,10 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (
                     silence >= SPECULATIVE_SILENCE_MS &&
                     !specInFlight &&
-                    this.chunks.length > lastSpecChunkCount
+                    this.lastSpeechMs !== lastSpecSpeechMs
                 ) {
                     specInFlight = true;
-                    lastSpecChunkCount = this.chunks.length;
+                    lastSpecSpeechMs = this.lastSpeechMs;
                     const result = await transcribeChunks(this.chunks.slice());
                     specInFlight = false;
                     // Drop the preview if the turn ended while it was in flight
