@@ -33,6 +33,7 @@
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitation/pacing.js';
+import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn.js';
 import { getCloudSessionId } from '../cloud-session.js';
 // Type-only: the module itself is dynamic-imported in acquireSilero() so the
 // ort runtime + model assets stay out of the main bundle (and out of node-env
@@ -79,6 +80,15 @@ const BARGE_IN_REQUIRED_CHUNKS = 3;
 const ECHO_EMA_ALPHA = 0.05;
 const ECHO_GATE_MARGIN = 2.0;
 const ECHO_GATE_MAX = 0.035;
+
+// Extra silence (ms) granted when the speculative transcript ends in a
+// dangling clause ("...never had a bad time doing") — the speaker is likely
+// mid-thought, so wait longer before submitting (meditation-pal-fxo1). This is
+// the gate-immune cutoff defense: macOS's noise gate can hard-zero soft
+// trailing speech so the VAD sees a perfect pause, but the unfinished clause
+// in the transcript survives. Applied on top of the adaptive ramp, every time
+// the latest speculative pass still looks unfinished.
+const INCOMPLETE_CLAUSE_EXTRA_MS = 4000;
 
 /** The subset of PacingConfig fields the VAD here cares about. */
 type VadFields = Pick<
@@ -130,6 +140,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Loudest speech frame this utterance — diagnostic only (how loud this
     // user/mic combination runs; informs the echo-gate margins).
     private peakEnergy = 0;
+    // Whether the latest speculative transcript ends in a dangling clause —
+    // set by the polling loop in start(), read by the audio callback to extend
+    // the silence window (INCOMPLETE_CLAUSE_EXTRA_MS).
+    private partialIncomplete = false;
     // Rolling per-frame energy (+ neural prob, -1 when Silero is off) history
     // (~85ms per frame at 48 kHz) for the submit diagnostic — peak/thr alone
     // can't show what the detector heard during the trailing "silence" window
@@ -306,10 +320,11 @@ export class WhisperPcmSttEngine implements SttEngine {
             // Adaptive silence: each ms of speech buys silenceRampRate ms of
             // additional patience, capped at silenceMaxMs.
             const speechDur = this.lastSpeechMs - this.speechStartMs;
-            const needed = Math.min(
-                this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
-                this.opts.silenceMaxMs
-            );
+            const needed =
+                Math.min(
+                    this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
+                    this.opts.silenceMaxMs
+                ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
             const silence = now - this.lastSpeechMs;
             if (silence >= needed) {
                 this.utteranceDone = true;
@@ -323,7 +338,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                         `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
                         `peak=${this.peakEnergy.toFixed(3)} ` +
                         `echoFloor=${this.echoFloor.toFixed(4)} ` +
-                        `dropped=${this.silero?.droppedChunks ?? 0}`
+                        `dropped=${this.silero?.droppedChunks ?? 0} ` +
+                        `dangling=${this.partialIncomplete}`
                 );
                 // Energy + speech-prob traces of the last 8s in 0.5s buckets
                 // (max per bucket, oldest first). The prob row shows what the
@@ -555,6 +571,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.utteranceDone = false;
         this.peakEnergy = 0;
         this.energyHistory = [];
+        this.partialIncomplete = false;
         // Re-arm barge-in detection for the next idle period (after this turn
         // ends and the facilitator speaks again).
         this.bargeInFired = false;
@@ -645,6 +662,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                     // Drop the preview if the turn ended while it was in flight
                     // (the final pass will emit the authoritative text).
                     if (!this.utteranceDone && result.ok && result.text) {
+                        // Dangling clause → grant extra silence before the
+                        // submit (see INCOMPLETE_CLAUSE_EXTRA_MS). Re-evaluated
+                        // on every speculative pass, so once the thought
+                        // completes the normal window applies again.
+                        this.partialIncomplete = transcriptLooksIncomplete(result.text);
                         emittedPartial = true;
                         yield { type: 'partial', text: result.text };
                     }
