@@ -258,8 +258,9 @@ export async function mountSessionView(
         setHolding(false);
     };
 
-    // Re-probe each time the user starts a session: Flask may have come up
-    // (or gone down) since the last detection.
+    // Re-probe each time the user starts a session: the Whisper backend (the
+    // desktop Rust shell / Hono in the browser) may have come up or gone down
+    // since the last detection.
     invalidateSttBackendCache();
     const vadOpts = {
         silenceBaseMs: pacingConfig.silenceBaseMs,
@@ -1294,6 +1295,12 @@ export async function mountSessionView(
     const checkInTimer: ReturnType<typeof setInterval> | null = pacingConfig.silenceCheckinsEnabled
         ? setInterval(() => {
               if (torn || busy || muted) return;
+              // The pacing controller only sees COMPLETED turns, so on the
+              // continuous-capture path it can't tell the user is mid-ramble —
+              // without this guard a long utterance gets a check-in spoken
+              // over it (which the user's own voice then barge-in cancels:
+              // noise for everyone).
+              if (whisperEngine?.userSpeechActive) return;
               const decision = pacing.shouldRespond();
               if (decision !== TurnDecision.CheckIn) return;
               const text = builder.getCheckInPrompt();

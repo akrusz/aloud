@@ -99,11 +99,10 @@ type VadFields = Pick<
 export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Endpoint URL. Default '/app/v1/stt/whisper' — Vite proxies in dev. */
     endpointUrl?: string;
-    /** Minimum RMS for a frame to count as the *user* while the facilitator's
-     *  TTS is audibly playing — the floor under the measured echo gate. Not a
-     *  speech detector (Silero is); purely echo rejection. */
-    energyThreshold?: number;
-    /** Hard cap on a single utterance — auto-submit after this. */
+    /** Hard cap on a single utterance — auto-submit after this. Default 60s:
+     *  long enough for a meditative ramble (the cap cuts mid-sentence with no
+     *  regard for incompleteness, so it should be a backstop, not a boundary
+     *  users actually hit). */
     maxUtteranceMs?: number;
     /** Custom fetch (tests). */
     fetchImpl?: typeof fetch;
@@ -177,7 +176,6 @@ export class WhisperPcmSttEngine implements SttEngine {
     constructor(options: WhisperPcmSttEngineOptions = {}) {
         this.opts = {
             endpointUrl: options.endpointUrl ?? '/app/v1/stt/whisper',
-            energyThreshold: options.energyThreshold ?? 0.015,
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
             silenceMaxMs: options.silenceMaxMs ?? defaultPacingConfig.silenceMaxMs,
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
@@ -185,7 +183,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // adopt the PacingConfig default but allow caller override.
             minSpeechDurationMs:
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
-            maxUtteranceMs: options.maxUtteranceMs ?? 30_000,
+            maxUtteranceMs: options.maxUtteranceMs ?? 60_000,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
         };
@@ -216,6 +214,15 @@ export class WhisperPcmSttEngine implements SttEngine {
                 typeof (globalThis as unknown as { webkitAudioContext?: unknown })
                     .webkitAudioContext !== 'undefined')
         );
+    }
+
+    /** True while the user is mid-utterance (speech detected, turn not yet
+     *  submitted). Lets the session view suppress facilitator-initiated lines
+     *  (silence check-ins) that would otherwise talk over the user — the
+     *  pacing controller only learns about COMPLETED turns, so it can't tell
+     *  on its own. */
+    get userSpeechActive(): boolean {
+        return this.capturing && this.speechStarted && !this.utteranceDone;
     }
 
     /** Register (or clear, with null) a per-frame mic-level listener — RMS of
@@ -264,7 +271,12 @@ export class WhisperPcmSttEngine implements SttEngine {
         // gate clears measured echo (echoGate) during playback; sustained real
         // speech beats it. Fires once per start()/utterance — start() re-arms it.
         if (this.bargeInHandler && !this.bargeInFired) {
-            if (energy > Math.max(BARGE_IN_THRESHOLD, echoGate)) {
+            // Energy gate as before, plus Silero's verdict when it's loaded: a
+            // cough, thump, or mic bump is loud but not speech, and shouldn't
+            // hush the facilitator. (Echo IS speech to Silero, so this never
+            // weakens echo rejection — that stays on the energy gate.)
+            const isSpeechLike = !this.silero || this.silero.speaking;
+            if (energy > Math.max(BARGE_IN_THRESHOLD, echoGate) && isSpeechLike) {
                 if (++this.bargeInChunks >= BARGE_IN_REQUIRED_CHUNKS) {
                     this.bargeInFired = true;
                     this.bargeInHandler();
@@ -296,13 +308,17 @@ export class WhisperPcmSttEngine implements SttEngine {
         }
 
         // Speech signal: Silero's debounced per-chunk classification. While
-        // TTS is audibly playing the frame must also clear the energy gates —
-        // Silero scores the facilitator's echo as speech (it IS speech), so
-        // telling the speaker apart needs the energy reference.
+        // TTS is audibly playing the frame must also clear barge-in-grade
+        // energy — Silero scores the facilitator's echo as speech (it IS
+        // speech), so telling the speaker apart needs an energy reference, and
+        // anything quieter than the barge-in gate couldn't have interrupted
+        // the facilitator anyway (it would just be captured echo). This closes
+        // the session-start phantom turn (8h1x): greeting echo at ~0.016 RMS
+        // cleared the old 0.015 floor before the echo EMA had calibrated.
         const isSpeech =
             this.silero !== null &&
             this.silero.speaking &&
-            (echoGate === 0 || energy > Math.max(echoGate, this.opts.energyThreshold));
+            (echoGate === 0 || energy > Math.max(echoGate, BARGE_IN_THRESHOLD));
 
         if (isSpeech) {
             if (!this.speechStarted) {
@@ -379,7 +395,14 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.pushPre(frame);
         }
 
-        if (this.speechStarted && now - this.speechStartMs >= this.opts.maxUtteranceMs) {
+        if (
+            !this.utteranceDone &&
+            this.speechStarted &&
+            now - this.speechStartMs >= this.opts.maxUtteranceMs
+        ) {
+            console.info(
+                `[vad] submit: max utterance cap reached (${this.opts.maxUtteranceMs}ms)`
+            );
             this.utteranceDone = true;
         }
     };
