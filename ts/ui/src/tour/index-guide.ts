@@ -70,18 +70,26 @@ let prevTarget: HTMLElement | null = null;
 
 interface Section {
     id: string;
+    /** Info panel to open (defaults to `id`). Lets several steps share one panel. */
+    panel?: string;
+    /** Tab to activate before showing this step. */
+    tab?: string;
     target: () => HTMLElement | null;
 }
 
+function setupHeader(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.setup-header');
+}
+
+// The methods panel shows only the active tab's text (see views/setup.ts),
+// so the tour visits each tab in turn to cover all three methods.
 const SECTIONS: ReadonlyArray<Section> = [
-    {
-        id: 'methods',
-        target: function () {
-            return document.querySelector<HTMLElement>('.setup-header');
-        },
-    },
+    { id: 'methods-exploration', panel: 'methods', tab: 'exploration', target: setupHeader },
+    { id: 'methods-noting', panel: 'methods', tab: 'noting', target: setupHeader },
+    { id: 'methods-felt-sense', panel: 'methods', tab: 'felt_sense', target: setupHeader },
     {
         id: 'focus',
+        tab: 'exploration',
         target: function () {
             const btn = document.querySelector<HTMLElement>('[data-info="focus"]');
             return btn ? btn.closest<HTMLElement>('.form-group') : null;
@@ -89,6 +97,7 @@ const SECTIONS: ReadonlyArray<Section> = [
     },
     {
         id: 'vibe',
+        tab: 'exploration',
         target: function () {
             const btn = document.querySelector<HTMLElement>('[data-info="vibe"]');
             return btn ? btn.closest<HTMLElement>('.form-group') : null;
@@ -196,12 +205,9 @@ function scrollToSection(el: HTMLElement, cb: () => void): void {
     }, 300);
 }
 
-function ensureExplorationTab(): void {
-    const panel = document.getElementById('exploration-panel');
-    if (panel && panel.classList.contains('hidden')) {
-        const btn = document.querySelector<HTMLElement>('[data-tab="exploration"]');
-        if (btn) btn.click();
-    }
+function ensureTab(tab: string): void {
+    const btn = document.querySelector<HTMLElement>('.tab-bar [data-tab="' + tab + '"]');
+    if (btn && !btn.classList.contains('active')) btn.click();
 }
 
 // ---- Footer (dots + nav) ----
@@ -266,10 +272,7 @@ function showSection(index: number): void {
     const section = SECTIONS[index];
     if (!section) return;
 
-    // Focus and vibe are on the exploration tab
-    if (section.id === 'focus' || section.id === 'vibe') {
-        ensureExplorationTab();
-    }
+    if (section.tab) ensureTab(section.tab);
 
     const target = section.target();
     if (!target) {
@@ -284,7 +287,7 @@ function showSection(index: number): void {
     });
 
     // Open this section's info panel
-    const panel = document.getElementById('info-' + section.id);
+    const panel = document.getElementById('info-' + (section.panel || section.id));
     if (panel) panel.classList.remove('hidden');
 
     // Elevate target above overlay so info panel is readable

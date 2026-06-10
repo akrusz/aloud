@@ -860,6 +860,12 @@ export async function mountSetupView(
         root.querySelectorAll<HTMLElement>('.tab-bar .tab-btn').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset['tab'] === active);
         });
+        // The methods info panel shows only the active tab's description —
+        // the full three-method text overflows small screens. The guided
+        // tour steps through the tabs to cover all three.
+        root.querySelectorAll<HTMLElement>('#info-methods [data-method]').forEach((block) => {
+            block.classList.toggle('hidden', block.dataset['method'] !== active);
+        });
         const exploration = root.querySelector<HTMLElement>('#exploration-panel');
         const noting = root.querySelector<HTMLElement>('#noting-panel');
         const feltSense = root.querySelector<HTMLElement>('#felt-sense-panel');
@@ -1357,13 +1363,19 @@ function renderSetupHTML(
             <button type="button" class="info-btn" data-info="methods" aria-label="About meditation methods">?</button>
         </div>
         <div class="info-panel hidden" id="info-methods">
-            <p><strong>exploration</strong>: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.</p>
-            <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good). presets give you quick starting points, or you can build your own style. there's a directiveness slider so you can dial in how much guidance you want. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
-            <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
-            <p><strong>noting</strong>: you specify what participants you'd like, if any &mdash; AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing my cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
-            <p>thanks to <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> and again to <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for inspiration.</p>
-            <p><strong>felt sense</strong>: a gentle six-step arc, settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time. the body often knows more than the story does.</p>
-            <p>adapted from <a href="https://focusing.org/" target="_blank" rel="noopener">Eugene Gendlin's Focusing</a>, which deserves the credit for the method (and is well worth reading about).</p>
+            <div data-method="exploration">
+                <p><strong>exploration</strong>: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.</p>
+                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good). presets give you quick starting points, or you can build your own style. there's a directiveness slider so you can dial in how much guidance you want. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
+                <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
+            </div>
+            <div data-method="noting" class="hidden">
+                <p><strong>noting</strong>: you specify what participants you'd like, if any &mdash; AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing my cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
+                <p>thanks to <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> and again to <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for inspiration.</p>
+            </div>
+            <div data-method="felt_sense" class="hidden">
+                <p><strong>felt sense</strong>: a gentle six-step arc, settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time. the body often knows more than the story does.</p>
+                <p>adapted from <a href="https://focusing.org/" target="_blank" rel="noopener">Eugene Gendlin's Focusing</a>, which deserves the credit for the method (and is well worth reading about).</p>
+            </div>
             <p class="info-panel-link"><a href="#" id="start-guide-link">Take the full tour &rarr;</a></p>
         </div>
     </div>
