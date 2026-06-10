@@ -70,8 +70,14 @@ pub fn run() {
       // Models (Whisper, Piper) are cached under the app data dir; the server
       // derives per-engine subdirs from it.
       let data_dir = app.path().app_data_dir().expect("resolve app data dir");
-      let port = server::start(data_dir);
-      let init = format!("window.__ALOUD_API_BASE__ = 'http://127.0.0.1:{port}';");
+      let (port, token) = server::start(data_dir);
+      // The per-launch token gates every /app/v1 request (see server.rs
+      // require_token); app-base.ts attaches it to loopback fetches. Hex-only,
+      // so it's safe to splice into the script literal.
+      let init = format!(
+        "window.__ALOUD_API_BASE__ = 'http://127.0.0.1:{port}';\n\
+         window.__ALOUD_API_TOKEN__ = '{token}';"
+      );
 
       let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title("aloud")

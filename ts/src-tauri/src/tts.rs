@@ -271,7 +271,15 @@ fn synth_piper(
     // Piper's native pace at length_scale 1.0 is ~220 WPM (see piper.py).
     let length_scale = rate.map(|r| 220.0 / r.max(1) as f32);
 
-    let mut guard = cache.lock().unwrap();
+    // Synthesis runs while holding this lock, so a panic inside piper-rs/ort
+    // poisons it. Recover instead of unwrapping — and drop whatever model was
+    // cached when it happened, since its internal state is suspect — so one bad
+    // synthesis can't brick TTS until app restart.
+    let mut guard = cache.lock().unwrap_or_else(|poisoned| {
+        let mut guard = poisoned.into_inner();
+        *guard = None;
+        guard
+    });
     let need_load = guard
         .as_ref()
         .map(|(name, _)| name != v.model)

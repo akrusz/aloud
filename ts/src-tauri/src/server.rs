@@ -4,7 +4,9 @@
 //! used to reach on Flask (`/api/*`). The UI keeps issuing `fetch('/app/v1/...')`
 //! but, in a Tauri build, against this server via an injected base URL (see
 //! `ui/src/app-base.ts` and the `initialization_script` in `lib.rs`). Bound to
-//! an ephemeral `127.0.0.1` port so nothing is exposed off-box.
+//! an ephemeral `127.0.0.1` port so nothing is exposed off-box, and guarded by
+//! a per-launch token + Host check (see `AuthConfig`) so other local processes
+//! and rebinding/localhost-fetching websites can't drive it either.
 //!
 //! Endpoints:
 //! - `GET  /app/v1/system-info` — platform + tool availability.
@@ -19,15 +21,16 @@ use std::sync::{Arc, Mutex};
 
 use axum::{
     body::Bytes,
-    extract::{DefaultBodyLimit, Query, State},
-    http::{header, StatusCode},
+    extract::{DefaultBodyLimit, Query, Request, State},
+    http::{header, HeaderName, HeaderValue, Method, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 // Default STT model: base.en GGML (~142 MB). Good accuracy/size balance for a
@@ -61,7 +64,71 @@ pub struct AppState {
 
 type Shared = Arc<AppState>;
 
-fn router(state: Shared) -> Router {
+/// Per-launch auth for the loopback server. Loopback-bound is not enough on its
+/// own: any local process — or any website, via `fetch('http://127.0.0.1:…')`
+/// or DNS rebinding — can reach this port, and it proxies the claude CLI,
+/// reads/writes session files, and runs installers. So every request must
+/// present a random per-launch bearer token that only the webview knows (it's
+/// injected as `window.__ALOUD_API_TOKEN__` next to the base URL; see `lib.rs`
+/// and `ui/src/app-base.ts`), and must carry a loopback `Host` header (a DNS
+/// rebinding request reaches the socket fine but carries the attacker's
+/// hostname, so this check kills it even before the token does).
+struct AuthConfig {
+    token: String,
+    allowed_hosts: [String; 2],
+}
+
+/// Custom request header carrying the per-launch token (`Authorization:
+/// Bearer <token>` is accepted too, for hand-rolled callers/debugging).
+const TOKEN_HEADER: HeaderName = HeaderName::from_static("x-aloud-token");
+
+/// Constant-time byte-string equality — token comparison must not leak how many
+/// leading bytes matched through response timing.
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Reject any request that isn't provably from our webview: wrong/missing
+/// `Host` → 403, wrong/missing token → 401. Runs inside the CORS layer, so
+/// browser preflights (which never carry custom headers) are still answered.
+async fn require_token(State(auth): State<Arc<AuthConfig>>, req: Request, next: Next) -> Response {
+    let host_ok = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(|h| auth.allowed_hosts.iter().any(|a| a == h))
+        .unwrap_or(false);
+    if !host_ok {
+        return err(StatusCode::FORBIDDEN, "Bad Host header.").into_response();
+    }
+    let presented = req
+        .headers()
+        .get(&TOKEN_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| {
+            req.headers()
+                .get(header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "))
+        });
+    let token_ok = presented
+        .map(|t| ct_eq(t.as_bytes(), auth.token.as_bytes()))
+        .unwrap_or(false);
+    if !token_ok {
+        return err(StatusCode::UNAUTHORIZED, "Missing or invalid API token.").into_response();
+    }
+    next.run(req).await
+}
+
+/// 32 random bytes as lowercase hex — the per-launch API token.
+fn random_token() -> String {
+    use rand::RngCore;
+    let mut buf = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut buf);
+    buf.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
     // The app's own backend surface, mounted under /app/v1 (formerly the Flask
     // /api/* routes). The role-versioned prefix lives here in one place; the
     // hosted, signed-in service lives at /cloud/v1 on the remote Hono server.
@@ -90,24 +157,45 @@ fn router(state: Shared) -> Router {
         .route("/open-config-folder", post(open_config_folder))
         .route("/open-sessions-folder", post(open_sessions_folder))
         .route("/open-voice-settings", post(open_voice_settings));
+    // The webview origin (tauri://localhost in prod, http://localhost:4649 in
+    // dev) differs from this server's 127.0.0.1:<port>, so every request is
+    // cross-origin. Allow exactly the origins our webview can have — anything
+    // else (a random website fetching the loopback) gets no CORS headers.
+    let cors = CorsLayer::new()
+        .allow_origin([
+            HeaderValue::from_static("tauri://localhost"), // macOS/Linux prod
+            HeaderValue::from_static("http://tauri.localhost"), // Windows prod
+            HeaderValue::from_static("http://localhost:4649"), // tauri:dev (Vite)
+            HeaderValue::from_static("http://127.0.0.1:4649"),
+        ])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            TOKEN_HEADER,
+            HeaderName::from_static("x-provider-key"),
+            HeaderName::from_static("x-api-key"),
+        ]);
     Router::new()
         .nest("/app/v1", app_v1)
-        // The webview origin (tauri://localhost in prod, http://localhost:1420
-        // in dev) differs from this server's 127.0.0.1:<port>, so every request
-        // is cross-origin. Permissive CORS is safe here: loopback only.
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        // Layer order matters: later .layer() calls are outermost, so requests
+        // hit CORS (answering preflights tokenlessly) before the token check.
+        .layer(middleware::from_fn_with_state(auth, require_token))
+        .layer(cors)
         .layer(DefaultBodyLimit::max(MAX_AUDIO_BYTES))
         .with_state(state)
 }
 
 /// Bind an ephemeral loopback port, kick off model loading in the background,
-/// spawn the server on Tauri's async runtime, and return the chosen port.
-pub fn start(data_dir: PathBuf) -> u16 {
+/// spawn the server on Tauri's async runtime, and return the chosen port plus
+/// the per-launch API token (both injected into the webview by `lib.rs`).
+pub fn start(data_dir: PathBuf) -> (u16, String) {
     // Silence whisper.cpp/GGML's chatty model-load dump (n_vocab, n_audio_ctx,
     // …). It redirects their stderr into whisper-rs's logging hook, which is a
     // no-op here because we don't enable its `log_backend`/`tracing_backend`
@@ -146,14 +234,19 @@ pub fn start(data_dir: PathBuf) -> u16 {
             .local_addr()
             .expect("local api server addr")
             .port();
-        let app = router(state);
+        let token = random_token();
+        let auth = Arc::new(AuthConfig {
+            token: token.clone(),
+            allowed_hosts: [format!("127.0.0.1:{port}"), format!("localhost:{port}")],
+        });
+        let app = router(state, auth);
         tauri::async_runtime::spawn(async move {
             if let Err(e) = axum::serve(listener, app).await {
                 log::error!("local api server stopped: {e}");
             }
         });
         log::info!("local api server listening on 127.0.0.1:{port}");
-        port
+        (port, token)
     })
 }
 
@@ -431,8 +524,16 @@ async fn models(
     axum::extract::Path(provider): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Json<Value> {
-    let key = headers.get("x-provider-key").and_then(|v| v.to_str().ok());
-    Json(crate::providers::models(&provider, key))
+    let key = headers
+        .get("x-provider-key")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    // The upstream list fetches are synchronous (ureq) — keep them off the
+    // async reactor, same as providers().
+    let v = tokio::task::spawn_blocking(move || crate::providers::models(&provider, key.as_deref()))
+        .await
+        .unwrap_or_else(|_| json!([]));
+    Json(v)
 }
 
 /// `POST /app/v1/google-oauth` — desktop Google sign-in via the loopback PKCE

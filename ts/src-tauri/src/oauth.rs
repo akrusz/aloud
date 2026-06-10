@@ -153,34 +153,59 @@ pub async fn google_loopback(client_id: &str) -> Result<OauthResult, String> {
     Ok(OauthResult { code, code_verifier: verifier, redirect_uri })
 }
 
-/// Accept one HTTP request on the loopback, parse `code`/`state`, and reply with
-/// a small "you can close this tab" page.
+/// Serve loopback connections until one carries the OAuth redirect (a `code` or
+/// `error` query param), parse it, and reply with a small "you can close this
+/// tab" page. Browsers open extra connections to a fresh local origin (favicon
+/// probes, speculative preconnects) — consuming the first connection blindly
+/// would eat one of those and miss the real redirect, so anything without
+/// `code`/`error` gets a 404 and we keep listening. The caller's overall
+/// timeout (`WAIT`) still bounds the loop.
 async fn accept_redirect(listener: TcpListener) -> Result<(String, String), String> {
-    let (mut sock, _) = listener.accept().await.map_err(|e| format!("loopback accept: {e}"))?;
-    let mut buf = [0u8; 8192];
-    let n = sock.read(&mut buf).await.map_err(|e| format!("loopback read: {e}"))?;
-    let req = String::from_utf8_lossy(&buf[..n]);
+    loop {
+        let (mut sock, _) =
+            listener.accept().await.map_err(|e| format!("loopback accept: {e}"))?;
+        let mut buf = [0u8; 8192];
+        let n = sock.read(&mut buf).await.map_err(|e| format!("loopback read: {e}"))?;
+        let req = String::from_utf8_lossy(&buf[..n]);
 
-    // Request line: `GET /?code=...&state=... HTTP/1.1`
-    let target = req
-        .lines()
-        .next()
-        .and_then(|l| l.split_whitespace().nth(1))
-        .unwrap_or("");
-    let query = target.split_once('?').map(|(_, q)| q).unwrap_or("");
+        // Request line: `GET /?code=...&state=... HTTP/1.1`
+        let target = req
+            .lines()
+            .next()
+            .and_then(|l| l.split_whitespace().nth(1))
+            .unwrap_or("");
+        let query = target.split_once('?').map(|(_, q)| q).unwrap_or("");
 
-    let (mut code, mut state, mut err) = (String::new(), String::new(), String::new());
-    for pair in query.split('&') {
-        if let Some((k, v)) = pair.split_once('=') {
-            match k {
-                "code" => code = pct_decode(v),
-                "state" => state = pct_decode(v),
-                "error" => err = pct_decode(v),
-                _ => {}
+        let (mut code, mut state, mut err) = (String::new(), String::new(), String::new());
+        for pair in query.split('&') {
+            if let Some((k, v)) = pair.split_once('=') {
+                match k {
+                    "code" => code = pct_decode(v),
+                    "state" => state = pct_decode(v),
+                    "error" => err = pct_decode(v),
+                    _ => {}
+                }
             }
         }
-    }
 
+        if code.is_empty() && err.is_empty() {
+            let resp = "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
+            let _ = sock.write_all(resp.as_bytes()).await;
+            let _ = sock.flush().await;
+            continue;
+        }
+
+        return finish_redirect(sock, code, state, err).await;
+    }
+}
+
+/// Send the closing page for the real redirect and turn it into the result.
+async fn finish_redirect(
+    mut sock: tokio::net::TcpStream,
+    code: String,
+    state: String,
+    err: String,
+) -> Result<(String, String), String> {
     let ok = !code.is_empty() && err.is_empty();
     let (status, msg) = if ok {
         ("200 OK", "You're signed in. You can close this tab and return to aloud.")

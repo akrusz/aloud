@@ -89,6 +89,9 @@ pub async fn claude_complete(req: CompleteRequest) -> Result<Value, ProxyError> 
     }
     cmd.arg(&prompt);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    // On timeout the `cmd.output()` future is dropped mid-flight — without this
+    // the spawned CLI would be orphaned and keep burning quota in the background.
+    cmd.kill_on_drop(true);
 
     let output = match timeout(TIMEOUT, cmd.output()).await {
         Ok(Ok(o)) => o,

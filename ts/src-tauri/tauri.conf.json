@@ -12,7 +12,8 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* https://aloud-cloud.fly.dev https://api.anthropic.com https://api.openai.com https://api.groq.com https://api.venice.ai https://openrouter.ai https://generativelanguage.googleapis.com https://mainnet.base.org https://sepolia.base.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* ws://localhost:* ws://127.0.0.1:* https://aloud-cloud.fly.dev https://api.anthropic.com https://api.openai.com https://api.groq.com https://api.venice.ai https://openrouter.ai https://generativelanguage.googleapis.com https://mainnet.base.org https://sepolia.base.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'"
     }
   },
   "bundle": {
