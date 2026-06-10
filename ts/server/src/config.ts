@@ -139,9 +139,17 @@ export interface Config {
     cdpApiKeyId?: string;
     cdpApiKeySecret?: string;
 
-    /** Bearer token for the /cloud/v1/admin/* spend-monitoring endpoints. When unset,
-     *  those endpoints are disabled (404) rather than open. */
+    /** Bearer token for the /cloud/v1/admin/* spend-monitoring endpoints. When unset
+     *  (and adminEmails is empty), those endpoints are disabled (404) rather than open. */
     adminToken?: string;
+
+    /** Emails (lowercased) whose signed-in sessions get admin access — the
+     *  operator signs in with Google on a phone instead of carrying the static
+     *  token around. The stored credential is then a 7-day session JWT, not the
+     *  root token; remove the email from this list to revoke. Verified emails
+     *  only (enforced at the route), so an unverified email-signup squatting on
+     *  an admin address can't pass. */
+    adminEmails: string[];
 
     /** When true, refuse to start unless every prod-critical secret is set.
      *  Off in dev so the server boots with an in-memory store and stubs. */
@@ -210,6 +218,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),
         meteredPaused: env['ALOUD_METERED_PAUSED'] === '1',
         testerEmails: list(env['ALOUD_TESTER_EMAILS']).map((e) => e.toLowerCase()),
+        adminEmails: list(env['ALOUD_ADMIN_EMAILS']).map((e) => e.toLowerCase()),
         strict,
         enableDevAuth: truthy(env['ALOUD_ENABLE_DEV_AUTH']),
     };

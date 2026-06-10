@@ -10,27 +10,30 @@ import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import { loadRuntimeOverrides, isMeteredBlocked } from '../src/admin/runtime-config.js';
+import { issueSessionToken } from '../src/auth/session.js';
+import { renderAdminPanel } from '../src/admin/panel.js';
 import type { Account } from '../src/credits/store.js';
 
 const TOKEN = 'super-secret-admin-token';
 
-function seedAccount(store: MemoryCreditsStore, id: string, email: string): Promise<void> {
+function seedAccount(store: MemoryCreditsStore, id: string, email: string, emailVerified = true): Promise<void> {
     const account: Account = {
         id,
         email,
-        emailVerified: true,
+        emailVerified,
         createdAt: 1000,
     };
     return store.createAccount(account);
 }
 
-function makeApp(opts: { token?: string } = {}) {
+function makeApp(opts: { token?: string; adminEmails?: string } = {}) {
     const store = new MemoryCreditsStore();
     const env: Record<string, string> = { ANTHROPIC_API_KEY: 'sk-test', ALOUD_ENABLE_DEV_AUTH: '1' };
     if (opts.token !== undefined) env['ALOUD_ADMIN_TOKEN'] = opts.token;
+    if (opts.adminEmails !== undefined) env['ALOUD_ADMIN_EMAILS'] = opts.adminEmails;
     const config = loadConfig(env);
     const deps = buildDeps(config, { store });
-    return { app: createApp(deps), store, ledger: deps.ledger };
+    return { app: createApp(deps), store, ledger: deps.ledger, config };
 }
 
 function authed(extra: Record<string, string> = {}) {
@@ -70,6 +73,64 @@ describe('admin routes — gating', () => {
         const html = await res.text();
         expect(html).toContain('aloud');
         expect(html).not.toContain(TOKEN); // token is never baked into the page
+    });
+});
+
+describe('admin routes — session (ALOUD_ADMIN_EMAILS) auth', () => {
+    // loadConfig's dev fallback secret — what the test app signs sessions with.
+    const SECRET = 'dev-insecure-secret';
+
+    it('accepts a session token for a verified allowlisted account', async () => {
+        const { app, store } = makeApp({ adminEmails: 'Admin@Example.com' });
+        await seedAccount(store, 'adm', 'admin@example.com');
+        const jwt = await issueSessionToken('adm', SECRET);
+        const res = await app.request('/cloud/v1/admin/metrics', {
+            headers: { authorization: `Bearer ${jwt}` },
+        });
+        expect(res.status).toBe(200);
+    });
+
+    it('rejects a session for an account not on the list', async () => {
+        const { app, store } = makeApp({ adminEmails: 'admin@example.com' });
+        await seedAccount(store, 'usr', 'stranger@example.com');
+        const jwt = await issueSessionToken('usr', SECRET);
+        const res = await app.request('/cloud/v1/admin/metrics', {
+            headers: { authorization: `Bearer ${jwt}` },
+        });
+        expect(res.status).toBe(401);
+    });
+
+    it('rejects an allowlisted but UNVERIFIED email (no squatting via email signup)', async () => {
+        const { app, store } = makeApp({ adminEmails: 'admin@example.com' });
+        await seedAccount(store, 'adm', 'admin@example.com', false);
+        const jwt = await issueSessionToken('adm', SECRET);
+        const res = await app.request('/cloud/v1/admin/metrics', {
+            headers: { authorization: `Bearer ${jwt}` },
+        });
+        expect(res.status).toBe(401);
+    });
+
+    it('serves the panel with no static token configured (emails only)', async () => {
+        const { app } = makeApp({ adminEmails: 'admin@example.com' });
+        const res = await app.request('/cloud/v1/admin');
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/html');
+    });
+
+    it('injects the Google client id into the panel; blank when unconfigured', () => {
+        const html = renderAdminPanel('web-id.apps.googleusercontent.com');
+        expect(html).toContain('"web-id.apps.googleusercontent.com"');
+        expect(renderAdminPanel(undefined)).toContain('var GOOGLE_CLIENT_ID = ""');
+    });
+
+    it('still rejects garbage bearers, and the static token keeps working alongside', async () => {
+        const { app } = makeApp({ token: TOKEN, adminEmails: 'admin@example.com' });
+        const garbage = await app.request('/cloud/v1/admin/metrics', {
+            headers: { authorization: 'Bearer not-a-jwt-not-the-token' },
+        });
+        expect(garbage.status).toBe(401);
+        const viaToken = await app.request('/cloud/v1/admin/metrics', { headers: authed() });
+        expect(viaToken.status).toBe(200);
     });
 });
 

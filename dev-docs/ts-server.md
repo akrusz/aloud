@@ -73,7 +73,8 @@ load logic is `loadConfig` in `config.ts`.
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup — once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
-| `ALOUD_ADMIN_TOKEN` | `/v1/admin/*` + panel | unset = admin routes & panel 404 (disabled, not open) |
+| `ALOUD_ADMIN_TOKEN` | `/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
+| `ALOUD_ADMIN_EMAILS` | `/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access — the panel's Google sign-in path, so a phone never holds the static token |
 
 ### Keys for the full hosted pipeline
 
@@ -175,22 +176,37 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | `POST /v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
 | `GET /v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
-| `GET /v1/admin` | none* | operator control panel HTML (`*` served only when a token is configured) |
-| `GET /v1/admin/metrics` | admin token | ledger aggregates for spend monitoring |
-| `GET /v1/admin/accounts` | admin token | every account + derived balance / granted / spent / paid flag |
-| `GET /v1/admin/accounts/:id` | admin token | one account + its full ledger (audit trail) |
-| `POST /v1/admin/grant` | admin token | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
-| `GET /v1/admin/config` | admin token | live effective knobs (free credits, pause, testers) + pricing context |
-| `PUT /v1/admin/config` | admin token | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
+| `GET /v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
+| `GET /v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
+| `GET /v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag |
+| `GET /v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
+| `POST /v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
+| `GET /v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
+| `PUT /v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
+
+"admin" auth = the `ALOUD_ADMIN_TOKEN` bearer, or a normal session token whose
+verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
 
 ### Admin control panel
 
 Browse to `/cloud/v1/admin` on the server (e.g.
 `https://aloud-cloud.fly.dev/cloud/v1/admin`) — a single self-contained page
 (`src/admin/panel.ts`) for spend monitoring, account lookup, and credit grants.
-Paste `ALOUD_ADMIN_TOKEN` once (kept in this origin's localStorage, sent as a
-Bearer header; never baked into the page). With no token configured the panel
-and every `/admin/*` endpoint 404 — disabled, not open.
+Two ways in, both kept in this origin's localStorage and sent as a Bearer
+header (never baked into the page):
+
+- **Paste `ALOUD_ADMIN_TOKEN`** — the original path; still what scripts/curl use.
+- **Sign in with Google** (`ALOUD_ADMIN_EMAILS`) — for the road: the device
+  holds a 7-day session JWT instead of the root token. The gate
+  (`routes/admin.ts` `authFailure`) requires the session account's email to be
+  on the list AND verified, so an email-signup squatting on an admin address
+  can't pass. Remove the email from the env to revoke. The sign-in button uses
+  the FIRST id in `GOOGLE_CLIENT_IDS` (the web client), and that OAuth client
+  must list the server's origin (e.g. `https://aloud-cloud.fly.dev`) under
+  "Authorized JavaScript origins" in the Google Cloud console.
+
+With neither configured the panel and every `/admin/*` endpoint 404 —
+disabled, not open.
 
 **Tunable free-credit knobs.** The panel's *Free credits* section sets
 `freeSignupCredits` and the global hourly `freeGrantBudgetPerHour` live (no

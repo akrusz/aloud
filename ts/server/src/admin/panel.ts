@@ -1,18 +1,31 @@
 /**
  * Self-contained operator control panel, served as one HTML string from the
- * admin routes (GET /cloud/v1/admin) when ALOUD_ADMIN_TOKEN is configured.
+ * admin routes (GET /cloud/v1/admin) when admin access is configured.
  *
  * Deliberately a single inline page with no build step and no framework: it's
  * an internal tool that must keep working with zero deploy ceremony. The admin
- * token is NEVER baked in — the operator pastes it once, it lives in
- * localStorage for this origin, and every call sends it as a Bearer header.
- * Same-origin with the API, so no CORS in play.
+ * token is NEVER baked in — the operator either pastes it once or signs in
+ * with Google (when ALOUD_ADMIN_EMAILS is set, the on-the-go path: the device
+ * then holds a 7-day session JWT instead of the root token). Either way the
+ * credential lives in localStorage for this origin and every call sends it as
+ * a Bearer header. Same-origin with the API, so no CORS in play.
  *
- * Everything the page can do maps to a token-gated endpoint in routes/admin.ts;
- * with no token, those return 404 and the page is just an inert form.
+ * Everything the page can do maps to a gated endpoint in routes/admin.ts;
+ * unauthorized, those return 401/404 and the page is just an inert form.
+ *
+ * The Google button needs the web OAuth client id (injected by the route, ''
+ * disables it) AND this server's origin listed under "Authorized JavaScript
+ * origins" on that client in the Google Cloud console.
  */
 
-export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
+export function renderAdminPanel(googleClientId?: string): string {
+    return ADMIN_PANEL_TEMPLATE.replace(
+        '"__GOOGLE_CLIENT_ID__"',
+        JSON.stringify(googleClientId ?? '')
+    );
+}
+
+const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -105,6 +118,10 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
       <div><input id="tok" type="password" placeholder="paste token" autocomplete="off"></div>
       <button id="connect">Connect</button>
       <button class="ghost" id="forget">Forget</button>
+    </div>
+    <div id="gsiWrap" class="hidden" style="margin-top:14px">
+      <label>…or sign in (admin accounts only)</label>
+      <div id="gsiBtn"></div>
     </div>
     <div class="msg" id="authMsg"></div>
   </div>
@@ -255,6 +272,8 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
 <script>
 (function () {
   var KEY = 'aloud-admin-token';
+  // Injected by renderAdminPanel (panel.ts); '' when sign-in is not configured.
+  var GOOGLE_CLIENT_ID = "__GOOGLE_CLIENT_ID__";
   var $ = function (id) { return document.getElementById(id); };
   var token = '';
 
@@ -749,11 +768,12 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
   }
 
   // ---- connect / boot ----------------------------------------------------
-  function connect() {
-    token = $('tok').value.trim();
-    if (!token) { setMsg($('authMsg'), 'Paste the admin token first.', 'err'); return; }
+  // "token" is whatever credential we hold — the static admin token or a
+  // session JWT from the Google sign-in below; the server accepts either.
+  // loadMetrics() doubles as the auth check before anything is persisted.
+  function boot() {
     setMsg($('authMsg'), 'Connecting…');
-    loadMetrics().then(function () {
+    return loadMetrics().then(function () {
       localStorage.setItem(KEY, token);
       setMsg($('authMsg'), 'Connected.', 'ok');
       $('app').classList.remove('hidden');
@@ -764,10 +784,55 @@ export const ADMIN_PANEL_HTML = String.raw`<!doctype html>
     });
   }
 
+  function connect() {
+    token = $('tok').value.trim();
+    if (!token) { setMsg($('authMsg'), 'Paste the admin token first.', 'err'); return; }
+    boot();
+  }
+
+  // ---- Google sign-in (ALOUD_ADMIN_EMAILS) -------------------------------
+  // Mints a normal session via /cloud/v1/auth/google; the admin gate then
+  // checks the account email server-side. Anyone can sign in here — only
+  // allowlisted accounts get past loadMetrics().
+  (function () {
+    if (!GOOGLE_CLIENT_ID) return;
+    $('gsiWrap').classList.remove('hidden');
+    var s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true; s.defer = true;
+    s.onload = function () {
+      if (!(window.google && window.google.accounts && window.google.accounts.id)) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: function (resp) {
+          if (!resp.credential) { setMsg($('authMsg'), 'Google sign-in returned no credential.', 'err'); return; }
+          setMsg($('authMsg'), 'Signing in…');
+          fetch('/cloud/v1/auth/google', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ idToken: resp.credential }),
+          }).then(function (r) { return r.json(); }).then(function (body) {
+            if (!body || !body.token) {
+              throw new Error((body && body.error && body.error.message) || 'sign-in failed');
+            }
+            token = body.token;
+            return boot();
+          }).catch(function (e) {
+            setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
+          });
+        },
+      });
+      window.google.accounts.id.renderButton($('gsiBtn'), {
+        theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 240,
+      });
+    };
+    document.head.appendChild(s);
+  })();
+
   $('connect').onclick = connect;
   $('forget').onclick = function () {
     localStorage.removeItem(KEY); token = ''; $('tok').value = '';
-    $('app').classList.add('hidden'); setMsg($('authMsg'), 'Token forgotten.');
+    $('app').classList.add('hidden'); setMsg($('authMsg'), 'Credential forgotten.');
   };
   $('grant').onclick = doGrant;
   $('saveConfig').onclick = saveConfig;

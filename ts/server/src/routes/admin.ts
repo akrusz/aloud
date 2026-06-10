@@ -1,7 +1,10 @@
 /**
- * Admin operator endpoints (dev ask). Gated by ALOUD_ADMIN_TOKEN — when that's
- * unset every route here is DISABLED (404), never open. Separate from user
- * auth: this is operator access, not account access.
+ * Admin operator endpoints (dev ask). Gated by ALOUD_ADMIN_TOKEN and/or
+ * ALOUD_ADMIN_EMAILS — when both are unset every route here is DISABLED (404),
+ * never open. Two ways in: the static operator token (scripts, curl), or a
+ * normal signed-in session whose verified account email is on the admin list —
+ * that's how the operator reaches the panel from a phone without carrying the
+ * token (the device only ever holds a 7-day session JWT).
  *
  *   GET  /cloud/v1/admin            — the control panel HTML (panel.ts)
  *   GET  /cloud/v1/admin/metrics    — ledger aggregates + abuse velocity signals
@@ -24,7 +27,8 @@ import { buildMetrics } from '../admin/metrics.js';
 import { buildUsageReport, buildUsageHistory } from '../credits/usage.js';
 import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
-import { ADMIN_PANEL_HTML } from '../admin/panel.js';
+import { renderAdminPanel } from '../admin/panel.js';
+import { verifySessionToken } from '../auth/session.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
@@ -34,17 +38,37 @@ function tokenOk(provided: string | undefined, expected: string): boolean {
     return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** Admin surface is on iff at least one way in is configured. */
+function adminEnabled(deps: Deps): boolean {
+    return Boolean(deps.config.adminToken) || deps.config.adminEmails.length > 0;
+}
+
 /** Returns null when the request is authorized; otherwise the Response to send
- *  (404 when the feature is off, 401 when the token is wrong/missing). Keeping
- *  the disabled case as 404 means the endpoints aren't advertised. */
-function authFailure(c: Context, expected: string | undefined) {
-    if (!expected) return c.notFound();
+ *  (404 when the feature is off, 401 when the credential is wrong/missing).
+ *  Keeping the disabled case as 404 means the endpoints aren't advertised.
+ *
+ *  The bearer value is either the static admin token or a session JWT for an
+ *  allowlisted account. emailVerified is required on the session path: an
+ *  email/password signup squatting on an admin address must not pass. */
+async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
+    if (!adminEnabled(deps)) return c.notFound();
     const header = c.req.header('authorization') ?? '';
     const provided = header.toLowerCase().startsWith('bearer ') ? header.slice(7) : undefined;
-    if (!tokenOk(provided, expected)) {
-        return c.json(apiError('unauthenticated', 'admin token required'), ERROR_STATUS.unauthenticated);
+    const expected = deps.config.adminToken;
+    if (expected && tokenOk(provided, expected)) return null;
+    if (provided && deps.config.adminEmails.length > 0) {
+        const claims = await verifySessionToken(provided, deps.config.sessionSecret);
+        const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
+        if (
+            account &&
+            account.deletedAt == null &&
+            account.emailVerified &&
+            deps.config.adminEmails.includes(account.email.toLowerCase())
+        ) {
+            return null;
+        }
     }
-    return null;
+    return c.json(apiError('unauthenticated', 'admin access required'), ERROR_STATUS.unauthenticated);
 }
 
 /** Net balance per account id, summing the append-only ledger once. */
@@ -57,16 +81,19 @@ function balancesByAccount(entries: LedgerEntry[]): Map<string, number> {
 export function adminRoutes(deps: Deps): Hono {
     const app = new Hono();
 
-    // The control panel. Served when a token is configured (else 404, so the
-    // page isn't discoverable on a server with admin disabled). No auth on the
-    // HTML itself — the operator pastes the token into the page.
+    // The control panel. Served when admin access is configured (else 404, so
+    // the page isn't discoverable on a server with admin disabled). No auth on
+    // the HTML itself — the operator pastes the token or signs in on the page.
+    // The Google sign-in button needs the web OAuth client id; by convention
+    // that's the FIRST entry of GOOGLE_CLIENT_IDS (see .env.example).
     app.get('/', (c) => {
-        if (!deps.config.adminToken) return c.notFound();
-        return c.html(ADMIN_PANEL_HTML);
+        if (!adminEnabled(deps)) return c.notFound();
+        const googleClientId = deps.config.adminEmails.length > 0 ? deps.config.googleClientIds[0] : undefined;
+        return c.html(renderAdminPanel(googleClientId));
     });
 
     app.get('/metrics', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const sinceHours = Number(c.req.query('sinceHours') ?? 24);
@@ -85,7 +112,7 @@ export function adminRoutes(deps: Deps): Hono {
     // can't show. This is the dataset for calibrating USD_PER_CREDIT and pack
     // sizing against what real sessions actually cost.
     app.get('/usage', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const sinceHours = Number(c.req.query('sinceHours') ?? 24);
@@ -101,7 +128,7 @@ export function adminRoutes(deps: Deps): Hono {
     // retained usage_events (no rollup table needed at this scale), so it's real
     // history bounded only by how far back the telemetry goes.
     app.get('/usage/history', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
@@ -114,7 +141,7 @@ export function adminRoutes(deps: Deps): Hono {
     // it has ever purchased (so the operator can find an email to grant to and
     // eyeball free-vs-paid at a glance).
     app.get('/accounts', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const [accounts, entries] = await Promise.all([
@@ -158,7 +185,7 @@ export function adminRoutes(deps: Deps): Hono {
     // One account plus its full ledger — the audit trail behind a balance,
     // which is exactly what a billing question needs.
     app.get('/accounts/:id', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const account = await deps.store.getAccountById(c.req.param('id'));
@@ -175,7 +202,7 @@ export function adminRoutes(deps: Deps): Hono {
     // row (its ledger FKs survive). The use case is clearing a duplicate-mailbox
     // account; once the dup is gone, the canonical_email unique index can build.
     app.post('/accounts/:id/delete', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const account = await deps.store.getAccountById(c.req.param('id'));
@@ -190,14 +217,14 @@ export function adminRoutes(deps: Deps): Hono {
     // Operator-tunable runtime config (free-credit knobs). GET reads the live
     // effective values; PUT patches them (live + persisted). Lets the operator
     // stop handing out free credits while testing without a redeploy.
-    app.get('/config', (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+    app.get('/config', async (c) => {
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
         return c.json(effectiveConfig(deps));
     });
 
     app.put('/config', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         let body: {
@@ -247,7 +274,7 @@ export function adminRoutes(deps: Deps): Hono {
     // scan), then appends a signup_grant entry tagged reason 'admin_grant' so
     // the audit trail says who/why without inventing a new ledger kind.
     app.post('/grant', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         let body: { email?: unknown; credits?: unknown };
@@ -285,7 +312,7 @@ export function adminRoutes(deps: Deps): Hono {
     // far (summed from the usage telemetry tagged with this pass). The spend
     // column is what tells the operator what a retreat actually cost.
     app.get('/retreats', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const [passes, accounts, usage] = await Promise.all([
@@ -352,7 +379,7 @@ export function adminRoutes(deps: Deps): Hono {
     // string (the panel sends date-input values); the cap is optional and null
     // means truly unlimited.
     app.post('/retreats', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         let body: { label?: unknown; startsAt?: unknown; endsAt?: unknown; perAttendeeDailyCap?: unknown };
@@ -397,7 +424,7 @@ export function adminRoutes(deps: Deps): Hono {
     // to their account on first sign-in (meditation-pal-n9kd) — so no sign-in-
     // first ordering. Same canonicalizing email lookup as grant.
     app.post('/retreats/:id/members', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
@@ -425,7 +452,7 @@ export function adminRoutes(deps: Deps): Hono {
 
     // Revoke a pass — coverage stops immediately for every member.
     app.post('/retreats/:id/revoke', async (c) => {
-        const fail = authFailure(c, deps.config.adminToken);
+        const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
