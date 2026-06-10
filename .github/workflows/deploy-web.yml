@@ -54,6 +54,16 @@ jobs:
             exit 1
           fi
 
+      # Fail loudly instead of shipping a build where sign-in/credits silently
+      # don't work: with no VITE_ALOUD_CLOUD_URL baked in, the hosted app has
+      # no /cloud origin and the cloud features just look "off".
+      - name: Require ALOUD_CLOUD_URL repo variable
+        run: |
+          if [ -z "${{ vars.ALOUD_CLOUD_URL }}" ]; then
+            echo "::error::Repo variable ALOUD_CLOUD_URL is unset - the hosted app would deploy with aloud cloud (sign-in/billing) silently disabled. Set it under Settings → Secrets and variables → Actions → Variables (e.g. https://aloud-cloud.fly.dev)."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

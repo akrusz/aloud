@@ -43,6 +43,21 @@ npm run cap:ios          # builds + syncs + opens Xcode
 npm run cap:android      # builds + syncs + opens Android Studio
 ```
 
+### `VITE_ALOUD_CLOUD_URL` is required for packaged builds
+
+`cap:sync` / `cap:ios` / `cap:android` **fail fast if `VITE_ALOUD_CLOUD_URL`
+is unset** (the `cap:require-cloud-url` guard in `package.json`). The cloud
+origin is baked into the Vite build; without it, a packaged app ships with
+aloud cloud (sign-in, credits, metered STT/LLM/TTS) silently disabled. For a
+production build use the hosted origin:
+
+```bash
+VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run cap:sync
+```
+
+(Live-reload dev via `ui:dev` is unaffected — the Vite dev proxy handles
+`/cloud` there.)
+
 ## What's wired up
 
 - **STT**: `CapacitorSttEngine` wraps `@capacitor-community/speech-recognition`.

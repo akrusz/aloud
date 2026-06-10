@@ -24,8 +24,22 @@ env:
   VITE_ALOUD_CLOUD_URL: ${{ vars.ALOUD_CLOUD_URL }}
 
 jobs:
+  # Fail the whole release up front if ALOUD_CLOUD_URL isn't configured:
+  # without it the desktop builds ship with aloud cloud (accounts/credits)
+  # silently disabled. Cheaper to fail here than after three platform builds.
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require ALOUD_CLOUD_URL repo variable
+        run: |
+          if [ -z "${{ vars.ALOUD_CLOUD_URL }}" ]; then
+            echo "::error::Repo variable ALOUD_CLOUD_URL is unset - desktop builds would ship with aloud cloud (sign-in/credits) silently disabled. Set it under Settings → Secrets and variables → Actions → Variables (e.g. https://aloud-cloud.fly.dev)."
+            exit 1
+          fi
+
   tauri-macos:
     runs-on: macos-latest
+    needs: preflight
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -68,6 +82,7 @@ jobs:
 
   tauri-windows:
     runs-on: windows-latest
+    needs: preflight
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -107,6 +122,7 @@ jobs:
     # so it won't link on 22.04. Tradeoff: the AppImage's glibc floor is now
     # ~2.39. (meditation-pal-9vh)
     runs-on: ubuntu-24.04
+    needs: preflight
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4

@@ -13,9 +13,13 @@ The deploy has **two halves**, deployed independently:
 
 They're stitched together by two settings: the UI is **built** with
 `VITE_ALOUD_CLOUD_URL` = the server's public origin, and the server is
-**configured** with `ALOUD_CORS_ORIGINS` = the UI's public origin. Mic capture
-needs a secure context, so both must be real HTTPS (the `cert.py` self-signed
-cert is LAN-only and won't do here).
+**configured** with `ALOUD_CORS_ORIGINS` = every origin a client calls from.
+That's the web UI origin **plus the desktop webview origins** — the Tauri app
+calls the same hosted server cross-origin from `tauri://localhost` (macOS /
+Linux) and `http://tauri.localhost` (Windows), so leaving those out breaks
+sign-in/credits on desktop only (a failure mode that's invisible in browser
+testing). Mic capture needs a secure context, so the web halves must be real
+HTTPS (the `cert.py` self-signed cert is LAN-only and won't do here).
 
 ---
 
@@ -51,7 +55,7 @@ fly secrets set \
   GEMINI_API_KEY=... \
   FIREWORKS_API_KEY=... \
   GOOGLE_TTS_API_KEY=... \
-  ALOUD_CORS_ORIGINS=https://<your-ui-host> \
+  ALOUD_CORS_ORIGINS='https://<your-ui-host>,tauri://localhost,http://tauri.localhost' \
   STRIPE_SECRET_KEY=sk_live_... \
   STRIPE_WEBHOOK_SECRET=whsec_... \
   ALOUD_ADMIN_TOKEN=$(openssl rand -hex 32)
@@ -345,7 +349,12 @@ You have an Apple Developer membership; this is what to create (all in
 - [ ] (Optional) Apple Services ID created + `APPLE_CLIENT_IDS` set (see
       "Sign in with Apple" above). Email/password needs no setup.
 - [ ] UI built with `VITE_ALOUD_CLOUD_URL` = the server origin.
-- [ ] Server `ALOUD_CORS_ORIGINS` = the UI origin.
+- [ ] Server `ALOUD_CORS_ORIGINS` includes the UI origin **and the desktop
+      webview origins**: `https://aloud.rest`, `tauri://localhost` (macOS /
+      Linux), `http://tauri.localhost` (Windows). The desktop app calls this
+      same server cross-origin from inside the Tauri webview; if its origins
+      are missing, sign-in and credits fail **only on desktop**, which browser
+      testing won't catch.
 - [ ] Stripe live keys + webhook endpoint (`POST /cloud/v1/billing/webhook`)
       registered in the Stripe dashboard, if selling credits at launch.
 - [ ] `ALOUD_ADMIN_TOKEN` set; spot-check `GET /cloud/v1/admin/metrics` for

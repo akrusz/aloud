@@ -29,22 +29,15 @@ jobs:
   npm-audit:
     name: npm audit
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dir: [ts, ts/server]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Ensure a lockfile exists (ts/server has none committed) so audit can
-      # resolve the full tree; --package-lock-only avoids a full install.
-      - name: Ensure lockfile
-        working-directory: ${{ matrix.dir }}
-        run: npm install --package-lock-only
+      # One audit covers everything: ts/server is an npm workspace of ts/, so
+      # the root package-lock.json resolves the full tree including the server.
       # Gate only on high/critical — low/moderate advisories shouldn't block a
       # merge, but Dependabot will still open PRs for them.
       - name: Audit
-        working-directory: ${{ matrix.dir }}
+        working-directory: ts
         run: npm audit --audit-level=high

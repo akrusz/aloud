@@ -200,9 +200,12 @@ The UI stores session state in the browser (localStorage) via
 
 ## Landing site
 
-Static site in `docs/` (hand-written, served by GitHub Pages from `/docs` on
-main; download buttons hit the GitHub `releases/latest` API at load, so no
-redeploy per release).
+Static site in `docs/` (hand-written). Published to GitHub Pages as an
+**artifact** by `.github/workflows/deploy-web.yml` (Pages source = "GitHub
+Actions" — the old "serve `/docs` from a branch" mode is retired), which uploads
+the whole `docs/` tree: marketing pages plus the freshly built app at
+`docs/app/`. Download buttons hit the GitHub `releases/latest` API at load, so
+no redeploy per release.
 
 ```bash
 python3 -m http.server -d docs 8000   # http://localhost:8000

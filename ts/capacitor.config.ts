@@ -3,11 +3,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
 /**
  * Capacitor configuration for the iOS / Android mobile wrapper.
  *
- * The bundle ID and app name will need to change with the rebrand —
- * they're the visible identity in the App Store / Play Store and once
- * set on a published app they're effectively permanent. Pick the new
- * brand name before running `npx cap add ios` for the first time so
- * the Xcode project is generated with the right identifiers.
+ * The bundle ID (app.aloud.meditation) and app name carry the final
+ * "aloud" branding (rebrand done in 1.0). They're the visible identity
+ * in the App Store / Play Store, and once set on a published app they're
+ * effectively permanent — don't change them. `npx cap add ios/android`
+ * bakes them into the generated native projects.
  */
 const config: CapacitorConfig = {
     appId: 'app.aloud.meditation',

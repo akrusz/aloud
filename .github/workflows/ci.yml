@@ -3,8 +3,9 @@ name: CI
 # TS app CI — replaces the old Python ruff + pytest gate (meditation-pal-at0w).
 # The product now lives in ts/ (the @aloud/core UI/core package plus the
 # @aloud/server workspace). The Rust desktop shell (ts/src-tauri) needs a full
-# native toolchain (cmake, espeak, onnxruntime) and is validated by the Tauri
-# release workflow, so it's intentionally not gated on every push here.
+# native toolchain (cmake, espeak, onnxruntime) so it isn't gated here on every
+# push; rust-check.yml runs `cargo check` when ts/src-tauri/** changes, and the
+# Tauri release workflow does the full build.
 on: [push, pull_request]
 
 jobs:
