@@ -866,6 +866,16 @@ export async function mountSetupView(
         if (exploration) exploration.classList.toggle('hidden', active !== 'exploration');
         if (noting) noting.classList.toggle('hidden', active !== 'noting');
         if (feltSense) feltSense.classList.toggle('hidden', active !== 'felt_sense');
+        // Felt sense lays the controls out two-and-two: Voice + Speech
+        // Recognition in the panel row, Provider + Model on the shared row
+        // below. The STT group is one DOM node re-parented between the rows,
+        // so its select keeps its wiring, options, and value either way.
+        const sttGroup = root.querySelector<HTMLElement>('#setup-stt-group');
+        const feltVoiceRow = root.querySelector<HTMLElement>('#felt-sense-voice-row');
+        const sharedRow = root.querySelector<HTMLElement>('#ai-shared-row');
+        if (sttGroup && feltVoiceRow && sharedRow) {
+            (active === 'felt_sense' ? feltVoiceRow : sharedRow).appendChild(sttGroup);
+        }
     }
 
     /**
@@ -1450,7 +1460,7 @@ function renderSetupHTML(
                     placeholder="e.g. the job decision, that conversation yesterday, this restless feeling lately - or just begin, and let it find you"></textarea>
             </div>
 
-            <div class="form-row form-row-thirds">
+            <div class="form-row form-row-thirds" id="felt-sense-voice-row">
                 <div class="form-group">
                     <label>Voice</label>
                     <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
@@ -1461,7 +1471,7 @@ function renderSetupHTML(
             </div>
         </div>
 
-        <div class="form-row form-row-thirds">
+        <div class="form-row form-row-thirds" id="ai-shared-row">
             <div class="form-group" id="ai-provider-group">
                 <label for="provider">Provider</label>
                 <select id="provider">
@@ -1477,7 +1487,7 @@ function renderSetupHTML(
                 <label for="model-select">Model</label>
                 <div id="model-picker-slot"></div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="setup-stt-group">
                 <label for="setup-stt-engine">Speech Recognition</label>
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
