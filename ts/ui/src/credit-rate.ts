@@ -55,9 +55,12 @@ export function rateUnits(creditsPerHour: number | null | undefined): number {
  *  rates suggest; scale a combined session estimate by the active mode before
  *  rounding. (Applied to the composed session total, not the per-component
  *  picker badges, which stay exploration-calibrated with their own caveat.) */
-export const MODE_RATE_MULTIPLIER: Record<'exploration' | 'noting', number> = {
+export const MODE_RATE_MULTIPLIER: Record<'exploration' | 'noting' | 'felt_sense', number> = {
     exploration: 1,
     noting: 0.4,
+    // Full conversational turns like exploration (the extra silence in the
+    // practice only makes the exploration-calibrated estimate conservative).
+    felt_sense: 1,
 };
 
 /** Badge text for a rate, e.g. "3☁️". Empty string when free (0). */

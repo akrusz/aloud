@@ -13,7 +13,7 @@
  * their lazy dev sign-in (cloud-auth.ensureCloudToken) handles it.
  */
 
-import type { SessionSetup } from './settings.js';
+import type { MeditationType, SessionSetup } from './settings.js';
 import type { AppSettings } from './app-settings.js';
 import { resolveSttChoice } from './adapters/stt-picker.js';
 import { isWebMode } from './app-mode.js';
@@ -34,7 +34,7 @@ export function sessionUsesCloud(
     setup: SessionSetup,
     settings: AppSettings,
     webMode: boolean,
-    mode: 'exploration' | 'noting' = 'exploration'
+    mode: MeditationType = 'exploration'
 ): boolean {
     if (setup.provider === 'aloud') return true;
     if (setup.voice?.startsWith('aloud:')) return true;
@@ -59,7 +59,7 @@ export function sessionUsesCloud(
 export async function ensureCloudAccess(
     setup: SessionSetup,
     settings: AppSettings,
-    mode: 'exploration' | 'noting' = 'exploration'
+    mode: MeditationType = 'exploration'
 ): Promise<boolean> {
     if (!sessionUsesCloud(setup, settings, isWebMode(), mode)) return true;
     if (await getCloudToken()) return true;

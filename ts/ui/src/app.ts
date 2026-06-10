@@ -389,7 +389,7 @@ async function goSession(
     // token) and we're not signed in, surface the sign-in modal before mounting
     // rather than failing on the first utterance. Dismissing it aborts the
     // start and leaves the user on setup (which is still mounted).
-    if (!(await ensureCloudAccess(setup, await loadAppSettings()))) return;
+    if (!(await ensureCloudAccess(setup, await loadAppSettings(), setup.meditationType))) return;
     // Push a '/session' history entry so the browser Back button has
     // something to pop while the session is live — wirePopstate intercepts
     // it to confirm before leaving. (Normal exits below route via routeTo,

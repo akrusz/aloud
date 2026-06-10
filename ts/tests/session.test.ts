@@ -276,3 +276,33 @@ describe('SessionManager — tags and notes', () => {
         expect(manager.state?.notes).toBe('felt very settled');
     });
 });
+
+describe('SessionManager — meditation type and mode phase', () => {
+    it('records the meditation type at start', () => {
+        const { manager } = makeManager();
+        const state = manager.startSession(undefined, 'felt_sense');
+        expect(state.meditationType).toBe('felt_sense');
+    });
+
+    it('omits the field entirely when no type is given', () => {
+        const { manager } = makeManager();
+        const state = manager.startSession();
+        expect('meditationType' in state).toBe(false);
+    });
+
+    it('sets and clears the staged-mode phase', () => {
+        const { manager } = makeManager();
+        manager.startSession(undefined, 'felt_sense');
+        manager.setModePhase('sensing');
+        expect(manager.state?.modePhase).toBe('sensing');
+        manager.setModePhase('asking');
+        expect(manager.state?.modePhase).toBe('asking');
+        manager.setModePhase(null);
+        expect(manager.state && 'modePhase' in manager.state).toBe(false);
+    });
+
+    it('setModePhase is a no-op with no session', () => {
+        const { manager } = makeManager();
+        expect(() => manager.setModePhase('sensing')).not.toThrow();
+    });
+});

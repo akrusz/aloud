@@ -68,7 +68,7 @@ export async function mountNotingSessionView(
     const participants = setup.notingParticipants ?? [];
     const appSettings = await loadAppSettings();
     const session = new SessionManager({ contextStrategy: 'full' });
-    session.startSession();
+    session.startSession(undefined, 'noting');
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).
     void markSessionStarted();
@@ -604,7 +604,6 @@ export async function mountNotingSessionView(
         const snapshot: SessionState = {
             ...state,
             endTime: Math.floor(Date.now() / 1000),
-            meditationType: 'noting',
         };
         try {
             await sessionStore.save(snapshot);
@@ -636,7 +635,6 @@ export async function mountNotingSessionView(
         const finalState = session.endSession();
         // Save if there's at least one user turn (skip empty/abandoned circles).
         if (!skipSave && finalState && finalState.exchanges.some((ex) => ex.role === 'user')) {
-            finalState.meditationType = 'noting';
             // Generate a real history summary like exploration sessions do
             // (never throws — returns '' on failure). The circle's exchanges
             // are short notes ("warmth", "tension"); the summarizer distils

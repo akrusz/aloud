@@ -905,6 +905,17 @@
     white-space: nowrap;
 }
 
+/* Staged-mode phase hint ("sensing", "asking") in the session input row.
+   Quiet but legible: small + colored, not faded. */
+.session-phase {
+    font-size: 0.875rem;
+    color: var(--accent);
+    line-height: 42px;
+    height: 42px;
+    margin-right: 4px;
+    white-space: nowrap;
+}
+
 /* Returned-gift row (meditation-pal-bd5): the re-gift email + its two buttons
    share the actions area and wrap together on narrow widths. */
 .gift-row-returned .gift-row-actions {

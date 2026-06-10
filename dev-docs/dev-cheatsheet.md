@@ -10,7 +10,7 @@ The stack lives under `ts/`:
 
 | Path | Stack | Role |
 |------|-------|------|
-| `ts/src/` | TS — `@aloud/core` | Shared engine: pacing, prompts, session, noting, LLM providers, platform adapters. |
+| `ts/src/` | TS — `@aloud/core` | Shared engine: pacing, prompts, modes (exploration / noting / felt sense), session, LLM providers, platform adapters. |
 | `ts/ui/` | TS — Vite, vanilla ES modules | The web UI (`ui/src/`, builds to `ui/dist/`). No framework, no build step beyond Vite. |
 | `ts/server/` | TS — Hono | **aloud cloud**: Google auth, credit ledger, metered LLM/STT/TTS forwarding, billing. |
 | `ts/src-tauri/` | Rust — Tauri 2 | The **desktop shell**: an embedded `axum` backend (native Whisper/Piper/Ollama/claude-CLI) + the webview that loads `ui/`. |

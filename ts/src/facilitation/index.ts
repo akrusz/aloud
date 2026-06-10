@@ -45,6 +45,30 @@ export {
 } from './noting.js';
 
 export {
+    getMode,
+    listModes,
+    parseTurnSignals,
+    StagedModeController,
+    EXPLORATION_MODE,
+    NOTING_MODE,
+    NEXT_PREFIX,
+    BACK_PREFIX,
+    type ModeSpec,
+    type ModePhase,
+    type ModeComposes,
+    type StageSignal,
+    type TurnSignals,
+} from './modes.js';
+
+export {
+    FELT_SENSE_MODE,
+    FELT_SENSE_SYSTEM_PROMPT,
+    FELT_SENSE_PHASES,
+    FELT_SENSE_OPENERS,
+    FELT_SENSE_CHECK_INS,
+} from './felt-sense.js';
+
+export {
     PromptBuilder,
     defaultPromptConfig,
     parseHoldSignal,
@@ -53,6 +77,9 @@ export {
     HOLD_PREFIX,
     realRandom,
     BASE_SYSTEM_PROMPT,
+    VOICE_STYLE_FRAGMENT,
+    HOLD_SIGNAL_FRAGMENT,
+    REALTIME_VOICE_FRAGMENT,
     FOCUS_PROMPTS,
     QUALITY_PROMPTS,
     DIRECTIVENESS_ADDITIONS,

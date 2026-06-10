@@ -93,9 +93,14 @@ export function providerNeedsKey(p: Provider): boolean {
     return ALL_PROVIDERS.find((x) => x.value === p)?.needsKey ?? false;
 }
 
+/** The modes the setup tab bar offers — ModeSpec ids from facilitation/modes.ts.
+ *  (SessionState.meditationType is a plain string for forward compatibility;
+ *  this union is just the UI's closed list of tabs.) */
+export type MeditationType = 'exploration' | 'noting' | 'felt_sense';
+
 export interface SessionSetup {
     /** Which top-level meditation mode the user is in. */
-    meditationType: 'exploration' | 'noting';
+    meditationType: MeditationType;
     intention: string;
     preset: string | null;
     focuses: Focus[];

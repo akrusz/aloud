@@ -12,7 +12,10 @@ import {
     SessionManager,
     PacingController,
     TurnDecision,
-    parseHoldSignal,
+    parseTurnSignals,
+    getMode,
+    StagedModeController,
+    EXPLORATION_MODE,
     generateSessionSummary,
     buildResumeContext,
     classifyResumeIntent,
@@ -182,6 +185,10 @@ export async function mountSessionView(
 ): Promise<SessionViewHandle> {
     root.innerHTML = renderSessionHTML();
 
+    // Mode registry lookup — the spec carries the base prompt, which user
+    // dimensions compose, and (for staged modes like felt sense) the phase
+    // arc the facilitator privately moves through.
+    const mode = getMode(setup.meditationType) ?? EXPLORATION_MODE;
     const builder = new PromptBuilder({
         config: {
             focuses: setup.focuses,
@@ -190,9 +197,18 @@ export async function mountSessionView(
             verbosity: setup.verbosity,
             customInstructions: setup.customInstructions,
         },
+        mode,
     });
+    // Staged modes: a small state machine on top of the facilitation. The
+    // active phase rides on the system prompt; the LLM signals movement with
+    // [NEXT]/[BACK] (parsed each turn below). A continued session resumes in
+    // the phase it left off (persisted via SessionState.modePhase).
+    const stager = mode.phases
+        ? new StagedModeController(mode, continueFrom?.modePhase)
+        : null;
     const session = new SessionManager({ contextStrategy: 'full' });
-    session.startSession();
+    session.startSession(undefined, mode.id);
+    if (stager) session.setModePhase(stager.phase.id);
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget; gating it on this is cheap).
     void markSessionStarted();
@@ -441,6 +457,18 @@ export async function mountSessionView(
     function setStatus(text: string): void {
         statusEl.textContent = text;
     }
+
+    // Staged-mode phase hint — a quiet word in the input row ("sensing",
+    // "finding words") so the user can feel where they are in the arc
+    // without it ever being announced aloud. Hidden for single-phase modes.
+    const phaseEl = root.querySelector<HTMLElement>('#session-phase');
+    function setPhaseHint(): void {
+        if (!phaseEl || !stager) return;
+        phaseEl.textContent = stager.phase.label;
+        phaseEl.title = `${mode.label}: step ${stager.phaseIndex + 1} of ${stager.phases.length}`;
+        phaseEl.classList.remove('hidden');
+    }
+    setPhaseHint();
 
     function appendMessage(
         role: 'user' | 'assistant',
@@ -745,7 +773,7 @@ export async function mountSessionView(
             }
             if (superseded()) return;
 
-            const systemPrompt = builder.buildSystemPrompt();
+            const systemPrompt = builder.buildSystemPrompt(stager?.promptSection());
             // Streaming + sentence-chunked TTS — falls back to non-streaming
             // when the provider doesn't implement completeStream. The
             // facilitator's first sentence starts speaking before the
@@ -772,7 +800,7 @@ export async function mountSessionView(
             // A newer utterance took over while we were generating — drop this
             // reply entirely; the live turn owns the typing dots + history.
             if (superseded()) return;
-            const { signal, cleanText } = parseHoldSignal(rawText);
+            const { hold, stage, cleanText } = parseTurnSignals(rawText);
             hideTyping();
             // A soft-launch-pause canned turn (proxy spoke a graceful apology,
             // charged nothing): show it transiently but keep it OUT of session
@@ -781,6 +809,12 @@ export async function mountSessionView(
             const ephemeral = finishReason === BILLING_PAUSED_FINISH;
             if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
             appendMessage('assistant', cleanText);
+            // Staged modes: apply the LLM's movement signal (clamped at the
+            // ends of the arc) and persist the new phase for resume.
+            if (stager && !ephemeral && stage !== 'none' && stager.apply(stage)) {
+                session.setModePhase(stager.phase.id);
+                setPhaseHint();
+            }
 
             // Wait for any in-flight TTS chunks to finish so the next
             // turn doesn't pile on top.
@@ -794,7 +828,7 @@ export async function mountSessionView(
             // [HOLD] signal is dropped and we treat the response as a
             // normal one.
             const enterHold =
-                !ephemeral && !wasSilent && signal === 'hold' && pacingConfig.silenceModeEnabled;
+                !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
             if (enterHold) {
                 silenceMode = true;
                 silenceBuffer = [];
@@ -1218,12 +1252,14 @@ export async function mountSessionView(
                 tts,
                 messages,
                 {
-                    system: builder.buildSystemPrompt(),
+                    system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
                 }
             );
-            const { cleanText } = parseHoldSignal(rawText);
+            // Strip any control tokens an eager model put on the greeting —
+            // an opener can neither hold nor move the arc.
+            const { cleanText } = parseTurnSignals(rawText);
             hideTyping();
             // The opener prompt was a one-shot instruction — don't persist it;
             // record only the assistant greeting (with its usage).
@@ -1273,12 +1309,12 @@ export async function mountSessionView(
                 tts,
                 messages,
                 {
-                    system: builder.buildSystemPrompt(),
+                    system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
                 }
             );
-            const { cleanText } = parseHoldSignal(rawText);
+            const { cleanText } = parseTurnSignals(rawText);
             hideTyping();
             session.addAssistantMessage(cleanText, undefined, usage);
             appendMessage('assistant', cleanText);
@@ -1482,13 +1518,12 @@ export async function mountSessionView(
                 // (same object reference as session.state, so recording still
                 // mutates it after endSession()).
                 summary = await generateSessionSummary(provider, finalState.exchanges, {
-                    systemPrompt: builder.buildSystemPrompt(),
+                    systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
                     onUsage: (u) => session.recordLlmUsage(u),
                 });
             } catch {
                 /* fall through to fallback */
             }
-            finalState.meditationType = 'exploration';
             finalState.notes = summary || setup.intention.trim();
             try {
                 await sessionStore.save(finalState);
@@ -1532,7 +1567,6 @@ export async function mountSessionView(
         const snapshot: SessionState = {
             ...state,
             endTime: Math.floor(Date.now() / 1000),
-            meditationType: 'exploration',
             notes: currentSummary || setup.intention.trim(),
         };
         try {
@@ -1563,7 +1597,7 @@ export async function mountSessionView(
         summaryRefreshing = true;
         try {
             const recap = await generateSessionSummary(provider, state.exchanges, {
-                systemPrompt: builder.buildSystemPrompt(),
+                systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
                 onUsage: (u) => session.recordLlmUsage(u),
             });
             if (!torn && recap) {
@@ -1675,6 +1709,7 @@ function renderSessionHTML(): string {
                 <div id="voice-status" class="voice-status">Connecting…</div>
                 <!-- Live cloud balance — hidden unless the user opts in
                      (Settings → "Show credit balance during sessions"). -->
+                <span class="session-phase hidden" id="session-phase"></span>
                 <span class="session-balance hidden" id="session-balance" title="Cloud credits remaining"></span>
                 <span class="session-timer" id="timer">0:00</span>
                 <button id="tts-toggle" class="btn btn-tts active" title="Read responses aloud" aria-label="Toggle text-to-speech">

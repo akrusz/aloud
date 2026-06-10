@@ -11,6 +11,7 @@ import type { Focus, Quality, Verbosity } from '../../../src/facilitation/index.
 
 import {
     type SessionSetup,
+    type MeditationType,
     type Provider,
     type NotingParticipantConfig,
     type NotingReactive,
@@ -455,13 +456,20 @@ export async function mountSetupView(
         wireInfoButtons();
         wireNotingPanel();
 
-        // Intention
+        // Intention — the exploration and felt-sense panels each have a
+        // textarea, both bound to the one setup.intention (only one panel is
+        // ever visible, and "what I'm here with" carries across tabs fine).
         const intentionEl = root.querySelector<HTMLTextAreaElement>('#intention')!;
-        intentionEl.value = setup.intention;
-        intentionEl.addEventListener('input', () => {
-            setup.intention = intentionEl.value;
-            persist();
-        });
+        const feltIntentionEl = root.querySelector<HTMLTextAreaElement>('#felt-sense-intention')!;
+        for (const el of [intentionEl, feltIntentionEl]) {
+            el.value = setup.intention;
+            el.addEventListener('input', () => {
+                setup.intention = el.value;
+                if (el === intentionEl) feltIntentionEl.value = el.value;
+                else intentionEl.value = el.value;
+                persist();
+            });
+        }
 
         // Presets
         root.querySelectorAll<HTMLElement>('.style-card').forEach((card) => {
@@ -631,6 +639,22 @@ export async function mountSetupView(
             if (!id) return;
             const state = await sessionStore.load(id);
             if (!state) return;
+            // Resuming re-enters the session's own mode — a felt-sense
+            // session must come back staged (and in its saved phase), not as
+            // whatever tab happened to be active. Unknown/legacy types keep
+            // the current tab.
+            const t = state.meditationType;
+            if (
+                (t === 'exploration' || t === 'noting' || t === 'felt_sense') &&
+                t !== setup.meditationType
+            ) {
+                setup.meditationType = t;
+                persist();
+                applyTabSelection(t);
+                updateBeginButton();
+                updateAiAvailability();
+                updateSessionEstimate();
+            }
             const banner = root.querySelector<HTMLElement>('#continue-banner');
             const text = root.querySelector<HTMLElement>('#continue-banner-text');
             const cancel = root.querySelector<HTMLButtonElement>('#continue-cancel');
@@ -811,7 +835,7 @@ export async function mountSetupView(
         root.querySelectorAll<HTMLButtonElement>('.tab-bar .tab-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset['tab'];
-                if (tab !== 'exploration' && tab !== 'noting') return;
+                if (tab !== 'exploration' && tab !== 'noting' && tab !== 'felt_sense') return;
                 if (setup.meditationType === tab) return;
                 setup.meditationType = tab;
                 persist();
@@ -825,14 +849,16 @@ export async function mountSetupView(
         });
     }
 
-    function applyTabSelection(active: 'exploration' | 'noting'): void {
+    function applyTabSelection(active: MeditationType): void {
         root.querySelectorAll<HTMLElement>('.tab-bar .tab-btn').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset['tab'] === active);
         });
         const exploration = root.querySelector<HTMLElement>('#exploration-panel');
         const noting = root.querySelector<HTMLElement>('#noting-panel');
+        const feltSense = root.querySelector<HTMLElement>('#felt-sense-panel');
         if (exploration) exploration.classList.toggle('hidden', active !== 'exploration');
         if (noting) noting.classList.toggle('hidden', active !== 'noting');
+        if (feltSense) feltSense.classList.toggle('hidden', active !== 'felt_sense');
     }
 
     /**
@@ -1310,6 +1336,7 @@ function renderSetupHTML(
         <div class="tab-bar">
             <button type="button" class="tab-btn active" data-tab="exploration">Exploration</button>
             <button type="button" class="tab-btn" data-tab="noting">Noting</button>
+            <button type="button" class="tab-btn" data-tab="felt_sense">Felt sense</button>
             <button type="button" class="info-btn" data-info="methods" aria-label="About meditation methods">?</button>
         </div>
         <div class="info-panel hidden" id="info-methods">
@@ -1318,6 +1345,8 @@ function renderSetupHTML(
             <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
             <p><strong>noting</strong>: you specify what participants you'd like, if any &mdash; AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing my cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
             <p>thanks to <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> and again to <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for inspiration.</p>
+            <p><strong>felt sense</strong>: a gentle six-step arc, settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time. the body often knows more than the story does.</p>
+            <p>adapted from <a href="https://focusing.org/" target="_blank" rel="noopener">Eugene Gendlin's Focusing</a>, which deserves the credit for the method (and is well worth reading about).</p>
             <p class="info-panel-link"><a href="#" id="start-guide-link">Take the full tour &rarr;</a></p>
         </div>
     </div>
@@ -1404,6 +1433,14 @@ function renderSetupHTML(
                 </label>
                 <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">Chime</button>
                 <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>
+            </div>
+        </div>
+
+        <div class="tab-panel hidden" id="felt-sense-panel">
+            <div class="form-group">
+                <label for="felt-sense-intention">Something to sit with <span class="optional">(optional)</span></label>
+                <textarea id="felt-sense-intention" rows="2"
+                    placeholder="e.g. the job decision, that conversation yesterday, this restless feeling lately - or just begin, and let it find you"></textarea>
             </div>
         </div>
 

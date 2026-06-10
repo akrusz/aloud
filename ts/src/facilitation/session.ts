@@ -79,11 +79,19 @@ export interface SessionState {
     tags: string[];
     notes: string;
     /**
-     * Which meditation flow produced this session. Optional for backward
-     * compatibility with sessions saved before this field existed; the
-     * history view falls back to inferring it from legacy `notes`.
+     * Which meditation flow produced this session — a ModeSpec id from
+     * modes.ts ('exploration', 'noting', 'felt_sense', ...). Deliberately a
+     * plain string so saved sessions survive modes coming and going across
+     * releases. Optional for backward compatibility with sessions saved
+     * before this field existed; the history view falls back to inferring
+     * it from legacy `notes`.
      */
-    meditationType?: 'exploration' | 'noting';
+    meditationType?: string;
+    /**
+     * Active phase id for staged modes (StagedModeController). Persisted by
+     * autosave so an interrupted session resumes in the phase it left off.
+     */
+    modePhase?: string;
     /** Compute usage tally. Always present on sessions started by this code. */
     usage: SessionUsage;
 }
@@ -144,7 +152,7 @@ export class SessionManager {
         return end - this._state.startTime;
     }
 
-    startSession(sessionId?: string): SessionState {
+    startSession(sessionId?: string, meditationType?: string): SessionState {
         this._state = {
             sessionId: sessionId ?? this.generateSessionId(),
             startTime: this.clock(),
@@ -152,9 +160,17 @@ export class SessionManager {
             exchanges: [],
             tags: [],
             notes: '',
+            ...(meditationType !== undefined && { meditationType }),
             usage: emptyUsage(),
         };
         return this._state;
+    }
+
+    /** Record (or clear) the active staged-mode phase — see SessionState.modePhase. */
+    setModePhase(phaseId: string | null): void {
+        if (this._state === null) return;
+        if (phaseId === null) delete this._state.modePhase;
+        else this._state.modePhase = phaseId;
     }
 
     endSession(): SessionState | null {

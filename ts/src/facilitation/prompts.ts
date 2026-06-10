@@ -7,6 +7,10 @@
  * deliberately and keep the dimensions independent.
  */
 
+// Type-only import: the registry (modes.ts) imports prompt constants from
+// this module at runtime, so a value import here would be a cycle.
+import type { ModeSpec } from './modes.js';
+
 export type Verbosity = 'low' | 'medium' | 'high';
 export type Focus = 'body_sensations' | 'emotions' | 'inner_parts' | 'open_awareness';
 export type Quality =
@@ -39,6 +43,27 @@ export type Random = () => number;
 export const realRandom: Random = () => Math.random();
 
 // ---------------------------------------------------------------------------
+// Shared voice fragments — reused by every conversational mode's base prompt
+// (exploration below, felt sense in felt-sense.ts) so the facilitator sounds
+// like the same presence across modes.
+// ---------------------------------------------------------------------------
+
+export const VOICE_STYLE_FRAGMENT = `Response style:
+- Warm and conversational. Like a friend with an easy and welcoming presence, not a formal instructor.
+- Let warmth come through your attention and reflections, not through claims about your own feelings. Gently avoid lines like "I'm glad you're here" or "I'm so happy for you"; the focus is on the meditator's subjective experience. Stay fully warm; just direct it at the meditator's experience rather than yours.
+- Curious, not leading
+- Never use emojis
+- Avoid filler sounds like "mmm", "hmmm", "ahh" — they sound unnatural through text-to-speech. Instead use short phrases like "Yes...", "I see...", "Right...", or just go straight to your response.`;
+
+export const HOLD_SIGNAL_FRAGMENT = `Silence mode — [HOLD] signal:
+When the meditator explicitly requests silence (e.g. "I need some quiet", "hold on a minute"), prefix your response with [HOLD] + a brief warm acknowledgment (e.g. "[HOLD] I'll be right here")
+If the intent is even slightly ambiguous, instead confirm (e.g. "Would you like me to be quiet for a bit?"). If they confirm, respond with [HOLD]. If they decline, continue normally.
+ONLY use [HOLD] for explicit or confirmed requests. DO NOT use it otherwise.
+When they're finished, you'll receive everything they said while you were quiet.`;
+
+export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
+
+// ---------------------------------------------------------------------------
 // Base system prompt — universal, not somatic-specific
 // ---------------------------------------------------------------------------
 
@@ -63,23 +88,14 @@ Less effort, not more:
 - If the mind wanders, that itself is worth exploring — not correcting
 - If the meditator expresses frustration or self-judgment about the practice, don't reassure or encourage them to try harder — get curious about the frustration itself
 
-Response style:
-- Warm and conversational. Like a friend with an easy and welcoming presence, not a formal instructor.
-- Let warmth come through your attention and reflections, not through claims about your own feelings. Gently avoid lines like "I'm glad you're here" or "I'm so happy for you"; the focus is on the meditator's subjective experience. Stay fully warm; just direct it at the meditator's experience rather than yours.
-- Curious, not leading
-- Never use emojis
-- Avoid filler sounds like "mmm", "hmmm", "ahh" — they sound unnatural through text-to-speech. Instead use short phrases like "Yes...", "I see...", "Right...", or just go straight to your response.
+${VOICE_STYLE_FRAGMENT}
 
-Silence mode — [HOLD] signal:
-When the meditator explicitly requests silence (e.g. "I need some quiet", "hold on a minute"), prefix your response with [HOLD] + a brief warm acknowledgment (e.g. "[HOLD] I'll be right here")
-If the intent is even slightly ambiguous, instead confirm (e.g. "Would you like me to be quiet for a bit?"). If they confirm, respond with [HOLD]. If they decline, continue normally.
-ONLY use [HOLD] for explicit or confirmed requests. DO NOT use it otherwise.
-When they're finished, you'll receive everything they said while you were quiet.
+${HOLD_SIGNAL_FRAGMENT}
 
 Understanding deepening and absorption:
 Sometimes meditation naturally deepens into states of absorption, flow, or jhana. This can emerge from many paths — pleasant sensation, emotional warmth, spacious awareness, effortless presence, or simply letting go. When you notice signs of deepening (attention settling, boundaries softening, engagement becoming effortless), support it with less rather than more. Fewer words, softer touch, more space. Don't name what's happening or try to direct it. Let the meditator's own process lead.
 
-You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.
+${REALTIME_VOICE_FRAGMENT}
 
 Example exchanges:
 User: "There's some tension in my shoulders"
@@ -419,39 +435,63 @@ function nearestDirectivenessKey(target: number): number {
 export interface PromptBuilderOptions {
     config?: Partial<PromptConfig>;
     random?: Random;
+    /**
+     * Which meditation mode's base prompt + composition rules to use.
+     * Omitted = classic exploration behavior (BASE_SYSTEM_PROMPT, all
+     * user-tunable dimensions composing). See modes.ts.
+     */
+    mode?: ModeSpec;
 }
 
 export class PromptBuilder {
     readonly config: PromptConfig;
+    readonly mode: ModeSpec | undefined;
     private readonly random: Random;
 
     constructor(options: PromptBuilderOptions = {}) {
         this.config = { ...defaultPromptConfig, ...options.config };
+        this.mode = options.mode;
         this.random = options.random ?? realRandom;
     }
 
-    /** Build the complete system prompt from composable pieces. */
-    buildSystemPrompt(): string {
-        const parts: string[] = [BASE_SYSTEM_PROMPT];
+    /**
+     * Build the complete system prompt from composable pieces.
+     *
+     * @param stageSection For staged modes: the active phase's rendered
+     *   section (StagedModeController.promptSection()), placed right after
+     *   the base prompt. Rebuilding on a phase shift invalidates the prompt
+     *   cache prefix once per shift, which is acceptable.
+     */
+    buildSystemPrompt(stageSection?: string): string {
+        const composes = this.mode?.composes;
+        const parts: string[] = [this.mode?.basePrompt ?? BASE_SYSTEM_PROMPT];
 
-        const focuses = this.config.focuses.length > 0 ? this.config.focuses : (['open_awareness'] as Focus[]);
-        for (const focus of focuses) {
-            const text = FOCUS_PROMPTS[focus];
-            if (text) parts.push(text);
+        if (stageSection) parts.push(stageSection);
+
+        if (composes?.focuses !== false) {
+            const focuses = this.config.focuses.length > 0 ? this.config.focuses : (['open_awareness'] as Focus[]);
+            for (const focus of focuses) {
+                const text = FOCUS_PROMPTS[focus];
+                if (text) parts.push(text);
+            }
         }
 
-        for (const quality of this.config.qualities) {
-            const text = QUALITY_PROMPTS[quality];
-            if (text) parts.push(text);
+        if (composes?.qualities !== false) {
+            for (const quality of this.config.qualities) {
+                const text = QUALITY_PROMPTS[quality];
+                if (text) parts.push(text);
+            }
         }
 
-        const directivenessKey = nearestDirectivenessKey(this.config.directiveness);
-        const directivenessText = DIRECTIVENESS_ADDITIONS[directivenessKey];
-        if (directivenessText) parts.push(directivenessText);
+        if (composes?.directiveness !== false) {
+            const directivenessKey = nearestDirectivenessKey(this.config.directiveness);
+            const directivenessText = DIRECTIVENESS_ADDITIONS[directivenessKey];
+            if (directivenessText) parts.push(directivenessText);
+        }
 
         parts.push(VERBOSITY_ADDITIONS[this.config.verbosity]);
 
-        if (this.config.customInstructions) {
+        if (composes?.custom !== false && this.config.customInstructions) {
             parts.push(`\nAdditional instructions:\n${this.config.customInstructions}`);
         }
 
@@ -460,6 +500,9 @@ export class PromptBuilder {
 
     /** Pick a session-opening phrase based on the active dimensions. */
     getSessionOpener(): string {
+        if (this.mode?.openers?.length) {
+            return choice(this.mode.openers, this.random);
+        }
         if (this.config.directiveness <= 1) {
             return choice(MINIMAL_OPENERS, this.random);
         }
@@ -482,6 +525,17 @@ export class PromptBuilder {
      * @param intention The meditator's stated intention, if any.
      */
     buildOpenerPrompt(intention = ''): string {
+        if (this.mode?.openerPrompt) {
+            const parts: string[] = [this.mode.openerPrompt];
+            if (intention) {
+                parts.push(`The meditator has set an intention: "${intention}". You can weave it in gently.`);
+            }
+            parts.push(
+                'Do not mention the session settings directly. ' +
+                    'Speak naturally, as you would to begin a conversation.'
+            );
+            return parts.join(' ');
+        }
         const parts: string[] = [
             'Generate a brief, natural opening for this meditation session. ' +
                 'Just a sentence or two to welcome the meditator and invite them to begin.',
@@ -525,6 +579,6 @@ export class PromptBuilder {
 
     /** Pick a gentle check-in phrase for long silences. */
     getCheckInPrompt(): string {
-        return choice(CHECK_IN_PROMPTS, this.random);
+        return choice(this.mode?.checkIns?.length ? this.mode.checkIns : CHECK_IN_PROMPTS, this.random);
     }
 }

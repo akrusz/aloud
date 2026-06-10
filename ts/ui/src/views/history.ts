@@ -9,7 +9,7 @@
  * with the old exchanges. Matches the Python continueSession() flow.
  */
 
-import type { SessionState, Exchange } from '../../../src/facilitation/index.js';
+import { getMode, type SessionState, type Exchange } from '../../../src/facilitation/index.js';
 import { sessionStore } from '../state.js';
 import { appUrl } from '../app-base.js';
 import { confirmDialog } from '../dialog.js';
@@ -208,8 +208,11 @@ function sessionTypeAndSummary(session: SessionState): { typeLabel: string; summ
     const rawNotes = session.notes ?? '';
     const legacyNoting = !session.meditationType && rawNotes === 'noting circle';
     const type = session.meditationType ?? (legacyNoting ? 'noting' : undefined);
+    const mode = getMode(type);
     return {
-        typeLabel: type === 'noting' ? 'Noting circle' : type === 'exploration' ? 'Exploration' : '',
+        // Registry-driven label; a type from a mode this build doesn't know
+        // (removed, or from a newer release) just shows no label.
+        typeLabel: mode ? (mode.historyLabel ?? mode.label) : '',
         summary: legacyNoting ? '' : rawNotes,
     };
 }
