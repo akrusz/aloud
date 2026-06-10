@@ -37,6 +37,12 @@ export interface StreamCompletionOptions extends CompletionOptions {
     onTextDelta?: (cumulativeText: string) => void;
     /** Forwarded to tts.speak() for each sentence. */
     ttsOptions?: TtsOptions;
+    /** Called once with the FIRST TTS failure of this completion. Speak errors
+     *  stay non-fatal to the completion (the text still lands; the session
+     *  continues text-only), but without this they were swallowed entirely —
+     *  a mid-session out-of-credits on the TTS leg never reached the user.
+     *  The caller routes it through its billing/auth error UI. */
+    onTtsError?: (err: unknown) => void;
     /** Abort the whole completion — stop consuming the LLM stream AND speaking.
      *  Used when a newer turn supersedes this one (the reply is discarded). */
     signal?: AbortSignal;
@@ -75,19 +81,39 @@ export async function streamCompletionWithChunkedTts(
     messages: Message[],
     options: StreamCompletionOptions = {}
 ): Promise<StreamCompletionResult> {
-    const { onTextDelta, ttsOptions, signal, ttsSignal, ...completionOpts } = options;
+    const { onTextDelta, ttsOptions, onTtsError, signal, ttsSignal, ...completionOpts } = options;
     const hushed = (): boolean => !!signal?.aborted || !!ttsSignal?.aborted;
+    // Report only the FIRST TTS failure — sentence-chunked speech fails as a
+    // burst (every queued chunk hits the same dead/unfunded endpoint), and one
+    // apology/toast is enough.
+    let ttsErrorReported = false;
+    const reportTtsError = (err: unknown): void => {
+        if (ttsErrorReported) return;
+        ttsErrorReported = true;
+        onTtsError?.(err);
+    };
+    // Forward the supersession signal into the provider fetch
+    // (CompletionOptions.signal) so an aborted turn stops generating
+    // server-side, not just client-side.
+    const providerOpts: CompletionOptions = signal
+        ? { ...completionOpts, signal }
+        : completionOpts;
 
     if (!provider.completeStream) {
         // Non-streaming fallback — call complete(), then speak in one go.
-        const result = await provider.complete(messages, completionOpts);
+        const result = await provider.complete(messages, providerOpts);
         if (onTextDelta) onTextDelta(result.text);
         // Strip a leading [HOLD] token but DO speak the warm acknowledgment
         // after it ("I'll be right here") — the caller enters silence mode once
         // it's spoken. Only the token is silenced, not the reassurance.
         return {
             text: result.text,
-            ttsDone: hushed() ? Promise.resolve() : tts.speak(stripHoldPrefix(result.text), ttsOptions),
+            ttsDone: hushed()
+                ? Promise.resolve()
+                : tts.speak(stripHoldPrefix(result.text), ttsOptions).catch((err: unknown) => {
+                      reportTtsError(err);
+                      throw err; // callers already treat ttsDone as non-fatal
+                  }),
             usage: usageFrom(result),
             finishReason: result.finishReason ?? null,
         };
@@ -106,8 +132,11 @@ export async function streamCompletionWithChunkedTts(
         if (!text.trim() || hushed()) return;
         ttsQueue = ttsQueue
             .then(() => (hushed() ? undefined : tts.speak(text, ttsOptions)))
-            .catch(() => {
-                /* non-fatal */
+            .catch((err: unknown) => {
+                // Non-fatal to the queue/session, but surfaced once so the
+                // caller can show billing/auth failures (out-of-credits TTS
+                // was previously invisible).
+                reportTtsError(err);
             });
     }
 
@@ -129,7 +158,7 @@ export async function streamCompletionWithChunkedTts(
         holdChecked = true;
     }
 
-    for await (const chunk of provider.completeStream(messages, completionOpts)) {
+    for await (const chunk of provider.completeStream(messages, providerOpts)) {
         // Superseded by a newer turn — stop consuming and return what we have.
         if (signal?.aborted) break;
         if (chunk.text) {

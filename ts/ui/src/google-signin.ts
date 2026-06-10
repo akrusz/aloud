@@ -13,12 +13,9 @@
  * We don't depend on `@types/google.accounts`; the slice of the GIS API we use
  * is declared locally below. Reference: Google Identity Services for Web.
  *
- * NOT YET MOUNTED IN A VIEW. The server side and this plumbing are done and
- * tested; where the button lives (a dedicated account view, a settings row, a
- * modal gating the first hosted turn on `CloudSignInRequiredError`) is a UX
- * call best made with the app running and a real client id — see
- * dev-docs/deploy.md. Drop `renderGoogleSignInButton(el, { onSignedIn })` into
- * the chosen spot then.
+ * Mounted by the sign-in modal (sign-in-modal.ts): `renderGoogleSignInButton`
+ * on web, `renderDesktopGoogleSignInButton` (the loopback PKCE flow) under the
+ * desktop (Tauri) shell.
  */
 
 import {

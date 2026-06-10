@@ -50,6 +50,7 @@ import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker } from '../model-picker.js';
+import { assetPath } from '../route-base.js';
 import { hasApiKey } from '../api-keys.js';
 import {
     sttEngineOptions,
@@ -1109,7 +1110,9 @@ export async function mountSetupView(
             return;
         }
         try {
-            const audio = new Audio(`/audio/${encodeURIComponent(name)}.mp3`);
+            // assetPath: the hosted build serves under /app/, so a bare
+            // /audio/... 404s there.
+            const audio = new Audio(assetPath(`/audio/${encodeURIComponent(name)}.mp3`));
             void audio.play().catch(() => {});
         } catch {
             /* preview optional */

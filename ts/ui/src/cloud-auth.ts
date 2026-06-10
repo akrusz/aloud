@@ -3,9 +3,10 @@
  *
  * The metered LLM proxy (/v1/llm/complete) is behind bearer auth: every
  * request carries a short-lived session JWT the server minted. In production
- * that token comes from Google sign-in (meditation-pal-rfb); until that flow
- * exists, `ensureCloudToken()` falls back to the server's dev sign-in route
- * (/v1/auth/dev, local-only) so the whole loop runs end-to-end locally.
+ * that token comes from Google/Apple/email sign-in (the sign-in modal); on a
+ * dev build with no Google client id configured, `ensureCloudToken()` falls
+ * back to the server's dev sign-in route (/v1/auth/dev, local-only) so the
+ * whole loop runs end-to-end locally.
  *
  * The token is cached in a KvStorage slot (localStorage today, swappable per
  * platform — same pattern as api-keys.ts). It's not a secret in the BYOK

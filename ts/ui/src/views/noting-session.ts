@@ -24,7 +24,9 @@ import { OllamaProvider, type LLMProvider } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
-import { buildProvider, type SessionEndDestination } from './session.js';
+import { buildProvider, describeCloudError, type SessionEndDestination } from './session.js';
+import { showErrorToast } from '../toast.js';
+import { assetPath } from '../route-base.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { loadAppSettings } from '../app-settings.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
@@ -174,6 +176,22 @@ export async function mountNotingSessionView(
     // TTS-toggle gates speakVia so the user can silence the circle's voices
     // without muting their own mic. Mirrors exploration's tts-toggle.
     let ttsEnabled = true;
+
+    // Hosted (aloud cloud) billing/auth failures must be visible even though
+    // TTS/STT errors are non-fatal to the circle — speakVia/listenOnce used to
+    // swallow everything, so an out-of-credits voice just went silent with no
+    // explanation. Toast each distinct cloud condition once (the circle loops
+    // every few seconds; repeating the same toast forever is noise).
+    let lastCloudErrorToast: string | null = null;
+    function surfaceCloudError(err: unknown): void {
+        if (torn) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        const described = describeCloudError(msg);
+        if (described && described !== lastCloudErrorToast) {
+            lastCloudErrorToast = described;
+            showErrorToast(described);
+        }
+    }
 
     // Session timer — counts since mount, formatted m:ss or h:mm:ss. Same as
     // exploration's updateTimer.
@@ -354,10 +372,16 @@ export async function mountNotingSessionView(
                     finalText = event.text;
                     if (event.seconds) session.recordStt(event.seconds);
                     break;
+                } else if (event.type === 'error') {
+                    // The Whisper engine yields errors as events rather than
+                    // throwing — same surfacing as the catch below.
+                    surfaceCloudError(event.error);
                 }
             }
-        } catch {
-            /* mic error — treat as empty */
+        } catch (err) {
+            // Treat as empty for the circle, but surface hosted billing/auth
+            // failures (cloud STT) so the user knows why their turns stall.
+            surfaceCloudError(err);
         }
         if (partialEl) partialEl.remove();
         return finalText;
@@ -422,8 +446,10 @@ export async function mountNotingSessionView(
         try {
             const tts = await ttsFor(voiceId);
             await tts.speak(text, { rate: setup.ttsRate });
-        } catch {
-            /* TTS optional */
+        } catch (err) {
+            // TTS stays optional (the circle continues text-only), but hosted
+            // billing/auth failures get a toast instead of vanishing.
+            surfaceCloudError(err);
         }
     }
 
@@ -483,7 +509,9 @@ export async function mountNotingSessionView(
     function playSoundFile(sound: string): Promise<void> {
         return new Promise((resolve) => {
             try {
-                const audio = new Audio(`/audio/${encodeURIComponent(sound)}.mp3`);
+                // assetPath: the hosted build serves under /app/, so a bare
+                // /audio/... 404s there.
+                const audio = new Audio(assetPath(`/audio/${encodeURIComponent(sound)}.mp3`));
                 audio.onended = () => resolve();
                 audio.onerror = () => resolve();
                 void audio.play().catch(() => resolve());

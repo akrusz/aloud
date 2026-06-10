@@ -113,10 +113,12 @@ export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
             return new OllamaProvider({ baseUrl: OLLAMA_PROXY_URL, ...modelOpt });
         case 'anthropic': {
             // Anthropic blocks browser-origin requests (no CORS), so we always
-            // go through the app backend's proxy. On desktop that proxy has no
-            // server-side key, so forward the user's BYOK key — it only travels
-            // to the local loopback server. The proxy falls back to a
-            // server-side ANTHROPIC_API_KEY in dev when no key is sent.
+            // go through the app backend's proxy, forwarding the user's BYOK
+            // key. It only travels to our own backend — the local loopback
+            // server on desktop, the aloud cloud origin (first-party HTTPS)
+            // on hosted web — never to a third party (mirrors
+            // model-picker.ts). The proxy falls back to a server-side
+            // ANTHROPIC_API_KEY in dev when no key is sent.
             const anthropicKey = await getApiKey('anthropic');
             return new AnthropicProvider({
                 baseUrl: ANTHROPIC_PROXY_URL,
@@ -493,6 +495,25 @@ export async function mountSessionView(
         return null;
     }
 
+    /** First TTS failure of a turn (streaming-tts onTtsError). TTS stays
+     *  non-fatal — the reply still lands in the transcript and the loop keeps
+     *  listening — but hosted billing/auth failures must be SEEN: out of
+     *  credits gets the same apology + buy prompt as the LLM leg, other
+     *  recognized cloud conditions toast. Unrecognized errors stay quiet
+     *  (matches the long-standing local-TTS behavior — a browser speech
+     *  hiccup isn't worth interrupting a meditation for). */
+    function handleTtsError(err: unknown): void {
+        if (torn) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+            appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
+            void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
+            return;
+        }
+        const described = describeCloudError(msg);
+        if (described) showErrorToast(described);
+    }
+
     // The lifted CSS hides the bubble with `.typing-bubble { display: none }`
     // and reveals it via `.typing-bubble.visible` — so toggle the class, not
     // the `hidden` attribute (which that display rule overrides). Matches
@@ -743,6 +764,7 @@ export async function mountSessionView(
                 {
                     system: systemPrompt,
                     ttsOptions: { rate: setup.ttsRate },
+                    onTtsError: handleTtsError,
                     signal: myFullAbort.signal,
                     ttsSignal: myTtsAbort.signal,
                 }
@@ -1195,7 +1217,11 @@ export async function mountSessionView(
                 provider,
                 tts,
                 messages,
-                { system: builder.buildSystemPrompt(), ttsOptions: { rate: setup.ttsRate } }
+                {
+                    system: builder.buildSystemPrompt(),
+                    ttsOptions: { rate: setup.ttsRate },
+                    onTtsError: handleTtsError,
+                }
             );
             const { cleanText } = parseHoldSignal(rawText);
             hideTyping();
@@ -1249,6 +1275,7 @@ export async function mountSessionView(
                 {
                     system: builder.buildSystemPrompt(),
                     ttsOptions: { rate: setup.ttsRate },
+                    onTtsError: handleTtsError,
                 }
             );
             const { cleanText } = parseHoldSignal(rawText);
@@ -1589,8 +1616,9 @@ function stripVoicePrefix(voice: string | null): string | null {
  * the client they're flattened to a status + message string, so we match on
  * both the code names and the embedded HTTP status. Returns null when the error
  * isn't a recognized hosted condition, so callers keep their own phrasing.
+ * Exported for the noting view, which shares the hosted TTS/STT paths.
  */
-function describeCloudError(msg: string): string | null {
+export function describeCloudError(msg: string): string | null {
     if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
         return 'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.';
     }

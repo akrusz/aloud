@@ -169,7 +169,15 @@ export class CloudTtsEngine implements TtsEngine {
                     response = await this.fetchImpl(url, init);
                 }
                 if (!response.ok) {
-                    throw new Error(`Server TTS responded ${response.status}`);
+                    // Phrase as "endpoint <status>" (mirrors the Whisper
+                    // adapter's "Whisper endpoint 402: …") so the session
+                    // views' describeCloudError recognizes hosted billing/auth
+                    // failures and shows the apology / buy prompt instead of
+                    // swallowing them.
+                    const detail = await response.text().catch(() => '');
+                    throw new Error(
+                        `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
+                    );
                 }
                 blob = await response.blob();
                 // Successful server synthesis — count the characters rendered.

@@ -415,8 +415,9 @@ async function goSession(
 
 async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<void> {
     setActiveNav('setup');
-    // Same hosted sign-in pre-flight as goSession.
-    if (!(await ensureCloudAccess(setup, await loadAppSettings()))) return;
+    // Same hosted sign-in pre-flight as goSession — 'noting' so participant
+    // voices count toward the cloud-usage decision.
+    if (!(await ensureCloudAccess(setup, await loadAppSettings(), 'noting'))) return;
     // Same back-button trap as goSession (see wirePopstate).
     window.history.pushState({ view: 'session' }, '', routePath('/session'));
     currentNoting = await mountNotingSessionView(root, setup, (destination) => {

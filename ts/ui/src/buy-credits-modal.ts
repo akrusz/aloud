@@ -18,6 +18,7 @@ import { payWithUsdc, WalletError } from './x402-pay.js';
 import { getKnownBalance, setKnownBalance, subscribeBalance } from './cloud-balance.js';
 import { fetchMe } from './cloud-auth.js';
 import { creditAmount } from './credit-rate.js';
+import { manageModalFocus } from './modal-focus.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -57,12 +58,12 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 <p class="provider-hint buy-credits-subtitle">${escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE)}</p>
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
-                    <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab">Card</button>
-                    <button type="button" class="buy-credits-target-btn" data-method="usdc" role="tab">USDC ⟠</button>
+                    <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">Card</button>
+                    <button type="button" class="buy-credits-target-btn" data-method="usdc" role="tab" aria-selected="false">USDC ⟠</button>
                 </div>
                 <div class="buy-credits-target" id="buy-credits-audience" role="tablist">
-                    <button type="button" class="buy-credits-target-btn active" data-target="self" role="tab">For myself</button>
-                    <button type="button" class="buy-credits-target-btn" data-target="gift" role="tab">Gift to someone</button>
+                    <button type="button" class="buy-credits-target-btn active" data-target="self" role="tab" aria-selected="true">For myself</button>
+                    <button type="button" class="buy-credits-target-btn" data-target="gift" role="tab" aria-selected="false">Gift to someone</button>
                 </div>
                 <input type="email" id="buy-credits-gift-email" class="signin-input buy-credits-gift-email hidden"
                     placeholder="Recipient's email" autocomplete="off" />
@@ -80,6 +81,8 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 <div class="provider-hint buy-credits-error hidden" id="buy-credits-error"></div>
             </div>`;
         document.body.appendChild(overlay);
+        // Focus into the dialog now, restore on close; Tab cycles inside.
+        const releaseFocus = manageModalFocus(overlay);
 
         let settled = false;
         let unsubscribeBalance: (() => void) | null = null;
@@ -88,6 +91,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             settled = true;
             document.removeEventListener('keydown', onKey);
             unsubscribeBalance?.();
+            releaseFocus();
             overlay.remove();
             resolve(result);
         };
@@ -140,6 +144,12 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         let method: 'card' | 'usdc' = 'card';
         let gifting = false;
 
+        // Keep the role=tab buttons' visual state and aria-selected in sync.
+        const selectTab = (b: Element, selected: boolean): void => {
+            b.classList.toggle('active', selected);
+            b.setAttribute('aria-selected', String(selected));
+        };
+
         // Card | USDC. USDC is self-only for now (the x402 route credits the
         // payer's account; no gift flow yet), so picking it hides the
         // audience tabs and forces "for myself".
@@ -148,14 +158,14 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 method = btn.dataset['method'] === 'usdc' ? 'usdc' : 'card';
                 methodRow
                     .querySelectorAll('.buy-credits-target-btn')
-                    .forEach((b) => b.classList.toggle('active', b === btn));
+                    .forEach((b) => selectTab(b, b === btn));
                 const usdc = method === 'usdc';
                 if (usdc) {
                     gifting = false;
                     emailEl.classList.add('hidden');
                     noteEl.classList.add('hidden');
                     audienceRow.querySelectorAll('.buy-credits-target-btn').forEach((b, i) =>
-                        b.classList.toggle('active', i === 0)
+                        selectTab(b, i === 0)
                     );
                 }
                 audienceRow.classList.toggle('hidden', usdc);
@@ -170,7 +180,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 gifting = btn.dataset['target'] === 'gift';
                 audienceRow
                     .querySelectorAll('.buy-credits-target-btn')
-                    .forEach((b) => b.classList.toggle('active', b === btn));
+                    .forEach((b) => selectTab(b, b === btn));
                 emailEl.classList.toggle('hidden', !gifting);
                 noteEl.classList.toggle('hidden', !gifting);
                 showError('');
@@ -313,9 +323,15 @@ function renderCustom(
     update();
 }
 
-/** Reveal the Card/USDC toggle only when the x402 channel is live. */
+/** Reveal the Card/USDC toggle only when the x402 channel is live AND the
+ *  browser has an injected EIP-1193 wallet — without `window.ethereum`
+ *  (most browsers, mobile webviews) the USDC flow can't sign anything, so
+ *  offering the tab just dead-ends at "No crypto wallet found". */
 function applyChannels(methodRow: HTMLElement, x402: X402Capability): void {
-    methodRow.classList.toggle('hidden', !x402.enabled);
+    const hasWallet =
+        typeof window !== 'undefined' &&
+        !!(window as { ethereum?: unknown }).ethereum;
+    methodRow.classList.toggle('hidden', !x402.enabled || !hasWallet);
 }
 
 function renderPacks(host: HTMLElement, packs: CreditPack[], onPick: (pack: CreditPack) => void): void {

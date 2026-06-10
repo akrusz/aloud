@@ -14,6 +14,7 @@ import { renderAppleSignInButton } from './apple-signin.js';
 import { isDesktopSync } from './is-desktop.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import { emailLogin, emailSignup, isAppleSignInConfigured, type AuthResponse } from './cloud-auth.js';
+import { manageModalFocus } from './modal-focus.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
@@ -71,12 +72,15 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                 <div class="provider-hint signin-modal-error hidden" id="signin-modal-error"></div>
             </div>`;
         document.body.appendChild(overlay);
+        // Focus into the dialog now, restore on close; Tab cycles inside.
+        const releaseFocus = manageModalFocus(overlay);
 
         let settled = false;
         const close = (result: boolean): void => {
             if (settled) return;
             settled = true;
             document.removeEventListener('keydown', onKey);
+            releaseFocus();
             overlay.remove();
             resolve(result);
         };

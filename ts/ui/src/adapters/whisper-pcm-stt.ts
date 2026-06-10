@@ -114,14 +114,21 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  <token>`. Used to target the aloud cloud's authed /cloud/v1/stt (vs the
      *  open desktop /app/v1/stt/whisper). Returning null sends no auth header. */
     authProvider?: () => Promise<string | null>;
+    /** Called once on a 401 to invalidate a stale token before a single retry
+     *  (the next authProvider() then re-signs-in). Matches the cloud LLM/TTS
+     *  adapters' self-heal — without it, an expired or secret-rotated token
+     *  fails every hosted transcription for the page lifetime. Wire to
+     *  clearCloudToken for the hosted engine. */
+    onAuthError?: () => Promise<void>;
 }
 
 export class WhisperPcmSttEngine implements SttEngine {
     private readonly opts: Required<
-        Omit<WhisperPcmSttEngineOptions, 'fetchImpl' | 'authProvider'>
+        Omit<WhisperPcmSttEngineOptions, 'fetchImpl' | 'authProvider' | 'onAuthError'>
     > & {
         fetchImpl: typeof fetch;
         authProvider: (() => Promise<string | null>) | null;
+        onAuthError: (() => Promise<void>) | null;
     };
     private context: AudioContext | null = null;
     private stream: MediaStream | null = null;
@@ -190,6 +197,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
+            onAuthError: options.onAuthError ?? null,
         };
     }
 
@@ -618,28 +626,38 @@ export class WhisperPcmSttEngine implements SttEngine {
                     ? combined
                     : downsampleLinear(combined, nativeRate, TARGET_SAMPLE_RATE);
             try {
-                const headers: Record<string, string> = {
-                    'content-type': 'application/octet-stream',
-                };
-                if (this.opts.authProvider) {
-                    const token = await this.opts.authProvider();
-                    if (token) headers['authorization'] = `Bearer ${token}`;
-                }
                 // Tag the transcription with the session group when one is active
                 // (cloud cost report); omitted otherwise. The desktop STT ignores it.
                 const sessionId = getCloudSessionId();
                 const sessionParam = sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : '';
-                const response = await this.opts.fetchImpl(
-                    `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}`,
-                    {
-                        method: 'POST',
-                        headers,
-                        body: downsampled.buffer.slice(
-                            downsampled.byteOffset,
-                            downsampled.byteOffset + downsampled.byteLength
-                        ) as ArrayBuffer,
+                const send = async (): Promise<Response> => {
+                    const headers: Record<string, string> = {
+                        'content-type': 'application/octet-stream',
+                    };
+                    if (this.opts.authProvider) {
+                        const token = await this.opts.authProvider();
+                        if (token) headers['authorization'] = `Bearer ${token}`;
                     }
-                );
+                    return this.opts.fetchImpl(
+                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}`,
+                        {
+                            method: 'POST',
+                            headers,
+                            body: downsampled.buffer.slice(
+                                downsampled.byteOffset,
+                                downsampled.byteOffset + downsampled.byteLength
+                            ) as ArrayBuffer,
+                        }
+                    );
+                };
+                let response = await send();
+                // Self-heal a stale token: clear it and re-sign-in once on a
+                // 401, matching the cloud LLM/TTS adapters. Only meaningful on
+                // the authed (hosted) path.
+                if (response.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
+                    await this.opts.onAuthError();
+                    response = await send();
+                }
                 if (!response.ok) {
                     const detail = await response.text().catch(() => '');
                     return {

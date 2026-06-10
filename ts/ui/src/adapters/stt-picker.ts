@@ -28,7 +28,7 @@ import {
     type WebSpeechSttEngineOptions,
 } from './web-speech-stt.js';
 import { cloudUrl } from '../cloud-base.js';
-import { ensureCloudToken } from '../cloud-auth.js';
+import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { isTauri } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import type { SttEngineChoice } from '../app-settings.js';
@@ -89,6 +89,10 @@ export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
         ...vadOpts,
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
+        // Drop a rejected token and re-sign-in once (mirrors the LLM/TTS
+        // adapters), so a stale session doesn't break hosted STT for the
+        // whole page lifetime.
+        onAuthError: clearCloudToken,
     });
 }
 

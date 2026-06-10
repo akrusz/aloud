@@ -14,7 +14,7 @@
  */
 
 import { cloudUrl } from './cloud-base.js';
-import { getCloudToken } from './cloud-auth.js';
+import { getCloudToken, clearCloudToken, ensureCloudToken } from './cloud-auth.js';
 import {
     CHAIN_ID,
     buildAuthorization,
@@ -99,13 +99,23 @@ export interface X402PurchaseResult {
  * Error on a server/settlement failure.
  */
 export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
-    const token = await getCloudToken();
+    let token = await getCloudToken();
     if (!token) throw new Error('Sign in to buy credits.');
     const url = cloudUrl(`/billing/x402/buy/${encodeURIComponent(packId)}`);
-    const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+    let headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
 
     // 1) Ask for the payment requirements (the server answers 402).
-    const challenge = await fetch(url, { method: 'POST', headers });
+    let challenge = await fetch(url, { method: 'POST', headers });
+    if (challenge.status === 401) {
+        // Stale token — clear and re-mint once, then retry, matching the
+        // LLM/TTS/STT proxies' self-heal. ensureCloudToken throws
+        // CloudSignInRequiredError on hosted builds with no live session,
+        // which surfaces as the modal's error line.
+        await clearCloudToken();
+        token = await ensureCloudToken();
+        headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+        challenge = await fetch(url, { method: 'POST', headers });
+    }
     if (challenge.status !== 402) {
         if (challenge.ok) return (await challenge.json()) as X402PurchaseResult;
         throw new Error(

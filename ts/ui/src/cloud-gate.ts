@@ -22,18 +22,30 @@ import { getCloudToken, isGoogleSignInConfigured } from './cloud-auth.js';
 import { showSignInModal } from './sign-in-modal.js';
 
 /** Whether this session will hit a credit-metered cloud service: the hosted
- *  ('aloud') LLM provider, or the hosted STT path. TTS is currently coupled to
- *  the aloud provider (session.ts only builds server TTS when provider ===
- *  'aloud'), so the LLM check already covers it; the STT choice is independent
- *  — someone can run a local/BYOK LLM with Cloud STT, and that alone needs
- *  credits. Keyed off the resolved choice, not the raw setting, so the mode's
+ *  ('aloud') LLM provider, the hosted STT path, or hosted TTS. All three are
+ *  independent choices — someone can run a local/BYOK LLM with Cloud STT, or
+ *  pick an `aloud:`-prefixed voice (tts-picker.createTtsForVoice routes those
+ *  to metered cloud TTS regardless of provider), and either alone needs
+ *  credits. In noting mode the participants each carry their own voice, and
+ *  the narrator speaks the opener with setup.voice, so all of them count. STT
+ *  is keyed off the resolved choice, not the raw setting, so the mode's
  *  default ('aloud' on web) is accounted for. */
 export function sessionUsesCloud(
     setup: SessionSetup,
     settings: AppSettings,
-    webMode: boolean
+    webMode: boolean,
+    mode: 'exploration' | 'noting' = 'exploration'
 ): boolean {
     if (setup.provider === 'aloud') return true;
+    if (setup.voice?.startsWith('aloud:')) return true;
+    if (
+        mode === 'noting' &&
+        (setup.notingParticipants ?? []).some(
+            (p) => p.type !== 'sound' && p.voice?.startsWith('aloud:')
+        )
+    ) {
+        return true;
+    }
     return resolveSttChoice(settings.sttEngine, webMode) === 'aloud';
 }
 
@@ -46,9 +58,10 @@ export function sessionUsesCloud(
  */
 export async function ensureCloudAccess(
     setup: SessionSetup,
-    settings: AppSettings
+    settings: AppSettings,
+    mode: 'exploration' | 'noting' = 'exploration'
 ): Promise<boolean> {
-    if (!sessionUsesCloud(setup, settings, isWebMode())) return true;
+    if (!sessionUsesCloud(setup, settings, isWebMode(), mode)) return true;
     if (await getCloudToken()) return true;
     // Resolve the runtime client id (cached after boot) before deciding: a
     // Google-configured server → sign-in modal; none → lazy dev sign-in.

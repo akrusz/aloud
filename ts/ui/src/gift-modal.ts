@@ -7,7 +7,9 @@
  */
 
 import { fetchGifts, acceptGift, declineGift, type GiftView } from './cloud-billing.js';
+import { fetchMe } from './cloud-auth.js';
 import { creditAmount } from './credit-rate.js';
+import { manageModalFocus } from './modal-focus.js';
 import { showSuccessToast, showErrorToast } from './toast.js';
 
 const OVERLAY_ID = 'gift-modal-overlay';
@@ -35,9 +37,13 @@ function showGiftModal(gifts: GiftView[]): void {
             <div class="gift-list" id="gift-list"></div>
         </div>`;
     document.body.appendChild(overlay);
+    // Assigned once the gift rows exist (below), so initial focus lands on the
+    // first Accept button rather than the close button.
+    let releaseFocus: (() => void) | null = null;
 
     const close = (): void => {
         document.removeEventListener('keydown', onKey);
+        releaseFocus?.();
         overlay.remove();
     };
     const onKey = (e: KeyboardEvent): void => {
@@ -81,7 +87,12 @@ function showGiftModal(gifts: GiftView[]): void {
         };
 
         row.querySelector('.gift-accept')?.addEventListener('click', () =>
-            resolve(acceptGift, () => showSuccessToast(`${creditAmount(gift.credits, 0)} added to your balance.`))
+            resolve(acceptGift, () => {
+                showSuccessToast(`${creditAmount(gift.credits, 0)} added to your balance.`);
+                // The accept endpoint returns no balance — refresh the shared
+                // balance store from /me so live readouts reflect the gift.
+                void fetchMe().catch(() => null);
+            })
         );
         row.querySelector('.gift-decline')?.addEventListener('click', () =>
             resolve(declineGift, () => {
@@ -90,6 +101,10 @@ function showGiftModal(gifts: GiftView[]): void {
         );
         list.appendChild(row);
     }
+
+    // Focus into the dialog now that its rows exist; restore on close, Tab
+    // cycles inside.
+    releaseFocus = manageModalFocus(overlay);
 }
 
 function escapeHtml(s: string): string {
