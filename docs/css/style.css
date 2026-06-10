@@ -157,6 +157,23 @@ code {
   .nav { padding-right: 4rem; }
 }
 
+/* Very narrow screens: the three nav links crowd the fixed top-right toggle
+   (github slides under it and the labels start folding). Drop the brand onto
+   its own first line so the links wrap to a second line, below and clear of
+   the toggle, which stays pinned beside the short brand. */
+@media (max-width: 488px) {
+  .nav {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.4rem 1.25rem;
+    padding: 0.75rem 2rem;
+  }
+  .nav-brand {
+    flex-basis: 100%;
+    margin-right: 0;
+  }
+}
+
 /* ===== hero ===== */
 .hero {
   max-width: 760px;
@@ -357,6 +374,11 @@ code {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
+}
+.modes .mode-card:first-child {
+  grid-column: 1 / -1;
+  width: min(100%, 680px);
+  justify-self: center;
 }
 .mode-card {
   background: var(--bg-secondary);

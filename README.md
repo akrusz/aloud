@@ -2,7 +2,7 @@
 
 your voice is an overpowered and underrated tool for meditation and inner work.
 
-**aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
+**aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, felt sense work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
 
 aloud works in your browser and on macOS, Linux, and Windows. choose your LLM — run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
 
@@ -17,7 +17,7 @@ no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the 
 
 ## what it does
 
-aloud has two modes: exploration and noting.
+aloud has three modes: exploration, noting, and felt sense.
 
 **exploration**: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore. 
 
@@ -28,6 +28,10 @@ thanks to [Maija Haavisto](https://lovingawakening.net/) and [Jhourney](https://
 **noting**: you specify what participants you'd like, if any — AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1–2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -> hearing my cue -> observing -> speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.
 
 thanks to [Vince Horn](https://www.buddhistgeeks.org/) and again to [Jhourney](https://www.jhourney.io/) for inspiration.
+
+**felt sense**: a guided arc inspired by Eugene Gendlin's focusing. you start by settling and noticing what's between you and feeling fine, pick one thing, and sense how the whole of it sits in your body - vague and hard to describe is exactly right. then you let a word or image come that fits it, check it against the body-feel, ask into it, and receive whatever comes. the facilitator says very little and moves through the stages at your pace; long silences usually mean it's working.
+
+inspired by [Gendlin's Focusing](https://focusing.org/) and Ann Weiser Cornell's inner relationship focusing.
 
 ## getting started
 

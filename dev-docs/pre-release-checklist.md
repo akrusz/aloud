@@ -12,7 +12,7 @@ Report what's stale and propose fixes; don't assume — grep and read the actual
 When the product's features, providers, platforms, branding, or behavior change,
 check each of these still reflects reality:
 
-- **`docs/index.html`** — hero copy, the two-modes section, provider list, the
+- **`docs/index.html`** — hero copy, the modes section, provider list, the
   hero tagline/pun, **OG/Twitter metadata** (title, description, image), and the
   "iOS and Android coming soon" platform lines.
 - **`docs/privacy/index.html`** — data-flow descriptions, provider examples,
