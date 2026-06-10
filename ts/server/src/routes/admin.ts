@@ -19,7 +19,7 @@ import type { Context } from 'hono';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
-import type { Account, LedgerEntry } from '../credits/store.js';
+import type { LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
 import { buildUsageReport, buildUsageHistory } from '../credits/usage.js';
 import { deleteAccount } from '../auth/identity.js';
@@ -263,8 +263,9 @@ export function adminRoutes(deps: Deps): Hono {
             return c.json(apiError('bad_request', 'credits must be a positive number'), ERROR_STATUS.bad_request);
         }
 
-        const accounts = await deps.store.allAccounts();
-        const account = findByEmail(accounts, email);
+        // Canonicalizing lookup (case, +tag, Gmail dots) — the operator pastes
+        // whatever spelling the user wrote in, which may not match the stored one.
+        const account = await deps.store.findLiveAccountByEmail(email);
         if (!account) {
             return c.json(apiError('bad_request', `no account with email ${email}`), ERROR_STATUS.bad_request);
         }
@@ -394,7 +395,7 @@ export function adminRoutes(deps: Deps): Hono {
     // Add an attendee to a pass by email. If they already have an account it's a
     // membership right away; if not, it's recorded as a pending invite that binds
     // to their account on first sign-in (meditation-pal-n9kd) — so no sign-in-
-    // first ordering. Reuses grant's case-insensitive account lookup.
+    // first ordering. Same canonicalizing email lookup as grant.
     app.post('/retreats/:id/members', async (c) => {
         const fail = authFailure(c, deps.config.adminToken);
         if (fail) return fail;
@@ -411,8 +412,7 @@ export function adminRoutes(deps: Deps): Hono {
         const email = typeof body.email === 'string' ? body.email.trim() : '';
         if (!email) return c.json(apiError('bad_request', 'email is required'), ERROR_STATUS.bad_request);
 
-        const accounts = await deps.store.allAccounts();
-        const account = findByEmail(accounts, email);
+        const account = await deps.store.findLiveAccountByEmail(email);
         const now = Date.now() / 1000;
         if (account) {
             await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: now });
@@ -446,10 +446,4 @@ function parseTs(v: unknown): number | null {
         if (Number.isFinite(ms)) return ms / 1000;
     }
     return null;
-}
-
-/** Case-insensitive email match (emails are case-insensitive in practice). */
-function findByEmail(accounts: Account[], email: string): Account | undefined {
-    const needle = email.toLowerCase();
-    return accounts.find((a) => a.email.toLowerCase() === needle);
 }

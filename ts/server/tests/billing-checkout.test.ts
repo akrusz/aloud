@@ -30,6 +30,7 @@ afterEach(() => {
 
 function app() {
     const config = loadConfig({
+        ALOUD_ENABLE_DEV_AUTH: '1',
         STRIPE_SECRET_KEY: 'sk_test',
         ALOUD_CORS_ORIGINS: 'https://app.test',
         ALOUD_FREE_SIGNUP_CREDITS: '0',

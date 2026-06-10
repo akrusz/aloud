@@ -26,7 +26,7 @@ function seedAccount(store: MemoryCreditsStore, id: string, email: string): Prom
 
 function makeApp(opts: { token?: string } = {}) {
     const store = new MemoryCreditsStore();
-    const env: Record<string, string> = { ANTHROPIC_API_KEY: 'sk-test' };
+    const env: Record<string, string> = { ANTHROPIC_API_KEY: 'sk-test', ALOUD_ENABLE_DEV_AUTH: '1' };
     if (opts.token !== undefined) env['ALOUD_ADMIN_TOKEN'] = opts.token;
     const config = loadConfig(env);
     const deps = buildDeps(config, { store });
@@ -239,7 +239,7 @@ describe('admin routes — runtime config', () => {
         await putConfig({ freeSignupCredits: 7, freeGrantBudgetPerHour: 0 });
         // Rebuild the app against the SAME store (simulates a restart): the boot
         // loader should re-apply the persisted overrides.
-        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
         const deps = buildDeps(config, { store: h.store });
         await loadRuntimeOverrides(deps);
         expect(deps.config.freeSignupCredits).toBe(7);
@@ -262,7 +262,7 @@ describe('admin routes — runtime config', () => {
 describe('metered pause (soft launch)', () => {
     function pauseApp() {
         const store = new MemoryCreditsStore();
-        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
         const deps = buildDeps(config, { store });
         return { app: createApp(deps), deps };
     }
@@ -309,7 +309,7 @@ describe('metered pause (soft launch)', () => {
     it('persists pause + testers across a rebuild from the same store', async () => {
         const { app, deps } = pauseApp();
         await setPause(app, { meteredPaused: true, testerEmails: ['A@B.com'] });
-        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
         const deps2 = buildDeps(config, { store: deps.store });
         await loadRuntimeOverrides(deps2);
         expect(deps2.config.meteredPaused).toBe(true);

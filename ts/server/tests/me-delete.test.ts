@@ -19,7 +19,7 @@ async function signIn(app: ReturnType<typeof createApp>): Promise<string> {
 describe('DELETE /cloud/v1/me', () => {
     it('deletes the account and kills the session token', async () => {
         // Non-strict so the dev sign-in route is available to mint a token.
-        const app = createApp(buildDeps(loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '10' })));
+        const app = createApp(buildDeps(loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '10' })));
         const token = await signIn(app);
         const authed = { headers: { authorization: `Bearer ${token}` } };
 
@@ -35,7 +35,7 @@ describe('DELETE /cloud/v1/me', () => {
     });
 
     it('requires auth', async () => {
-        const app = createApp(buildDeps(loadConfig({})));
+        const app = createApp(buildDeps(loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1' })));
         expect((await app.request('/cloud/v1/me', { method: 'DELETE' })).status).toBe(401);
     });
 });

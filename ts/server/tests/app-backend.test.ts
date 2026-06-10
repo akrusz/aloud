@@ -55,3 +55,17 @@ describe('GET /app/v1/models/:provider', () => {
         expect(await res.json()).toEqual([]);
     });
 });
+
+describe('GET /app/v1/models/:provider — per-IP rate limit', () => {
+    it('429s after the per-minute budget; other IPs unaffected', async () => {
+        const a = app();
+        const get = (ip: string) =>
+            a.request('/app/v1/models/claude_proxy', { headers: { 'x-forwarded-for': ip } });
+        // The guard allows 30/min per IP.
+        for (let i = 0; i < 30; i++) {
+            expect((await get('203.0.113.7')).status).toBe(200);
+        }
+        expect((await get('203.0.113.7')).status).toBe(429);
+        expect((await get('198.51.100.8')).status).toBe(200);
+    });
+});

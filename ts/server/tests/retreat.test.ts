@@ -70,6 +70,7 @@ async function setup(
     opts: { member?: boolean; cap?: number | null; startOffset?: number; endOffset?: number } = {}
 ): Promise<Harness> {
     const config = loadConfig({
+        ALOUD_ENABLE_DEV_AUTH: '1',
         GEMINI_API_KEY: 'gk-test',
         GOOGLE_TTS_API_KEY: 'tts-key',
         FIREWORKS_API_KEY: 'fw-test',
@@ -237,7 +238,7 @@ describe('retreat pass — /me retreatCovered flag', () => {
 
 describe('retreat invite — binds on first sign-in', () => {
     it('an emailed invite becomes coverage when that address signs up', async () => {
-        const config = loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '0' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '0' });
         const store = new MemoryCreditsStore();
         const app = createApp(buildDeps(config, { store }));
         const now = Date.now() / 1000;

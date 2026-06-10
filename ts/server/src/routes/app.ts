@@ -20,6 +20,8 @@
 
 import { Hono } from 'hono';
 import type { Deps } from '../deps.js';
+import { ipRateLimit } from '../auth/middleware.js';
+import { RateGuard } from '../quota/freetier.js';
 import { fetchModels } from '../providers/models.js';
 
 /** BYOK providers the picker may show. Availability is client-key-gated (the
@@ -65,7 +67,12 @@ export function appBackendRoutes(_deps: Deps): Hono {
         return c.json(providers);
     });
 
-    app.get('/models/:provider', async (c) => {
+    // Unauthenticated forwarder of a client-supplied BYOK key to the provider's
+    // model-list endpoint — cap it per IP so it can't be driven as a free
+    // key-validation oracle / traffic relay. 30/min dwarfs any legitimate
+    // picker refresh.
+    const modelsGuard = new RateGuard(30, 60_000);
+    app.get('/models/:provider', ipRateLimit(modelsGuard), async (c) => {
         const provider = c.req.param('provider');
         const key = c.req.header('x-provider-key') ?? null;
         return c.json(await fetchModels(provider, key));

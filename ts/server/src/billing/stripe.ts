@@ -173,11 +173,29 @@ export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | unde
     };
     if (e.type !== 'checkout.session.completed') return undefined;
     const obj = e.data?.object ?? {};
+    // `checkout.session.completed` also fires for sessions whose payment is
+    // still pending or unpaid (e.g. delayed payment methods) — only a session
+    // Stripe marks `paid` may mint credits. We don't sell via delayed methods
+    // today, so requiring `paid` here is the whole gate.
+    if (obj['payment_status'] !== 'paid') return undefined;
     const accountId = typeof obj['client_reference_id'] === 'string' ? obj['client_reference_id'] : '';
     const meta = (obj['metadata'] as Record<string, string> | undefined) ?? {};
-    const credits = Number(meta['credits']);
     const packId = meta['pack_id'] ?? '';
     const stripeSessionId = typeof obj['id'] === 'string' ? obj['id'] : '';
+    // Defense in depth: the metadata is our own write at checkout-creation
+    // time, but re-derive the credit amount from the server-side pack table
+    // anyway so a tampered metadata blob can't inflate the grant. Only the
+    // custom pack has no table row — there the metadata number is the source,
+    // re-run through the same bounds check the checkout route applied.
+    let credits: number;
+    if (packId === 'custom') {
+        credits = Number(meta['credits']);
+        if (!isValidCustomCredits(credits)) return undefined;
+    } else {
+        const pack = packById(packId);
+        if (!pack) return undefined;
+        credits = pack.credits;
+    }
     if (!accountId || !credits) return undefined;
     const giftToEmail = typeof meta['gift_to_email'] === 'string' ? meta['gift_to_email'] : '';
     return { accountId, credits, packId, stripeSessionId, ...(giftToEmail ? { giftToEmail } : {}) };

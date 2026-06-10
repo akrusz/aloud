@@ -74,3 +74,36 @@ describe('CORS allowlist', () => {
         expect(await preflightAcao(corsApp(''), 'https://anything.example')).toBe('*');
     });
 });
+
+describe('strict (production) config gate', () => {
+    const PROD_OK = {
+        ALOUD_ENV: 'production',
+        ALOUD_SESSION_SECRET: 'x'.repeat(32),
+        GOOGLE_CLIENT_IDS: 'client-1',
+        ALOUD_CORS_ORIGINS: 'https://app.test',
+        ANTHROPIC_API_KEY: 'sk-test',
+        ALOUD_DB_PATH: ':memory:',
+    };
+
+    it('accepts a fully-configured production env', () => {
+        expect(() => loadConfig(PROD_OK)).not.toThrow();
+    });
+
+    it('refuses to start without ALOUD_CORS_ORIGINS (would fall open to *)', () => {
+        const { ALOUD_CORS_ORIGINS: _drop, ...env } = PROD_OK;
+        expect(() => loadConfig(env)).toThrow(/ALOUD_CORS_ORIGINS/);
+    });
+
+    it('normalizes ALOUD_ENV (case/whitespace) when deciding strictness', () => {
+        expect(() => loadConfig({ ...PROD_OK, ALOUD_ENV: ' Production ', ALOUD_CORS_ORIGINS: '' })).toThrow(
+            /ALOUD_CORS_ORIGINS/
+        );
+    });
+
+    it('counts any configured provider key, including OpenAI/Gemini', () => {
+        const { ANTHROPIC_API_KEY: _drop, ...env } = PROD_OK;
+        expect(() => loadConfig(env)).toThrow(/provider key/);
+        expect(() => loadConfig({ ...env, OPENAI_API_KEY: 'sk-oai' })).not.toThrow();
+        expect(() => loadConfig({ ...env, GEMINI_API_KEY: 'gk' })).not.toThrow();
+    });
+});

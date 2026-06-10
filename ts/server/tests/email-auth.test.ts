@@ -24,20 +24,20 @@ async function post(a: ReturnType<typeof createApp>, path: string, body: unknown
 }
 
 describe('hashPassword / verifyPassword', () => {
-    it('round-trips and rejects the wrong password', () => {
-        const stored = hashPassword('correct horse battery');
+    it('round-trips and rejects the wrong password', async () => {
+        const stored = await hashPassword('correct horse battery');
         expect(stored.startsWith('scrypt$')).toBe(true);
-        expect(verifyPassword('correct horse battery', stored)).toBe(true);
-        expect(verifyPassword('wrong', stored)).toBe(false);
+        expect(await verifyPassword('correct horse battery', stored)).toBe(true);
+        expect(await verifyPassword('wrong', stored)).toBe(false);
     });
 
-    it('returns false (never throws) on a malformed stored hash', () => {
-        expect(verifyPassword('x', 'garbage')).toBe(false);
-        expect(verifyPassword('x', '')).toBe(false);
+    it('returns false (never throws) on a malformed stored hash', async () => {
+        expect(await verifyPassword('x', 'garbage')).toBe(false);
+        expect(await verifyPassword('x', '')).toBe(false);
     });
 
-    it('uses a fresh salt per hash (same password → different stored value)', () => {
-        expect(hashPassword('same')).not.toBe(hashPassword('same'));
+    it('uses a fresh salt per hash (same password → different stored value)', async () => {
+        expect(await hashPassword('same')).not.toBe(await hashPassword('same'));
     });
 });
 
@@ -85,5 +85,22 @@ describe('POST /cloud/v1/auth/email/login', () => {
         await post(a, '/cloud/v1/auth/email/signup', { email: 'log2@example.com', password: 'goodpassword' });
         expect((await post(a, '/cloud/v1/auth/email/login', { email: 'log2@example.com', password: 'nope' })).status).toBe(401);
         expect((await post(a, '/cloud/v1/auth/email/login', { email: 'ghost@example.com', password: 'whatever1' })).status).toBe(401);
+    });
+
+    it('rate-limits repeated attempts per IP (429 after the burst)', async () => {
+        const a = app();
+        const attempt = (ip: string) =>
+            a.request('/cloud/v1/auth/email/login', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+                body: JSON.stringify({ email: 'brute@example.com', password: 'guess-me-not' }),
+            });
+        // The guard allows 10/min per IP — burn the budget, then expect 429.
+        for (let i = 0; i < 10; i++) {
+            expect((await attempt('203.0.113.9')).status).toBe(401);
+        }
+        expect((await attempt('203.0.113.9')).status).toBe(429);
+        // A different IP is unaffected (the key is the IP, not the route).
+        expect((await attempt('198.51.100.4')).status).toBe(401);
     });
 });

@@ -37,7 +37,7 @@ beforeEach(() => {
 });
 
 function app() {
-    const config = loadConfig({ GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+    const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
     return createApp(buildDeps(config));
 }
 
@@ -111,7 +111,7 @@ describe('POST /cloud/v1/tts', () => {
     });
 
     it('reports provider_error without a TTS key', async () => {
-        const config = loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '20' });
         const a = createApp(buildDeps(config));
         const token = await devToken(a);
         const res = await a.request('/cloud/v1/tts', {
@@ -127,7 +127,7 @@ describe('POST /cloud/v1/tts/canned', () => {
     /** An app whose accounts start with ZERO credits — the case the canned
      *  endpoint exists for (the metered /tts 402s here). */
     function brokeApp() {
-        const config = loadConfig({ GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '0' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '0' });
         return createApp(buildDeps(config));
     }
 
@@ -236,14 +236,14 @@ describe('GET /cloud/v1/tts/preview', () => {
     });
 
     it('reports provider_error without a TTS key', async () => {
-        const config = loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '20' });
         const a = createApp(buildDeps(config));
         const res = await a.request('/cloud/v1/tts/preview?voice=Leda');
         expect(res.status).toBe(502);
     });
 
     it('previews an OpenAI voice via OpenAI when its key is set', async () => {
-        const config = loadConfig({ OPENAI_TTS_API_KEY: 'oai-key' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_TTS_API_KEY: 'oai-key' });
         const a = createApp(buildDeps(config));
         const res = await a.request('/cloud/v1/tts/preview?voice=Lyra'); // Lyra → shimmer
         expect(res.status).toBe(200);
@@ -257,7 +257,7 @@ describe('GET /cloud/v1/tts/preview', () => {
 
 describe('POST /cloud/v1/tts — OpenAI voices', () => {
     function openaiApp() {
-        const config = loadConfig({ OPENAI_TTS_API_KEY: 'oai-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_TTS_API_KEY: 'oai-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
         return createApp(buildDeps(config));
     }
 
@@ -286,7 +286,7 @@ describe('POST /cloud/v1/tts — OpenAI voices', () => {
     });
 
     it('502s for an OpenAI voice when only the Google key is configured', async () => {
-        const config = loadConfig({ GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
         const a = createApp(buildDeps(config));
         const token = await devToken(a);
         const res = await a.request('/cloud/v1/tts', {
@@ -298,5 +298,44 @@ describe('POST /cloud/v1/tts — OpenAI voices', () => {
         // Neither provider was actually called — it fails fast on the missing key.
         expect(openaiCalls).toHaveLength(0);
         expect(googleCalls).toHaveLength(0);
+    });
+});
+
+describe('POST /cloud/v1/tts — up-front cost gate', () => {
+    it('refuses synthesis whose estimated cost exceeds the balance (no provider call)', async () => {
+        // A dust balance passes a naive balance > 0 gate but can't fund a long
+        // synthesis — the route must refuse before calling the provider.
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            GOOGLE_TTS_API_KEY: 'tts-key',
+            ALOUD_FREE_SIGNUP_CREDITS: '0',
+        });
+        const deps = buildDeps(config);
+        const a = createApp(deps);
+        const token = await devToken(a);
+        const accountId = (await deps.store.allAccounts())[0]!.id;
+        await deps.ledger.grant(accountId, 0.000001, 'test dust');
+
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'so long, and thanks for all the breaths. '.repeat(200) }),
+        });
+        expect(res.status).toBe(402);
+        const body = (await res.json()) as { error: { code: string } };
+        expect(body.error.code).toBe('insufficient_credits');
+        expect(googleCalls).toHaveLength(0); // refused BEFORE spending on the provider
+    });
+
+    it('still synthesizes when the estimate fits the balance', async () => {
+        const a = app();
+        const token = await devToken(a); // 20 credits — plenty for a short phrase
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'Breathe out.' }),
+        });
+        expect(res.status).toBe(200);
+        expect(googleCalls).toHaveLength(1);
     });
 });

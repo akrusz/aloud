@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
-import { Ledger, InsufficientCreditsError } from '../src/credits/ledger.js';
+import { Ledger, InsufficientCreditsError, STALE_HOLD_MAX_AGE_SEC } from '../src/credits/ledger.js';
 import type { Account } from '../src/credits/store.js';
 
 const ACCOUNT: Account = {
@@ -100,5 +100,53 @@ describe('Ledger', () => {
         ]);
         // Released the 25 hold and debited the real 4 once -> 96, not 92.
         expect(await ledger.balance(ACCOUNT.id)).toBe(96);
+    });
+});
+
+describe('stale-hold sweeping', () => {
+    let store: MemoryCreditsStore;
+    let ledger: Ledger;
+    let clock = 100;
+
+    beforeEach(async () => {
+        clock = 100;
+        store = new MemoryCreditsStore();
+        ledger = new Ledger(store, () => clock);
+        await store.createAccount(ACCOUNT);
+    });
+
+    it('releaseStaleHolds frees holds older than the max age, leaves fresh ones', async () => {
+        await ledger.grant(ACCOUNT.id, 100);
+        await ledger.placeHold(ACCOUNT.id, 10, 'turn:old'); // placed at t=100
+        clock += STALE_HOLD_MAX_AGE_SEC - 1;
+        await ledger.placeHold(ACCOUNT.id, 10, 'turn:fresh');
+        expect(await ledger.balance(ACCOUNT.id)).toBe(80);
+
+        clock += 2; // old hold is now past the cutoff; fresh one is not
+        await ledger.releaseStaleHolds(ACCOUNT.id);
+        expect(await ledger.balance(ACCOUNT.id)).toBe(90);
+    });
+
+    it('does not touch settled or released holds (idempotent against history)', async () => {
+        await ledger.grant(ACCOUNT.id, 100);
+        const settledId = await ledger.placeHold(ACCOUNT.id, 10, 'turn');
+        await ledger.settleHold(ACCOUNT.id, settledId, 4, 'llm');
+        const releasedId = await ledger.placeHold(ACCOUNT.id, 10, 'turn');
+        await ledger.releaseHold(ACCOUNT.id, releasedId);
+        expect(await ledger.balance(ACCOUNT.id)).toBe(96);
+
+        clock += STALE_HOLD_MAX_AGE_SEC * 2;
+        await ledger.releaseStaleHolds(ACCOUNT.id);
+        expect(await ledger.balance(ACCOUNT.id)).toBe(96); // no double release
+    });
+
+    it('placeHold sweeps orphans first, so a stale hold cannot starve the next turn', async () => {
+        await ledger.grant(ACCOUNT.id, 10);
+        await ledger.placeHold(ACCOUNT.id, 10, 'turn:orphaned'); // eats the whole balance
+        clock += STALE_HOLD_MAX_AGE_SEC + 1;
+        // Without the sweep this would throw InsufficientCreditsError.
+        const holdId = await ledger.placeHold(ACCOUNT.id, 10, 'turn:new');
+        expect(holdId).toBeTruthy();
+        expect(await ledger.balance(ACCOUNT.id)).toBe(0); // one live hold, not two
     });
 });

@@ -183,8 +183,19 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     await sse.writeSSE({ data: JSON.stringify(terminal) });
                 } catch (err) {
                     log.error('stream forward failed', { err: String(err), provider: body.provider });
+                    // Best-effort — the failure may be the client going away.
+                    await sse
+                        .writeSSE({ event: 'error', data: JSON.stringify(apiError('provider_error', 'upstream provider error')) })
+                        .catch(() => {});
+                } finally {
+                    // The done chunk settles the hold the moment usage is known,
+                    // before any failable write back to the client. Reaching here
+                    // unsettled means no usage ever arrived (client disconnect,
+                    // upstream error, or a generator that ended without a done
+                    // chunk) — nothing to bill, so give the held credits back.
+                    // The placeHold-side stale-hold sweep is the backstop if even
+                    // this is skipped (process crash).
                     if (!settled && holdId) await deps.ledger.releaseHold(account.id, holdId);
-                    await sse.writeSSE({ event: 'error', data: JSON.stringify(apiError('provider_error', 'upstream provider error')) });
                 }
             });
         }

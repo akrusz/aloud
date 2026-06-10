@@ -29,7 +29,13 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
 
     app.get('/', requireAuth(deps), async (c) => {
-        return c.json(await buildAccountView(deps, c.get('account')));
+        const account = c.get('account');
+        // Lazy orphan-hold cleanup: a turn that died between hold and settle
+        // (client disconnect, crash) parks credits in a hold nobody will close.
+        // Sweeping on account view means the balance the user sees has already
+        // recovered them. placeHold does the same on the spend path.
+        await deps.ledger.releaseStaleHolds(account.id);
+        return c.json(await buildAccountView(deps, account));
     });
 
     // Delete the signed-in account (meditation-pal-8jc). Soft-delete: anonymize +

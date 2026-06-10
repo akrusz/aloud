@@ -28,6 +28,11 @@ import { randomUUID } from 'node:crypto';
 import type { Clock } from '@aloud/core';
 import type { CreditsStore, LedgerEntry, LedgerKind } from './store.js';
 
+/** A hold older than this is considered orphaned (its turn can't still be in
+ *  flight) and is swept by releaseStaleHolds. Holds are per-turn and live for
+ *  seconds; 10 minutes is far past any legitimate turn. */
+export const STALE_HOLD_MAX_AGE_SEC = 10 * 60;
+
 export class InsufficientCreditsError extends Error {
     constructor(public readonly needed: number, public readonly available: number) {
         super(`insufficient credits: need ${needed}, have ${available}`);
@@ -115,15 +120,55 @@ export class Ledger {
     /** Place a pre-auth hold, failing if spendable balance can't cover it.
      *  The hold entry is tagged with its own holdId so settle/release can find
      *  it. Serialized per account so the balance check and the hold append are
-     *  atomic against a concurrent hold for the same account. */
+     *  atomic against a concurrent hold for the same account. Sweeps any stale
+     *  (orphaned) holds for the account first, so a turn whose settle/release
+     *  was lost (crash mid-stream) can't lock the credits out forever. */
     placeHold(accountId: string, credits: number, reason: string): Promise<string> {
         return this.runExclusive(accountId, async () => {
+            await this.sweepStaleHolds(accountId);
             const available = await this.balance(accountId);
             if (available < credits) throw new InsufficientCreditsError(credits, available);
             const holdId = randomUUID();
             await this.append(accountId, 'hold', -Math.abs(credits), reason, holdId);
             return holdId;
         });
+    }
+
+    /** Release every outstanding hold older than `maxAgeSec` for one account.
+     *  Holds are per-turn pre-auths a few seconds long in practice; one that has
+     *  sat for many minutes was orphaned (client disconnect / crash between the
+     *  hold and its settle), and releasing it gives the credits back. Called
+     *  lazily on the account's spend/balance paths rather than from a timer —
+     *  an orphan only matters at the moment the account is next looked at. */
+    releaseStaleHolds(accountId: string, maxAgeSec = STALE_HOLD_MAX_AGE_SEC): Promise<void> {
+        return this.runExclusive(accountId, () => this.sweepStaleHolds(accountId, maxAgeSec));
+    }
+
+    /** The unsynchronized sweep — call only while holding the account's
+     *  runExclusive slot (a nested runExclusive would deadlock on itself). */
+    private async sweepStaleHolds(
+        accountId: string,
+        maxAgeSec = STALE_HOLD_MAX_AGE_SEC
+    ): Promise<void> {
+        const cutoff = this.now() - maxAgeSec;
+        const entries = await this.store.listEntries(accountId);
+        // Net outstanding amount and placement time per holdId.
+        const open = new Map<string, { amount: number; placedAt: number }>();
+        for (const e of entries) {
+            if (!e.holdId) continue;
+            const h = open.get(e.holdId) ?? { amount: 0, placedAt: e.createdAt };
+            if (e.kind === 'hold') {
+                h.amount += -e.amount; // hold is negative; track the magnitude held
+                h.placedAt = e.createdAt;
+            } else if (e.kind === 'hold_release') {
+                h.amount -= e.amount;
+            }
+            open.set(e.holdId, h);
+        }
+        for (const [holdId, h] of open) {
+            if (h.amount <= 0 || h.placedAt > cutoff) continue;
+            await this.append(accountId, 'hold_release', h.amount, `stale_release:${holdId}`, holdId);
+        }
     }
 
     /** Settle a hold to an actual cost: release the held amount, then debit

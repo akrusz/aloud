@@ -239,6 +239,7 @@ describe('webhook records a gift instead of crediting the buyer', () => {
                 object: {
                     id: 'cs_gift_1',
                     client_reference_id: buyer.id,
+                    payment_status: 'paid',
                     metadata: { pack_id: 'starter', credits: '50', gift_to_email: 'Friend@E.com' },
                 },
             },

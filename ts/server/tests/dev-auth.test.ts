@@ -5,8 +5,12 @@ import { createApp } from '../src/app.js';
 import type { AuthResponse } from '../src/contract.js';
 
 function devApp() {
-    // No ALOUD_ENV → permissive dev mode (strict = false).
-    const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+    // Dev auth is explicit opt-in (ALOUD_ENABLE_DEV_AUTH), never on by default.
+    const config = loadConfig({
+        ALOUD_ENABLE_DEV_AUTH: '1',
+        ANTHROPIC_API_KEY: 'sk-test',
+        ALOUD_FREE_SIGNUP_CREDITS: '20',
+    });
     return createApp(buildDeps(config));
 }
 
@@ -45,11 +49,19 @@ describe('POST /cloud/v1/auth/dev', () => {
         expect(res.status).toBe(200);
     });
 
-    it('404s in production (strict) mode', async () => {
+    it('404s when ALOUD_ENABLE_DEV_AUTH is unset (opt-in, not opt-out)', async () => {
+        const config = loadConfig({ ANTHROPIC_API_KEY: 'sk-test' });
+        const app = createApp(buildDeps(config));
+        const res = await app.request('/cloud/v1/auth/dev', { method: 'POST' });
+        expect(res.status).toBe(404);
+    });
+
+    it('404s in a production-shaped config that never set the flag', async () => {
         const config = loadConfig({
             ALOUD_ENV: 'production',
             ALOUD_SESSION_SECRET: 'x'.repeat(32),
             GOOGLE_CLIENT_IDS: 'client-1',
+            ALOUD_CORS_ORIGINS: 'https://app.test',
             ANTHROPIC_API_KEY: 'sk-test',
             ALOUD_DB_PATH: ':memory:',
         });

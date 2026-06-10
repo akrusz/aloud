@@ -28,9 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 # Manifests first so `npm ci` is cached across source-only changes. Both the
 # workspace root and the server package manifests are needed for the install.
+# Production-only install: tsx (the runtime) is a regular dependency of
+# @aloud/server, so --omit=dev drops the whole workspace dev toolchain (vite,
+# vitest, typescript, the Tauri/Capacitor CLIs) from the image. The root
+# package's *prod* deps (small, pure-JS) still install — npm resolves every
+# workspace from the one lockfile — which is an acceptable cost.
 COPY package.json package-lock.json ./
 COPY server/package.json ./server/package.json
-RUN npm ci
+RUN npm ci --omit=dev
 
 # Source. core (src/) + the server, plus the root tsconfig the server's
 # tsconfig extends/uses for the @aloud/core alias. ui/ and src-tauri/ are

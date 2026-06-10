@@ -10,7 +10,18 @@
  * it isn't load-bearing for abuse economics.
  */
 
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+
+// Async scrypt (libuv threadpool) so a hash/verify never blocks the event
+// loop — at these params each call is tens of ms of CPU, which serialized on
+// the main thread would stall every concurrent request during a login burst.
+const scryptAsync = promisify(scrypt) as (
+    password: string,
+    salt: Buffer,
+    keylen: number,
+    options: { N: number; r: number; p: number; maxmem: number }
+) => Promise<Buffer>;
 
 // scrypt cost params. N=2^15 is a sane interactive default (~tens of ms).
 const N = 32768;
@@ -22,22 +33,22 @@ const SALT_BYTES = 16;
 // trips "memory limit exceeded" — bump the ceiling so the params are usable.
 const MAXMEM = 64 * 1024 * 1024;
 
-export function hashPassword(password: string): string {
+export async function hashPassword(password: string): Promise<string> {
     const salt = randomBytes(SALT_BYTES);
-    const hash = scryptSync(password, salt, KEYLEN, { N, r: R, p: P, maxmem: MAXMEM });
+    const hash = await scryptAsync(password, salt, KEYLEN, { N, r: R, p: P, maxmem: MAXMEM });
     return `scrypt$${N}$${R}$${P}$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
 /** Constant-time verify. Returns false on any malformed/mismatched input rather
  *  than throwing, so a corrupt stored hash can't 500 a login. */
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
     try {
         const parts = stored.split('$');
         if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
         const [, n, r, p, saltHex, hashHex] = parts;
         const salt = Buffer.from(saltHex!, 'hex');
         const expected = Buffer.from(hashHex!, 'hex');
-        const actual = scryptSync(password, salt, expected.length, {
+        const actual = await scryptAsync(password, salt, expected.length, {
             N: Number(n),
             r: Number(r),
             p: Number(p),

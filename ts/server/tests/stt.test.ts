@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 function app() {
-    const config = loadConfig({ FIREWORKS_API_KEY: 'fw-test', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+    const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', FIREWORKS_API_KEY: 'fw-test', ALOUD_FREE_SIGNUP_CREDITS: '20' });
     return createApp(buildDeps(config));
 }
 
@@ -144,7 +144,7 @@ describe('POST /cloud/v1/stt', () => {
     });
 
     it('reports provider_error when no STT key is configured', async () => {
-        const config = loadConfig({ ALOUD_FREE_SIGNUP_CREDITS: '20' }); // no STT key
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '20' }); // no STT key
         const a = createApp(buildDeps(config));
         const token = await devToken(a);
         const res = await a.request('/cloud/v1/stt', {
@@ -153,5 +153,46 @@ describe('POST /cloud/v1/stt', () => {
             body: pcmBody(1),
         });
         expect(res.status).toBe(502);
+    });
+});
+
+describe('POST /cloud/v1/stt — billing guards', () => {
+    it('rejects a sample_rate outside the allowlist (billing divides by it)', async () => {
+        const a = app();
+        const token = await devToken(a);
+        for (const rate of ['96000', '1000000', '-16000', '0', 'NaN']) {
+            const res = await a.request(`/cloud/v1/stt?sample_rate=${rate}`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}` },
+                body: pcmBody(1),
+            });
+            expect(res.status).toBe(400);
+        }
+        expect(sttCalls).toHaveLength(0);
+    });
+
+    it('refuses up front when the estimated cost exceeds the balance (no provider call)', async () => {
+        // Account starts at ZERO, then gets a dust balance — enough to pass a
+        // naive balance > 0 gate, nowhere near the cost of a long clip.
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            FIREWORKS_API_KEY: 'fw-test',
+            ALOUD_FREE_SIGNUP_CREDITS: '0',
+        });
+        const deps = buildDeps(config);
+        const a = createApp(deps);
+        const token = await devToken(a);
+        const accountId = (await deps.store.allAccounts())[0]!.id;
+        await deps.ledger.grant(accountId, 0.000001, 'test dust');
+
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcmBody(120), // 2 minutes — costs far more than the dust
+        });
+        expect(res.status).toBe(402);
+        const body = (await res.json()) as { error: { code: string } };
+        expect(body.error.code).toBe('insufficient_credits');
+        expect(sttCalls).toHaveLength(0); // refused BEFORE spending on the provider
     });
 });

@@ -130,13 +130,17 @@ export function priceSession(
     model: string,
     usage: SessionUsage
 ): CostBreakdown {
-    const p = pricingFor(provider, model);
-    const llm = p
-        ? usage.llmTokensIn * p.input +
-          usage.llmTokensOut * p.output +
-          usage.llmCacheRead * p.cacheRead +
-          usage.llmCacheCreation * p.cacheCreation
-        : 0;
+    // One pricing function for LLM tokens (llmCostUsd) so the per-turn and
+    // per-session paths can't drift. SessionUsage doesn't carry the 1h cache-
+    // creation split, so the whole creation bucket prices at the 5m rate here —
+    // the same treatment as a turn that reports no 1h portion.
+    const llm = llmCostUsd(provider, model, {
+        tokensIn: usage.llmTokensIn,
+        tokensOut: usage.llmTokensOut,
+        cacheRead: usage.llmCacheRead,
+        cacheCreation: usage.llmCacheCreation,
+        cacheCreation1h: 0,
+    });
     const stt = usage.sttSeconds * STT_USD_PER_SECOND;
     const tts = usage.ttsChars * TTS_USD_PER_CHAR;
     return toCredits(llm + stt + tts);

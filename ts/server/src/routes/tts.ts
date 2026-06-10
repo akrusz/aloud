@@ -157,10 +157,14 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
 
         // A retreat pass (meditation-pal-414) covers this synthesis: speak with no
-        // balance gate and no debit. Otherwise gate on balance as usual.
+        // balance gate and no debit. Otherwise the ESTIMATED cost (known exactly
+        // up front — it's character-priced) must fit the balance, or a near-zero
+        // balance would buy an unbounded provider call with the debit clamped
+        // after the fact.
+        const cost = priceTtsChars(text.length, { provider: resolved.provider, voiceId: resolved.voiceId });
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
         const balance = pass ? 0 : await deps.ledger.balance(account.id);
-        if (!pass && balance <= 0) {
+        if (!pass && balance < cost.credits) {
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
@@ -172,9 +176,10 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
         }
 
+        // Debit clamped to balance so a concurrent-spend race can't overdraw
+        // (the up-front gate already refused requests the balance can't cover).
         // Under a pass nothing is debited, but we record the metered credits so
         // per-retreat spend and the daily-cap sum stay honest.
-        const cost = priceTtsChars(text.length, { provider: resolved.provider, voiceId: resolved.voiceId });
         const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${text.length}c`);
         const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;

@@ -7,7 +7,8 @@
  *
  * POST /v1/auth/dev — local-only shortcut that mints a session for a fixed dev
  * account without Google, so the browser UI can exercise the metered proxy
- * end-to-end. 404s in production (strict mode) — a dev convenience, not a backdoor.
+ * end-to-end. 404s unless ALOUD_ENABLE_DEV_AUTH is set (explicit opt-in, set in
+ * the local .env) — a dev convenience, never on by default.
  */
 
 import { Hono } from 'hono';
@@ -24,6 +25,8 @@ import type { Deps } from '../deps.js';
 import { verifyGoogleIdToken, exchangeGoogleCode } from '../auth/google.js';
 import { verifyAppleIdToken } from '../auth/apple.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
+import { ipRateLimit } from '../auth/middleware.js';
+import { RateGuard } from '../quota/freetier.js';
 import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
 import { normalizeEmail } from '../auth/email-key.js';
@@ -81,6 +84,13 @@ async function finishFederatedSignIn(
 
 export function authRoutes(deps: Deps): Hono {
     const app = new Hono();
+
+    // Email/password endpoints are the credential-guessing surface (federated
+    // sign-in is rate-limited upstream by Google/Apple, and scrypt verification
+    // burns real CPU per attempt) — cap attempts per IP. 10/min is generous for
+    // a human mistyping a password and useless for an online brute force.
+    const emailAuthGuard = new RateGuard(10, 60_000);
+    app.use('/email/*', ipRateLimit(emailAuthGuard));
 
     app.post('/google', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<GoogleAuthRequest>;
@@ -189,7 +199,7 @@ export function authRoutes(deps: Deps): Hono {
                 deps,
                 { provider: 'email', sub: canonicalSub, email, emailVerified: false },
                 {
-                    secretHash: hashPassword(password),
+                    secretHash: await hashPassword(password),
                     ...(signupIp ? { signupIp } : {}),
                     ...(linkToAccountId ? { linkToAccountId } : {}),
                 }
@@ -213,7 +223,7 @@ export function authRoutes(deps: Deps): Hono {
         // Match the canonical mailbox used at signup, so any dot/+tag variant of
         // the same address logs into the one password identity.
         const identity = await deps.store.getIdentity('email', normalizeEmail(email));
-        if (!identity?.secretHash || !verifyPassword(password, identity.secretHash)) {
+        if (!identity?.secretHash || !(await verifyPassword(password, identity.secretHash))) {
             return reject();
         }
         const account = await deps.store.getAccountById(identity.accountId);
@@ -226,9 +236,11 @@ export function authRoutes(deps: Deps): Hono {
     const DEV_GOOGLE_SUB = 'dev:local';
 
     app.post('/dev', async (c) => {
-        if (deps.config.strict) {
-            // Behave as if the route doesn't exist outside dev.
-            return c.json(apiError('bad_request', 'dev sign-in is disabled in production'), 404);
+        // Explicit opt-in (ALOUD_ENABLE_DEV_AUTH) rather than "off when
+        // ALOUD_ENV=production" — a deploy that forgets to set the env can't
+        // ship a credential-free sign-in. Behave as if the route doesn't exist.
+        if (!deps.config.enableDevAuth) {
+            return c.json(apiError('bad_request', 'dev sign-in is disabled'), 404);
         }
 
         const existing = await deps.store.getIdentity('google', DEV_GOOGLE_SUB);

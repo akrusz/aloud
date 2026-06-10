@@ -46,23 +46,55 @@ describe('verifyStripeSignature', () => {
 });
 
 describe('parseCheckoutCompleted', () => {
-    it('extracts account + credits from a completed checkout event', () => {
-        const out = parseCheckoutCompleted({
+    /** A paid checkout.session.completed event with overridable session fields. */
+    function event(object: Record<string, unknown>) {
+        return {
             type: 'checkout.session.completed',
             data: {
                 object: {
                     id: 'cs_123',
                     client_reference_id: 'acct-1',
-                    metadata: { pack_id: 'plus', credits: '1200' },
+                    payment_status: 'paid',
+                    ...object,
                 },
             },
-        });
+        };
+    }
+
+    it('extracts account + credits from a paid checkout event', () => {
+        const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '110' } }));
         expect(out).toEqual({
             accountId: 'acct-1',
-            credits: 1200,
+            credits: 110,
             packId: 'plus',
             stripeSessionId: 'cs_123',
         });
+    });
+
+    it('refuses a session whose payment is not (yet) paid', () => {
+        const meta = { metadata: { pack_id: 'plus', credits: '110' } };
+        expect(parseCheckoutCompleted(event({ ...meta, payment_status: 'unpaid' }))).toBeUndefined();
+        expect(parseCheckoutCompleted(event({ ...meta, payment_status: undefined }))).toBeUndefined();
+    });
+
+    it('re-derives preset-pack credits server-side, ignoring metadata credits', () => {
+        // A tampered metadata blob can't inflate the grant — 'plus' is 110.
+        const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '999999' } }));
+        expect(out?.credits).toBe(110);
+    });
+
+    it('refuses an unknown pack id', () => {
+        expect(parseCheckoutCompleted(event({ metadata: { pack_id: 'nope', credits: '110' } }))).toBeUndefined();
+    });
+
+    it('accepts custom-pack credits only within the checkout bounds', () => {
+        const ok = parseCheckoutCompleted(event({ metadata: { pack_id: 'custom', credits: '75' } }));
+        expect(ok?.credits).toBe(75);
+        // Out of bounds / non-integer custom amounts are refused outright.
+        expect(
+            parseCheckoutCompleted(event({ metadata: { pack_id: 'custom', credits: String(MAX_CUSTOM_CREDITS + 1) } }))
+        ).toBeUndefined();
+        expect(parseCheckoutCompleted(event({ metadata: { pack_id: 'custom', credits: '80.5' } }))).toBeUndefined();
     });
 
     it('ignores unrelated event types', () => {

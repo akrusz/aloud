@@ -147,6 +147,13 @@ export interface Config {
      *  Off in dev so the server boots with an in-memory store and stubs. */
     strict: boolean;
 
+    /** Explicit opt-in for POST /cloud/v1/auth/dev (the local sign-in shortcut
+     *  that mints a session without Google). Enabled ONLY when
+     *  ALOUD_ENABLE_DEV_AUTH is truthy — opt-in rather than "off in
+     *  production", so a deploy that forgets ALOUD_ENV can't ship a
+     *  credential-free sign-in by default. Set in .env for local dev. */
+    enableDevAuth: boolean;
+
     /** Path to the durable SQLite credit-ledger file (e.g. a mounted volume:
      *  /data/aloud.db). When set, buildDeps uses SqliteCreditsStore so balances
      *  survive restarts; unset in dev falls back to the in-memory store.
@@ -168,8 +175,17 @@ function list(v: string | undefined): string[] {
         .filter(Boolean);
 }
 
+/** Is an opt-in env flag set? Accepts the common truthy spellings so
+ *  `ALOUD_ENABLE_DEV_AUTH=true` doesn't silently read as off. */
+function truthy(v: string | undefined): boolean {
+    const s = (v ?? '').trim().toLowerCase();
+    return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-    const strict = env['ALOUD_ENV'] === 'production';
+    // Normalized so `Production` / a stray trailing space still means strict —
+    // failing CLOSED on a sloppy value is the safe direction for this flag.
+    const strict = (env['ALOUD_ENV'] ?? '').trim().toLowerCase() === 'production';
 
     const providerKeys: ProviderKeys = {};
     if (env['ANTHROPIC_API_KEY']) providerKeys.anthropic = env['ANTHROPIC_API_KEY'];
@@ -195,6 +211,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         meteredPaused: env['ALOUD_METERED_PAUSED'] === '1',
         testerEmails: list(env['ALOUD_TESTER_EMAILS']).map((e) => e.toLowerCase()),
         strict,
+        enableDevAuth: truthy(env['ALOUD_ENABLE_DEV_AUTH']),
     };
     const sttConfig = resolveSttConfig(env);
     if (sttConfig) config.sttConfig = sttConfig;
@@ -223,8 +240,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         if (!config.sessionSecret) missing.push('ALOUD_SESSION_SECRET');
         if (config.googleClientIds.length === 0) missing.push('GOOGLE_CLIENT_IDS');
         if (!config.dbPath) missing.push('ALOUD_DB_PATH (durable ledger; in-memory would drop balances on restart)');
+        // Without an origin allowlist the CORS layer falls open to '*' (fine
+        // for zero-config dev, never for a deploy) — fail fast instead.
+        if (config.corsOrigins.length === 0)
+            missing.push('ALOUD_CORS_ORIGINS (without it CORS falls open to *)');
         if (Object.keys(config.providerKeys).length === 0)
-            missing.push('at least one provider key (ANTHROPIC_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)');
+            missing.push(
+                'at least one provider key (ANTHROPIC_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY/GEMINI_API_KEY/OPENAI_API_KEY)'
+            );
         if (missing.length > 0) {
             throw new Error(
                 `Refusing to start in production: missing required config: ${missing.join(', ')}`
@@ -242,5 +265,6 @@ export function configuredProviders(config: Config): ProviderId[] {
     if (config.providerKeys.groq) out.push('groq');
     if (config.providerKeys.openrouter) out.push('openrouter');
     if (config.providerKeys.google) out.push('google');
+    if (config.providerKeys.openai) out.push('openai');
     return out;
 }
