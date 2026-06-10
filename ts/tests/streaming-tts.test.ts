@@ -164,6 +164,61 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(tts.spoken).toEqual(["I'll be right here."]);
     });
 
+    it('strips a [NEXT] stage token even when split across chunks', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider([
+            '[NE',
+            'XT] Which of these',
+            ' wants your attention?',
+        ]);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'the job thing, mostly' },
+        ]);
+        await result.ttsDone;
+        // Full text (token intact) returned so the caller advances the arc…
+        expect(result.text).toBe('[NEXT] Which of these wants your attention?');
+        // …but the token itself is never voiced.
+        expect(tts.spoken).toEqual(['Which of these wants your attention?']);
+    });
+
+    it('strips stacked control tokens ([NEXT] [HOLD]) before speaking', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider([
+            '[NEXT] [H',
+            'OLD] Take all the time',
+            ' you need.',
+        ]);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'sticky… yes, that fits' },
+        ]);
+        await result.ttsDone;
+        expect(result.text).toBe('[NEXT] [HOLD] Take all the time you need.');
+        expect(tts.spoken).toEqual(['Take all the time you need.']);
+    });
+
+    it('strips stage tokens on the non-streaming fallback too', async () => {
+        const tts = new RecordingTts();
+        const result = await streamCompletionWithChunkedTts(
+            new FakeNonStreamingProvider('[BACK] Maybe it can set things down again.'),
+            tts,
+            [{ role: 'user', content: 'too much at once' }]
+        );
+        await result.ttsDone;
+        expect(result.text).toBe('[BACK] Maybe it can set things down again.');
+        expect(tts.spoken).toEqual(['Maybe it can set things down again.']);
+    });
+
+    it('leaves non-leading bracket tokens alone (only a leading run counts)', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider(['We can go [NEXT] later.']);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'hm' },
+        ]);
+        await result.ttsDone;
+        expect(result.text).toBe('We can go [NEXT] later.');
+        expect(tts.spoken).toEqual(['We can go [NEXT] later.']);
+    });
+
     it('ttsSignal hushes speech but still returns the full reply text', async () => {
         const tts = new RecordingTts();
         const ac = new AbortController();

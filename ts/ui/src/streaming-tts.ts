@@ -19,7 +19,7 @@ import type {
     StreamChunk,
 } from '../../src/llm/index.js';
 import type { LlmUsage } from '../../src/facilitation/index.js';
-import { HOLD_PREFIX, startsWithHold, stripHoldPrefix } from '../../src/facilitation/index.js';
+import { HOLD_PREFIX, NEXT_PREFIX, BACK_PREFIX, parseTurnSignals } from '../../src/facilitation/index.js';
 import type { TtsEngine, TtsOptions } from '../../src/platform/index.js';
 
 /** Pull the usage split out of a completion result or final stream chunk. */
@@ -103,14 +103,15 @@ export async function streamCompletionWithChunkedTts(
         // Non-streaming fallback — call complete(), then speak in one go.
         const result = await provider.complete(messages, providerOpts);
         if (onTextDelta) onTextDelta(result.text);
-        // Strip a leading [HOLD] token but DO speak the warm acknowledgment
-        // after it ("I'll be right here") — the caller enters silence mode once
-        // it's spoken. Only the token is silenced, not the reassurance.
+        // Strip leading control tokens ([HOLD], and [NEXT]/[BACK] in staged
+        // modes) but DO speak the text after them ("I'll be right here") —
+        // only the tokens are silenced, never the words. The caller parses
+        // the signals separately from the returned full text.
         return {
             text: result.text,
             ttsDone: hushed()
                 ? Promise.resolve()
-                : tts.speak(stripHoldPrefix(result.text), ttsOptions).catch((err: unknown) => {
+                : tts.speak(parseTurnSignals(result.text).cleanText, ttsOptions).catch((err: unknown) => {
                       reportTtsError(err);
                       throw err; // callers already treat ttsDone as non-fatal
                   }),
@@ -121,7 +122,7 @@ export async function streamCompletionWithChunkedTts(
 
     let fullText = '';
     let pendingTtsText = ''; // text not yet handed to TTS
-    let holdChecked = false; // have we decided about a leading [HOLD] token yet?
+    let prefixChecked = false; // have we decided about leading control tokens yet?
     // TTS queue — each entry awaits the previous one so utterances play
     // sequentially and we can return a single "all done" promise.
     let ttsQueue: Promise<void> = Promise.resolve();
@@ -140,22 +141,40 @@ export async function streamCompletionWithChunkedTts(
             });
     }
 
+    // The control tokens a reply can open with: [HOLD] always, plus
+    // [NEXT]/[BACK] in staged modes. They can stack ("[NEXT] [HOLD] …"),
+    // and a token can arrive split across chunks ("[NE" + "XT]").
+    const CONTROL_PREFIXES = [HOLD_PREFIX, NEXT_PREFIX, BACK_PREFIX];
+
+    /** True when `lead` (uppercased) could still grow into a control token
+     *  once more chunks arrive ("[", "[NE", "[HOL"). */
+    function isPartialControlPrefix(lead: string): boolean {
+        return CONTROL_PREFIXES.some((t) => t.length > lead.length && t.startsWith(lead));
+    }
+
     /**
-     * Once the buffer has enough characters (or the stream is done), strip a
-     * leading [HOLD] token from pendingTtsText so it isn't spoken — but keep
-     * the warm acknowledgment that follows ("I'll be right here"), which IS
-     * meant to be heard before the session goes quiet. The caller parses the
-     * signal separately to actually enter silence mode after.
+     * Once the buffer proves the leading run of control tokens is over (or
+     * the stream is done), strip the tokens from pendingTtsText so they're
+     * never spoken — but keep the words that follow ("I'll be right here"),
+     * which ARE meant to be heard. The caller parses the signals separately
+     * (parseTurnSignals on the full text) to act on them.
      */
-    function checkHoldPrefix(force = false): void {
-        if (holdChecked) return;
-        // Wait until we have enough non-space chars to tell (or the stream
-        // ended) — the token can arrive split across chunks ("[HOL" + "D]").
-        if (!force && pendingTtsText.trimStart().length < HOLD_PREFIX.length) return;
-        if (startsWithHold(pendingTtsText)) {
-            pendingTtsText = stripHoldPrefix(pendingTtsText);
+    function checkControlPrefix(force = false): void {
+        if (prefixChecked) return;
+        for (;;) {
+            const lead = pendingTtsText.trimStart();
+            const upper = lead.toUpperCase();
+            const token = CONTROL_PREFIXES.find((t) => upper.startsWith(t));
+            if (token) {
+                pendingTtsText = lead.slice(token.length).trimStart();
+                continue;
+            }
+            // A token may still be arriving split across chunks — hold the
+            // decision until more text lands or the stream ends.
+            if (!force && isPartialControlPrefix(upper)) return;
+            break;
         }
-        holdChecked = true;
+        prefixChecked = true;
     }
 
     for await (const chunk of provider.completeStream(messages, providerOpts)) {
@@ -166,10 +185,10 @@ export async function streamCompletionWithChunkedTts(
             pendingTtsText += chunk.text;
             if (onTextDelta) onTextDelta(fullText);
 
-            checkHoldPrefix();
+            checkControlPrefix();
             // Hold speaking until the prefix decision is made, so a partial
-            // "[HOL" is never voiced; the token is stripped first.
-            if (!holdChecked) continue;
+            // "[HOL" or "[NE" is never voiced; the tokens are stripped first.
+            if (!prefixChecked) continue;
 
             const split = splitOffSentences(pendingTtsText);
             for (const sentence of split.complete) {
@@ -180,7 +199,7 @@ export async function streamCompletionWithChunkedTts(
         if (chunk.done) {
             usage = usageFrom(chunk);
             finishReason = chunk.finishReason ?? null;
-            checkHoldPrefix(true);
+            checkControlPrefix(true);
             if (pendingTtsText.trim()) {
                 enqueueSpeak(pendingTtsText);
                 pendingTtsText = '';
