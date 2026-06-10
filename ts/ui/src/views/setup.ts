@@ -619,7 +619,7 @@ export async function mountSetupView(
         });
         // Initial gate state (recomputed once /providers status arrives).
         updateBeginButton();
-        updateAiAvailability();
+        updateAiNotes();
         // Initial estimate (the LLM leg fills in once models load; the voice
         // leg once voices load — both re-call updateSessionEstimate).
         updateSessionEstimate();
@@ -659,7 +659,7 @@ export async function mountSetupView(
                 persist();
                 applyTabSelection(t);
                 updateBeginButton();
-                updateAiAvailability();
+                updateAiNotes();
                 updateSessionEstimate();
             }
             const banner = root.querySelector<HTMLElement>('#continue-banner');
@@ -763,14 +763,18 @@ export async function mountSetupView(
      * AI (an llm participant, or an empty/solo circle's AI-led intro), keep it
      * live. Mirrors the needsLLM() gate the Begin button already uses.
      */
-    function updateAiAvailability(): void {
+    function updateAiNotes(): void {
         const active = needsLLM();
         root.querySelector<HTMLElement>('#ai-provider-group')?.classList.toggle('ai-group-disabled', !active);
         root.querySelector<HTMLElement>('#ai-model-group')?.classList.toggle('ai-group-disabled', !active);
         // The "AI isn't used" note only makes sense inside a noting circle —
-        // exploration always uses the model, so never explain its absence there.
-        const showNote = !active && setup.meditationType === 'noting';
-        root.querySelector<HTMLElement>('#ai-inactive-note')?.classList.toggle('hidden', !showNote);
+        // exploration/focusing always use the model, so never explain its absence there.
+        const showAiNote = !active && setup.meditationType === 'noting';
+        root.querySelector<HTMLElement>('#ai-inactive-note')?.classList.toggle('hidden', !showAiNote);
+
+        // Noting uses less AI credits since much less talking
+        const showSpendNote = active && setup.meditationType === 'noting';
+        root.querySelector<HTMLElement>('#noting-spend-note')?.classList.toggle('hidden', !showSpendNote);
     }
 
     /**
@@ -849,7 +853,7 @@ export async function mountSetupView(
                 applyTabSelection(tab);
                 // Switching to/from noting changes whether an LLM is needed.
                 updateBeginButton();
-                updateAiAvailability();
+                updateAiNotes();
                 // ...and changes the estimate (noting applies the 0.4 multiplier).
                 updateSessionEstimate();
             });
@@ -1092,7 +1096,7 @@ export async function mountSetupView(
         updateAddBtn();
         // Participant edits (type/add/remove) can flip whether an LLM is needed.
         updateBeginButton();
-        updateAiAvailability();
+        updateAiNotes();
     }
 
     function updateAddBtn(): void {
@@ -1369,12 +1373,12 @@ function renderSetupHTML(
                 <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
             </div>
             <div data-method="noting" class="hidden">
-                <p><strong>noting</strong>: you specify what participants you'd like, if any &mdash; AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing my cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
+                <p><strong>noting</strong>: you specify what participants you'd like, if any: AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing my cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
                 <p>thanks to <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> and again to <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for inspiration.</p>
             </div>
             <div data-method="felt_sense" class="hidden">
-                <p><strong>felt sense</strong>: a gentle six-step arc, settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time. the body often knows more than the story does.</p>
-                <p>adapted from <a href="https://focusing.org/" target="_blank" rel="noopener">Eugene Gendlin's Focusing</a>, which deserves the credit for the method (and is well worth reading about).</p>
+                <p><strong>felt sense</strong>: a gentle six-step process. settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time.</p>
+                <p>adapted from <a href="https://focusing.org/" target="_blank" rel="noopener">Eugene Gendlin's Focusing</a>, which deserves the credit for the method.</p>
             </div>
             <p class="info-panel-link"><a href="#" id="start-guide-link">Take the full tour &rarr;</a></p>
         </div>
@@ -1452,7 +1456,6 @@ function renderSetupHTML(
                 <div id="participant-list"></div>
                 <button type="button" id="add-participant-btn" class="btn btn-secondary btn-small"
                     title="Add another participant to the noting circle (up to 4)">+ Add participant</button>
-                <p class="credit-rate-legend">Voices use fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.</p>
             </div>
 
             <div class="noting-option-row">
@@ -1469,7 +1472,7 @@ function renderSetupHTML(
             <div class="form-group">
                 <label for="felt-sense-intention">Something to sit with <span class="optional">(optional)</span></label>
                 <textarea id="felt-sense-intention" rows="2"
-                    placeholder="e.g. the job decision, that conversation yesterday, this restless feeling lately - or just begin, and let it find you"></textarea>
+                    placeholder="e.g. the job decision, a conversation yesterday, this restless feeling lately..."></textarea>
             </div>
 
             <div class="form-row form-row-thirds" id="felt-sense-voice-row">
@@ -1504,6 +1507,7 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
+        <p class="credit-rate-legend" id="noting-spend-note">AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
 

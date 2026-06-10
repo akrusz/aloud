@@ -3720,7 +3720,11 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 /* Setup-footer (index page) — same fixed-bar pattern as settings-footer
-   so the Begin Session button is always reachable, even mid-scroll. */
+   so the Begin Session button is always reachable, even mid-scroll.
+   z-index sits above the tour spotlight/overlay (55, or 65 when fixed) but
+   below the tour tooltip card (70): the opaque bar stays on top of the
+   dimming overlay instead of being washed out when the highlight box
+   scrolls over it, while the tour copy still floats above the bar. */
 .setup-footer {
     position: fixed;
     bottom: 0;
@@ -3729,7 +3733,7 @@ html:has(.nav-brand.has-update) .update-btn {
     background: var(--bg-secondary);
     border-top: 1px solid var(--border);
     padding: 0.5rem 1.5rem;
-    z-index: 30;
+    z-index: 66;
 }
 
 .setup-footer-inner {
