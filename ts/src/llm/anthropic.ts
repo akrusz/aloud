@@ -118,7 +118,7 @@ export class AnthropicProvider implements LLMProvider {
         options: CompletionOptions,
         stream: boolean
     ): { url: string; init: RequestInit } {
-        const convo = messages.filter((m) => m.role !== 'system');
+        const convo = normalizeConversation(messages);
         const lastIndex = convo.length - 1;
         // The 1h anchor: the largest ANCHOR_STEP boundary strictly behind the
         // tail. It's stable for a stretch of ANCHOR_STEP messages (re-read every
@@ -166,7 +166,12 @@ export class AnthropicProvider implements LLMProvider {
 
         return {
             url: this.baseUrl,
-            init: { method: 'POST', headers, body: JSON.stringify(body) },
+            init: {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+                ...(options.signal && { signal: options.signal }),
+            },
         };
     }
 
@@ -239,10 +244,35 @@ export class AnthropicProvider implements LLMProvider {
 }
 
 /**
+ * Normalize a conversation into a shape the Messages API accepts: system
+ * messages stripped (the system prompt travels in the `system` param),
+ * consecutive same-role messages merged (Anthropic requires strict
+ * user/assistant alternation), and a minimal user stub prepended when the
+ * conversation would otherwise open with an assistant message (the
+ * summary-based resume flow leads with an assistant recap). Normalizing
+ * here keeps every caller safe without each one re-implementing the rules.
+ */
+function normalizeConversation(messages: Message[]): Message[] {
+    const out: Message[] = [];
+    for (const m of messages) {
+        if (m.role === 'system') continue;
+        const prev = out[out.length - 1];
+        if (prev && prev.role === m.role) {
+            out[out.length - 1] = { role: prev.role, content: `${prev.content}\n\n${m.content}` };
+        } else {
+            out.push({ role: m.role, content: m.content });
+        }
+    }
+    if (out[0]?.role === 'assistant') {
+        out.unshift({ role: 'user', content: '[Resuming a previous session.]' });
+    }
+    return out;
+}
+
+/**
  * Map Anthropic's usage object to the CompletionResult split fields. Cache
  * fields are only present when prompt caching is active. `tokensUsed` keeps
- * the input+output sum for back-compat (cache reads/creation excluded, to
- * match how the Python provider sums input+output).
+ * the input+output sum for back-compat (cache reads/creation excluded).
  */
 function usageToResult(usage: AnthropicUsage | undefined): {
     tokensUsed: number | null;

@@ -25,7 +25,7 @@ export interface CompletionResult {
      * Usage split. Input and output are priced very differently (output
      * ~4-5x input on Claude) and cache reads ~10x cheaper than fresh input,
      * so these are kept SEPARATE, never summed. Any field is null when the
-     * provider doesn't report it. Mirrors src/llm/base.py CompletionResult.
+     * provider doesn't report it.
      */
     inputTokens?: number | null;
     outputTokens?: number | null;
@@ -41,6 +41,14 @@ export interface CompletionResult {
 export interface CompletionOptions {
     system?: string;
     maxTokens?: number;
+    /**
+     * Abort the in-flight request (e.g. barge-in cancellation). Providers
+     * pass this through to `fetch`, so aborting mid-stream tears down the
+     * HTTP body and stops billable generation. An abort can surface as an
+     * AbortError from the next read; consumers that break out of the stream
+     * loop on `signal.aborted` get a clean teardown instead.
+     */
+    signal?: AbortSignal;
 }
 
 /**

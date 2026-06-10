@@ -7,10 +7,9 @@
  * --system-prompt (which fully replaces Claude Code's default), and
  * parses the JSON response.
  *
- * TS port of src/llm/claude_proxy.py. Node-only — uses node:child_process
- * to spawn the binary. Not usable in the browser or Capacitor WebView;
- * callers that target multiple runtimes should feature-check before
- * constructing.
+ * Node-only — uses node:child_process to spawn the binary. Not usable in
+ * the browser or Capacitor WebView; callers that target multiple runtimes
+ * should feature-check before constructing.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -98,13 +97,28 @@ export class ClaudeProxyProvider implements LLMProvider {
         }
         args.push(prompt);
 
-        const { stdout, exitCode, signal } = await runProcess(binary, args, this.timeoutMs);
+        const { stdout, stderr, exitCode, signal, timedOut } = await runProcess(
+            binary,
+            args,
+            this.timeoutMs,
+            options.signal
+        );
 
+        if (options.signal?.aborted) {
+            // Killed via CompletionOptions.signal (barge-in cancellation) —
+            // surface the same AbortError shape fetch-based providers throw.
+            throw new DOMException('claude CLI call aborted', 'AbortError');
+        }
+        if (timedOut) {
+            throw new Error(`claude CLI timed out after ${Math.round(this.timeoutMs / 1000)}s`);
+        }
         if (exitCode !== 0) {
+            const tail = stderrTail(stderr);
             throw new Error(
                 `claude CLI failed (exit ${exitCode ?? 'null'}` +
                     (signal ? `, signal ${signal}` : '') +
-                    ')'
+                    ')' +
+                    (tail ? `: ${tail}` : '')
             );
         }
 
@@ -163,17 +177,20 @@ function formatHistory(messages: readonly Message[]): string {
 
 /**
  * Search the user's PATH and common install locations for the `claude`
- * binary. Mirrors src/web/provider_routes.py::find_claude_cli — the
- * macOS app bundle's limited PATH often misses ~/.local/bin, so we
- * check that location explicitly.
+ * binary. The macOS app bundle's limited PATH often misses ~/.local/bin,
+ * so that location is checked explicitly. On Windows the npm install
+ * lands as a `claude.cmd` shim, so both `.exe` and `.cmd` are probed.
  */
 async function findClaudeCli(): Promise<string | null> {
     const path = process.env['PATH'] ?? '';
     const pathSep = process.platform === 'win32' ? ';' : ':';
+    const names = process.platform === 'win32' ? ['claude.exe', 'claude.cmd'] : ['claude'];
     for (const dir of path.split(pathSep)) {
         if (!dir) continue;
-        const candidate = join(dir, process.platform === 'win32' ? 'claude.exe' : 'claude');
-        if (await isExecutable(candidate)) return candidate;
+        for (const name of names) {
+            const candidate = join(dir, name);
+            if (await isExecutable(candidate)) return candidate;
+        }
     }
     const home = homedir();
     for (const candidate of [
@@ -196,22 +213,47 @@ async function isExecutable(path: string): Promise<boolean> {
     }
 }
 
+/** Last chunk of stderr, single-line, for inclusion in error messages. */
+function stderrTail(stderr: string, maxChars = 300): string {
+    const trimmed = stderr.trim().replace(/\s+/g, ' ');
+    if (trimmed.length <= maxChars) return trimmed;
+    return `…${trimmed.slice(-maxChars)}`;
+}
+
+/** Quote an argument for cmd.exe (`""` escapes a literal `"`). Only used
+ *  when spawning a `.cmd` shim, which requires `shell: true` on Node 18+. */
+function cmdQuote(arg: string): string {
+    return `"${arg.replace(/"/g, '""')}"`;
+}
+
 interface ProcessResult {
     stdout: string;
     stderr: string;
     exitCode: number | null;
     signal: NodeJS.Signals | null;
+    /** True when the run was killed by the timeoutMs cap. */
+    timedOut: boolean;
 }
 
 function runProcess(
     binary: string,
     args: readonly string[],
-    timeoutMs: number
+    timeoutMs: number,
+    abortSignal?: AbortSignal
 ): Promise<ProcessResult> {
     return new Promise((resolve, reject) => {
         let proc: ChildProcess;
+        // Node refuses to spawn .cmd/.bat shims directly (EINVAL since the
+        // 18.x security fix) — route those through the shell, quoting args
+        // for cmd.exe.
+        const useShell = /\.(cmd|bat)$/i.test(binary);
         try {
-            proc = spawn(binary, args as string[], { stdio: ['ignore', 'pipe', 'pipe'] });
+            proc = useShell
+                ? spawn(cmdQuote(binary), args.map(cmdQuote), {
+                      stdio: ['ignore', 'pipe', 'pipe'],
+                      shell: true,
+                  })
+                : spawn(binary, args as string[], { stdio: ['ignore', 'pipe', 'pipe'] });
         } catch (err) {
             reject(err);
             return;
@@ -221,21 +263,30 @@ function runProcess(
         proc.stdout?.on('data', (c: Buffer) => stdoutChunks.push(c));
         proc.stderr?.on('data', (c: Buffer) => stderrChunks.push(c));
 
+        let timedOut = false;
         const timeout = setTimeout(() => {
+            timedOut = true;
             proc.kill('SIGKILL');
         }, timeoutMs);
 
+        const onAbort = () => proc.kill('SIGKILL');
+        abortSignal?.addEventListener('abort', onAbort, { once: true });
+        if (abortSignal?.aborted) onAbort();
+
         proc.on('error', (err) => {
             clearTimeout(timeout);
+            abortSignal?.removeEventListener('abort', onAbort);
             reject(err);
         });
         proc.on('close', (code, signal) => {
             clearTimeout(timeout);
+            abortSignal?.removeEventListener('abort', onAbort);
             resolve({
                 stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
                 stderr: Buffer.concat(stderrChunks).toString('utf-8'),
                 exitCode: code,
                 signal,
+                timedOut,
             });
         });
     });

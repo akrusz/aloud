@@ -7,12 +7,16 @@ import { ClaudeProxyProvider } from '../src/llm/claude-proxy.js';
 interface SpawnCall {
     binary: string;
     args: readonly string[];
+    options?: { shell?: boolean };
 }
 
 let activeSpawnState: {
     calls: SpawnCall[];
     stdout: string;
     exitCode: number;
+    stderr?: string;
+    /** Never emit 'close' on its own — only kill() ends the process. */
+    hang?: boolean;
 } | null = null;
 
 // When true, every fs.access call rejects with ENOENT — lets us simulate
@@ -41,10 +45,10 @@ vi.mock('node:child_process', async () => {
     const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
     return {
         ...actual,
-        spawn: ((cmd: string, args: readonly string[]) => {
+        spawn: ((cmd: string, args: readonly string[], options?: { shell?: boolean }) => {
             const state = activeSpawnState;
             if (!state) throw new Error('spawn called without active fake state');
-            state.calls.push({ binary: cmd, args });
+            state.calls.push({ binary: cmd, args, ...(options && { options }) });
 
             // Mock both the process and its stdout/stderr streams as
             // EventEmitters; the consumer attaches on('data') listeners
@@ -55,18 +59,28 @@ vi.mock('node:child_process', async () => {
             const stderr = new EventEmitter();
             (proc as unknown as { stdout: EventEmitter }).stdout = stdout;
             (proc as unknown as { stderr: EventEmitter }).stderr = stderr;
-            proc.kill = () => true;
-            queueMicrotask(() => {
-                stdout.emit('data', Buffer.from(state.stdout));
-                proc.emit('close', state.exitCode, null);
-            });
+            proc.kill = ((sig?: NodeJS.Signals) => {
+                queueMicrotask(() => proc.emit('close', null, sig ?? 'SIGTERM'));
+                return true;
+            }) as ChildProcess['kill'];
+            if (!state.hang) {
+                queueMicrotask(() => {
+                    stdout.emit('data', Buffer.from(state.stdout));
+                    if (state.stderr) stderr.emit('data', Buffer.from(state.stderr));
+                    proc.emit('close', state.exitCode, null);
+                });
+            }
             return proc;
         }) as unknown as typeof actual.spawn,
     };
 });
 
-function fakeSpawn(stdout: string, exitCode: number = 0): SpawnCall[] {
-    activeSpawnState = { calls: [], stdout, exitCode };
+function fakeSpawn(
+    stdout: string,
+    exitCode: number = 0,
+    extra: { stderr?: string; hang?: boolean } = {}
+): SpawnCall[] {
+    activeSpawnState = { calls: [], stdout, exitCode, ...extra };
     return activeSpawnState.calls;
 }
 
@@ -126,6 +140,47 @@ describe('ClaudeProxyProvider', () => {
         await expect(provider.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow(
             /exit 1/
         );
+    });
+
+    it('includes a stderr tail when the CLI exits non-zero', async () => {
+        fakeSpawn('', 1, { stderr: 'Error: invalid API key\nplease run claude login' });
+        const provider = new ClaudeProxyProvider({ binaryPath: '/bin/claude' });
+        await expect(provider.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow(
+            /invalid API key.*claude login/
+        );
+    });
+
+    it('reports a timeout as "timed out", not a bare exit/signal', async () => {
+        fakeSpawn('', 0, { hang: true });
+        const provider = new ClaudeProxyProvider({ binaryPath: '/bin/claude', timeoutMs: 20 });
+        await expect(provider.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow(
+            /timed out after 0s/
+        );
+    });
+
+    it('aborting via CompletionOptions.signal kills the process and throws AbortError', async () => {
+        fakeSpawn('', 0, { hang: true });
+        const provider = new ClaudeProxyProvider({ binaryPath: '/bin/claude' });
+        const controller = new AbortController();
+        const pending = provider.complete([{ role: 'user', content: 'hi' }], {
+            signal: controller.signal,
+        });
+        // Let the spawn happen, then barge in.
+        await new Promise((r) => setTimeout(r, 0));
+        controller.abort();
+        await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('spawns .cmd shims through the shell with quoted args', async () => {
+        const calls = fakeSpawn(JSON.stringify({ result: 'ok' }));
+        const provider = new ClaudeProxyProvider({ binaryPath: 'C:\\npm\\claude.cmd' });
+        await provider.complete([{ role: 'user', content: 'hi there' }]);
+        const { binary, args, options } = calls[0]!;
+        expect(options?.shell).toBe(true);
+        expect(binary).toBe('"C:\\npm\\claude.cmd"');
+        // Every arg is cmd.exe-quoted so spaces in prompts survive the shell.
+        expect(args[0]).toBe('"-p"');
+        expect(args[args.length - 1]).toBe('"hi there"');
     });
 
     it('surfaces is_error: true responses', async () => {

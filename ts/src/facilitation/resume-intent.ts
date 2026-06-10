@@ -1,17 +1,17 @@
 /**
  * Resume-intent classification for silence ("Just Listen") mode.
  *
- * TS port of meditation_session.py::classify_resume_intent. While the
- * facilitator is holding silence the meditator can think out loud without the
- * facilitator jumping in on every utterance; this lightweight LLM call (just
- * the utterance, no conversation history) judges whether what they said means
- * "I'm ready to continue" — catching natural phrases like "alright, let's
- * keep going" that a keyword match would miss.
+ * While the facilitator is holding silence the meditator can think out loud
+ * without the facilitator jumping in on every utterance; this lightweight LLM
+ * call (just the utterance, no conversation history) judges whether what they
+ * said means "I'm ready to continue" — catching natural phrases like
+ * "alright, let's keep going" that a keyword match would miss.
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import { RESUME_INTENT_SYSTEM_PROMPT } from './prompts.js';
 import type { LlmUsage } from './session.js';
+import { stripThinkTags } from './strip-think-tags.js';
 
 /** Extract the usage split from a CompletionResult into LlmUsage shape. */
 function resultUsage(r: {
@@ -40,8 +40,8 @@ export interface ClassifyResumeIntentOptions {
  * True when `text` (a single utterance spoken during held silence) signals the
  * meditator wants to end the silence and resume. Uses the session LLM with no
  * history and a tiny token budget. Never throws — on any error it returns
- * false (stay in the hold), matching the Python behavior: a failed classifier
- * shouldn't yank the user out of silence.
+ * false (stay in the hold): a failed classifier shouldn't yank the user out
+ * of silence.
  */
 export async function classifyResumeIntent(
     provider: LLMProvider,
@@ -59,13 +59,4 @@ export async function classifyResumeIntent(
     } catch {
         return false;
     }
-}
-
-/**
- * Some open-weights models (Qwen 3, DeepSeek-R1, etc.) emit a
- * <think>...</think> block before the answer. Strip it so the YES/NO check
- * reads the actual verdict.
- */
-function stripThinkTags(text: string): string {
-    return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }

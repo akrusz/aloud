@@ -8,16 +8,17 @@
  * a separate prompt that's distinct from the main facilitation system
  * prompt.
  *
- * TS port of src/facilitation/noting_prompts.py. The UI orchestrator
- * (circle setup, turn rotation, sound cues, mute pause) lives in the
- * ui/ tree and is not yet ported — see meditation-pal beads.
+ * This module holds the prompts and label generation only; the circle
+ * orchestrator (setup, turn rotation, sound cues, mute pause) lives in
+ * the ui/ tree.
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import type { LlmUsage } from './session.js';
+import { stripThinkTags } from './strip-think-tags.js';
 
 // ---------------------------------------------------------------------------
-// System prompts (verbatim from Python)
+// System prompts
 // ---------------------------------------------------------------------------
 
 export const NOTING_SYSTEM_PROMPT = `You're part of a noting meditation circle.
@@ -140,8 +141,6 @@ export interface GenerateLabelOptions {
  * the circle's context, then asks the model for a 1–3 word label.
  * Returns a fallback ("breathing") if the LLM call fails or returns
  * nothing usable — keeps the turn loop running on transient errors.
- *
- * Mirrors meditation_session.py::generate_noting_label.
  */
 export async function generateNotingLabel(
     provider: LLMProvider,
@@ -155,14 +154,16 @@ export async function generateNotingLabel(
         onUsage,
     } = options;
 
+    // Replacer functions, not replacement strings — a label containing `$`
+    // would otherwise trigger String.replace's pattern expansion ($&, $', …).
     let system = NOTING_LABEL_SYSTEM_PROMPT;
     if (context.length > 0) {
-        system += NOTING_LABEL_CONTEXT.replace('{context}', context.join(', '));
+        system += NOTING_LABEL_CONTEXT.replace('{context}', () => context.join(', '));
     }
     if (ownLabels.length > 0) {
         system += NOTING_LABEL_AVOID_SELF_REPEAT.replace(
             '{own_labels}',
-            ownLabels.join(', ')
+            () => ownLabels.join(', ')
         );
     }
     system +=
@@ -193,8 +194,4 @@ export async function generateNotingLabel(
     } catch {
         return 'breathing';
     }
-}
-
-function stripThinkTags(text: string): string {
-    return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }

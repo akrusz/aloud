@@ -27,6 +27,16 @@ describe('SessionManager — lifecycle', () => {
         expect(manager.state?.endTime).not.toBe(null);
     });
 
+    it('default session IDs do not collide within the same second', () => {
+        const { manager } = makeManager();
+        const first = manager.startSession().sessionId;
+        manager.endSession();
+        const second = manager.startSession().sessionId;
+        // Same fake-clock second; the random suffix keeps them distinct.
+        expect(second).not.toBe(first);
+        expect(first).toMatch(/^\d{4}-\d{2}-\d{2}-\d{6}-[a-z0-9]{4}$/);
+    });
+
     it('accepts a caller-provided session ID', () => {
         const { manager } = makeManager();
         const state = manager.startSession('my-session');
@@ -105,6 +115,36 @@ describe('SessionManager — context strategies', () => {
         const messages = manager.getContextMessages();
         expect(messages).toHaveLength(3);
         expect(messages.map((m) => m.content)).toEqual(['msg 2', 'msg 3', 'msg 4']);
+    });
+
+    it('rolling window trims forward to a user-message boundary', () => {
+        const { manager } = makeManager({
+            contextStrategy: 'rolling',
+            windowSize: 3,
+        });
+        manager.startSession();
+        manager.addUserMessage('u0');
+        manager.addAssistantMessage('a0');
+        manager.addUserMessage('u1');
+        manager.addAssistantMessage('a1');
+        // Naive slice(-3) would be [a0, u1, a1] — opening with an assistant
+        // turn, which breaks providers requiring user-first alternation.
+        const messages = manager.getContextMessages();
+        expect(messages.map((m) => m.content)).toEqual(['u1', 'a1']);
+        expect(messages[0]?.role).toBe('user');
+    });
+
+    it('rolling window with no user message in range returns the slice as-is', () => {
+        const { manager } = makeManager({
+            contextStrategy: 'rolling',
+            windowSize: 2,
+        });
+        manager.startSession();
+        manager.addUserMessage('u0');
+        manager.addAssistantMessage('a0');
+        manager.addAssistantMessage('a1');
+        const messages = manager.getContextMessages();
+        expect(messages.map((m) => m.content)).toEqual(['a0', 'a1']);
     });
 
     it('returns role/content shapes only — no internal fields', () => {

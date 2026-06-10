@@ -1,9 +1,9 @@
 /**
  * Session state management and conversation context.
  *
- * TS port of src/facilitation/session.py. Stripped of Python-specific
- * serialization shapes (datetime.isoformat strings); callers can format
- * on their own from the unix-seconds timestamp.
+ * Holds the live transcript (exchanges), per-session compute usage tally,
+ * and the context-window strategy used to shape LLM prompts. Timestamps
+ * are unix seconds; callers format for display themselves.
  */
 
 import { realClock, type Clock } from '../clock.js';
@@ -21,7 +21,7 @@ export interface Exchange {
      * LLM usage for assistant turns produced by a completion (omitted
      * otherwise — user turns and static/fallback facilitator messages).
      * Input and output are kept SEPARATE (priced very differently); cache
-     * fields are included only when non-zero. Mirrors Python Exchange.
+     * fields are included only when non-zero.
      */
     tokensIn?: number;
     tokensOut?: number;
@@ -34,7 +34,7 @@ export interface Exchange {
  * metered-billing model (LLM tokens + STT seconds + TTS chars). `llmCalls`
  * counts every completion, including off-transcript ones (summary,
  * resume-intent, noting labels), so totals here can exceed the sum of
- * per-exchange token counts. Mirrors Python SessionUsage.
+ * per-exchange token counts.
  */
 export interface SessionUsage {
     llmCalls: number;
@@ -92,6 +92,10 @@ export type ContextStrategy = 'rolling' | 'full';
 
 export interface SessionManagerOptions {
     contextStrategy?: ContextStrategy;
+    /**
+     * Rolling-window size, in MESSAGES (not user/assistant exchange pairs).
+     * Only used when contextStrategy is 'rolling'.
+     */
     windowSize?: number;
     clock?: Clock;
     /** Override for generated session IDs (defaults to date-based). */
@@ -101,9 +105,12 @@ export interface SessionManagerOptions {
 function defaultSessionId(clock: Clock): string {
     const d = new Date(clock() * 1000);
     const pad = (n: number) => n.toString().padStart(2, '0');
+    // Short random suffix so two sessions started in the same second
+    // (e.g. a quick end-and-restart) can't collide on the same store key.
+    const suffix = Math.random().toString(36).slice(2, 6);
     return (
         `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-` +
-        `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+        `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${suffix}`
     );
 }
 
@@ -171,8 +178,7 @@ export class SessionManager {
      * Pass `usage` (from the CompletionResult that produced this message) for
      * LLM turns; omit it for static or fallback messages (no LLM call). When
      * usage is given, it's recorded on the exchange AND folded into the
-     * session-level tally, so callers don't double-count. Mirrors Python
-     * SessionManager.add_assistant_message.
+     * session-level tally, so callers don't double-count.
      */
     addAssistantMessage(content: string, name?: string, usage?: LlmUsage): void {
         const hasUsage =
@@ -197,7 +203,7 @@ export class SessionManager {
      * Fold one LLM completion into the session usage tally. Use directly for
      * off-transcript completions (summary, resume-intent, noting labels);
      * `addAssistantMessage` calls this for on-transcript turns so callers
-     * don't double-count. Mirrors Python record_llm_usage.
+     * don't double-count.
      */
     recordLlmUsage(usage: LlmUsage): void {
         if (this._state === null) return;
@@ -212,7 +218,7 @@ export class SessionManager {
     /**
      * Accumulate STT audio seconds transcribed this session. Counts all
      * transcriptions (including speculative/command audio) since each consumes
-     * STT compute. Mirrors Python record_stt.
+     * STT compute.
      */
     recordStt(seconds: number): void {
         if (this._state !== null && seconds) {
@@ -223,7 +229,6 @@ export class SessionManager {
     /**
      * Accumulate TTS characters synthesized server-side this session.
      * Browser-side speechSynthesis isn't counted (no server compute).
-     * Mirrors Python record_tts.
      */
     recordTts(chars: number): void {
         if (this._state !== null && chars) {
@@ -246,12 +251,21 @@ export class SessionManager {
 
     /**
      * Conversation history shaped for an LLM provider — role/content only.
+     *
+     * With the 'rolling' strategy, returns at most `windowSize` MESSAGES
+     * (not exchange pairs), trimmed forward to the nearest user-message
+     * boundary so the window always opens with a user turn — a window that
+     * opens mid-exchange with an assistant message breaks providers that
+     * require user/assistant alternation starting from user. If the window
+     * contains no user message at all (degenerate), it's returned as-is.
      */
     getContextMessages(): Array<{ role: Exchange['role']; content: string }> {
         if (this._state === null) return [];
         let exchanges = this._state.exchanges;
         if (this.contextStrategy === 'rolling') {
             exchanges = exchanges.slice(-this.windowSize);
+            const firstUser = exchanges.findIndex((e) => e.role === 'user');
+            if (firstUser > 0) exchanges = exchanges.slice(firstUser);
         }
         return exchanges.map((e) => ({ role: e.role, content: e.content }));
     }

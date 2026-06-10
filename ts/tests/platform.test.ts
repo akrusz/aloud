@@ -11,7 +11,7 @@ import {
     setJson,
     type SttEvent,
 } from '../src/platform/index.js';
-import type { SessionState } from '../src/facilitation/session.js';
+import { emptyUsage, type SessionState } from '../src/facilitation/session.js';
 
 describe('InMemorySttEngine', () => {
     it('yields scripted events in order and completes', async () => {
@@ -174,6 +174,7 @@ function makeSession(id: string, exchanges = 0): SessionState {
         })),
         tags: [],
         notes: '',
+        usage: emptyUsage(),
     };
 }
 
@@ -205,6 +206,23 @@ describe('SessionStore', () => {
     it('load returns null for unknown ids', async () => {
         const store = new SessionStore(new InMemoryKvStorage());
         expect(await store.load('missing')).toBe(null);
+    });
+
+    it('load backfills a zeroed usage tally on legacy records', async () => {
+        const kv = new InMemoryKvStorage();
+        // Saved before usage tracking existed — no `usage` field.
+        const legacy = {
+            sessionId: 'old',
+            startTime: 1_000_000,
+            endTime: 1_000_500,
+            exchanges: [],
+            tags: [],
+            notes: '',
+        };
+        await setJson(kv, 'session:old', legacy);
+        const store = new SessionStore(kv);
+        const loaded = await store.load('old');
+        expect(loaded?.usage).toEqual(emptyUsage());
     });
 
     it('honors a custom key prefix', async () => {

@@ -7,7 +7,7 @@
  * in-memory backend but can be slow for Capacitor Preferences).
  */
 
-import type { SessionState } from '../facilitation/session.js';
+import { emptyUsage, type SessionState } from '../facilitation/session.js';
 import { type KvStorage, getJson, setJson } from './storage.js';
 
 const DEFAULT_PREFIX = 'session:';
@@ -50,7 +50,11 @@ export class SessionStore implements SessionStoreApi {
     }
 
     async load(sessionId: string): Promise<SessionState | null> {
-        return getJson<SessionState>(this.storage, this.keyFor(sessionId));
+        const raw = await getJson<SessionState>(this.storage, this.keyFor(sessionId));
+        if (raw === null) return null;
+        // Records saved before usage tracking existed lack `usage`; the type
+        // is non-optional, so backfill a zeroed tally on read.
+        return { ...raw, usage: raw.usage ?? emptyUsage() };
     }
 
     async delete(sessionId: string): Promise<void> {

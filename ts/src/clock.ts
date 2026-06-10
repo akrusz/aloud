@@ -1,8 +1,7 @@
 /**
  * Injectable clock — lets the orchestration layer be tested with a fake
  * time source without resorting to vi.useFakeTimers everywhere. Returns
- * seconds since the Unix epoch (to match the Python original, which uses
- * time.time()).
+ * seconds (not milliseconds) since the Unix epoch.
  */
 export type Clock = () => number;
 

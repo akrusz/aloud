@@ -24,8 +24,8 @@ export interface OllamaProviderOptions {
     think?: boolean;
     /**
      * How long Ollama keeps the model in memory after a request. Default '30m'
-     * so it stays warm across a meditation's long silences. Mirrors the Python
-     * provider; call unload() on session end to free it sooner.
+     * so it stays warm across a meditation's long silences; call
+     * relaxKeepAlive() on session end to let it idle out sooner.
      */
     keepAlive?: string;
     /** Override fetch for testing. */
@@ -105,6 +105,7 @@ export class OllamaProvider implements LLMProvider {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: this.buildBody(messages, options, false),
+            ...(options.signal && { signal: options.signal }),
         });
 
         if (!response.ok) {
@@ -130,6 +131,7 @@ export class OllamaProvider implements LLMProvider {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: this.buildBody(messages, options, true),
+            ...(options.signal && { signal: options.signal }),
         });
 
         if (!response.ok) {
@@ -174,6 +176,12 @@ export class OllamaProvider implements LLMProvider {
                 }
             }
         } finally {
+            // Cancel signals "no more data wanted" so the connection is torn
+            // down (and Ollama stops generating) when the consumer abandons
+            // the iterator mid-stream; releaseLock then detaches the reader.
+            await reader.cancel().catch(() => {
+                /* ignore */
+            });
             try {
                 reader.releaseLock();
             } catch {

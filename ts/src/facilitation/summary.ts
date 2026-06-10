@@ -15,6 +15,7 @@
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import type { LlmUsage } from './session.js';
+import { stripThinkTags } from './strip-think-tags.js';
 
 /** Extract the usage split from a CompletionResult into LlmUsage shape. */
 function resultUsage(r: {
@@ -87,13 +88,4 @@ export async function generateSessionSummary(
     } catch {
         return '';
     }
-}
-
-/**
- * Some open-weights models (Qwen 3, DeepSeek-R1, etc.) emit a
- * <think>...</think> reasoning block before the answer. Strip it so the
- * summary line stays clean.
- */
-function stripThinkTags(text: string): string {
-    return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }

@@ -21,6 +21,13 @@ const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_MODEL = 'gpt-5.4-mini';
 const DEFAULT_MAX_TOKENS = 300;
 
+/** OpenAI reasoning-model families (gpt-5*, o1/o3/o4-mini, …). These reject
+ *  `max_tokens` (require `max_completion_tokens`) and accept
+ *  `reasoning_effort`. Bare model names only — vendor-prefixed IDs like
+ *  "openai/gpt-5" on OpenRouter intentionally don't match (OpenRouter has its
+ *  own reasoning controls and still expects `max_tokens`). */
+const REASONING_MODEL_RE = /^(gpt-5|o\d)/;
+
 export interface OpenAIProviderOptions {
     /**
      * API key. Required for direct calls. Omit when pointing `baseUrl`
@@ -100,10 +107,30 @@ export class OpenAIProvider implements LLMProvider {
             openaiMessages.push({ role: msg.role, content: msg.content });
         }
 
+        // OpenAI's reasoning models (gpt-5 family, o-series) reject the
+        // legacy `max_tokens` and require `max_completion_tokens`; OpenAI
+        // accepts the new name for all current chat models, so use it for
+        // anything that looks like one of those models OR any direct
+        // api.openai.com call. Other OpenAI-compatible providers (OpenRouter,
+        // Groq, Venice, Gemini-compat) still expect `max_tokens`.
+        const openaiDirect = this.baseUrl === OPENAI_BASE_URL;
+        const reasoningModel = REASONING_MODEL_RE.test(this.model);
+        const maxTokens = options.maxTokens ?? this.maxTokens;
+
         const body: Record<string, unknown> = {
             model: this.model,
             messages: openaiMessages,
-            max_tokens: options.maxTokens ?? this.maxTokens,
+            ...(openaiDirect || reasoningModel
+                ? { max_completion_tokens: maxTokens }
+                : { max_tokens: maxTokens }),
+            // Reasoning tokens add latency and cost and a spoken meditation
+            // turn gains nothing from them — same intent as OpenRouter's
+            // `reasoning.enabled: false` and Gemini's `reasoning_effort:
+            // "none"` defaults below. OpenAI's reasoning models don't accept
+            // "none", so "minimal" is the floor; non-reasoning models reject
+            // the param, hence the model gate. extraBody merges after this,
+            // so callers can still override.
+            ...(reasoningModel && { reasoning_effort: 'minimal' }),
             ...(stream && {
                 stream: true,
                 // Some providers (Groq, Together) need this to send usage on
@@ -120,7 +147,12 @@ export class OpenAIProvider implements LLMProvider {
         if (this.apiKey) headers['authorization'] = `Bearer ${this.apiKey}`;
         if (stream) headers['accept'] = 'text/event-stream';
 
-        return { method: 'POST', headers, body: JSON.stringify(body) };
+        return {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            ...(options.signal && { signal: options.signal }),
+        };
     }
 
     async complete(

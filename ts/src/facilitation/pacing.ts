@@ -1,9 +1,21 @@
 /**
  * Pacing and turn-taking logic for meditation facilitation.
  *
- * TS port of src/facilitation/pacing.py — see that file for the rationale
- * behind the distinctions between thinking pauses, contemplative drops,
- * natural end of sharing, and silence-mode requested via [HOLD].
+ * Meditation conversation has silences with very different meanings, and
+ * the controller must not treat them alike:
+ *
+ * - A thinking pause: short mid-share silence while the meditator finds
+ *   words. Responding here cuts them off — wait (responseDelayMs, plus the
+ *   VAD-side ramp that grants longer shares more trailing-silence patience).
+ * - A natural end of sharing: silence past the response delay after speech —
+ *   the facilitator's turn to respond.
+ * - A contemplative drop: the meditator has gone inward and stopped talking
+ *   entirely. Interrupting defeats the practice, so nothing fires until a
+ *   long interval (silenceCheckinSec) passes, then a gentle canned check-in
+ *   (no LLM round-trip) confirms presence and the timer resets.
+ * - Requested silence: the LLM prefixed its reply with [HOLD], entering an
+ *   explicit hold where even check-ins stay quiet; any new speech exits it
+ *   (subject to the resume-intent classifier upstream).
  */
 
 import { realClock, type Clock } from '../clock.js';
@@ -49,8 +61,8 @@ export interface PacingConfig {
 
     // -----------------------------------------------------------------
     // Client-side VAD tuning — used by STT adapters, not PacingController.
-    // Grouped here (matching the Python `PacingConfig`) so the user has
-    // one knob bag to tune. Adapters read only the fields they need.
+    // Grouped here so the user has one knob bag to tune. Adapters read
+    // only the fields they need.
     // -----------------------------------------------------------------
 
     /** Base trailing silence before submitting a transcribed utterance. */
@@ -206,8 +218,7 @@ export class PacingController {
     }
 
     // Internal hooks used by tests that need to set up timing scenarios
-    // without driving the controller through a full transcript. Mirrors
-    // the Python tests reaching into _last_speech_end etc.
+    // without driving the controller through a full transcript.
     /** @internal */
     _setLastSpeechEnd(t: number): void { this._lastSpeechEnd = t; }
     /** @internal */

@@ -231,6 +231,48 @@ describe('AnthropicProvider', () => {
         expect(result.cacheCreation1hTokens).toBe(4);
     });
 
+    it('prepends a user stub when the conversation opens with an assistant message', async () => {
+        // The summary-based resume flow leads with an assistant recap;
+        // Anthropic requires the first message to be from the user.
+        const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([
+            { role: 'assistant', content: '[Continuing from a previous session. Recap: breath work.]' },
+            { role: 'user', content: 'hi again' },
+        ]);
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        expect(body.messages).toHaveLength(3);
+        expect(body.messages[0]).toEqual({ role: 'user', content: '[Resuming a previous session.]' });
+        expect(body.messages[1]).toEqual({
+            role: 'assistant',
+            content: '[Continuing from a previous session. Recap: breath work.]',
+        });
+    });
+
+    it('merges consecutive same-role messages so roles strictly alternate', async () => {
+        const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([
+            { role: 'user', content: 'first thought' },
+            { role: 'user', content: 'second thought' },
+            { role: 'assistant', content: 'reply' },
+            { role: 'user', content: 'third' },
+        ]);
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        expect(body.messages.map((m: { role: string }) => m.role)).toEqual([
+            'user',
+            'assistant',
+            'user',
+        ]);
+        expect(body.messages[0].content).toBe('first thought\n\nsecond thought');
+    });
+
     it('omits the system field when no system prompt provided', async () => {
         const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: '' }] }));
         const provider = new AnthropicProvider({
@@ -454,7 +496,7 @@ describe('OpenAIProvider', () => {
         expect(headers['authorization']).toBeUndefined();
     });
 
-    it('sends system as a leading message, bearer auth, and max_tokens', async () => {
+    it('sends system as a leading message, bearer auth, and max_completion_tokens for OpenAI direct', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse('Welcome.'));
         const provider = new OpenAIProvider({
             apiKey: 'sk-test',
@@ -477,11 +519,59 @@ describe('OpenAIProvider', () => {
         expect(headers['authorization']).toBe('Bearer sk-test');
         const body = JSON.parse((init as RequestInit).body as string);
         expect(body.model).toBe('gpt-5.4-mini');
-        expect(body.max_tokens).toBe(150);
+        // gpt-5 family rejects max_tokens — the new name is required.
+        expect(body.max_completion_tokens).toBe(150);
+        expect(body.max_tokens).toBeUndefined();
+        // Reasoning models default to minimal effort (no thinking budget).
+        expect(body.reasoning_effort).toBe('minimal');
         expect(body.messages).toEqual([
             { role: 'system', content: 'be warm' },
             { role: 'user', content: 'hi' },
         ]);
+    });
+
+    it('omits reasoning_effort for non-reasoning models on OpenAI direct, but still uses max_completion_tokens', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+        const provider = new OpenAIProvider({
+            apiKey: 'sk-test',
+            model: 'gpt-4o-mini',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }], { maxTokens: 100 });
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        expect(body.max_completion_tokens).toBe(100);
+        expect(body.max_tokens).toBeUndefined();
+        // gpt-4o rejects reasoning_effort — only reasoning models get it.
+        expect(body.reasoning_effort).toBeUndefined();
+    });
+
+    it('keeps max_tokens for OpenAI-compatible providers with non-reasoning models', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+        const provider = new OpenAIProvider({
+            apiKey: 'k',
+            baseUrl: 'https://api.groq.com/openai/v1',
+            model: 'llama-3.3-70b-versatile',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }], { maxTokens: 120 });
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        expect(body.max_tokens).toBe(120);
+        expect(body.max_completion_tokens).toBeUndefined();
+        expect(body.reasoning_effort).toBeUndefined();
+    });
+
+    it('uses max_completion_tokens for gpt-5/o-series models even via a proxy baseUrl', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+        const provider = new OpenAIProvider({
+            baseUrl: '/cloud/v1/llm/openai',
+            model: 'gpt-5.4-mini',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }], { maxTokens: 80 });
+        const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+        expect(body.max_completion_tokens).toBe(80);
+        expect(body.max_tokens).toBeUndefined();
+        expect(body.reasoning_effort).toBe('minimal');
     });
 
     it('strips trailing slashes from baseUrl', async () => {
@@ -732,5 +822,135 @@ describe('usage split — input/output/cache kept separate', () => {
         expect(result.tokensUsed).toBeNull();
         expect(result.inputTokens).toBeNull();
         expect(result.outputTokens).toBeNull();
+    });
+});
+
+describe('streaming cancellation', () => {
+    /** A Response whose body stays open (generation "in flight") and whose
+     *  cancel we can observe — abandoning the stream should cancel it so the
+     *  HTTP connection (and billable generation) is actually torn down. */
+    function observableBody(chunks: string[], contentType: string): {
+        response: Response;
+        wasCancelled: () => boolean;
+    } {
+        let cancelled = false;
+        const enc = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                for (const c of chunks) controller.enqueue(enc.encode(c));
+                // Intentionally never closed — the stream is still "live".
+            },
+            cancel() {
+                cancelled = true;
+            },
+        });
+        return {
+            response: new Response(stream, {
+                status: 200,
+                headers: { 'content-type': contentType },
+            }),
+            wasCancelled: () => cancelled,
+        };
+    }
+
+    it('abandoning OpenAI completeStream mid-iteration cancels the response body', async () => {
+        const { response, wasCancelled } = observableBody(
+            ['data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n'],
+            'text/event-stream'
+        );
+        const fetchImpl = vi.fn(async () => response);
+        const provider = new OpenAIProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        for await (const chunk of provider.completeStream([{ role: 'user', content: 'hi' }])) {
+            expect(chunk.text).toBe('Hi');
+            break; // barge-in: stop consuming mid-stream
+        }
+        expect(wasCancelled()).toBe(true);
+    });
+
+    it('abandoning Ollama completeStream mid-iteration cancels the response body', async () => {
+        const { response, wasCancelled } = observableBody(
+            ['{"message":{"content":"Hi"},"done":false}\n'],
+            'application/x-ndjson'
+        );
+        const fetchImpl = vi.fn(async () => response);
+        const provider = new OllamaProvider({
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        for await (const chunk of provider.completeStream([{ role: 'user', content: 'hi' }])) {
+            expect(chunk.text).toBe('Hi');
+            break;
+        }
+        expect(wasCancelled()).toBe(true);
+    });
+
+    it('Anthropic completeStream cancels the body after message_stop ends the stream', async () => {
+        const { response, wasCancelled } = observableBody(
+            [
+                'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hi"}}\n\n',
+                'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+            ],
+            'text/event-stream'
+        );
+        const fetchImpl = vi.fn(async () => response);
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        const result = await collectStream(
+            provider.completeStream([{ role: 'user', content: 'hi' }])
+        );
+        expect(result.text).toBe('Hi');
+        expect(wasCancelled()).toBe(true);
+    });
+
+    it('passes CompletionOptions.signal through to fetch on every provider', async () => {
+        const controller = new AbortController();
+        const { signal } = controller;
+
+        const anthropicFetch = vi.fn(async () =>
+            mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
+        );
+        await new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: anthropicFetch as unknown as typeof fetch,
+        }).complete([{ role: 'user', content: 'hi' }], { signal });
+        expect((anthropicFetch.mock.calls[0]?.[1] as RequestInit).signal).toBe(signal);
+
+        const openaiFetch = vi.fn(async () =>
+            mockJsonResponse({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] })
+        );
+        await new OpenAIProvider({
+            apiKey: 'k',
+            fetchImpl: openaiFetch as unknown as typeof fetch,
+        }).complete([{ role: 'user', content: 'hi' }], { signal });
+        expect((openaiFetch.mock.calls[0]?.[1] as RequestInit).signal).toBe(signal);
+
+        const ollamaFetch = vi.fn(async () =>
+            mockJsonResponse({ message: { content: 'ok' }, done_reason: 'stop' })
+        );
+        await new OllamaProvider({
+            fetchImpl: ollamaFetch as unknown as typeof fetch,
+        }).complete([{ role: 'user', content: 'hi' }], { signal });
+        expect((ollamaFetch.mock.calls[0]?.[1] as RequestInit).signal).toBe(signal);
+    });
+
+    it('passes the signal on streaming requests too', async () => {
+        const controller = new AbortController();
+        const fetchImpl = vi.fn(async () =>
+            mockSseResponse(['data: [DONE]'])
+        );
+        const provider = new OpenAIProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await collectStream(
+            provider.completeStream([{ role: 'user', content: 'hi' }], {
+                signal: controller.signal,
+            })
+        );
+        expect((fetchImpl.mock.calls[0]?.[1] as RequestInit).signal).toBe(controller.signal);
     });
 });

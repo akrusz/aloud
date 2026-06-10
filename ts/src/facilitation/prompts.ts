@@ -1,9 +1,10 @@
 /**
  * Facilitation prompt templates and builders.
  *
- * TS port of src/facilitation/prompts.py. The prompt text is preserved
- * verbatim from the Python source — these strings shape the entire
- * meditation experience and should evolve together across both ports.
+ * System prompts are assembled from orthogonal dimensions — focuses,
+ * qualities, directiveness, verbosity — rather than maintained as monolithic
+ * variants. These strings shape the entire meditation experience; edit them
+ * deliberately and keep the dimensions independent.
  */
 
 export type Verbosity = 'low' | 'medium' | 'high';

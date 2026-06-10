@@ -56,8 +56,15 @@ export async function* iterateSseEvents(response: Response): AsyncIterable<SseEv
             }
         }
     } finally {
-        // Release the reader so the underlying connection can be reclaimed
-        // even when the consumer abandons the iterator mid-stream.
+        // Tear down the HTTP body when the consumer abandons the iterator
+        // mid-stream (barge-in cancellation): cancel() signals "no more data
+        // wanted" upstream so the connection is actually closed, not just
+        // unlocked. cancel() keeps the reader's lock, so releaseLock() after
+        // is still needed to detach from the stream. Both are best-effort —
+        // the stream may already be closed or errored.
+        await reader.cancel().catch(() => {
+            /* ignore */
+        });
         try {
             reader.releaseLock();
         } catch {
