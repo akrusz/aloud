@@ -124,29 +124,80 @@ Endpoint progress (replacing Flask `/api/*`, now served at `/app/v1/*`):
   avoid churn).
 - `src-tauri/target/` and `src-tauri/gen/schemas` are gitignored.
 
-## Release (CI) — meditation-pal-9vh
+## Release (CI)
 
-`.github/workflows/tauri-release.yml` is **the** desktop release workflow — it
-builds the Tauri app for macOS / Windows / Linux on `release: created`. (It
-replaced the PyInstaller `build.yml` at the meditation-pal-9vh cutover, validated
-green on v1.0.4; Python was removed in meditation-pal-sk8.) Artifacts use the
-canonical names — no `-tauri` suffix.
+`.github/workflows/tauri-release.yml` is **the** desktop release workflow — on
+`release: created` it builds the Tauri app for macOS / Windows / Linux via the
+official **`tauri-apps/tauri-action`**, which also signs the updater artifacts
+and uploads a merged `latest.json` for the in-app self-updater (see **Auto-update**
+below). It supersedes the earlier hand-rolled build+stage jobs (which replaced the
+PyInstaller `build.yml`; Python was removed in meditation-pal-sk8).
 
 - **macOS**: signed + notarized via Tauri's bundler env (`APPLE_CERTIFICATE` =
   the existing `MACOS_CERTIFICATE` secret, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
-  `APPLE_PASSWORD`, `APPLE_TEAM_ID`). Produces `aloud-X.Y.Z-macOS.dmg`.
-- **Windows**: MSI + NSIS, unsigned. Produces `aloud-X.Y.Z-Windows.msi` / `.exe`.
-- **Linux**: AppImage + .deb. Needs the WebKitGTK 4.1 / GTK / appindicator /
-  rsvg stack + CMake/build-essential (whisper-rs, espeak-rs). Produces
-  `aloud-X.Y.Z-Linux.AppImage` / `.deb`.
+  `APPLE_PASSWORD`, `APPLE_TEAM_ID`). Bundles `app,dmg` (the `app` target so the
+  updater `.app.tar.gz` is emitted). arm64 (macos-latest).
+- **Windows**: NSIS + MSI, unsigned (Authenticode). NSIS is the updater target.
+- **Linux**: AppImage + .deb. AppImage is the only self-updatable target (deb is
+  download-only). Needs the WebKitGTK 4.1 / GTK / appindicator / rsvg stack +
+  CMake/build-essential (whisper-rs, espeak-rs) + libfuse2.
 - The desktop UI build bakes `VITE_ALOUD_CLOUD_URL` (repo var `ALOUD_CLOUD_URL`)
   so the app reaches the hosted `/cloud/v1` service for accounts + credits;
   local providers work without it.
+
+**Artifact names** are now tauri's standard `aloud_<version>_<arch>.{dmg,AppImage}`
+/ `aloud_<version>_<arch>-setup.exe` (not the old `aloud-<version>-macOS.dmg`
+form). The website's `docs/js/download.js` matches these names — keep the two in
+sync if bundle naming changes.
 
 `scripts/release.sh` reads the version from `tauri.conf.json` (the source of
 truth), bumps it + `ts/package.json` in lockstep, and lints the TS/Rust stack
 (typecheck + `cargo check` + `cargo deny`).
 
 > Untested end-to-end until a real release runs the workflow — validate the
-> three signed/notarized-where-applicable artifacts launch and their embedded
-> backend serves `/app/v1/*`.
+> artifacts launch, their embedded backend serves `/app/v1/*`, and the in-app
+> Update button moves an older install to the new version.
+
+## Auto-update (Tauri updater plugin)
+
+The in-app **Update** button (About box + Settings → Updates) is the
+`tauri-plugin-updater` flow, gated to the desktop shell (`isTauri()`):
+`ui/src/desktop-updater.ts` calls `check()` → if the signed `latest.json` lists a
+newer version, the user clicks Update → it downloads that platform's bundle over
+Rust (so no webview CSP entry is needed), verifies a **minisign** signature
+against the pubkey in `tauri.conf.json`, installs, and relaunches via
+`tauri-plugin-process`. In a browser the button never appears — the page just
+reloads to pick up a new deploy; the browser path instead shows an
+informational GitHub-releases check (`ui/src/update-check.ts`).
+
+Platform reality: macOS swaps the `.app` (already signed/notarized), Windows runs
+the NSIS installer, Linux replaces the AppImage. **`.deb` and `.msi` can't
+self-update** — those users reinstall.
+
+### Signing keys (one-time)
+
+The updater requires a minisign keypair — the public half verifies downloads, the
+private half signs them in CI.
+
+```bash
+cd ts && npm run tauri signer generate -- -w ~/.tauri/aloud.key
+```
+
+- Put the **public** key in `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`.
+- Add the **private** key + its password as repo secrets
+  `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Keep the
+  private key out of the repo — it's the sole thing preventing a forged update.
+
+> **Local-build caveat:** `bundle.createUpdaterArtifacts` is `true`, so a full
+> `npm run tauri:build` now requires `TAURI_SIGNING_PRIVATE_KEY` (+ password) in
+> the environment, or it fails at the signing step. `npm run tauri:dev` is
+> unaffected (it doesn't bundle). To bundle locally without the key, export a
+> throwaway key or temporarily flip `createUpdaterArtifacts` off.
+
+### The update manifest
+
+The endpoint `…/releases/latest/download/latest.json` resolves to GitHub's
+**latest non-prerelease** release, so the updater only ever moves users to stable
+builds — a user on a pre-release ahead of the latest stable reads as up to date.
+`tauri-action` generates and uploads `latest.json` per release; each platform job
+appends its own signed entry.

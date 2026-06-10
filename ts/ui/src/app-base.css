@@ -2621,6 +2621,40 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-bottom: 0.75rem;
 }
 
+/* Desktop self-update slot — revealed (JS removes .hidden) only when a newer
+   release is available; mirrors where the old Python app surfaced its update
+   link. */
+.about-update {
+    margin-bottom: 0.75rem;
+}
+
+.about-update-btn {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--bg-primary);
+    background: var(--accent);
+    border: none;
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.about-update-btn:hover {
+    filter: brightness(1.08);
+}
+
+.about-update-btn:disabled {
+    cursor: default;
+    filter: none;
+    opacity: 0.7;
+}
+
+.about-update-status {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
 .about-author {
     font-size: 1.05rem;
     color: var(--text-secondary);

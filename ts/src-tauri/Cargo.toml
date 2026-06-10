@@ -57,3 +57,12 @@ piper-rs = "0.2"
 # Used by /api/providers to detect total system RAM for the Ollama
 # recommendation system (which model tier fits this machine).
 sysinfo = { version = "0.32", default-features = false, features = ["system"] }
+
+# Desktop-only plugins. The self-updater (the in-app "Update" button) checks a
+# signed latest.json on GitHub releases, downloads the platform bundle, verifies
+# its minisign signature against the pubkey in tauri.conf.json, installs it, and
+# relaunches via the process plugin. Neither targets mobile, so they're scoped
+# here and registered under #[cfg(desktop)] in lib.rs.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

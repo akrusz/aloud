@@ -39,11 +39,23 @@ fn save_geometry_throttled(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  #[allow(unused_mut)]
+  let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_opener::init())
     // Persist window geometry across launches (auto-saves on exit; we restore
     // explicitly below since the window is built at runtime, not from config).
-    .plugin(tauri_plugin_window_state::Builder::default().build())
+    .plugin(tauri_plugin_window_state::Builder::default().build());
+
+  // Self-updater + process control (for relaunch after an update). Desktop-only
+  // plugins; the in-app "Update" button (ui/src/desktop-updater.ts) drives them.
+  #[cfg(desktop)]
+  {
+    builder = builder
+      .plugin(tauri_plugin_updater::Builder::new().build())
+      .plugin(tauri_plugin_process::init());
+  }
+
+  builder
     .on_window_event(|window, event| {
       if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
         save_geometry_throttled(window.app_handle());

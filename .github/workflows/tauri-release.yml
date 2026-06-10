@@ -1,15 +1,26 @@
 name: Build Release
 
-# THE desktop release workflow (Tauri). Replaced the PyInstaller build.yml at
-# the meditation-pal-9vh cutover (validated green on v1.0.4), so artifacts now
-# use the canonical names (no `-tauri` suffix). See dev-docs/desktop.md. Required
-# repo config:
-#   - var  ALOUD_CLOUD_URL          hosted /cloud/v1 origin baked into the
-#                                    desktop UI so credits work (else cloud off)
+# THE desktop release workflow (Tauri), built on the official tauri-action so it
+# also emits SIGNED updater artifacts plus a merged latest.json that the in-app
+# self-updater (ui/src/desktop-updater.ts) consumes. Replaced the hand-rolled
+# build+stage jobs at the updater cutover. See dev-docs/desktop.md.
+#
+# Required repo config:
+#   - var  ALOUD_CLOUD_URL  hosted /cloud/v1 origin baked into the desktop UI so
+#                           credits work (else cloud off)
+#   - secrets (updater signing — REQUIRED, else the self-updater can't ship):
+#     TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#       (the matching public key lives in src-tauri/tauri.conf.json → plugins.updater.pubkey)
 #   - secrets (macOS signing + notarization):
 #     MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD, MACOS_SIGN_IDENTITY,
 #     APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
-# Windows is unsigned.
+# Windows is unsigned (Authenticode); the updater's minisign signature still
+# guarantees update integrity regardless.
+#
+# tauri-action uploads tauri's standard artifact names
+# (aloud_<version>_<arch>.dmg / _<arch>-setup.exe / _<arch>.AppImage, plus the
+# updater .sig/.tar.gz and latest.json). The website's download.js matches those
+# names — keep the two in sync if bundle naming ever changes.
 
 on:
   release:
@@ -37,9 +48,26 @@ jobs:
             exit 1
           fi
 
-  tauri-macos:
-    runs-on: macos-latest
+  build:
     needs: preflight
+    strategy:
+      # Don't cancel the other platforms if one fails — a partial release (e.g.
+      # macOS + Linux but no Windows) is more useful than none, and the missing
+      # platform can be re-run to top up the same release's latest.json.
+      fail-fast: false
+      matrix:
+        include:
+          # macOS: dmg for direct download + app (so createUpdaterArtifacts emits
+          # the .app.tar.gz the updater installs). macos-latest is arm64.
+          - platform: macos-latest
+            args: --bundles app,dmg
+          # Linux: AppImage is the only self-updatable target; deb is download-only.
+          - platform: ubuntu-24.04
+            args: --bundles appimage,deb
+          # Windows: NSIS is the updater target; msi is download-only.
+          - platform: windows-latest
+            args: --bundles nsis,msi
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -47,92 +75,17 @@ jobs:
           node-version: "20"
       - uses: dtolnay/rust-toolchain@stable
 
-      # whisper-rs / piper-rs (espeak-rs) build C/C++ via CMake; the Xcode
-      # toolchain on the runner supplies the compiler.
-      - name: Install build prerequisites
+      # whisper-rs / piper-rs (espeak-rs) build C/C++ via CMake.
+      - name: Install macOS build prerequisites
+        if: matrix.platform == 'macos-latest'
         run: brew install cmake
 
-      - name: Install JS dependencies
-        working-directory: ts
-        run: npm ci
-
-      - name: Build, sign & notarize (DMG)
-        working-directory: ts
-        env:
-          # Tauri's bundler imports this cert into a temp keychain and signs
-          # with it, then notarizes via the Apple ID credentials.
-          APPLE_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run tauri:build -- --bundles dmg
-
-      - name: Stage artifact
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          SRC=$(find ts/src-tauri/target/release/bundle/dmg -name '*.dmg' | head -n1)
-          mkdir -p staging
-          cp "$SRC" "staging/aloud-${VERSION}-macOS.dmg"
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: staging/*.dmg
-
-  tauri-windows:
-    runs-on: windows-latest
-    needs: preflight
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - uses: dtolnay/rust-toolchain@stable
-
-      # CMake ships on the windows runner image; MSVC supplies the C/C++
-      # compiler for whisper-rs / espeak-rs.
-      - name: Install JS dependencies
-        working-directory: ts
-        run: npm ci
-
-      - name: Build (MSI + NSIS, unsigned)
-        working-directory: ts
-        run: npm run tauri:build -- --bundles msi,nsis
-
-      - name: Stage artifacts
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p staging
-          MSI=$(find ts/src-tauri/target/release/bundle/msi -name '*.msi' | head -n1)
-          EXE=$(find ts/src-tauri/target/release/bundle/nsis -name '*.exe' | head -n1)
-          cp "$MSI" "staging/aloud-${VERSION}-Windows.msi"
-          cp "$EXE" "staging/aloud-${VERSION}-Windows.exe"
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            staging/*.msi
-            staging/*.exe
-
-  tauri-linux:
-    # 24.04 (glibc 2.39) not 22.04 (2.35): the onnxruntime prebuilt pulled by
-    # `ort` (piper-rs) references C23 glibc symbols (__isoc23_*, glibc >=2.38),
-    # so it won't link on 22.04. Tradeoff: the AppImage's glibc floor is now
-    # ~2.39. (meditation-pal-9vh)
-    runs-on: ubuntu-24.04
-    needs: preflight
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - uses: dtolnay/rust-toolchain@stable
-
       # Tauri 2 on Linux: WebKitGTK 4.1 + GTK + appindicator + rsvg + patchelf,
-      # plus CMake/build-essential for whisper-rs / espeak-rs.
-      - name: Install system dependencies
+      # plus CMake/build-essential for whisper-rs / espeak-rs, libfuse2 for the
+      # AppImage. 24.04 (glibc 2.39) not 22.04: the onnxruntime prebuilt pulled
+      # by `ort` (piper-rs) references C23 glibc symbols (>=2.38). (meditation-pal-9vh)
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -148,21 +101,25 @@ jobs:
         working-directory: ts
         run: npm ci
 
-      - name: Build (AppImage + .deb)
-        working-directory: ts
-        run: npm run tauri:build -- --bundles appimage,deb
-
-      - name: Stage artifacts
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p staging
-          APP=$(find ts/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -n1)
-          DEB=$(find ts/src-tauri/target/release/bundle/deb -name '*.deb' | head -n1)
-          cp "$APP" "staging/aloud-${VERSION}-Linux.AppImage"
-          cp "$DEB" "staging/aloud-${VERSION}-Linux.deb"
-
-      - uses: softprops/action-gh-release@v2
+      # Builds (running the configured beforeBuildCommand → ui:build), signs the
+      # updater artifacts, and uploads everything — including a merged latest.json
+      # — to the triggering release. Each platform job appends its own entry.
+      - name: Build, sign & upload
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # Updater signing — the private key whose public half is in
+          # tauri.conf.json. Without these, createUpdaterArtifacts fails the build.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarization (harmlessly unused on Win/Linux).
+          APPLE_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          files: |
-            staging/*.AppImage
-            staging/*.deb
+          projectPath: ts
+          # Attach to the release whose creation triggered this run.
+          releaseId: ${{ github.event.release.id }}
+          args: ${{ matrix.args }}

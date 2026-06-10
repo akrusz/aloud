@@ -8,7 +8,7 @@
  *   4. Display          — text scale, theme mode, window mode (stub)
  *   5. Pacing           — silence base/max, response delay, check-in, hold
  *   6. Network          — host (stub)
- *   7. Updates          — version + check (stub)
+ *   7. Updates          — desktop self-update (Tauri); browser: releases check
  *
  * "Stub" rows render the same layout as Python but their controls
  * either no-op or display a small "desktop only" hint. The user's call:
@@ -35,10 +35,12 @@ import {
 } from '../app-settings.js';
 import { sttEngineOptions, resolveSttChoice } from '../adapters/stt-picker.js';
 import { ALL_PROVIDERS, isProviderAvailable, providerNeedsKey, type Provider } from '../settings.js';
-import { isDesktopSync } from '../is-desktop.js';
+import { isDesktopSync, isTauri } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
+import { checkForUpdate, RELEASES_PAGE } from '../update-check.js';
+import { checkDesktopUpdate, type DesktopUpdate } from '../desktop-updater.js';
 import {
     computeProviderMarker,
     stripMarker,
@@ -1153,10 +1155,86 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // ---- Updates -------------------------------------------------------
 
     function wireUpdatesSection(): void {
-        // The Python updater works against a desktop-app distribution
-        // (git pull or DMG/AppImage download). Not yet applicable here.
         const btn = root.querySelector<HTMLButtonElement>('#s-check-update');
-        if (btn) btn.disabled = true;
+        const status = root.querySelector<HTMLElement>('#s-update-status');
+        const result = root.querySelector<HTMLElement>('#s-update-result');
+        const link = result?.querySelector<HTMLAnchorElement>('a') ?? null;
+        if (!btn || !status) return;
+        // Desktop (Tauri) drives the real self-updater: check → download +
+        // install → relaunch. A browser has nothing to install, so it falls back
+        // to an informational check against the GitHub releases API.
+        if (isTauri()) wireDesktopUpdates(btn, status);
+        else wireWebUpdateCheck(btn, status, result, link);
+    }
+
+    // Desktop: first click checks; if an update is waiting the same button turns
+    // into "Restart & update", which downloads, installs, and relaunches.
+    function wireDesktopUpdates(btn: HTMLButtonElement, status: HTMLElement): void {
+        let pending: DesktopUpdate | null = null;
+        btn.addEventListener('click', () => {
+            if (pending) {
+                btn.disabled = true;
+                status.textContent = 'Downloading…';
+                void pending
+                    .installAndRelaunch((fraction) => {
+                        status.textContent =
+                            fraction === null
+                                ? 'Downloading…'
+                                : `Downloading… ${Math.round(fraction * 100)}%`;
+                    })
+                    // Relaunch on success; only reached on failure.
+                    .catch(() => {
+                        btn.disabled = false;
+                        status.textContent = 'Update failed — try again';
+                    });
+                return;
+            }
+            btn.disabled = true;
+            status.textContent = 'Checking…';
+            void checkDesktopUpdate().then((update) => {
+                btn.disabled = false;
+                if (update) {
+                    pending = update;
+                    status.textContent = `Update available: ${update.version}`;
+                    btn.textContent = 'Restart & update';
+                } else {
+                    status.textContent = `Up to date (version ${__APP_VERSION__})`;
+                }
+            });
+        });
+    }
+
+    // Browser: there's no installer to run, so just report whether a newer
+    // GitHub release exists and link to it (see update-check.ts).
+    function wireWebUpdateCheck(
+        btn: HTMLButtonElement,
+        status: HTMLElement,
+        result: HTMLElement | null,
+        link: HTMLAnchorElement | null
+    ): void {
+        btn.addEventListener('click', () => {
+            btn.disabled = true;
+            status.textContent = 'Checking…';
+            result?.classList.add('hidden');
+            void checkForUpdate().then((res) => {
+                btn.disabled = false;
+                if (res.state === 'available' && res.latest) {
+                    status.textContent = `Update available: ${res.latest}`;
+                    if (link) {
+                        link.textContent = 'Get the latest release →';
+                        result?.classList.remove('hidden');
+                    }
+                } else if (res.state === 'current') {
+                    status.textContent = `Up to date (version ${res.current})`;
+                } else {
+                    status.textContent = "Couldn't check for updates";
+                    if (link) {
+                        link.textContent = 'Check releases on GitHub →';
+                        result?.classList.remove('hidden');
+                    }
+                }
+            });
+        });
     }
 
     // ---- Advanced (BYOK reveal) ----------------------------------------
@@ -1669,7 +1747,7 @@ function renderPacingSection(s: AppSettings): string {
                     <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
                     <span>Enable holding-space mode</span>
                 </label>
-                <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Some smaller models are over-eager to enter this mode.</span>
+                <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
             </div>
             <div class="form-group">
                 <label class="checkbox-label">
@@ -1677,7 +1755,7 @@ function renderPacingSection(s: AppSettings): string {
                     <span>Auto-save and quit after silence (min)</span>
                 </label>
                 ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
-                <span class="form-hint">An open session keeps listening and checking in, which slowly uses cloud credit.</span>
+                <span class="form-hint">An open session keeps listening and checking in, which can slowly consume cloud credits if in use.</span>
             </div>
         </div>
     </section>`;
@@ -1718,9 +1796,12 @@ function renderUpdatesSection(_s: AppSettings): string {
         <h2>Updates</h2>
         <div class="form-group">
             <div class="settings-update-row">
-                <span class="settings-update-status" id="s-update-status">Current version</span>
-                <button type="button" class="btn btn-small btn-secondary" id="s-check-update" disabled>Check for Updates</button>
+                <span class="settings-update-status" id="s-update-status">Version ${escape(__APP_VERSION__)}</span>
+                <button type="button" class="btn btn-small btn-secondary" id="s-check-update">Check for Updates</button>
             </div>
+            <p class="settings-update-result hidden" id="s-update-result">
+                <a href="${RELEASES_PAGE}" target="_blank" rel="noopener">View latest release &rarr;</a>
+            </p>
         </div>
     </section>`;
 }

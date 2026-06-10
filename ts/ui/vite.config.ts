@@ -1,8 +1,17 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Running app version, baked into the bundle as __APP_VERSION__ (update-check.ts
+// compares it to the latest GitHub release). Source is ts/package.json (one
+// level up — the UI has no package.json of its own), kept in lockstep with
+// src-tauri/tauri.conf.json at release.
+const APP_VERSION = JSON.parse(
+    readFileSync(resolve(__dirname, '../package.json'), 'utf8')
+).version as string;
 
 const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
 // aloud cloud (@aloud/server, Hono). Serves BOTH the app's own backend
@@ -52,6 +61,12 @@ export default defineConfig({
                 rewrite: (path) => path.replace(/^\/ollama/, ''),
             },
         },
+    },
+    define: {
+        // Statically replaced everywhere __APP_VERSION__ appears (a bare global,
+        // declared in vite-env.d.ts). JSON.stringify so it lands as a quoted
+        // string literal in the output.
+        __APP_VERSION__: JSON.stringify(APP_VERSION),
     },
     resolve: {
         alias: {

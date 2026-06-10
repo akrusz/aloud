@@ -34,6 +34,11 @@ interface ImportMeta {
     readonly env: ImportMetaEnv;
 }
 
+/** Running app version (ui/package.json `version`), statically injected by Vite
+ *  `define` (vite.config.ts). Read by update-check.ts to compare against the
+ *  latest GitHub release. */
+declare const __APP_VERSION__: string;
+
 /** Vite `?url` asset imports (the Silero model + ort WASM binary in
  *  silero-vad.ts): the module resolves to the asset's served URL. Declared
  *  here because the UI tsconfig deliberately omits `vite/client`. */

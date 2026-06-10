@@ -151,9 +151,11 @@ It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
 tree, `gh` authenticated.
 
 **CI**: `tauri-release.yml` runs on `release: created` and builds the Tauri
-bundles for all three platforms. macOS signs + notarizes via the `APPLE_*` /
-`MACOS_*` secrets; the desktop UI build bakes `VITE_ALOUD_CLOUD_URL` from the
-repo var `ALOUD_CLOUD_URL`.
+bundles for all three platforms via `tauri-action`, which also signs the
+self-updater artifacts and uploads a merged `latest.json`. macOS signs +
+notarizes via the `APPLE_*` / `MACOS_*` secrets; updater signing uses
+`TAURI_SIGNING_PRIVATE_KEY` (+ password); the desktop UI build bakes
+`VITE_ALOUD_CLOUD_URL` from the repo var `ALOUD_CLOUD_URL`.
 
 Full build/signing detail: [desktop.md](desktop.md) (Tauri — endpoint list,
 prereqs, release + cutover).
