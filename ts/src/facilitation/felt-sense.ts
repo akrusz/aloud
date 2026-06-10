@@ -184,7 +184,7 @@ export const FELT_SENSE_CHECK_INS: readonly string[] = [
  *  exploration dimensions compose; verbosity still applies (always does). */
 export const FELT_SENSE_MODE: ModeSpec = {
     id: 'felt_sense',
-    label: 'Felt sense',
+    label: 'Felt Sense',
     basePrompt: FELT_SENSE_SYSTEM_PROMPT,
     composes: { focuses: false, qualities: false, directiveness: false, custom: false },
     openers: FELT_SENSE_OPENERS,

@@ -252,8 +252,9 @@ export async function mountSetupView(
         // after the catalog finishes loading (server + cloud + browser voices
         // all resolved above) so it doesn't flash during the load — the
         // equivalent of Python's post-timeout no-voices banner.
-        const noVoicesBanner = root.querySelector<HTMLElement>('#setup-no-voices');
-        if (noVoicesBanner) noVoicesBanner.classList.toggle('hidden', scoredVoices.length > 0);
+        root.querySelectorAll<HTMLElement>('.no-voices-banner').forEach((banner) => {
+            banner.classList.toggle('hidden', scoredVoices.length > 0);
+        });
     }
 
     function findVoice(name: string | null): ScoredVoice | null {
@@ -267,22 +268,26 @@ export async function mountSetupView(
     let getModelRate: () => number = () => 0;
 
     function updateVoiceButtonLabel(): void {
-        const btn = root.querySelector<HTMLButtonElement>('#setup-voice-btn');
-        if (!btn) return;
+        // One button per tab panel (exploration + felt sense), all painting
+        // the same app-level default voice.
+        const btns = root.querySelectorAll<HTMLButtonElement>('[data-default-voice]');
+        if (btns.length === 0) return;
         const selectedName = stripVoicePrefix(setup.voice);
         const entry = findVoice(selectedName);
         // Surface the ☁️ rate of a cloud voice on the collapsed button too, so a
         // paid pick reads as paid without opening the picker.
         const rate = entry ? rateBadge(entry.creditsPerHour) : '';
         const ratePart = rate ? ` · ${rate}` : '';
+        let text: string;
         if (entry) {
-            btn.textContent = `${entry.name}${ratePart} · ${setup.ttsRate} wpm`;
+            text = `${entry.name}${ratePart} · ${setup.ttsRate} wpm`;
         } else if (selectedName) {
             // Voice id is stored but we haven't loaded its details yet.
-            btn.textContent = `${selectedName} · ${setup.ttsRate} wpm`;
+            text = `${selectedName} · ${setup.ttsRate} wpm`;
         } else {
-            btn.textContent = scoredVoices.length > 0 ? 'Default' : 'Voice';
+            text = scoredVoices.length > 0 ? 'Default' : 'Voice';
         }
+        for (const btn of btns) btn.textContent = text;
         // The voice leg feeds the combined estimate; refresh it whenever the
         // voice display does (selection change, or voices finishing loading).
         updateSessionEstimate();
@@ -593,11 +598,13 @@ export async function mountSetupView(
         // + updateProviderHint.
         void refreshProviderAvailability();
 
-        // Voice — single button opens the picker modal which also has
-        // the speed slider. Matches Python's index.html setup-voice-btn.
-        const voiceBtn = root.querySelector<HTMLButtonElement>('#setup-voice-btn')!;
+        // Voice — a button per tab panel, each opening the same picker modal
+        // (which also has the speed slider). All edit the one app-level
+        // default voice. Matches Python's index.html setup-voice-btn.
         updateVoiceButtonLabel();
-        voiceBtn.addEventListener('click', () => openVoiceModal());
+        root.querySelectorAll<HTMLButtonElement>('[data-default-voice]').forEach((btn) => {
+            btn.addEventListener('click', () => openVoiceModal());
+        });
 
         // Begin session — uses any queued continuation from sessionStorage
         // (set by the history view's "Continue" button) so the same Begin
@@ -1336,7 +1343,7 @@ function renderSetupHTML(
         <div class="tab-bar">
             <button type="button" class="tab-btn active" data-tab="exploration">Exploration</button>
             <button type="button" class="tab-btn" data-tab="noting">Noting</button>
-            <button type="button" class="tab-btn" data-tab="felt_sense">Felt sense</button>
+            <button type="button" class="tab-btn" data-tab="felt_sense">Felt Sense</button>
             <button type="button" class="info-btn" data-info="methods" aria-label="About meditation methods">?</button>
         </div>
         <div class="info-panel hidden" id="info-methods">
@@ -1401,7 +1408,7 @@ function renderSetupHTML(
                 </div>
                 <div class="form-group">
                     <label>Voice</label>
-                    <button type="button" id="setup-voice-btn" class="setup-voice-btn">Default</button>
+                    <button type="button" id="setup-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
                     <div id="setup-no-voices" class="no-voices-banner inline hidden" role="alert">
                         <p>No speech voices found. <a href="#" data-nav="settings">Set up TTS in Settings</a>.</p>
                     </div>
@@ -1441,6 +1448,16 @@ function renderSetupHTML(
                 <label for="felt-sense-intention">Something to sit with <span class="optional">(optional)</span></label>
                 <textarea id="felt-sense-intention" rows="2"
                     placeholder="e.g. the job decision, that conversation yesterday, this restless feeling lately - or just begin, and let it find you"></textarea>
+            </div>
+
+            <div class="form-row form-row-thirds">
+                <div class="form-group">
+                    <label>Voice</label>
+                    <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
+                    <div class="no-voices-banner inline hidden" role="alert">
+                        <p>No speech voices found. <a href="#" data-nav="settings">Set up TTS in Settings</a>.</p>
+                    </div>
+                </div>
             </div>
         </div>
 

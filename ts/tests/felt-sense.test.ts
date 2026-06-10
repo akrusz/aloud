@@ -13,7 +13,7 @@ import {
 describe('felt sense mode', () => {
     it('is registered under felt_sense with the user-facing label', () => {
         expect(getMode('felt_sense')).toBe(FELT_SENSE_MODE);
-        expect(FELT_SENSE_MODE.label).toBe('Felt sense');
+        expect(FELT_SENSE_MODE.label).toBe('Felt Sense');
     });
 
     it('walks the six movements in order', () => {
