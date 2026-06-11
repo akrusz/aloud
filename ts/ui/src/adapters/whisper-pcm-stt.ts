@@ -166,6 +166,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     private speechStartMs = 0;
     private lastSpeechMs = 0;
     private utteranceDone = false;
+    // Debounced speech detected AFTER the submit decision, while the final
+    // transcription was in flight — start() reopens the utterance (see the
+    // utteranceDone branch in handleAudio).
+    private postSubmitSpeech = false;
     // Loudest speech frame this utterance — diagnostic only (how loud this
     // user/mic combination runs; informs the echo-gate margins).
     private peakEnergy = 0;
@@ -334,9 +338,23 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (this.utteranceDone) {
             // Submit fired but the final transcription is still in flight. If
             // the VAD ended the turn while the user was actually still talking
-            // (the false-cutoff case), these frames are their continuing words —
-            // keep the onset pre-buffer warm so the next turn's start() recovers
-            // the most recent 2s instead of losing them entirely.
+            // (the false-cutoff case, meditation-pal-rcdz), these frames are
+            // their continuing words. Run the same speech test as live capture;
+            // if it trips, flag the resume — start() reopens the utterance
+            // instead of ending it, so the words join this turn rather than
+            // being lost. Frames keep accumulating into chunks either way so a
+            // resumed utterance's audio is contiguous; the pre-buffer also
+            // stays warm for the next turn (the no-resume case).
+            const stillSpeech =
+                this.silero !== null &&
+                this.silero.speaking &&
+                (echoGate === 0 || energy > Math.max(echoGate, BARGE_IN_THRESHOLD));
+            if (stillSpeech) {
+                this.postSubmitSpeech = true;
+                this.lastSpeechMs = now;
+                this.peakEnergy = Math.max(this.peakEnergy, energy);
+            }
+            this.chunks.push(frame);
             this.pushPre(frame);
             return;
         }
@@ -637,6 +655,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.speechStartMs = 0;
         this.lastSpeechMs = 0;
         this.utteranceDone = false;
+        this.postSubmitSpeech = false;
         this.peakEnergy = 0;
         this.energyHistory = [];
         this.partialIncomplete = false;
@@ -735,95 +754,129 @@ export class WhisperPcmSttEngine implements SttEngine {
             // reuses it when no further speech arrives, so a single-pause turn
             // doesn't re-transcribe the identical whole buffer a second time (m56t).
             let lastSpecResult: { text: string; seconds: number } | null = null;
-            while (!this.utteranceDone && !this.stopRequested) {
-                await new Promise<void>((r) => setTimeout(r, 200));
-                if (this.utteranceDone || this.stopRequested) break;
-                if (!this.speechStarted) continue;
-                const silence = performance.now() - this.lastSpeechMs;
-                if (
-                    silence >= SPECULATIVE_SILENCE_MS &&
-                    !this.specInFlight &&
-                    this.lastSpeechMs !== lastSpecSpeechMs
-                ) {
-                    this.specInFlight = true;
-                    lastSpecSpeechMs = this.lastSpeechMs;
-                    lastSpecAt = performance.now();
-                    const result = await transcribeChunks(this.chunks.slice());
-                    this.specInFlight = false;
-                    // Drop the preview if the turn ended while it was in flight
-                    // (the final pass will emit the authoritative text).
-                    if (!this.utteranceDone && result.ok && result.text) {
-                        // Dangling clause → grant extra silence before the
-                        // submit (see INCOMPLETE_CLAUSE_EXTRA_MS). Re-evaluated
-                        // on every speculative pass, so once the thought
-                        // completes the normal window applies again.
-                        this.partialIncomplete = transcriptLooksIncomplete(result.text);
+            // The submit → final-transcription → yield path runs in a loop:
+            // when debounced speech is detected AFTER the submit decision
+            // (postSubmitSpeech — the user was still talking when the adaptive
+            // window closed), the utterance REOPENS instead of ending, so the
+            // continuing words join this turn rather than being lost
+            // (meditation-pal-rcdz). The already-transcribed text is surfaced
+            // as a partial; the next submit re-transcribes the whole buffer.
+            for (;;) {
+                while (!this.utteranceDone && !this.stopRequested) {
+                    await new Promise<void>((r) => setTimeout(r, 200));
+                    if (this.utteranceDone || this.stopRequested) break;
+                    if (!this.speechStarted) continue;
+                    const silence = performance.now() - this.lastSpeechMs;
+                    if (
+                        silence >= SPECULATIVE_SILENCE_MS &&
+                        !this.specInFlight &&
+                        this.lastSpeechMs !== lastSpecSpeechMs
+                    ) {
+                        this.specInFlight = true;
+                        lastSpecSpeechMs = this.lastSpeechMs;
+                        lastSpecAt = performance.now();
+                        const result = await transcribeChunks(this.chunks.slice());
+                        this.specInFlight = false;
+                        // Drop the preview if the turn ended while it was in flight
+                        // (the final pass will emit the authoritative text).
+                        if (!this.utteranceDone && result.ok && result.text) {
+                            // Dangling clause → grant extra silence before the
+                            // submit (see INCOMPLETE_CLAUSE_EXTRA_MS). Re-evaluated
+                            // on every speculative pass, so once the thought
+                            // completes the normal window applies again.
+                            this.partialIncomplete = transcriptLooksIncomplete(result.text);
+                            emittedPartial = true;
+                            // Keep this whole-buffer transcript; if the turn ends with
+                            // no new speech, the final pass reuses it (below) instead
+                            // of paying for an identical re-transcription.
+                            lastSpecResult = { text: result.text, seconds: result.seconds };
+                            yield {
+                                type: 'partial',
+                                text: result.text,
+                                startedDuringTts: this.startedWhileTtsActive,
+                            };
+                        }
+                    }
+                }
+
+                if (this.stopRequested && !this.utteranceDone) {
+                    return; // user explicitly stopped before end-of-speech
+                }
+                if (!this.speechStarted) return;
+
+                const speechDuration = this.lastSpeechMs - this.speechStartMs;
+                // Too short to be speech — likely a cough or mic bump — so skip the
+                // (billable) final pass. But if we already showed a real preview,
+                // honor it and finalize anyway: the user saw their word land and a
+                // deliberate short utterance ("alright", "okay") is a real turn.
+                // Genuine noise that slipped through is still caught downstream by
+                // isNonSpeechOnly, which drops marker-only transcripts.
+                if (speechDuration < this.opts.minSpeechDurationMs && !emittedPartial) {
+                    return;
+                }
+
+                // Reuse the last speculative transcript when no new speech has landed
+                // since it ran (the common single-pause turn): it already transcribed
+                // this same whole buffer, so re-running would just bill an identical
+                // call. Any speech since then invalidates it → transcribe fresh. So
+                // does any speech-LIKE activity in the untranscribed tail: trailing
+                // words spoken too softly to clear the debounced VAD gate are in the
+                // buffer but not in the cached transcript, and reusing it would drop
+                // them (meditation-pal-rcdz, "...in my belly").
+                const tailHasSpeechHints =
+                    lastSpecAt > 0 &&
+                    this.energyHistory.some(
+                        ({ t, e, p }) =>
+                            t > lastSpecAt &&
+                            (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
+                    );
+                const result: Awaited<ReturnType<typeof transcribeChunks>> =
+                    lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints
+                        ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
+                        : await transcribeChunks(this.chunks);
+                if (tailHasSpeechHints && lastSpecResult) {
+                    console.info('[vad] tail had speech hints after the speculative pass — re-transcribed full buffer');
+                }
+
+                // The user kept talking past the submit decision (debounced
+                // speech while the final pass was in flight) — the turn isn't
+                // over. Reopen the utterance: surface what we have as a partial
+                // and loop back into the polling phase; the next adaptive-
+                // silence decision re-transcribes the whole (contiguous)
+                // buffer, continuing words included.
+                if (this.postSubmitSpeech && !this.stopRequested) {
+                    this.postSubmitSpeech = false;
+                    this.utteranceDone = false;
+                    console.info('[vad] speech continued past submit — reopening the utterance');
+                    if (result.ok && result.text) {
                         emittedPartial = true;
-                        // Keep this whole-buffer transcript; if the turn ends with
-                        // no new speech, the final pass reuses it (below) instead
-                        // of paying for an identical re-transcription.
                         lastSpecResult = { text: result.text, seconds: result.seconds };
+                        this.partialIncomplete = transcriptLooksIncomplete(result.text);
                         yield {
                             type: 'partial',
                             text: result.text,
                             startedDuringTts: this.startedWhileTtsActive,
                         };
                     }
+                    continue;
                 }
-            }
 
-            if (this.stopRequested && !this.utteranceDone) {
-                return; // user explicitly stopped before end-of-speech
-            }
-            if (!this.speechStarted) return;
-
-            const speechDuration = this.lastSpeechMs - this.speechStartMs;
-            // Too short to be speech — likely a cough or mic bump — so skip the
-            // (billable) final pass. But if we already showed a real preview,
-            // honor it and finalize anyway: the user saw their word land and a
-            // deliberate short utterance ("alright", "okay") is a real turn.
-            // Genuine noise that slipped through is still caught downstream by
-            // isNonSpeechOnly, which drops marker-only transcripts.
-            if (speechDuration < this.opts.minSpeechDurationMs && !emittedPartial) {
+                if (!result.ok) {
+                    yield { type: 'error', error: result.error };
+                    return;
+                }
+                // Billable server-side STT compute — report the transcribed audio
+                // duration (16 kHz mono) for session usage tracking. Only the final
+                // pass is counted (it may reuse the last speculative's result);
+                // speculative passes aren't separately metered.
+                yield {
+                    type: 'final',
+                    text: result.text,
+                    seconds: result.seconds,
+                    startedDuringTts: this.startedWhileTtsActive,
+                };
                 return;
             }
-
-            // Reuse the last speculative transcript when no new speech has landed
-            // since it ran (the common single-pause turn): it already transcribed
-            // this same whole buffer, so re-running would just bill an identical
-            // call. Any speech since then invalidates it → transcribe fresh. So
-            // does any speech-LIKE activity in the untranscribed tail: trailing
-            // words spoken too softly to clear the debounced VAD gate are in the
-            // buffer but not in the cached transcript, and reusing it would drop
-            // them (meditation-pal-rcdz, "...in my belly").
-            const tailHasSpeechHints =
-                lastSpecAt > 0 &&
-                this.energyHistory.some(
-                    ({ t, e, p }) =>
-                        t > lastSpecAt &&
-                        (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
-                );
-            const result =
-                lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints
-                    ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
-                    : await transcribeChunks(this.chunks);
-            if (tailHasSpeechHints && lastSpecResult) {
-                console.info('[vad] tail had speech hints after the speculative pass — re-transcribed full buffer');
-            }
-            if (!result.ok) {
-                yield { type: 'error', error: result.error };
-                return;
-            }
-            // Billable server-side STT compute — report the transcribed audio
-            // duration (16 kHz mono) for session usage tracking. Only the final
-            // pass is counted (it may reuse the last speculative's result);
-            // speculative passes aren't separately metered.
-            yield {
-                type: 'final',
-                text: result.text,
-                seconds: result.seconds,
-                startedDuringTts: this.startedWhileTtsActive,
-            };
         } finally {
             // End the turn but keep the stream, context, and callback alive —
             // the pre-buffer keeps filling for a low-latency next turn / barge-in.
