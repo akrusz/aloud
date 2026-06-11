@@ -101,7 +101,21 @@ export type MeditationType = 'exploration' | 'noting' | 'felt_sense';
 export interface SessionSetup {
     /** Which top-level meditation mode the user is in. */
     meditationType: MeditationType;
+    /**
+     * The ACTIVE mode's intention — what sessions, prompts, and history
+     * consume. Kept in sync with intentionByMode[meditationType] by the
+     * setup view (and normalized on load), so downstream code never has
+     * to know about the per-mode split.
+     */
     intention: string;
+    /**
+     * Per-mode intention drafts. Exploration's "intention" and felt
+     * sense's "something to sit with" are semantically different inputs,
+     * so each tab keeps its own text instead of sharing one value that
+     * leaks across mode switches. Noting has no intention field — its
+     * slot stays empty.
+     */
+    intentionByMode: Partial<Record<MeditationType, string>>;
     preset: string | null;
     focuses: Focus[];
     qualities: Quality[];
@@ -180,6 +194,7 @@ export function dirStepToBackend(step: number): number {
 export const defaultSetup: SessionSetup = {
     meditationType: 'exploration',
     intention: '',
+    intentionByMode: {},
     preset: 'pleasant_play',
     focuses: ['body_sensations', 'emotions'],
     qualities: ['playful', 'feeling_good'],
@@ -232,6 +247,16 @@ export async function loadSetup(): Promise<SessionSetup> {
     // value that an older 'preview:setup' may have persisted.
     merged.voice = s.defaultVoice;
     merged.ttsRate = s.defaultTtsRate;
+    // Migrate a pre-split setup (single shared intention, no per-mode map):
+    // credit the legacy text to the mode it was last used with. Then make
+    // `intention` canonical-for-the-active-mode, so a value typed under a
+    // different tab can't leak into this one.
+    if (!merged.intentionByMode || Object.keys(merged.intentionByMode).length === 0) {
+        merged.intentionByMode = merged.intention
+            ? { [merged.meditationType]: merged.intention }
+            : {};
+    }
+    merged.intention = merged.intentionByMode[merged.meditationType] ?? '';
     return merged;
 }
 

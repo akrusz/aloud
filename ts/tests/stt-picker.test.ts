@@ -7,7 +7,7 @@
  * branches deterministically). The module's other is-desktop exports are kept
  * real.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../ui/src/is-desktop.js')>();
@@ -54,6 +54,33 @@ describe('defaultSttChoice = first option in flow order', () => {
     });
     it('web mode defaults to the hosted option', () => {
         expect(defaultSttChoice(true)).toBe('aloud');
+    });
+});
+
+describe('sttEngineOptions — Web Speech gating', () => {
+    // Simulate an environment whose webview exposes webkitSpeechRecognition
+    // (as the macOS WKWebView does) so isWebSpeechSupported() returns true.
+    beforeEach(() => {
+        (globalThis as unknown as { window: unknown }).window = {
+            webkitSpeechRecognition: class {},
+        };
+    });
+    afterEach(() => {
+        delete (globalThis as unknown as { window?: unknown }).window;
+    });
+
+    it('offers web-speech in a browser that exposes the API', () => {
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud']);
+    });
+    it('hides web-speech under Tauri even though the WKWebView exposes the API', () => {
+        // Recognition silently never returns results in the embedded webview —
+        // offering it gives a pulsing mic that can't transcribe.
+        isTauriMock.mockReturnValue(true);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud']);
+    });
+    it('a web-speech pick stored before the Tauri gate resolves to the desktop default', () => {
+        isTauriMock.mockReturnValue(true);
+        expect(resolveSttChoice('web-speech', false)).toBe('whisper');
     });
 });
 

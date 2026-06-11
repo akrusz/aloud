@@ -188,7 +188,13 @@ export async function createSttForChoice(
         case 'aloud':
             return createServerAloudStt(vadOpts);
         case 'web-speech':
-            return isWebSpeechSupported() ? new WebSpeechSttEngine(webSpeechOpts(vadOpts)) : null;
+            // Same Tauri guard as detectSttBackend/sttEngineOptions: the
+            // WKWebView exposes the API but recognition silently never
+            // returns results, so honor a stale stored pick with null
+            // (mic-unavailable) rather than a mic that pulses forever.
+            return !isTauri() && isWebSpeechSupported()
+                ? new WebSpeechSttEngine(webSpeechOpts(vadOpts))
+                : null;
         case 'whisper':
             return (await isServerWhisperReachable())
                 ? new WhisperPcmSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
@@ -229,7 +235,14 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // offering it there gives a dead mic. Browsers fall through to web-speech
     // (Chrome) / aloud cloud, which actually work.
     if (!webMode && isTauri()) out.push({ value: 'whisper', label: 'Whisper (on this device)' });
-    if (isWebSpeechSupported()) out.push({ value: 'web-speech', label: 'Browser speech recognition' });
+    // "Browser speech recognition" needs a recognizer that actually works:
+    // the macOS WKWebView exposes webkitSpeechRecognition but it silently
+    // never returns results inside an embedded webview (same reason
+    // detectSttBackend skips it under Tauri), so don't offer a pulsing mic
+    // that can never transcribe — desktop has Whisper + aloud cloud.
+    if (!isTauri() && isWebSpeechSupported()) {
+        out.push({ value: 'web-speech', label: 'Browser speech recognition' });
+    }
     out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
     return out;
 }

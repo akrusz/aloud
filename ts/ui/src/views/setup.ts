@@ -461,17 +461,22 @@ export async function mountSetupView(
         wireInfoButtons();
         wireNotingPanel();
 
-        // Intention — the exploration and felt-sense panels each have a
-        // textarea, both bound to the one setup.intention (only one panel is
-        // ever visible, and "what I'm here with" carries across tabs fine).
+        // Intention — exploration's "intention" and felt sense's "something
+        // to sit with" are different inputs, so each textarea binds to its
+        // own intentionByMode slot. setup.intention mirrors the ACTIVE
+        // mode's value (syncIntentionForMode keeps it fresh on tab switch)
+        // so sessions/prompts downstream stay single-field.
         const intentionEl = root.querySelector<HTMLTextAreaElement>('#intention')!;
         const feltIntentionEl = root.querySelector<HTMLTextAreaElement>('#felt-sense-intention')!;
-        for (const el of [intentionEl, feltIntentionEl]) {
-            el.value = setup.intention;
+        const intentionFields: Array<[HTMLTextAreaElement, MeditationType]> = [
+            [intentionEl, 'exploration'],
+            [feltIntentionEl, 'felt_sense'],
+        ];
+        for (const [el, mode] of intentionFields) {
+            el.value = setup.intentionByMode[mode] ?? '';
             el.addEventListener('input', () => {
-                setup.intention = el.value;
-                if (el === intentionEl) feltIntentionEl.value = el.value;
-                else intentionEl.value = el.value;
+                setup.intentionByMode[mode] = el.value;
+                if (setup.meditationType === mode) setup.intention = el.value;
                 persist();
             });
         }
@@ -849,6 +854,9 @@ export async function mountSetupView(
                 if (tab !== 'exploration' && tab !== 'noting' && tab !== 'felt_sense') return;
                 if (setup.meditationType === tab) return;
                 setup.meditationType = tab;
+                // setup.intention follows the active mode (noting has no
+                // intention field, so its slot is always empty).
+                setup.intention = setup.intentionByMode[tab] ?? '';
                 persist();
                 applyTabSelection(tab);
                 // Switching to/from noting changes whether an LLM is needed.
