@@ -56,10 +56,9 @@ export const VOICE_STYLE_FRAGMENT = `Response style:
 - Avoid filler sounds like "mmm", "hmmm", "ahh" — they sound unnatural through text-to-speech. Instead use short phrases like "Yes...", "I see...", "Right...", or just go straight to your response.`;
 
 export const HOLD_SIGNAL_FRAGMENT = `Silence mode — [HOLD] signal:
-When the meditator explicitly requests silence (e.g. "I need some quiet", "hold on a minute"), prefix your response with [HOLD] + a brief warm acknowledgment (e.g. "[HOLD] I'll be right here")
-If the intent is even slightly ambiguous, instead confirm (e.g. "Would you like me to be quiet for a bit?"). If they confirm, respond with [HOLD]. If they decline, continue normally.
-ONLY use [HOLD] for explicit or confirmed requests. DO NOT use it otherwise.
-When they're finished, you'll receive everything they said while you were quiet.`;
+When the meditator seems to want silence (e.g. "I need some quiet", "hold on a minute"), prefix your reply with [HOLD] and ask them, warmly and briefly, whether they'd like you to be quiet for a while (e.g. "[HOLD] Would you like me to be quiet for a bit?"). The app takes their answer from there and handles the silence — you do NOT go quiet yourself, and you never need to repeat [HOLD].
+Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence — when in doubt, simply keep facilitating and do NOT use [HOLD].
+When the silence ends, you'll receive everything they said while you were quiet.`;
 
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
 
@@ -371,6 +370,15 @@ export const RESUME_INTENT_SYSTEM_PROMPT =
     'A meditator is in a period of held silence during a meditation session. ' +
     'Evaluate whether their statement indicates they want to end the silence ' +
     'and resume the conversation. Reply with just YES or NO.';
+
+/** The facilitator has just asked the meditator whether they'd like it to go
+ *  quiet; this judges their reply so the client — not the model — decides
+ *  whether to actually enter silence (rlgm). Mirrors the resume-intent
+ *  classifier on the way in. */
+export const HOLD_CONFIRM_SYSTEM_PROMPT =
+    'A meditation facilitator just asked the meditator whether they would like ' +
+    'it to be quiet for a while. Evaluate whether the meditator is agreeing to ' +
+    'that silence. Reply with just YES (they want quiet) or NO (they do not).';
 
 // ---------------------------------------------------------------------------
 // [HOLD] parser

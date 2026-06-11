@@ -19,6 +19,7 @@ import {
     generateSessionSummary,
     buildResumeContext,
     classifyResumeIntent,
+    classifyHoldConfirm,
     defaultPacingConfig,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
@@ -454,6 +455,19 @@ export async function mountSessionView(
         listenBtn.classList.toggle('active', holding);
     }
 
+    // Begin a silence hold. Every entry path (a confirmed auto-[HOLD], the
+    // manual button) routes through here so the view flag, the pacing
+    // controller, the buffer, and the orb glow flip together and can't drift —
+    // and so a pending [HOLD] bid is always cleared on the way in.
+    function enterHold(): void {
+        awaitingHoldConfirm = false;
+        silenceMode = true;
+        silenceBuffer = [];
+        pacing.enterSilenceMode();
+        setHolding(true);
+        setStatus("Holding space, say when you're ready to continue");
+    }
+
     function setStatus(text: string): void {
         statusEl.textContent = text;
     }
@@ -659,6 +673,16 @@ export async function mountSessionView(
     let listenLoopRunning = false;
     let torn = false;
     let silenceMode = false;
+    // Require-confirm handshake for a model-initiated [HOLD] (rlgm). Models —
+    // small ones especially — emit [HOLD] far too eagerly, often off a
+    // truncated/ambiguous fragment, and going silent on that one token could
+    // then strand the session. So a [HOLD] is only a *bid*: the facilitator
+    // asks "shall I be quiet?" (per the prompt) and we set this flag instead of
+    // going silent. The meditator's NEXT utterance is judged by a yes/no
+    // classifier (classifyHoldConfirm) — not by a second [HOLD] from the
+    // unreliable model — and only a clear yes enters the hold. The manual
+    // listen button bypasses all of this: clicking it IS the confirmation.
+    let awaitingHoldConfirm = false;
     // Wall-clock of the last USER activity (a completed turn), for the
     // auto-quit-after-silence timer. Facilitator check-ins deliberately don't
     // reset it — otherwise check-ins would keep a forgotten session alive
@@ -718,22 +742,55 @@ export async function mountSessionView(
         appendMessage('user', userText);
         silenceBuffer.push(userText);
         setStatus('Holding space, one moment…');
-        const resume = await classifyResumeIntent(provider, userText, {
+        const verdict = await classifyResumeIntent(provider, userText, {
             onUsage: (u) => session.recordLlmUsage(u),
         });
         // The user may have toggled out of the hold (or the view may have torn
         // down) during the classifier round-trip — bail if we're no longer
         // holding so we don't resurrect a finished hold.
         if (torn || !silenceMode) return;
-        if (!resume) {
+        if (verdict === 'stay') {
             setStatus("Holding space, say when you're ready to continue");
             return;
         }
+        // verdict is 'resume' (they asked to continue) or 'error' (the
+        // classifier call itself failed — e.g. a provider 429). On 'error' we
+        // fail OPEN and leave the hold: a silence with no voice escape is the
+        // worst outcome (a quota-stalled session could otherwise never be
+        // resumed by speech, ff1y), and the resumed turn surfaces any real
+        // provider failure through the normal error banner instead of trapping
+        // the user in limbo.
         const joined = silenceBuffer.join(' ');
         silenceBuffer = [];
         // Bubbles for each buffered utterance are already on screen; respondTo
         // records the joined text in history and runs the resume turn.
         await respondTo(joined, { skipUserBubble: true });
+    }
+
+    // Handle the meditator's reply to the facilitator's "shall I be quiet?"
+    // bid (awaitingHoldConfirm). A yes/no classifier — not a second [HOLD] from
+    // the model — decides the transition (rlgm): a clear yes enters the hold; a
+    // no (or a classifier error, or the user simply carrying on after an eager
+    // mis-bid) just runs as a normal turn. Awaited by the listen loop, so there
+    // is no race with the check-in timer.
+    async function handleHoldConfirm(userText: string): Promise<void> {
+        if (isNonSpeechOnly(userText)) return;
+        awaitingHoldConfirm = false;
+        const confirmed = await classifyHoldConfirm(provider, userText, {
+            onUsage: (u) => session.recordLlmUsage(u),
+        });
+        if (torn) return;
+        if (confirmed) {
+            // Show their "yes" and begin the silence. The reply isn't recorded
+            // as a meditation turn — enterHold resets the buffer, and the next
+            // thing they say is what gets buffered for the resume.
+            appendMessage('user', userText);
+            enterHold();
+        } else {
+            // Not a yes — treat it as an ordinary turn (also the graceful exit
+            // for an eager mis-bid: they just kept talking, so we keep going).
+            await respondTo(userText);
+        }
     }
 
     async function respondTo(
@@ -846,20 +903,13 @@ export async function mountSessionView(
                 /* non-fatal */
             }
             if (superseded()) return;
-            // Honor pacingConfig.silenceModeEnabled — when false, the
-            // [HOLD] signal is dropped and we treat the response as a
-            // normal one.
-            const enterHold =
+            // A [HOLD] is only a bid: the facilitator just asked (per the
+            // prompt) whether to go quiet. We don't go silent here — the
+            // meditator's next utterance is classified for a yes (rlgm). Honor
+            // pacingConfig.silenceModeEnabled — when false, [HOLD] is ignored.
+            awaitingHoldConfirm =
                 !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
-            if (enterHold) {
-                silenceMode = true;
-                silenceBuffer = [];
-                pacing.enterSilenceMode();
-                setStatus("Holding space, say when you're ready to continue");
-                setHolding(true);
-            } else {
-                setStatus(stt ? 'Listening…' : 'Mic unavailable');
-            }
+            setStatus(stt ? 'Listening…' : 'Mic unavailable');
             pacing.onResponseEnd();
         } catch (err) {
             if (superseded()) return;
@@ -975,6 +1025,10 @@ export async function mountSessionView(
                     // for resume intent rather than each taking a turn.
                     if (silenceMode) {
                         await handleSilenceUtterance(finalText.trim());
+                    } else if (awaitingHoldConfirm) {
+                        // Facilitator just asked "shall I be quiet?" — judge
+                        // this reply for a yes before it can take a normal turn.
+                        await handleHoldConfirm(finalText.trim());
                     } else if (continuousCapture) {
                         // Don't block the mic on the response — keep capturing
                         // so an interrupting utterance is caught. respondTo
@@ -1102,11 +1156,9 @@ export async function mountSessionView(
             setHolding(false);
             setStatus(stt ? 'Listening…' : 'Ready');
         } else {
-            silenceMode = true;
-            silenceBuffer = [];
-            pacing.enterSilenceMode();
-            setHolding(true);
-            setStatus("Holding space, say when you're ready to continue");
+            // Clicking the button IS the confirmation — bypass the auto-[HOLD]
+            // bid/classify handshake (rlgm) and go straight into the hold.
+            enterHold();
         }
     });
 

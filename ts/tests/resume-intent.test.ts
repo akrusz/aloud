@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-import { classifyResumeIntent } from '../src/facilitation/resume-intent.js';
-import { RESUME_INTENT_SYSTEM_PROMPT } from '../src/facilitation/prompts.js';
+import { classifyResumeIntent, classifyHoldConfirm } from '../src/facilitation/resume-intent.js';
+import {
+    RESUME_INTENT_SYSTEM_PROMPT,
+    HOLD_CONFIRM_SYSTEM_PROMPT,
+} from '../src/facilitation/prompts.js';
 import type { LLMProvider, CompletionResult, Message, CompletionOptions } from '../src/llm/index.js';
 
 class StubProvider implements LLMProvider {
@@ -20,25 +23,25 @@ class StubProvider implements LLMProvider {
 }
 
 describe('classifyResumeIntent', () => {
-    it('returns true on a YES verdict', async () => {
-        expect(await classifyResumeIntent(new StubProvider('YES'), "okay I'm ready")).toBe(true);
+    it("returns 'resume' on a YES verdict", async () => {
+        expect(await classifyResumeIntent(new StubProvider('YES'), "okay I'm ready")).toBe('resume');
     });
 
-    it('returns false on a NO verdict', async () => {
+    it("returns 'stay' on a NO verdict", async () => {
         expect(await classifyResumeIntent(new StubProvider('NO'), 'hmm, I feel some tightness')).toBe(
-            false
+            'stay'
         );
     });
 
     it('is case-insensitive and tolerates surrounding text', async () => {
         expect(await classifyResumeIntent(new StubProvider('Yes, they do.'), 'let us continue')).toBe(
-            true
+            'resume'
         );
     });
 
     it('strips a <think> block before reading the verdict', async () => {
         const provider = new StubProvider('<think>they sound done</think>YES');
-        expect(await classifyResumeIntent(provider, 'alright, onward')).toBe(true);
+        expect(await classifyResumeIntent(provider, 'alright, onward')).toBe('resume');
     });
 
     it('uses the resume-intent system prompt, no history, and a tiny token budget', async () => {
@@ -56,12 +59,33 @@ describe('classifyResumeIntent', () => {
         expect(reported).toBe(true);
     });
 
-    it('stays in the hold (returns false) when the LLM call throws', async () => {
+    it("returns 'error' (distinct from 'stay') when the LLM call throws", async () => {
         const provider = new StubProvider(new Error('network down'));
         let reported = false;
         expect(
             await classifyResumeIntent(provider, 'ready', { onUsage: () => (reported = true) })
-        ).toBe(false);
+        ).toBe('error');
         expect(reported).toBe(false);
+    });
+});
+
+describe('classifyHoldConfirm', () => {
+    it('returns true only on a clear yes', async () => {
+        expect(await classifyHoldConfirm(new StubProvider('YES'), 'yes please')).toBe(true);
+    });
+
+    it('returns false on a no', async () => {
+        expect(await classifyHoldConfirm(new StubProvider('NO'), "no, keep going")).toBe(false);
+    });
+
+    it('fails closed (false, stays out of the hold) when the LLM call throws', async () => {
+        expect(await classifyHoldConfirm(new StubProvider(new Error('429')), 'sure')).toBe(false);
+    });
+
+    it('uses the hold-confirm system prompt with a tiny token budget', async () => {
+        const provider = new StubProvider('YES');
+        await classifyHoldConfirm(provider, 'mm-hmm');
+        expect(provider.seenSystem).toBe(HOLD_CONFIRM_SYSTEM_PROMPT);
+        expect(provider.seenMaxTokens).toBe(10);
     });
 });

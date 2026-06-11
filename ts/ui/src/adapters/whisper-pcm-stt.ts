@@ -156,6 +156,14 @@ export class WhisperPcmSttEngine implements SttEngine {
     // set by the polling loop in start(), read by the audio callback to extend
     // the silence window (INCOMPLETE_CLAUSE_EXTRA_MS).
     private partialIncomplete = false;
+    // A speculative transcription is mid-flight. The audio callback refuses to
+    // finalize the turn while this is true, so the dangling-clause verdict
+    // (partialIncomplete) is always applied before submit — without this, the
+    // adaptive silence window can elapse and cut the turn BEFORE the (network)
+    // speculative pass returns to grant the incomplete-clause extension, which
+    // is the cloud-STT mid-sentence cutoff (kkiz). The maxUtterance runaway
+    // valve is deliberately NOT gated on this.
+    private specInFlight = false;
     // Rolling per-frame energy (+ neural prob, -1 when Silero is off) history
     // (~85ms per frame at 48 kHz) for the submit diagnostic — peak/thr alone
     // can't show what the detector heard during the trailing "silence" window
@@ -356,7 +364,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                     this.opts.silenceMaxMs
                 ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
             const silence = now - this.lastSpeechMs;
-            if (silence >= needed) {
+            // Hold the submit while a speculative pass is resolving: it may be
+            // about to set partialIncomplete and extend `needed` past this
+            // moment. Without the gate, a slow cloud round-trip lets the base
+            // window cut a dangling clause before its verdict lands (kkiz).
+            if (silence >= needed && !this.specInFlight) {
                 this.utteranceDone = true;
                 // Diagnostic for tuning the VAD: how long you spoke, the
                 // trailing silence we required vs what elapsed, plus loudness
@@ -609,6 +621,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.peakEnergy = 0;
         this.energyHistory = [];
         this.partialIncomplete = false;
+        this.specInFlight = false;
         // Re-arm barge-in detection for the next idle period (after this turn
         // ends and the facilitator speaks again).
         this.bargeInFired = false;
@@ -690,7 +703,6 @@ export class WhisperPcmSttEngine implements SttEngine {
             // and the same dangling-clause verdict while burning local CPU (and
             // billed seconds on the cloud path, m56t). New SPEECH re-arms it.
             let lastSpecSpeechMs = 0;
-            let specInFlight = false;
             // Did we already show the user a real (non-empty) speculative
             // transcript? If so we must finalize the turn even if it's short —
             // otherwise the preview bubble appears and then vanishes with the
@@ -707,13 +719,13 @@ export class WhisperPcmSttEngine implements SttEngine {
                 const silence = performance.now() - this.lastSpeechMs;
                 if (
                     silence >= SPECULATIVE_SILENCE_MS &&
-                    !specInFlight &&
+                    !this.specInFlight &&
                     this.lastSpeechMs !== lastSpecSpeechMs
                 ) {
-                    specInFlight = true;
+                    this.specInFlight = true;
                     lastSpecSpeechMs = this.lastSpeechMs;
                     const result = await transcribeChunks(this.chunks.slice());
-                    specInFlight = false;
+                    this.specInFlight = false;
                     // Drop the preview if the turn ended while it was in flight
                     // (the final pass will emit the authoritative text).
                     if (!this.utteranceDone && result.ok && result.text) {

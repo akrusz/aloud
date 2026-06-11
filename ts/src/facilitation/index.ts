@@ -28,7 +28,7 @@ export {
     RESUME_RECENT_KEEP,
     type ResumeMessage,
 } from './resume.js';
-export { classifyResumeIntent } from './resume-intent.js';
+export { classifyResumeIntent, classifyHoldConfirm } from './resume-intent.js';
 
 export {
     generateNotingLabel,
