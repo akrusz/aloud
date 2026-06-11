@@ -45,8 +45,10 @@ const FRAME_SIZE = 4096;
 // Short silence (ms) that triggers a speculative transcription mid-utterance —
 // so the user sees their words during a pause, before the (longer) adaptive
 // silence actually submits the turn. Speculation is skipped when the submit
-// threshold is shorter than this (nothing to preview).
-const SPECULATIVE_SILENCE_MS = 500;
+// threshold is shorter than this (nothing to preview). 750ms (not 500) trims
+// false trips on natural between-phrase breaths while still leaving wide room
+// before the 3s+ submit window (pacing silenceBaseMs).
+const SPECULATIVE_SILENCE_MS = 750;
 // ⭐ TWEAK ME if a barge-in clips the first word(s): how much pre-speech audio
 // (ms) to retain so a word's onset survives into the captured utterance. It
 // covers the gap between starting to speak over the facilitator and barge-in
@@ -694,6 +696,10 @@ export class WhisperPcmSttEngine implements SttEngine {
             // otherwise the preview bubble appears and then vanishes with the
             // turn silently dropped (a deliberate one-word "alright" hits this).
             let emittedPartial = false;
+            // The last successful speculative transcript. The end-of-turn pass
+            // reuses it when no further speech arrives, so a single-pause turn
+            // doesn't re-transcribe the identical whole buffer a second time (m56t).
+            let lastSpecResult: { text: string; seconds: number } | null = null;
             while (!this.utteranceDone && !this.stopRequested) {
                 await new Promise<void>((r) => setTimeout(r, 200));
                 if (this.utteranceDone || this.stopRequested) break;
@@ -717,6 +723,10 @@ export class WhisperPcmSttEngine implements SttEngine {
                         // completes the normal window applies again.
                         this.partialIncomplete = transcriptLooksIncomplete(result.text);
                         emittedPartial = true;
+                        // Keep this whole-buffer transcript; if the turn ends with
+                        // no new speech, the final pass reuses it (below) instead
+                        // of paying for an identical re-transcription.
+                        lastSpecResult = { text: result.text, seconds: result.seconds };
                         yield { type: 'partial', text: result.text };
                     }
                 }
@@ -738,15 +748,22 @@ export class WhisperPcmSttEngine implements SttEngine {
                 return;
             }
 
-            const result = await transcribeChunks(this.chunks);
+            // Reuse the last speculative transcript when no new speech has landed
+            // since it ran (the common single-pause turn): it already transcribed
+            // this same whole buffer, so re-running would just bill an identical
+            // call. Any speech since then invalidates it → transcribe fresh.
+            const result =
+                lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs
+                    ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
+                    : await transcribeChunks(this.chunks);
             if (!result.ok) {
                 yield { type: 'error', error: result.error };
                 return;
             }
             // Billable server-side STT compute — report the transcribed audio
             // duration (16 kHz mono) for session usage tracking. Only the final
-            // pass is counted; speculative passes aren't, to keep the tally
-            // simple (revisit if a hosted cloud-STT meters speculation).
+            // pass is counted (it may reuse the last speculative's result);
+            // speculative passes aren't separately metered.
             yield { type: 'final', text: result.text, seconds: result.seconds };
         } finally {
             // End the turn but keep the stream, context, and callback alive —

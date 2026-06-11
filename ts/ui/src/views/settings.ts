@@ -1185,7 +1185,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                     // Relaunch on success; only reached on failure.
                     .catch(() => {
                         btn.disabled = false;
-                        status.textContent = 'Update failed — try again';
+                        status.textContent = 'Update failed - try again';
                     });
                 return;
             }

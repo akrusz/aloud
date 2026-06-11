@@ -18,11 +18,11 @@ const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
 const realFetch = globalThis.fetch;
 
 // One fetch stub for both metered upstreams the routes reach directly (STT to
-// Fireworks, TTS to Google) — the LLM path is stubbed via deps.forwarder below.
+// OpenAI, TTS to Google) — the LLM path is stubbed via deps.forwarder below.
 beforeEach(() => {
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url);
-        if (u.includes('fireworks.ai') || u.includes('groq.com')) {
+        if (u.includes('api.openai.com') || u.includes('groq.com')) {
             return new Response(JSON.stringify({ text: 'hello world' }), { status: 200 });
         }
         if (u.includes('texttospeech.googleapis.com')) {
@@ -73,7 +73,7 @@ async function setup(
         ALOUD_ENABLE_DEV_AUTH: '1',
         GEMINI_API_KEY: 'gk-test',
         GOOGLE_TTS_API_KEY: 'tts-key',
-        FIREWORKS_API_KEY: 'fw-test',
+        OPENAI_STT_API_KEY: 'sk-stt-test',
         ALOUD_FREE_SIGNUP_CREDITS: '20',
     });
     const deps = buildDeps(config, { store: new MemoryCreditsStore() });

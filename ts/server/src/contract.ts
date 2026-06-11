@@ -74,7 +74,7 @@ export interface CompleteChunk {
 // the per-session grouping token, see CompleteRequest.sessionId). The server
 // computes duration from the byte length (authoritative — the client can't
 // under-report to underpay), wraps it to WAV, and forwards to the configured
-// Whisper backend (Fireworks whisper-v3-turbo by default).
+// Whisper backend (OpenAI gpt-4o-transcribe by default).
 
 export interface TranscribeResponse {
     text: string;

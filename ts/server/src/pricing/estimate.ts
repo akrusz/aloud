@@ -104,7 +104,7 @@ export function estimateModels(): ModelEstimate[] {
     });
 }
 
-/** Cloud STT (Whisper; Fireworks by default) leg — model-independent. */
+/** Cloud STT (Whisper; OpenAI by default) leg — model-independent. */
 export function estimateStt(): LegEstimate {
     const sttOnly: SessionUsage = { ...TYPICAL_SESSION, llmCalls: 0, llmTokensIn: 0, llmTokensOut: 0, llmCacheRead: 0, llmCacheCreation: 0, ttsChars: 0 };
     // Any allowed model works as the pricing key; llm fields are zero.

@@ -11,7 +11,7 @@ conversation volume.
 The path is chosen by STT backend (`ts/ui/src/views/session.ts`,
 `engineDrivenBargeIn = sttBackend === 'server-whisper'`):
 
-1. **Engine-driven (server-Whisper)** — `ts/ui/src/adapters/cloud-whisper-stt.ts`.
+1. **Engine-driven (server-Whisper)** — `ts/ui/src/adapters/whisper-pcm-stt.ts`.
    The adapter keeps a continuous, echo-cancelled capture stream alive between
    turns and runs barge-in detection on it (wired via `setBargeInHandler` in
    `session.ts`). Because that stream is always warm, it can keep an onset
@@ -67,14 +67,14 @@ the Python app's watchdog/cooldown machinery isn't needed here.
 | `BARGE_IN_THRESHOLD` | 0.04 | `barge-in.ts` | Speech-over-TTS detection (generic wrapper) |
 | `BARGE_IN_REQUIRED_CHUNKS` | 3 | `barge-in.ts` | ~280ms sustained required |
 | `FRAME_SIZE` | 4096 | `barge-in.ts` | ScriptProcessor analysis frame |
-| `BARGE_IN_THRESHOLD` | 0.03 | `cloud-whisper-stt.ts` | Detection on the continuous idle stream |
-| `PRE_BUFFER_MS` | 2000 | `cloud-whisper-stt.ts` | Onset retained so a barge-in's first word survives |
+| `BARGE_IN_THRESHOLD` | 0.03 | `whisper-pcm-stt.ts` | Detection on the continuous idle stream |
+| `PRE_BUFFER_MS` | 2000 | `whisper-pcm-stt.ts` | Onset retained so a barge-in's first word survives |
 
 ## Key files
 
 | File | Role |
 |---|---|
 | `ts/ui/src/barge-in.ts` | `BargeInListener` + `wrapTtsWithBargeIn` — the generic parallel-stream detector |
-| `ts/ui/src/adapters/cloud-whisper-stt.ts` | Engine-driven barge-in on the continuous stream + onset pre-buffer |
+| `ts/ui/src/adapters/whisper-pcm-stt.ts` | Engine-driven barge-in on the continuous stream + onset pre-buffer |
 | `ts/ui/src/views/session.ts` | Picks the pathway (`engineDrivenBargeIn`), wires `onBargeIn` / `setBargeInHandler` |
 | `ts/tests/barge-in.test.ts` | Detector unit tests |

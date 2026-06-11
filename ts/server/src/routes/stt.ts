@@ -6,8 +6,8 @@
  *
  * Duration is computed server-side from the byte length, so a client can't
  * under-report seconds to underpay. Like the LLM proxy, this is stateless:
- * audio in, text out, nothing persisted. The Whisper backend (Fireworks by
- * default; Groq/OpenAI/custom via env) is config-selected — see config.ts
+ * audio in, text out, nothing persisted. The Whisper backend (OpenAI by
+ * default; Groq/custom via env) is config-selected — see config.ts
  * resolveSttConfig.
  */
 

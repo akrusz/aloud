@@ -127,12 +127,13 @@ const MODELS: Record<string, ModelPricing> = {
     },
 };
 
-/** Per-second cost of cloud STT (Fireworks Whisper, the default backend). The
- *  free/browser engine bills zero — only the server-side engine feeds this. If
- *  you switch the STT backend via env (config.ts resolveSttConfig), revisit:
- *  Fireworks whisper-v3-turbo ≈ $0.054/hr, Groq ≈ $0.04/hr, OpenAI
- *  gpt-4o-mini-transcribe ≈ $0.18/hr. */
-export const STT_USD_PER_SECOND = 0.054 / 3600; // $0.054/hr (Fireworks whisper-v3-turbo, standard serverless)
+/** Per-second cost of cloud STT (OpenAI gpt-4o-transcribe, the default backend).
+ *  The free/browser engine bills zero — only the server-side engine feeds this.
+ *  If you switch the STT backend via env (config.ts resolveSttConfig), revisit:
+ *  OpenAI gpt-4o-transcribe ≈ $0.36/hr, gpt-4o-mini-transcribe ≈ $0.18/hr,
+ *  Groq ≈ $0.04/hr. Even at the top of that range STT is a small fraction of a
+ *  session's TTS + LLM spend. */
+export const STT_USD_PER_SECOND = 0.36 / 3600; // $0.36/hr (OpenAI gpt-4o-transcribe)
 
 /** Google Cloud TTS list price per CHARACTER, by voice tier. The hosted TTS
  *  backend is Google (providers/tts.ts synthesizes en-US-Chirp3-HD-* voices),

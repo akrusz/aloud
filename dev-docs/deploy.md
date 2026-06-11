@@ -52,8 +52,8 @@ fly secrets set \
   ALOUD_SESSION_SECRET=$(openssl rand -hex 32) \
   GOOGLE_CLIENT_IDS=<your-web-oauth-client-id> \
   ANTHROPIC_API_KEY=sk-ant-... \
+  OPENAI_API_KEY=sk-... \
   GEMINI_API_KEY=... \
-  FIREWORKS_API_KEY=... \
   GOOGLE_TTS_API_KEY=... \
   ALOUD_CORS_ORIGINS='https://<your-ui-host>,tauri://localhost,http://tauri.localhost' \
   STRIPE_SECRET_KEY=sk_live_... \

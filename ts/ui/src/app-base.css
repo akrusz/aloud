@@ -1365,6 +1365,20 @@ body:has(.session-container) {
     align-items: center;
 }
 
+/* Persistent speech-to-text outage banner (id="stt-trouble"), above the input
+   row. A muted warning strip — visible enough to notice mid-session, calm
+   enough not to jar a meditation. Shown by removing .hidden. */
+.stt-trouble {
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--warm);
+    background: color-mix(in srgb, var(--warm) 14%, transparent);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
 .voice-status {
     flex: 1;
     min-width: 0;

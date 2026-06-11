@@ -77,8 +77,8 @@ export function invalidateSttBackendCache(): void {
 
 /**
  * STT that routes mic audio through the aloud cloud's authed /cloud/v1/stt
- * (Whisper — Fireworks whisper-v3-turbo by default; Groq/OpenAI/custom via
- * server env). Same client-side capture/VAD as desktop server-Whisper — only
+ * (Whisper — OpenAI gpt-4o-transcribe by default; Groq/custom via server env).
+ * Same client-side capture/VAD as desktop server-Whisper — only
  * the endpoint and a bearer token differ. Used when a session is on the
  * hosted ('aloud') provider so the whole pipeline runs against @aloud/server.
  * Returns null when mic capture isn't available in this environment.

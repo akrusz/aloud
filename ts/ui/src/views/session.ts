@@ -458,6 +458,28 @@ export async function mountSessionView(
         statusEl.textContent = text;
     }
 
+    // Persistent speech-to-text outage banner. The transient status line + a
+    // one-shot toast are easy to miss, so a run of failed transcriptions raises
+    // a banner that stays until a transcription lands again — a user should
+    // never talk into a dead mic for a whole session unaware (the lost-session
+    // bug). Tracked by a streak so a single network blip doesn't flash it.
+    const sttTroubleEl = root.querySelector<HTMLElement>('#stt-trouble');
+    let sttFailureStreak = 0;
+    /** Show the banner once failures pass the threshold; called on each STT error. */
+    function noteSttFailure(): void {
+        sttFailureStreak++;
+        if (sttFailureStreak >= 2 && sttTroubleEl) {
+            sttTroubleEl.textContent =
+                "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.";
+            sttTroubleEl.classList.remove('hidden');
+        }
+    }
+    /** Clear the streak + banner; called whenever a transcription succeeds. */
+    function clearSttTrouble(): void {
+        sttFailureStreak = 0;
+        sttTroubleEl?.classList.add('hidden');
+    }
+
     // Staged-mode phase hint — a quiet word in the input row ("sensing",
     // "finding words") so the user can feel where they are in the arc
     // without it ever being announced aloud. Hidden for single-phase modes.
@@ -948,6 +970,7 @@ export async function mountSessionView(
 
                 if (finalText.trim()) {
                     lastMicErrorToast = null;
+                    clearSttTrouble();
                     // During a silence hold, utterances are buffered + judged
                     // for resume intent rather than each taking a turn.
                     if (silenceMode) {
@@ -966,6 +989,10 @@ export async function mountSessionView(
                         showErrorToast(micError);
                         lastMicErrorToast = micError;
                     }
+                    // Raise the persistent banner once failures stop looking
+                    // like a one-off, so a sustained outage stays visible after
+                    // the toast fades and the status reverts to "Listening…".
+                    noteSttFailure();
                     // Brief backoff so a broken mic doesn't tight-loop us.
                     await new Promise<void>((r) => setTimeout(r, 2000));
                 }
@@ -1705,6 +1732,11 @@ function renderSessionHTML(): string {
         </div>
 
         <div class="input-area">
+            <!-- Persistent STT-outage banner. Hidden until a run of failed
+                 transcriptions (showSttTrouble); cleared on the next success.
+                 Unlike the transient status line, it stays put so a user can't
+                 talk into a dead mic for a whole session without noticing. -->
+            <div class="stt-trouble hidden" id="stt-trouble" role="status"></div>
             <div class="input-row">
                 <div id="voice-status" class="voice-status">Connecting…</div>
                 <!-- Live cloud balance — hidden unless the user opts in

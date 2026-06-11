@@ -1,14 +1,19 @@
 /**
  * Anthropic API provider — direct fetch, no SDK.
  *
- * Prompt caching: we set TWO ephemeral breakpoints — one on the system prompt
- * and one on the LAST message. The system breakpoint alone is nearly useless
- * here: the assembled facilitation system prompt is ~1.1-2k tokens, below the
- * per-model minimum cacheable prefix (2048 on Sonnet 4.6, 4096 on Opus), so a
- * system-only breakpoint usually writes nothing. The breakpoint on the last
- * message caches the whole system+conversation prefix, so each subsequent turn
- * reads the entire transcript at ~0.1x instead of re-billing it as fresh input
- * every turn — the dominant cost on this input-heavy (~45:1) workload.
+ * Prompt caching: the breakpoint on the LAST message caches the whole
+ * system+conversation prefix, so each subsequent turn reads the entire
+ * transcript at ~0.1x instead of re-billing it as fresh input every turn — the
+ * dominant cost on this input-heavy (~45:1) workload. A long session adds a
+ * second, 1h-TTL "anchor" breakpoint (see ANCHOR_STEP) so a >5min [HOLD] silence
+ * doesn't drop the prefix.
+ *
+ * The system prompt gets NO breakpoint of its own. It already rides the
+ * message-prefix caches above, so a separate block is redundant — and a 5m
+ * system block is processed *before* the messages (order: tools, system,
+ * messages), so it would sit before the 1h anchor, which Anthropic rejects with
+ * a 400 ("a 1h cache_control block must not come after a 5m block"). That error
+ * surfaced once a session grew long enough for the anchor to appear (~msg 16).
  */
 
 import type {
@@ -24,6 +29,20 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const DEFAULT_MAX_TOKENS = 300;
+
+/** Upstream statuses worth retrying: rate-limit (429), and the transient 5xx
+ *  family including Anthropic's 529 "overloaded". A non-429 4xx is the caller's
+ *  fault (bad request / auth) and never retried. */
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 529]);
+
+/** Capped exponential backoff (ms) with jitter, honoring a numeric Retry-After
+ *  header when Anthropic sends one; capped so a long rate-limit window can't
+ *  hang a turn for more than a few seconds before it surfaces an error. */
+function backoffMs(attempt: number, retryAfter: string | null): number {
+    const ra = retryAfter ? Number(retryAfter) : NaN;
+    const base = Number.isFinite(ra) ? ra * 1000 : 400 * 2 ** attempt + Math.random() * 200;
+    return Math.min(base, 8000);
+}
 
 /**
  * Ephemeral cache breakpoints come in two TTLs: 5m (default; write costs 1.25x
@@ -70,6 +89,17 @@ export interface AnthropicProviderOptions {
     baseUrl?: string;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
+    /**
+     * Retries on transient upstream failures (HTTP 429 / 5xx / network error)
+     * before giving up. Default 3. Anthropic — Haiku especially — returns 429
+     * (rate-limited) and 529 (overloaded) under load; without retry a single
+     * hiccup kills the whole turn, which is what made mid-session turns fail
+     * ~5/6 of the time. A 4xx other than 429 (bad request, auth) is never
+     * retried — it won't get better.
+     */
+    maxRetries?: number;
+    /** Override the inter-retry sleep (tests inject a no-op to stay fast). */
+    sleepImpl?: (ms: number) => Promise<void>;
 }
 
 interface AnthropicUsage {
@@ -97,6 +127,8 @@ export class AnthropicProvider implements LLMProvider {
     private readonly apiKey: string | undefined;
     private readonly baseUrl: string;
     private readonly fetchImpl: typeof fetch;
+    private readonly maxRetries: number;
+    private readonly sleep: (ms: number) => Promise<void>;
 
     constructor(options: AnthropicProviderOptions = {}) {
         const usingProxy = options.baseUrl !== undefined && options.baseUrl !== ANTHROPIC_API_URL;
@@ -111,6 +143,39 @@ export class AnthropicProvider implements LLMProvider {
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.baseUrl = options.baseUrl ?? ANTHROPIC_API_URL;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+        this.maxRetries = options.maxRetries ?? 3;
+        this.sleep = options.sleepImpl ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    }
+
+    /**
+     * fetch with bounded retry on transient upstream failures. Retries 429 and
+     * 5xx (incl. 529 overloaded) and network throws, with capped exponential
+     * backoff + jitter (honoring a numeric Retry-After). Never retries a
+     * caller-aborted request or a non-429 4xx — those won't improve. The
+     * returned Response may still be an error (retries exhausted); the caller
+     * does the final ok-check so the existing error message is preserved.
+     */
+    private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                const response = await this.fetchImpl(url, init);
+                if (
+                    response.ok ||
+                    !RETRYABLE_STATUS.has(response.status) ||
+                    attempt >= this.maxRetries
+                ) {
+                    return response;
+                }
+                const retryAfter = response.headers.get('retry-after');
+                // Drain the errored body so the socket can be reused.
+                await response.text().catch(() => {});
+                await this.sleep(backoffMs(attempt, retryAfter));
+            } catch (err) {
+                const aborted = (init.signal as AbortSignal | undefined)?.aborted;
+                if (aborted || attempt >= this.maxRetries) throw err;
+                await this.sleep(backoffMs(attempt, null));
+            }
+        }
     }
 
     private buildRequest(
@@ -139,14 +204,11 @@ export class AnthropicProvider implements LLMProvider {
                 : { role: m.role, content: m.content };
         });
 
+        // No cache_control here on purpose — see the file header. The system is
+        // cached via the message-prefix breakpoints; a 5m block here would
+        // precede the 1h anchor and trigger a 400.
         const systemParam = options.system
-            ? [
-                  {
-                      type: 'text',
-                      text: options.system,
-                      cache_control: CACHE_5M,
-                  },
-              ]
+            ? [{ type: 'text', text: options.system }]
             : undefined;
 
         const body: Record<string, unknown> = {
@@ -177,7 +239,7 @@ export class AnthropicProvider implements LLMProvider {
 
     async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
         const { url, init } = this.buildRequest(messages, options, false);
-        const response = await this.fetchImpl(url, init);
+        const response = await this.fetchWithRetry(url, init);
 
         if (!response.ok) {
             const detail = await response.text().catch(() => '');
@@ -199,7 +261,7 @@ export class AnthropicProvider implements LLMProvider {
         options: CompletionOptions = {}
     ): AsyncIterable<StreamChunk> {
         const { url, init } = this.buildRequest(messages, options, true);
-        const response = await this.fetchImpl(url, init);
+        const response = await this.fetchWithRetry(url, init);
 
         if (!response.ok) {
             const detail = await response.text().catch(() => '');

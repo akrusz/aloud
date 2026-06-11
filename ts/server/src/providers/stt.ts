@@ -1,9 +1,9 @@
 /**
  * Server-side STT: transcribe raw PCM via an OpenAI-compatible Whisper
- * endpoint. The default backend is Fireworks (whisper-v3-turbo); Groq and
- * OpenAI speak the same multipart `audio/transcriptions` API, so the backend
- * is config-selected (base URL + model + key) rather than hardcoded — see
- * config.ts `resolveSttConfig`. The client captures + downsamples to mono
+ * endpoint. The default backend is OpenAI (gpt-4o-transcribe); Groq speaks the
+ * same multipart `audio/transcriptions` API, so the backend is config-selected
+ * (base URL + model + key) rather than hardcoded — see config.ts
+ * `resolveSttConfig`. The client captures + downsamples to mono
  * Float32 and POSTs the raw samples; we wrap them into a WAV container (these
  * endpoints want a file upload) and forward. Stateless — audio is never
  * persisted (the privacy invariant; see logger.ts and meditation-pal-dn2).
@@ -11,7 +11,7 @@
 
 /** A config-selected OpenAI-compatible Whisper backend. */
 export interface SttBackend {
-    /** Short label for logs / debit tags, e.g. 'fireworks'. */
+    /** Short label for logs / debit tags, e.g. 'openai'. */
     provider: string;
     apiKey: string;
     /** Full transcription endpoint URL. */
@@ -51,7 +51,7 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
 
 /**
  * Transcribe mono Float32 PCM via the configured OpenAI-compatible Whisper
- * backend (Fireworks / Groq / OpenAI). Throws on an upstream error.
+ * backend (OpenAI / Groq). Throws on an upstream error.
  */
 export async function transcribeWhisper(
     samples: Float32Array,

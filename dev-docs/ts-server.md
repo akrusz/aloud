@@ -67,8 +67,8 @@ load logic is `loadConfig` in `config.ts`.
 | `APPLE_CLIENT_IDS` | Apple sign-in | comma-sep Services ID (web) / bundle id (native); empty disables Apple. Email/password needs no config (meditation-pal-s75) |
 | `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client |
 | `GEMINI_API_KEY` | value-tier LLM (Gemini direct) | Google AI Studio key; powers `gemini-2.5-flash-lite` without OpenRouter's fee |
-| `FIREWORKS_API_KEY` | server STT (default) | drives `/v1/stt` (Whisper); Fireworks `whisper-v3-turbo`, ≈ $0.054/hr. Recommended over Groq, whose new paid signups may be frozen |
-| `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (Fireworks/Groq/OpenAI/self-hosted). See `config.ts` `resolveSttConfig` |
+| `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/v1/stt` (Whisper; `gpt-4o-transcribe`, ≈ $0.36/hr), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
+| `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/v1/tts` reports not-configured, client falls back to browser TTS |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup — once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
@@ -84,7 +84,7 @@ The whole meditation loop can run through the server (no Flask):
 |---|---|---|
 | LLM (premium) | Anthropic | `ANTHROPIC_API_KEY` |
 | LLM (value tier) | Google Gemini (direct) | `GEMINI_API_KEY` |
-| STT | Fireworks Whisper (default) | `FIREWORKS_API_KEY` |
+| STT | OpenAI Whisper (default) | `OPENAI_API_KEY` |
 | TTS | Google Cloud TTS | `GOOGLE_TTS_API_KEY` |
 
 ### Minimal "actually forward an LLM turn" setup
@@ -124,8 +124,8 @@ populated live from `GET /v1/me/models`), start a session. On first LLM turn
 the UI auto-signs-in via the dev route and caches the token.
 
 **On the hosted provider, STT and TTS also route through the server** —
-`/v1/stt` (Fireworks Whisper by default) and `/v1/tts` (Google), so the whole
-pipeline is Flask-free. STT needs `FIREWORKS_API_KEY` (or any backend via the
+`/v1/stt` (OpenAI Whisper by default) and `/v1/tts` (Google), so the whole
+pipeline is Flask-free. STT needs `OPENAI_API_KEY` (or any backend via the
 `STT_*` overrides — see `config.ts` `resolveSttConfig`); TTS needs
 `GOOGLE_TTS_API_KEY` (without it the client falls back to browser
 `speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
@@ -171,7 +171,7 @@ Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 | `GET /v1/me` | session | account + live balance |
 | `GET /v1/me/models` `/estimates` `/packs` | public | published pricing |
 | `POST /v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
-| `POST /v1/stt` | session | metered STT: raw PCM body → Whisper (Fireworks by default) → transcript; debits by duration |
+| `POST /v1/stt` | session | metered STT: raw PCM body → Whisper (OpenAI by default) → transcript; debits by duration |
 | `POST /v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
 | `POST /v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |

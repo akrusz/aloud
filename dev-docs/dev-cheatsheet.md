@@ -163,9 +163,10 @@ prereqs, release + cutover).
 ## Config & environment
 
 - **Hosted server**: `ts/server/.env` (see `.env.example`) — provider keys
-  (`ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`),
-  `FIREWORKS_API_KEY` (server STT default; or the `STT_*` overrides),
-  `GOOGLE_TTS_API_KEY`, `ALOUD_SESSION_SECRET`, `GOOGLE_CLIENT_IDS`, Stripe keys,
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
+  `GEMINI_API_KEY`; `OPENAI_API_KEY` also drives server STT by default, or the
+  `STT_*` overrides), `GOOGLE_TTS_API_KEY`, `ALOUD_SESSION_SECRET`,
+  `GOOGLE_CLIENT_IDS`, Stripe keys,
   `ALOUD_ADMIN_TOKEN`, and `ALOUD_UI_DIR` (serve `ui/dist` from the same process
   — the single-box self-host story).
 - **UI build**: `VITE_ALOUD_CLOUD_URL` — the hosted origin baked into a

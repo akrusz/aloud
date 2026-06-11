@@ -21,35 +21,43 @@ export interface ProviderKeys {
 
 /** Default OpenAI-compatible Whisper endpoints, by provider label. The STT
  *  backend is config-selected (see resolveSttConfig) so a provider freezing
- *  signups is an env change, not a code change. */
+ *  signups — or dropping its audio product — is an env change, not a code
+ *  change. OpenAI is the current recommended default. */
 const STT_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
-    fireworks: {
-        baseUrl: 'https://audio-turbo.api.fireworks.ai/v1/audio/transcriptions',
-        model: 'whisper-v3-turbo',
+    openai: {
+        baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
+        // gpt-4o-transcribe (not the cheaper -mini) for accuracy: a mis-heard
+        // word derails a facilitation turn, and STT is a rounding error against
+        // the session's TTS + LLM spend, so the better model is worth it.
+        model: 'gpt-4o-transcribe',
     },
     groq: {
         baseUrl: 'https://api.groq.com/openai/v1/audio/transcriptions',
         model: 'whisper-large-v3-turbo',
-    },
-    openai: {
-        baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
-        model: 'gpt-4o-mini-transcribe',
     },
 };
 
 /**
  * Resolve the STT backend from env. Precedence:
  *   1. STT_API_KEY  — explicit/custom backend (STT_BASE_URL + STT_MODEL +
- *      STT_PROVIDER label; defaults to Fireworks if base/model omitted).
- *   2. FIREWORKS_API_KEY — Fireworks defaults (the recommended backend).
- *   3. GROQ_API_KEY — Groq defaults (back-compat; signups may be frozen).
+ *      STT_PROVIDER label; defaults to the OpenAI host if base/model omitted).
+ *   2. OPENAI_STT_API_KEY || OPENAI_API_KEY — OpenAI, the recommended backend:
+ *      the same key already powers the GPT LLM + OpenAI TTS, so one key lights
+ *      up all three. Defaults to gpt-4o-transcribe (accuracy over the cheaper
+ *      -mini; STT cost is negligible next to TTS + LLM).
+ *   3. GROQ_API_KEY — legacy (cheap, but new paid signups are frozen).
  * Returns undefined when none is set; the /cloud/v1/stt route then reports
  * not-configured and the client falls back to browser SpeechRecognition.
+ *
+ * (Fireworks was removed once it 401'd every /audio/transcriptions call — it
+ * seems to have dropped serverless Whisper. Pin it via STT_API_KEY if it ever
+ * returns.) Because OpenAI reuses the LLM key, a deployment that wants a
+ * different STT backend than its LLM must pin it explicitly via STT_API_KEY.
  */
 export function resolveSttConfig(env: NodeJS.ProcessEnv): SttBackend | undefined {
     if (env['STT_API_KEY']) {
         const provider = env['STT_PROVIDER'] ?? 'custom';
-        const fallback = STT_DEFAULTS[provider] ?? STT_DEFAULTS['fireworks']!;
+        const fallback = STT_DEFAULTS[provider] ?? STT_DEFAULTS['openai']!;
         return {
             provider,
             apiKey: env['STT_API_KEY'],
@@ -57,8 +65,10 @@ export function resolveSttConfig(env: NodeJS.ProcessEnv): SttBackend | undefined
             model: env['STT_MODEL'] ?? fallback.model,
         };
     }
-    if (env['FIREWORKS_API_KEY']) {
-        return { provider: 'fireworks', apiKey: env['FIREWORKS_API_KEY'], ...STT_DEFAULTS['fireworks']! };
+    // OpenAI STT can ride the LLM key or split onto its own (mirrors TTS).
+    const openaiSttKey = env['OPENAI_STT_API_KEY'] || env['OPENAI_API_KEY'];
+    if (openaiSttKey) {
+        return { provider: 'openai', apiKey: openaiSttKey, ...STT_DEFAULTS['openai']! };
     }
     if (env['GROQ_API_KEY']) {
         return { provider: 'groq', apiKey: env['GROQ_API_KEY'], ...STT_DEFAULTS['groq']! };

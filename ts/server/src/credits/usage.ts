@@ -43,7 +43,7 @@ export interface UsageEvent {
     /** Seconds since epoch. */
     ts: number;
     kind: UsageKind;
-    /** Provider id (e.g. 'anthropic', 'fireworks', 'google'). */
+    /** Provider id (e.g. 'anthropic', 'openai', 'google'). */
     provider: string;
     /** Model id (LLM) or voice id (TTS); for STT the whisper model/provider. */
     model: string;

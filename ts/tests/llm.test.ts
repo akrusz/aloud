@@ -94,7 +94,7 @@ describe('AnthropicProvider', () => {
         expect(headers['anthropic-version']).toBe('2023-06-01');
     });
 
-    it('sends the system prompt with ephemeral cache_control and strips system from messages', async () => {
+    it('sends the system prompt without its own cache_control and strips system from messages', async () => {
         const fetchImpl = vi.fn(async () =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'Welcome.' }],
@@ -129,9 +129,10 @@ describe('AnthropicProvider', () => {
 
         const body = JSON.parse((init as RequestInit).body as string);
         expect(body.model).toBe('claude-test');
-        expect(body.system).toEqual([
-            { type: 'text', text: 'be warm', cache_control: { type: 'ephemeral' } },
-        ]);
+        // System carries NO cache_control of its own — a 5m block here would
+        // precede the 1h anchor and Anthropic 400s. It's cached via the message
+        // breakpoint below instead.
+        expect(body.system).toEqual([{ type: 'text', text: 'be warm' }]);
         // System messages are filtered out; the last message carries the cache
         // breakpoint (its content becomes a block array) so the whole prefix
         // is cached for the next turn.
@@ -205,6 +206,11 @@ describe('AnthropicProvider', () => {
         // Exactly two cached blocks (anchor + tail), not one per turn.
         const cached = body.messages.filter((m: { content: unknown }) => Array.isArray(m.content));
         expect(cached).toHaveLength(2);
+        // Regression: the system block must NOT carry cache_control. A 5m system
+        // block is processed before the messages, so it would precede this 1h
+        // anchor and Anthropic 400s ("a 1h block must not come after a 5m block")
+        // — which broke every turn once a session grew past the anchor threshold.
+        expect(body.system).toEqual([{ type: 'text', text: 'be warm' }]);
     });
 
     it('parses the per-TTL cache_creation breakdown (ephemeral_1h_input_tokens)', async () => {
@@ -284,13 +290,31 @@ describe('AnthropicProvider', () => {
         expect(body.system).toBeUndefined();
     });
 
-    it('surfaces API errors with the status code', async () => {
+    it('surfaces API errors with the status code (after exhausting retries)', async () => {
         const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
+            maxRetries: 0, // surface immediately for the test
         });
         await expect(provider.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow(/429/);
+    });
+
+    it('retries a transient 529 (overloaded) and then succeeds', async () => {
+        let calls = 0;
+        const fetchImpl = vi.fn(async () => {
+            calls++;
+            if (calls === 1) return new Response('overloaded', { status: 529 });
+            return mockJsonResponse({ content: [{ type: 'text', text: 'recovered' }] });
+        });
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+            sleepImpl: async () => {}, // no real backoff in the test
+        });
+        const result = await provider.complete([{ role: 'user', content: 'hi' }]);
+        expect(result.text).toBe('recovered');
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
     });
 
     it('completeStream yields incremental text deltas + final usage', async () => {

@@ -107,7 +107,7 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
             // On success the app relaunches, so this only runs on failure.
             .catch(() => {
                 btn.disabled = false;
-                status.textContent = ' Update failed — try again';
+                status.textContent = ' Update failed - try again';
             });
     });
 
