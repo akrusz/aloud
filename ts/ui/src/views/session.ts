@@ -13,6 +13,7 @@ import {
     PacingController,
     TurnDecision,
     parseTurnSignals,
+    looksLikeTtsEcho,
     getMode,
     StagedModeController,
     EXPLORATION_MODE,
@@ -365,15 +366,60 @@ export async function mountSessionView(
     // echo floor (and gate it out). Bracketing real speak() calls keeps the
     // signal tight to playback, NOT the silent "thinking" phase.
     let ttsSpeakingDepth = 0;
+    // Hold the engine's echo gate through the gaps BETWEEN a reply's sentence
+    // chunks and briefly past the end of playback: room reverb, AEC tails, and
+    // VAD debounce all outlive the audio element, and the per-speak() on/off
+    // flips left ungated windows exactly where trailing-fragment echo was
+    // observed sneaking through (meditation-pal-p8lx).
+    const TTS_ACTIVE_HANGOVER_MS = 1000;
+    let ttsActiveOffTimer: ReturnType<typeof setTimeout> | null = null;
+    // When playback last ended — with the depth counter, this defines the
+    // "echo possible" window the transcript-level guard checks in respondTo.
+    let lastTtsEndedAt = 0;
+    // Rolling tail of text actually handed to the synthesizer (openers,
+    // replies, check-ins, apologies — everything voiced goes through here).
+    // The transcript echo guard matches phantom turns against it.
+    let spokenTail = '';
+    const SPOKEN_TAIL_MAX_CHARS = 600;
+    function ttsPlaybackStarted(text: string): void {
+        spokenTail = `${spokenTail} ${text}`.slice(-SPOKEN_TAIL_MAX_CHARS);
+        if (ttsActiveOffTimer) {
+            clearTimeout(ttsActiveOffTimer);
+            ttsActiveOffTimer = null;
+        }
+        whisperEngine?.setTtsActive(true);
+    }
+    function ttsPlaybackEnded(): void {
+        lastTtsEndedAt = Date.now();
+        if (!whisperEngine) return;
+        ttsActiveOffTimer = setTimeout(() => {
+            ttsActiveOffTimer = null;
+            if (ttsSpeakingDepth === 0) whisperEngine.setTtsActive(false);
+        }, TTS_ACTIVE_HANGOVER_MS);
+    }
+    /** Echo can only arrive while audio plays or shortly after (capture +
+     *  transcription latency stretch "shortly" to a few seconds). */
+    const ECHO_TEXT_WINDOW_MS = 4000;
+    function inEchoWindow(): boolean {
+        return ttsSpeakingDepth > 0 || Date.now() - lastTtsEndedAt < ECHO_TEXT_WINDOW_MS;
+    }
     const tts = {
         async speak(text: string, options?: import('../../../src/platform/index.js').TtsOptions): Promise<void> {
             if (!ttsEnabled) return;
-            if (whisperEngine && ++ttsSpeakingDepth === 1) whisperEngine.setTtsActive(true);
+            ++ttsSpeakingDepth;
+            ttsPlaybackStarted(text);
             try {
                 return await activeTts.speak(text, options);
             } finally {
-                if (whisperEngine && --ttsSpeakingDepth === 0) whisperEngine.setTtsActive(false);
+                if (--ttsSpeakingDepth === 0) ttsPlaybackEnded();
             }
+        },
+        prefetch(text: string, options?: import('../../../src/platform/index.js').TtsOptions): void {
+            // Pass the sentence-chunk prefetch through to the live engine —
+            // without this the streaming bridge sees no prefetch() on the
+            // wrapper and inter-sentence synthesis stays serial.
+            if (!ttsEnabled) return;
+            activeTts.prefetch?.(text, options);
         },
         cancel(): Promise<void> {
             return activeTts.cancel();
@@ -860,6 +906,15 @@ export async function mountSessionView(
         // isNonSpeechOnly guard; the partial bubble is already cleared by the
         // listen loop before this runs.)
         if (isNonSpeechOnly(userText)) return;
+        // Transcript-level echo guard (meditation-pal-p8lx): an utterance that
+        // landed while the facilitator was audibly speaking (or just finished)
+        // AND reads as a verbatim run of the recently synthesized text is our
+        // own TTS leaking back through the mic — drop it BEFORE it supersedes
+        // the live turn or takes a turn of its own. Logged for gate tuning.
+        if (inEchoWindow() && looksLikeTtsEcho(userText, spokenTail)) {
+            console.info(`[echo-guard] dropped TTS echo: "${userText}"`);
+            return;
+        }
         // Supersede any in-flight turn: bump the generation, stop the previous
         // turn generating (it then bails without recording), and cut its audio.
         // With continuous capture this is how an interrupting utterance takes

@@ -92,6 +92,18 @@ const ECHO_GATE_MAX = 0.035;
 // the latest speculative pass still looks unfinished.
 const INCOMPLETE_CLAUSE_EXTRA_MS = 4000;
 
+// Tail-recovery thresholds (meditation-pal-rcdz): after the last speculative
+// pass, frames keep accumulating until the adaptive window submits. If any of
+// those frames look even a LITTLE like speech — Silero probability that never
+// cleared the debounced gate, or energy above soft-speech level — the cached
+// speculative transcript may be missing trailing words ("...in my belly"
+// spoken too softly to move lastSpeechMs), so the final pass must re-send the
+// full buffer to Whisper instead of reusing the cache. Deliberately below the
+// VAD's own gates: a false positive costs one extra transcription, a false
+// negative costs the user's words.
+const TAIL_RETRANSCRIBE_PROB = 0.4;
+const TAIL_RETRANSCRIBE_ENERGY = 0.015;
+
 /** The subset of PacingConfig fields the VAD here cares about. */
 type VadFields = Pick<
     PacingConfig,
@@ -703,6 +715,10 @@ export class WhisperPcmSttEngine implements SttEngine {
             // and the same dangling-clause verdict while burning local CPU (and
             // billed seconds on the cloud path, m56t). New SPEECH re-arms it.
             let lastSpecSpeechMs = 0;
+            // When the last speculative pass snapshotted the buffer — frames
+            // after this moment were never transcribed, so the final pass
+            // checks them for missed soft speech before reusing the cache.
+            let lastSpecAt = 0;
             // Did we already show the user a real (non-empty) speculative
             // transcript? If so we must finalize the turn even if it's short —
             // otherwise the preview bubble appears and then vanishes with the
@@ -724,6 +740,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 ) {
                     this.specInFlight = true;
                     lastSpecSpeechMs = this.lastSpeechMs;
+                    lastSpecAt = performance.now();
                     const result = await transcribeChunks(this.chunks.slice());
                     this.specInFlight = false;
                     // Drop the preview if the turn ended while it was in flight
@@ -763,11 +780,25 @@ export class WhisperPcmSttEngine implements SttEngine {
             // Reuse the last speculative transcript when no new speech has landed
             // since it ran (the common single-pause turn): it already transcribed
             // this same whole buffer, so re-running would just bill an identical
-            // call. Any speech since then invalidates it → transcribe fresh.
+            // call. Any speech since then invalidates it → transcribe fresh. So
+            // does any speech-LIKE activity in the untranscribed tail: trailing
+            // words spoken too softly to clear the debounced VAD gate are in the
+            // buffer but not in the cached transcript, and reusing it would drop
+            // them (meditation-pal-rcdz, "...in my belly").
+            const tailHasSpeechHints =
+                lastSpecAt > 0 &&
+                this.energyHistory.some(
+                    ({ t, e, p }) =>
+                        t > lastSpecAt &&
+                        (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
+                );
             const result =
-                lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs
+                lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints
                     ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
                     : await transcribeChunks(this.chunks);
+            if (tailHasSpeechHints && lastSpecResult) {
+                console.info('[vad] tail had speech hints after the speculative pass — re-transcribed full buffer');
+            }
             if (!result.ok) {
                 yield { type: 'error', error: result.error };
                 return;

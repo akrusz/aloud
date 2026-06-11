@@ -29,6 +29,7 @@ export {
     type ResumeMessage,
 } from './resume.js';
 export { classifyResumeIntent, classifyHoldConfirm } from './resume-intent.js';
+export { looksLikeTtsEcho, MIN_ECHO_WORDS } from './echo-guard.js';
 
 export {
     generateNotingLabel,
