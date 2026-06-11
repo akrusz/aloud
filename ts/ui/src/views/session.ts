@@ -906,15 +906,6 @@ export async function mountSessionView(
         // isNonSpeechOnly guard; the partial bubble is already cleared by the
         // listen loop before this runs.)
         if (isNonSpeechOnly(userText)) return;
-        // Transcript-level echo guard (meditation-pal-p8lx): an utterance that
-        // landed while the facilitator was audibly speaking (or just finished)
-        // AND reads as a verbatim run of the recently synthesized text is our
-        // own TTS leaking back through the mic — drop it BEFORE it supersedes
-        // the live turn or takes a turn of its own. Logged for gate tuning.
-        if (inEchoWindow() && looksLikeTtsEcho(userText, spokenTail)) {
-            console.info(`[echo-guard] dropped TTS echo: "${userText}"`);
-            return;
-        }
         // Supersede any in-flight turn: bump the generation, stop the previous
         // turn generating (it then bails without recording), and cut its audio.
         // With continuous capture this is how an interrupting utterance takes
@@ -1115,10 +1106,28 @@ export async function mountSessionView(
                 if (torn || muted) break;
 
                 let finalText = '';
+                // Engine-reported "speech began while TTS was playing" — the
+                // authoritative echo signal. undefined on engines that don't
+                // report it; the guard then falls back to the arrival window.
+                let finalStartedDuringTts: boolean | undefined;
                 let micError: string | null = null;
+                // Echo test for an utterance: did it start during playback
+                // (or, lacking that signal, land near it), AND does it read as
+                // a verbatim run of the recently synthesized text?
+                const isEcho = (text: string, startedDuringTts: boolean | undefined): boolean =>
+                    (startedDuringTts ?? inEchoWindow()) && looksLikeTtsEcho(text, spokenTail);
                 try {
                     for await (const event of stt.start()) {
                         if (event.type === 'partial') {
+                            // Don't preview our own echo as the user's words —
+                            // the live partial bubble showing the facilitator's
+                            // sentence is its own immersion break, even when
+                            // the final gets dropped below.
+                            if (isEcho(event.text, event.startedDuringTts)) {
+                                currentPartial?.remove();
+                                currentPartial = null;
+                                continue;
+                            }
                             if (!currentPartial) {
                                 currentPartial = appendMessage('user', event.text, true);
                             } else {
@@ -1131,6 +1140,7 @@ export async function mountSessionView(
                             }
                         } else if (event.type === 'final') {
                             finalText = event.text;
+                            finalStartedDuringTts = event.startedDuringTts;
                             // Billable server-side STT compute (Whisper) reports
                             // audio seconds; on-device engines omit it.
                             if (event.seconds) session.recordStt(event.seconds);
@@ -1140,6 +1150,14 @@ export async function mountSessionView(
                     }
                 } catch (err) {
                     micError = describeSttError(err);
+                }
+                // Transcript-level echo guard (meditation-pal-p8lx): our own
+                // TTS leaking back through the mic must not take a turn, wake
+                // a silence hold, or answer a hold-confirm question. One choke
+                // point here covers all three dispatch paths below.
+                if (finalText.trim() && isEcho(finalText.trim(), finalStartedDuringTts)) {
+                    console.info(`[echo-guard] dropped TTS echo: "${finalText.trim()}"`);
+                    finalText = '';
                 }
                 if (currentPartial) {
                     currentPartial.remove();

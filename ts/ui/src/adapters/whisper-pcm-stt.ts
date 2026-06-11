@@ -158,6 +158,11 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Per-utterance accumulators, reset at the top of each start().
     private chunks: Float32Array[] = [];
     private speechStarted = false;
+    // Whether THIS utterance's speech began while the facilitator's TTS was
+    // audibly playing — yielded on partial/final events so the session's
+    // transcript echo guard can judge by speech START time (arrival time is
+    // useless: VAD silence + transcription latency delay it by seconds).
+    private startedWhileTtsActive = false;
     private speechStartMs = 0;
     private lastSpeechMs = 0;
     private utteranceDone = false;
@@ -357,6 +362,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (isSpeech) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
+                this.startedWhileTtsActive = this.ttsActive;
                 this.speechStartMs = now;
                 // Prepend the retained onset ramp, then clear it.
                 for (const f of this.preBuffer) this.chunks.push(f);
@@ -627,6 +633,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         // between turns); only the per-utterance accumulators reset.
         this.chunks = [];
         this.speechStarted = false;
+        this.startedWhileTtsActive = false;
         this.speechStartMs = 0;
         this.lastSpeechMs = 0;
         this.utteranceDone = false;
@@ -756,7 +763,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                         // no new speech, the final pass reuses it (below) instead
                         // of paying for an identical re-transcription.
                         lastSpecResult = { text: result.text, seconds: result.seconds };
-                        yield { type: 'partial', text: result.text };
+                        yield {
+                            type: 'partial',
+                            text: result.text,
+                            startedDuringTts: this.startedWhileTtsActive,
+                        };
                     }
                 }
             }
@@ -807,7 +818,12 @@ export class WhisperPcmSttEngine implements SttEngine {
             // duration (16 kHz mono) for session usage tracking. Only the final
             // pass is counted (it may reuse the last speculative's result);
             // speculative passes aren't separately metered.
-            yield { type: 'final', text: result.text, seconds: result.seconds };
+            yield {
+                type: 'final',
+                text: result.text,
+                seconds: result.seconds,
+                startedDuringTts: this.startedWhileTtsActive,
+            };
         } finally {
             // End the turn but keep the stream, context, and callback alive —
             // the pre-buffer keeps filling for a low-latency next turn / barge-in.

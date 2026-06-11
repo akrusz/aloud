@@ -14,7 +14,12 @@
  */
 
 export type SttEvent =
-    | { type: 'partial'; text: string }
+    | {
+          type: 'partial';
+          text: string;
+          /** See the `final` field of the same name. */
+          startedDuringTts?: boolean;
+      }
     | {
           type: 'final';
           text: string;
@@ -25,6 +30,15 @@ export type SttEvent =
            * the caller folds this into session STT-seconds usage.
            */
           seconds?: number;
+          /**
+           * True when this utterance's speech STARTED while the facilitator's
+           * TTS was audibly playing (continuous-capture engines only; absent
+           * on engines that pause during playback). The transcript echo guard
+           * keys off this rather than arrival time: VAD trailing silence +
+           * transcription latency mean an echo's text can land many seconds
+           * after playback ended, long past any arrival-time window.
+           */
+          startedDuringTts?: boolean;
       }
     | { type: 'error'; error: unknown };
 
