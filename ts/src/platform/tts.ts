@@ -23,10 +23,24 @@ export interface TtsOptions {
     rate?: number;
     /** 0.5–2.0, 1.0 = neutral. */
     pitch?: number;
+    /**
+     * Called when audible playback actually begins — after any synthesis
+     * fetch, not when speak() is invoked. Lets the UI reveal text in step
+     * with the voice. Best-effort: engines that can't observe playback
+     * start never call it, so callers need their own fallback.
+     */
+    onStart?: () => void;
 }
 
 export interface TtsEngine {
     speak(text: string, options?: TtsOptions): Promise<void>;
+    /**
+     * Start synthesizing `text` without playing it, so a later speak() of
+     * the same text starts instantly. Fire-and-forget: errors surface on
+     * the speak() instead. Optional — only meaningful for engines with a
+     * synthesis round-trip (network/server); local engines omit it.
+     */
+    prefetch?(text: string, options?: TtsOptions): void;
     /** Cancel any in-progress utterance. No-op when nothing is speaking. */
     cancel(): Promise<void>;
     /** Return all voices the engine can use. */
@@ -78,6 +92,8 @@ export class InMemoryTtsEngine implements TtsEngine {
         this.cancelSync();
         const record: SpokenRecord = { text, options, cancelled: false };
         this.spoken.push(record);
+        // Synthetic playback "starts" immediately.
+        options?.onStart?.();
         this.pendingRecord = record;
         return new Promise<void>((resolve) => {
             this.pendingResolve = resolve;

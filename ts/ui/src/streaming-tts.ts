@@ -35,6 +35,15 @@ export function usageFrom(r: CompletionResult | StreamChunk): LlmUsage {
 export interface StreamCompletionOptions extends CompletionOptions {
     /** Called whenever new text has been accumulated (for live transcript). */
     onTextDelta?: (cumulativeText: string) => void;
+    /**
+     * Called once per TTS chunk when its audio starts playing (engine-reported
+     * where supported, otherwise when the chunk finishes), with the chunk's
+     * text. Lets the UI reveal the transcript in step with the voice instead
+     * of dumping the full reply ahead of the audio. Chunks arrive in spoken
+     * order; control tokens are already stripped. Not called for hushed or
+     * failed chunks — keep a fallback render for those.
+     */
+    onSpeakStart?: (text: string) => void;
     /** Forwarded to tts.speak() for each sentence. */
     ttsOptions?: TtsOptions;
     /** Called once with the FIRST TTS failure of this completion. Speak errors
@@ -81,7 +90,8 @@ export async function streamCompletionWithChunkedTts(
     messages: Message[],
     options: StreamCompletionOptions = {}
 ): Promise<StreamCompletionResult> {
-    const { onTextDelta, ttsOptions, onTtsError, signal, ttsSignal, ...completionOpts } = options;
+    const { onTextDelta, onSpeakStart, ttsOptions, onTtsError, signal, ttsSignal, ...completionOpts } =
+        options;
     const hushed = (): boolean => !!signal?.aborted || !!ttsSignal?.aborted;
     // Report only the FIRST TTS failure — sentence-chunked speech fails as a
     // burst (every queued chunk hits the same dead/unfunded endpoint), and one
@@ -107,14 +117,24 @@ export async function streamCompletionWithChunkedTts(
         // modes) but DO speak the text after them ("I'll be right here") —
         // only the tokens are silenced, never the words. The caller parses
         // the signals separately from the returned full text.
+        const spoken = parseTurnSignals(result.text).cleanText;
+        let started = false;
+        const reportStart = (): void => {
+            if (started) return;
+            started = true;
+            onSpeakStart?.(spoken);
+        };
         return {
             text: result.text,
             ttsDone: hushed()
                 ? Promise.resolve()
-                : tts.speak(parseTurnSignals(result.text).cleanText, ttsOptions).catch((err: unknown) => {
-                      reportTtsError(err);
-                      throw err; // callers already treat ttsDone as non-fatal
-                  }),
+                : tts
+                      .speak(spoken, { ...ttsOptions, onStart: reportStart })
+                      .then(reportStart)
+                      .catch((err: unknown) => {
+                          reportTtsError(err);
+                          throw err; // callers already treat ttsDone as non-fatal
+                      }),
             usage: usageFrom(result),
             finishReason: result.finishReason ?? null,
         };
@@ -131,8 +151,26 @@ export async function streamCompletionWithChunkedTts(
 
     function enqueueSpeak(text: string): void {
         if (!text.trim() || hushed()) return;
+        // Kick synthesis off NOW, concurrent with earlier sentences' playback,
+        // so this chunk's audio is (usually) already fetched when its turn to
+        // play comes — instead of paying the synthesis round-trip as a gap of
+        // silence between sentences. Engines without prefetch() just fetch
+        // inside speak() as before.
+        tts.prefetch?.(text, ttsOptions);
+        // Report when this chunk audibly starts. Engines that can't observe
+        // playback start never fire onStart; report at resolve (playback end)
+        // instead so the reveal still lands, just late.
+        let started = false;
+        const reportStart = (): void => {
+            if (started) return;
+            started = true;
+            onSpeakStart?.(text);
+        };
         ttsQueue = ttsQueue
-            .then(() => (hushed() ? undefined : tts.speak(text, ttsOptions)))
+            .then(() => {
+                if (hushed()) return;
+                return tts.speak(text, { ...ttsOptions, onStart: reportStart }).then(reportStart);
+            })
             .catch((err: unknown) => {
                 // Non-fatal to the queue/session, but surfaced once so the
                 // caller can show billing/auth failures (out-of-credits TTS

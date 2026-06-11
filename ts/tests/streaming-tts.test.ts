@@ -314,6 +314,86 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(result.finishReason).toBe('stop');
     });
 
+    it('reports onSpeakStart per sentence when the engine signals playback start', async () => {
+        // Engine that reports onStart as playback begins (CloudTtsEngine /
+        // BrowserTtsEngine behavior) with playback outlasting the report.
+        class StartReportingTts extends RecordingTts {
+            override async speak(text: string, options?: TtsOptions): Promise<void> {
+                this.spoken.push(text);
+                options?.onStart?.();
+                await new Promise((r) => setTimeout(r, 0));
+            }
+        }
+        const tts = new StartReportingTts();
+        const startedSentences: string[] = [];
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['Hello there.', ' How are you?']),
+            tts,
+            [{ role: 'user', content: 'hi' }],
+            { onSpeakStart: (t) => startedSentences.push(t) }
+        );
+        await result.ttsDone;
+        expect(startedSentences).toEqual(['Hello there.', 'How are you?']);
+    });
+
+    it('falls back to reporting onSpeakStart when speak resolves, exactly once', async () => {
+        // RecordingTts never calls options.onStart — the bridge must still
+        // report each chunk (late, at playback end) so the reveal lands.
+        const tts = new RecordingTts();
+        const startedSentences: string[] = [];
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['One. Two.']),
+            tts,
+            [{ role: 'user', content: 'hi' }],
+            { onSpeakStart: (t) => startedSentences.push(t) }
+        );
+        await result.ttsDone;
+        expect(startedSentences).toEqual(['One.', 'Two.']);
+    });
+
+    it('reports onSpeakStart with the clean text on the non-streaming fallback', async () => {
+        const startedSentences: string[] = [];
+        const result = await streamCompletionWithChunkedTts(
+            new FakeNonStreamingProvider('[HOLD] Resting together.'),
+            new RecordingTts(),
+            [{ role: 'user', content: 'hi' }],
+            { onSpeakStart: (t) => startedSentences.push(t) }
+        );
+        await result.ttsDone;
+        expect(startedSentences).toEqual(['Resting together.']);
+    });
+
+    it('prefetches each sentence at enqueue time, before earlier playback finishes', async () => {
+        // Slow playback + a prefetch hook: every sentence's synthesis must be
+        // kicked off while sentence one is still "playing", not serially.
+        const events: string[] = [];
+        class PrefetchingTts extends RecordingTts {
+            prefetch(text: string): void {
+                events.push(`prefetch:${text}`);
+            }
+            override async speak(text: string, _options?: TtsOptions): Promise<void> {
+                await new Promise((r) => setTimeout(r, 5));
+                events.push(`spoke:${text}`);
+            }
+        }
+        const tts = new PrefetchingTts();
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['First one. ', 'Second one. ', 'Third one.']),
+            tts,
+            [{ role: 'user', content: 'hi' }]
+        );
+        await result.ttsDone;
+        expect(events.filter((e) => e.startsWith('prefetch:'))).toEqual([
+            'prefetch:First one.',
+            'prefetch:Second one.',
+            'prefetch:Third one.',
+        ]);
+        // All prefetches land before the first sentence finishes playing.
+        expect(events.indexOf('spoke:First one.')).toBeGreaterThan(
+            events.indexOf('prefetch:Third one.')
+        );
+    });
+
     it('forwards onTextDelta with the cumulative text after each chunk', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider(['Hello', ' there.']);

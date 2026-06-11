@@ -9,11 +9,15 @@ beforeEach(() => {
         onended: (() => void) | null = null;
         onerror: (() => void) | null = null;
         onpause: (() => void) | null = null;
+        onplaying: (() => void) | null = null;
         preload = '';
         src = '';
         constructor(public url?: string) {}
         play() {
-            queueMicrotask(() => this.onended?.());
+            queueMicrotask(() => {
+                this.onplaying?.();
+                this.onended?.();
+            });
             return Promise.resolve();
         }
         pause() {}
@@ -70,6 +74,55 @@ describe('CloudTtsEngine (hosted POST mode)', () => {
         });
         await engine.speak('hi', { rate: 200 }); // 200 wpm
         expect(body['rate']).toBeCloseTo(200 / 160, 6); // → 1.25× multiplier
+    });
+
+    it('prefetch() shares one synthesis (and one charge) with the following speak()', async () => {
+        let calls = 0;
+        const fetchImpl = (async () => {
+            calls++;
+            // Defer a tick so the speak() lands while the prefetch is in flight.
+            await new Promise((r) => setTimeout(r, 0));
+            return new Response(new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }), {
+                status: 200,
+            });
+        }) as unknown as typeof fetch;
+
+        const onSynthesize = vi.fn();
+        const engine = new CloudTtsEngine({
+            voice: 'en-US-Chirp3-HD-Achernar',
+            endpointUrl: '/v1/tts',
+            usePost: true,
+            authProvider: async () => 't',
+            fetchImpl,
+            onSynthesize,
+        });
+
+        engine.prefetch('A sentence arriving early.', { rate: 0.9 });
+        await engine.speak('A sentence arriving early.', { rate: 0.9 });
+
+        expect(calls).toBe(1);
+        expect(onSynthesize).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports onStart when playback begins, before speak() resolves', async () => {
+        const fetchImpl = (async () =>
+            new Response(new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }), {
+                status: 200,
+            })) as unknown as typeof fetch;
+
+        const engine = new CloudTtsEngine({
+            voice: 'en-US-Chirp3-HD-Achernar',
+            endpointUrl: '/v1/tts',
+            usePost: true,
+            authProvider: async () => 't',
+            fetchImpl,
+        });
+
+        const events: string[] = [];
+        await engine
+            .speak('Playback start reporting.', { onStart: () => events.push('start') })
+            .then(() => events.push('done'));
+        expect(events).toEqual(['start', 'done']);
     });
 
     it('still supports the legacy GET query mode (Flask)', async () => {

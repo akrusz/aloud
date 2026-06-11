@@ -57,6 +57,9 @@ export class BrowserTtsEngine implements TtsEngine {
                     if (voice.lang) utterance.lang = voice.lang;
                 }
             }
+            // Reveal-in-step-with-voice: report when the engine actually
+            // starts producing audio (synthesis can lag speak() by a beat).
+            if (options?.onStart) utterance.onstart = options.onStart;
             utterance.onend = () => this.finish(utterance);
             utterance.onerror = () => this.finish(utterance);
             this.currentUtterance = utterance;

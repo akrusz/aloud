@@ -39,6 +39,13 @@ function wpmToMultiplier(rate: number): number {
 const SYNTH_CACHE = new Map<string, Blob>();
 const SYNTH_CACHE_MAX = 48;
 
+/**
+ * In-flight synthesis requests, keyed like SYNTH_CACHE. prefetch() and the
+ * eventual speak() of the same sentence share one network call (and one
+ * credit charge) instead of racing two synthesis requests for it.
+ */
+const SYNTH_INFLIGHT = new Map<string, Promise<Blob>>();
+
 function synthCacheKey(
     endpoint: string,
     voice: string,
@@ -117,8 +124,7 @@ export class CloudTtsEngine implements TtsEngine {
     /** Build the fetch URL + init for one synthesis request. */
     private async buildRequest(
         text: string,
-        options: TtsOptions | undefined,
-        signal: AbortSignal
+        options: TtsOptions | undefined
     ): Promise<{ url: string; init: RequestInit }> {
         if (this.usePost) {
             const headers: Record<string, string> = { 'content-type': 'application/json' };
@@ -133,12 +139,76 @@ export class CloudTtsEngine implements TtsEngine {
             // report; null outside a session (e.g. a Settings voice preview).
             const sessionId = getCloudSessionId();
             if (sessionId) body['sessionId'] = sessionId;
-            return { url: this.endpointUrl, init: { method: 'POST', headers, body: JSON.stringify(body), signal } };
+            return { url: this.endpointUrl, init: { method: 'POST', headers, body: JSON.stringify(body) } };
         }
         const params = new URLSearchParams({ voice: this.voiceId, text });
         if (this.engine) params.set('engine', this.engine);
         if (options?.rate !== undefined) params.set('rate', String(options.rate));
-        return { url: `${this.endpointUrl}?${params.toString()}`, init: { signal } };
+        return { url: `${this.endpointUrl}?${params.toString()}`, init: {} };
+    }
+
+    /**
+     * Resolve audio for `text`: cached blob, shared in-flight request, or a
+     * fresh fetch. The fetch is deliberately NOT tied to a speak()'s abort —
+     * a short clip completing into the cache is more useful than a cancelled
+     * request, and a prefetched sentence mustn't be killed by an unrelated
+     * cancel(); speak() checks its own abort flag after awaiting instead.
+     */
+    private synthesize(text: string, options: TtsOptions | undefined, cacheKey: string): Promise<Blob> {
+        const cached = SYNTH_CACHE.get(cacheKey);
+        // Cache hit: replay locally. No network call, no re-synthesis, and
+        // (deliberately) no onSynthesize — nothing was rendered server-side,
+        // so it isn't billable and mustn't be counted.
+        if (cached) return Promise.resolve(cached);
+        const inflight = SYNTH_INFLIGHT.get(cacheKey);
+        if (inflight) return inflight;
+        const request = (async (): Promise<Blob> => {
+            let { url, init } = await this.buildRequest(text, options);
+            let response = await this.fetchImpl(url, init);
+            // Self-heal a stale token: clear it and re-sign-in once on a 401,
+            // matching the LLM proxy. Otherwise hosted preview/playback fails
+            // whenever the cached token is expired or server-secret-rotated.
+            if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
+                await this.onAuthError();
+                ({ url, init } = await this.buildRequest(text, options));
+                response = await this.fetchImpl(url, init);
+            }
+            if (!response.ok) {
+                // Phrase as "endpoint <status>" (mirrors the Whisper
+                // adapter's "Whisper endpoint 402: …") so the session
+                // views' describeCloudError recognizes hosted billing/auth
+                // failures and shows the apology / buy prompt instead of
+                // swallowing them.
+                const detail = await response.text().catch(() => '');
+                throw new Error(
+                    `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
+                );
+            }
+            const blob = await response.blob();
+            // Successful server synthesis — count the characters rendered.
+            // (Fires for prefetches too: the server did render, so it bills.)
+            this.onSynthesize?.(text.length);
+            synthCachePut(cacheKey, blob);
+            return blob;
+        })().finally(() => {
+            SYNTH_INFLIGHT.delete(cacheKey);
+        });
+        SYNTH_INFLIGHT.set(cacheKey, request);
+        return request;
+    }
+
+    /**
+     * Start synthesizing `text` without playing it. The sentence-chunked TTS
+     * bridge calls this the moment a sentence lands from the LLM, so its
+     * network round-trip + server synthesis runs concurrently with earlier
+     * sentences' playback instead of starting only when its turn comes.
+     * Errors are swallowed here: the eventual speak() of the same text joins
+     * the in-flight request (or retries) and surfaces them.
+     */
+    prefetch(text: string, options?: TtsOptions): void {
+        if (!text.trim()) return;
+        const cacheKey = synthCacheKey(this.endpointUrl, this.voiceId, this.engine, text, options?.rate);
+        this.synthesize(text, options, cacheKey).catch(() => {});
     }
 
     async speak(text: string, options?: TtsOptions): Promise<void> {
@@ -150,44 +220,11 @@ export class CloudTtsEngine implements TtsEngine {
 
         const cacheKey = synthCacheKey(this.endpointUrl, this.voiceId, this.engine, text, options?.rate);
         let blob: Blob;
-        const cached = SYNTH_CACHE.get(cacheKey);
-        if (cached) {
-            // Cache hit: replay locally. No network call, no re-synthesis, and
-            // (deliberately) no onSynthesize — nothing was rendered server-side,
-            // so it isn't billable and mustn't be counted.
-            blob = cached;
-        } else {
-            try {
-                let { url, init } = await this.buildRequest(text, options, abort.signal);
-                let response = await this.fetchImpl(url, init);
-                // Self-heal a stale token: clear it and re-sign-in once on a 401,
-                // matching the LLM proxy. Otherwise hosted preview/playback fails
-                // whenever the cached token is expired or server-secret-rotated.
-                if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
-                    await this.onAuthError();
-                    ({ url, init } = await this.buildRequest(text, options, abort.signal));
-                    response = await this.fetchImpl(url, init);
-                }
-                if (!response.ok) {
-                    // Phrase as "endpoint <status>" (mirrors the Whisper
-                    // adapter's "Whisper endpoint 402: …") so the session
-                    // views' describeCloudError recognizes hosted billing/auth
-                    // failures and shows the apology / buy prompt instead of
-                    // swallowing them.
-                    const detail = await response.text().catch(() => '');
-                    throw new Error(
-                        `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
-                    );
-                }
-                blob = await response.blob();
-                // Successful server synthesis — count the characters rendered.
-                this.onSynthesize?.(text.length);
-                synthCachePut(cacheKey, blob);
-            } catch (err) {
-                this.currentAbort = null;
-                if ((err as Error).name === 'AbortError') return;
-                throw err;
-            }
+        try {
+            blob = await this.synthesize(text, options, cacheKey);
+        } catch (err) {
+            if (this.currentAbort === abort) this.currentAbort = null;
+            throw err;
         }
         if (abort.signal.aborted) return;
 
@@ -196,6 +233,15 @@ export class CloudTtsEngine implements TtsEngine {
         // preload=auto so Firefox starts buffering before play(); reduces
         // any small lead-in gap and keeps playback stable end-to-end.
         audio.preload = 'auto';
+        // Report the moment audible playback begins (not when the blob
+        // arrived), so callers can reveal text in step with the voice.
+        const onStart = options?.onStart;
+        if (onStart) {
+            audio.onplaying = () => {
+                audio.onplaying = null;
+                onStart();
+            };
+        }
 
         return new Promise<void>((resolve, reject) => {
             const cleanup = () => {

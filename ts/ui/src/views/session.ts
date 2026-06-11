@@ -524,6 +524,62 @@ export async function mountSessionView(
         return el;
     }
 
+    /**
+     * Progressive facilitator bubble, revealed in step with the voice: each
+     * sentence appears when its audio starts (streaming-tts onSpeakStart),
+     * not when generation finishes — text running ahead of the voice was the
+     * immersion-breaker beta users flagged. finalize() then swaps in the
+     * exact clean text (original whitespace, anything that never got spoken
+     * because TTS was hushed or failed), so the transcript always ends
+     * complete. The typing dots stay up until the first reveal so the wait
+     * for audio doesn't look dead.
+     */
+    function createAssistantReveal(): {
+        anchor: () => void;
+        reveal: (sentence: string) => void;
+        finalize: (cleanText: string) => void;
+        discard: () => void;
+    } {
+        let el: HTMLElement | null = null;
+        let content: HTMLElement | null = null;
+        let revealed = '';
+        // Create the bubble hidden so anchor() can claim its position in the
+        // transcript (before any later turn's bubbles) without showing an
+        // empty balloon while the first audio chunk is still in flight.
+        const ensure = (): HTMLElement => {
+            if (!el) {
+                el = appendMessage('assistant', '');
+                el.style.display = 'none';
+                content = el.querySelector<HTMLElement>('.message-content');
+            }
+            return content ?? el;
+        };
+        const show = (text: string): void => {
+            const target = ensure();
+            el!.style.display = '';
+            target.textContent = text;
+            hideTyping();
+            conversation.scrollTop = conversation.scrollHeight;
+        };
+        return {
+            anchor: () => {
+                ensure();
+            },
+            reveal: (sentence: string) => {
+                revealed = revealed ? `${revealed} ${sentence}` : sentence;
+                show(revealed);
+            },
+            finalize: (cleanText: string) => {
+                show(cleanText);
+            },
+            discard: () => {
+                el?.remove();
+                el = null;
+                content = null;
+            },
+        };
+    }
+
     /** Render a billing apology (paused / out-of-credits) as a transient
      *  facilitator bubble. It is deliberately NOT added to session history, so
      *  the saved transcript — and the next LLM call's context — resume from the
@@ -825,6 +881,9 @@ export async function mountSessionView(
         // wasSilent guard in message_handlers.handle_user_message.)
         const wasSilent = silenceMode;
         busy = true;
+        // Hoisted so the catch can discard a partially revealed bubble when
+        // the stream dies mid-reply (the reply never reaches history).
+        let reveal: ReturnType<typeof createAssistantReveal> | null = null;
         try {
             // Speech-end event into the pacing controller — auto-exits
             // silence mode if we were in it, returns RESPOND.
@@ -860,10 +919,13 @@ export async function mountSessionView(
             // hush the audio (ttsSignal) and a newer turn abort outright
             // (signal) without losing the transcript in the first case.
             //
-            // We don't render the partial text into the transcript here
-            // because the [HOLD] prefix (if any) hasn't been stripped from
-            // the early deltas. Render the cleaned full text at the end.
+            // The transcript reveals in step with the voice: each sentence
+            // appears when its audio starts (onSpeakStart fires with control
+            // tokens already stripped), and the full clean text is finalized
+            // after playback — never ahead of the audio.
             setStatus('Speaking…');
+            const bubble = createAssistantReveal();
+            reveal = bubble;
             const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
@@ -874,20 +936,28 @@ export async function mountSessionView(
                     onTtsError: handleTtsError,
                     signal: myFullAbort.signal,
                     ttsSignal: myTtsAbort.signal,
+                    onSpeakStart: (sentence) => {
+                        if (!superseded()) bubble.reveal(sentence);
+                    },
                 }
             );
             // A newer utterance took over while we were generating — drop this
             // reply entirely; the live turn owns the typing dots + history.
-            if (superseded()) return;
+            if (superseded()) {
+                bubble.discard();
+                return;
+            }
             const { hold, stage, cleanText } = parseTurnSignals(rawText);
-            hideTyping();
             // A soft-launch-pause canned turn (proxy spoke a graceful apology,
             // charged nothing): show it transiently but keep it OUT of session
             // history/logs, so we resume from the last real turn. No buy prompt
             // and no silence mode — a top-up can't lift the pause.
             const ephemeral = finishReason === BILLING_PAUSED_FINISH;
             if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
-            appendMessage('assistant', cleanText);
+            // Claim the bubble's spot in the transcript now (still hidden if
+            // nothing has been spoken yet), so a turn that supersedes us
+            // mid-playback can't end up ordered above this reply.
+            bubble.anchor();
             // Staged modes: apply the LLM's movement signal (clamped at the
             // ends of the arc) and persist the new phase for resume.
             if (stager && !ephemeral && stage !== 'none' && stager.apply(stage)) {
@@ -902,6 +972,10 @@ export async function mountSessionView(
             } catch {
                 /* non-fatal */
             }
+            // Complete the bubble whatever happened to the audio (hushed
+            // barge-in, TTS failure, normal finish) — the reply is in history,
+            // so the transcript must show it in full.
+            bubble.finalize(cleanText);
             if (superseded()) return;
             // A [HOLD] is only a bid: the facilitator just asked (per the
             // prompt) whether to go quiet. We don't go silent here — the
@@ -912,6 +986,9 @@ export async function mountSessionView(
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
             pacing.onResponseEnd();
         } catch (err) {
+            // The reply never made it into history — drop any partially
+            // revealed bubble so the transcript matches what's recorded.
+            reveal?.discard();
             if (superseded()) return;
             hideTyping();
             const msg = (err as Error).message;
@@ -1313,6 +1390,7 @@ export async function mountSessionView(
      */
     async function generateOpener(): Promise<void> {
         const openerPrompt = builder.buildOpenerPrompt(setup.intention.trim());
+        const reveal = createAssistantReveal();
         try {
             setStatus('Speaking…');
             showTyping();
@@ -1334,25 +1412,29 @@ export async function mountSessionView(
                     system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
+                    // Reveal the greeting in step with the voice (first
+                    // impression of the app — see createAssistantReveal).
+                    onSpeakStart: (sentence) => reveal.reveal(sentence),
                 }
             );
             // Strip any control tokens an eager model put on the greeting —
             // an opener can neither hold nor move the arc.
             const { cleanText } = parseTurnSignals(rawText);
-            hideTyping();
             // The opener prompt was a one-shot instruction — don't persist it;
             // record only the assistant greeting (with its usage).
             session.addAssistantMessage(cleanText, undefined, usage);
-            appendMessage('assistant', cleanText);
+            reveal.anchor();
             try {
                 await ttsDone;
             } catch {
                 /* non-fatal */
             }
+            reveal.finalize(cleanText);
             pacing.onResponseEnd();
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } catch (err) {
             console.warn('LLM opener failed, using static fallback', err);
+            reveal.discard();
             hideTyping();
             const fallback = builder.getSessionOpener();
             session.addAssistantMessage(fallback);
@@ -1372,6 +1454,7 @@ export async function mountSessionView(
             'The meditator is returning to continue from a previous session. ' +
             "Offer a brief, warm welcome back and gently acknowledge they're " +
             'picking up where they left off.';
+        const reveal = createAssistantReveal();
         try {
             setStatus('Welcoming you back…');
             // Build the message list as: previous exchanges + the synthetic
@@ -1391,21 +1474,23 @@ export async function mountSessionView(
                     system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
+                    onSpeakStart: (sentence) => reveal.reveal(sentence),
                 }
             );
             const { cleanText } = parseTurnSignals(rawText);
-            hideTyping();
             session.addAssistantMessage(cleanText, undefined, usage);
-            appendMessage('assistant', cleanText);
+            reveal.anchor();
             try {
                 await ttsDone;
             } catch {
                 /* non-fatal */
             }
+            reveal.finalize(cleanText);
             pacing.onResponseEnd();
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } catch (err) {
             console.warn('Continuation opener failed', err);
+            reveal.discard();
             hideTyping();
             // Fall back to a static welcome — better than nothing.
             const fallback = 'Welcome back. Let’s continue.';
@@ -1473,13 +1558,20 @@ export async function mountSessionView(
         busy = true;
         try {
             session.addAssistantMessage(text);
-            appendMessage('assistant', text);
+            // Reveal with the voice, like LLM replies: show the line when its
+            // audio starts, and in any case once playback settles.
+            const reveal = createAssistantReveal();
+            reveal.anchor();
             setStatus('Speaking…');
             try {
-                await tts.speak(text, { rate: setup.ttsRate });
+                await tts.speak(text, {
+                    rate: setup.ttsRate,
+                    onStart: () => reveal.reveal(text),
+                });
             } catch {
                 /* non-fatal */
             }
+            reveal.finalize(text);
             pacing.onResponseEnd();
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } finally {
