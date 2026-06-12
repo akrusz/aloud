@@ -4277,6 +4277,26 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         font-size: 0.9rem;
         margin-left: 0.5rem;
     }
+    /* With three method tabs the tab-bar "?" gets crushed against the right
+       edge on phones. Float it up into the top chrome instead — centered
+       between the "aloud." wordmark (left) and the orb (right), matching the
+       same translucent chip treatment so it reads as part of the header. It
+       still toggles the methods panel / "take the full tour" link as before. */
+    .tab-bar .info-btn {
+        position: fixed;
+        /* Centered on the bar's vertical midline — the 1.4rem brand chip sets
+           the bar height, so its middle lands ~0.75rem below the top edge. */
+        top: 0.75rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 95;
+        margin-left: 0;
+        color: var(--accent);
+        border-color: var(--border);
+        background: var(--bg-secondary);
+        opacity: 0.9;
+        backdrop-filter: blur(4px);
+    }
     .continue-banner-close {
         font-size: 1.5rem;
         padding: 0.25rem 0.5rem;

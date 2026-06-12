@@ -67,6 +67,7 @@ let currentStep = 0;
 let guideActive = false;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 let prevTarget: HTMLElement | null = null;
+let lastViewportWidth = 0;
 
 interface Section {
     id: string;
@@ -372,6 +373,14 @@ function onScroll(): void {
 }
 
 function onResizeDebounced(): void {
+    // Mobile browsers fire `resize` when the URL bar shows/hides during a
+    // scroll — that only changes the viewport *height*. Re-rendering the step
+    // on every such event recreates the card and replays its fade-in, which
+    // reads as a disorienting blink while the user scrolls. Only re-run the
+    // layout math when the *width* actually changes (orientation flip or a
+    // genuine resize), which is the case our positioning depends on.
+    if (window.innerWidth === lastViewportWidth) return;
+    lastViewportWidth = window.innerWidth;
     if (resizeTimer !== null) clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
         if (guideActive) goToStep(currentStep);
@@ -389,6 +398,7 @@ export function startGuide(startStep?: number): void {
     installInfoBtnHandler();
     guideActive = true;
     currentStep = 0;
+    lastViewportWidth = window.innerWidth;
     createOverlay();
     window.addEventListener('resize', onResizeDebounced);
     window.addEventListener('scroll', onScroll);

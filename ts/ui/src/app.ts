@@ -13,6 +13,7 @@
  */
 
 import { mountSetupView } from './views/setup.js';
+import { closeIfActive as closeGuideIfActive } from './tour/index-guide.js';
 import { mountSessionView, type SessionViewHandle } from './views/session.js';
 import {
     mountNotingSessionView,
@@ -310,6 +311,15 @@ async function routeTo(
 }
 
 function setActiveNav(view: View): void {
+    // Tear down the setup-page onboarding tour on any view change. The tour
+    // overlay lives on <body>, not inside the view root, so navigating away
+    // (bottom-nav Session/History/Settings/More, top nav, Back) would
+    // otherwise leave it floating over the new view — and with its setup
+    // targets gone it would skip straight to the "you're ready" screen.
+    // setActiveNav runs on every go* transition, so this is the one chokepoint
+    // that covers them all. Method-tab switches (Exploration/Noting/Felt
+    // Sense) don't route through here, so the tour's own tab-stepping is safe.
+    closeGuideIfActive();
     currentView = view;
     document.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
         // Use `nav-active` to match the lifted CSS — Python's base.html

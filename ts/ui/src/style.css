@@ -549,9 +549,10 @@
     padding-left: 2.2rem;
     padding-right: 2.2rem;
 }
-/* Very narrow: the row gets cramped, so pop the pill out above the bar (the
-   fixed footer is its containing block) and give the button the full width back. */
-@media (max-width: 380px) {
+/* Narrow: the three-up row (pill · Begin · gutter) gets cramped well before
+   it's truly tiny, so pop the pill out above the bar (the fixed footer is its
+   containing block) and give the button the full width back. */
+@media (max-width: 488px) {
     .setup-footer-inner {
         display: block;
     }
