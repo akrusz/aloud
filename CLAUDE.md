@@ -32,7 +32,7 @@ Two stacks live side by side under `ts/`:
 - **`/app/v1/*`** — the app's *own* backend (provider/voice/model catalogs, system-info; on desktop also STT/TTS/Ollama/claude-proxy/shell). Served by the **Rust shell** on desktop, by **Hono** on web.
 - **`/cloud/v1/*`** — the **hosted, signed-in, billed** service (auth, account, billing, metered forwarding). Always **Hono** (aloud cloud).
 
-Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, `/cloud/v1` Fireworks when hosted, or browser SpeechRecognition) → core builds the prompt → LLM (BYOK direct, local Ollama/claude-CLI, or metered via `/cloud/v1`) → parse `[HOLD]` → TTS (Piper/`say` on desktop, OpenAI or Google via `/cloud/v1` hosted, or browser speechSynthesis).
+Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, or browser SpeechRecognition) → core builds the prompt → LLM (BYOK direct, local Ollama/claude-CLI, or metered via `/cloud/v1`) → parse `[HOLD]` → TTS (Piper/`say` on desktop, OpenAI or Google via `/cloud/v1` hosted, or browser speechSynthesis).
 
 ## Commands
 
