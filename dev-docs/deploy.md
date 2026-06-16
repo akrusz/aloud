@@ -219,19 +219,38 @@ export ALOUD_ADMIN_TOKEN=…          # token or panel session JWT
 cd ts/server/scripts
 ```
 
-**Test 1 — write survives a stop + redeploy** (the 5iv4 failure mode; safe to run
-against prod). This is the one that directly exercises the WAL/shutdown path:
+**Precheck — confirm the fix is actually running.** The mitigations only count if
+the deployed image has them (a GitHub-Actions deploy is fine — same `flyctl` —
+but only if it built the branch that carries the commits):
 
 ```bash
-./durability-probe.sh write                                   # commit the marker
-fly machine stop  -a aloud-cloud "$(fly machine list -a aloud-cloud -j | python3 -c 'import sys,json;print(json.load(sys.stdin)[0]["id"])')"
-fly deploy --config server/fly.toml                           # cold-boot on the same volume
-./durability-probe.sh check                                   # PASS = the row is still there
+fly config show -a aloud-cloud | grep -i auto_stop    # expect "stop", not "suspend"
+```
+
+(`synchronous = FULL` rides in the image; if `auto_stop` is right, the build was current.)
+
+**Test 1 — write survives an idle power-down + redeploy** (mirrors 5iv4). The
+distinction that makes this meaningful: an explicit `fly machine stop` — and a
+redeploy of a *running* machine — is a **clean** SIGTERM shutdown that was probably
+always durable. The bug was an **idle auto power-down** (previously `suspend`). So
+don't stop it by hand; let Fly power it down on its own:
+
+```bash
+./durability-probe.sh write                           # commit the marker
+# leave the app idle and watch for Fly to power the machine down on its own:
+fly logs -a aloud-cloud | grep -iE "suspend|stopping"  # wait for the power-down line
+fly deploy --config server/fly.toml                   # redeploy onto the same volume
+./durability-probe.sh check                           # PASS = the row survived
 ./durability-probe.sh cleanup
 ```
 
-A `FAIL` here means the stop/redeploy still rolls writes back — leave 5iv4 open
-and escalate to the Postgres migration (meditation-pal-sk9s).
+For teeth, run it once against the **pre-fix** config (`auto_stop = "suspend"`) and
+confirm it **FAILs** — that reproduces 5iv4 and proves the probe can actually detect
+the loss — then flip to `"stop"` and confirm it **PASSes**. A pass on a clean
+manual stop alone doesn't prove much.
+
+A `FAIL` on the fixed config means writes still roll back — leave 5iv4 open and
+escalate to the Postgres migration (meditation-pal-sk9s).
 
 **Test 2 — restore after total volume loss** (proves the Litestream DR claim).
 **Destructive — run on a throwaway/staging app, never prod**, since it deletes the
