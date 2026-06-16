@@ -224,10 +224,15 @@ the deployed image has them (a GitHub-Actions deploy is fine — same `flyctl` �
 but only if it built the branch that carries the commits):
 
 ```bash
-fly config show -a aloud-cloud | grep -i auto_stop    # expect "stop", not "suspend"
+fly config show -a aloud-cloud | grep -i auto_stop    # shows true (== stop) or "suspend"
+# ground truth at the machine level (prints ['stop'] or ['suspend']):
+fly machine list -j -a aloud-cloud | python3 -c "import sys,json; print([s.get('autostop') for m in json.load(sys.stdin) for s in (m.get('config') or {}).get('services',[])])"
 ```
 
-(`synchronous = FULL` rides in the image; if `auto_stop` is right, the build was current.)
+Note `fly config show` collapses `"stop"` to the legacy boolean `true` (`true` ==
+stop; only `"suspend"` renders as a string), so `true` here is correct. The
+machine-level `autostop` is the unambiguous check. (`synchronous = FULL` rides in
+the image; if `autostop` is right, the build was current.)
 
 **Test 1 — write survives an idle power-down + redeploy** (mirrors 5iv4). The
 distinction that makes this meaningful: an explicit `fly machine stop` — and a
