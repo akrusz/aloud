@@ -197,6 +197,64 @@ To force a full rebuild from R2 on the server: stop the machine, delete (or
 recreate) the volume, and redeploy — the entrypoint restores automatically because
 `/data/aloud.db` will be missing.
 
+### Durability validation (meditation-pal-b8hf)
+
+A real credit purchase was once acknowledged by the webhook and then **lost**
+across an idle suspend + redeploy (meditation-pal-5iv4). The mitigations —
+`auto_stop_machines = "stop"` (clean SIGTERM shutdown, not a frozen VM) and
+`PRAGMA synchronous = FULL` (fsync the WAL every commit) — are *believed* to fix
+it but were not proven under a real cycle. **Do not trust them, or sell credits,
+until both tests below pass.** Re-run after any change to `fly.toml`'s machine
+lifecycle, `litestream.yml`, or the entrypoint.
+
+The harness is `ts/server/scripts/durability-probe.sh`: it writes an isolated
+marker (a retreat pass — same SQLite file + WAL as the ledger, so it's a faithful
+proxy without polluting the ledger), then asserts it survived. Get an admin
+credential first — either the `ALOUD_ADMIN_TOKEN` secret, or copy a signed-in
+admin session JWT from the panel console with
+`localStorage.getItem('aloud-admin-token')`:
+
+```bash
+export ALOUD_ADMIN_TOKEN=…          # token or panel session JWT
+cd ts/server/scripts
+```
+
+**Test 1 — write survives a stop + redeploy** (the 5iv4 failure mode; safe to run
+against prod). This is the one that directly exercises the WAL/shutdown path:
+
+```bash
+./durability-probe.sh write                                   # commit the marker
+fly machine stop  -a aloud-cloud "$(fly machine list -a aloud-cloud -j | python3 -c 'import sys,json;print(json.load(sys.stdin)[0]["id"])')"
+fly deploy --config server/fly.toml                           # cold-boot on the same volume
+./durability-probe.sh check                                   # PASS = the row is still there
+./durability-probe.sh cleanup
+```
+
+A `FAIL` here means the stop/redeploy still rolls writes back — leave 5iv4 open
+and escalate to the Postgres migration (meditation-pal-sk9s).
+
+**Test 2 — restore after total volume loss** (proves the Litestream DR claim).
+**Destructive — run on a throwaway/staging app, never prod**, since it deletes the
+volume. Stand up a staging app that mirrors `fly.toml` + the `R2_*` secrets
+(point its replica at a *separate* R2 prefix so it can't touch prod's backup),
+then:
+
+```bash
+export ALOUD_BASE_URL=https://<staging-app>.fly.dev
+./durability-probe.sh write
+# let Litestream replicate the marker to R2 BEFORE destroying the volume:
+fly ssh console -a <staging-app> -C "litestream snapshots /data/aloud.db"   # confirm a fresh snapshot
+fly machine stop -a <staging-app> <machine-id>
+fly volume destroy -a <staging-app> <volume-id>                            # simulate hardware loss
+fly volume create aloud_data --size 1 --region sjc -a <staging-app>
+fly deploy --config server/fly.toml -a <staging-app>                       # entrypoint runs `litestream restore`
+./durability-probe.sh check                                                # PASS = restore brought the marker back
+```
+
+A `FAIL` here means the backup/restore path is broken (the more dangerous bug —
+you'd discover it only during a real disaster). Fix `litestream.yml` / the
+entrypoint until it passes, then re-confirm with `litestream snapshots`.
+
 ### Render / VPS alternative
 
 The Dockerfile is host-agnostic. On Render: a Docker web service, root
