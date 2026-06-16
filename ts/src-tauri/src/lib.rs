@@ -38,7 +38,75 @@ fn save_geometry_throttled(app: &tauri::AppHandle) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// macOS apps launched from Finder/Launchpad/Dock inherit a minimal PATH
+/// (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits Homebrew, `~/.local/bin`,
+/// npm-global, and version-manager shims — so `which::which("claude")` (and
+/// ollama/brew) fail even when the tool is installed, and a spawned `claude`
+/// can't find `node`. Repair PATH once at startup: merge in the user's
+/// login+interactive shell PATH (catches nvm/fnm/asdf/volta wherever they put
+/// their shims), then append common static bin dirs as a backstop. Best-effort
+/// and idempotent; failures leave PATH untouched. No-op off macOS, where GUI
+/// launches already carry the user's PATH.
+#[cfg(target_os = "macos")]
+fn repair_path() {
+  use std::collections::HashSet;
+
+  let mut dirs: Vec<String> = std::env::var("PATH")
+    .unwrap_or_default()
+    .split(':')
+    .filter(|s| !s.is_empty())
+    .map(str::to_string)
+    .collect();
+  let mut seen: HashSet<String> = dirs.iter().cloned().collect();
+
+  // 1) The user's real PATH from a login+interactive shell. stdin is not a TTY
+  //    here, so an rc file that reads input gets EOF rather than hanging; a
+  //    sentinel isolates the value from any rc-file stdout chatter.
+  if let Ok(shell) = std::env::var("SHELL") {
+    if let Ok(out) = std::process::Command::new(&shell)
+      .args(["-lic", "printf '__ALOUD_PATH__%s__ALOUD_END__' \"$PATH\""])
+      .output()
+    {
+      let s = String::from_utf8_lossy(&out.stdout);
+      if let (Some(i), Some(j)) = (s.find("__ALOUD_PATH__"), s.find("__ALOUD_END__")) {
+        for d in s[i + "__ALOUD_PATH__".len()..j].split(':') {
+          if !d.is_empty() && seen.insert(d.to_string()) {
+            dirs.push(d.to_string());
+          }
+        }
+      }
+    }
+  }
+
+  // 2) Static backstop: Homebrew (arm64 + Intel), /usr/local, the Claude Code
+  //    native install dir (~/.local/bin), and npm-global.
+  let mut backstop: Vec<String> = vec![
+    "/opt/homebrew/bin".into(),
+    "/opt/homebrew/sbin".into(),
+    "/usr/local/bin".into(),
+    "/usr/local/sbin".into(),
+  ];
+  if let Ok(home) = std::env::var("HOME") {
+    for sub in [".local/bin", ".npm-global/bin", "bin"] {
+      backstop.push(format!("{home}/{sub}"));
+    }
+  }
+  for d in backstop {
+    if seen.insert(d.clone()) {
+      dirs.push(d);
+    }
+  }
+
+  std::env::set_var("PATH", dirs.join(":"));
+}
+
+#[cfg(not(target_os = "macos"))]
+fn repair_path() {}
+
 pub fn run() {
+  // Must run before any which::which / CLI spawn (providers probe, claude, ollama).
+  repair_path();
+
   #[allow(unused_mut)]
   let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_opener::init())
