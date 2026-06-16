@@ -167,6 +167,10 @@ export interface RetreatInvite {
 }
 
 export interface CreditsStore {
+    /** Release the backing handle on graceful shutdown (SQLite: closes the DB,
+     *  which checkpoints the WAL into the main file). Optional — the in-memory
+     *  store has nothing to close. */
+    close?(): void;
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
     /** The live (non-deleted) account whose email canonicalizes to the same

@@ -26,6 +26,12 @@
 app = "aloud-cloud"           # rename to your Fly app name
 primary_region = "sjc"         # pick the region nearest your users
 
+# Headroom for a clean stop: the app closes its server + SQLite handle on
+# SIGTERM, then litestream does a final R2 sync before exit. The 5s default was
+# too tight (the VM was force-halted "abruptly", risking the last sync); 20s is
+# a ceiling, not a delay — Fly proceeds as soon as the process exits.
+kill_timeout = "20s"
+
 [build]
   # Resolved relative to THIS file's directory (ts/server/), not the cwd you
   # deploy from — so it's just "Dockerfile", not "server/Dockerfile". The build

@@ -92,7 +92,7 @@ async function main(): Promise<void> {
     sweep();
     setInterval(sweep, 3_600_000).unref();
 
-    serve({ fetch: app.fetch, port: config.port }, (info) => {
+    const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
         log.info('aloud cloud up', {
             port: info.port,
             providers: configuredProviders(config),
@@ -105,6 +105,33 @@ async function main(): Promise<void> {
             corsOrigins: config.corsOrigins.length > 0 ? config.corsOrigins : '*',
         });
     });
+
+    // Graceful shutdown. Fly stops/redeploys the machine by signalling the
+    // process (litestream catches it and forwards to us); if we don't exit
+    // promptly the VM is force-halted ("exited abruptly"), which can cut
+    // litestream's final R2 sync. Close the HTTP server, then the SQLite handle
+    // (closing checkpoints the WAL into the main file), then exit so litestream
+    // can finish its last sync inside Fly's kill window. Hard-capped so a hung
+    // connection can't outlive that window — committed rows are already durable
+    // on the volume (PRAGMA synchronous = FULL), so a forced exit is still safe.
+    let shuttingDown = false;
+    const shutdown = (signal: string): void => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        log.info('shutting down', { signal });
+        const cap = setTimeout(() => process.exit(0), 4000);
+        cap.unref();
+        server.close(() => {
+            try {
+                deps.store.close?.();
+            } catch (err) {
+                log.warn('store close failed during shutdown', { error: String(err) });
+            }
+            process.exit(0);
+        });
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main().catch((err: unknown) => {
