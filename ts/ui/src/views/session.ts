@@ -999,6 +999,15 @@ export async function mountSessionView(
             // history/logs, so we resume from the last real turn. No buy prompt
             // and no silence mode — a top-up can't lift the pause.
             const ephemeral = finishReason === BILLING_PAUSED_FINISH;
+            // An empty completion (provider returned 200 with no text) is not a
+            // valid turn: surface it instead of silently writing a blank message
+            // to history and limping along on canned check-ins. A [HOLD]-only
+            // reply keeps rawText non-empty, so legitimate holds aren't swallowed.
+            if (!ephemeral && !rawText.trim()) {
+                throw new Error(
+                    'The model returned an empty response. Try again, or check your provider in Settings.'
+                );
+            }
             if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
             // Claim the bubble's spot in the transcript now (still hidden if
             // nothing has been spoken yet), so a turn that supersedes us
@@ -1493,6 +1502,9 @@ export async function mountSessionView(
             // Strip any control tokens an eager model put on the greeting —
             // an opener can neither hold nor move the arc.
             const { cleanText } = parseTurnSignals(rawText);
+            // An empty greeting is a failed opener — throw to the catch below so
+            // it uses the static fallback rather than a blank first turn.
+            if (!rawText.trim()) throw new Error('empty opener completion');
             // The opener prompt was a one-shot instruction — don't persist it;
             // record only the assistant greeting (with its usage).
             session.addAssistantMessage(cleanText, undefined, usage);
@@ -1551,6 +1563,8 @@ export async function mountSessionView(
                 }
             );
             const { cleanText } = parseTurnSignals(rawText);
+            // Empty welcome-back → fall through to the static fallback below.
+            if (!rawText.trim()) throw new Error('empty continuation completion');
             session.addAssistantMessage(cleanText, undefined, usage);
             reveal.anchor();
             try {

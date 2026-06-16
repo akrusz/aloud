@@ -70,6 +70,18 @@ To see the **failure-to-load** state (orb pulses forever) there's no param:
 block the JS bundle in DevTools → Network → Block request URL, or set Network
 to Offline, before reloading.
 
+**Preview the "update available" flow** — `?previewUpdate` (or, handy inside the
+Tauri webview, a `localStorage` `aloud:previewUpdate` key) forces the whole
+update path without a real release: the brand lights up the nav "Update" pill +
+mobile More entry, and the About box renders the install button — a simulated,
+non-relaunching download in the desktop shell, the releases link in a browser. A
+bare flag pretends one patch above the running build; `?previewUpdate=2.0.0`
+sets the version verbatim. Unlike the params above this one is **not** DEV-gated
+— deliberately, so you can preview inside a bundled desktop debug build
+(`scripts/dev-bundle.sh`), which is the only place the real updater button runs.
+Clear it by dropping the param or `localStorage.removeItem('aloud:previewUpdate')`.
+Read in `about.ts` (`previewUpdateVersion`).
+
 ### Hosted server (Hono)
 
 ```bash

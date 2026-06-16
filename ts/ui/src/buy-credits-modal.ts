@@ -5,9 +5,12 @@
  * with the sign-in / voice modals, and floats above whatever view is mounted so
  * it can fire mid-session (out-of-credits) or from Settings.
  *
- * Card: picking a pack redirects the tab to Stripe (startCheckout), so the
- * success path doesn't resolve here — it's read from `?purchase=` on return
- * (cloud-billing.consumePurchaseReturn).
+ * Card: picking a pack starts a Stripe Checkout (startCheckout). On the web the
+ * tab redirects to Stripe and the outcome is read from `?purchase=` on return
+ * (cloud-billing.consumePurchaseReturn). In the desktop webview a redirect would
+ * take over the whole window and dump the user on the hosted site afterwards, so
+ * goToCheckout opens Stripe in the system browser and the modal waits, polling
+ * /me until the webhook-fulfilled credits land (self-purchases auto-close).
  *
  * USDC: the wallet signs and the server settles in-place (no redirect), so the
  * modal shows a success line, updates the live balance, and closes itself.
@@ -19,6 +22,7 @@ import { getKnownBalance, setKnownBalance, subscribeBalance } from './cloud-bala
 import { fetchMe } from './cloud-auth.js';
 import { creditAmount } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
+import { openExternal } from './external-links.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -77,6 +81,10 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 <div class="provider-hint buy-credits-usdc-note hidden" id="buy-credits-usdc-note">
                     Pay in USDC on Base from a connected wallet. Credited to your account on settlement.
                 </div>
+                <div class="buy-credits-waiting hidden" id="buy-credits-waiting">
+                    <p class="provider-hint" id="buy-credits-waiting-note">We opened Stripe in your browser. Finish your purchase there, then come back - your balance updates here automatically.</p>
+                    <button type="button" class="btn btn-secondary" id="buy-credits-done">Done</button>
+                </div>
                 <div class="provider-hint buy-credits-success hidden" id="buy-credits-success"></div>
                 <div class="provider-hint buy-credits-error hidden" id="buy-credits-error"></div>
             </div>`;
@@ -86,11 +94,13 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
 
         let settled = false;
         let unsubscribeBalance: (() => void) | null = null;
+        let pollTimer: ReturnType<typeof setInterval> | null = null;
         const close = (result: boolean): void => {
             if (settled) return;
             settled = true;
             document.removeEventListener('keydown', onKey);
             unsubscribeBalance?.();
+            if (pollTimer !== null) clearInterval(pollTimer);
             releaseFocus();
             overlay.remove();
             resolve(result);
@@ -201,6 +211,64 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             overlay.querySelectorAll<HTMLButtonElement>('.buy-credits-pack').forEach((b) => (b.disabled = disabled));
         };
 
+        /**
+         * Hand the Stripe Checkout URL off to the user. On the web we redirect
+         * the tab (Stripe returns via `?purchase=`). In the desktop webview that
+         * would take over the whole window and strand the user on the hosted
+         * site after checkout, so instead we open Stripe in the system browser
+         * and keep the modal up in a waiting state: fulfilment is the webhook,
+         * so we poll /me and the balance line updates (and self-purchases
+         * auto-close) when the credits land. Returns true if it entered the
+         * desktop waiting state so callers don't also re-enable the packs.
+         */
+        const goToCheckout = async (url: string): Promise<boolean> => {
+            const opened = await openExternal(url);
+            if (!opened) {
+                // Web (or no opener): the classic full-page redirect to Stripe.
+                window.location.assign(url);
+                return false;
+            }
+            // Desktop: swap the buy controls for a "finish in your browser" note.
+            for (const id of [
+                'buy-credits-method',
+                'buy-credits-audience',
+                'buy-credits-gift-email',
+                'buy-credits-gift-note',
+                'buy-credits-packs',
+                'buy-credits-custom',
+                'buy-credits-usdc-note',
+            ]) {
+                overlay.querySelector(`#${id}`)?.classList.add('hidden');
+            }
+            overlay.querySelector('#buy-credits-waiting')?.classList.remove('hidden');
+            overlay.querySelector('#buy-credits-done')?.addEventListener('click', () => close(true));
+            // Auto-detect a self-purchase landing: poll /me (which feeds the
+            // shared balance store) and close once the balance climbs past where
+            // it started. A null start (unknown) or a gift (buyer balance
+            // unchanged) just won't trip it — the Done button covers those.
+            const startBalance = getKnownBalance();
+            const deadline = Date.now() + 3 * 60 * 1000;
+            pollTimer = setInterval(() => {
+                if (Date.now() > deadline) {
+                    if (pollTimer !== null) clearInterval(pollTimer);
+                    pollTimer = null;
+                    return;
+                }
+                void fetchMe()
+                    .then(() => {
+                        const now = getKnownBalance();
+                        if (typeof startBalance === 'number' && typeof now === 'number' && now > startBalance) {
+                            if (pollTimer !== null) clearInterval(pollTimer);
+                            pollTimer = null;
+                            showSuccess(`Payment received. Balance ${creditAmount(now, 0)}.`);
+                            setTimeout(() => close(true), 1600);
+                        }
+                    })
+                    .catch(() => null);
+            }, 3000);
+            return true;
+        };
+
         // What happens when a pack is picked, branching on the payment method.
         const buy = async (pack: CreditPack): Promise<void> => {
             showError('');
@@ -229,7 +297,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             }
             setPacksDisabled(true);
             startCheckout({ packId: pack.id }, to.email)
-                .then((url) => window.location.assign(url))
+                .then((url) => goToCheckout(url))
                 .catch((err: unknown) => {
                     setPacksDisabled(false);
                     showError(err instanceof Error ? err.message : String(err));
@@ -249,7 +317,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             setPacksDisabled(true);
             if (customBtn) customBtn.disabled = true;
             startCheckout({ credits }, to.email)
-                .then((url) => window.location.assign(url))
+                .then((url) => goToCheckout(url))
                 .catch((err: unknown) => {
                     setPacksDisabled(false);
                     if (customBtn) customBtn.disabled = false;

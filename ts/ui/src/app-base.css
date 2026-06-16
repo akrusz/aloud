@@ -2504,7 +2504,8 @@ body::before {
 
 /* Update available — pill button in nav, parallel entry in mobile More sheet.
    Visibility driven off the brand's has-update / has-update-static classes
-   (set by chrome.js) via :has(), so we don't have to touch that JS lifecycle. */
+   (set by about.ts → runStartupUpdateNudge) via :has(), so we don't have to
+   touch that JS lifecycle. */
 
 .update-btn {
     display: none;
@@ -2917,6 +2918,19 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 .buy-credits-usdc-note {
     margin-top: 0.5rem;
+}
+
+/* Desktop "finish in your browser" state — shown after Stripe opens in the
+ * system browser (goToCheckout), since the webview can't host checkout. */
+.buy-credits-waiting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    text-align: center;
+}
+.buy-credits-waiting .btn {
+    align-self: stretch;
 }
 
 /* Gift toggle ("For myself" / "Gift to someone") + recipient field.

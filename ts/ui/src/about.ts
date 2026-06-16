@@ -13,6 +13,12 @@
  * check for a newer release and, if there is one, reveal an Update button that
  * downloads + installs it and relaunches (see desktop-updater.ts). In a browser
  * there's nothing to install, so the button never appears.
+ *
+ * Update checks also run a background nudge (runUpdateNudge) on boot and on each
+ * in-app nav, throttled to at most once an hour, that flags the brand when a
+ * release is waiting. Set `?previewUpdate` (or localStorage aloud:previewUpdate)
+ * to force the whole "update available" flow without a real release — see
+ * previewUpdateVersion.
  */
 
 import { isTauri } from './is-desktop.js';
@@ -36,6 +42,16 @@ export function initAbout(): void {
     const versionEl = document.getElementById('aboutVersion');
     if (versionEl) versionEl.textContent = `Version ${__APP_VERSION__}`;
     const updateEl = document.getElementById('aboutUpdate');
+
+    // The nav "Update" pill and its mobile More-sheet twin are revealed by CSS
+    // when the brand carries has-update (see runUpdateNudge); clicking either
+    // just opens the About box, where the install button lives.
+    const updateBtn = document.getElementById('updateBtn');
+    updateBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openAbout();
+    });
 
     // Hiding the modal also collapses the crypto panel, so it re-opens clean.
     const hide = () => {
@@ -69,6 +85,80 @@ export function initAbout(): void {
             });
         });
     }
+
+    runUpdateNudge();
+}
+
+// At most one background update check per hour, across boot + every nav. The
+// timestamp is persisted so reloads and SPA navigation share one budget — the
+// Flask app checked once per page load; an SPA never reloads, so we throttle by
+// wall-clock instead. The brand's has-update class is the other guard: once a
+// release is flagged we stop checking entirely (nothing left to discover).
+const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const LAST_CHECK_KEY = 'aloud:lastUpdateCheck';
+
+function dueForCheck(): boolean {
+    try {
+        const last = Number(localStorage.getItem(LAST_CHECK_KEY));
+        return !(last > 0) || Date.now() - last >= UPDATE_CHECK_INTERVAL_MS;
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Background update nudge — mirrors the old Python app's page-load check, run on
+ * boot and on each in-app nav (setActiveNav), throttled to once an hour.
+ *
+ * On a desktop/local build (web auto-updates on reload), quietly look for a
+ * newer release. If one's waiting, flag the brand with `has-update`, which
+ * reveals the nav "Update" pill and the mobile More-sheet entry via CSS
+ * (:has(.nav-brand.has-update) .update-btn). It pulses for 10s, then settles to
+ * the steady `has-update-static` state — same timing as the Flask app. Clicking
+ * either opens the About box, where the actual download/install button lives.
+ *
+ * The check is read-only and silent on failure, so a flaky network just means no
+ * nudge. The About box re-checks on open to render the details, so this only
+ * needs the yes/no. `?previewUpdate` forces the flagged state regardless of
+ * platform or throttle so the flow can be eyeballed without a real release.
+ */
+export function runUpdateNudge(): void {
+    const brand = document.getElementById('aboutLink');
+    if (!brand) return;
+    // Already flagged, or forced via preview — nothing more to check.
+    if (brand.classList.contains('has-update') || brand.classList.contains('has-update-static')) {
+        return;
+    }
+    if (previewUpdateVersion()) {
+        markUpdateAvailable(brand);
+        return;
+    }
+    if (isWebMode() || !dueForCheck()) return;
+    try {
+        localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
+    } catch {
+        // Private mode / disabled storage: proceed unthrottled rather than skip.
+    }
+    const available = isTauri()
+        ? checkDesktopUpdate().then(Boolean)
+        : checkForUpdate().then((res) => res.state === 'available');
+    void available.then((isAvailable) => {
+        if (isAvailable) markUpdateAvailable(brand);
+    });
+}
+
+// Flag the brand: pulse for 10s, then settle to the steady state. Idempotent —
+// an hourly re-check won't re-pulse — so it's safe to call from the nudge and
+// from the preview path alike.
+function markUpdateAvailable(brand: HTMLElement): void {
+    if (brand.classList.contains('has-update') || brand.classList.contains('has-update-static')) {
+        return;
+    }
+    brand.classList.add('has-update');
+    setTimeout(() => {
+        brand.classList.remove('has-update');
+        brand.classList.add('has-update-static');
+    }, 10000);
 }
 
 /** Open the About modal and refresh its update status. Exported so the Settings
@@ -87,7 +177,10 @@ export function openAbout(): void {
 // falls back to an informational GitHub-releases check.
 let checking = false;
 function runUpdateCheck(updateEl: HTMLElement | null): void {
-    if (!updateEl || checking || isWebMode()) return;
+    const preview = previewUpdateVersion();
+    // Web mode hides the section (auto-updates on reload) — unless previewing,
+    // where the point is to see the flow regardless of platform.
+    if (!updateEl || checking || (isWebMode() && !preview)) return;
     checking = true;
     updateEl.classList.remove('hidden');
     updateEl.textContent = 'Checking for updates…';
@@ -96,6 +189,15 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
         render(updateEl);
         checking = false;
     };
+    if (preview) {
+        // Render the "available" branch for the current platform without a real
+        // release: a fake desktop update (simulated download, no relaunch) in the
+        // Tauri shell, the informational link otherwise.
+        settle((el) =>
+            isTauri() ? renderUpdateAvailable(el, fakeDesktopUpdate(preview)) : renderWebUpdate(el, preview)
+        );
+        return;
+    }
     if (isTauri()) {
         void checkDesktopUpdate().then((update) =>
             settle((el) =>
@@ -157,4 +259,60 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
     });
 
     el.append(btn, status);
+}
+
+/**
+ * Dev preview switch for the "update available" flow.
+ *
+ * Returns the version to pretend is available, or null when off. Enabled by
+ * `?previewUpdate` in the URL or an `aloud:previewUpdate` localStorage key
+ * (handy inside the Tauri webview, where editing the URL is awkward):
+ *   - bare flag ("1" / "true" / empty) → one patch above the running build
+ *   - any other value → used verbatim as the version, e.g. ?previewUpdate=2.0.0
+ * When set, the brand flags itself on boot/nav and the About box renders the
+ * available UI (a simulated, non-installing download on desktop) — no real
+ * release required. To clear: drop the query param, or
+ * `localStorage.removeItem('aloud:previewUpdate')`.
+ */
+function previewUpdateVersion(): string | null {
+    let raw: string | null = null;
+    try {
+        const fromUrl = new URLSearchParams(location.search).get('previewUpdate');
+        if (fromUrl !== null) {
+            // Persist so preview survives the router normalizing the query
+            // string away (same reason ?mode= is stored) — the nudge fires on
+            // boot but the About box opens later, after the param is gone.
+            localStorage.setItem('aloud:previewUpdate', fromUrl);
+            raw = fromUrl;
+        } else {
+            raw = localStorage.getItem('aloud:previewUpdate');
+        }
+    } catch {
+        return null;
+    }
+    if (raw === null) return null;
+    return raw && raw !== '1' && raw !== 'true' ? raw : bumpPatch(__APP_VERSION__);
+}
+
+/** "1.0.8" → "1.0.9". Falls back to a clearly-fake version if unparseable. */
+function bumpPatch(version: string): string {
+    const m = /(\d+)\.(\d+)\.(\d+)/.exec(version);
+    if (!m) return '9.9.9';
+    return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
+}
+
+/** Stand-in for a real Tauri update in preview: animates a ~2s download to 100%,
+ *  then resolves without relaunching, so the desktop button + progress UI can be
+ *  seen end-to-end. */
+function fakeDesktopUpdate(version: string): DesktopUpdate {
+    return {
+        version,
+        notes: 'Preview - no real update will be installed.',
+        installAndRelaunch: async (onProgress) => {
+            for (let i = 0; i <= 10; i++) {
+                onProgress?.(i / 10);
+                await new Promise((resolve) => setTimeout(resolve, 200));
+            }
+        },
+    };
 }

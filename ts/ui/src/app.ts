@@ -13,6 +13,7 @@
  */
 
 import { mountSetupView } from './views/setup.js';
+import { runUpdateNudge } from './about.js';
 import { closeIfActive as closeGuideIfActive } from './tour/index-guide.js';
 import { mountSessionView, type SessionViewHandle } from './views/session.js';
 import {
@@ -202,9 +203,10 @@ function wireNav(): void {
  * actions reuse the already-wired top-nav controls so there's a single
  * source of truth: About toggles the same modal as the brand link, and
  * Toggle theme drives the same handler (theme + icon + embers) as the
- * top-nav theme button. Fullscreen / window-close / update are omitted
- * (Tauri-native or not applicable); session-only End/History land with
- * the in-session floating hamburger (separate follow-up).
+ * top-nav theme button, and Update (shown only when one's waiting) opens
+ * the same box. Fullscreen / window-close are omitted (Tauri-native);
+ * session-only End/History land with the in-session floating hamburger
+ * (separate follow-up).
  */
 function wireMobileMore(): void {
     const sheet = document.getElementById('mobileMoreSheet');
@@ -229,7 +231,9 @@ function wireMobileMore(): void {
             // Routing is handled by the global data-nav click handler (wireNav);
             // here we just dismiss the sheet.
             close();
-        } else if (t.closest('#moreAbout')) {
+        } else if (t.closest('#moreAbout') || t.closest('#moreUpdate')) {
+            // The update entry is only visible when an update is waiting; like
+            // About, it just opens the box (where the install button lives).
             close();
             document.getElementById('aboutLink')?.click();
         } else if (t.closest('#moreTheme')) {
@@ -320,6 +324,9 @@ function setActiveNav(view: View): void {
     // that covers them all. Method-tab switches (Exploration/Noting/Felt
     // Sense) don't route through here, so the tour's own tab-stepping is safe.
     closeGuideIfActive();
+    // Every nav is a chance to refresh the update nudge — throttled to once an
+    // hour inside runUpdateNudge, so this is cheap to call on every transition.
+    runUpdateNudge();
     currentView = view;
     document.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
         // Use `nav-active` to match the lifted CSS — Python's base.html

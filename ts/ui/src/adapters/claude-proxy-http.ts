@@ -3,14 +3,14 @@
  *
  * The real ClaudeProxyProvider (ts/src/llm/claude-proxy.ts) shells out
  * via node:child_process, which is Node-only — browsers and Capacitor
- * WebViews can't run it. This thin wrapper POSTs to Flask's
- * /api/llm/claude_proxy/complete endpoint, which performs the
- * subprocess call server-side and returns a CompletionResult-shaped
+ * WebViews can't run it. This thin wrapper POSTs to the app backend's
+ * /app/v1/llm/claude_proxy/complete endpoint (the Rust shell on desktop),
+ * which performs the subprocess call and returns a CompletionResult-shaped
  * JSON body. Used by the session view when the user has picked the
  * "Anthropic (Subscription)" provider.
  *
  * Desktop-only by nature — the route is only present when running
- * against the Flask backend. The provider option is gated by
+ * against the app backend. The provider option is gated by
  * isDesktopSync() in the settings/setup dropdowns so mobile users
  * don't see it.
  */
@@ -72,10 +72,10 @@ export class ClaudeProxyHttpProvider implements LLMProvider {
         });
 
         if (!response.ok) {
-            // The Flask endpoint returns JSON {error: ...} on failure.
-            // 503 means the `claude` CLI isn't installed or available;
-            // surface that as a friendly error so the session view's
-            // error rendering can show it directly.
+            // The proxy returns JSON {error: ...} on failure. 503 means the
+            // `claude` CLI isn't installed or available; surface that as a
+            // friendly error so the session view's error rendering can show
+            // it directly.
             let detail = '';
             try {
                 const data = (await response.json()) as ClaudeProxyResponse;
