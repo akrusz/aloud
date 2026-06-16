@@ -197,10 +197,19 @@ if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
 fi
 git tag "v${VERSION}"
 
-# Cache SSH passphrase for push/release
-eval "$(ssh-agent -s)" > /dev/null 2>&1
-ssh-add 2>/dev/null
-trap 'ssh-agent -k > /dev/null 2>&1' EXIT
+# Load the SSH key once so the branch + tag pushes don't each re-prompt for
+# the passphrase. Reuse the session agent if it already holds a key (the usual
+# macOS case — loaded from the keychain, so zero prompts). Only when there's no
+# usable agent do we start a throwaway one and load the key a single time:
+# --apple-load-keychain pulls a keychain-saved passphrase silently, and
+# --apple-use-keychain stores it on first entry so future releases are
+# prompt-free. (The Apple flags are macOS-only; the || chain no-ops elsewhere.)
+if ! ssh-add -l >/dev/null 2>&1; then
+    eval "$(ssh-agent -s)" >/dev/null 2>&1
+    trap 'ssh-agent -k >/dev/null 2>&1' EXIT
+    ssh-add --apple-load-keychain >/dev/null 2>&1 || true
+    ssh-add -l >/dev/null 2>&1 || ssh-add --apple-use-keychain 2>/dev/null || ssh-add
+fi
 
 echo ""
 echo "  Pushing..."
