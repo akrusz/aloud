@@ -7,6 +7,7 @@
 #   scripts/release.sh patch     # 0.9.19 → 0.9.20
 #   scripts/release.sh minor     # 0.9.19 → 0.10.0
 #   scripts/release.sh major     # 0.9.19 → 1.0.0
+#   scripts/release.sh rc        # patch bump, marked --prerelease (RC / test build)
 #   scripts/release.sh same      # re-release current version
 #   scripts/release.sh redo      # re-release with same title (quick fix cycle)
 #   scripts/release.sh 1.2.3     # explicit version
@@ -61,10 +62,12 @@ IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
 ARG="${1:-patch}"
 
 REDO=false
+PRERELEASE=false
 case "$ARG" in
     redo)   VERSION="$CURRENT"; REDO=true ;;
     same)   VERSION="$CURRENT" ;;
     patch)  VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
+    rc)     VERSION="$MAJ.$MIN.$((PAT + 1))"; PRERELEASE=true ;;
     minor)  VERSION="$MAJ.$((MIN + 1)).0" ;;
     major)  VERSION="$((MAJ + 1)).0.0" ;;
     *)
@@ -215,7 +218,12 @@ if command -v gh >/dev/null 2>&1; then
     if [ "$ARG" = "same" ] || [ "$REDO" = true ]; then
         gh release delete "v${VERSION}" --yes 2>/dev/null || true
     fi
-    gh release create "v${VERSION}" --title "$TITLE"
+    # rc mode forces --prerelease so it can't land at /releases/latest (the
+    # updater endpoint) and force-update existing installs. Other modes still
+    # answer gh's interactive prerelease prompt.
+    PRERELEASE_FLAG=""
+    [ "$PRERELEASE" = true ] && PRERELEASE_FLAG="--prerelease"
+    gh release create "v${VERSION}" --title "$TITLE" $PRERELEASE_FLAG
     echo ""
     echo "  Released ${TITLE} — build started ✓"
 else

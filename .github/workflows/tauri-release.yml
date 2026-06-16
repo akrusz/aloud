@@ -107,6 +107,10 @@ jobs:
       - name: Build, sign & upload
         uses: tauri-apps/tauri-action@v0
         env:
+          # Required by tauri-action to upload bundles + updater artifacts to the
+          # triggering release. Auto-provided to every run; must be mapped in here
+          # explicitly or the action fails with "GITHUB_TOKEN is required".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Updater signing — the private key whose public half is in
           # tauri.conf.json. Without these, createUpdaterArtifacts fails the build.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
