@@ -4,8 +4,6 @@
  * Each section has a ? button that toggles an inline info panel.
  * The guide walks through all panels sequentially with a spotlight overlay,
  * reusing the .tour-* CSS classes from the settings tour.
- *
- * Lifted from src/web/static/js/index-guide.js — keep behavior in sync.
  */
 
 import { sharedKv } from '../state.js';
@@ -353,8 +351,8 @@ function completeGuide(): void {
 }
 
 function dismissRemindLater(): void {
-    // Session-scoped in the original Python (sessionStorage) — preserved
-    // here so a tour skip doesn't persist across browser sessions.
+    // Session-scoped (sessionStorage) so a tour skip doesn't persist across
+    // browser sessions.
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(GUIDE_REMIND_KEY, '1');
     }
@@ -440,9 +438,8 @@ export async function autoStart(): Promise<void> {
  * Set unconditionally — NOT gated on the "Save session logs" setting the way
  * sessionStore is. The tour is only for genuinely new users; someone who has
  * run a session knows their way around whether or not they keep transcripts
- * (so the session history list isn't a reliable "new user" signal). Restores
- * the aloud-client-id marker the Python app set on first session start, which
- * autoStart() checked but the TS port never wrote.
+ * (so the session history list isn't a reliable "new user" signal). Sets the
+ * aloud-client-id marker on first session start, which autoStart() checks.
  */
 export async function markSessionStarted(): Promise<void> {
     if (await sharedKv.get(CLIENT_ID_KEY)) return;

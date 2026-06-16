@@ -1,9 +1,7 @@
 /* wakelock.ts — keep the screen on during an active meditation session.
    Without this, the phone sleeps mid-session and the audio/WebSocket
    connection breaks. Acquired on session start, released on session end,
-   re-acquired on visibility change so a tab-switch doesn't drop it.
-
-   Lifted from src/web/static/js/wakelock.js. */
+   re-acquired on visibility change so a tab-switch doesn't drop it. */
 
 // The Wake Lock API isn't in TypeScript's default DOM lib yet. We type
 // just what we need to call `request('screen')` and the release event.

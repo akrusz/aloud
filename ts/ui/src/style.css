@@ -290,7 +290,7 @@
 }
 
 /* The TS SPA mounts views into #app-root, an extra wrapper between .main
-   and the view that the Flask MPA didn't have. The lifted session layout
+   and the view that the old multi-page app didn't have. The lifted session layout
    pins .input-area to the bottom by making .session-container flex:1 inside
    a full-height .main — but that chain breaks across #app-root unless it
    also grows and stays a flex column. Scope it to session views (:has) so
@@ -670,9 +670,9 @@
 }
 
 /* ---------- Ollama recommendation (settings page) ---------------------- */
-/* Mirrors the Python settings-ollama layout: each tier is a single flex row
-   with the action button on the right, size + note tucked beneath the model
-   name. Only shown when the selected provider is Ollama. */
+/* Each tier is a single flex row with the action button on the right, size +
+   note tucked beneath the model name. Only shown when the selected provider is
+   Ollama. */
 
 .ollama-rec-section {
     margin-top: 0.75rem;

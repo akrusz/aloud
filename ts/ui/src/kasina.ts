@@ -1,15 +1,14 @@
 /**
  * Kasina gazing mode — shared between the exploration and noting session views.
  *
- * Lifted 1:1 from src/web/static/js/session.js initKasinaMode() (originally
- * inline in views/session.ts). The orb leaves the nav, grows to a 140px center
- * gaze object (.orb-kasina), can be dragged anywhere, and a shake or 4 quick
- * clicks toggles the rainbow easter egg. Click outside (or re-toggle) exits.
- * Forces dark theme while gazing.
+ * The orb leaves the nav, grows to a 140px center gaze object (.orb-kasina),
+ * can be dragged anywhere, and a shake or 4 quick clicks toggles the rainbow
+ * easter egg. Click outside (or re-toggle) exits. Forces dark theme while
+ * gazing.
  *
  * Window/document-level listeners (drag, outside-click) outlive the view's own
- * elements, so — unlike the Flask MPA, which reloaded per navigation — they
- * must be removed on teardown or they leak across sessions. The caller passes
+ * elements, so — unlike the old multi-page app, which reloaded per navigation —
+ * they must be removed on teardown or they leak across sessions. The caller passes
  * an AbortSignal (one per view, aborted in endSession) that covers them all.
  */
 

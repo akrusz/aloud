@@ -1,7 +1,6 @@
 /**
  * Ember particles — ambient background animation.
  *
- * Lifted 1:1 from src/web/static/js/ui.js + session.js initEmbers().
  * Same level counts, color palettes, shrink rate, easter egg (5 clicks
  * at level 4 unlocks level 5 with a 100-particle burst).
  *
@@ -50,11 +49,9 @@ function hexGlow(hex: string): string {
 }
 
 /**
- * Resolve (or create) the ember container. Embers are session-only in
- * the original app — the `<div class="ember-container">` lives inside
- * session.html, not base.html. We mirror that: the container is
- * created lazily inside the body the FIRST time a session view calls
- * mountEmberContainer(). Once removed (when the session view tears
+ * Resolve (or create) the ember container. Embers are session-only: the
+ * container is created lazily inside the body the FIRST time a session view
+ * calls mountEmberContainer(). Once removed (when the session view tears
  * down), regenerateEmbers / burstEmbers become no-ops.
  */
 function existingContainer(): HTMLElement | null {

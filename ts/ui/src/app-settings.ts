@@ -71,8 +71,7 @@ export interface AppSettings {
     sttEngine: SttEngineChoice | null;
 
     // Pacing — used by both the session view's PacingController and
-    // the STT adapter's client-side VAD. Mirrors the Python config's
-    // pacing block 1:1.
+    // the STT adapter's client-side VAD.
     silenceBaseMs: number;
     silenceMaxMs: number;
     responseDelayMs: number;
@@ -109,7 +108,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 /**
  * Speech-recognition / voice-preview language options. Single source of
  * truth — the settings dropdown renders these and `detectLocale()` validates
- * the browser locale against them. Ported from the Flask settings page.
+ * the browser locale against them.
  */
 export const LANGUAGES: ReadonlyArray<[string, string]> = [
     ['en', 'English'],
@@ -162,7 +161,7 @@ const kv = new LocalStorageKv();
 export async function loadAppSettings(): Promise<AppSettings> {
     const raw = await kv.get(KEY);
     // No stored settings, or none with an explicit language: seed the
-    // language from the browser locale (matching the old Flask page, which
+    // language from the browser locale (matching the old page, which
     // pre-selected navigator.language). An explicit stored choice wins.
     if (!raw) return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
     try {

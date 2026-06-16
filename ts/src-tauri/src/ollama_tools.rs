@@ -1,12 +1,12 @@
 //! Ollama lifecycle management — restart / upgrade / install the daemon itself,
-//! as opposed to `ollama.rs` which manages the *models*. Ports Flask's
-//! `tool_routes.py` (`/app/v1/ollama/restart`, `/app/v1/ollama/upgrade`,
-//! `/app/v1/install/{tool}`). All three stream NDJSON `{status}` progress lines
+//! as opposed to `ollama.rs` which manages the *models*. Serves
+//! `/app/v1/ollama/restart`, `/app/v1/ollama/upgrade`, and
+//! `/app/v1/install/{tool}`. All three stream NDJSON `{status}` progress lines
 //! so the settings UI can show a live log, then a terminal `{status:"done"}` or
 //! `{status:"error", error}` event.
 //!
-//! Platform notes (mirrors Python): upgrade/install are Homebrew on macOS and
-//! the official `install.sh` on Linux; Windows has no automatic path and the
+//! Platform notes: upgrade/install are Homebrew on macOS and the official
+//! `install.sh` on Linux; Windows has no automatic path and the
 //! handler returns a download URL instead. The restart dance (detect how Ollama
 //! is running, stop it, bring it back, wait for the version endpoint) is
 //! Unix-only; Windows reports "not supported".
@@ -217,7 +217,7 @@ pub fn upgrade_precheck() -> Option<(String, String)> {
 
 /// Shell script for the upgrade, by platform. macOS tries both the cask and the
 /// formula (a user may have either); Linux re-runs the idempotent install
-/// script. Mirrors `tool_routes.py`.
+/// script.
 fn upgrade_script() -> &'static str {
     if cfg!(target_os = "macos") {
         "set +e; \

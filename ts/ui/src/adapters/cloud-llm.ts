@@ -6,7 +6,7 @@
  * provider keys, forwards the turn, meters it against the account's credits,
  * and returns the text (+ credits charged/remaining). The browser never sees
  * a provider key. Contrast claude-proxy-http.ts, which targets the desktop
- * Flask backend's `claude` CLI subprocess.
+ * app backend's `claude` CLI subprocess.
  *
  * Implements both complete() and completeStream() so it slots into the same
  * streaming-TTS pipeline as the BYOK providers. Tickets: meditation-pal-vd3

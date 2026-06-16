@@ -1,6 +1,6 @@
 /**
- * Server-side TTS adapter — fetches a WAV from Flask's /api/voices/preview
- * and plays it via an HTMLAudioElement.
+ * Server-side TTS adapter — fetches a WAV from the app backend's
+ * /app/v1/voices/preview and plays it via an HTMLAudioElement.
  *
  * Previous iterations used Web Audio (AudioContext + BufferSource), which
  * Firefox keeps re-suspending during the decode step. HTMLAudioElement is
@@ -20,8 +20,8 @@ import { getCloudSessionId } from '../cloud-session.js';
  * SessionSetup.ttsRate). The aloud cloud contract (and Google Cloud TTS)
  * wants a multiplier (1.0 = neutral). Mirror BrowserTtsEngine's normalization
  * so all engines agree on "normal": treat a value >5 as WPM (÷160), else as an
- * already-relative multiplier. (Flask's GET path takes WPM directly, so this
- * only applies to the hosted POST body.)
+ * already-relative multiplier. (The app backend's GET path takes WPM directly,
+ * so this only applies to the hosted POST body.)
  */
 function wpmToMultiplier(rate: number): number {
     return rate > 5 ? rate / 160 : rate;
@@ -79,8 +79,9 @@ export interface CloudTtsEngineOptions {
     /**
      * POST a JSON body ({text, voice, rate}) instead of a GET with query
      * params, and attach a bearer token. Used to target the aloud cloud's
-     * authed /v1/tts (vs Flask's open GET /api/voices/preview), and to keep
-     * the meditation text out of URL query strings that intermediaries log.
+     * authed /v1/tts (vs the app backend's open GET /app/v1/voices/preview),
+     * and to keep the meditation text out of URL query strings that
+     * intermediaries log.
      */
     usePost?: boolean;
     /** Supplies the bearer token when usePost is set. */

@@ -1,8 +1,8 @@
 /**
  * Theme management — light / dark / system preference, with manual
  * overrides that decay after a few hours so the app trends back toward
- * the system preference. Same logic the existing base.html bootstrap
- * uses, ported so the TS preview feels consistent.
+ * the system preference. Same logic the existing bootstrap uses, so the
+ * TS preview feels consistent.
  *
  * Priority:
  *   1. localStorage 'themeMode' = 'dark' | 'light'         (sticky, no expiry)
@@ -99,7 +99,7 @@ export function watchSystemTheme(onChange?: (theme: Theme) => void): void {
 }
 
 // ---------------------------------------------------------------------------
-// Toggle button — lifted from src/web/static/js/chrome.js
+// Toggle button
 // ---------------------------------------------------------------------------
 
 const SUN_SVG =

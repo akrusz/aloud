@@ -1,12 +1,11 @@
 /**
  * History view — list of past sessions with per-row Continue / Copy /
- * Delete actions. Mirrors src/web/static/js/history.js and the
- * .session-item markup in the lifted CSS.
+ * Delete actions. Renders the .session-item markup in the lifted CSS.
  *
  * Clicking a row expands it inline to show the transcript. Continue
  * stashes the session id in sessionStorage and routes back to setup;
  * the setup view picks the stash up and hydrates the next session
- * with the old exchanges. Matches the Python continueSession() flow.
+ * with the old exchanges.
  */
 
 import { getMode, type SessionState, type Exchange } from '../../../src/facilitation/index.js';
@@ -29,9 +28,9 @@ export async function mountHistoryView(
         const ids = await sessionStore.list();
         const states = await Promise.all(ids.map((id) => sessionStore.load(id)));
         const sessions = states.filter((s): s is SessionState => s !== null);
-        // Newest first — Python sorts by saved_at descending; we sort by
-        // startTime since SessionStore doesn't carry a saved-at metadata
-        // field. Same effect for sessions you didn't backdate.
+        // Newest first — we sort by startTime since SessionStore doesn't carry
+        // a saved-at metadata field. Same effect for sessions you didn't
+        // backdate.
         sessions.sort((a, b) => b.startTime - a.startTime);
 
         root.innerHTML = renderShellHTML(sessions);
@@ -101,8 +100,7 @@ export async function mountHistoryView(
             item.classList.add('open');
             body.classList.remove('hidden');
             expanded.add(id);
-            // Lazy transcript fill (Python lazy-fetches; ours is in-memory
-            // already so just render).
+            // Lazy transcript fill (ours is in-memory already so just render).
             const tx = body.querySelector<HTMLElement>('.session-transcript');
             if (tx && tx.dataset['loaded'] !== '1') {
                 tx.innerHTML = renderTranscript(session.exchanges);
@@ -114,7 +112,7 @@ export async function mountHistoryView(
     function continueSession(session: SessionState): void {
         // Stash the id on sessionStorage and route back to setup — the
         // setup view picks it up via loadQueuedContinuation() and threads
-        // it through onBegin. Matches Python's window.continueSession().
+        // it through onBegin.
         if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem('continueFrom', session.sessionId);
             const { summary } = sessionTypeAndSummary(session);
@@ -173,7 +171,7 @@ function exportSessions(sessions: readonly SessionState[]): void {
 function renderShellHTML(sessions: readonly SessionState[]): string {
     // Sessions live in localStorage (no folder on any platform), so "export"
     // downloads them as JSON rather than opening a directory. The old
-    // "Open sessions folder" button POSTed to the removed Flask backend and
+    // "Open sessions folder" button POSTed to the removed backend and
     // opened the wrong directory. Hidden when there's nothing to export.
     const header = `
         <div class="history-header">

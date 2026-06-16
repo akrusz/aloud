@@ -2,8 +2,8 @@
  * Pick a TTS engine based on the user's selected voice.
  *
  * The voice id is prefixed: `server:<name>` for voices that play
- * through the Flask /api/voices/preview endpoint, `browser:<name>` for
- * voices that come from window.speechSynthesis. The name is the
+ * through the app backend's /app/v1/voices/preview endpoint, `browser:<name>`
+ * for voices that come from window.speechSynthesis. The name is the
  * voice's display name (matches voice-picker.ts's ScoredVoice.name).
  *
  * For browser voices, we hand the voice name through to BrowserTtsEngine
@@ -112,8 +112,8 @@ export async function createTtsForVoice(
         const name = voiceId.slice('server:'.length);
         // Try the catalog so we can pass the right engine (piper/macos/
         // elevenlabs) to CloudTtsEngine. If the catalog can't find it,
-        // fall back to a bare CloudTtsEngine with just the name — Flask
-        // will route it correctly via engine_for_voice on its side.
+        // fall back to a bare CloudTtsEngine with just the name — the app
+        // backend will route it correctly via engine_for_voice on its side.
         const voices = await allVoices();
         const voice =
             voices.find((v) => v.id === voiceId) ??

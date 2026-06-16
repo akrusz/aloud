@@ -1,11 +1,10 @@
 //! Provider availability + Ollama model management for the desktop backend.
 //!
-//! Ports the parts of Flask's `/api/providers` the TS UI consumes — including
-//! the elaborate Ollama recommendation system (RAM + GPU detection, curated
-//! tier list, "fits this machine" + "installed" annotations, version /
-//! outdated banner) that's used by the Settings page to help users pick and
-//! manage local models. The Python source of truth lives at
-//! `src/web/provider_routes.py` and `src/config.py::DEFAULT_OLLAMA_TIERS`.
+//! Builds the `/app/v1/providers` body the TS UI consumes — including the
+//! elaborate Ollama recommendation system (RAM + GPU detection, curated tier
+//! list, "fits this machine" + "installed" annotations, version / outdated
+//! banner) that's used by the Settings page to help users pick and manage
+//! local models.
 
 use serde_json::{json, Value};
 
@@ -14,8 +13,8 @@ const OLLAMA_URL: &str = "http://localhost:11434";
 /// the manifest format is too old and pulls fail with HTTP 412.
 const MIN_OLLAMA_VERSION: &str = "0.21.0";
 
-/// One curated Ollama tier. Mirrors `DEFAULT_OLLAMA_TIERS` in `src/config.py`
-/// — keep them in sync; the catalog is project-curated, not provider-supplied.
+/// One curated Ollama tier. The catalog is project-curated, not
+/// provider-supplied.
 struct OllamaTier {
     model: &'static str,
     label: &'static str,
@@ -105,7 +104,7 @@ pub fn providers() -> Value {
 /// (BYOK), so the UI forwards it as `x-provider-key`; `api_key` is that value.
 /// OpenRouter is public (no key) and claude_proxy is a static alias list. Any
 /// failure returns `[]`, on which the model picker falls back to a free-form
-/// text input. Mirrors `provider_routes.py`'s per-provider fetchers.
+/// text input.
 pub fn models(provider: &str, api_key: Option<&str>) -> Value {
     let list = match provider {
         "openai" => fetch_openai(api_key),
@@ -183,7 +182,7 @@ fn fetch_openai(api_key: Option<&str>) -> Vec<Value> {
     rows.iter().map(|(_, id)| opt(id, &openai_label(id))).collect()
 }
 
-/// `gpt-4.1-mini` -> `GPT-4.1 Mini`, `o3-mini` -> `o3 Mini`. Mirrors Python.
+/// `gpt-4.1-mini` -> `GPT-4.1 Mini`, `o3-mini` -> `o3 Mini`.
 fn openai_label(id: &str) -> String {
     let parts: Vec<String> = id
         .split('-')
@@ -369,7 +368,7 @@ fn fetch_groq(api_key: Option<&str>) -> Vec<Value> {
 }
 
 /// Strip the org prefix and title-case: `meta-llama/llama-3.1-70b` ->
-/// `Llama 3.1 70b`. Mirrors Python's `_groq_label`.
+/// `Llama 3.1 70b`.
 fn groq_label(id: &str) -> String {
     let tail = id.rsplit('/').next().unwrap_or(id);
     tail.split('-')
@@ -549,7 +548,7 @@ fn build_recommendation(
         .map(|t| {
             // "Installed" if any pulled model shares the tier's base name AND
             // the tier's suffix (e.g. tier qwen3.5:4b matches a pulled
-            // qwen3.5:4b-instruct-q5_K_M). Mirrors the Python rule.
+            // qwen3.5:4b-instruct-q5_K_M).
             let base = t.model.split(':').next().unwrap_or(t.model);
             let suffix = t.model.split(':').next_back().unwrap_or("");
             let mut installed = false;

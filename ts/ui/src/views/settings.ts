@@ -1,7 +1,7 @@
 /**
- * Settings view — desktop-shell parity with src/web/templates/settings.html.
+ * Settings view.
  *
- * Sections (matching Python's order):
+ * Sections:
  *   1. LLM Provider     — default provider, model, per-provider API keys
  *   2. Language & STT   — language, Whisper model size (stub)
  *   3. Text-to-Speech   — engine selector, voice picker, ElevenLabs key
@@ -10,7 +10,7 @@
  *   6. Network          — host (stub)
  *   7. Updates          — desktop self-update (Tauri); browser: releases check
  *
- * "Stub" rows render the same layout as Python but their controls
+ * "Stub" rows render the full layout but their controls
  * either no-op or display a small "desktop only" hint. The user's call:
  * "if there are settings page elements that we can't hook up yet
  *  because of what needs to be decided still that's fine. But we could
@@ -206,8 +206,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             updateProviderStatusHint();
         });
 
-        // Model picker — same /api/models/<provider> backing as the
-        // setup view. Falls back to text input when Flask isn't there.
+        // Model picker — same /app/v1/models/<provider> backing as the
+        // setup view. Falls back to text input when the app backend isn't there.
         const modelContainer = root.querySelector<HTMLElement>('#s-model-slot')!;
         const modelPicker = mountModelPicker(
             modelContainer,
@@ -243,8 +243,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
         // Per-provider API key inputs. Each row carries the input, a
         // "Get a key ↗" link to the provider's console, and a Paste
-        // button when the browser exposes the clipboard API. Matches
-        // src/web/static/js/settings.js::attachKeyHelper.
+        // button when the browser exposes the clipboard API.
         for (const p of ALL_PROVIDERS) {
             if (!p.needsKey) continue;
             const cfg = API_KEY_INFO[p.value];
@@ -361,10 +360,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Show only the active provider's API key row — matches Python's
-     * settings.js behavior (each provider has its own .api-key-group
-     * and only the matching one is unhidden when the provider select
-     * changes). Updates the saved/empty status text per row.
+     * Show only the active provider's API key row — each provider has its
+     * own .api-key-group and only the matching one is unhidden when the
+     * provider select changes. Updates the saved/empty status text per row.
      */
     async function refreshApiKeyRows(): Promise<void> {
         const active = settings.defaultProvider;
@@ -378,7 +376,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const existing = await getApiKey(p.value);
             // Show a masked confirmation (key saved (sk-a…wxyz)) rather than a
             // bare "Saved", so the user can tell a key is stored without
-            // exposing it. Mirrors Python's masked-key indicator.
+            // exposing it.
             if (status) status.textContent = existing ? `key saved (${maskKey(existing)})` : '';
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
@@ -395,7 +393,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
      * For each provider's API key input, attach a "Get a key ↗" link
      * pointing at the provider's key page and (when the browser exposes
      * Web Clipboard) a Paste button that fills the input and saves.
-     * Lifted from src/web/static/js/settings.js::attachKeyHelper.
      */
     function attachApiKeyHelpers(provider: Provider, url: string, prefix: string): void {
         const inputEl = root.querySelector<HTMLInputElement>(`#s-key-${provider}`);
@@ -631,8 +628,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Engine-specific hint text below the TTS engine dropdown. Mirrors
-     * src/web/static/js/settings.js::TTS_ENGINE_HINTS, including the
+     * Engine-specific hint text below the TTS engine dropdown, including the
      * "Download Premium voices" call-to-action when the user is on a
      * Mac with macOS TTS — that's the key surface for getting good
      * voices on Apple Silicon.
@@ -658,8 +654,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 'Fast local neural TTS. Download voice models (~60–100 MB each) from the voice picker. <a href="https://rhasspy.github.io/piper-samples/" target="_blank" rel="noopener">Listen to samples</a>',
         };
         hintEl.innerHTML = hints[settings.ttsEngine];
-        // Wire the "Download Premium voices" link to the Flask
-        // /api/open-voice-settings route — opens macOS System Settings
+        // Wire the "Download Premium voices" link to the app backend's
+        // /app/v1/open-voice-settings route — opens macOS System Settings
         // straight to Accessibility → Spoken Content.
         const link = hintEl.querySelector<HTMLAnchorElement>('[data-open-voice-settings]');
         if (link) {
@@ -679,7 +675,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     /**
      * Wire the ElevenLabs API key input. Uses a separate keyId
      * ("elevenlabs") in the same api-keys backing store the LLM keys
-     * use — Python keeps them in two slots (s-elevenlabs-key vs
+     * use — the keys live in separate slots (s-elevenlabs-key vs
      * s-anthropic-key etc.) but the storage is conceptually one map.
      */
     function attachElevenLabsKeyHelpers(): void {
@@ -769,10 +765,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Uninstall a downloaded Piper voice via Flask's
-     * /api/tts/uninstall-model endpoint. Mirrors Python's settings.js
-     * behavior — confirmation, POST, then re-fetch voices so the row
-     * flips to "Download" state.
+     * Uninstall a downloaded Piper voice via the app backend's
+     * /app/v1/tts/uninstall-model endpoint — confirmation, POST, then
+     * re-fetch voices so the row flips to "Download" state.
      */
     async function uninstallVoice(
         btn: HTMLButtonElement,
@@ -792,7 +787,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             void alertDialog(`Could not uninstall: ${(err as Error).message}`);
             return;
         }
-        // Drop the cached /api/voices response so the re-fetch sees
+        // Drop the cached /app/v1/voices response so the re-fetch sees
         // the Piper model as un-downloaded again.
         await refreshVoiceList();
     }
@@ -1060,8 +1055,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const checkinsEnabled = root.querySelector<HTMLInputElement>('#s-silence-checkins-enabled');
         if (checkinsEnabled) {
             // Grey out the check-in interval stepper when check-ins are off,
-            // so it's clear the value is inert. Mirrors Python's
-            // updateCheckinSecState (.is-disabled).
+            // so it's clear the value is inert (.is-disabled).
             const checkinWrap = root
                 .querySelector<HTMLInputElement>('#s-silence-sec')
                 ?.closest<HTMLElement>('.stepper');
@@ -1213,8 +1207,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
         updateUndoState();
 
-        // "Setup guide" — relaunches the onboarding tour. Same flow as
-        // Python's settings.js btn-show-tour handler: reset the dismiss
+        // "Setup guide" — relaunches the onboarding tour: reset the dismiss
         // flags and walk through the wizard from the welcome step.
         const tourBtn = root.querySelector<HTMLButtonElement>('#btn-show-tour');
         if (tourBtn) {
@@ -1235,10 +1228,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
         }
 
-        // "Open config folder" — Python opens the user's config dir
-        // via /api/open-config-folder. Browser preview reaches Flask;
-        // standalone shells don't. Show the button only when Flask
-        // responds.
+        // "Open config folder" — opens the user's config dir
+        // via /app/v1/open-config-folder. Browser preview reaches the app
+        // backend; standalone shells don't. Show the button only when the
+        // app backend responds.
         const openConfigBtn = root.querySelector<HTMLButtonElement>('#btn-open-config-folder');
         if (openConfigBtn) {
             void (async () => {
@@ -1249,7 +1242,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         openConfigBtn.classList.remove('hidden');
                     }
                 } catch {
-                    /* Flask down → leave hidden */
+                    /* app backend down → leave hidden */
                 }
             })();
             openConfigBtn.addEventListener('click', () => {
@@ -1271,7 +1264,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 }
 
 // ---------------------------------------------------------------------------
-// API key URLs / prefixes — matches settings.js::providerKeyInfo
+// API key URLs / prefixes
 // ---------------------------------------------------------------------------
 
 const API_KEY_INFO: Record<Provider, { url: string; prefix: string } | undefined> = {
@@ -1359,7 +1352,7 @@ function renderHTML(s: AppSettings): string {
 
 function renderProviderSection(s: AppSettings): string {
     // Show only providers the environment can reach (hosted needs the server,
-    // Ollama a local daemon, claude_proxy Flask). Capabilities are cached at app
+    // Ollama a local daemon, claude_proxy the app backend). Capabilities are cached at app
     // boot; if unresolved they read false, so an unreachable source is hidden
     // until the next render — in practice the probe finishes before first paint.
     const caps = capabilitiesSync();
@@ -1429,7 +1422,7 @@ function renderProviderSection(s: AppSettings): string {
 
         <!-- Ollama-specific: per-machine recommendation + installed-model
              management. Visible only when provider == "ollama"; populated by
-             settings-ollama.ts from /api/providers's ollama.recommendation. -->
+             settings-ollama.ts from /app/v1/providers's ollama.recommendation. -->
         <div id="s-ollama-recommendation" class="ollama-rec-section hidden"></div>
     </section>`;
 }

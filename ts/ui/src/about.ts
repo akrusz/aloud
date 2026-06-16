@@ -1,5 +1,5 @@
 /**
- * About modal wiring — lifted from src/web/static/js/chrome.js.
+ * About modal wiring.
  *
  * Brand link toggles open/close, × closes, click outside closes. The
  * krusz.eth span reveals a small crypto panel (QR + copyable address +
@@ -9,7 +9,7 @@
  * whereas the bare address works on any chain the sender picks.
  *
  * The version line and (desktop only) the one-click "Update" button live here,
- * mirroring the old Python app's About box: on first open in the Tauri shell we
+ * mirroring the old app's About box: on first open in the Tauri shell we
  * check for a newer release and, if there is one, reveal an Update button that
  * downloads + installs it and relaunches (see desktop-updater.ts). In a browser
  * there's nothing to install, so the button never appears.
@@ -91,7 +91,7 @@ export function initAbout(): void {
 
 // At most one background update check per hour, across boot + every nav. The
 // timestamp is persisted so reloads and SPA navigation share one budget — the
-// Flask app checked once per page load; an SPA never reloads, so we throttle by
+// old app checked once per page load; an SPA never reloads, so we throttle by
 // wall-clock instead. The brand's has-update class is the other guard: once a
 // release is flagged we stop checking entirely (nothing left to discover).
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -107,14 +107,14 @@ function dueForCheck(): boolean {
 }
 
 /**
- * Background update nudge — mirrors the old Python app's page-load check, run on
+ * Background update nudge — mirrors the old app's page-load check, run on
  * boot and on each in-app nav (setActiveNav), throttled to once an hour.
  *
  * On a desktop/local build (web auto-updates on reload), quietly look for a
  * newer release. If one's waiting, flag the brand with `has-update`, which
  * reveals the nav "Update" pill and the mobile More-sheet entry via CSS
  * (:has(.nav-brand.has-update) .update-btn). It pulses for 10s, then settles to
- * the steady `has-update-static` state — same timing as the Flask app. Clicking
+ * the steady `has-update-static` state — same timing as the old app. Clicking
  * either opens the About box, where the actual download/install button lives.
  *
  * The check is read-only and silent on failure, so a flaky network just means no
@@ -227,13 +227,16 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
     }
 }
 
-// Local dev browser: there's no installer to run, so link to the release.
+// Local dev browser: there's no installer to run, so link to the release. (The
+// real desktop shell shows an install button instead — renderUpdateAvailable.)
 function renderWebUpdate(el: HTMLElement, latest: string): void {
-    el.textContent = `Update available: ${latest} `;
+    el.textContent = `Update available: ${latest}`;
     const link = document.createElement('a');
     link.href = RELEASES_PAGE;
     link.target = '_blank';
     link.rel = 'noopener';
+    // Block-level so it sits on its own line under the version.
+    link.className = 'about-update-link';
     link.textContent = 'Get the latest release →';
     el.appendChild(link);
 }

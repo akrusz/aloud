@@ -63,7 +63,7 @@ let providerStatusCache: Record<string, { available: boolean; models?: string[] 
 
 /**
  * Fetch model options for a provider. Returns null when the endpoint
- * isn't reachable (e.g. no Flask), so callers can swap in a text input
+ * isn't reachable (e.g. no app backend), so callers can swap in a text input
  * gracefully.
  */
 export async function fetchModels(provider: string): Promise<ModelOption[] | null> {
@@ -95,11 +95,11 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
         }
     }
 
-    // Ollama models come from /api/providers (the app backend's aggregated,
-    // curated list) — same shape as the Python setup.js handling. When that
-    // backend isn't running (e.g. Vite dev without Flask), fall back to probing
-    // the Ollama daemon directly via the /ollama proxy, the same source
-    // capabilities.ts trusts, so local models still populate without Flask.
+    // Ollama models come from /app/v1/providers (the app backend's aggregated,
+    // curated list). When that backend isn't running (e.g. Vite dev without
+    // the app backend), fall back to probing the Ollama daemon directly via
+    // the /ollama proxy, the same source capabilities.ts trusts, so local
+    // models still populate without the app backend.
     if (provider === 'ollama') {
         const status = await fetchProviderStatus();
         const fromBackend = status?.['ollama']?.models ?? [];

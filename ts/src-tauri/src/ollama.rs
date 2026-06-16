@@ -19,8 +19,8 @@ pub struct ModelReq {
 }
 
 /// Stream a pull from Ollama's daemon, forwarding each progress line as one
-/// NDJSON record `{status, total?, completed?}` — wire-compatible with the old
-/// Flask route so the settings UI's progress bar code doesn't change.
+/// NDJSON record `{status, total?, completed?}` — the shape the settings UI's
+/// progress bar code expects.
 ///
 /// `on_progress` is called once per NDJSON line we forward. The closure
 /// receives the JSON value already shaped for the UI; the caller serializes
@@ -68,7 +68,7 @@ pub fn pull_stream<F: FnMut(Value)>(model: &str, mut on_progress: F) -> Result<(
 }
 
 /// Delete a pulled model. Returns Ok(()) on success, Err with a 502-flavored
-/// message otherwise (parity with Flask). Ollama's `/api/delete` takes a JSON
+/// message otherwise. Ollama's `/api/delete` takes a JSON
 /// body, which ureq's typed `delete()` builder forbids — use the generic
 /// `http::Request` form via `ureq::run` so we can attach one.
 pub fn delete(model: &str) -> Result<(), String> {

@@ -1,6 +1,6 @@
 /**
  * Base URL for the app's own backend — the `/app/v1/*` surface (formerly the
- * Flask `/api/*` routes). This is the backend that serves the running
+ * `/api/*` routes). This is the backend that serves the running
  * application's own needs: provider/model/voice catalogs, system info, and (on
  * desktop) on-device STT/TTS, the claude-proxy bridge, Ollama management, and
  * shell escapes.

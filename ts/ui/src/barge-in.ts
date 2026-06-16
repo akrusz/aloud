@@ -14,9 +14,8 @@
  * In practice users pause ~300ms after interrupting, which the listen
  * loop more than makes up.
  *
- * The threshold/chunk-count constants mirror src/web/static/js/audio.js
- * — they were tuned in the existing app and work well at typical
- * conversation volume.
+ * The threshold/chunk-count constants were tuned in the existing app and
+ * work well at typical conversation volume.
  */
 
 const FRAME_SIZE = 4096;

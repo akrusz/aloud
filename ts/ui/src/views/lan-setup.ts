@@ -3,9 +3,7 @@
  * the HTTP origin from a mobile device that needs a secure context for
  * microphone access.
  *
- * Lifted from src/web/templates/lan_setup.html. The Python template
- * receives the target HTTPS URL via Jinja (`{{ https_url }}`); in the
- * TS port the caller passes it to show().
+ * The caller passes the target HTTPS URL to show().
  */
 
 export interface LanSetupViewHandle {

@@ -1,11 +1,10 @@
 /**
  * Settings page — Ollama recommendation + model management UI.
  *
- * Port of `src/web/static/js/settings-ollama.js`. Pulls the per-machine
- * recommendation block from `/app/v1/providers` (computed in
- * `src-tauri/src/providers.rs` for desktop, the Flask route for dev) and
- * renders the curated tier list with per-tier Download / Remove buttons,
- * plus a list of any models the user pulled outside the curated tiers.
+ * Pulls the per-machine recommendation block from `/app/v1/providers`
+ * (computed in `src-tauri/src/providers.rs` for desktop) and renders the
+ * curated tier list with per-tier Download / Remove buttons, plus a list of
+ * any models the user pulled outside the curated tiers.
  *
  * A controls bar manages the daemon itself: Install when it's absent, or
  * Restart + Upgrade when it's present. Those stream NDJSON `{status}` log
@@ -51,7 +50,7 @@ interface OllamaInfo {
 }
 
 export interface OllamaSettingsHandle {
-    /** Re-fetch /api/providers and re-render. */
+    /** Re-fetch /app/v1/providers and re-render. */
     refresh(): Promise<void>;
     /** Hide the section (provider switched away from Ollama). */
     hide(): void;
@@ -293,9 +292,9 @@ function renderHTML(info: OllamaInfo): string {
 
     html += '<div class="ollama-tiers">';
     for (const t of rec.tiers) {
-        // Mirror Python: when we know the machine's RAM, hide tiers that
-        // can't run on it — keeps the list short. If RAM detection failed,
-        // show everything so the user can still pick.
+        // When we know the machine's RAM, hide tiers that can't run on it —
+        // keeps the list short. If RAM detection failed, show everything so
+        // the user can still pick.
         if (rec.ram_gb && !t.fits && !t.installed) continue;
         html += renderTier(t, rec.recommended_model);
     }
@@ -332,7 +331,7 @@ function renderControls(info: OllamaInfo): string {
 /**
  * Render one curated tier as a single condensed flex row: model + label
  * (+ "recommended" badge) on the head line, size + note beneath, action
- * button on the right. Matches the Python `loadOllamaModels()` layout.
+ * button on the right.
  */
 function renderTier(t: Tier, recommendedModel: string | undefined): string {
     const isRecommended = t.model === recommendedModel;
@@ -387,7 +386,7 @@ function renderOtherInstalled(m: OtherModel): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Read the `/api/ollama/pull` NDJSON stream, advancing the progress bar and
+ * Read the `/app/v1/ollama/pull` NDJSON stream, advancing the progress bar and
  * status text. Throws on an error line so the caller can restore the button.
  */
 async function consumePullStream(

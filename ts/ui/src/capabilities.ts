@@ -1,19 +1,20 @@
 /**
  * Runtime capability detection — what can the current environment actually
  * reach? Menus key off this so they only offer sources that work here
- * ("show what's available"): on the website there's no local Flask or Ollama,
- * in a pure local app aloud cloud may be unreachable, etc.
+ * ("show what's available"): on the website there's no local app backend or
+ * Ollama, in a pure local app aloud cloud may be unreachable, etc.
  *
  * Three independent axes (NOT one "desktop" binary):
- *   - flask:  the local Flask backend (Piper/macOS voices, claude_proxy,
+ *   - flask:  the local app backend (Piper/macOS voices, claude_proxy,
  *             Ollama proxy, config-folder + voice-management tools).
  *   - cloud:  aloud cloud — the @aloud/server proxy (LLM/STT/TTS, credits).
  *   - ollama: a local Ollama daemon (reachable via the dev proxy).
  *
  * Probes run once at boot, are cached, and can be re-run (invalidate +
  * detect) when the environment may have changed — mirroring the
- * invalidateSttBackendCache pattern. `flask` delegates to is-desktop.ts so the
- * existing isDesktop()/isDesktopSync() callers and this share one probe.
+ * invalidateSttBackendCache pattern. The `flask` axis delegates to
+ * is-desktop.ts so the existing isDesktop()/isDesktopSync() callers and this
+ * share one probe.
  */
 
 import { detectIsDesktop, isDesktopSync } from './is-desktop.js';

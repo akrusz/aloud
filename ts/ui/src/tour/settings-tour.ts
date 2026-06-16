@@ -4,11 +4,9 @@
  * Walks first-time users through choosing an LLM provider and voice,
  * actually setting the form values for them based on their choices.
  *
- * Lifted from src/web/static/js/tour.js — keep behavior in sync. DOM
- * selectors that diverge between the Python and TS settings views are
- * adapted inline (e.g. Python's per-provider `#s-anthropic-key` becomes
- * `#s-key-anthropic` in the TS UI, and the model dropdown lives inside
- * `#s-model-slot` as `#model-select`).
+ * DOM selectors are wired to the settings view's ids (e.g. a per-provider
+ * `#s-key-anthropic`, and the model dropdown inside `#s-model-slot` as
+ * `#model-select`).
  */
 
 import { sharedKv } from '../state.js';
@@ -303,10 +301,9 @@ function showApiKeyChoices(): void {
 }
 
 /**
- * Locate the TS UI's model picker element. The Python tour reads
- * `#s-model` (a <select>) — in the TS UI the picker mounts inside
+ * Locate the model picker element. The picker mounts inside
  * `#s-model-slot` and renders either `#model-select` or `#model-input`
- * depending on whether the /api/models fetch succeeded.
+ * depending on whether the /app/v1/models fetch succeeded.
  */
 function findModelElement(): HTMLSelectElement | HTMLInputElement | null {
     return (
@@ -355,9 +352,8 @@ function chooseProvider(value: string): void {
             return Boolean(m.value.trim());
         }, resumeToVoice);
     } else {
-        // API key provider — wait for key field to be filled. TS UI uses
-        // `#s-key-${provider}` per the render in views/settings.ts; the
-        // Python original used `#s-${provider}-key`.
+        // API key provider — wait for key field to be filled. The UI uses
+        // `#s-key-${provider}` per the render in views/settings.ts.
         const keyMap: Record<string, string> = {
             anthropic: 's-key-anthropic',
             openai: 's-key-openai',
@@ -473,9 +469,8 @@ function chooseVoice(value: string): void {
 }
 
 function waitForPickerClose(cb: () => void): void {
-    // TS UI mounts the settings voice modal with id 'settings-voice-modal'
-    // (matches Python). Same hidden-class semantics — toggling 'hidden'
-    // is how the modal opens/closes.
+    // The settings voice modal mounts with id 'settings-voice-modal'.
+    // Toggling the 'hidden' class is how the modal opens/closes.
     const modal = document.getElementById('settings-voice-modal');
     if (!modal) {
         cb();
@@ -556,8 +551,8 @@ function completeTour(): void {
 }
 
 function dismissRemindLater(): void {
-    // Session-scoped — match Python's sessionStorage usage so a "skip"
-    // doesn't survive across browser sessions.
+    // Session-scoped — sessionStorage so a "skip" doesn't survive across
+    // browser sessions.
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(TOUR_REMIND_KEY, '1');
     }
@@ -614,7 +609,7 @@ export async function startTour(options: TourOptions): Promise<void> {
         const rec = data.ollama && data.ollama.recommendation;
         tourOptions.ollamaRec = rec ? rec.recommended_model ?? null : null;
     } catch {
-        // Flask not reachable — proceed without an Ollama recommendation.
+        // App backend not reachable — proceed without an Ollama recommendation.
     }
     initTour();
 }

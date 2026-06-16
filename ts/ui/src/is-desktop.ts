@@ -2,15 +2,14 @@
  * Runtime "is this a desktop environment" detection.
  *
  * "Desktop" = the app backend reports it's a local/desktop backend. We probe
- * /app/v1/system-info at boot: the native Rust shell and the dev Flask backend
- * are desktop (they expose claude_proxy, the Ollama proxy, config-folder shell
- * escapes); the hosted web backend answers `desktop:false` so those features
- * stay off there. The signal is the `desktop` field — NOT mere reachability,
- * since the web Hono also answers /app/v1/system-info (with desktop:false). A
- * response that omits the field (e.g. older Flask) counts as desktop, to keep
- * the existing browser-against-Flask dev behavior. Views read isDesktop() for
- * gating desktop-only features (claude_proxy provider, env-var hints, the Open
- * config folder button).
+ * /app/v1/system-info at boot: the native Rust shell is desktop (it exposes
+ * claude_proxy, the Ollama proxy, config-folder shell escapes); the hosted web
+ * backend answers `desktop:false` so those features stay off there. The signal
+ * is the `desktop` field — NOT mere reachability, since the web Hono also
+ * answers /app/v1/system-info (with desktop:false). A response that omits the
+ * field counts as desktop, to keep the existing browser-against-local-backend
+ * dev behavior. Views read isDesktop() for gating desktop-only features
+ * (claude_proxy provider, env-var hints, the Open config folder button).
  *
  * Result is monotonic: once we've decided "desktop", we stick with it
  * for the session. If the backend flaps down between probes we'd rather not
@@ -50,7 +49,7 @@ export async function detectIsDesktop(): Promise<boolean> {
                 return cached;
             }
             // Desktop unless the backend explicitly says otherwise (web Hono
-            // answers desktop:false). A missing field → desktop (legacy Flask).
+            // answers desktop:false). A missing field → desktop.
             const info = (await resp.json().catch(() => ({}))) as { desktop?: boolean };
             cached = info.desktop !== false;
             return cached;

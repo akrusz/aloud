@@ -40,9 +40,9 @@ export function browserVoices(): VoiceEntry[] {
 }
 
 /**
- * Fetch the server-side voice list. Returns [] (and caches) when Flask
- * isn't reachable so subsequent calls don't keep hammering a down
- * server. Call `invalidateServerVoices()` to retry after Flask comes up.
+ * Fetch the server-side voice list. Returns [] (and caches) when the app
+ * backend isn't reachable so subsequent calls don't keep hammering a down
+ * server. Call `invalidateServerVoices()` to retry after it comes up.
  */
 export async function serverVoices(): Promise<VoiceEntry[]> {
     if (cachedServerVoices !== null) return cachedServerVoices;

@@ -1,9 +1,8 @@
 /**
  * Login view — password gate for hosted/multi-user deploys.
  *
- * Lifted from src/web/templates/login.html. The Python form posts to
- * `/login` (Flask-handled). When the TS UI is served behind the same
- * Flask app this view's form submits through the existing route. When
+ * The form posts to `/login`. When the TS UI is served behind a backend
+ * that handles that route this view's form submits through it. When
  * served standalone (Vite dev, Capacitor, etc.) auth is a no-op and
  * this view shouldn't get mounted in the first place — that gating
  * decision is for whoever wires the router.

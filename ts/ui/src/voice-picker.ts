@@ -1,9 +1,8 @@
 /**
  * Voice picker — scoring, modal rendering, preview.
  *
- * Port of src/web/static/js/voice-picker.js. The classes used by
- * renderVoiceList (.voice-row, .voice-tier-label, .voice-row-name,
- * .voice-row-preview, etc.) come from the lifted CSS, so visual
+ * The classes used by renderVoiceList (.voice-row, .voice-tier-label,
+ * .voice-row-name, .voice-row-preview, etc.) come from the base CSS, so visual
  * styling lands automatically.
  *
  * Scoring tiers (descending):
@@ -33,7 +32,7 @@ import { appUrl } from './app-base.js';
 // Public types
 // ---------------------------------------------------------------------------
 
-/** Raw voice metadata returned from `/api/voices`. */
+/** Raw voice metadata returned from `/app/v1/voices`. */
 export interface ServerVoice {
     name: string;
     lang?: string;
@@ -145,7 +144,7 @@ export function scoreVoice(name: string, engine?: string): number {
 /**
  * Build a scored, sorted voice list from server + browser voices.
  * Server voices come first when present (they're what actually speak
- * through Flask's TTS engines). Browser voices fill in when
+ * through the app backend's TTS engines). Browser voices fill in when
  * `includeBrowserVoices` is true and the server engine is browser-only
  * or no server is reachable.
  *
@@ -469,9 +468,8 @@ let activePreviewEngine: TtsEngine | null = null;
 /**
  * Construct the right TTS engine for the voice and speak the preview
  * phrase. `voiceId` here is the raw voice name (not the 'server:'/
- * 'browser:' prefixed id used by SessionSetup) — matches Python's
- * previewVoice() signature. Engine override lets callers force a
- * specific backend when the same voice name exists across engines.
+ * 'browser:' prefixed id used by SessionSetup). Engine override lets callers
+ * force a specific backend when the same voice name exists across engines.
  *
  * Rejects on a real failure (not signed in, out of credits, server
  * unreachable, autoplay blocked) so the caller can tell the user *why*
@@ -565,7 +563,7 @@ export interface VoiceModalConfig {
 }
 
 /**
- * Render the picker_modal markup. Mirrors templates/_voice_modal.html.
+ * Render the picker_modal markup.
  */
 export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
     const title = cfg.title ?? 'Choose Voice';
@@ -595,7 +593,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
 }
 
 // ---------------------------------------------------------------------------
-// /api/voices loader
+// /app/v1/voices loader
 // ---------------------------------------------------------------------------
 
 const SERVER_VOICES_URL = '/voices';
@@ -610,7 +608,7 @@ export async function fetchServerVoices(force = false): Promise<ServerVoice[] | 
         serverVoicesCache = data;
         return serverVoicesCache;
     } catch {
-        // Flask isn't reachable — we'll fall back to browser voices only.
+        // The app backend isn't reachable — we'll fall back to browser voices only.
         return null;
     }
 }
@@ -634,11 +632,10 @@ export interface DownloadProgress {
  * Download a Piper voice model, streaming byte progress via `onProgress`.
  * Resolves once the model is on disk (`done` / `already_downloaded`), rejects
  * on an error line or transport failure. Consumes the NDJSON stream emitted by
- * both backends (Flask and the desktop Rust server), so callers stay
- * backend-agnostic.
+ * the desktop Rust server, so callers stay backend-agnostic.
  *
  * Multi-speaker voices share one model file — after this resolves, re-fetch
- * `/api/voices` and every speaker for that model reports `downloaded:true`.
+ * `/app/v1/voices` and every speaker for that model reports `downloaded:true`.
  */
 export async function downloadVoiceModel(
     voiceName: string,

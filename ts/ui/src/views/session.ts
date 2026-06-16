@@ -92,7 +92,7 @@ import {
 
 // Anthropic blocks browser-origin requests outright; the others (OpenAI,
 // OpenRouter, Venice, Groq) accept browser CORS. So Anthropic always
-// routes through the Flask proxy in browser preview; the rest go BYOK
+// routes through the app-backend proxy in browser preview; the rest go BYOK
 // direct from the browser. Mobile (Capacitor) will need a different
 // path for Anthropic — either @capacitor/http or a hosted proxy.
 const ANTHROPIC_PROXY_URL = appUrl('/llm/anthropic/messages');
@@ -559,7 +559,7 @@ export async function mountSessionView(
     ): HTMLElement {
         const el = document.createElement('div');
         el.className = `message ${role === 'assistant' ? 'facilitator' : 'user'}${partial ? ' partial' : ''}`;
-        // Match Python: text wrapped in .message-content for styling.
+        // Text wrapped in .message-content for styling.
         const content = document.createElement('div');
         content.className = 'message-content';
         content.textContent = text;
@@ -682,8 +682,7 @@ export async function mountSessionView(
 
     // The lifted CSS hides the bubble with `.typing-bubble { display: none }`
     // and reveals it via `.typing-bubble.visible` — so toggle the class, not
-    // the `hidden` attribute (which that display rule overrides). Matches
-    // src/web/static/js/ui.js showTyping/hideTyping.
+    // the `hidden` attribute (which that display rule overrides).
     function showTyping(): void {
         typingIndicator.classList.add('visible');
         conversation.scrollTop = conversation.scrollHeight;
@@ -694,8 +693,8 @@ export async function mountSessionView(
     }
 
     // Transient hint shown next to the typing dots (e.g. Ollama "Loading
-    // model into memory…" on first hit). Mirrors ui.js setFacilitatorStatus —
-    // a .facilitator-status-hint inserted right after the typing indicator.
+    // model into memory…" on first hit). A .facilitator-status-hint inserted
+    // right after the typing indicator.
     function setFacilitatorHint(message: string | null): void {
         let el = document.getElementById('facilitator-status-hint');
         if (!message) {
@@ -801,7 +800,7 @@ export async function mountSessionView(
     // Utterances spoken during a silence hold, accumulated until the meditator
     // signals (via the resume-intent classifier) that they want to continue —
     // then the whole buffer becomes the resume turn's context. Cleared on each
-    // entry into hold. (Ports the Python state.silenceBuffer flow.)
+    // entry into hold.
     let silenceBuffer: string[] = [];
     // True while the voice-picker modal is open: pause listening so the
     // mic doesn't transcribe a voice preview's own audio and "respond" to it.
@@ -835,8 +834,7 @@ export async function mountSessionView(
     // classification (no history) judges whether it means "I'm ready to
     // continue." Only on a yes do we exit the hold and submit the whole buffer
     // as the resume turn. On a no we stay in the hold and keep listening.
-    // (Ports the Python state.silenceBuffer + classify_resume_intent flow;
-    // meditation-pal-k1yc.) Check-ins are suppressed during a hold (pacing
+    // (meditation-pal-k1yc.) Check-ins are suppressed during a hold (pacing
     // returns Hold), and the listen loop awaits this, so there's no race with
     // respondTo / the check-in timer.
     async function handleSilenceUtterance(userText: string): Promise<void> {
@@ -902,9 +900,8 @@ export async function mountSessionView(
         // Drop transcriptions that are only non-speech markers (e.g. "[cough]",
         // "[BLANK_AUDIO]", "(wind blowing)", "*sighs*") or otherwise carry no
         // words — a cough, breath, or background noise shouldn't take the user's
-        // turn or wake us from a silence hold. (Ports the Python app's
-        // isNonSpeechOnly guard; the partial bubble is already cleared by the
-        // listen loop before this runs.)
+        // turn or wake us from a silence hold. (The partial bubble is already
+        // cleared by the listen loop before this runs.)
         if (isNonSpeechOnly(userText)) return;
         // Supersede any in-flight turn: bump the generation, stop the previous
         // turn generating (it then bails without recording), and cut its audio.
@@ -923,8 +920,7 @@ export async function mountSessionView(
         // Remember whether we were holding when this turn arrived. If the user
         // just spoke to break a silence hold, a [HOLD] in the reply shouldn't
         // snap us straight back into silence on the same turn — otherwise it
-        // reads as "I can't get out of silence mode." (Ports the Python
-        // wasSilent guard in message_handlers.handle_user_message.)
+        // reads as "I can't get out of silence mode."
         const wasSilent = silenceMode;
         busy = true;
         // Hoisted so the catch can discard a partially revealed bubble when
@@ -1305,9 +1301,8 @@ export async function mountSessionView(
         if (!ttsEnabled) void tts.cancel();
     });
 
-    // Listen mode — local silence mode toggle. Matches the Python
-    // listen-btn behavior: announces "holding space", orb gets the
-    // holding class, anything the user says next exits the mode.
+    // Listen mode — local silence mode toggle: announces "holding space",
+    // orb gets the holding class, anything the user says next exits the mode.
     listenBtn.addEventListener('click', () => {
         if (silenceMode) {
             silenceMode = false;
@@ -1322,14 +1317,14 @@ export async function mountSessionView(
     });
 
     // Window/document-level listeners (kasina drag, beforeunload) outlive the
-    // view's own elements, so (unlike the Flask MPA, which reloaded per
-    // navigation) we must remove them on teardown or they leak across
+    // view's own elements, so (unlike the old multi-page app, which reloaded
+    // per navigation) we must remove them on teardown or they leak across
     // sessions. One AbortController covers them all; endSession() aborts it,
     // and it's handed to initKasinaMode() so its document listeners detach too.
     const viewCleanup = new AbortController();
 
     // Guard against accidentally closing/reloading the tab mid-session —
-    // mirrors the Flask beforeunload in src/web/static/js/chrome.js. The
+    // mirrors the prior beforeunload handler. The
     // browser shows its native "Leave site?" prompt. (In-app nav away from a
     // live session is already guarded by showEndConfirm on the End/History
     // links below.)
@@ -1465,7 +1460,7 @@ export async function mountSessionView(
     }
 
     /**
-     * Fresh-session opener — mirrors meditation_session.py::generate_opener.
+     * Fresh-session opener.
      * Asks the LLM for a brief welcome via buildOpenerPrompt (the prompt is
      * a one-shot instruction, NOT kept in history), falling back to the
      * static opener pool on any error.
@@ -1477,8 +1472,7 @@ export async function mountSessionView(
             setStatus('Speaking…');
             showTyping();
             // The opener is the first LLM call, so it's where Ollama pays the
-            // cold-load cost — surface that wait like the Python app does on
-            // session start (session_handlers.py).
+            // cold-load cost — surface that wait at session start.
             if (provider instanceof OllamaProvider) {
                 setFacilitatorHint(await provider.coldLoadMessage());
             }

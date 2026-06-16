@@ -3,7 +3,7 @@
  *
  * Maps the existing setup-form shape onto the PromptBuilder's
  * config shape. The slider is 0-4 for UX; we map to 0/3/5/7/10 for
- * the PromptBuilder so it lines up with the Python implementation's
+ * the PromptBuilder so it lines up with the
  * DIRECTIVENESS_ADDITIONS keys.
  */
 
@@ -44,7 +44,7 @@ export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
     // Local Ollama — only when a daemon is actually reachable (e.g. not on the
     // hosted website).
     { value: 'ollama', label: 'Ollama (Local)', needsKey: false, requires: 'ollama' },
-    // claude_proxy shells out to the local `claude` CLI via Flask — desktop only.
+    // claude_proxy shells out to the local `claude` CLI via the app backend — desktop only.
     { value: 'claude_proxy', label: 'Anthropic (Subscription)', needsKey: false, requires: 'flask' },
     { value: 'anthropic', label: 'Anthropic (API Key)', needsKey: true },
     { value: 'openai', label: 'OpenAI (API Key)', needsKey: true },
@@ -148,14 +148,14 @@ export interface SessionSetup {
 export type NotingReactive = 'none' | 'low' | 'high';
 export type NotingTiming = 'adaptive' | 'fixed';
 
-/** Sound effects bundled in ui/public/audio (and src/web/static/audio). */
+/** Sound effects bundled in ui/public/audio. */
 export const NOTING_SOUNDS = ['bell', 'bottle', 'card', 'crow', 'plop', 'poof', 'rattle'] as const;
 export type NotingSound = (typeof NOTING_SOUNDS)[number];
 
 /**
- * One configured noting-circle participant. Mirrors the Flask participant
- * model: an AI that notes a generated label, a fixed phrase spoken aloud, or a
- * sound effect. Timing is adaptive (matches the user's cadence) or a fixed
+ * One configured noting-circle participant: an AI that notes a generated
+ * label, a fixed phrase spoken aloud, or a sound effect. Timing is adaptive
+ * (matches the user's cadence) or a fixed
  * number of seconds before the participant takes its turn.
  */
 export type NotingParticipantConfig =

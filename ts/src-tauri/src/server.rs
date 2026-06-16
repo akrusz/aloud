@@ -1,9 +1,9 @@
 //! Embedded local HTTP backend for the desktop shell.
 //!
 //! Serves the app's own backend surface (`/app/v1/*`) — the endpoints the TS UI
-//! used to reach on Flask (`/api/*`). The UI keeps issuing `fetch('/app/v1/...')`
-//! but, in a Tauri build, against this server via an injected base URL (see
-//! `ui/src/app-base.ts` and the `initialization_script` in `lib.rs`). Bound to
+//! reaches via `fetch('/app/v1/...')`, which in a Tauri build hit this server
+//! through an injected base URL (see `ui/src/app-base.ts` and the
+//! `initialization_script` in `lib.rs`). Bound to
 //! an ephemeral `127.0.0.1` port so nothing is exposed off-box, and guarded by
 //! a per-launch token + Host check (see `AuthConfig`) so other local processes
 //! and rebinding/localhost-fetching websites can't drive it either.
@@ -11,9 +11,9 @@
 //! Endpoints:
 //! - `GET  /app/v1/system-info` — platform + tool availability.
 //! - `POST /app/v1/stt/whisper` — local Whisper STT via whisper.cpp (whisper-rs).
-//!   Wire-compatible with the old Flask route: raw little-endian f32 mono PCM
-//!   in the body, `?sample_rate=` query, `{text,language,duration}` back, and
-//!   503 while the model is still loading (the UI already handles that).
+//!   Takes raw little-endian f32 mono PCM in the body, a `?sample_rate=` query,
+//!   returns `{text,language,duration}`, and 503 while the model is still
+//!   loading (the UI already handles that).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -41,7 +41,7 @@ const WHISPER_MODEL_URL: &str =
 const WHISPER_MODEL_FILE: &str = "ggml-base.en.bin";
 const TARGET_SAMPLE_RATE: u32 = 16_000;
 // 30 s of 16 kHz f32 mono ≈ 1.9 MB; with onset pre-buffering an utterance can
-// run longer, so cap generously (matches the Flask route's intent).
+// run longer, so cap generously.
 const MAX_AUDIO_BYTES: usize = 8 * 1024 * 1024;
 
 pub struct AppState {
@@ -129,9 +129,9 @@ fn random_token() -> String {
 }
 
 fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
-    // The app's own backend surface, mounted under /app/v1 (formerly the Flask
-    // /api/* routes). The role-versioned prefix lives here in one place; the
-    // hosted, signed-in service lives at /cloud/v1 on the remote Hono server.
+    // The app's own backend surface, mounted under /app/v1. The role-versioned
+    // prefix lives here in one place; the hosted, signed-in service lives at
+    // /cloud/v1 on the remote Hono server.
     let app_v1 = Router::new()
         .route("/system-info", get(system_info))
         .route("/stt/whisper", post(stt_whisper))
@@ -279,9 +279,9 @@ fn download(url: &str, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Mirror Flask's `/app/v1/system-info` shape: platform + tool availability. The
-/// UI keys desktop-only features off this (and uses a successful response as
-/// its "is desktop" signal).
+/// `GET /app/v1/system-info` — platform + tool availability. The UI keys
+/// desktop-only features off this (and uses a successful response as its "is
+/// desktop" signal).
 async fn system_info() -> Json<Value> {
     let claude = which::which("claude").ok();
     let ollama = which::which("ollama").ok();
@@ -291,8 +291,8 @@ async fn system_info() -> Json<Value> {
             None => Value::Null,
         }
     };
-    // Flask reports platform.system().lower(); map Rust's "macos" to "darwin"
-    // so any platform-string consumers stay byte-compatible.
+    // Map Rust's "macos" to "darwin" so platform-string consumers in the UI
+    // get the value they expect.
     let platform = match std::env::consts::OS {
         "macos" => "darwin",
         other => other,
@@ -315,8 +315,8 @@ struct SttQuery {
     sample_rate: Option<u32>,
 }
 
-/// Transcribe raw f32 mono PCM. Body and response match the old Flask route so
-/// the existing CloudWhisperSttEngine adapter is unchanged.
+/// Transcribe raw f32 mono PCM. Body and response match what the
+/// CloudWhisperSttEngine adapter expects.
 async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
@@ -383,7 +383,7 @@ fn err(code: StatusCode, msg: &str) -> (StatusCode, Json<Value>) {
 
 /// Fallback preview phrase when the client doesn't supply `?text=`. The UI
 /// always sends text (preview line or a session sentence), so this is rarely
-/// hit; kept short to match the old Flask default.
+/// hit; kept short.
 const DEFAULT_PREVIEW_TEXT: &str = "Take a slow breath, and let your shoulders soften.";
 
 #[derive(Deserialize)]
@@ -509,7 +509,7 @@ async fn tts_uninstall_model(
 /// `GET /app/v1/providers` — claude / ollama probes + env-var checks for the
 /// API-key providers. The TS UI uses only `{available, installed?, hint?}` per
 /// provider plus `ollama.models`, so the elaborate Ollama tier/recommendation
-/// system from Flask is intentionally omitted (see `crate::providers`).
+/// system is intentionally omitted (see `crate::providers`).
 async fn providers() -> Json<Value> {
     let v = tokio::task::spawn_blocking(crate::providers::providers)
         .await
@@ -561,8 +561,8 @@ async fn google_oauth(Json(body): Json<crate::oauth::OauthStart>) -> Response {
     }
 }
 
-/// `POST /app/v1/ollama/pull` — stream a model pull as NDJSON progress lines.
-/// Wire-compatible with the old Flask route so the settings UI is unchanged.
+/// `POST /app/v1/ollama/pull` — stream a model pull as NDJSON progress lines,
+/// shaped the way the settings UI expects.
 async fn ollama_pull(Json(req): Json<crate::ollama::ModelReq>) -> Response {
     if req.model.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model is required" })))
@@ -586,7 +586,7 @@ async fn ollama_pull(Json(req): Json<crate::ollama::ModelReq>) -> Response {
 }
 
 /// `POST /app/v1/ollama/delete` — remove a pulled model. Returns `{ ok: true }`
-/// on success or `{ error: "…" }` with a 502 on failure (parity with Flask).
+/// on success or `{ error: "…" }` with a 502 on failure.
 async fn ollama_delete(Json(req): Json<crate::ollama::ModelReq>) -> (StatusCode, Json<Value>) {
     if req.model.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model is required" })));

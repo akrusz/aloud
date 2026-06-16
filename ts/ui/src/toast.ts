@@ -1,8 +1,8 @@
 /**
  * Transient error toast — a small fixed banner at the bottom of the screen
  * that fades in, auto-dismisses after a few seconds, and can be clicked to
- * dismiss early. Port of src/web/static/js/ui.js:showErrorToast; the
- * `.error-toast` styles come from the imported legacy stylesheet.
+ * dismiss early. The `.error-toast` styles come from the imported base
+ * stylesheet.
  *
  * Unlike the old session-only inline status line, this works anywhere in the
  * app, so errors raised outside a live session still get a visible surface.

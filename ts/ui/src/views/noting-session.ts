@@ -1,9 +1,9 @@
 /**
  * Noting circle orchestrator.
  *
- * TS port of the round-robin in src/web/static/js/noting.js, adapted to the
- * client-side model: instead of socket round-trips, we call the LLM provider
- * (generateNotingLabel), per-participant TTS, and the STT engine directly.
+ * Round-robin noting circle, client-side: instead of socket round-trips, we
+ * call the LLM provider (generateNotingLabel), per-participant TTS, and the
+ * STT engine directly.
  *
  * Flow: opener → User → P1 → P2 → … → User → … Each LLM participant notes a
  * 1–2 word label in its own voice; the user notes by speaking on their turn.
@@ -461,7 +461,7 @@ export async function mountNotingSessionView(
             return;
         }
         // Wait before noting: a fixed number of seconds, or adapt to the user's
-        // cadence. Mirrors the Flask per-participant timing option.
+        // cadence (the per-participant timing option).
         const delayMs = p.timing === 'fixed' ? (p.fixedDelaySec || 4) * 1000 : adaptiveDelay();
         await sleep(delayMs);
         if (torn || paused) return;

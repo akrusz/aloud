@@ -1,10 +1,9 @@
 //! TTS catalog + synthesis for the desktop backend.
 //!
-//! Replaces Flask's `/app/v1/voices` and `/app/v1/voices/preview` with native Rust:
+//! Serves `/app/v1/voices` and `/app/v1/voices/preview` in native Rust:
 //! Piper (neural, ONNX via `piper-rs`) cross-platform, plus macOS `say` as a
-//! zero-setup local engine on Darwin. Shapes mirror `src/tts/` (PIPER_VOICES,
-//! aggregate_voices, the preview WAV contract) so the existing TS adapters
-//! (`voices.ts`, `cloud-tts.ts`) are unchanged.
+//! zero-setup local engine on Darwin. The voice catalogue and preview WAV
+//! contract match what the TS adapters (`voices.ts`, `cloud-tts.ts`) expect.
 //!
 //! Piper models are downloaded on demand: the first preview/synthesis of a
 //! voice pulls its `.onnx`/`.onnx.json` from Hugging Face into `piper_dir`,
@@ -19,9 +18,9 @@ use std::sync::Mutex;
 use piper_rs::Piper;
 use serde_json::{json, Value};
 
-/// One entry in the Piper voice catalogue. Mirror of `PIPER_VOICES` in
-/// `src/tts/piper.py`. `model` is the shared `.onnx` basename (== `name` for
-/// single-speaker voices); `speaker` is the speaker key for multi-speaker
+/// One entry in the Piper voice catalogue. `model` is the shared `.onnx`
+/// basename (== `name` for single-speaker voices); `speaker` is the speaker
+/// key for multi-speaker
 /// models, resolved to a numeric id via the model's `speaker_id_map`.
 struct PiperVoice {
     name: &'static str,
@@ -58,9 +57,8 @@ const PIPER_VOICES: &[PiperVoice] = &[
 ];
 
 /// Caches the last-loaded Piper model (model name → loaded `Piper`), an
-/// LRU-of-1 matching Flask's `_preview_tts_cache`: streaming a session's
-/// sentences through `/app/v1/voices/preview` must not reload the ONNX model on
-/// every call.
+/// LRU-of-1: streaming a session's sentences through `/app/v1/voices/preview`
+/// must not reload the ONNX model on every call.
 pub type PiperCache = Mutex<Option<(String, Piper)>>;
 
 fn find_piper(name: &str) -> Option<&'static PiperVoice> {
@@ -68,7 +66,7 @@ fn find_piper(name: &str) -> Option<&'static PiperVoice> {
 }
 
 /// Which engine should synthesize a given voice when the caller didn't say.
-/// Piper catalogue first, then macOS on Darwin (mirrors `engine_for_voice`).
+/// Piper catalogue first, then macOS on Darwin.
 pub fn engine_for_voice(name: &str) -> Option<&'static str> {
     if find_piper(name).is_some() {
         return Some("piper");
@@ -83,9 +81,8 @@ fn piper_model_path(piper_dir: &Path, model: &str) -> PathBuf {
     piper_dir.join(format!("{model}.onnx"))
 }
 
-/// `[(url, filename), ...]` for a Piper model's files (mirror of
-/// `_voice_hf_urls`). `model` is the resolved model basename, e.g.
-/// `en_US-lessac-medium`.
+/// `[(url, filename), ...]` for a Piper model's files. `model` is the resolved
+/// model basename, e.g. `en_US-lessac-medium`.
 fn piper_hf_urls(model: &str) -> Vec<(String, String)> {
     let parts: Vec<&str> = model.split('-').collect();
     let locale = parts[0]; // en_US
@@ -105,8 +102,7 @@ fn piper_hf_urls(model: &str) -> Vec<(String, String)> {
 
 /// Build the `/app/v1/voices` JSON array. `engine` (Some) restricts to one engine
 /// (the Settings page does this); `lang` filters by language prefix. With no
-/// engine override the list aggregates Piper then macOS, deduped by name —
-/// matching Flask's `aggregate_voices`.
+/// engine override the list aggregates Piper then macOS, deduped by name.
 pub fn list_voices(engine: Option<&str>, lang: Option<&str>, piper_dir: &Path) -> Value {
     let mut voices: Vec<Value> = Vec::new();
 
@@ -262,13 +258,12 @@ fn synth_piper(
     let config = piper_dir.join(format!("{}.onnx.json", v.model));
     // Models are downloaded explicitly via /app/v1/tts/download-model (the picker's
     // Download button), never on demand — a session must not stall on a 100 MB
-    // fetch mid-synthesis. Matches the Flask preview, which also required the
-    // model to be present.
+    // fetch mid-synthesis, so the model must already be present.
     if !onnx.exists() || !config.exists() {
         return Err(format!("Piper voice '{voice}' not downloaded"));
     }
 
-    // Piper's native pace at length_scale 1.0 is ~220 WPM (see piper.py).
+    // Piper's native pace at length_scale 1.0 is ~220 WPM.
     let length_scale = rate.map(|r| 220.0 / r.max(1) as f32);
 
     // Synthesis runs while holding this lock, so a panic inside piper-rs/ort
@@ -314,10 +309,10 @@ fn resolve_speaker_id(piper: &Piper, key: &str) -> Result<i64, String> {
 // --- /app/v1/tts/download-model + /app/v1/tts/uninstall-model --------------------
 
 /// Download a Piper voice's model files, reporting progress through
-/// `on_progress` as NDJSON-shaped values wire-compatible with Flask's
-/// `/app/v1/tts/download-model`: a stream of `{status:"downloading", total,
-/// completed, file}` then a terminal `{status:"done"}` (or, if the shared
-/// model is already present, just `{status:"already_downloaded"}`).
+/// `on_progress` as the NDJSON-shaped values `/app/v1/tts/download-model`
+/// emits: a stream of `{status:"downloading", total, completed, file}` then a
+/// terminal `{status:"done"}` (or, if the shared model is already present,
+/// just `{status:"already_downloaded"}`).
 ///
 /// Multi-speaker voices share one `.onnx`, so downloading any speaker brings
 /// the whole family on disk — the caller re-reads `/app/v1/voices` afterward and
@@ -549,8 +544,7 @@ mod tests {
         );
         // Long names that overflow the column have only ONE space before the
         // locale (e.g. "Eddy (English (UK)) en_GB"). The 2-space requirement
-        // skips them — matching the Python regex (`\s{2,}`), which drops these
-        // duplicate-named regional variants too.
+        // skips them, dropping these duplicate-named regional variants.
         assert_eq!(split_macos_voice_line("Eddy (English (UK)) en_GB    # Hi"), None);
         assert_eq!(split_macos_voice_line(""), None);
     }

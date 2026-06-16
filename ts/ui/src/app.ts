@@ -80,8 +80,8 @@ export async function bootApp(): Promise<void> {
     // mounted (end of boot) so it has a surface to show on. (meditation-pal-8sj)
     const purchase = consumePurchaseReturn();
 
-    // Probe the runtime environment (Flask / aloud cloud / Ollama) so menus
-    // and desktop-only controls can gate themselves to what's reachable.
+    // Probe the runtime environment (app backend / aloud cloud / Ollama) so
+    // menus and desktop-only controls can gate themselves to what's reachable.
     // Fire-and-forget — views read the cached value at render and tolerate the
     // initial `false`. (detectCapabilities also populates the is-desktop cache.)
     // Reveal the Account nav entry (hidden by default) on any cloud-capable
@@ -329,20 +329,18 @@ function setActiveNav(view: View): void {
     runUpdateNudge();
     currentView = view;
     document.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
-        // Use `nav-active` to match the lifted CSS — Python's base.html
-        // applies the same class to mark the current page link. The mobile
-        // bottom-nav uses its own `bottom-nav-active` class.
+        // Use `nav-active` to match the base CSS, which marks the current
+        // page link with the same class. The mobile bottom-nav uses its own
+        // `bottom-nav-active` class.
         const active = el.dataset['nav'] === view;
         el.classList.toggle('nav-active', active);
         if (el.classList.contains('bottom-nav-link')) {
             el.classList.toggle('bottom-nav-active', active);
         }
     });
-    // Nav center: every non-session view shows an idle orb (Python's
-    // index.html and settings.html both put one there; history.html
-    // doesn't, but the user wants the orb everywhere except active
-    // sessions for visual consistency). Session manages its own
-    // breathing orb.
+    // Nav center: every non-session view shows an idle orb (the user wants
+    // the orb everywhere except active sessions for visual consistency).
+    // Session manages its own breathing orb.
     const navCenter = document.getElementById('navCenter');
     if (navCenter && view !== 'session') {
         // While the boot orb is still pending it flies into this slot and
@@ -355,10 +353,9 @@ function setActiveNav(view: View): void {
 }
 
 /**
- * Click-to-bounce affordance on the idle orb. Lifted from
- * src/web/static/js/setup.js:819 — toggles the .orb-bounce class
- * and lets the CSS keyframe animation play, removing it on
- * animationend so subsequent clicks re-trigger cleanly.
+ * Click-to-bounce affordance on the idle orb — toggles the .orb-bounce class
+ * and lets the CSS keyframe animation play, removing it on animationend so
+ * subsequent clicks re-trigger cleanly.
  */
 function wireHomeOrbBounce(): void {
     const orb = document.getElementById('home-orb');

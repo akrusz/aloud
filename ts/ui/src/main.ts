@@ -13,11 +13,11 @@ import { initAppMode } from './app-mode.js';
 initAppMode();
 
 // Dev only: clear any service worker controlling this origin. The dev server
-// now shares port 4649 with the retired Flask app, whose service worker may
-// still be registered in the browser from a past session — it would shadow
-// Vite with stale cached assets (the classic "unstyled page until a hard
-// reload"). Unregister it + drop its caches, then reload once (loop-guarded)
-// so the page is served fresh. No-op once nothing is registered.
+// now shares port 4649 with the retired app, whose service worker may still be
+// registered in the browser from a past session — it would shadow Vite with
+// stale cached assets (the classic "unstyled page until a hard reload").
+// Unregister it + drop its caches, then reload once (loop-guarded) so the page
+// is served fresh. No-op once nothing is registered.
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     void navigator.serviceWorker.getRegistrations().then(async (regs) => {
         if (regs.length === 0) return;
@@ -50,8 +50,7 @@ if (isTauri()) {
 // Apply theme before the app renders so the FOUC is invisible.
 applyTheme(resolveTheme());
 // Embers are session-only — the container is mounted by the session
-// view on entry (mirrors the original app's session.html-scoped
-// ember-container). regenerateEmbers is a no-op when no session is
+// view on entry. regenerateEmbers is a no-op when no session is
 // active, so the theme toggle click handler is still safe to call it.
 
 // Wire the theme toggle once the DOM is ready. Listening on document

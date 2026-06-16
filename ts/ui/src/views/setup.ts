@@ -177,10 +177,10 @@ export async function mountSetupView(
     // interactive while voices fetch in the background.
     let scoredVoices: ScoredVoice[] = [];
 
-    // Pull a queued continuation off sessionStorage. Mirrors the Python
-    // app — history view writes 'continueFrom' there and redirects to /,
-    // setup view picks it up and threads it into onBegin. Returns null
-    // when nothing is queued or the referenced session is gone.
+    // Pull a queued continuation off sessionStorage — the history view
+    // writes 'continueFrom' there and routes back to setup, which picks it
+    // up and threads it into onBegin. Returns null when nothing is queued or
+    // the referenced session is gone.
     async function loadQueuedContinuation(): Promise<SessionState | null> {
         if (typeof sessionStorage === 'undefined') return null;
         const id = sessionStorage.getItem('continueFrom');
@@ -210,8 +210,8 @@ export async function mountSetupView(
     }
 
     /**
-     * Pull voices from `/api/voices` (when Flask is reachable) and from
-     * the browser's speechSynthesis API, score them, and store on
+     * Pull voices from `/app/v1/voices` (when the app backend is reachable)
+     * and from the browser's speechSynthesis API, score them, and store on
      * scoredVoices. Includes browser voices since the TS preview can
      * also drive browser TTS — when the session view runs server TTS
      * exclusively the picker still shows the right set since server
@@ -250,8 +250,8 @@ export async function mountSetupView(
         renderParticipantList();
         // Guide a user with zero usable voices toward fixing TTS. Checked only
         // after the catalog finishes loading (server + cloud + browser voices
-        // all resolved above) so it doesn't flash during the load — the
-        // equivalent of Python's post-timeout no-voices banner.
+        // all resolved above) so it doesn't flash during the load — a
+        // post-timeout no-voices banner.
         root.querySelectorAll<HTMLElement>('.no-voices-banner').forEach((banner) => {
             banner.classList.toggle('hidden', scoredVoices.length > 0);
         });
@@ -569,9 +569,9 @@ export async function mountSetupView(
             // the picker's onChange once the new provider's models load.
             updateSessionEstimate();
         });
-        // Model picker — fetches /api/models/<provider> (Flask-backed),
+        // Model picker — fetches /app/v1/models/<provider>,
         // falls back to a free-form text input when the endpoint isn't
-        // available. Same behavior as Python's setup.js dropdown.
+        // available.
         const modelContainer = root.querySelector<HTMLElement>('#model-picker-slot')!;
         const modelPicker = mountModelPicker(
             modelContainer,
@@ -595,17 +595,16 @@ export async function mountSetupView(
             updateSessionEstimate();
         });
 
-        // Provider availability — fetch /api/providers, annotate the
+        // Provider availability — fetch /app/v1/providers, annotate the
         // provider <option>s with ✱ (installed but not running) or
         // ✘ (not installed/configured), and surface a hint below for
         // the active provider. API key entry itself lives in Settings,
-        // not here. Mirrors Python's setup.js applyProviderAvailability
-        // + updateProviderHint.
+        // not here.
         void refreshProviderAvailability();
 
         // Voice — a button per tab panel, each opening the same picker modal
         // (which also has the speed slider). All edit the one app-level
-        // default voice. Matches Python's index.html setup-voice-btn.
+        // default voice.
         updateVoiceButtonLabel();
         root.querySelectorAll<HTMLButtonElement>('[data-default-voice]').forEach((btn) => {
             btn.addEventListener('click', () => openVoiceModal());
@@ -613,8 +612,7 @@ export async function mountSetupView(
 
         // Begin session — uses any queued continuation from sessionStorage
         // (set by the history view's "Continue" button) so the same Begin
-        // path handles both fresh and continued sessions, matching the
-        // Python setup.js behavior.
+        // path handles both fresh and continued sessions.
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
             void (async () => {
@@ -644,7 +642,7 @@ export async function mountSetupView(
         }
 
         // Continuation banner — shown when the history view has queued a
-        // session for continuation. Matches Python's #continue-banner.
+        // session for continuation.
         void (async () => {
             if (typeof sessionStorage === 'undefined') return;
             const id = sessionStorage.getItem('continueFrom');
@@ -675,9 +673,9 @@ export async function mountSetupView(
                 sessionStorage.getItem('continueFromSummary') ||
                 new Date(state.startTime * 1000).toLocaleString();
             text.textContent = `Continuing from: ${summary}`;
-            // Use the .hidden class (matches Python — sets display:none
-            // !important via the lifted CSS). Toggling the HTML hidden
-            // attribute loses to .continue-banner's `display: flex`.
+            // Use the .hidden class (sets display:none !important via the
+            // lifted CSS). Toggling the HTML hidden attribute loses to
+            // .continue-banner's `display: flex`.
             banner.classList.remove('hidden');
             cancel.addEventListener('click', () => {
                 sessionStorage.removeItem('continueFrom');
@@ -720,8 +718,7 @@ export async function mountSetupView(
     /**
      * Whether the chosen flow needs a working LLM. Exploration always does;
      * a noting circle only does if at least one participant is an AI (or it's
-     * a solo/empty circle, which falls back to an AI-led intro). Mirrors
-     * Python's setup.js needsLLM.
+     * a solo/empty circle, which falls back to an AI-led intro).
      */
     function needsLLM(): boolean {
         if (setup.meditationType !== 'noting') return true;
@@ -733,7 +730,7 @@ export async function mountSetupView(
     /**
      * Whether the currently selected provider is usable. Unknown status
      * (e.g. the /providers probe failed) counts as available so we never
-     * block on missing information. Mirrors Python's providerAvailable.
+     * block on missing information.
      */
     function providerAvailable(): boolean {
         // An API provider with no stored key can't run — treat as unavailable
@@ -749,8 +746,7 @@ export async function mountSetupView(
     /**
      * Disable "Begin session" when an LLM is needed but the selected provider
      * isn't available, so a user with (say) Ollama stopped sees a blocked
-     * button instead of a session that dies on the first turn. Mirrors
-     * Python's updateBeginButton.
+     * button instead of a session that dies on the first turn.
      */
     function updateBeginButton(): void {
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
@@ -786,8 +782,7 @@ export async function mountSetupView(
      * Annotate provider <option>s with ✱ / ✘, reorder available-first, float
      * claude_proxy to the top when it's working, and auto-select the saved
      * provider if available (else the first available one). ✱ means installed
-     * but not running (Ollama stopped), ✘ means not configured at all. Mirrors
-     * Python's setup.js applyProviderAvailability.
+     * but not running (Ollama stopped), ✘ means not configured at all.
      */
     function applyProviderIndicators(): void {
         const providerSel = root.querySelector<HTMLSelectElement>('#provider');
@@ -902,7 +897,7 @@ export async function mountSetupView(
      * `.info-btn[data-info]` clicks with the accordion-style toggle
      * (clicking one info button closes any other open panels). It also
      * suppresses the toggle while the guided tour is active so the tour
-     * controls the open panel. Matches Python's setup.js delegation.
+     * controls the open panel.
      *
      * The "Take the full tour" link inside the methods info panel goes
      * here too — it resets the dismissed state and jumps straight to the
@@ -919,8 +914,8 @@ export async function mountSetupView(
     }
 
     // ---- Noting circle participants ----
-    // Lifted from setup.js + the lifted .participant-* CSS so layout, sizing,
-    // and the stepper/slider/phrase widths match the original exactly.
+    // The lifted .participant-* CSS keeps layout, sizing, and the
+    // stepper/slider/phrase widths matching the original exactly.
     const MAX_PARTICIPANTS = 4;
     const REACTIVE_LEVELS: NotingReactive[] = ['none', 'low', 'high'];
     const REACTIVE_LABELS = ['None', 'Low', 'High'];
@@ -1275,8 +1270,7 @@ export async function mountSetupView(
     // dropdown populates when ready.
     void loadVoiceCatalog();
     // Kick off the welcome tour on first visit. autoStart short-circuits
-    // when the user has already dismissed, completed, or used the app —
-    // matches Python's setup.js bottom-of-file call.
+    // when the user has already dismissed, completed, or used the app.
     void autoStartGuide();
 
     return {
@@ -1319,8 +1313,8 @@ function renderSetupHTML(
         )
         .join('');
 
-    // Mirror Python's index.html: presets are radio inputs wrapped in
-    // labels styled as cards. The radio is visually hidden by the CSS
+    // Presets are radio inputs wrapped in labels styled as cards. The radio
+    // is visually hidden by the CSS
     // (.style-card input { display: none }), and the .selected class
     // on the label drives the active border.
     const presetCards = PRESETS.map(
@@ -1533,8 +1527,7 @@ function renderSetupHTML(
     })}
 
     <!-- Sound picker (noting sound participants + the user-turn cue). Reuses
-         the voice-modal chrome + .voice-row list styling. Lifted from the
-         Flask sound-modal. -->
+         the voice-modal chrome + .voice-row list styling. -->
     <div class="voice-modal-overlay hidden" id="sound-modal">
         <div class="voice-modal">
             <div class="voice-modal-header">

@@ -1,11 +1,10 @@
 //! Desktop LLM bridge — runs the local `claude` CLI for subscription routing,
-//! replacing Flask's `/app/v1/llm/claude_proxy/complete`.
+//! serving `/app/v1/llm/claude_proxy/complete`.
 //!
 //! The browser/webview can't shell out, so the embedded server does it: spawn
 //! `claude -p … --output-format json`, parse the result, and return the same
 //! `{text, finish_reason, tokens_used}` shape the TS `ClaudeProxyHttpProvider`
-//! already expects. Mirrors `src/llm/claude_proxy.py` (flags, prompt encoding,
-//! JSON fields) so behavior matches the Python backend.
+//! already expects.
 
 use std::process::Stdio;
 use std::time::Duration;
@@ -27,7 +26,7 @@ pub struct CompleteRequest {
     #[serde(default)]
     model: Option<String>,
     // Accepted for wire-compatibility; the `claude` CLI has no max-tokens flag,
-    // so (like the Python provider) it's not forwarded.
+    // so it's not forwarded.
     #[serde(default)]
     #[allow(dead_code)]
     max_tokens: Option<u32>,
@@ -140,7 +139,7 @@ pub async fn claude_complete(req: CompleteRequest) -> Result<Value, ProxyError> 
 /// Encode multi-turn history as the single prompt string the `claude` CLI
 /// takes. System turns are dropped (the system prompt goes via
 /// `--system-prompt`); a lone user turn is sent verbatim; otherwise prior turns
-/// become a `User:`/`Assistant:` transcript. Mirrors `_format_history`.
+/// become a `User:`/`Assistant:` transcript.
 fn format_history(messages: &[Msg]) -> String {
     let convo: Vec<&Msg> = messages.iter().filter(|m| m.role != "system").collect();
     if convo.is_empty() {
@@ -163,7 +162,7 @@ fn format_history(messages: &[Msg]) -> String {
 
 const ANTHROPIC_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
-/// Cap on the forwarded prompt+history payload (mirrors Flask's proxy).
+/// Cap on the forwarded prompt+history payload.
 pub const MAX_PROXY_BYTES: usize = 1024 * 1024;
 
 /// A pass-through of Anthropic's HTTP response: its status and body survive
@@ -175,12 +174,11 @@ pub struct ProxyResponse {
 }
 
 /// Forward a raw Anthropic Messages request body upstream, injecting the API
-/// version and the given key. Replaces Flask's `/app/v1/llm/anthropic/messages`:
-/// the webview can't call Anthropic directly (no CORS), so the embedded server
-/// relays it. Unlike Flask — which always used a server-side env key — the key
-/// here comes from the caller, so the desktop UI can forward the user's
-/// bring-your-own key (it never leaves the loopback). Synchronous (ureq); call
-/// from `spawn_blocking`.
+/// version and the given key. Serves `/app/v1/llm/anthropic/messages`: the
+/// webview can't call Anthropic directly (no CORS), so the embedded server
+/// relays it. The key comes from the caller, so the desktop UI can forward the
+/// user's bring-your-own key (it never leaves the loopback). Synchronous
+/// (ureq); call from `spawn_blocking`.
 pub fn anthropic_proxy(body: Vec<u8>, api_key: &str) -> Result<ProxyResponse, ProxyError> {
     use std::io::Read;
 

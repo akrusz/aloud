@@ -2637,7 +2637,7 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 /* Desktop self-update slot — revealed (JS removes .hidden) only when a newer
-   release is available; mirrors where the old Python app surfaced its update
+   release is available; mirrors where the old app surfaced its update
    link. */
 .about-update {
     margin-bottom: 0.75rem;
@@ -2668,6 +2668,19 @@ html:has(.nav-brand.has-update) .update-btn {
 .about-update-status {
     font-size: 0.9rem;
     color: var(--text-secondary);
+}
+
+/* Dev/browser "Get the latest release" link — block so it drops to its own
+   line under the "Update available: X" version text. */
+.about-update-link {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.about-update-link:hover {
+    text-decoration: underline;
 }
 
 .about-author {

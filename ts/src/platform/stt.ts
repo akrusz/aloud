@@ -116,8 +116,6 @@ export class InMemorySttEngine implements SttEngine {
  * Note: this only catches utterances that are *entirely* markers/punctuation.
  * A bare hallucinated word (Whisper's "you"/"Thank you" on silence) still has
  * letters and is intentionally left alone, matching the original behavior.
- *
- * Ported from the Python app's isNonSpeechOnly (was src/web/static/js/noting.js).
  */
 export function isNonSpeechOnly(text: string): boolean {
     if (!text) return true;

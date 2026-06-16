@@ -1,10 +1,10 @@
 /**
  * Mic input-level meter — pulses the mic button with live input volume.
  *
- * The lifted CSS reacts to a `--mic-level` (0..1) custom property on the
- * `.btn-voice.active` element (box-shadow ring scales with it). The Flask app
- * computes this from its own capture stream; the TS Web Speech path hides its
- * audio, so we open a small dedicated AnalyserNode stream just for the meter.
+ * The CSS reacts to a `--mic-level` (0..1) custom property on the
+ * `.btn-voice.active` element (box-shadow ring scales with it). The Web Speech
+ * path hides its audio, so we open a small dedicated AnalyserNode stream just
+ * for the meter.
  *
  * One stream for the whole session; start() opens it, stop() tears it fully
  * down (track + context). Safe to call stop() more than once.
