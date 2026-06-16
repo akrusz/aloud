@@ -158,8 +158,9 @@ truth), bumps it + `ts/package.json` in lockstep, and lints the TS/Rust stack
 
 ## Auto-update (Tauri updater plugin)
 
-The in-app **Update** button (About box + Settings → Updates) is the
-`tauri-plugin-updater` flow, gated to the desktop shell (`isTauri()`):
+The in-app **Update** button lives in the About box — the single update surface
+(Settings → Updates just opens About). It's the `tauri-plugin-updater` flow,
+gated to the desktop shell (`isTauri()`):
 `ui/src/desktop-updater.ts` calls `check()` → if the signed `latest.json` lists a
 newer version, the user clicks Update → it downloads that platform's bundle over
 Rust (so no webview CSP entry is needed), verifies a **minisign** signature

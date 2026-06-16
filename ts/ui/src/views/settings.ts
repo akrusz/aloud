@@ -8,7 +8,8 @@
  *   4. Display          — text scale, theme mode, window mode (stub)
  *   5. Pacing           — silence base/max, response delay, check-in, hold
  *   6. Network          — host (stub)
- *   7. Updates          — desktop self-update (Tauri); browser: releases check
+ *   7. Updates          — a button that opens the About box (the single update
+ *                         surface, desktop self-update); no check/update here
  *
  * "Stub" rows render the full layout but their controls
  * either no-op or display a small "desktop only" hint. The user's call:

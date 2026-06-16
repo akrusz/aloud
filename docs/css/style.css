@@ -1,7 +1,7 @@
 /* ============================================================
-   aloud. landing page — brand tokens lifted from dev-docs/style.md
-   Single source of truth for visual identity is the app's
-   src/web/static/css/style.css; this is a faithful subset.
+   aloud. landing page — brand tokens lifted from dev-docs/style.md.
+   Single source of truth for visual identity is the app UI's CSS
+   (ts/ui/src/app-base.css); this is a faithful subset.
    ============================================================ */
 
 /* Self-hosted + preloaded (see index.html) so the brand face is ready
