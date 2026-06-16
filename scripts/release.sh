@@ -180,12 +180,18 @@ if [ -f ts/package.json ]; then
     sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
     rm -f ts/package.json.bak
 fi
-# Update README download links
-sed -i.bak "s/aloud-[0-9][0-9.]*-/aloud-${VERSION}-/g" README.md
-sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
-rm -f README.md.bak
-
-git add README.md
+# Update README download links — STABLE releases only, mirroring the updater:
+# a prerelease stays off /releases/latest and never force-updates installs, so
+# the README likewise keeps pointing at the last stable build (an RC's links
+# would otherwise advertise an unfinished build to everyone hitting the repo).
+# tauri-action artifact names are aloud_<version>_<arch>.<ext> — replace only
+# the version token, keep the arch.
+if [ "$PRERELEASE" = false ]; then
+    sed -i.bak "s/aloud_[0-9][0-9.]*_/aloud_${VERSION}_/g" README.md
+    sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
+    rm -f README.md.bak
+    git add README.md
+fi
 [ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
 [ -f ts/package.json ] && git add ts/package.json
 git diff --cached --quiet || git commit -m "v${VERSION}"

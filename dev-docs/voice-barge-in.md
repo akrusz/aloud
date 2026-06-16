@@ -3,8 +3,7 @@
 Barge-in lets the user interrupt the facilitator mid-sentence by speaking over
 its TTS. It is **entirely client-side** — the backend just streams TTS audio and
 receives the next utterance; it's unaware a barge-in occurred. The energy/timing
-heuristics below carried over from the original app and are tuned for typical
-conversation volume.
+heuristics below are tuned for typical conversation volume.
 
 ## Two pathways
 
@@ -57,8 +56,8 @@ platform.
    the generic path.
 
 The generic wrapper ties the listener's lifecycle to the `speak()` promise
-(`try/finally`), so there's no separate "TTS is playing" flag to get stuck on —
-the Python app's watchdog/cooldown machinery isn't needed here.
+(`try/finally`), so there's no separate "TTS is playing" flag to get stuck on,
+and no watchdog/cooldown machinery is needed.
 
 ## Thresholds
 

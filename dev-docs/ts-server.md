@@ -17,7 +17,7 @@ npm install      # installs server deps too (hoisted; server is a workspace)
 
 cd ts/server
 npm run dev      # tsx watch — boots on :8787 with an in-memory store, no secrets
-npm test         # vitest — 46 tests
+npm test         # vitest
 npm run typecheck
 ```
 
@@ -78,7 +78,7 @@ load logic is `loadConfig` in `config.ts`.
 
 ### Keys for the full hosted pipeline
 
-The whole meditation loop can run through the server (no Flask):
+The whole meditation loop can run through the server:
 
 | Hop | Provider | Key |
 |---|---|---|
@@ -106,7 +106,7 @@ token. The route-level logic is unit-tested against the in-memory store in
 
 The browser UI can drive the metered proxy end-to-end. The `aloud cloud`
 provider in Setup/Settings routes LLM turns through this server instead of
-Flask or BYOK.
+BYOK or a local provider.
 
 ```bash
 # Terminal 1 — the server (needs a real provider key to actually complete)
@@ -114,9 +114,9 @@ cd ts/server
 cp .env.example .env        # set ANTHROPIC_API_KEY (or GROQ / OPENROUTER)
 npm run dev                 # :8787
 
-# Terminal 2 — the UI (Vite proxies /v1/* → :8787; override via ALOUD_CLOUD_URL)
+# Terminal 2 — the UI (Vite proxies /app/v1 + /cloud/v1 → :8787; override via ALOUD_CLOUD_URL)
 cd ts
-npm run ui:dev              # :5173
+npm run ui:dev              # :4649
 ```
 
 In the UI: pick provider **aloud cloud**, choose a model (the picker is
@@ -125,7 +125,7 @@ the UI auto-signs-in via the dev route and caches the token.
 
 **On the hosted provider, STT and TTS also route through the server** —
 `/v1/stt` (OpenAI Whisper by default) and `/v1/tts` (Google), so the whole
-pipeline is Flask-free. STT needs `OPENAI_API_KEY` (or any backend via the
+pipeline runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
 `STT_*` overrides — see `config.ts` `resolveSttConfig`); TTS needs
 `GOOGLE_TTS_API_KEY` (without it the client falls back to browser
 `speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
@@ -143,7 +143,7 @@ it's a dev convenience, not a backdoor. Client wiring: `ui/src/cloud-auth.ts`
 Quick handshake without the UI:
 
 ```bash
-TOK=$(curl -s -X POST localhost:8787/v1/auth/dev | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+TOK=$(curl -s -X POST localhost:8787/v1/auth/dev | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
 curl -s localhost:8787/v1/me -H "authorization: Bearer $TOK"          # account + balance
 curl -s -X POST localhost:8787/v1/llm/complete -H "authorization: Bearer $TOK" \
   -H 'content-type: application/json' \
@@ -284,7 +284,7 @@ adapters repointed at this server on the hosted provider (`meditation-pal-vd3`).
 ## Test/lint matrix (what "green" means here)
 
 ```bash
-cd ts        && npm run typecheck && npm test   # core + ui (194 tests)
-cd ts/server && npm run typecheck && npm test   # server (90 tests)
+cd ts        && npm run typecheck && npm test   # core + ui
+cd ts/server && npm run typecheck && npm test   # server
 cd ts        && npm run ui:build                # vite build of ui/dist
 ```

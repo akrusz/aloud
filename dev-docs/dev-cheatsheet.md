@@ -1,34 +1,10 @@
 # Development Cheatsheet
 
-Quick reference for the current structure and how to run, test, and release
-aloud — a TypeScript + Rust stack under `ts/` (migrated off the original
-Python/Flask app, removed in meditation-pal-sk8).
-
-## Structure
-
-The stack lives under `ts/`:
-
-| Path | Stack | Role |
-|------|-------|------|
-| `ts/src/` | TS — `@aloud/core` | Shared engine: pacing, prompts, modes (exploration / noting / felt sense), session, LLM providers, platform adapters. |
-| `ts/ui/` | TS — Vite, vanilla ES modules | The web UI (`ui/src/`, builds to `ui/dist/`). No framework, no build step beyond Vite. |
-| `ts/server/` | TS — Hono | **aloud cloud**: Google auth, credit ledger, metered LLM/STT/TTS forwarding, billing. |
-| `ts/src-tauri/` | Rust — Tauri 2 | The **desktop shell**: an embedded `axum` backend (native Whisper/Piper/Ollama/claude-CLI) + the webview that loads `ui/`. |
-
-### Two backend namespaces
-
-The UI talks to two backends, named by role (see `ui/src/app-base.ts` /
-`cloud-base.ts`):
-
-- **`/app/v1/*`** — the app's *own* backend (provider/voice/model catalogs,
-  system-info, and on desktop: STT, TTS, Ollama, claude-proxy, shell escapes).
-  Served by the **Rust shell** on desktop, by **Hono** on web.
-- **`/cloud/v1/*`** — the **hosted** signed-in, billed service (auth, account,
-  billing, metered forwarding). Always the **Hono** server.
-
-On desktop the Rust shell injects `window.__ALOUD_API_BASE__` (its loopback
-port) so `/app/v1` resolves locally; `/cloud/v1` points at the aloud cloud
-(baked in at build time via `VITE_ALOUD_CLOUD_URL`).
+The commands you need to run, test, build, and release aloud — a TypeScript +
+Rust stack under `ts/`. **Command quick-reference only.** For the architecture
+(the two TS/Rust stacks, the `/app/v1` vs `/cloud/v1` split, data flow) see
+[CLAUDE.md](../CLAUDE.md); for build/signing detail, [desktop.md](desktop.md);
+for the hosted server, [ts-server.md](ts-server.md).
 
 ## Running
 
@@ -71,31 +47,28 @@ The Vite proxy (`ui/vite.config.ts`) forwards:
 So browser preview needs only the Hono server running (next section). Run
 `cd ts/server && npm run dev` and load :4649.
 
-**Local vs web mode (dev override).** The app runs in `local` mode (all
-providers: Ollama + claude-proxy + every BYOK API, plus aloud cloud) or `web`
-mode (the hosted demo: Ollama/claude-proxy hidden, BYOK off behind a settings
-checkbox, aloud cloud the default). The build default keys off the *environment*
-(`app-mode.ts`), **not** whether a cloud URL was baked in — aloud cloud ships in
-every build, so its presence can't signal "web". The Tauri desktop shell and the
-dev server are `local`; a production browser build (website / mobile webview) is
-`web`. In **dev** you can force either with a URL param — no rebuild, no settings
-change — so you can keep both open in two tabs:
-- `:4649/?mode=web` — force web mode
-- `:4649/?mode=local` — force local mode
-- `:4649/?mode=auto` — clear the override (back to the build default)
+### Dev URL params
 
-The override is **dev-only**: `vite build` hard-disables it (`app-mode.ts`),
-so a deployed visitor can't force local mode to unlock Ollama/BYOK.
+Boot-time overrides, all read off `:4649/?…`. Every one is **dev-only** —
+gated on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
+deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
 
-**Inspect the loading state (`?slowboot`).** First paint shows the boot orb — a
-large, centered, magenta-rippling rainbow orb (the kasina-mode form) that
-cross-fades into the small nav orb once the first view mounts. On localhost
-it's a blink. `:4649/?slowboot=5000` holds it on screen for 5000 ms *before*
-the view mounts, so you see the real loading state (static nav + orb, empty
-content). Dev-only (`bootApp` in `app.ts`), gated on `import.meta.env.DEV` so
-it's dead-code-eliminated from `vite build`. To see the **failure-to-load**
-state (orb pulses forever), block the JS bundle in DevTools → Network → Block
-request URL, or set Network to Offline before reloading.
+| Param | Effect | Read in |
+|---|---|---|
+| `?mode=web` | Force **web** mode: the hosted demo — Ollama/claude-proxy hidden, BYOK behind a settings checkbox, aloud cloud the default. | `app-mode.ts` |
+| `?mode=local` | Force **local** mode: every provider (Ollama + claude-proxy + BYOK + aloud cloud). | `app-mode.ts` |
+| `?mode=auto` | Clear the override, back to the build default. (Overrides persist in sessionStorage, so they survive navigation until cleared.) | `app-mode.ts` |
+| `?slowboot=<ms>` | Hold the boot orb on screen `<ms>` *before* the first view mounts, so you can eyeball the real loading state (static nav + orb, empty content). On localhost boot is otherwise a blink. | `bootApp` in `app.ts` |
+
+The mode build-default keys off the *environment*, **not** whether a cloud URL
+was baked in — aloud cloud ships in every build, so its presence can't signal
+"web". Desktop shell + dev server are `local`; a production browser build
+(website / mobile webview) is `web`. `?mode=` lets you keep both open in two
+tabs with no rebuild.
+
+To see the **failure-to-load** state (orb pulses forever) there's no param:
+block the JS bundle in DevTools → Network → Block request URL, or set Network
+to Offline, before reloading.
 
 ### Hosted server (Hono)
 
@@ -235,5 +208,5 @@ the whole `docs/` tree: marketing pages plus the freshly built app at
 no redeploy per release.
 
 ```bash
-python3 -m http.server -d docs 8000   # http://localhost:8000
+npx serve docs                        # serves docs/ on a printed localhost port
 ```

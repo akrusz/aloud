@@ -24,13 +24,12 @@ on macOS); STT returns 503 until that finishes loading.
 --strictPort`) and points the webview at `http://localhost:4649` (`devUrl`). The
 port is **pinned** on purpose: Tauri's `devUrl` is a fixed string, so if Vite
 were allowed to drift to another port the window would silently load the wrong
-server. 4649 is aloud's dev port (the retired Flask port, reused — see
-`ui/vite.config.ts`).
+server. 4649 is aloud's dev port (see `ui/vite.config.ts`).
 
 ## Dev vs. production backend
 
 The app's own backend (`/app/v1/*` — STT/TTS/providers/shell escapes) is served
-by the **Rust shell** in both dev and production; **no Flask** is involved. The
+by the **Rust shell** in both dev and production. The
 shell starts an embedded `axum` server on an ephemeral loopback port and injects
 its base as `window.__ALOUD_API_BASE__`, which `appUrl()` reads — so `/app/v1/*`
 calls hit Rust whether the webview is the Vite dev server (`tauri:dev`) or the
@@ -40,14 +39,14 @@ via `VITE_ALOUD_CLOUD_URL`.
 
 (The browser-only dev path — `npm run ui:dev` without Tauri — has no Rust shell;
 there the Vite proxy forwards both `/app/v1` and `/cloud/v1` to the Hono server
-on :8787, also Flask-free. See `dev-cheatsheet.md`.)
+on :8787. See `dev-cheatsheet.md`.)
 
 A production desktop build is functional for local features — the `/app/v1/*`
 endpoints below are implemented in Rust. End-to-end release validation (signed
 artifacts launching with their embedded backend) is still pending; see the
 Release note at the bottom.
 
-## Backend plan (Flask removal, desktop)
+## App backend (`/app/v1/*`, native Rust)
 
 Decision (see `meditation-pal-nn1`): desktop uses **native Rust in Tauri** for
 local inference — `whisper-rs` (whisper.cpp) for STT, Piper (ONNX) for TTS —
@@ -63,7 +62,7 @@ Tauri build the Rust shell starts an embedded `axum` server (`src-tauri/server.r
 on an ephemeral loopback port and injects `window.__ALOUD_API_BASE__` via an
 `initialization_script`; `appUrl()` reads it (empty → relative paths in dev/web).
 
-Endpoint progress (replacing Flask `/api/*`, now served at `/app/v1/*`):
+Endpoints (served at `/app/v1/*`):
 
 - ✅ `/app/v1/system-info` — platform + tool availability (`which`).
 - ✅ `/app/v1/stt/whisper` — local Whisper via `whisper-rs` (whisper.cpp).
@@ -72,7 +71,7 @@ Endpoint progress (replacing Flask `/api/*`, now served at `/app/v1/*`):
   engine. See `src-tauri/src/tts.rs`.
 - ✅ `/app/v1/tts/download-model` + `/app/v1/tts/uninstall-model` — Piper models are
   downloaded **explicitly** via the picker's Download button (streamed NDJSON
-  progress, wire-compatible with the old Flask routes), never on demand: a
+  progress), never on demand: a
   session must not stall on a 100 MB fetch mid-synthesis, and the explicit
   install/uninstall UX is preserved. Multi-speaker voices share one `.onnx`, so
   downloading/uninstalling any speaker affects the whole family; the picker
@@ -104,8 +103,8 @@ Endpoint progress (replacing Flask `/api/*`, now served at `/app/v1/*`):
   BYOK key as `x-api-key`; env `ANTHROPIC_API_KEY` is the dev fallback. See
   `src-tauri/src/llm.rs::anthropic_proxy`.
 - ✅ `/app/v1/llm/claude_proxy/complete` — spawns the local `claude` CLI via
-  `tokio::process` and mirrors the Python provider's flags, prompt encoding,
-  JSON parsing, and 90 s timeout. See `src-tauri/src/llm.rs`.
+  `tokio::process` with the provider's flags, prompt encoding, JSON parsing, and
+  90 s timeout. See `src-tauri/src/llm.rs`.
 - ✅ `/app/v1/open-config-folder`, `/app/v1/open-sessions-folder`,
   `/app/v1/open-voice-settings` — cross-platform `reveal_path()` helper opens the
   app data dir for the two folder buttons (desktop sessions live in webview
@@ -130,8 +129,7 @@ Endpoint progress (replacing Flask `/api/*`, now served at `/app/v1/*`):
 `release: created` it builds the Tauri app for macOS / Windows / Linux via the
 official **`tauri-apps/tauri-action`**, which also signs the updater artifacts
 and uploads a merged `latest.json` for the in-app self-updater (see **Auto-update**
-below). It supersedes the earlier hand-rolled build+stage jobs (which replaced the
-PyInstaller `build.yml`; Python was removed in meditation-pal-sk8).
+below).
 
 - **macOS**: signed + notarized via Tauri's bundler env (`APPLE_CERTIFICATE` =
   the existing `MACOS_CERTIFICATE` secret, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,

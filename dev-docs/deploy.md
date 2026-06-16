@@ -19,7 +19,7 @@ calls the same hosted server cross-origin from `tauri://localhost` (macOS /
 Linux) and `http://tauri.localhost` (Windows), so leaving those out breaks
 sign-in/credits on desktop only (a failure mode that's invisible in browser
 testing). Mic capture needs a secure context, so the web halves must be real
-HTTPS (the `cert.py` self-signed cert is LAN-only and won't do here).
+HTTPS (a self-signed LAN cert won't do here).
 
 ---
 

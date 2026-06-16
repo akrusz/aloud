@@ -2,7 +2,7 @@
 
 Status: **Phase 1 (server MVP) BUILT, hand-rolled (no SDK)** — channel +
 commission + config + `billing/x402.ts` + buy route + idempotency fix + tests
-all landed and green (202 server tests). HTTP paywall smoke-verified:
+all landed and green. HTTP paywall smoke-verified:
 enabled+authed+unpaid → 402 advertising the right USDC amount / network / USDC
 asset / payTo / EIP-712 domain; mainnet path refuses loudly (no half-settle).
 Flag-gated OFF. The viem/x402-hono middleware was tried then reverted — see the
