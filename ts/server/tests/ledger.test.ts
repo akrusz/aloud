@@ -150,3 +150,28 @@ describe('stale-hold sweeping', () => {
         expect(await ledger.balance(ACCOUNT.id)).toBe(0); // one live hold, not two
     });
 });
+
+describe('Ledger.refund (clawback)', () => {
+    let store: MemoryCreditsStore;
+    let ledger: Ledger;
+
+    beforeEach(async () => {
+        store = new MemoryCreditsStore();
+        ledger = new Ledger(store, () => 0);
+        await store.createAccount(ACCOUNT);
+    });
+
+    it('appends a negative entry and is idempotent on reason (webhook retry)', async () => {
+        await ledger.purchase(ACCOUNT.id, 100, 'purchase:plus:cs_1');
+        await ledger.refund(ACCOUNT.id, 100, 'refund:ch_1');
+        await ledger.refund(ACCOUNT.id, 100, 'refund:ch_1'); // re-delivered event
+        expect(await ledger.balance(ACCOUNT.id)).toBe(0); // clawed back exactly once
+    });
+
+    it('drives the balance negative when the credits were already spent', async () => {
+        await ledger.purchase(ACCOUNT.id, 50, 'purchase:starter:cs_2');
+        await ledger.debit(ACCOUNT.id, 50, 'llm:spend');
+        await ledger.refund(ACCOUNT.id, 50, 'dispute:dp_1');
+        expect(await ledger.balance(ACCOUNT.id)).toBe(-50);
+    });
+});

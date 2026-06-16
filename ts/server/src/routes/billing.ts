@@ -22,8 +22,10 @@ import { requireAuth } from '../auth/middleware.js';
 import {
     createCheckoutSession,
     customPack,
+    fetchPurchaseMetadata,
     isValidCustomCredits,
     packById,
+    parseChargeReversal,
     parseCheckoutCompleted,
     verifyStripeSignature,
     MIN_CUSTOM_CREDITS,
@@ -147,6 +149,45 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 credits: purchase.credits,
                 packId: purchase.packId,
             });
+        } else {
+            // Refund / chargeback → claw back the credits (meditation-pal-7tl).
+            // The charge/dispute object carries only a payment_intent, so resolve
+            // the buyer + amount from the PI metadata we stamped at checkout.
+            const reversal = parseChargeReversal(event);
+            if (reversal) {
+                const apiKey = deps.config.stripeSecretKey;
+                const meta = apiKey
+                    ? await fetchPurchaseMetadata(reversal.paymentIntentId, apiKey)
+                    : undefined;
+                if (meta && meta.isGift) {
+                    // A gift purchase credited a gift record, not the buyer — auto
+                    // clawback would wrongly debit them. Flag for manual handling.
+                    log.error('reversal on a GIFT purchase — manual review needed', {
+                        kind: reversal.kind,
+                        ref: reversal.ref,
+                        paymentIntentId: reversal.paymentIntentId,
+                    });
+                } else if (meta) {
+                    const claw = Math.round(meta.credits * reversal.fraction);
+                    if (claw > 0) {
+                        await deps.ledger.refund(meta.accountId, claw, reversal.ref);
+                    }
+                    // error-level: a refund/chargeback is money out + (for disputes)
+                    // needs a human response, so it should page, not just log.
+                    log.error('credits clawed back on reversal', {
+                        kind: reversal.kind,
+                        accountId: meta.accountId,
+                        credits: claw,
+                        ref: reversal.ref,
+                    });
+                } else {
+                    log.error('reversal could not be mapped to a purchase — manual review needed', {
+                        kind: reversal.kind,
+                        ref: reversal.ref,
+                        paymentIntentId: reversal.paymentIntentId,
+                    });
+                }
+            }
         }
         return c.json({ received: true });
     });

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
 import {
     parseCheckoutCompleted,
+    parseChargeReversal,
+    fetchPurchaseMetadata,
     verifyStripeSignature,
     packById,
     customPack,
@@ -145,5 +147,63 @@ describe('safeReturnPath (open-redirect guard)', () => {
         expect(safeReturnPath('//evil.example')).toBe('/');
         expect(safeReturnPath('app/')).toBe('/'); // no leading slash
         expect(safeReturnPath(undefined)).toBe('/');
+    });
+});
+
+describe('parseChargeReversal', () => {
+    it('full refund → fraction 1, keyed on the charge', () => {
+        const r = parseChargeReversal({
+            type: 'charge.refunded',
+            data: { object: { id: 'ch_1', payment_intent: 'pi_1', amount: 1200, amount_refunded: 1200 } },
+        });
+        expect(r).toEqual({ kind: 'refund', paymentIntentId: 'pi_1', ref: 'refund:ch_1', fraction: 1 });
+    });
+
+    it('partial refund → proportional fraction', () => {
+        const r = parseChargeReversal({
+            type: 'charge.refunded',
+            data: { object: { id: 'ch_2', payment_intent: 'pi_2', amount: 1200, amount_refunded: 600 } },
+        });
+        expect(r?.fraction).toBeCloseTo(0.5);
+    });
+
+    it('dispute → full clawback keyed on the dispute id', () => {
+        const r = parseChargeReversal({
+            type: 'charge.dispute.created',
+            data: { object: { id: 'dp_1', payment_intent: 'pi_3' } },
+        });
+        expect(r).toEqual({ kind: 'dispute', paymentIntentId: 'pi_3', ref: 'dispute:dp_1', fraction: 1 });
+    });
+
+    it('ignores unrelated events and no-op (zero-refund) charges', () => {
+        expect(
+            parseChargeReversal({ type: 'checkout.session.completed', data: { object: {} } })
+        ).toBeUndefined();
+        expect(
+            parseChargeReversal({
+                type: 'charge.refunded',
+                data: { object: { id: 'ch', payment_intent: 'pi', amount: 1000, amount_refunded: 0 } },
+            })
+        ).toBeUndefined();
+    });
+});
+
+describe('fetchPurchaseMetadata', () => {
+    const okFetch = (metadata: Record<string, string>) =>
+        (async () => new Response(JSON.stringify({ metadata }), { status: 200 })) as unknown as typeof fetch;
+
+    it('reads accountId + credits + gift flag from the PI metadata', async () => {
+        const meta = await fetchPurchaseMetadata(
+            'pi_1',
+            'sk_test',
+            okFetch({ account_id: 'acct-9', credits: '110', gift: '1' })
+        );
+        expect(meta).toEqual({ accountId: 'acct-9', credits: 110, isGift: true });
+    });
+
+    it('returns undefined on a non-ok response or missing fields', async () => {
+        const bad = (async () => new Response('nope', { status: 404 })) as unknown as typeof fetch;
+        expect(await fetchPurchaseMetadata('pi_x', 'sk', bad)).toBeUndefined();
+        expect(await fetchPurchaseMetadata('pi_x', 'sk', okFetch({}))).toBeUndefined();
     });
 });

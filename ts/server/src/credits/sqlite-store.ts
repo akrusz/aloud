@@ -100,6 +100,10 @@ CREATE INDEX IF NOT EXISTS idx_ledger_account ON ledger(account_id);
 -- only 'purchase' rows are constrained; debits/holds/grants are unaffected.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_purchase_ref
     ON ledger(reason) WHERE kind = 'purchase';
+-- Idempotent clawbacks (meditation-pal-7tl): a refund/dispute reason embeds the
+-- charge/dispute id, so a replayed reversal webhook claws back exactly once.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_refund_ref
+    ON ledger(reason) WHERE kind = 'refund';
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -636,13 +640,14 @@ export class SqliteCreditsStore implements CreditsStore {
                     entry.createdAt
                 );
         } catch (err) {
-            // Idempotent purchases (idx_ledger_purchase_ref): a duplicate
-            // (kind='purchase', reason) is a replayed payment proof — a Stripe
-            // webhook retry or a resubmitted x402 settlement. Swallow it so the
-            // account is credited exactly once. Any other constraint failure is
-            // a real bug, so only purchases are forgiven.
+            // Idempotent purchases (idx_ledger_purchase_ref) and clawbacks
+            // (idx_ledger_refund_ref): a duplicate (kind, reason) is a replayed
+            // payment proof — a Stripe webhook retry, a resubmitted x402
+            // settlement, or a re-delivered refund/dispute. Swallow it so the
+            // account is credited/debited exactly once. Any other constraint
+            // failure is a real bug, so only these external-ref kinds are forgiven.
             if (
-                entry.kind === 'purchase' &&
+                (entry.kind === 'purchase' || entry.kind === 'refund') &&
                 (String(err).includes('UNIQUE') || String(err).includes('constraint'))
             ) {
                 return;

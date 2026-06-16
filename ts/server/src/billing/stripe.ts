@@ -136,6 +136,15 @@ export async function createCheckoutSession(
         'metadata[pack_id]': params.pack.id,
         'metadata[credits]': String(params.pack.credits),
         ...(params.giftToEmail ? { 'metadata[gift_to_email]': params.giftToEmail } : {}),
+        // Also stamp the PaymentIntent so a later charge.refunded / dispute event
+        // (whose object is a charge/dispute, NOT the session) can recover the
+        // buyer + amount to claw back (meditation-pal-7tl). 'gift' marks a gift
+        // purchase — those credited a gift record, not the buyer, so the reversal
+        // path must NOT debit the buyer; it flags for manual review instead.
+        'payment_intent_data[metadata][account_id]': params.accountId,
+        'payment_intent_data[metadata][credits]': String(params.pack.credits),
+        'payment_intent_data[metadata][pack_id]': params.pack.id,
+        ...(params.giftToEmail ? { 'payment_intent_data[metadata][gift]': '1' } : {}),
     });
 
     const res = await fetchImpl('https://api.stripe.com/v1/checkout/sessions', {
@@ -199,4 +208,68 @@ export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | unde
     if (!accountId || !credits) return undefined;
     const giftToEmail = typeof meta['gift_to_email'] === 'string' ? meta['gift_to_email'] : '';
     return { accountId, credits, packId, stripeSessionId, ...(giftToEmail ? { giftToEmail } : {}) };
+}
+
+/** A refund or chargeback to claw back (meditation-pal-7tl). The triggering
+ *  object is a charge (charge.refunded) or a dispute (charge.dispute.created),
+ *  neither of which carries our session metadata — only a payment_intent id, so
+ *  the caller resolves the buyer/credits via fetchPurchaseMetadata below. */
+export interface ChargeReversal {
+    kind: 'refund' | 'dispute';
+    paymentIntentId: string;
+    /** Stable idempotency ref for the clawback ledger entry. */
+    ref: string;
+    /** Fraction of the original purchase to claw back (1 = full). */
+    fraction: number;
+}
+
+export function parseChargeReversal(event: unknown): ChargeReversal | undefined {
+    const e = event as { type?: string; data?: { object?: Record<string, unknown> } };
+    const obj = e.data?.object ?? {};
+    const pi = (k: string): string => (typeof obj[k] === 'string' ? (obj[k] as string) : '');
+
+    if (e.type === 'charge.refunded') {
+        const paymentIntentId = pi('payment_intent');
+        const chargeId = pi('id');
+        const amount = Number(obj['amount']);
+        const amountRefunded = Number(obj['amount_refunded']);
+        if (!paymentIntentId || !chargeId || !(amount > 0)) return undefined;
+        // Proportional clawback (a full refund → 1). NOTE: keyed on the charge,
+        // so a sequence of *partial* refunds on one charge only claws the first;
+        // full refunds (the common case) and webhook retries are exact.
+        const fraction = Math.min(1, Math.max(0, amountRefunded / amount));
+        if (fraction <= 0) return undefined;
+        return { kind: 'refund', paymentIntentId, ref: `refund:${chargeId}`, fraction };
+    }
+
+    if (e.type === 'charge.dispute.created') {
+        const paymentIntentId = pi('payment_intent');
+        const disputeId = pi('id');
+        if (!paymentIntentId || !disputeId) return undefined;
+        // A chargeback claws back the whole purchase (funds are held/lost).
+        return { kind: 'dispute', paymentIntentId, ref: `dispute:${disputeId}`, fraction: 1 };
+    }
+
+    return undefined;
+}
+
+/** Resolve the buyer + granted credits behind a payment_intent, from the
+ *  metadata we stamped at checkout (payment_intent_data[metadata]). Returns
+ *  undefined on any failure so the caller can flag for manual review rather than
+ *  guess. `isGift` purchases credited a gift record, not the buyer. */
+export async function fetchPurchaseMetadata(
+    paymentIntentId: string,
+    secretKey: string,
+    fetchImpl: typeof fetch = fetch
+): Promise<{ accountId: string; credits: number; isGift: boolean } | undefined> {
+    const res = await fetchImpl(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}`, {
+        headers: { authorization: `Bearer ${secretKey}` },
+    });
+    if (!res.ok) return undefined;
+    const pi = (await res.json().catch(() => ({}))) as { metadata?: Record<string, string> };
+    const meta = pi.metadata ?? {};
+    const accountId = typeof meta['account_id'] === 'string' ? meta['account_id'] : '';
+    const credits = Number(meta['credits']);
+    if (!accountId || !(credits > 0)) return undefined;
+    return { accountId, credits, isGift: meta['gift'] === '1' };
 }

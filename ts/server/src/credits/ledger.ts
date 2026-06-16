@@ -111,6 +111,16 @@ export class Ledger {
         return this.append(accountId, 'signup_grant', Math.abs(credits), reason);
     }
 
+    /** Claw back credits on a refund or chargeback (meditation-pal-7tl). A
+     *  NEGATIVE entry; unlike a spend it does NOT check the balance — the buyer
+     *  may have already spent the credits, and the account *should* go negative
+     *  (it reflects a real debt and nets against any future top-up). Idempotent
+     *  on `reason` via the store's partial unique index (kind='refund'), so a
+     *  webhook retry claws back exactly once. */
+    refund(accountId: string, credits: number, reason: string): Promise<LedgerEntry> {
+        return this.append(accountId, 'refund', -Math.abs(credits), reason);
+    }
+
     /** Record a completed credit purchase (called from the Stripe webhook
      *  after payment confirmation). */
     purchase(accountId: string, credits: number, reason: string): Promise<LedgerEntry> {
