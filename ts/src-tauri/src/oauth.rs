@@ -212,10 +212,21 @@ async fn finish_redirect(
     } else {
         ("400 Bad Request", "Sign-in didn't complete. You can close this tab and try again in aloud.")
     };
+    // On-brand closing page (matches the app's dark theme — ui/app-base.css:
+    // --bg-primary/--text-primary/--accent). Color/size/weight for hierarchy,
+    // never opacity.
     let html = format!(
-        "<!doctype html><meta charset=utf-8><title>aloud</title>\
-         <body style=\"font-family:system-ui;padding:3rem;text-align:center\">\
-         <h2>aloud</h2><p>{msg}</p></body>"
+        "<!doctype html><meta charset=utf-8>\
+         <meta name=viewport content=\"width=device-width,initial-scale=1\">\
+         <title>aloud</title>\
+         <body style=\"margin:0;min-height:100vh;display:flex;flex-direction:column;\
+         align-items:center;justify-content:center;gap:0.75rem;background:#110d08;\
+         color:#f5efe6;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;\
+         text-align:center\">\
+         <div style=\"font-size:2.5rem;font-weight:600;letter-spacing:-0.01em\">\
+         aloud<span style=\"color:#df3f88\">.</span></div>\
+         <p style=\"margin:0;font-size:1.05rem;color:#c4b49e;max-width:28rem;padding:0 1.5rem\">{msg}</p>\
+         </body>"
     );
     let resp = format!(
         "HTTP/1.1 {status}\r\ncontent-type: text/html; charset=utf-8\r\n\
