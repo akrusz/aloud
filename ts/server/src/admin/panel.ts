@@ -258,7 +258,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
-        <div><input id="search" placeholder="filter by email…" autocomplete="off"></div>
+        <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
       </div>
       <table>
         <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th></th></tr></thead>
@@ -546,9 +546,21 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
   // ---- accounts table ----------------------------------------------------
   var allAccounts = [];
+  // Everything on an account row we can match a search against: the UUID (how
+  // you find an account from a log line), the email, and the sign-in providers.
+  // The email is skipped for deleted accounts — there it's an anonymized
+  // 'deleted+<id>@deleted.invalid' placeholder, not a real address, so matching
+  // it would surface scrubbed rows on a stray substring. The id stays
+  // searchable, so a deleted account is still reachable by its id.
+  function acctSearchText(a) {
+    var parts = [a.id];
+    if (!a.deleted && a.email) parts.push(a.email);
+    if (a.providers) parts = parts.concat(a.providers);
+    return parts.join(' ').toLowerCase();
+  }
   function renderAccounts() {
     var q = $('search').value.trim().toLowerCase();
-    var rows = allAccounts.filter(function (a) { return !q || a.email.toLowerCase().indexOf(q) >= 0; });
+    var rows = allAccounts.filter(function (a) { return !q || acctSearchText(a).indexOf(q) >= 0; });
     if (!rows.length) {
       $('acctRows').innerHTML = '<tr><td colspan="8" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
       return;

@@ -31,6 +31,10 @@ html { font-size: 16px; }
     --success: #5a9e6f;
     --radius: 12px;
     --radius-sm: 8px;
+    /* Effective height of the sticky top bar (.nav). An estimate kept in sync
+       with .nav's padding + brand line-height — used to keep floating modals
+       from sliding up under the bar. Slightly over-reserved on purpose. */
+    --nav-h: 64px;
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -97,7 +101,8 @@ body {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    padding: 1rem 2rem;
+    /* ~5px shorter than the old 1rem top/bottom; keep --nav-h in sync. */
+    padding: 0.8rem 2rem;
     border-bottom: 1px solid var(--border);
     background: var(--bg-secondary);
     flex-shrink: 0;
@@ -2881,8 +2886,34 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-left: 1.25rem;
     margin-right: 1.25rem;
 }
+/* The buy flow stacks more than the 70vh shared cap allows (subtitle, balance,
+   two tab rows, pack list, custom-amount row, notes — and the gift flow adds a
+   recipient field + note), so let the whole modal scroll instead of clipping.
+   The header is pinned so the title/close stay reachable while the packs scroll
+   under it. Height + position are governed by the overlay rule below. */
 .buy-credits-modal {
+    overflow-y: auto;
     padding-bottom: 1.25rem;
+}
+.buy-credits-modal > .voice-modal-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card);
+    z-index: 1;
+}
+/* The shared overlay centers its modal, which on a short viewport pushes a tall
+   buy modal's top up under the sticky top bar (.nav sits at z-index 100, above
+   the overlay's 80, so the modal slides *beneath* it). Reserve the bar height
+   + 10px at the top: the modal still centers when there's room, but its top can
+   never rise above the bar, and it's capped to the remaining height so the body
+   scrolls instead of disappearing upward. Scoped by id so other modals are
+   untouched. */
+#buy-credits-modal-overlay {
+    align-items: center;
+    padding: calc(var(--nav-h) + 10px) 1rem 1.5rem;
+}
+#buy-credits-modal-overlay .buy-credits-modal {
+    max-height: calc(100dvh - var(--nav-h) - 10px - 1.5rem);
 }
 .buy-credits-subtitle {
     margin: 1rem 1.25rem 1rem;
