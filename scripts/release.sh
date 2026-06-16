@@ -227,12 +227,16 @@ if command -v gh >/dev/null 2>&1; then
     if [ "$ARG" = "same" ] || [ "$REDO" = true ]; then
         gh release delete "v${VERSION}" --yes 2>/dev/null || true
     fi
-    # rc mode forces --prerelease so it can't land at /releases/latest (the
-    # updater endpoint) and force-update existing installs. Other modes still
-    # answer gh's interactive prerelease prompt.
-    PRERELEASE_FLAG=""
-    [ "$PRERELEASE" = true ] && PRERELEASE_FLAG="--prerelease"
-    gh release create "v${VERSION}" --title "$TITLE" $PRERELEASE_FLAG
+    if [ "$PRERELEASE" = true ]; then
+        # RC: fully non-interactive. --prerelease is set explicitly (no prompt to
+        # fat-finger) so it can't land at /releases/latest — the updater endpoint
+        # — and force-update existing installs. --generate-notes supplies notes
+        # so gh doesn't drop into its interactive flow (which is what kept
+        # re-asking the prerelease question even when the flag was passed).
+        gh release create "v${VERSION}" --title "$TITLE" --prerelease --generate-notes
+    else
+        gh release create "v${VERSION}" --title "$TITLE"
+    fi
     echo ""
     echo "  Released ${TITLE} — build started ✓"
 else
