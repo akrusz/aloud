@@ -3,9 +3,12 @@
  * by default, keys behind the "use my own keys" toggle) vs 'local' (desktop /
  * full dev: every provider available, Ollama + APIs on).
  *
- * The build default is whether an aloud cloud URL was baked in
- * (cloud-base.isCloudBuild): a hosted build defaults to 'web', a plain
- * dev/desktop build to 'local'.
+ * The build default is the environment, NOT whether a cloud URL is baked in:
+ * aloud cloud is available in EVERY build (web, desktop, mobile), so its
+ * presence can't signal "web". Web mode = a hosted browser deployment (the
+ * website, a mobile webview). The desktop (Tauri) shell and the dev server are
+ * 'local' — they have on-device STT/TTS and local LLM providers, with cloud
+ * still available as one provider among many.
  *
  * For DEVELOPMENT you can force either mode at runtime — no rebuild, no settings
  * change — with a `?mode=` query param, remembered for the tab so it survives
@@ -19,11 +22,11 @@
  * false, so in any deployed build readOverride() short-circuits to null (and the
  * branch tree-shakes away) — a visitor to the hosted site CANNOT force local
  * mode to unlock Ollama or skip the BYOK opt-in. Web mode is locked in by the
- * build default (isCloudBuild) with no runtime way around it. No config to
- * maintain; it's enforced at compile time.
+ * build default with no runtime way around it. No config to maintain; it's
+ * enforced at compile time.
  */
 
-import { isCloudBuild } from './cloud-base.js';
+import { isTauri } from './is-desktop.js';
 
 export type AppMode = 'web' | 'local';
 
@@ -61,7 +64,15 @@ export function initAppMode(): void {
 
 /** The active mode: a dev override if set, else the build default. */
 export function appMode(): AppMode {
-    return readOverride() ?? (isCloudBuild() ? 'web' : 'local');
+    return readOverride() ?? buildDefaultMode();
+}
+
+/** Build default, independent of any baked-in cloud URL (cloud ships in every
+ *  build). The desktop shell (Tauri, on-device providers) and the dev server are
+ *  'local'; a production browser build (website / mobile webview) is 'web'. */
+function buildDefaultMode(): AppMode {
+    if (isTauri() || import.meta.env.DEV) return 'local';
+    return 'web';
 }
 
 export function isWebMode(): boolean {

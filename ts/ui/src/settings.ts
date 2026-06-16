@@ -54,9 +54,10 @@ export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
 ];
 
 export interface ProviderAvailabilityOpts {
-    /** Web mode — the hosted demo (app-mode.isWebMode()): Ollama + local
-     *  providers off, BYOK off unless opted in. Build default keys off
-     *  isCloudBuild, but a dev override can force it (see app-mode.ts). */
+    /** Web mode — the hosted browser deployment (app-mode.isWebMode()): Ollama +
+     *  local providers off, BYOK off unless opted in. Defaults by environment
+     *  (desktop/dev = local, hosted browser = web); a dev override can force it
+     *  (see app-mode.ts). */
     webMode?: boolean;
     /** User opted into bring-your-own-key in web mode. */
     allowByok?: boolean;
