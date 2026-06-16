@@ -16,7 +16,9 @@
  */
 
 import { isTauri } from './is-desktop.js';
+import { isWebMode } from './app-mode.js';
 import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
+import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
 
 // krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this
 // same bare address, so a scan and a copy land in the same place.
@@ -45,7 +47,7 @@ export function initAbout(): void {
         e.preventDefault();
         e.stopPropagation();
         const opened = modal.classList.toggle('hidden') === false;
-        if (opened) maybeCheckUpdate(updateEl);
+        if (opened) runUpdateCheck(updateEl);
     });
     close.addEventListener('click', hide);
     modal.addEventListener('click', (e) => {
@@ -69,17 +71,60 @@ export function initAbout(): void {
     }
 }
 
-// Check once, the first time the About box is opened in the desktop shell. If a
-// newer release exists, reveal the Update button; otherwise the slot stays
-// hidden (no "you're up to date" noise in the About box). A browser has no
-// updater, so this is a no-op there.
-let updateChecked = false;
-function maybeCheckUpdate(updateEl: HTMLElement | null): void {
-    if (updateChecked || !updateEl || !isTauri()) return;
-    updateChecked = true;
-    void checkDesktopUpdate().then((update) => {
-        if (update) renderUpdateAvailable(updateEl, update);
-    });
+/** Open the About modal and refresh its update status. Exported so the Settings
+ *  "Check for updates" button routes here — the About box is the single place
+ *  that reports version + whether an update is waiting. */
+export function openAbout(): void {
+    const modal = document.getElementById('aboutModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    runUpdateCheck(document.getElementById('aboutUpdate'));
+}
+
+// Refresh the update line every time the box opens. Web mode auto-updates on
+// reload (and the section is hidden there), so we only check in local/desktop
+// builds: the Tauri shell drives the real self-updater; a local dev browser
+// falls back to an informational GitHub-releases check.
+let checking = false;
+function runUpdateCheck(updateEl: HTMLElement | null): void {
+    if (!updateEl || checking || isWebMode()) return;
+    checking = true;
+    updateEl.classList.remove('hidden');
+    updateEl.textContent = 'Checking for updates…';
+    const settle = (render: (el: HTMLElement) => void) => {
+        updateEl.textContent = '';
+        render(updateEl);
+        checking = false;
+    };
+    if (isTauri()) {
+        void checkDesktopUpdate().then((update) =>
+            settle((el) =>
+                update
+                    ? renderUpdateAvailable(el, update)
+                    : (el.textContent = `You're on the latest version (${__APP_VERSION__}).`)
+            )
+        );
+    } else {
+        void checkForUpdate().then((res) =>
+            settle((el) => {
+                if (res.state === 'available' && res.latest) renderWebUpdate(el, res.latest);
+                else if (res.state === 'current')
+                    el.textContent = `You're on the latest version (${res.current}).`;
+                else el.textContent = "Couldn't check for updates.";
+            })
+        );
+    }
+}
+
+// Local dev browser: there's no installer to run, so link to the release.
+function renderWebUpdate(el: HTMLElement, latest: string): void {
+    el.textContent = `Update available: ${latest} `;
+    const link = document.createElement('a');
+    link.href = RELEASES_PAGE;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'Get the latest release →';
+    el.appendChild(link);
 }
 
 function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
