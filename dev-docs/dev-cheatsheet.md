@@ -72,11 +72,14 @@ So browser preview needs only the Hono server running (next section). Run
 `cd ts/server && npm run dev` and load :4649.
 
 **Local vs web mode (dev override).** The app runs in `local` mode (all
-providers: Ollama + every BYOK API) or `web` mode (the hosted demo: Ollama
-hidden, BYOK off behind a settings checkbox). The build default keys off
-`isCloudBuild()` (whether `VITE_ALOUD_CLOUD_URL` was baked in). In **dev** you
-can force either with a URL param — no rebuild, no settings change — so you can
-keep both open in two tabs:
+providers: Ollama + claude-proxy + every BYOK API, plus aloud cloud) or `web`
+mode (the hosted demo: Ollama/claude-proxy hidden, BYOK off behind a settings
+checkbox, aloud cloud the default). The build default keys off the *environment*
+(`app-mode.ts`), **not** whether a cloud URL was baked in — aloud cloud ships in
+every build, so its presence can't signal "web". The Tauri desktop shell and the
+dev server are `local`; a production browser build (website / mobile webview) is
+`web`. In **dev** you can force either with a URL param — no rebuild, no settings
+change — so you can keep both open in two tabs:
 - `:4649/?mode=web` — force web mode
 - `:4649/?mode=local` — force local mode
 - `:4649/?mode=auto` — clear the override (back to the build default)
@@ -135,14 +138,35 @@ cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips ar
 cd ts && npm run tauri:build          # signed/notarized desktop bundle (DMG / MSI+NSIS / AppImage+deb)
 ```
 
+**Iterating on bundle-only behavior** (the minimal GUI PATH, the app icon, DMG
+art — anything `tauri:dev` can't reproduce because it inherits your terminal's
+PATH/env): don't round-trip through a GitHub release. Build a debug bundle
+locally and launch it through LaunchServices, which gives the app the same
+minimal environment as double-clicking the installed app:
+
+```bash
+scripts/dev-bundle.sh                 # debug .app build + `open` (reads ~/.tauri key, prompts once)
+```
+
+Most work doesn't need this — `tauri:dev` runs the real Rust backend + UI with
+hot reload, so providers/modes/About/voices/STT all iterate instantly there.
+Reach for `dev-bundle.sh` only for bundle-launch-specific bugs, and GitHub RCs
+only as the final "does the signed, shipped artifact work" gate.
+
 Release (bumps version, lints both stacks, tags, pushes, creates the GitHub
 release that triggers CI):
 
 ```bash
 scripts/release.sh                    # patch (default)
 scripts/release.sh minor|major|1.2.3
+scripts/release.sh rc                 # patch bump, marked --prerelease (RC / test build)
 scripts/release.sh same               # re-release current version (moves tag)
+scripts/release.sh redo               # re-release, same title (quick fix cycle)
 ```
+
+`rc` builds are **prereleases**, so they stay off `/releases/latest` — the
+updater endpoint — and never auto-update existing installs. Promote to a real
+release (the non-prerelease that becomes `latest`) only once an RC checks out.
 
 It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
 `ts/package.json` in lockstep, lints TS (`typecheck`) + Rust (`cargo check` +
