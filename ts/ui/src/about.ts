@@ -176,11 +176,20 @@ export function openAbout(): void {
 // builds: the Tauri shell drives the real self-updater; a local dev browser
 // falls back to an informational GitHub-releases check.
 let checking = false;
+// Floor between About-box network checks: reopening within 2 min just keeps the
+// result already rendered into #aboutUpdate (it survives the modal hide/show).
+// In-memory on purpose — a reload clears the rendered result, so re-checking
+// then is correct. Distinct from the nudge's hourly, cross-reload budget.
+const ABOUT_CHECK_INTERVAL_MS = 2 * 60 * 1000;
+let lastAboutCheck = 0;
 function runUpdateCheck(updateEl: HTMLElement | null): void {
     const preview = previewUpdateVersion();
     // Web mode hides the section (auto-updates on reload) — unless previewing,
     // where the point is to see the flow regardless of platform.
     if (!updateEl || checking || (isWebMode() && !preview)) return;
+    // Preview always re-renders; a real check is throttled to once / 2 min.
+    if (!preview && lastAboutCheck && Date.now() - lastAboutCheck < ABOUT_CHECK_INTERVAL_MS) return;
+    if (!preview) lastAboutCheck = Date.now();
     checking = true;
     updateEl.classList.remove('hidden');
     updateEl.textContent = 'Checking for updates…';
