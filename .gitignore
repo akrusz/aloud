@@ -10,3 +10,7 @@ docs/app/
 
 # Recreational Claude scratchpad
 recess.md
+
+# Local state written by ts/server/scripts/durability-probe.sh (the marker id
+# it writes before a stop/redeploy and reads back after) — ephemeral, per-run.
+.durability-probe.json
