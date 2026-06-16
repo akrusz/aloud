@@ -290,6 +290,13 @@ export class SqliteCreditsStore implements CreditsStore {
         // the right default for an always-on server holding a credit ledger.
         // No-op (harmless) for an in-memory database.
         this.db.exec('PRAGMA journal_mode = WAL');
+        // FULL (not the perf-oriented NORMAL litestream suggests): this is a
+        // money ledger, so fsync the WAL on every commit — a purchase that the
+        // webhook acknowledged must be durable on the volume immediately, not
+        // only at the next checkpoint. Otherwise a commit that lives in the WAL
+        // page-cache can be lost if the VM goes away before a checkpoint (the
+        // meditation-pal-5iv4 failure mode). Cheap at trial write volume.
+        this.db.exec('PRAGMA synchronous = FULL');
         this.db.exec('PRAGMA foreign_keys = ON');
         this.db.exec(SCHEMA);
         this.migrateLegacyGoogleSub();

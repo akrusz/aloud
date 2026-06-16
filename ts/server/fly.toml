@@ -41,9 +41,13 @@ primary_region = "sjc"         # pick the region nearest your users
 [http_service]
   internal_port = 8787
   force_https = true           # mic needs a secure context; Fly terminates TLS
-  # Cost control at trial scale: suspend when idle, wake on the next request.
-  # Safe with SQLite — the ledger lives on the volume and survives suspend.
-  auto_stop_machines = "suspend"
+  # Cost control at trial scale: stop when idle, cold-boot on the next request.
+  # NOT "suspend" — suspend freezes the VM with no clean shutdown, so SQLite's
+  # WAL/-shm state is frozen mid-flight and committed ledger rows could be lost
+  # across a resume/redeploy (meditation-pal-5iv4). "stop" sends SIGTERM, so
+  # litestream does a final R2 sync and SQLite closes cleanly (WAL checkpointed)
+  # before the machine goes away; the next request pays a ~1-2s cold start.
+  auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
 
