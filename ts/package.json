@@ -1,6 +1,6 @@
 {
     "name": "@aloud/core",
-    "version": "1.0.12",
+    "version": "2.0.0",
     "private": true,
     "description": "TypeScript port of aloud's orchestration layer (pacing, prompts, session, LLM client). Runs in Node and the browser; intended target is Capacitor for mobile.",
     "type": "module",
