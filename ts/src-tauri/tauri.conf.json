@@ -40,12 +40,7 @@
     },
     "macOS": {
       "minimumSystemVersion": "11.0",
-      "dmg": {
-        "background": "dmg-background.png",
-        "windowSize": { "width": 660, "height": 400 },
-        "appPosition": { "x": 180, "y": 210 },
-        "applicationFolderPosition": { "x": 480, "y": 210 }
-      }
+      "entitlements": "../../assets/entitlements.plist"
     }
   }
 }

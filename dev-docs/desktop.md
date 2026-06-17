@@ -121,10 +121,11 @@ Endpoints (served at `/app/v1/*`):
   bundle ID); window 1000×820, min 480×600.
 - **Bundle art**: the app icon set (`src-tauri/icons/`) is generated from
   `assets/app-icon.svg` via `npx tauri icon` (dark `#110d08` rounded tile so it
-  doesn't render as a "fried egg" on a transparent fill). The DMG window
-  background + layout live under `bundle.macOS.dmg`; its art
-  `src-tauri/dmg-background.png` is generated from the tracked source
-  `assets/dmg-background.svg` (regen command is in that file's header comment).
+  doesn't render as a "fried egg" on a transparent fill). The DMG uses Tauri's
+  default window layout (light background, readable labels). A custom wordmark
+  background is parked in `assets/dmg-background.svg` (regen command in its header)
+  but **not currently wired** — a dark bundle background made the Finder icon
+  labels unreadable, so it's deferred until the layout/label contrast is sorted.
 - `Cargo.toml`: crate name is `app` / lib `app_lib` (Tauri default; left as-is to
   avoid churn).
 - `src-tauri/target/` and `src-tauri/gen/schemas` are gitignored.

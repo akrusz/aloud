@@ -7,6 +7,14 @@
  * a regular media element with browser-managed lifecycle — no manual
  * resume() dance, no suspension races. We swap to it here for stability.
  *
+ * Desktop (Tauri) is the exception: a macOS WKWebView registers a playing
+ * HTMLAudioElement with the system Now Playing / MediaPlayer center, which
+ * makes the OS pop an unexpected "access Apple Music and your media library"
+ * consent dialog at first playback. A Web Audio AudioContext doesn't touch
+ * that machinery, so on desktop we play through it instead (isTauri()). The
+ * Firefox-suspension reason for HTMLAudioElement never applies there — a Tauri
+ * webview is WebKit/WebView2/WebKitGTK, never Firefox.
+ *
  * The server's `rate` query param already renders the WAV at the
  * requested wpm, so we don't need to mess with playbackRate.
  */
@@ -14,6 +22,7 @@
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.js';
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
+import { isTauri } from '../is-desktop.js';
 import { withTimeout } from '../net-timeout.js';
 
 // Stall guard: a synthesis request that never comes back (server accepted then
@@ -117,6 +126,10 @@ export class CloudTtsEngine implements TtsEngine {
     private currentUrl: string | null = null;
     private currentResolve: (() => void) | null = null;
     private currentAbort: AbortController | null = null;
+    // Desktop Web Audio playback (see header): the active source + the shared
+    // context. Only one of currentAudio / currentSource is ever live at a time.
+    private currentSource: AudioBufferSourceNode | null = null;
+    private audioCtx: AudioContext | null = null;
 
     constructor(options: CloudTtsEngineOptions) {
         this.voiceId = options.voice;
@@ -248,6 +261,10 @@ export class CloudTtsEngine implements TtsEngine {
         }
         if (abort.signal.aborted) return;
 
+        // Desktop: play through Web Audio so the OS never sees a media element
+        // (avoids the macOS "Apple Music / media library" consent prompt).
+        if (isTauri()) return this.playViaWebAudio(blob, abort, options?.onStart);
+
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         // preload=auto so Firefox starts buffering before play(); reduces
@@ -309,6 +326,73 @@ export class CloudTtsEngine implements TtsEngine {
         });
     }
 
+    /** Lazily create (and reuse) the playback AudioContext. */
+    private ensureAudioContext(): AudioContext {
+        if (!this.audioCtx) {
+            const Ctor =
+                (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
+                (globalThis as unknown as { webkitAudioContext?: typeof AudioContext })
+                    .webkitAudioContext;
+            if (!Ctor) throw new Error('Web Audio is unavailable');
+            this.audioCtx = new Ctor();
+        }
+        return this.audioCtx;
+    }
+
+    /**
+     * Desktop playback path: decode the WAV and play it through a Web Audio
+     * BufferSource. Mirrors the HTMLAudioElement path's contract — fires onStart
+     * at audible start, resolves on natural end OR cancel (stop() → onended),
+     * and shares currentResolve/currentAbort with cancelSync so a barge-in stops
+     * it cleanly. No object URL is created, so there's nothing to revoke.
+     */
+    private playViaWebAudio(
+        blob: Blob,
+        abort: AbortController,
+        onStart: (() => void) | undefined
+    ): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            void (async () => {
+                try {
+                    const ctx = this.ensureAudioContext();
+                    if (ctx.state === 'suspended') await ctx.resume();
+                    const data = await blob.arrayBuffer();
+                    if (abort.signal.aborted) return resolve();
+                    const buffer = await ctx.decodeAudioData(data);
+                    if (abort.signal.aborted) return resolve();
+
+                    const source = ctx.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(ctx.destination);
+                    source.onended = () => {
+                        // Fires on natural end and on stop() (cancel). Finalize
+                        // once; cancelSync detaches this handler so a barge-in
+                        // resolves through its own currentResolve tail instead.
+                        if (this.currentSource === source) {
+                            this.currentSource = null;
+                            this.currentAbort = null;
+                        }
+                        const r = this.currentResolve;
+                        this.currentResolve = null;
+                        if (r) r();
+                        else resolve();
+                    };
+                    this.currentSource = source;
+                    this.currentResolve = resolve;
+                    source.start();
+                    // BufferSource has no "playing" event; start latency is
+                    // sub-frame, so report audible start right after start().
+                    onStart?.();
+                } catch (err) {
+                    if (this.currentSource === null) this.currentAbort = null;
+                    this.currentResolve = null;
+                    if (abort.signal.aborted) resolve();
+                    else reject(err instanceof Error ? err : new Error(String(err)));
+                }
+            })();
+        });
+    }
+
     cancel(): Promise<void> {
         this.cancelSync();
         return Promise.resolve();
@@ -331,6 +415,17 @@ export class CloudTtsEngine implements TtsEngine {
             }
             this.currentAudio.src = '';
             this.currentAudio = null;
+        }
+        if (this.currentSource) {
+            // Detach onended first so it doesn't double-finalize — the
+            // currentResolve tail below resolves the pending speak() once.
+            this.currentSource.onended = null;
+            try {
+                this.currentSource.stop();
+            } catch {
+                // ignore (already stopped / never started)
+            }
+            this.currentSource = null;
         }
         if (this.currentUrl) {
             URL.revokeObjectURL(this.currentUrl);
