@@ -881,8 +881,17 @@ async fn llm_anthropic_messages(headers: axum::http::HeaderMap, body: Bytes) -> 
     }
 }
 
-async fn llm_claude_proxy_complete(Json(req): Json<crate::llm::CompleteRequest>) -> Response {
-    match crate::llm::claude_complete(req).await {
+async fn llm_claude_proxy_complete(
+    State(state): State<Shared>,
+    Json(req): Json<crate::llm::CompleteRequest>,
+) -> Response {
+    // A dedicated empty scratch dir for the CLI's cwd: app-owned + per-user
+    // (under the app data dir), so no untrusted CLAUDE.md/.claude can be planted
+    // the way a shared world-writable temp dir would allow, and not under
+    // Documents/home so the CLI's project scan doesn't trip a macOS file prompt.
+    let cwd = state.data_dir.join("claude-cwd");
+    let _ = std::fs::create_dir_all(&cwd);
+    match crate::llm::claude_complete(req, &cwd).await {
         Ok(body) => (StatusCode::OK, Json(body)).into_response(),
         Err(e) => {
             let code = StatusCode::from_u16(e.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);

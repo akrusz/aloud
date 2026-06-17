@@ -6,6 +6,7 @@
 //! `{text, finish_reason, tokens_used}` shape the TS `ClaudeProxyHttpProvider`
 //! already expects.
 
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -55,7 +56,7 @@ impl ProxyError {
 
 /// Run one `claude` completion. Returns the `{text, finish_reason,
 /// tokens_used}` JSON body on success.
-pub async fn claude_complete(req: CompleteRequest) -> Result<Value, ProxyError> {
+pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, ProxyError> {
     if !req.messages.iter().all(|m| {
         matches!(m.role.as_str(), "user" | "assistant" | "system")
     }) {
@@ -74,13 +75,15 @@ pub async fn claude_complete(req: CompleteRequest) -> Result<Value, ProxyError> 
     let model = req.model.as_deref().filter(|s| !s.is_empty()).unwrap_or(DEFAULT_MODEL);
 
     let mut cmd = Command::new(binary);
-    // Run from a neutral temp dir, not the cwd the .app happened to launch with.
-    // A facilitation turn needs no project context (the system prompt is passed
-    // via --system-prompt), and letting the CLI scan the inherited working dir
-    // for CLAUDE.md/.claude on first run is what triggers the macOS "allow
-    // access to your files" prompt mid-session. temp_dir is app-accessible and
-    // not a TCC-protected location, so no consent dialog fires.
-    cmd.current_dir(std::env::temp_dir());
+    // Run from a dedicated, app-owned, per-user scratch dir (passed in by the
+    // handler, under the app data dir) — never the cwd the .app launched with,
+    // and never a world-writable shared temp dir. Two reasons:
+    //   - the CLI reads CLAUDE.md/.claude from its working dir, so an empty
+    //     app-owned dir means no untrusted config injection (a shared /tmp on
+    //     Linux would let another local user plant config the CLI would obey);
+    //   - it's not the user's home/Documents, so the CLI's first-run project
+    //     scan doesn't trip the macOS "allow access to your files" prompt.
+    cmd.current_dir(cwd);
     cmd.arg("-p")
         .arg("--tools")
         .arg("")
@@ -263,7 +266,9 @@ mod tests {
             model: Some("haiku".to_string()),
             max_tokens: Some(20),
         };
-        let body = claude_complete(req).await.expect("claude completion");
+        let body = claude_complete(req, &std::env::temp_dir())
+            .await
+            .expect("claude completion");
         let text = body.get("text").and_then(|v| v.as_str()).unwrap_or("");
         assert!(!text.is_empty(), "empty completion text");
         // tokens_used should be a positive number from the usage block.
