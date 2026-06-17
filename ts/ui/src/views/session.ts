@@ -1057,6 +1057,13 @@ export async function mountSessionView(
             if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
                 appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
                 void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
+            } else if (/claude_proxy_stalled/.test(msg)) {
+                // The local Claude CLI stalled across all retries (see
+                // ClaudeProxyHttpProvider). The loop resumes listening, so a
+                // gentle apology + invitation to retry is all that's needed.
+                showErrorToast(
+                    "Sorry, Claude isn't responding right now. Please try again in a moment."
+                );
             } else {
                 // Other failures: a transient toast is more visible than the
                 // small status line, and the loop resumes listening so the
