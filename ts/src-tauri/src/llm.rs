@@ -74,6 +74,13 @@ pub async fn claude_complete(req: CompleteRequest) -> Result<Value, ProxyError> 
     let model = req.model.as_deref().filter(|s| !s.is_empty()).unwrap_or(DEFAULT_MODEL);
 
     let mut cmd = Command::new(binary);
+    // Run from a neutral temp dir, not the cwd the .app happened to launch with.
+    // A facilitation turn needs no project context (the system prompt is passed
+    // via --system-prompt), and letting the CLI scan the inherited working dir
+    // for CLAUDE.md/.claude on first run is what triggers the macOS "allow
+    // access to your files" prompt mid-session. temp_dir is app-accessible and
+    // not a TCC-protected location, so no consent dialog fires.
+    cmd.current_dir(std::env::temp_dir());
     cmd.arg("-p")
         .arg("--tools")
         .arg("")
