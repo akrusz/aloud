@@ -72,7 +72,7 @@ jobs:
       - uses: actions/configure-pages@v5
 
       - name: Upload docs/ as the Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           # The whole site: committed marketing pages + the just-built docs/app.
           path: docs
