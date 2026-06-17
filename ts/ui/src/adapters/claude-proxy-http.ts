@@ -69,6 +69,12 @@ export class ClaudeProxyHttpProvider implements LLMProvider {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(body),
+            // Forward the turn's abort signal so a superseded/torn-down turn
+            // actually cancels the request. Dropping the connection lets the
+            // Rust handler future drop too, and its kill_on_drop reaps the
+            // spawned `claude` child — otherwise the CLI runs to its 90s cap
+            // and returns a stale answer long after the session ended.
+            signal: options.signal ?? null,
         });
 
         if (!response.ok) {

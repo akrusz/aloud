@@ -405,7 +405,13 @@ export async function mountSessionView(
     }
     const tts = {
         async speak(text: string, options?: import('../../../src/platform/index.js').TtsOptions): Promise<void> {
-            if (!ttsEnabled) return;
+            // A torn-down session must never voice anything. A slow LLM turn —
+            // notably the Claude Subscription CLI, which can resolve minutes
+            // after the user quit — would otherwise play through this still-live
+            // engine into whatever session is now on screen (the cross-session
+            // ghost-voice leak). torn is the single chokepoint that stops it for
+            // every caller (opener, response, check-in line).
+            if (!ttsEnabled || torn) return;
             ++ttsSpeakingDepth;
             ttsPlaybackStarted(text);
             try {
@@ -418,7 +424,7 @@ export async function mountSessionView(
             // Pass the sentence-chunk prefetch through to the live engine —
             // without this the streaming bridge sees no prefetch() on the
             // wrapper and inter-sentence synthesis stays serial.
-            if (!ttsEnabled) return;
+            if (!ttsEnabled || torn) return;
             activeTts.prefetch?.(text, options);
         },
         cancel(): Promise<void> {
