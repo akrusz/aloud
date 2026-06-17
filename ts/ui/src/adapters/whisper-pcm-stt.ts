@@ -685,6 +685,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                 nativeRate === TARGET_SAMPLE_RATE
                     ? combined
                     : downsampleLinear(combined, nativeRate, TARGET_SAMPLE_RATE);
+            // No samples → nothing to transcribe. A speculative pass can fire
+            // before any frame has accumulated (or just after a barge-in clears
+            // them); POSTing the resulting empty body just earns a 400 "Empty
+            // request body" from the Whisper endpoint. Short-circuit instead.
+            if (downsampled.length === 0) return { ok: true, text: '', seconds: 0 };
             try {
                 // Tag the transcription with the session group when one is active
                 // (cloud cost report); omitted otherwise. The desktop STT ignores it.
