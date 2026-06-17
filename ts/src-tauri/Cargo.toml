@@ -50,7 +50,7 @@ ureq = { version = "3.2.1", features = ["json"] }
 # base64 for the PKCE challenge, random bytes for the verifier/state nonce.
 sha2 = "0.10"
 base64 = "0.22"
-rand = "0.8"
+rand = "0.10"
 # Native Piper TTS (ONNX via `ort`, espeak-ng phonemization via `espeak-rs`).
 # Cross-platform neural voices; macOS `say` is a local fallback on Darwin.
 piper-rs = "0.2"
