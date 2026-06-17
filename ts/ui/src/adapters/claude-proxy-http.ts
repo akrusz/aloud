@@ -35,7 +35,7 @@ const ENDPOINT = appUrl('/llm/claude_proxy/complete');
  * connection lets the Rust handler's kill_on_drop reap the child — and retry on
  * a fresh process rather than wait out the server's 90s cap with no feedback.
  */
-const ATTEMPT_TIMEOUT_MS = 30_000;
+const ATTEMPT_TIMEOUT_MS = 20_000;
 /** Initial try + retries. A cold-start stall often clears on a fresh attempt. */
 const MAX_ATTEMPTS = 3;
 /**

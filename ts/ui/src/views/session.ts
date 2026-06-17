@@ -1059,11 +1059,15 @@ export async function mountSessionView(
                 void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             } else if (/claude_proxy_stalled/.test(msg)) {
                 // The local Claude CLI stalled across all retries (see
-                // ClaudeProxyHttpProvider). The loop resumes listening, so a
-                // gentle apology + invitation to retry is all that's needed.
-                showErrorToast(
-                    "Sorry, Claude isn't responding right now. Please try again in a moment."
-                );
+                // ClaudeProxyHttpProvider). Speak a gentle apology in the
+                // session voice (local Piper/say, so it works offline) and also
+                // toast it; the loop resumes listening so the user can retry by
+                // just speaking again. No "Claude" in the spoken line — it's in
+                // the facilitator's voice mid-session, so keep it non-technical.
+                const apology =
+                    "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
+                showErrorToast(apology);
+                void tts.speak(apology, { rate: setup.ttsRate });
             } else {
                 // Other failures: a transient toast is more visible than the
                 // small status line, and the loop resumes listening so the
