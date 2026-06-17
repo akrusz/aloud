@@ -27,55 +27,54 @@ export interface CreditPack {
 
 // ---- Pricing curve ----------------------------------------------------------
 // One curve drives BOTH the preset packs and the custom "type your own" amount,
-// so a custom amount is never out of line with a pack. Base rate is 8 credits
-// per dollar (12.5¢/credit); a volume discount ramps linearly from 0% at $5 of
-// spend to 12.5% at $20 (capped above $20), expressed as extra credits for the
-// dollars. Credits round up (ceil). Anchors: $5 → 40, $20 → ceil(160 × 1.125) =
-// 180 (≈11.1¢/credit). All tunable during pre-launch calibration (meditation-pal-7xl).
+// so a custom amount is never out of line with a pack. Instead of a flat rate
+// with a discount tacked on, credits-per-dollar STEPS UP with spend along a
+// gentle convex curve, so each tier is a clear per-credit win:
+//
+//     $5 → 40 (12.5¢/cr) · $10 → 88 (11.4¢/cr) · $20 → 190 (10.5¢/cr)
+//
+// On $5–$20 that's the quadratic credits = A·d² + B·d + C (d = dollars) fit
+// through those three anchors; beyond $20 the rate is held flat at the $20 value
+// (CAP_CREDITS_PER_DOLLAR) so bigger buys don't run past solvency. Credits round
+// to nearest (fair both ways). Tunable during pre-launch calibration (7xl).
+export const CURVE_A = 0.04;
+export const CURVE_B = 9;
+export const CURVE_C = -6;
+/** Entry tier / custom floor: $5. The curve isn't defined below this. */
+export const MIN_SPEND_CENTS = 500; // $5
+/** Best rate caps here; beyond it credits-per-dollar is held flat. */
+export const CAP_SPEND_CENTS = 2_000; // $20
+/** Credits per dollar at (and beyond) the cap — the $20 tier's rate, held flat. */
+export const CAP_CREDITS_PER_DOLLAR =
+    (CURVE_A * 20 * 20 + CURVE_B * 20 + CURVE_C) / 20; // 190 / 20 = 9.5
+/** The entry (smallest, priciest) per-credit rate, for the UI's discount hint. */
+export const BASE_CENTS_PER_CREDIT = MIN_SPEND_CENTS / (CURVE_A * 25 + CURVE_B * 5 + CURVE_C); // 12.5¢
 
-/** Base list price before any volume discount: 12.5¢/credit (8 credits per $1). */
-export const BASE_CENTS_PER_CREDIT = 12.5;
-/** Spend (cents) at which the volume discount begins — below this it's 0%. */
-export const DISCOUNT_START_CENTS = 500; // $5
-/** Spend (cents) at which the volume discount caps. */
-export const DISCOUNT_FULL_CENTS = 2_000; // $20
-/** Maximum volume discount, reached at DISCOUNT_FULL_CENTS. At 12.5% the $20
- *  tier lands a round 180 credits (≈11.1¢/credit). */
-export const MAX_DISCOUNT = 0.125; // 12.5%
-
-/** Volume discount fraction for a purchase of `cents` (0 … MAX_DISCOUNT). */
-export function discountForCents(cents: number): number {
-    if (cents <= DISCOUNT_START_CENTS) return 0;
-    if (cents >= DISCOUNT_FULL_CENTS) return MAX_DISCOUNT;
-    return (
-        (MAX_DISCOUNT * (cents - DISCOUNT_START_CENTS)) /
-        (DISCOUNT_FULL_CENTS - DISCOUNT_START_CENTS)
-    );
-}
-
-/** Credits a spend of `cents` buys: base rate scaled up by the volume discount,
- *  rounded up. The canonical curve — presets are points on it. */
+/** Credits a spend of `cents` buys, on the convex volume curve (flat best rate
+ *  beyond $20), rounded to nearest. Canonical — presets are points on it. */
 export function creditsForCents(cents: number): number {
-    return Math.ceil((cents / BASE_CENTS_PER_CREDIT) * (1 + discountForCents(cents)));
+    const d = cents / 100;
+    const credits =
+        cents <= CAP_SPEND_CENTS
+            ? CURVE_A * d * d + CURVE_B * d + CURVE_C
+            : CAP_CREDITS_PER_DOLLAR * d;
+    return Math.round(credits);
 }
 
 /** Inverse of the curve for the custom field (buyer types credits, we price
- *  them): the cents that buy `credits`. Flat base rate below the ramp, flat
- *  discounted rate above it, and the closed-form quadratic inverse within —
- *  derived from the same constants so it can't drift from creditsForCents. */
+ *  them): the cents that buy `credits`. Closed-form quadratic root within the
+ *  curve, flat rate beyond the cap — derived from the same constants so it can't
+ *  drift from creditsForCents. Rounds the price to the nearest cent. */
 export function centsForCredits(credits: number): number {
-    if (credits <= creditsForCents(DISCOUNT_START_CENTS)) {
-        return Math.ceil(credits * BASE_CENTS_PER_CREDIT); // below $5: no discount
+    // Beyond the cap: flat best rate.
+    if (credits >= creditsForCents(CAP_SPEND_CENTS)) {
+        return Math.round((credits / CAP_CREDITS_PER_DOLLAR) * 100);
     }
-    if (credits >= creditsForCents(DISCOUNT_FULL_CENTS)) {
-        return Math.ceil((credits * BASE_CENTS_PER_CREDIT) / (1 + MAX_DISCOUNT)); // above $20: capped
-    }
-    // Within the ramp credits = (cents/B)(1 + k(cents − S)), k = M/(F − S):
-    // k·cents² + (1 − kS)·cents − B·credits = 0. Solve the positive root.
-    const k = MAX_DISCOUNT / (DISCOUNT_FULL_CENTS - DISCOUNT_START_CENTS);
-    const b = 1 - k * DISCOUNT_START_CENTS;
-    const cents = (-b + Math.sqrt(b * b + 4 * k * BASE_CENTS_PER_CREDIT * credits)) / (2 * k);
-    return Math.ceil(cents);
+    // On the curve: solve A·d² + B·d + (C − credits) = 0 for dollars d.
+    const d =
+        (-CURVE_B + Math.sqrt(CURVE_B * CURVE_B - 4 * CURVE_A * (CURVE_C - credits))) /
+        (2 * CURVE_A);
+    return Math.round(d * 100);
 }
 
 /** The preset packs — points on the curve at $5 / $10 / $20. Regenerated from

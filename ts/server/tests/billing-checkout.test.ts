@@ -59,8 +59,8 @@ describe('POST /cloud/v1/billing/checkout — custom amount', () => {
         expect(res.status).toBe(200);
         expect(((await res.json()) as { checkoutUrl: string }).checkoutUrl).toContain('stripe.test');
 
-        // 100 credits on the curve = $11.83; credits ride in metadata for the webhook.
-        expect(stripeForm?.get('line_items[0][price_data][unit_amount]')).toBe('1183');
+        // 100 credits on the curve = $11.22; credits ride in metadata for the webhook.
+        expect(stripeForm?.get('line_items[0][price_data][unit_amount]')).toBe('1122');
         expect(stripeForm?.get('metadata[credits]')).toBe('100');
         expect(stripeForm?.get('metadata[pack_id]')).toBe('custom');
     });

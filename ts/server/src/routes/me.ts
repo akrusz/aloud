@@ -16,9 +16,11 @@ import {
     MIN_CUSTOM_CREDITS,
     MAX_CUSTOM_CREDITS,
     BASE_CENTS_PER_CREDIT,
-    DISCOUNT_START_CENTS,
-    DISCOUNT_FULL_CENTS,
-    MAX_DISCOUNT,
+    CURVE_A,
+    CURVE_B,
+    CURVE_C,
+    CAP_SPEND_CENTS,
+    CAP_CREDITS_PER_DOLLAR,
 } from '../billing/stripe.js';
 import { x402Configured } from '../billing/x402.js';
 import {
@@ -77,14 +79,20 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             packs: CREDIT_PACKS,
             x402: x402 ? { enabled: true, network: x402.network } : { enabled: false },
             // Lets the UI offer a "type your own amount" field (card checkout
-            // only), priced on the shared volume-discount curve. The client
-            // replicates the curve from these params to preview the price; the
-            // server re-prices authoritatively at checkout.
+            // only), priced on the shared volume curve. The client replicates the
+            // curve from these params to preview the price; the server re-prices
+            // authoritatively at checkout. `base` is the entry rate, for the
+            // discount-vs-base hint; `curve` is the quadratic (in dollars) plus
+            // the flat-rate cap beyond $20.
             custom: {
                 baseCentsPerCredit: BASE_CENTS_PER_CREDIT,
-                discountStartCents: DISCOUNT_START_CENTS,
-                discountFullCents: DISCOUNT_FULL_CENTS,
-                maxDiscount: MAX_DISCOUNT,
+                curve: {
+                    a: CURVE_A,
+                    b: CURVE_B,
+                    c: CURVE_C,
+                    capSpendCents: CAP_SPEND_CENTS,
+                    capCreditsPerDollar: CAP_CREDITS_PER_DOLLAR,
+                },
                 minCredits: MIN_CUSTOM_CREDITS,
                 maxCredits: MAX_CUSTOM_CREDITS,
             },

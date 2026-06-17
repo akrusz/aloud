@@ -23,14 +23,19 @@ export interface X402Capability {
     network?: 'base' | 'base-sepolia';
 }
 
-/** Custom "type your own amount" pricing — the shared volume-discount curve so
- *  the client can preview the price (card checkout only; server re-prices
- *  authoritatively). Mirrors the server's /me/packs `custom`. */
+/** Custom "type your own amount" pricing — the shared volume curve so the client
+ *  can preview the price (card checkout only; server re-prices authoritatively).
+ *  Mirrors the server's /me/packs `custom`. `curve` is the quadratic in dollars
+ *  (credits = a·d² + b·d + c) with a flat rate beyond capSpendCents. */
 export interface CustomCredits {
     baseCentsPerCredit: number;
-    discountStartCents: number;
-    discountFullCents: number;
-    maxDiscount: number;
+    curve: {
+        a: number;
+        b: number;
+        c: number;
+        capSpendCents: number;
+        capCreditsPerDollar: number;
+    };
     minCredits: number;
     maxCredits: number;
 }

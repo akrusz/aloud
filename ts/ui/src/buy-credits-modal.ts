@@ -357,19 +357,16 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
 }
 
 /** Price (cents) for a custom credit amount, replicating the server's
- *  centsForCredits volume-discount curve so the preview matches the charge.
+ *  centsForCredits volume curve so the preview matches the charge.
  *  (ts/server/src/billing/stripe.ts is the source of truth; server re-prices.) */
 function customPriceCents(credits: number, c: CustomCredits): number {
-    const { baseCentsPerCredit: B, discountStartCents: S, discountFullCents: F, maxDiscount: M } = c;
-    const creditsAt = (cents: number): number => {
-        const disc = cents <= S ? 0 : cents >= F ? M : (M * (cents - S)) / (F - S);
-        return Math.ceil((cents / B) * (1 + disc));
-    };
-    if (credits <= creditsAt(S)) return Math.ceil(credits * B); // below the ramp
-    if (credits >= creditsAt(F)) return Math.ceil((credits * B) / (1 + M)); // above the ramp
-    const k = M / (F - S);
-    const b = 1 - k * S;
-    return Math.ceil((-b + Math.sqrt(b * b + 4 * k * B * credits)) / (2 * k));
+    const { a, b, c: cc, capSpendCents, capCreditsPerDollar } = c.curve;
+    const capCredits = Math.round(capCreditsPerDollar * (capSpendCents / 100));
+    // Beyond the cap: flat best rate.
+    if (credits >= capCredits) return Math.round((credits / capCreditsPerDollar) * 100);
+    // On the curve: solve a·d² + b·d + (c − credits) = 0 for dollars d.
+    const d = (-b + Math.sqrt(b * b - 4 * a * (cc - credits))) / (2 * a);
+    return Math.round(d * 100);
 }
 
 /** A "type your own amount" row: a credits input that previews the price and

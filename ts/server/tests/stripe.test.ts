@@ -10,7 +10,6 @@ import {
     isValidCustomCredits,
     creditsForCents,
     centsForCredits,
-    discountForCents,
     CREDIT_PACKS,
     MIN_CUSTOM_CREDITS,
     MAX_CUSTOM_CREDITS,
@@ -66,11 +65,11 @@ describe('parseCheckoutCompleted', () => {
     }
 
     it('extracts account + credits from a paid checkout event', () => {
-        // 'plus' is the $10 pack → 84 credits on the curve.
-        const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '84' } }));
+        // 'plus' is the $10 pack → 88 credits on the curve.
+        const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '88' } }));
         expect(out).toEqual({
             accountId: 'acct-1',
-            credits: 84,
+            credits: 88,
             packId: 'plus',
             stripeSessionId: 'cs_123',
         });
@@ -83,10 +82,10 @@ describe('parseCheckoutCompleted', () => {
     });
 
     it('re-derives preset-pack credits server-side, ignoring metadata credits', () => {
-        // A tampered metadata blob can't inflate the grant — 'plus' is 84,
+        // A tampered metadata blob can't inflate the grant — 'plus' is 88,
         // re-derived from the server pack table.
         const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '999999' } }));
-        expect(out?.credits).toBe(84);
+        expect(out?.credits).toBe(88);
     });
 
     it('refuses an unknown pack id', () => {
@@ -126,38 +125,41 @@ describe('custom amounts', () => {
         expect(isValidCustomCredits(80.5)).toBe(false); // whole credits only
     });
 
-    it('prices on the shared volume-discount curve (matches the anchors)', () => {
-        // Anchor endpoints are exact: $5 → 40, $20 → 180.
+    it('prices on the shared volume curve (matches the anchors)', () => {
+        // Anchor endpoints are exact: $5 → 40, $20 → 190.
         expect(customPack(40)).toMatchObject({ id: 'custom', credits: 40, priceUsdCents: 500 });
-        expect(customPack(180)).toMatchObject({ id: 'custom', credits: 180, priceUsdCents: 2000 });
-        // A custom amount is never priced above the flat base rate (12.5¢).
+        expect(customPack(190)).toMatchObject({ id: 'custom', credits: 190, priceUsdCents: 2000 });
+        // A custom amount is never priced above the entry rate (12.5¢).
         expect(customPack(120).priceUsdCents).toBeLessThanOrEqual(Math.ceil(120 * 12.5));
     });
 });
 
 describe('pricing curve', () => {
-    it('uses an 8-credits-per-dollar base (12.5¢/credit)', () => {
-        expect(creditsForCents(500)).toBe(40); // $5 → 40, no discount yet
-        expect(centsForCredits(40)).toBe(500);
+    it('steps credits-per-dollar up across the tiers (40 / 88 / 190)', () => {
+        expect(creditsForCents(500)).toBe(40); // $5 → 40 (12.5¢/cr)
+        expect(creditsForCents(1000)).toBe(88); // $10 → 88 (11.4¢/cr)
+        expect(creditsForCents(2000)).toBe(190); // $20 → 190 (10.5¢/cr)
+        // Strictly better per-credit each tier (the incentive to step up).
+        expect(500 / 40).toBeGreaterThan(1000 / 88);
+        expect(1000 / 88).toBeGreaterThan(2000 / 190);
     });
 
-    it('ramps the discount linearly from 0% at $5 to 12.5% at $20, capped', () => {
-        expect(discountForCents(500)).toBe(0); // $5
-        expect(discountForCents(1250)).toBeCloseTo(0.0625); // $12.50 — halfway
-        expect(discountForCents(2000)).toBeCloseTo(0.125); // $20 — cap
-        expect(discountForCents(5000)).toBeCloseTo(0.125); // beyond $20 stays capped
-        expect(creditsForCents(2000)).toBe(180); // $20 → ceil(160 × 1.125)
+    it('holds the best rate flat beyond the $20 cap', () => {
+        expect(creditsForCents(4000)).toBe(380); // $40 → 2 × the $20 rate
+        expect(creditsForCents(10_000)).toBe(950); // $100 → 9.5 credits/$
     });
 
     it('regenerates the preset packs from the curve', () => {
         expect(packById('starter')).toMatchObject({ credits: 40, priceUsdCents: 500 });
-        expect(packById('plus')).toMatchObject({ credits: 84, priceUsdCents: 1000 });
-        expect(packById('pro')).toMatchObject({ credits: 180, priceUsdCents: 2000 });
+        expect(packById('plus')).toMatchObject({ credits: 88, priceUsdCents: 1000 });
+        expect(packById('pro')).toMatchObject({ credits: 190, priceUsdCents: 2000 });
     });
 
     it('keeps creditsForCents and centsForCredits consistent at the anchors', () => {
-        expect(centsForCredits(creditsForCents(500))).toBe(500);
-        expect(centsForCredits(creditsForCents(2000))).toBe(2000);
+        expect(centsForCredits(40)).toBe(500);
+        expect(centsForCredits(88)).toBe(1000);
+        expect(centsForCredits(190)).toBe(2000);
+        expect(centsForCredits(380)).toBe(4000); // beyond the cap
     });
 });
 
