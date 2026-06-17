@@ -125,6 +125,19 @@ export function isAppleSignInConfigured(): boolean {
     return appleClientId() !== '';
 }
 
+/** True when the cloud we're pointed at offers ANY interactive sign-in method —
+ *  web Google, the desktop loopback Google client, or Apple. The session gate
+ *  (cloud-gate.ensureCloudAccess) keys off this rather than web-Google-only:
+ *  a desktop release talks to a server configured with just the *desktop* Google
+ *  client, so gating on the web id alone let credit-spending sessions start
+ *  unauthenticated. The silent dev-sign-in fallback is only correct against a
+ *  bare local server that advertises no sign-in method at all. */
+export function isInteractiveSignInConfigured(): boolean {
+    return (
+        isGoogleSignInConfigured() || googleDesktopClientId() !== '' || isAppleSignInConfigured()
+    );
+}
+
 /** Thrown by ensureCloudToken when a hosted (Google-configured) build has no
  *  cached session: the user must complete interactive sign-in, which can't be
  *  done from a mid-session LLM call. Callers catch this to surface the sign-in

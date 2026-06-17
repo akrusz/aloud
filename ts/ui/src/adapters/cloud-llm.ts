@@ -24,12 +24,20 @@ import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
 import { setKnownBalance } from '../cloud-balance.js';
 import { getCloudSessionId } from '../cloud-session.js';
+import { withTimeout } from '../net-timeout.js';
 
 /** Providers the server is willing to forward to (mirrors contract.ts ProviderId). */
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
 
 const ENDPOINT = '/llm/complete';
 const DEFAULT_MAX_TOKENS = 400;
+
+// Stall guard: if the proxy accepts the connection but goes quiet this long —
+// no response to the non-streaming call, or no further SSE bytes mid-stream —
+// treat the turn as dead and reject so the session recovers instead of hanging
+// forever on "Thinking…". Generous: a live turn (even Opus warming up its first
+// token) speaks far sooner; only a genuine stall waits this long.
+const CLOUD_STALL_MS = 60_000;
 
 export interface CloudLlmProviderOptions {
     provider: CloudProviderId;
@@ -89,7 +97,8 @@ export class CloudLlmProvider implements LLMProvider {
     private async post(
         messages: Message[],
         options: CompletionOptions,
-        stream: boolean
+        stream: boolean,
+        signal?: AbortSignal
     ): Promise<Response> {
         const send = async (token: string): Promise<Response> =>
             this.fetchImpl(cloudUrl(ENDPOINT), {
@@ -100,6 +109,7 @@ export class CloudLlmProvider implements LLMProvider {
                     ...(stream ? { accept: 'text/event-stream' } : {}),
                 },
                 body: this.body(messages, options, stream),
+                signal: signal ?? null,
             });
 
         let res = await send(await ensureCloudToken());
@@ -122,7 +132,11 @@ export class CloudLlmProvider implements LLMProvider {
     }
 
     async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
-        const res = await this.post(messages, options, false);
+        const res = await withTimeout(
+            this.post(messages, options, false),
+            CLOUD_STALL_MS,
+            'aloud cloud did not respond in time.'
+        );
         if (!res.ok) return this.throwFromError(res);
         const data = (await res.json()) as CompleteResponseBody;
         // The server hands back the authoritative post-turn balance every call;
@@ -141,58 +155,88 @@ export class CloudLlmProvider implements LLMProvider {
         messages: Message[],
         options: CompletionOptions = {}
     ): AsyncIterable<StreamChunk> {
-        const res = await this.post(messages, options, true);
-        if (!res.ok) return void (await this.throwFromError(res));
-        if (!res.body) {
-            // No streaming body (some environments) — degrade to one chunk.
-            const data = (await res.json()) as CompleteResponseBody;
-            if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
-            yield { text: data.text ?? '', done: false };
-            yield { text: '', done: true, finishReason: data.finishReason ?? null };
-            return;
-        }
+        const ac = new AbortController();
+        let stallTimer: ReturnType<typeof setTimeout> | undefined;
+        // Re-armed before each await: a turn that keeps streaming stays alive
+        // indefinitely; only a gap longer than CLOUD_STALL_MS aborts the fetch.
+        const armStall = (): void => {
+            clearTimeout(stallTimer);
+            stallTimer = setTimeout(
+                () => ac.abort(new Error('aloud cloud stopped responding.')),
+                CLOUD_STALL_MS
+            );
+        };
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let finishReason: string | null = null;
+        try {
+            armStall();
+            // withTimeout also covers the token step (not signal-wired); ac.signal
+            // lets a connect stall release the socket too.
+            const res = await withTimeout(
+                this.post(messages, options, true, ac.signal),
+                CLOUD_STALL_MS,
+                'aloud cloud did not respond in time.'
+            );
+            if (!res.ok) return void (await this.throwFromError(res));
+            if (!res.body) {
+                // No streaming body (some environments) — degrade to one chunk.
+                const data = (await res.json()) as CompleteResponseBody;
+                if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
+                yield { text: data.text ?? '', done: false };
+                yield { text: '', done: true, finishReason: data.finishReason ?? null };
+                return;
+            }
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let finishReason: string | null = null;
 
-            // SSE frames are separated by a blank line.
-            let sep: number;
-            while ((sep = buffer.indexOf('\n\n')) !== -1) {
-                const frame = buffer.slice(0, sep);
-                buffer = buffer.slice(sep + 2);
+            while (true) {
+                armStall();
+                const { done, value } = await reader.read();
+                clearTimeout(stallTimer);
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
 
-                let event = 'message';
-                let data = '';
-                for (const line of frame.split('\n')) {
-                    if (line.startsWith('event:')) event = line.slice(6).trim();
-                    else if (line.startsWith('data:')) data += line.slice(5).trim();
-                }
-                if (!data) continue;
+                // SSE frames are separated by a blank line.
+                let sep: number;
+                while ((sep = buffer.indexOf('\n\n')) !== -1) {
+                    const frame = buffer.slice(0, sep);
+                    buffer = buffer.slice(sep + 2);
 
-                if (event === 'error') {
-                    const err = JSON.parse(data) as ApiErrorBody;
-                    throw new Error(err.error?.message ?? 'upstream provider error');
-                }
-
-                const chunk = JSON.parse(data) as CompleteChunkBody;
-                if (chunk.done) {
-                    finishReason = chunk.result?.finishReason ?? null;
-                    if (typeof chunk.result?.creditsRemaining === 'number') {
-                        setKnownBalance(chunk.result.creditsRemaining);
+                    let event = 'message';
+                    let data = '';
+                    for (const line of frame.split('\n')) {
+                        if (line.startsWith('event:')) event = line.slice(6).trim();
+                        else if (line.startsWith('data:')) data += line.slice(5).trim();
                     }
-                } else if (chunk.text) {
-                    yield { text: chunk.text, done: false };
+                    if (!data) continue;
+
+                    if (event === 'error') {
+                        const err = JSON.parse(data) as ApiErrorBody;
+                        throw new Error(err.error?.message ?? 'upstream provider error');
+                    }
+
+                    const chunk = JSON.parse(data) as CompleteChunkBody;
+                    if (chunk.done) {
+                        finishReason = chunk.result?.finishReason ?? null;
+                        if (typeof chunk.result?.creditsRemaining === 'number') {
+                            setKnownBalance(chunk.result.creditsRemaining);
+                        }
+                    } else if (chunk.text) {
+                        yield { text: chunk.text, done: false };
+                    }
                 }
             }
-        }
 
-        yield { text: '', done: true, finishReason };
+            yield { text: '', done: true, finishReason };
+        } finally {
+            clearTimeout(stallTimer);
+            // Release the fetch on every exit — normal completion, a thrown
+            // upstream/stall error, or the consumer breaking the for-await on
+            // barge-in (generator return runs this finally). Previously a
+            // barge-in left the socket streaming until GC.
+            ac.abort();
+        }
     }
 }

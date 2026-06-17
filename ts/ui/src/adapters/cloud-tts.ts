@@ -14,6 +14,13 @@
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.js';
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
+import { withTimeout } from '../net-timeout.js';
+
+// Stall guard: a synthesis request that never comes back (server accepted then
+// hung) would leave speak()'s `await` pending forever, freezing the turn in the
+// "Speaking…" state. One sentence's WAV renders in a second or two; this is the
+// dead-server ceiling, not a normal-latency budget.
+const TTS_REQUEST_TIMEOUT_MS = 45_000;
 
 /**
  * The UI carries TTS rate as words-per-minute (≈160 neutral; see
@@ -165,14 +172,22 @@ export class CloudTtsEngine implements TtsEngine {
         if (inflight) return inflight;
         const request = (async (): Promise<Blob> => {
             let { url, init } = await this.buildRequest(text, options);
-            let response = await this.fetchImpl(url, init);
+            let response = await withTimeout(
+                this.fetchImpl(url, init),
+                TTS_REQUEST_TIMEOUT_MS,
+                'aloud cloud TTS timed out.'
+            );
             // Self-heal a stale token: clear it and re-sign-in once on a 401,
             // matching the LLM proxy. Otherwise hosted preview/playback fails
             // whenever the cached token is expired or server-secret-rotated.
             if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
                 await this.onAuthError();
                 ({ url, init } = await this.buildRequest(text, options));
-                response = await this.fetchImpl(url, init);
+                response = await withTimeout(
+                    this.fetchImpl(url, init),
+                    TTS_REQUEST_TIMEOUT_MS,
+                    'aloud cloud TTS timed out.'
+                );
             }
             if (!response.ok) {
                 // Phrase as "endpoint <status>" (mirrors the Whisper
@@ -185,7 +200,11 @@ export class CloudTtsEngine implements TtsEngine {
                     `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
                 );
             }
-            const blob = await response.blob();
+            const blob = await withTimeout(
+                response.blob(),
+                TTS_REQUEST_TIMEOUT_MS,
+                'aloud cloud TTS timed out.'
+            );
             // Successful server synthesis — count the characters rendered.
             // (Fires for prefetches too: the server did render, so it bills.)
             this.onSynthesize?.(text.length);

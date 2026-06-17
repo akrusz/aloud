@@ -35,6 +35,7 @@ import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitation/pacing.js';
 import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn.js';
 import { getCloudSessionId } from '../cloud-session.js';
+import { withTimeout } from '../net-timeout.js';
 // Type-only: the module itself is dynamic-imported in acquireSilero() so the
 // ort runtime + model assets stay out of the main bundle (and out of node-env
 // tests, which never call it).
@@ -42,6 +43,12 @@ import type { SileroFrameVad } from './silero-vad.js';
 
 const TARGET_SAMPLE_RATE = 16_000;
 const FRAME_SIZE = 4096;
+// Stall guard for the transcription POST: a hosted endpoint that accepts the
+// audio and then hangs would leave the listen loop awaiting a transcript
+// forever (mic stuck "processing"). The loop already retries on a rejected
+// transcription, so a timeout here just lets that recovery kick in. Generous —
+// even a long utterance transcribes well inside this; it's the dead-server cap.
+const TRANSCRIBE_TIMEOUT_MS = 45_000;
 // Short silence (ms) that triggers a speculative transcription mid-utterance —
 // so the user sees their words during a pause, before the (longer) adaptive
 // silence actually submits the turn. Speculation is skipped when the submit
@@ -703,13 +710,21 @@ export class WhisperPcmSttEngine implements SttEngine {
                         }
                     );
                 };
-                let response = await send();
+                let response = await withTimeout(
+                    send(),
+                    TRANSCRIBE_TIMEOUT_MS,
+                    'aloud cloud transcription timed out.'
+                );
                 // Self-heal a stale token: clear it and re-sign-in once on a
                 // 401, matching the cloud LLM/TTS adapters. Only meaningful on
                 // the authed (hosted) path.
                 if (response.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
                     await this.opts.onAuthError();
-                    response = await send();
+                    response = await withTimeout(
+                        send(),
+                        TRANSCRIBE_TIMEOUT_MS,
+                        'aloud cloud transcription timed out.'
+                    );
                 }
                 if (!response.ok) {
                     const detail = await response.text().catch(() => '');
