@@ -6,13 +6,15 @@ const REPO = 'akrusz/aloud';
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const FALLBACK = `https://github.com/${REPO}/releases/latest`;
 
-// Match release asset filenames to platforms. The build workflow names them
-// `aloud-<version>-macOS.dmg`, `aloud-<version>-Windows.exe`,
-// `aloud-<version>-Linux.AppImage`.
+// Match release asset filenames to platforms. tauri-action emits tauri's
+// standard names — `aloud_<version>_<arch>.dmg`, `aloud_<version>_<arch>-setup.exe`
+// (NSIS), `aloud_<version>_<arch>.AppImage`. The patterns deliberately exclude
+// the updater sidecars also on the release (`.sig`, `.app.tar.gz`, `.msi`,
+// `.deb`, `latest.json`) so each card links the right installer.
 const PLATFORM_PATTERNS = {
-  macos:   /macOS\.dmg$/i,
-  windows: /Windows\.exe$/i,
-  linux:   /Linux\.AppImage$/i,
+  macos:   /\.dmg$/i,
+  windows: /-setup\.exe$/i,
+  linux:   /\.AppImage$/i,
 };
 
 function detectPlatform() {

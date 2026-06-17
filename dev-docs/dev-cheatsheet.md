@@ -1,197 +1,224 @@
 # Development Cheatsheet
 
-Quick reference for running, debugging, and releasing aloud.
+The commands you need to run, test, build, and release aloud — a TypeScript +
+Rust stack under `ts/`. **Command quick-reference only.** For the architecture
+(the two TS/Rust stacks, the `/app/v1` vs `/cloud/v1` split, data flow) see
+[CLAUDE.md](../CLAUDE.md); for build/signing detail, [desktop.md](desktop.md);
+for the hosted server, [ts-server.md](ts-server.md).
 
 ## Running
 
-```bash
-# Web server (default — native window via pywebview)
-uv run python -m src.web
+All `npm` commands run from `ts/`.
 
-# Web server in browser (no pywebview window)
-uv run python -m src.web --browser
-
-# Custom host/port
-uv run python -m src.web --host 0.0.0.0 --port 8080
-
-# Debug logging (verbose output from src.* loggers)
-uv run python -m src.web --debug
-
-# CLI mode (headless, mic + system TTS)
-uv run python -m src
-```
-
-## Debug & Testing Flags
-
-These flags simulate different user states without touching your real config or data.
+### Desktop app (Tauri) — the primary dev target
 
 ```bash
-# Simulate a brand-new install (first-run welcome UI, clears localStorage)
-uv run python -m src.web --fresh
-
-# Hide Premium/Enhanced voices (triggers voice quality prompt)
-uv run python -m src.web --hide-premium
-
-# Return zero voices from /api/voices (triggers no-voices UI)
-uv run python -m src.web --no-voices
-
-# Piper hidden from engine list & recommendations
-uv run python -m src.web --reset-piper
-
-# All LLM providers appear unavailable (test cold-start provider setup)
-uv run python -m src.web --no-providers
-
-# Ollama appears not installed (test Ollama install/pull flow)
-uv run python -m src.web --no-ollama
-
-# Combine flags — full fresh-install experience without premium voices
-uv run python -m src.web --fresh --hide-premium
-
-# Full fresh-install with no voices at all
-uv run python -m src.web --fresh --no-voices
-
-# True cold-start: fresh install, no providers, no premium, no Piper
-uv run python -m src.web --fresh --no-providers --hide-premium --reset-piper
-
-# Test Ollama install flow with everything else available
-uv run python -m src.web --fresh --no-ollama
-
-# All flags work with --browser too
-uv run python -m src.web --browser --fresh --hide-premium
+cd ts && npm run tauri:dev       # desktop shell only
+cd ts && npm run desktop:dev     # desktop shell + Hono server (:8787) together
 ```
 
-| Flag | What it does |
-|------|-------------|
-| `--fresh` | Shows first-run settings UI, clears localStorage (voice prefs, embers, quality prompt) |
-| `--hide-premium` | Filters out Premium/Enhanced voices from `/api/voices` so only basic voices appear |
-| `--no-voices` | `/api/voices` returns `[]` — tests the empty-voices state |
-| `--reset-piper` | Piper hidden from engine dropdown, voice quality modal, and hints |
-| `--no-providers` | All LLM providers return `available: false` — tests zero-provider setup UI |
-| `--no-ollama` | Ollama appears not installed/running — tests Ollama install flow |
-| `--debug` | Sets log level to DEBUG for all `src.*` loggers |
-| `--browser` | Opens in system browser instead of pywebview native window |
+`tauri:dev` starts Vite (UI on **:4649**) + compiles and runs the Rust shell. The
+shell's embedded backend serves `/app/v1/*` on a loopback port.
+For hosted features (accounts/credits/hosted voices) the Hono server must also be
+running; without it, `/cloud/v1/*` calls fail with `ECONNREFUSED` and the UI
+degrades to "hosted unavailable" (expected, harmless). `desktop:dev` is the
+Tauri analog of `web:dev`: it runs the shell + Hono in one terminal so hosted
+features resolve. Both combined launchers go through `scripts/dev.mjs`: a single
+Ctrl-C stops everything, and if either side exits on its own (e.g. you close the
+Tauri window) the other is torn down too.
 
-## Session Management (CLI)
+### Web UI in a browser (Vite)
 
 ```bash
-# List saved sessions
-uv run python -m src --list-sessions
-
-# View a session transcript
-uv run python -m src --view-session SESSION_ID
+cd ts && npm run web:dev         # UI (:4649) + Hono server (:8787) together
+cd ts && npm run ui:dev          # UI only (:4649) — needs the Hono server too (below)
 ```
 
-## Tests
+`web:dev` runs both in one terminal (one Ctrl-C, or either side exiting, stops
+both — see `scripts/dev.mjs`); use it for browser preview so
+STT/voices/providers/billing resolve.
+
+The Vite proxy (`ui/vite.config.ts`) forwards:
+- `/app/v1/*` → **Hono** on :8787 (the app-backend surface; no rewrite — Hono
+  speaks `/app/v1` natively).
+- `/cloud/v1/*` → **Hono** on :8787 (same server; hosted accounts/credits/proxy).
+- `/ollama/*` → local Ollama daemon on :11434.
+
+So browser preview needs only the Hono server running (next section). Run
+`cd ts/server && npm run dev` and load :4649.
+
+### Dev URL params
+
+Boot-time overrides, all read off `:4649/?…`. Every one is **dev-only** —
+gated on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
+deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
+
+| Param | Effect | Read in |
+|---|---|---|
+| `?mode=web` | Force **web** mode: the hosted demo — Ollama/claude-proxy hidden, BYOK behind a settings checkbox, aloud cloud the default. | `app-mode.ts` |
+| `?mode=local` | Force **local** mode: every provider (Ollama + claude-proxy + BYOK + aloud cloud). | `app-mode.ts` |
+| `?mode=auto` | Clear the override, back to the build default. (Overrides persist in sessionStorage, so they survive navigation until cleared.) | `app-mode.ts` |
+| `?slowboot=<ms>` | Hold the boot orb on screen `<ms>` *before* the first view mounts, so you can eyeball the real loading state (static nav + orb, empty content). On localhost boot is otherwise a blink. | `bootApp` in `app.ts` |
+
+The mode build-default keys off the *environment*, **not** whether a cloud URL
+was baked in — aloud cloud ships in every build, so its presence can't signal
+"web". Desktop shell + dev server are `local`; a production browser build
+(website / mobile webview) is `web`. `?mode=` lets you keep both open in two
+tabs with no rebuild.
+
+To see the **failure-to-load** state (orb pulses forever) there's no param:
+block the JS bundle in DevTools → Network → Block request URL, or set Network
+to Offline, before reloading.
+
+**Preview the "update available" flow** — `?previewUpdate` (or, handy inside the
+Tauri webview, a `localStorage` `aloud:previewUpdate` key) forces the whole
+update path without a real release: the brand lights up the nav "Update" pill +
+mobile More entry, and the About box renders the install button — a simulated,
+non-relaunching download in the desktop shell, the releases link in a browser. A
+bare flag pretends one patch above the running build; `?previewUpdate=2.0.0`
+sets the version verbatim. Unlike the params above this one is **not** DEV-gated
+— deliberately, so you can preview inside a bundled desktop debug build
+(`scripts/dev-bundle.sh`), which is the only place the real updater button runs.
+Clear it by dropping the param or `localStorage.removeItem('aloud:previewUpdate')`.
+Read in `about.ts` (`previewUpdateVersion`).
+
+### Hosted server (Hono)
 
 ```bash
-# All tests
-uv run pytest tests/ -v
-
-# Single file
-uv run pytest tests/test_pacing.py -v
-
-# Single test
-uv run pytest tests/test_pacing.py::TestStateTransitions::test_initial_state_is_idle -v
+cd ts/server && npm run dev      # :8787, watch mode
 ```
 
-## Releasing
+Boots with in-memory stores + stubs in dev (no secrets required). Config comes
+from `ts/server/.env` — copy `ts/server/.env.example` and fill what you need.
+Deeper operational notes: [ts-server.md](ts-server.md).
+
+### Ports at a glance
+
+| Port | Who |
+|------|-----|
+| 4649 | Vite UI — both `tauri:dev` and `ui:dev` |
+| 8787 | Hono server — both `/cloud/v1` and `/app/v1` (the `ui:dev` `/app` + `/cloud` proxy target) |
+| 11434 | Ollama daemon |
+
+## Tests & checks
 
 ```bash
-# Bump patch (0.9.19 → 0.9.20) — default
-scripts/release.sh
+# TS core + UI (vitest) and typecheck
+cd ts && npm test
+cd ts && npm run typecheck            # tsc over src/ + ui/
 
-# Bump minor (0.9.19 → 0.10.0)
-scripts/release.sh minor
+# Hosted server
+cd ts/server && npm test
+cd ts/server && npx tsc --noEmit -p tsconfig.json
 
-# Bump major (0.9.19 → 1.0.0)
-scripts/release.sh major
-
-# Explicit version
-scripts/release.sh 1.2.3
-
-# Re-release current version (moves tag, recreates GitHub release)
-scripts/release.sh same
+# Rust shell
+cargo check --manifest-path ts/src-tauri/Cargo.toml
+cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips are #[ignore]
+(cd ts/src-tauri && cargo deny check)                   # supply-chain gate (CI enforces)
 ```
 
-The release script: offers to run the pre-release doc/copy check (`dev-docs/pre-release-checklist.md`, via the headless `claude` CLI), then bumps `src/__init__.py`, updates README download links, commits, tags, pushes, and creates a GitHub release (which triggers the build workflow). The macOS job in CI signs + notarizes automatically if the signing secrets are configured (see *Building* below); without them it produces an unsigned DMG.
-
-**Prerequisites**: clean working directory, `gh` CLI authenticated.
-
-## Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `OPENROUTER_API_KEY` | OpenRouter API key |
-| `VENICE_API_KEY` | Venice API key |
-| `ELEVENLABS_API_KEY` | ElevenLabs TTS API key |
-| `ALOUD_SECRET_KEY` | Flask session secret |
-| `ALOUD_AUTO_OPEN` | Set to `1` to auto-open browser on startup |
-
-## Config
-
-User config: `~/.config/aloud/config.yaml` (macOS/Linux) — created on first save in settings.
-
-Default config with all options: `config/default.yaml`
-
-Supports `${ENV_VAR}` substitution for API keys in YAML.
-
-## Building
-
-See [building.md](building.md) for desktop builds (PyInstaller → DMG/EXE/AppImage).
+## Building & releasing
 
 ```bash
-# macOS DMG (requires create-dmg, pyinstaller)
-scripts/build-dmg.sh
-
-# Skip notarization (fast dev rebuild — DMG still signed, just not Apple-stamped)
-SKIP_NOTARIZE=1 scripts/build-dmg.sh
+cd ts && npm run tauri:build          # signed/notarized desktop bundle (DMG / MSI+NSIS / AppImage+deb)
 ```
 
-### macOS signing + notarization (local)
-
-The build script auto-detects a Developer ID cert in your keychain and the `notary` notarytool profile. One-time setup:
+**Iterating on bundle-only behavior** (the minimal GUI PATH, the app icon, DMG
+art — anything `tauri:dev` can't reproduce because it inherits your terminal's
+PATH/env): don't round-trip through a GitHub release. Build a debug bundle
+locally and launch it through LaunchServices, which gives the app the same
+minimal environment as double-clicking the installed app:
 
 ```bash
-# 1. Developer ID Application cert installed in login keychain
-#    (verify with: security find-identity -v -p codesigning | grep 'Developer ID')
-
-# 2. Store notarytool credentials under the profile name "notary":
-xcrun notarytool store-credentials "notary" \
-  --apple-id YOUR_APPLE_ID_EMAIL \
-  --team-id  YOUR_TEAM_ID \
-  --password YOUR_APP_SPECIFIC_PASSWORD
+scripts/dev-bundle.sh                 # debug .app build + `open` (reads ~/.tauri key, prompts once)
 ```
 
-Overrides via env vars: `CODESIGN_IDENTITY` (full cert name), `NOTARYTOOL_PROFILE` (defaults to `notary`), `SKIP_NOTARIZE=1`.
+Most work doesn't need this — `tauri:dev` runs the real Rust backend + UI with
+hot reload, so providers/modes/About/voices/STT all iterate instantly there.
+Reach for `dev-bundle.sh` only for bundle-launch-specific bugs, and GitHub RCs
+only as the final "does the signed, shipped artifact work" gate.
 
-If neither a Developer ID cert nor the `notary` profile exists, the script falls back to an `aloud Dev` self-signed cert (or ad-hoc) and skips notarization — fine for local testing.
+Release (bumps version, lints both stacks, tags, pushes, creates the GitHub
+release that triggers CI):
 
-### macOS signing + notarization (CI)
+```bash
+scripts/release.sh                    # patch (default)
+scripts/release.sh minor|major|1.2.3
+scripts/release.sh rc                 # patch bump, marked --prerelease (RC / test build)
+scripts/release.sh same               # re-release current version (moves tag)
+scripts/release.sh redo               # re-release, same title (quick fix cycle)
+```
 
-`.github/workflows/build.yml` does the same dance from GitHub Secrets:
+`rc` builds are **prereleases**, so they stay off `/releases/latest` — the
+updater endpoint — and never auto-update existing installs. Promote to a real
+release (the non-prerelease that becomes `latest`) only once an RC checks out.
 
-| Secret | Purpose |
-|---|---|
-| `MACOS_CERTIFICATE` | base64 of the Developer ID `.p12` |
-| `MACOS_CERTIFICATE_PWD` | password set when exporting the `.p12` |
-| `MACOS_KEYCHAIN_PWD` | any random string — unlocks the temp keychain on the runner |
-| `MACOS_SIGN_IDENTITY` | e.g. `Developer ID Application: Name (TEAMID)` |
-| `APPLE_ID` | Apple ID email |
-| `APPLE_TEAM_ID` | 10-char Team ID |
-| `APPLE_APP_PASSWORD` | app-specific password from appleid.apple.com |
+It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
+`ts/package.json` in lockstep, lints TS (`typecheck`) + Rust (`cargo check` +
+`cargo deny`), and offers the pre-release doc check
+([pre-release-checklist.md](pre-release-checklist.md)). **Prerequisites:** clean
+tree, `gh` authenticated.
 
-With those configured, `scripts/release.sh patch` produces a fully signed + notarized DMG with no manual steps.
+**CI**: `tauri-release.yml` runs on `release: created` and builds the Tauri
+bundles for all three platforms via `tauri-action`, which also signs the
+self-updater artifacts and uploads a merged `latest.json`. macOS signs +
+notarizes via the `APPLE_*` / `MACOS_*` secrets; updater signing uses
+`TAURI_SIGNING_PRIVATE_KEY` (+ password); the desktop UI build bakes
+`VITE_ALOUD_CLOUD_URL` from the repo var `ALOUD_CLOUD_URL`.
+
+Full build/signing detail: [desktop.md](desktop.md) (Tauri — endpoint list,
+prereqs, release + cutover).
+
+## Config & environment
+
+- **Hosted server**: `ts/server/.env` (see `.env.example`) — provider keys
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
+  `GEMINI_API_KEY`; `OPENAI_API_KEY` also drives server STT by default, or the
+  `STT_*` overrides), `GOOGLE_TTS_API_KEY`, `ALOUD_SESSION_SECRET`,
+  `GOOGLE_CLIENT_IDS`, Stripe keys,
+  `ALOUD_ADMIN_TOKEN`, and `ALOUD_UI_DIR` (serve `ui/dist` from the same process
+  — the single-box self-host story).
+- **UI build**: `VITE_ALOUD_CLOUD_URL` — the hosted origin baked into a
+  static/desktop build so `/app/v1` + `/cloud/v1` resolve off-origin (unset in
+  dev; the Vite proxy handles it).
+- **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono — both `/app` and `/cloud`
+  proxy targets), `OLLAMA_URL`.
+- **BYOK keys** entered in the UI live in the browser's localStorage and are
+  forwarded per-request (`x-provider-key` for model lists; `x-api-key` for the
+  Anthropic proxy) — never persisted server-side.
+
+## Sessions
+
+The UI stores session state in the browser (localStorage) via
+`ts/src/platform/storage.ts`.
+
+## Dev gotchas
+
+- **`/cloud/v1/*` `ECONNREFUSED` in `tauri:dev`** → the Hono server isn't
+  running. Start `cd ts/server && npm run dev`, or ignore it for local-only work.
+- **whisper.cpp's `whisper_model_load:` dump** is silenced
+  (`whisper_rs::install_logging_hooks()` in `server.rs`); enable whisper-rs's
+  `log_backend` feature to see those internals again.
+- **`/app/v1` path differs by build**: desktop hits the Rust loopback directly
+  (injected base); `ui:dev` proxies it to the Hono server on :8787. So a UI
+  fetch that works in the browser preview but not in `tauri:dev` (or vice-versa)
+  usually means the wrong backend is the one running.
+- **No mic in a browser at :4649?** Whisper STT is **desktop-only** (the Rust
+  loopback backend; Hono has no whisper route), so the picker only offers
+  "Whisper (on this device)" under Tauri (`isTauri()` gate in `stt-picker.ts`).
+  In a browser, STT falls to **web-speech** (Chrome/Edge only) or **aloud cloud**
+  (needs the Hono server + sign-in). So a Chrome tab works out of the box;
+  Firefox needs the Hono server running + a signed-in cloud session.
 
 ## Landing site
 
-Static site at `docs/` (hand-written, no build step). The folder is named `docs/` because GitHub Pages serves from `/docs` on main; internal developer documentation lives in `dev-docs/`. The download buttons fetch `releases/latest` from the GitHub API at page load, so the site doesn't need redeploying after each release.
+Static site in `docs/` (hand-written). Published to GitHub Pages as an
+**artifact** by `.github/workflows/deploy-web.yml` (Pages source = "GitHub
+Actions" — the old "serve `/docs` from a branch" mode is retired), which uploads
+the whole `docs/` tree: marketing pages plus the freshly built app at
+`docs/app/`. Download buttons hit the GitHub `releases/latest` API at load, so
+no redeploy per release.
 
 ```bash
-# Local preview
-python3 -m http.server -d docs 8000
-# then open http://localhost:8000
+npx serve docs                        # serves docs/ on a printed localhost port
 ```
-
-Deployment: Porkbun's GitHub-pulled static hosting pointed at the `docs/` folder, or GitHub Pages from `/docs` on main.

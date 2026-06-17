@@ -1,14 +1,32 @@
 name: CI
+
+# TS app CI — replaces the old Python ruff + pytest gate (meditation-pal-at0w).
+# The product now lives in ts/ (the @aloud/core UI/core package plus the
+# @aloud/server workspace). The Rust desktop shell (ts/src-tauri) needs a full
+# native toolchain (cmake, espeak, onnxruntime) so it isn't gated here on every
+# push; rust-check.yml runs `cargo check` when ts/src-tauri/** changes, and the
+# Tauri release workflow does the full build.
 on: [push, pull_request]
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.13"
-      - run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
-      - run: pip install -r requirements.txt pytest ruff
-      - run: ruff check src/ tests/
-      - run: pytest tests/ -v
+          # Node 22 (>=22.5): the @aloud/server package uses the built-in
+          # node:sqlite module (credits/sqlite-store.ts), absent in Node 20.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      # Installs the root package AND the server workspace from one lockfile.
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run ui:build
+      - run: npm run typecheck --workspace @aloud/server
+      - run: npm test --workspace @aloud/server

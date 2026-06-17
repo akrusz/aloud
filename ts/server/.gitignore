@@ -1,0 +1,13 @@
+# Secrets live in the environment, never in the repo.
+.env
+.env.*
+!.env.example
+
+# Local SQLite credit ledger (SqliteCreditsStore) + its WAL/shm sidecars.
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# Generated voice audition output (scripts/preview-voices.ts).
+voice-previews/

@@ -4,116 +4,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-aloud is a voice-based meditation facilitator. Users speak into a microphone, speech is transcribed via Whisper, an LLM generates facilitation responses, and TTS speaks them back. It has two interfaces: a web UI (Flask + SocketIO, primary) and a headless CLI.
+aloud is a voice-based meditation facilitator. Users speak into a microphone, speech is transcribed (Whisper), an LLM generates facilitation responses, and TTS speaks them back.
+
+It ships three ways:
+- **Hosted web app** at `aloud.rest/app` — no install; the launch centerpiece. Runs on **aloud cloud** (below).
+- **Desktop app** — a Tauri (Rust) shell, distributed as DMG / MSI / AppImage.
+- **(Coming) mobile** — a Capacitor wrapper around the same web UI.
+
+The codebase is a **TypeScript + Rust stack** under `ts/`. (It was migrated from a Python/Flask app, removed in meditation-pal-sk8 — if old docs or commits reference `src/web` or `uv run python -m src.web`, that code is gone.) **All work happens in `ts/`.**
+
+## Source of truth
+
+**`dev-docs/dev-cheatsheet.md`** is the authoritative, maintained reference for structure, running, testing, and releasing. Read it first. This file is orientation + the rules that override defaults; the cheatsheet has the detail.
+
+## Architecture (the short version)
+
+Two stacks live side by side under `ts/`:
+
+| Path | Stack | Role |
+|------|-------|------|
+| `ts/src/` | TS — `@aloud/core` | Shared engine: pacing, prompts, session, noting, LLM providers, platform adapters. |
+| `ts/ui/` | TS — Vite, vanilla ES modules | The web UI (`ui/src/` → `ui/dist/`). No framework. |
+| `ts/server/` | TS — Hono | **aloud cloud**: Google/Apple/email auth, accounts, credit ledger, Stripe + x402 billing, metered LLM/STT/TTS forwarding. |
+| `ts/src-tauri/` | Rust — Tauri 2 | Desktop shell: an embedded `axum` backend (native Whisper/Piper/Ollama/claude-CLI) + the webview that loads `ui/`. |
+
+**Two backend namespaces** (see `ui/src/app-base.ts` / `cloud-base.ts`):
+- **`/app/v1/*`** — the app's *own* backend (provider/voice/model catalogs, system-info; on desktop also STT/TTS/Ollama/claude-proxy/shell). Served by the **Rust shell** on desktop, by **Hono** on web.
+- **`/cloud/v1/*`** — the **hosted, signed-in, billed** service (auth, account, billing, metered forwarding). Always **Hono** (aloud cloud).
+
+Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, or browser SpeechRecognition) → core builds the prompt → LLM (BYOK direct, local Ollama/claude-CLI, or metered via `/cloud/v1`) → parse `[HOLD]` → TTS (Piper/`say` on desktop, OpenAI or Google via `/cloud/v1` hosted, or browser speechSynthesis).
 
 ## Commands
 
+All `npm` commands run from `ts/`. Full list + ports in the cheatsheet.
+
 ```bash
-# Run the web server (port 4649)
-uv run python -m src.web
-
-# Run CLI mode (headless, uses mic + system TTS)
-uv run python -m src
-
-# Run tests
-uv run pytest tests/ -v
-
-# Run a single test file
-uv run pytest tests/test_pacing.py -v
-
-# Run a single test
-uv run pytest tests/test_pacing.py::TestStateTransitions::test_initial_state_is_idle -v
-
-# Install dependencies
-uv pip install -r requirements.txt
+cd ts && npm run tauri:dev     # desktop shell + Vite UI on :4649 (primary dev target)
+cd ts && npm run web:dev       # browser preview: Vite UI (:4649) + Hono (:8787) together
+cd ts && npm run ui:dev        # UI only on :4649 (pair with the Hono server below)
+cd ts/server && npm run dev    # aloud cloud (Hono) on :8787
+cd ts && npm test              # core + UI vitest
+cd ts && npm run typecheck
+cd ts/server && npm test       # hosted server vitest
+cargo check --manifest-path ts/src-tauri/Cargo.toml   # Rust shell
 ```
 
-## Architecture
+CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + server tests).
 
-### Dual entry points
-- **Web**: `src/web/__main__.py` → `run_web()` in `src/web/app.py` — Flask + SocketIO server
-- **CLI**: `src/__main__.py` → `main()` in `src/main.py` — headless audio loop
+## Key patterns (the core engine, now in `ts/src/`)
 
-Both share the same backend modules for facilitation, LLM, STT, and TTS.
-
-### Backend modules (`src/`)
-
-| Module | Purpose |
-|--------|---------|
-| `facilitation/` | Core logic: `PacingController` (turn-taking state machine), `PromptBuilder` (composable system prompts), `SessionManager` (conversation history) |
-| `llm/` | Protocol-based LLM providers: claude_proxy (subprocess to `claude` CLI for subscription routing), anthropic, openai, openrouter, venice, groq, ollama |
-| `stt/whisper.py` | Whisper speech-to-text, loads model in background |
-| `tts/` | Protocol-based TTS engines: macos, piper, elevenlabs; falls back to browser speechSynthesis |
-| `audio/` | Audio I/O and `VoiceActivityDetector` (energy-based with adaptive noise floor) |
-| `config.py` | Dataclass-based config loaded from `config/default.yaml` with `${ENV_VAR}` substitution |
-| `log_config.py` | Structured logging for the `src` namespace |
-
-### Web server (`src/web/`)
-
-- `app.py` — `create_app()` factory
-- `background.py` — background tasks (check-in loop, whisper loading, update check)
-- `routes.py` — page routes (`/`, `/session`, `/history`, `/settings`, `sw.js`) + session/voice/TTS/window API endpoints; also registers the specialized route modules below
-- `config_routes.py` — config GET/POST + config-folder routes
-- `provider_routes.py` — provider/model endpoints (Ollama version/RAM/GPU checks, model-tier recommendation)
-- `tool_routes.py` — tool-install endpoints (Ollama restart/upgrade)
-- `socketio_handlers.py` — registers socket events (delegates to the handler modules below) + shared helpers (`get_session`, `speak_to_audio`)
-- `session_handlers.py` — socket events: connect/disconnect, `start_session`, `end_session`, summary prefetch
-- `message_handlers.py` — socket events: `user_message` (LLM response), resume-intent classification, noting labels
-- `audio_handlers.py` — socket events: `audio_data` (Whisper transcription)
-- `meditation_session.py` — `WebMeditationSession` wraps per-session state (LLM provider, prompts, pacing, session manager)
-- `auth.py` — optional password authentication
-- `cert.py` — self-signed certificate generation for LAN HTTPS
-
-### Frontend (`src/web/static/js/`)
-
-Vanilla JS with ES modules (`<script type="module">`), no build tools.
-
-- `session.js` — orchestrator: imports modules, initializes, wires DOM events
-- `audio.js` — mic capture, client-side VAD, speculative transcription, barge-in detection
-- `state.js` — shared mutable state, DOM refs, socket instance
-- `tts.js` — browser speechSynthesis + server WAV playback
-- `voice.js` — voice picker modal and preview
-- `socketHandlers.js` — all `socket.on()` handlers
-- `ui.js` — message display, typing indicator, timer, embers, error toasts
-
-### Key patterns
-
-- **Protocol-based providers**: LLM and TTS use duck-typed protocols. Add new providers by implementing the interface and registering in the factory function.
-- **Composable prompts**: `PromptBuilder` assembles system prompts from orthogonal dimensions — focuses (body, emotions, parts, open awareness), qualities (playful, compassionate, spacious, etc.), directiveness (0-10), and verbosity.
-- **`[HOLD]` signal**: The LLM can prefix responses with `[HOLD]` to enter silence mode. `parse_hold_signal()` strips this prefix. Silence mode is exited when the user speaks again.
-- **Pacing state machine**: IDLE → LISTENING → PROCESSING → RESPONDING → SILENT_HOLD. After `silence_checkin_sec` of silence the facilitator offers a gentle check-in (a canned phrase, not an LLM call); the timer resets after each, so check-ins recur at a fixed interval.
-- **Background model loading**: Whisper loads asynchronously via `socketio.start_background_task()`. The `audio_data` handler guards with `app.whisper_model_ready`.
-- **Context strategies**: SessionManager supports `full` (all history) or `rolling` (last N exchanges) context windows for the LLM.
-
-### Data flow (web mode)
-
-```
-Browser mic → PCM audio → WebSocket "audio_data" → Whisper STT → transcription
-→ "user_message" → SessionManager + PromptBuilder → LLM → parse [HOLD]
-→ TTS (server WAV or browser) → "facilitator_message" → client playback
-```
-
-Background check-in loop runs every 10s, sends gentle prompts after extended silence.
+- **Protocol/adapter-based providers**: LLM and TTS providers implement a shared interface; add one by implementing it and registering in the factory.
+- **Composable prompts**: system prompts are assembled from orthogonal dimensions — focuses (body, emotions, parts, open awareness), qualities (playful, compassionate, spacious, …), directiveness, verbosity.
+- **ModeSpec registry** (`modes.ts`): meditation modes are data, not forks — base prompt, which user dimensions compose, opener/check-in pools, and (for staged modes like felt sense, `felt-sense.ts`) an ordered phase arc. The active phase rides on the system prompt; the LLM signals movement with `[NEXT]`/`[BACK]`, parsed like `[HOLD]` (`parseTurnSignals`), clamped + persisted by `StagedModeController` and `SessionState.modePhase`.
+- **`[HOLD]` signal**: the LLM can prefix a response with `[HOLD]` to enter silence mode; it's stripped on parse. While holding, speech doesn't auto-resume — each utterance is buffered and a lightweight resume-intent classifier (`resume-intent.ts`) decides whether the user means to continue, then submits the buffered turn.
+- **Pacing state machine**: IDLE → LISTENING → PROCESSING → RESPONDING → SILENT_HOLD; a canned (non-LLM) check-in fires after a silence interval and the timer resets.
+- **Context strategies**: `full` (all history) or `rolling` (last N exchanges) context windows.
 
 ## Configuration
 
-All config is in `config/default.yaml` with dataclass defaults in `src/config.py`. Key env vars:
-- `ALOUD_SECRET_KEY` — Flask secret key
-- `ALOUD_AUTO_OPEN` — auto-open browser on startup
-- API keys: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `VENICE_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`
-- YAML supports `${ENV_VAR}` substitution for `llm.api_key` and `tts.api_key`
+- **aloud cloud**: `ts/server/.env` (copy `.env.example`) — provider keys, `ALOUD_SESSION_SECRET`, `GOOGLE_CLIENT_IDS` / `GOOGLE_DESKTOP_CLIENT_ID(+SECRET)`, Stripe keys, etc.
+- **UI build**: `VITE_ALOUD_CLOUD_URL` bakes the hosted origin into a static/desktop build (unset in dev; the Vite proxy handles it). Repo var `ALOUD_CLOUD_URL` feeds it in CI.
+- **BYOK keys** entered in the UI live in browser localStorage and are forwarded per-request (`x-provider-key` / `x-api-key`); never persisted server-side.
 
 ## Workflow notes
 
-- **Use `uv`** for all Python commands (`uv run`, `uv pip`). Do not use `.venv/bin/python` directly.
-- **No git push access** — Claude Code is not configured to push to GitHub. End sessions with `git commit` only; the user will push manually.
-- **Pre-release check** — when asked to "run the pre-release check", or before cutting a release, work through `dev-docs/pre-release-checklist.md`: verify docs/copy still match the code and flag downstream consequences of recent changes.
-- **Docs reference code by file + symbol, not line numbers** — line numbers rot on every edit; a `file.js` path plus a function/constant name stays greppable and durable. Don't write line numbers into docs.
+- **Working dir**: all work runs from `ts/` via `npm` (core/UI) plus `cargo` for the Rust shell.
+- **No git push access** — Claude Code is not configured to push. End sessions with `git commit` only; the user pushes.
+- **Pre-release check** — when asked, or before a release, work through `dev-docs/pre-release-checklist.md`: verify docs/copy still match the code and flag downstream consequences.
+- **Docs reference code by file + symbol, not line numbers** — line numbers rot; a `file.ts` path plus a function/constant name stays greppable.
 
 ## Issue tracking
 
-This project uses **Beads** (`.beads/`). Use `bd create`, `bd list`, `bd update`, `bd close`, `bd sync` for issue management.
+This project uses **Beads** (`.beads/`). Use `bd create`, `bd list`, `bd update`, `bd close`, `bd sync`.
 
 ## Interacting with the developer
 
-Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this.
+Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this when running on his machine.

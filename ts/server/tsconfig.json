@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2022"],
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+        "noImplicitOverride": true,
+        "noFallthroughCasesInSwitch": true,
+        "isolatedModules": true,
+        "verbatimModuleSyntax": true,
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "types": ["node"],
+        "baseUrl": ".",
+        "paths": {
+            "@aloud/core": ["../src/index.ts"],
+            "@aloud/core/*": ["../src/*"]
+        }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["dist", "node_modules", "tests"]
+}

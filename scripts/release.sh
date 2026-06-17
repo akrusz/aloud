@@ -7,13 +7,14 @@
 #   scripts/release.sh patch     # 0.9.19 → 0.9.20
 #   scripts/release.sh minor     # 0.9.19 → 0.10.0
 #   scripts/release.sh major     # 0.9.19 → 1.0.0
+#   scripts/release.sh rc        # patch bump, marked --prerelease (RC / test build)
 #   scripts/release.sh same      # re-release current version
 #   scripts/release.sh redo      # re-release with same title (quick fix cycle)
 #   scripts/release.sh 1.2.3     # explicit version
 
 set -e
 
-# Run from project root so relative paths (src/, tests/, README.md) resolve
+# Run from project root so relative paths (ts/, README.md) resolve
 # regardless of the caller's cwd.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -23,32 +24,50 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
     exit 1
 fi
 
-# Lint check
-if command -v ruff >/dev/null 2>&1; then
-    if ! ruff check src/ tests/; then
-        echo "Error: ruff found lint errors — fix them before releasing" >&2
-        exit 1
+# TS + Rust lint (the Tauri/web stack). The only release gate now that Python is
+# gone (meditation-pal-sk8). Guarded so a missing toolchain warns rather than
+# blocks.
+if [ -f ts/package.json ]; then
+    if command -v npm >/dev/null 2>&1; then
+        if ! (cd ts && npm run --silent typecheck); then
+            echo "Error: TS typecheck failed — fix before releasing" >&2
+            exit 1
+        fi
+    else
+        echo "  Warning: npm not found, skipping TS typecheck."
     fi
-elif command -v uv >/dev/null 2>&1 && uv run ruff --version >/dev/null 2>&1; then
-    if ! uv run ruff check src/ tests/; then
-        echo "Error: ruff found lint errors — fix them before releasing" >&2
-        exit 1
+    if command -v cargo >/dev/null 2>&1; then
+        if ! cargo check --manifest-path ts/src-tauri/Cargo.toml --quiet; then
+            echo "Error: cargo check failed — fix before releasing" >&2
+            exit 1
+        fi
+        # Supply-chain gate (advisories/bans/licenses/sources); enforced in CI.
+        if cargo deny --version >/dev/null 2>&1; then
+            if ! (cd ts/src-tauri && cargo deny check); then
+                echo "Error: cargo deny found issues — fix before releasing" >&2
+                exit 1
+            fi
+        else
+            echo "  Warning: cargo-deny not installed, skipping supply-chain check."
+        fi
+    else
+        echo "  Warning: cargo not found, skipping Rust checks."
     fi
-else
-    echo "  Warning: ruff not found, skipping lint check. Proceeding anyway."
 fi
 
-# Read current version from src/__init__.py
-CURRENT=$(python3 -c "import re; print(re.search(r'__version__\s*=\s*\"(.+?)\"', open('src/__init__.py').read()).group(1))")
+# Read current version from tauri.conf.json (the source of truth)
+CURRENT=$(grep -m1 '"version"' ts/src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([0-9][0-9.]*)".*/\1/')
 IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
 
 ARG="${1:-patch}"
 
 REDO=false
+PRERELEASE=false
 case "$ARG" in
     redo)   VERSION="$CURRENT"; REDO=true ;;
     same)   VERSION="$CURRENT" ;;
     patch)  VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
+    rc)     VERSION="$MAJ.$MIN.$((PAT + 1))"; PRERELEASE=true ;;
     minor)  VERSION="$MAJ.$((MIN + 1)).0" ;;
     major)  VERSION="$((MAJ + 1)).0.0" ;;
     *)
@@ -148,16 +167,33 @@ else
     esac
 fi
 
-# Bump __version__
-sed -i.bak "s/__version__ = \".*\"/__version__ = \"${VERSION}\"/" src/__init__.py
-rm -f src/__init__.py.bak
-
-# Update README download links
-sed -i.bak "s/aloud-[0-9][0-9.]*-/aloud-${VERSION}-/g" README.md
-sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
-rm -f README.md.bak
-
-git add src/__init__.py README.md
+# Bump the version across the TS/Rust stack. tauri.conf.json is the source of
+# truth (read above); ts/package.json is kept in lockstep so the release
+# artifacts carry the same version.
+if [ -f ts/src-tauri/tauri.conf.json ]; then
+    sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/src-tauri/tauri.conf.json
+    rm -f ts/src-tauri/tauri.conf.json.bak
+fi
+if [ -f ts/package.json ]; then
+    # "version" is a unique key here — dependency ranges key on package names
+    # ("^x.y.z" values), so a plain substitution hits only the top-level field.
+    sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
+    rm -f ts/package.json.bak
+fi
+# Update README download links — STABLE releases only, mirroring the updater:
+# a prerelease stays off /releases/latest and never force-updates installs, so
+# the README likewise keeps pointing at the last stable build (an RC's links
+# would otherwise advertise an unfinished build to everyone hitting the repo).
+# tauri-action artifact names are aloud_<version>_<arch>.<ext> — replace only
+# the version token, keep the arch.
+if [ "$PRERELEASE" = false ]; then
+    sed -i.bak "s/aloud_[0-9][0-9.]*_/aloud_${VERSION}_/g" README.md
+    sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
+    rm -f README.md.bak
+    git add README.md
+fi
+[ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
+[ -f ts/package.json ] && git add ts/package.json
 git diff --cached --quiet || git commit -m "v${VERSION}"
 
 # Re-release: move existing tag to this commit
@@ -167,10 +203,19 @@ if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
 fi
 git tag "v${VERSION}"
 
-# Cache SSH passphrase for push/release
-eval "$(ssh-agent -s)" > /dev/null 2>&1
-ssh-add 2>/dev/null
-trap 'ssh-agent -k > /dev/null 2>&1' EXIT
+# Load the SSH key once so the branch + tag pushes don't each re-prompt for
+# the passphrase. Reuse the session agent if it already holds a key (the usual
+# macOS case — loaded from the keychain, so zero prompts). Only when there's no
+# usable agent do we start a throwaway one and load the key a single time:
+# --apple-load-keychain pulls a keychain-saved passphrase silently, and
+# --apple-use-keychain stores it on first entry so future releases are
+# prompt-free. (The Apple flags are macOS-only; the || chain no-ops elsewhere.)
+if ! ssh-add -l >/dev/null 2>&1; then
+    eval "$(ssh-agent -s)" >/dev/null 2>&1
+    trap 'ssh-agent -k >/dev/null 2>&1' EXIT
+    ssh-add --apple-load-keychain >/dev/null 2>&1 || true
+    ssh-add -l >/dev/null 2>&1 || ssh-add --apple-use-keychain 2>/dev/null || ssh-add
+fi
 
 echo ""
 echo "  Pushing..."
@@ -188,7 +233,16 @@ if command -v gh >/dev/null 2>&1; then
     if [ "$ARG" = "same" ] || [ "$REDO" = true ]; then
         gh release delete "v${VERSION}" --yes 2>/dev/null || true
     fi
-    gh release create "v${VERSION}" --title "$TITLE"
+    if [ "$PRERELEASE" = true ]; then
+        # RC: fully non-interactive. --prerelease is set explicitly (no prompt to
+        # fat-finger) so it can't land at /releases/latest — the updater endpoint
+        # — and force-update existing installs. --generate-notes supplies notes
+        # so gh doesn't drop into its interactive flow (which is what kept
+        # re-asking the prerelease question even when the flag was passed).
+        gh release create "v${VERSION}" --title "$TITLE" --prerelease --generate-notes
+    else
+        gh release create "v${VERSION}" --title "$TITLE"
+    fi
     echo ""
     echo "  Released ${TITLE} — build started ✓"
 else

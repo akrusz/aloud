@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>privacy — aloud.</title>
-  <meta name="description" content="aloud's privacy policy. No account, no tracking, no servers — your data stays on your device or flows only to the AI providers you choose.">
+  <meta name="description" content="aloud's privacy policy. Run it locally so nothing touches us, or use aloud cloud, a transparent relay to the AI providers that doesn't retain your sessions.">
 
   <link rel="canonical" href="https://aloud.rest/privacy/">
   <meta name="theme-color" content="#fffae0" media="(prefers-color-scheme: light)">
@@ -55,63 +55,81 @@
     <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
   </nav>
 
-  <!-- NOTE before publishing: confirm the MOBILE build's actual data flows.
-       This copy reflects the desktop architecture (on-device Whisper STT, no
-       backend, BYO provider). If mobile uses a cloud STT, lacks the on-device
-       LLM/TTS options, or differs otherwise, update the relevant sections so
-       the policy — and your App Store / Play Data Safety answers — stay truthful. -->
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: May 20, 2026</p>
+    <p class="updated">Last updated: June 10, 2026</p>
 
-    <p class="lead">aloud is built to be private. There's no account, no tracking, and no aloud cloud that receives your meditation sessions. This policy explains, plainly, what happens to your data.</p>
+    <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains, plainly, what happens to your data in each case.</p>
 
     <h2>The short version</h2>
     <ul>
-      <li>aloud has <strong>no backend and no user accounts</strong>. We don't collect, store, or receive your content.</li>
-      <li>Your <strong>sessions stay on your device</strong>.</li>
-      <li>aloud connects to the AI and voice services <strong>you choose</strong>. When you pick a cloud service, your text (and, for some voice options, audio) is sent to that provider and handled under <em>their</em> privacy policy, not ours.</li>
-      <li>You can run aloud <strong>fully on-device</strong> for maximum privacy, if your hardware is capable.</li>
+      <li>There are <strong>two ways to run aloud</strong>. Run it <strong>locally / bring-your-own</strong> and your content goes only to the providers you choose; aloud receives nothing. Use <strong>aloud cloud</strong> and your content passes through our service only to reach those providers; <strong>we don't retain your session content</strong>.</li>
+      <li>We <strong>don't sell your data</strong>; we <strong>don't use it for advertising</strong>; we <strong>don't use your conversations to train AI</strong>; and on aloud cloud, we <strong>don't retain your conversation data at all</strong>.</li>
+      <li>aloud cloud needs an <strong>account and credits</strong>; for that we process the minimum required: sign-in details, your credit balance and usage, and payments handled by our payment processor.</li>
+      <li>Wherever your platform allows it, you can run aloud <strong>fully on your own</strong>, keeping everything on your device.</li>
+    </ul>
+
+    <h2>Two ways to use aloud</h2>
+    <ul>
+      <li><strong>Local / bring-your-own.</strong> On supported platforms (such as the desktop app), aloud runs on your device and connects directly to the providers you configure with your own credentials, or fully on-device. There is no aloud cloud in the middle, no account, and we receive nothing.</li>
+      <li><strong>aloud cloud.</strong> Our optional hosted service for platforms or situations where running your own isn't practical, such as the web app and, in the future, mobile apps. You sign in, optionally buy credits, and aloud cloud relays your audio and text to third-party AI and voice providers on your behalf, returning the result. We don't store your session content.</li>
     </ul>
 
     <h2>What aloud processes, and where it goes</h2>
 
     <h3>Your voice</h3>
-    <p>Your microphone audio is used to transcribe what you say into text. Where supported, transcription runs <strong>on your device</strong> and the audio is not sent anywhere. aloud does not record or upload your audio to us.</p>
+    <p>Your microphone audio is used to transcribe what you say into text. In <strong>local mode</strong>, transcription runs on your device where supported and the audio is not sent anywhere. With <strong>aloud cloud</strong>, your audio is relayed through our service to a speech-to-text provider to transcribe it, then discarded. We don't record your audio, and we don't store it.</p>
 
     <h3>Your words and the AI facilitator</h3>
-    <p>To generate responses, aloud sends your transcribed messages and the conversation so far to the language-model provider you select in Settings:</p>
+    <p>To generate responses, aloud sends your transcribed messages and the conversation so far to a language-model provider:</p>
     <ul>
-      <li><strong>On-device providers</strong> (e.g. a local model): your words never leave your device.</li>
-      <li><strong>Cloud providers</strong> (e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq): your text is sent to that provider's API and handled under their privacy policy and terms. aloud neither receives nor stores it.</li>
+      <li><strong>Local / on-device providers:</strong> your words never leave your device.</li>
+      <li><strong>Providers you connect yourself</strong> (e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq): your text goes directly to that provider's API under their privacy policy and terms. aloud neither receives nor stores it.</li>
+      <li><strong>Via aloud cloud:</strong> your text is relayed through our service to the language-model provider and is not stored by us.</li>
     </ul>
-    <p>You choose the provider and supply your own credentials, which are stored locally on your device.</p>
 
     <h3>Spoken responses</h3>
-    <p>Facilitator responses are turned into speech. Depending on the voice you choose, this happens <strong>on your device</strong> (system voices) or via a cloud voice service, in which case the response text is sent to that service under their policy.</p>
+    <p>Facilitator responses are turned into speech. Depending on your setup this happens <strong>on your device</strong> (system voices), via a cloud voice service <strong>you connect</strong>, or <strong>via aloud cloud</strong>, which relays the response text to a text-to-speech provider. We don't store the audio or text.</p>
 
     <h3>Saved sessions</h3>
-    <p>aloud can save your session transcripts and a short summary <strong>locally on your device</strong> so you can revisit them. They stay on your device unless you choose to export or share them. There is no cloud sync.</p>
+    <p>aloud can save your session transcripts and a short summary <strong>locally on your device</strong> so you can revisit them. They stay on your device unless you choose to export or share them. There is no cloud sync, and <strong>aloud cloud does not store your transcripts or summaries</strong>.</p>
 
     <h3>App updates</h3>
     <p>aloud may check for new versions (a basic network request that does not include your session content).</p>
 
+    <h2>aloud cloud: accounts, credits, and what we keep</h2>
+    <p>If you use aloud cloud, we process a limited amount of information to run the service. None of it includes the content of your sessions.</p>
+    <ul>
+      <li><strong>Account.</strong> The sign-in details needed to give you an account. You can sign in with Google or Apple (which share a basic identifier such as your email address), or with an email address and password. We use this only to identify your account and credit balance, so keep your sign-in secure.</li>
+      <li><strong>Credits and usage.</strong> Your credit balance and a metered record of usage (for example, the amount of audio or text processed, and aggregate per-session totals such as how many turns a session ran) so we can charge credits accurately, understand our costs, and prevent abuse. This is operational metering for billing and reliability, <em>not</em> behavioral profiling, and it does not include the content of your sessions.</li>
+      <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our payment processor, <strong>Stripe</strong>, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
+      <li><strong>Operational logs.</strong> We may keep minimal, short-lived technical logs (for diagnostics, security, and abuse prevention) that do not contain your session content.</li>
+    </ul>
+    <p><strong>We don't retain the content of your sessions on aloud cloud. None of it.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
+
+    <h2>Your own API keys</h2>
+    <p>On some platforms you can supply your own provider API keys instead of using credits. On <strong>local platforms</strong> those keys stay on your device. On the <strong>web app</strong> this is <strong>off by default</strong>; it applies only if you manually turn on bring-your-own-key. Because web requests are relayed through aloud cloud, your key is then sent to our server and used only transiently, in memory, to make the request to your provider. We don't store it, and we don't log it.</p>
+
     <h2>What we don't do</h2>
     <ul>
-      <li>No accounts or logins.</li>
       <li>No advertising or ad networks.</li>
-      <li>No analytics or usage tracking.</li>
-      <li>No selling or sharing of personal data; we don't have it.</li>
+      <li>No selling or sharing of your personal data.</li>
+      <li>No using your conversations to train AI models, and no retaining them on aloud cloud, at all.</li>
+      <li>No third-party analytics or behavioral tracking. (aloud cloud meters credit usage only as needed to run the service.)</li>
+      <li>No accounts at all in local mode; accounts exist only for aloud cloud.</li>
     </ul>
 
     <h2>Third-party services</h2>
-    <p>When you use a cloud AI or voice provider, your use of that service is governed by its own privacy policy and terms. Please review the policy of whichever provider you connect. aloud is not responsible for how third-party providers handle data you send them through your own account or key.</p>
+    <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
+    <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use <strong>Anthropic, Google, and OpenAI</strong> for language models; <strong>OpenAI</strong> (Whisper) for speech-to-text; and <strong>Google Cloud Text-to-Speech and OpenAI</strong> for voice. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
 
     <h2>Your control</h2>
     <ul>
-      <li>Choose on-device providers (where available) to keep everything local.</li>
-      <li>Your credentials and settings live on your device. Clear them anytime.</li>
+      <li>Run aloud <strong>locally</strong> (where your platform allows) to keep everything on your device.</li>
+      <li>Choose on-device providers for maximum privacy if your hardware is capable.</li>
+      <li>Your credentials and settings live on your device in local mode. Clear them anytime.</li>
       <li>Delete saved sessions from your device whenever you like.</li>
+      <li>For aloud cloud, you can close your account and request deletion of the account data we hold; email us at the address below.</li>
     </ul>
 
     <h2>Children's privacy</h2>
@@ -121,7 +139,7 @@
     <p>We may update this policy from time to time; the "last updated" date above will change. Significant changes will be reflected here.</p>
 
     <h2>Contact</h2>
-    <p>Questions about privacy? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20privacy">lexkrusz@gmail.com</a>.</p>
+    <p>Questions about privacy, or want your account data deleted? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20privacy">lexkrusz@gmail.com</a>.</p>
   </main>
 
   <script src="/js/theme.js" defer></script>

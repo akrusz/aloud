@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.vitest-cache/
+coverage/
+
+# Capacitor generates ios/ and android/ when `npx cap add` runs.
+# Once you decide to commit them as the canonical native project,
+# remove these two lines so they're tracked. Keeping them ignored
+# until then so the scaffold doesn't introduce hundreds of generated
+# files before we know the rebrand details.
+ios/
+android/

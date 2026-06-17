@@ -25,7 +25,7 @@ When the brand appears inline in body copy (welcome cards, hints), use `<span cl
 
 ## Color tokens
 
-All in `src/web/static/css/style.css` at the top. **Always reference via CSS variables, not hex literals.** Hardcoded hexes still exist in a few places (orb gradients, rgba alpha layers); fine, but new code uses tokens.
+All in `ui/src/style.css` at the top. **Always reference via CSS variables, not hex literals.** Hardcoded hexes still exist in a few places (orb gradients, rgba alpha layers); fine, but new code uses tokens.
 
 ### Both themes share
 
@@ -118,7 +118,7 @@ Don't add a glow halo to `.tour-welcome` — the flat overlay handles separation
 
 ## Embers
 
-Ambient floating particles. Palette per theme, defined in `src/web/static/js/ui.js`:
+Ambient floating particles. Palette per theme, defined in `ui/src/embers.ts`:
 
 - **Light mode** (`EMBER_COLORS_LIGHT`): saturated gold-yellows that contrast against the peach bg. Avoid pale yellows like `#f5e060` — they wash into the bg at the 0.7 peak opacity the ember animation targets.
 - **Dark mode** (`EMBER_COLORS_DARK`): brighter pure yellows plus one orange (`#f5a52f`) for variety. Avoid pale/cream yellows like `#fff4c0` — they read as white blobs against the dark bg.

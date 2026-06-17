@@ -1,0 +1,68 @@
+[package]
+name = "app"
+version = "0.1.0"
+description = "aloud — voice-based meditation facilitator (desktop shell)"
+authors = ["Alex Krusz"]
+license = "AGPL-3.0"
+repository = "https://github.com/akrusz/aloud"
+edition = "2021"
+rust-version = "1.77.2"
+# Not a crates.io crate — this is the Tauri shell binary. Also lets cargo-deny
+# treat us as a "private" workspace crate so our AGPL doesn't fail the
+# license check (see deny.toml [licenses].private).
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.2", features = [] }
+tauri-plugin-log = "2"
+# Lets external <a href="https://…"> / mailto: links open in the system
+# browser/mail client instead of dead-clicking inside the webview. Wired in
+# ui/src/external-links.ts.
+tauri-plugin-opener = "2"
+# Remembers window position/size across launches (saved on exit, restored on
+# the next open). Wired in lib.rs; the window is built dynamically so we call
+# restore_state() on it after build.
+tauri-plugin-window-state = "2"
+# Embedded local backend (replaces Flask /api/* on desktop). The same UI
+# adapters that hit the hosted server over HTTP hit this over HTTP too, so
+# desktop and web share one code path (see dev-docs/desktop.md).
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync", "process", "time"] }
+# Adapts the mpsc receiver backing the streamed model-download response.
+tokio-stream = "0.1"
+tower-http = { version = "0.6", features = ["cors"] }
+which = "7"
+whisper-rs = "0.16.0"
+ureq = { version = "3.2.1", features = ["json"] }
+# Desktop Google sign-in (loopback PKCE, meditation-pal-fae): SHA-256 + URL-safe
+# base64 for the PKCE challenge, random bytes for the verifier/state nonce.
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+# Native Piper TTS (ONNX via `ort`, espeak-ng phonemization via `espeak-rs`).
+# Cross-platform neural voices; macOS `say` is a local fallback on Darwin.
+piper-rs = "0.2"
+# Used by /api/providers to detect total system RAM for the Ollama
+# recommendation system (which model tier fits this machine).
+sysinfo = { version = "0.32", default-features = false, features = ["system"] }
+
+# Desktop-only plugins. The self-updater (the in-app "Update" button) checks a
+# signed latest.json on GitHub releases, downloads the platform bundle, verifies
+# its minisign signature against the pubkey in tauri.conf.json, installs it, and
+# relaunches via the process plugin. Neither targets mobile, so they're scoped
+# here and registered under #[cfg(desktop)] in lib.rs.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

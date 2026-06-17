@@ -1,0 +1,39 @@
+# Build context for server/Dockerfile is this ts/ workspace root. Keep the
+# image small and the context upload fast: exclude everything the API-only
+# server image doesn't need. (meditation-pal-a3u)
+
+# Installed deps — the image runs its own `npm ci`.
+node_modules/
+**/node_modules/
+
+# Desktop shell: the Rust build tree is gigabytes and irrelevant to the server.
+src-tauri/
+
+# The web UI is hosted separately (static host); not part of the API image.
+ui/
+
+# Build/test artifacts.
+dist/
+**/dist/
+*.tsbuildinfo
+.vitest-cache/
+coverage/
+server/tests/
+
+# Secrets + local state never go in an image layer.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+server/voice-previews/
+
+# Capacitor native projects (generated).
+ios/
+android/
+
+# VCS / editor noise.
+.git/
+.DS_Store

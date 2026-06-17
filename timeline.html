@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building aloud. — a timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Knewave&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* aloud. dark palette (warm-neutral browns; pink pops against them) */
+    --bg-primary:   #110d08;
+    --bg-secondary: #1a1410;
+    --bg-card:      #221a13;
+    --bg-surface:   #2e2419;
+    --ink:          #f5efe6;
+    --ink-dim:      #c4b49e;
+    --ink-faint:    #8a7c6a;
+    --border:       #302618;
+    --accent:       #df3f88;   /* brand pink */
+    --accent-hover: #c02a72;
+    --accent-glow:  rgba(245, 165, 47, 0.30);  /* orange halo */
+    --brand-stroke: #e8b820;   /* gold */
+    --warm:         #c4a850;
+    /* era colors trace the orb's own arc: warm-grey -> orange -> pink */
+    --era-unnamed: #8a7c6a;
+    --era-glooow:  #ed7326;
+    --era-aloud:   #df3f88;
+    --maxw: 720px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 560px at 82% -8%, rgba(223,63,136,0.12), transparent 60%),
+      radial-gradient(900px 480px at -8% 8%, rgba(237,115,38,0.12), transparent 55%),
+      var(--bg-primary);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px 120px; }
+
+  /* ---- Orb (single source of truth gradient from the app) ---- */
+  .orb {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: radial-gradient(circle at 45% 45% in oklab,
+      #fff4c0 0%, #f8f288 18%, #f5d820 38%, #ffb805 49%,
+      #ed7326 65%, #e71f75 71%, #870a3e 76%);
+    box-shadow: 0 0 38px var(--accent-glow), 0 0 70px rgba(231,31,117,0.30);
+    margin-bottom: 24px;
+    animation: breathe 6s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100% { transform: scale(1); box-shadow: 0 0 34px var(--accent-glow), 0 0 60px rgba(231,31,117,0.22); }
+    50%     { transform: scale(1.05); box-shadow: 0 0 50px var(--accent-glow), 0 0 86px rgba(231,31,117,0.40); }
+  }
+
+  /* ---- Header / wordmark ---- */
+  header { padding: 70px 0 34px; }
+  .wordmark {
+    font-family: "Knewave", -apple-system, system-ui, sans-serif;
+    font-size: clamp(3rem, 11vw, 5rem);
+    line-height: 0.95;
+    color: var(--accent);
+    -webkit-text-stroke: 4px var(--brand-stroke);
+    paint-order: stroke fill;
+    letter-spacing: 0.04em;
+    margin: 0 0 6px;
+    display: inline-block;
+  }
+  h1.sub { font-size: clamp(1.3rem, 4vw, 1.8rem); font-weight: 700; letter-spacing: -0.01em; margin: 8px 0 14px; }
+  .lede { color: var(--ink-dim); font-size: 1.08rem; max-width: 58ch; margin: 0 0 28px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 12px; }
+  .stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1 1 120px; }
+  .stat b { display: block; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+  .stat span { color: var(--ink-faint); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ---- Philosophy strip ---- */
+  .ethos {
+    margin: 26px 0 8px; padding: 18px 20px; border-radius: 14px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+  }
+  .ethos h2 { margin: 0 0 6px; font-size: 1.02rem; }
+  .ethos p { margin: 0; color: var(--ink-dim); font-size: 1.02rem; }
+
+  /* ---- Legend ---- */
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 24px 0 8px; font-size: 1rem; color: var(--ink-dim); }
+  .legend .key { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* ---- Timeline ---- */
+  .timeline { position: relative; margin-top: 16px; padding-left: 34px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 9px; top: 6px; bottom: 30px; width: 2px;
+    background: linear-gradient(var(--era-unnamed) 0%, var(--era-glooow) 16%, var(--era-glooow) 58%, var(--era-aloud) 76%, var(--era-aloud) 100%);
+    opacity: 0.55;
+  }
+  .node { position: relative; padding: 0 0 44px; opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+  .node.in { opacity: 1; transform: none; }
+  .node::before {
+    content: ""; position: absolute; left: -30px; top: 7px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--bg-primary); border: 3px solid var(--era-glooow);
+    box-shadow: 0 0 0 4px var(--bg-primary), 0 0 14px var(--mark, var(--era-glooow));
+  }
+  .node[data-era="unnamed"]::before { border-color: var(--era-unnamed); --mark: var(--era-unnamed); }
+  .node[data-era="glooow"]::before  { border-color: var(--era-glooow);  --mark: var(--era-glooow); }
+  .node[data-era="aloud"]::before   { border-color: var(--era-aloud);   --mark: var(--era-aloud); }
+  .node.major::before { width: 20px; height: 20px; left: -32px; }
+  .node.future::before { background: var(--bg-primary); border-style: dashed; border-color: var(--ink-faint); --mark: transparent; box-shadow: 0 0 0 4px var(--bg-primary); }
+
+  .when { font-size: 0.92rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .ph-title { font-size: 1.32rem; font-weight: 700; margin: 4px 0 4px; letter-spacing: -0.01em; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+  .tag { font-size: 0.92rem; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-dim); background: var(--bg-card); }
+  .tag.era-unnamed { color: var(--era-unnamed); border-color: rgba(138,124,106,0.5); }
+  .tag.era-glooow  { color: var(--era-glooow);  border-color: rgba(237,115,38,0.45); }
+  .tag.era-aloud   { color: var(--era-aloud);   border-color: rgba(223,63,136,0.45); }
+  .tag.ver { color: var(--brand-stroke); border-color: rgba(232,184,32,0.4); font-variant-numeric: tabular-nums; }
+  p.body { color: var(--ink-dim); margin: 0 0 14px; }
+  p.body b { color: var(--ink); font-weight: 600; }
+
+  /* commit volume bar */
+  .vol { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .vol .bar { height: 8px; border-radius: 5px; background: linear-gradient(90deg, var(--brand-stroke), var(--era-glooow), var(--accent)); opacity: 0.85; min-width: 6px; }
+  .vol .num { font-size: 0.95rem; color: var(--ink-faint); white-space: nowrap; }
+
+  /* options grid inside the spectrum node */
+  .opts { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 4px 0 14px; }
+  .opt { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .opt b { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: 2px; }
+  .opt span { color: var(--ink-dim); font-size: 0.95rem; }
+  @media (min-width: 560px) { .opts { grid-template-columns: 1fr 1fr 1fr; } }
+
+  /* pull quote */
+  blockquote {
+    margin: 14px 0 4px; padding: 14px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-card); border-radius: 0 12px 12px 0; color: var(--ink);
+    font-style: italic; font-size: 0.98rem;
+  }
+  blockquote cite { display: block; font-style: normal; color: var(--ink-faint); font-size: 0.92rem; margin-top: 8px; }
+
+  footer { color: var(--ink-faint); font-size: 0.95rem; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px; }
+  .brand-mark { font-family: "Knewave", system-ui, sans-serif; color: var(--accent); -webkit-text-stroke: 1.5px var(--brand-stroke); paint-order: stroke fill; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orb { animation: none; }
+    .node { transition: none; opacity: 1; transform: none; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="orb" aria-hidden="true"></div>
+    <div class="wordmark">aloud.</div>
+    <h1 class="sub">Four months of building, told through the commits</h1>
+    <p class="lede">A voice meditation app that began as a script in a terminal and grew, over 866 commits, into something you can run on your own machine or open in a browser. The throughline was access: keep every way of running it on the table, and let each person choose what fits their privacy, convenience, and cost.</p>
+    <div class="stats">
+      <div class="stat"><b>866</b><span>commits</span></div>
+      <div class="stat"><b>~220</b><span>dev hours</span></div>
+      <div class="stat"><b>62</b><span>active days</span></div>
+      <div class="stat"><b>3</b><span>names</span></div>
+    </div>
+
+    <div class="ethos">
+      <h2>The idea underneath all of it</h2>
+      <p>Meditation tools ask you to trust them with something private. <span class="brand-mark">aloud.</span> was built so you never have to trade that trust for convenience. Run it fully offline with local models, bring your own API keys, or use the hosted version when you just want it to work. Same practice, your call on the dials.</p>
+    </div>
+
+    <div class="legend">
+      <span class="key"><span class="dot" style="background:var(--era-unnamed)"></span>Meditation Pal</span>
+      <span class="key"><span class="dot" style="background:var(--era-glooow)"></span>glooow</span>
+      <span class="key"><span class="dot" style="background:var(--era-aloud)"></span>aloud.</span>
+    </div>
+  </header>
+
+  <div class="timeline" id="timeline">
+
+    <div class="node major" data-era="unnamed">
+      <div class="when">Jan 31, 2026</div>
+      <div class="ph-title">Genesis, in a terminal</div>
+      <div class="tags"><span class="tag era-unnamed">Meditation Pal</span><span class="tag">CLI</span></div>
+      <p class="body">The whole pipeline arrives in a single day under its first name, <b>Meditation Pal</b>: microphone to Whisper to a language model and back out through text to speech. Voice detection, turn taking, silence handling, and gentle check ins are there from the first commit. Inspired by Jhourney's somatic exploration technique. Several LLM providers and a couple of TTS engines follow within hours.</p>
+      <div class="vol"><span class="bar" style="width:6px"></span><span class="num">3 commits in January</span></div>
+    </div>
+
+    <div class="node major" data-era="glooow">
+      <div class="when">Feb 8 – 25</div>
+      <div class="ph-title">It grows a browser, and gets a name</div>
+      <div class="tags"><span class="tag era-glooow">glooow</span><span class="tag">Flask + SocketIO</span></div>
+      <p class="body">The terminal tool moves into a web UI built on Flask and SocketIO. Jhana facilitation lands, and the meditation styles get a full rework (twice). The glowing orb and its hidden easter eggs appear. On Feb 19 the project gets its first real name: <b>glooow</b>.</p>
+      <div class="vol"><span class="bar" style="width:78px"></span><span class="num">90 commits in February</span></div>
+    </div>
+
+    <div class="node major" data-era="glooow">
+      <div class="when">March</div>
+      <div class="ph-title">The push to a real desktop product</div>
+      <div class="tags"><span class="tag era-glooow">glooow</span><span class="tag">noting mode</span><span class="tag ver">v0.9.1 → v0.10.0</span></div>
+      <p class="body">The busiest stretch of the whole project. glooow becomes something people can install and update: native Mac and Windows installers, an auto updater, an about page, OS native config, a settings page, an interactive onboarding wizard, and a session start tour. <b>Noting mode</b> arrives as a second way to practice. The first tagged release ships Mar 22, then versions land almost daily up to v0.10.0 by month end.</p>
+      <div class="vol"><span class="bar" style="width:100%"></span><span class="num">278 commits, the peak</span></div>
+    </div>
+
+    <div class="node" data-era="glooow">
+      <div class="when">April</div>
+      <div class="ph-title">A quiet month</div>
+      <div class="tags"><span class="tag era-glooow">glooow</span><span class="tag">silent practice</span><span class="tag ver">v0.10.1 → v0.11.3</span></div>
+      <p class="body">Things slow right down. This stretch lined up with a period when my own nervous system was more sensitive, and I turned toward quieter, more silent practices to understand what was going on. The code reflects it: only light consolidation, like better Ollama handling, tuning the voice detector to ignore sounds that are not speech, and documentation to sort out the terms of service question around subscription routing. The lull was part of the practice, not a gap in it.</p>
+      <div class="vol"><span class="bar" style="width:16px"></span><span class="num">19 commits, the lull</span></div>
+    </div>
+
+    <div class="node major" data-era="aloud">
+      <div class="when">May</div>
+      <div class="ph-title">A rewrite in TypeScript, and version 1.0</div>
+      <div class="tags"><span class="tag era-aloud">glooow → aloud.</span><span class="tag">TypeScript</span><span class="tag ver">v1.0.0</span></div>
+      <p class="body">Energy comes back hard. The codebase gets ported to TypeScript with a clean provider abstraction covering OpenAI, OpenRouter, Venice, and Groq. On May 18 the second rename happens: glooow becomes <b>aloud.</b> The next day, <b>v1.0.0 ships</b>.</p>
+      <div class="vol"><span class="bar" style="width:96%"></span><span class="num">357 commits</span></div>
+      <blockquote>
+        the resistance was bigger than the thing.
+        <cite>from recess.md, a journal kept alongside the build</cite>
+      </blockquote>
+    </div>
+
+    <div class="node major" data-era="aloud">
+      <div class="when">Late May – June</div>
+      <div class="ph-title">A hosted option joins the local one</div>
+      <div class="tags"><span class="tag era-aloud">aloud.</span><span class="tag">cloud + billing</span><span class="tag">ongoing</span></div>
+      <p class="body">The hosted version arrives and sits alongside everything that came before. A backend with a credit ledger denominated in clouds, Stripe checkout, giftable credits, retreat passes, usage metering, sign in with Apple, email, and Google, plus admin tooling and database backups. None of it retires the local app. It widens the menu so the spectrum is complete, from fully private and free to run, to fully managed and pay as you go.</p>
+      <div class="opts">
+        <div class="opt"><b>Run it local</b><span>Your machine, local models. Maximum privacy, no per use cost.</span></div>
+        <div class="opt"><b>Bring your keys</b><span>Your provider accounts. Balance of control and convenience.</span></div>
+        <div class="opt"><b>Use the cloud</b><span>Hosted and managed. Open it and go, pay as you use.</span></div>
+      </div>
+      <div class="vol"><span class="bar" style="width:42px"></span><span class="num">119 commits and counting</span></div>
+    </div>
+
+    <div class="node future" data-era="aloud">
+      <div class="when">On the horizon</div>
+      <div class="ph-title">Where it goes next</div>
+      <div class="tags"><span class="tag">App Store</span><span class="tag">iOS</span><span class="tag">Android</span><span class="tag">new techniques</span></div>
+      <p class="body">The same access principle, extended to more places and more practices: native apps on the App Store, iOS and Android, and a growing set of inner work techniques beyond somatic exploration and noting. More ways in, more ways to practice, still your choice on every dial.</p>
+    </div>
+
+  </div>
+
+  <footer>
+    Generated from the <span class="brand-mark">aloud.</span> git history (Jan 31 – Jun 3, 2026). Version zero of an embeddable timeline.
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var nodes = document.querySelectorAll('.node');
+    if (!('IntersectionObserver' in window)) {
+      nodes.forEach(function (n) { n.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+    nodes.forEach(function (n) { io.observe(n); });
+  })();
+</script>
+</body>
+</html>

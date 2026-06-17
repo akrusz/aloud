@@ -2,9 +2,13 @@
 
 your voice is an overpowered and underrated tool for meditation and inner work.
 
-**aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
+**aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, felt sense work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
 
-aloud works on macOS, Linux, and Windows. choose your LLM — run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
+aloud works in your browser and on macOS, Linux, and Windows. choose your LLM — run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
+
+### try it in your browser
+
+no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the hosted web app runs on **aloud cloud**, a managed service that handles the AI for you, so there's nothing to set up. sign in with google, apple, or email to get free starter credits, then top up if you'd like to keep going. prefer your own keys? switch on bring-your-own-key in settings. the downloadable app below stays fully local and free.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/aloud-screen-dark.webp">
@@ -13,7 +17,7 @@ aloud works on macOS, Linux, and Windows. choose your LLM — run fully local an
 
 ## what it does
 
-aloud has two modes: exploration and noting.
+aloud has three modes: exploration, noting, and felt sense.
 
 **exploration**: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore. 
 
@@ -25,6 +29,10 @@ thanks to [Maija Haavisto](https://lovingawakening.net/) and [Jhourney](https://
 
 thanks to [Vince Horn](https://www.buddhistgeeks.org/) and again to [Jhourney](https://www.jhourney.io/) for inspiration.
 
+**felt sense**: a guided arc inspired by Eugene Gendlin's focusing. you start by settling and noticing what's between you and feeling fine, pick one thing, and sense how the whole of it sits in your body - vague and hard to describe is exactly right. then you let a word or image come that fits it, check it against the body-feel, ask into it, and receive whatever comes. the facilitator says very little and moves through the stages at your pace; long silences usually mean it's working.
+
+inspired by [Gendlin's Focusing](https://focusing.org/) and Ann Weiser Cornell's inner relationship focusing.
+
 ## getting started
 
 ### download the app
@@ -33,9 +41,9 @@ grab the latest release for your platform below, or from [releases](https://gith
 
 | platform | download |
 |----------|----------|
-| **macOS** | [`aloud-1.0.2-macOS.dmg`](https://github.com/akrusz/aloud/releases/download/v1.0.2/aloud-1.0.2-macOS.dmg) — open the DMG, drag aloud to Applications |
-| **Windows** | [`aloud-1.0.2-Windows.exe`](https://github.com/akrusz/aloud/releases/download/v1.0.2/aloud-1.0.2-Windows.exe) — run the installer |
-| **Linux** | [`aloud-1.0.2-Linux.AppImage`](https://github.com/akrusz/aloud/releases/download/v1.0.2/aloud-1.0.2-Linux.AppImage) — `chmod +x`, double-click or run from terminal |
+| **macOS** | [`aloud_2.0.0_aarch64.dmg`](https://github.com/akrusz/aloud/releases/download/v2.0.0/aloud_2.0.0_aarch64.dmg) — open the DMG, drag aloud to Applications |
+| **Windows** | [`aloud_2.0.0_x64-setup.exe`](https://github.com/akrusz/aloud/releases/download/v2.0.0/aloud_2.0.0_x64-setup.exe) — run the installer |
+| **Linux** | [`aloud_2.0.0_amd64.AppImage`](https://github.com/akrusz/aloud/releases/download/v2.0.0/aloud_2.0.0_amd64.AppImage) — `chmod +x`, double-click or run from terminal |
 
 all settings (LLM provider, voice, whisper model, display) are configurable from the settings page inside the app. whisper models download automatically on first launch. the app checks for updates on startup and will prompt you when a new version is available.
 
@@ -66,40 +74,17 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 ## running from source
 
-```bash
-git clone https://github.com/akrusz/aloud.git
-cd aloud
-./scripts/start.sh          # bootstraps on first run, then launches
-```
-
-on first run, `start.sh` installs dependencies, creates a Python environment, and writes a default config. configure your LLM provider and other settings in the web UI. requires python 3.10+ and [uv](https://docs.astral.sh/uv/) (installed automatically if missing).
-
-there are also double-click launchers in `scripts/` (`Start-Mac.command`, `Start-Windows.bat`, `Start-Linux.desktop`).
-
-### one-line install
-
-```bash
-# macOS/Linux
-curl -fsSL https://raw.githubusercontent.com/akrusz/aloud/main/scripts/setup.sh | bash
-```
-```bash
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/akrusz/aloud/main/scripts/setup.ps1 | iex
-```
-
-### nix
-
-if you have nix with flakes enabled:
+aloud is a TypeScript + Rust app. you need [Node.js](https://nodejs.org) (18+) and, for the desktop shell, the [Rust toolchain](https://rustup.rs) plus the [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
 ```bash
 git clone https://github.com/akrusz/aloud.git
-cd aloud
-nix develop                             # browser-only (lighter): nix develop .#browser
-./scripts/start.sh                      # auto-bootstraps config and launches
+cd aloud/ts
+npm install
+npm run tauri:dev      # desktop app (Tauri shell + web UI)
 ```
 
-the flake provides portaudio, ffmpeg, python, uv, and GTK/WebKit2 (for pywebview) via the nix binary cache. python packages are installed via uv into a local venv on first entry.
+configure your LLM provider and other settings in the app. for the browser-only dev preview and the full developer reference (ports, tests, releasing), see [dev-docs/dev-cheatsheet.md](dev-docs/dev-cheatsheet.md).
 
 ## building
 
-release builds are automated via GitHub Actions — creating a release tagged `vX.X.X` triggers builds for all three platforms and attaches the artifacts. see [dev-docs/building.md](dev-docs/building.md) for manual build instructions.
+release builds are automated via GitHub Actions — creating a release tagged `vX.X.X` triggers builds for all three platforms and attaches the artifacts. see [dev-docs/desktop.md](dev-docs/desktop.md) for the Tauri build and signing flow.

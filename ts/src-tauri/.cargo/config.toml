@@ -1,0 +1,9 @@
+# macOS deployment target for the whole build, incl. C/C++ dependency build
+# scripts (whisper.cpp/ggml via whisper-rs-sys). ggml uses std::filesystem,
+# which libc++ marks unavailable below macOS 10.15 — so a too-low target makes
+# modern clang (21+) hard-error on `<filesystem>`. tauri.conf.json's
+# bundle.macOS.minimumSystemVersion sets this for `tauri build/dev`; this covers
+# bare `cargo build`/`cargo check` (CI lint, scripts/release.sh, local dev).
+# Keep the two values in sync. (meditation-pal-9vh)
+[env]
+MACOSX_DEPLOYMENT_TARGET = "11.0"

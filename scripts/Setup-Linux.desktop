@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Start aloud
-Comment=Launch the aloud meditation facilitator (sets up automatically on first run)
-Exec=bash -c 'cd "$(dirname "$(readlink -f "%k")")/.." && ./scripts/start.sh --open'
-Terminal=true
-Icon=utilities-terminal
-Categories=Utility;

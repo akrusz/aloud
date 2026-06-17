@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>terms — aloud.</title>
+  <meta name="description" content="aloud's terms of service. An open-source meditation companion you can run your own way with your own providers, or via aloud cloud, our optional hosted relay. Offered as-is.">
+
+  <link rel="canonical" href="https://aloud.rest/terms/">
+  <meta name="theme-color" content="#fffae0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#110d08" media="(prefers-color-scheme: dark)">
+
+  <link rel="icon" type="image/png" href="/assets/aloud.png">
+  <link rel="apple-touch-icon" href="/assets/aloud.png">
+
+  <link rel="preload" href="/assets/fonts/knewave-v15.woff2" as="font" type="font/woff2" crossorigin>
+
+  <link rel="stylesheet" href="/css/style.css">
+
+  <!-- Theme bootstrap — see index.html. -->
+  <script>
+    (function() {
+      var TTL = 4 * 60 * 60 * 1000;
+      try {
+        var raw = localStorage.getItem('aloud-site-theme');
+        if (raw) {
+          var saved = JSON.parse(raw);
+          if (saved && saved.value && saved.ts && (Date.now() - saved.ts < TTL)) {
+            document.documentElement.setAttribute('data-theme', saved.value);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <style>
+    .legal { max-width: 720px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+    .legal h1 { font-size: 2.25rem; margin: 0 0 0.4rem; color: var(--text-primary); }
+    .legal .updated { color: var(--text-muted); font-size: 0.95rem; margin: 0 0 2rem; }
+    .legal h2 { font-size: 1.35rem; margin: 2.25rem 0 0.6rem; color: var(--text-primary); }
+    .legal h3 { font-size: 1.05rem; margin: 1.4rem 0 0.35rem; color: var(--text-primary); }
+    .legal p, .legal li { color: var(--text-secondary); line-height: 1.6; }
+    .legal ul { padding-left: 1.25rem; margin: 0.4rem 0 1rem; }
+    .legal li { margin-bottom: 0.4rem; }
+    .legal strong { color: var(--text-primary); }
+    .legal .lead { font-size: 1.1rem; color: var(--text-primary); }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="nav-brand" href="/">aloud.</a>
+    <a class="nav-link" href="https://krusz.net" target="_blank" rel="noopener">krusz.net</a>
+    <a class="nav-link" href="https://github.com/akrusz/aloud" target="_blank" rel="noopener">github</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
+  </nav>
+
+  <main class="legal">
+    <h1>Terms of Service</h1>
+    <p class="updated">Last updated: June 2, 2026</p>
+
+    <p class="lead">aloud is an open-source meditation companion. These terms explain, plainly, what you can expect from it and what it expects from you. By using aloud, you agree to them.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>The aloud <strong>software is free and open-source</strong> under the AGPL-3.0 license; you're free to use, study, modify, and share it under that license's terms.</li>
+      <li>It is <strong>not a medical device or a substitute for professional care</strong>. It does not provide medical, psychological, or crisis services.</li>
+      <li>You can run aloud <strong>your own way</strong>, connecting to AI and voice providers with your own accounts and keys, or fully on-device where your platform allows; you're responsible for following those providers' terms.</li>
+      <li>Or you can use <strong>aloud cloud</strong>, our optional hosted service that relays your sessions to AI and voice providers for you. It uses prepaid credits and an account, and we don't retain your session content.</li>
+      <li>Everything is provided <strong>as-is</strong>, with no warranties.</li>
+    </ul>
+
+    <h2>What aloud is</h2>
+    <p>aloud is a voice-based meditation facilitator. You speak; your speech is transcribed; a language model generates gentle facilitation; and the response is spoken back to you. To do this, aloud needs three kinds of AI service: speech-to-text, a language model, and text-to-speech. These terms cover both ways of reaching them.</p>
+
+    <h2>Two ways to use aloud</h2>
+    <p>aloud is designed to give you a choice about where your data goes:</p>
+    <ul>
+      <li><strong>Your own way (local / bring-your-own).</strong> On platforms that allow it (such as the desktop app), aloud runs on your device and connects directly to the providers you configure with your own credentials, or runs fully on-device. aloud has no server in the middle and receives nothing. See our <a href="/privacy/">privacy policy</a> for the details.</li>
+      <li><strong>aloud cloud.</strong> Our optional hosted service for situations where running your own isn't practical, such as the web app and, in the future, mobile apps. You sign in, optionally buy credits, and aloud cloud relays your audio and text to third-party AI and voice providers on your behalf. We don't keep your session content.</li>
+    </ul>
+    <p>Wherever your platform physically allows it, you keep the ability to run your own models and bring your own keys; using aloud cloud is always a convenience, never a requirement.</p>
+
+    <h2>Not medical or professional advice</h2>
+    <p>aloud is a wellness and contemplative tool, not a healthcare service. <strong>It is not a substitute for professional medical, psychological, psychiatric, or therapeutic advice, diagnosis, or treatment.</strong> The facilitation it offers is generated by an AI language model and may be inaccurate, incomplete, or unsuitable for your situation.</p>
+    <p>Do not rely on aloud for any medical, mental-health, or emergency decision. <strong>If you are in crisis or may be a danger to yourself or others, stop and contact your local emergency services or a crisis line right away.</strong> Always seek the advice of a qualified professional with any questions about your health or wellbeing. Meditation can occasionally surface difficult emotions or experiences; if practice feels harmful, please pause and consult a professional.</p>
+
+    <h2>Eligibility</h2>
+    <p>aloud is not directed to children under 13 (or the minimum age in your jurisdiction). By using aloud you confirm you meet that age requirement and have the capacity to agree to these terms.</p>
+
+    <h2>aloud cloud, accounts, and credits</h2>
+    <p>aloud cloud is optional. If you use it, these additional terms apply.</p>
+    <h3>Your account</h3>
+    <p>You'll need an account to use aloud cloud. Keep your sign-in credentials secure and don't share your account; you're responsible for activity that happens under it. Tell us promptly if you suspect unauthorized use. We may suspend or close accounts that abuse the service, break these terms, or violate the terms of the underlying providers.</p>
+    <h3>Credits</h3>
+    <p>aloud cloud runs on prepaid <strong>credits</strong>, which are consumed as your sessions are relayed to AI and voice providers. Credits:</p>
+    <ul>
+      <li>have <strong>no cash value</strong>, are not money, and are not transferable between accounts;</li>
+      <li>are consumed in proportion to usage, at rates that may change over time (we'll reflect current rates in the app);</li>
+      <li>may include <strong>complimentary credits</strong> we choose to grant (for example, a starting balance for new accounts). Complimentary credits are a discretionary courtesy; they may expire, may be changed or withdrawn at any time, and are never refundable.</li>
+    </ul>
+    <p>You can buy credits using the payment methods we offer at the time, for example card payments (processed by Stripe) or supported on-chain stablecoin payments. Purchases of credits are final and non-refundable except where a refund is required by applicable law. We may change pricing and the features of aloud cloud, and we may discontinue the service; if we discontinue it, we'll make a reasonable effort to give notice.</p>
+    <h3>What we keep</h3>
+    <p>We don't retain the content of your sessions on aloud cloud. Your audio, transcripts, and the AI's responses pass through only to reach the providers that fulfill them. We do process the limited account, credit-usage, and payment information needed to run the service, as described in the <a href="/privacy/">privacy policy</a>.</p>
+
+    <h2>Using your own provider keys</h2>
+    <p>On some platforms you may choose to supply your own provider API keys instead of using credits. You are responsible for keeping those keys valid and for any usage and charges your providers bill to them. On local platforms your keys stay on your device. On the web app, bring-your-own-key is off by default and applies only if you manually turn it on. Because web requests are relayed through aloud cloud, your key is then used only transiently to make the request to your provider and is never stored. Even so, only enter a key you're comfortable entrusting to a relay, and you remain bound by your provider's terms regarding key use.</p>
+
+    <h2>License and open source</h2>
+    <p>aloud is open-source software licensed under the <a href="https://github.com/akrusz/aloud/blob/main/LICENSE" target="_blank" rel="noopener">GNU Affero General Public License, version 3 (AGPL-3.0)</a>. Your rights to use, copy, modify, and distribute the software are governed by that license. A limited <a href="https://github.com/akrusz/aloud/blob/main/LICENSE-EXCEPTION.md" target="_blank" rel="noopener">App Store distribution exception</a> applies to copies obtained through Apple's distribution channels.</p>
+    <p>If anything in these terms conflicts with the AGPL-3.0 as it applies to the software itself, the AGPL-3.0 controls for the software. These terms otherwise govern your use of the aloud application and this website.</p>
+
+    <h2>Third-party providers</h2>
+    <p>aloud relies on AI and voice providers to do the actual speech-to-text, language, and text-to-speech work, for example Anthropic, Google, OpenAI, OpenRouter, Venice, ElevenLabs, or local on-device models. These providers reach your data in one of two ways: providers <strong>you connect yourself</strong> with your own keys, or providers that <strong>aloud cloud relays to on your behalf</strong>.</p>
+    <p>In both cases:</p>
+    <ul>
+      <li>Your use of each provider's service is governed by <strong>that provider's own terms and privacy policy</strong>, not ours.</li>
+      <li>When you connect a provider yourself, you use your <strong>own account and credentials</strong> and are responsible for any usage, fees, or content limits it applies.</li>
+      <li>When aloud cloud relays to a provider, we aim to be <strong>transparent about which providers we use</strong> (the current list is in our <a href="/privacy/">privacy policy</a>).</li>
+    </ul>
+    <p>aloud does not control these providers and is not responsible for their availability, output, pricing, or how they handle data sent to them.</p>
+
+    <h2>Acceptable use</h2>
+    <p>Please use aloud lawfully and respectfully. You agree not to use it (or aloud cloud) to violate any law, to infringe others' rights, to abuse or attempt to circumvent the service or its credit system, or in any way that breaches the terms of the third-party providers involved. You are responsible for how you use the software and for any content you send through it to those providers.</p>
+
+    <h2>No warranty</h2>
+    <p>aloud and aloud cloud are provided <strong>"as is" and "as available," without warranties of any kind</strong>, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, accuracy, and non-infringement. We do not warrant that aloud will be uninterrupted, error-free, secure, available, or that its output will be correct or suitable for any purpose. You use it at your own risk.</p>
+
+    <h2>Limitation of liability</h2>
+    <p>To the fullest extent permitted by law, the author and contributors of aloud will not be liable for any indirect, incidental, special, consequential, or exemplary damages, or for any loss of data, profits, or wellbeing, arising out of or related to your use of (or inability to use) aloud or aloud cloud, even if advised of the possibility. The total aggregate liability of the author and contributors for any claim relating to aloud is limited to the amount you paid us, if any, for aloud cloud in the three months before the claim.</p>
+    <p>Some jurisdictions do not allow certain limitations, so some of the above may not apply to you. Nothing in these terms limits liability that cannot be limited under applicable law.</p>
+
+    <h2>Changes to these terms</h2>
+    <p>We may update these terms from time to time; the "last updated" date above will change. Significant changes will be reflected here. Your continued use of aloud after an update means you accept the revised terms.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about these terms? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20terms">lexkrusz@gmail.com</a>.</p>
+  </main>
+
+  <script src="/js/theme.js" defer></script>
+</body>
+</html>

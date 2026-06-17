@@ -1,0 +1,74 @@
+# Fly.io deploy for aloud cloud (@aloud/server). meditation-pal-a3u.
+#
+# Deploy from the ts/ workspace root (so the Docker build context includes
+# ../src = @aloud/core):
+#
+#   cd ts
+#   # Create the app explicitly — do NOT use `fly launch`: it looks for fly.toml
+#   # in the cwd (ts/), not here in server/, so --copy-config finds nothing and
+#   # scaffolds a "blank app" instead.
+#   fly apps create aloud-cloud                               # first time only
+#   fly volumes create aloud_data --size 1 --region sjc --app aloud-cloud
+#   fly secrets import --app aloud-cloud < your-secrets.env   # KEY=value per line; see deploy.md
+#   fly deploy --config server/fly.toml
+#
+# Always deploy from ts/ (the cwd is the Docker build CONTEXT, so COPY src ./src
+# reaches @aloud/core). The [build].dockerfile below is resolved relative to
+# THIS file (server/), hence "Dockerfile" — see the note there.
+#
+# Full runbook + the secret list: dev-docs/deploy.md.
+#
+# SINGLE-MACHINE BY DESIGN: the credit ledger is a SQLite file on the attached
+# volume, so this app runs ONE machine (a volume binds to one machine). That's
+# correct at trial scale. Scaling out later = swap SqliteCreditsStore for
+# Postgres (credits/store.ts) and drop the [mounts].
+
+app = "aloud-cloud"           # rename to your Fly app name
+primary_region = "sjc"         # pick the region nearest your users
+
+# Headroom for a clean stop: the app closes its server + SQLite handle on
+# SIGTERM, then litestream does a final R2 sync before exit. The 5s default was
+# too tight (the VM was force-halted "abruptly", risking the last sync); 20s is
+# a ceiling, not a delay — Fly proceeds as soon as the process exits.
+kill_timeout = "20s"
+
+[build]
+  # Resolved relative to THIS file's directory (ts/server/), not the cwd you
+  # deploy from — so it's just "Dockerfile", not "server/Dockerfile". The build
+  # CONTEXT is still the cwd (deploy from ts/) so the Dockerfile's COPY src ./src
+  # reaches @aloud/core. (A leading "server/" here doubles to ts/server/server/.)
+  dockerfile = "Dockerfile"
+
+[env]
+  ALOUD_ENV = "production"
+  PORT = "8787"
+  ALOUD_DB_PATH = "/data/aloud.db"
+
+[http_service]
+  internal_port = 8787
+  force_https = true           # mic needs a secure context; Fly terminates TLS
+  # Cost control at trial scale: stop when idle, cold-boot on the next request.
+  # NOT "suspend" — suspend freezes the VM with no clean shutdown, so SQLite's
+  # WAL/-shm state is frozen mid-flight and committed ledger rows could be lost
+  # across a resume/redeploy (meditation-pal-5iv4). "stop" sends SIGTERM, so
+  # litestream does a final R2 sync and SQLite closes cleanly (WAL checkpointed)
+  # before the machine goes away; the next request pays a ~1-2s cold start.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+# Persistent disk for the SQLite credit ledger (ALOUD_DB_PATH above).
+[mounts]
+  source = "aloud_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

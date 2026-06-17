@@ -1,0 +1,46 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "aloud",
+  "version": "2.0.0",
+  "identifier": "app.aloud.meditation",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:4649",
+    "beforeDevCommand": "npm run ui:dev -- --port 4649 --strictPort",
+    "beforeBuildCommand": "npm run ui:build"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* https://aloud-cloud.fly.dev https://api.github.com https://api.anthropic.com https://api.openai.com https://api.groq.com https://api.venice.ai https://openrouter.ai https://generativelanguage.googleapis.com https://mainnet.base.org https://sepolia.base.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'",
+      "devCsp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* ws://localhost:* ws://127.0.0.1:* https://aloud-cloud.fly.dev https://api.github.com https://api.anthropic.com https://api.openai.com https://api.groq.com https://api.venice.ai https://openrouter.ai https://generativelanguage.googleapis.com https://mainnet.base.org https://sepolia.base.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/akrusz/aloud/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxMDZDOTUyODY0MzE3QTAKUldTZ0YwT0dVc2tHZ1ZQbG51czlhKzNtTml5T0M0WTVlUTV3TVNDc0czVkFLNXFZMWdQTW1ybTgK"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": "../../assets/entitlements.plist"
+    }
+  }
+}

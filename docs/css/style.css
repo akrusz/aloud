@@ -1,7 +1,7 @@
 /* ============================================================
-   aloud. landing page — brand tokens lifted from dev-docs/style.md
-   Single source of truth for visual identity is the app's
-   src/web/static/css/style.css; this is a faithful subset.
+   aloud. landing page — brand tokens lifted from dev-docs/style.md.
+   Single source of truth for visual identity is the app UI's CSS
+   (ts/ui/src/app-base.css); this is a faithful subset.
    ============================================================ */
 
 /* Self-hosted + preloaded (see index.html) so the brand face is ready
@@ -155,6 +155,23 @@ code {
    on the right edge to keep the last nav link from sliding under the button. */
 @media (max-width: 1200px) {
   .nav { padding-right: 4rem; }
+}
+
+/* Very narrow screens: the three nav links crowd the fixed top-right toggle
+   (github slides under it and the labels start folding). Drop the brand onto
+   its own first line so the links wrap to a second line, below and clear of
+   the toggle, which stays pinned beside the short brand. */
+@media (max-width: 488px) {
+  .nav {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.4rem 1.25rem;
+    padding: 0.75rem 2rem;
+  }
+  .nav-brand {
+    flex-basis: 100%;
+    margin-right: 0;
+  }
 }
 
 /* ===== hero ===== */
@@ -358,6 +375,11 @@ code {
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
 }
+.modes .mode-card:first-child {
+  grid-column: 1 / -1;
+  width: min(100%, 680px);
+  justify-self: center;
+}
 .mode-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -417,6 +439,97 @@ code {
 }
 @media (max-width: 640px) {
   .providers { grid-template-columns: 1fr; }
+}
+
+/* ===== beta marker ===== */
+/* Lightweight "beta" superscript that rides on a button without a pill box.
+   Inherits the button's text color via currentColor on both fill and ghost. */
+.beta-mark {
+  margin-left: 0.4em;
+  font-size: 0.58em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  vertical-align: super;
+}
+
+/* ===== aloud cloud ===== */
+/* Warm card, same family as the tip card (bg-card + corner glow). Sits right
+   under "bring your own model" with the gap squeezed out, so the two read as a
+   pair: bring your own, or let us host. */
+.section-models { padding-bottom: 0.75rem; }
+.section-cloud { padding: 0 1.5rem 1.5rem; }
+.cloud-card {
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 1.5rem 1.75rem;
+  position: relative;
+  overflow: hidden;
+}
+.cloud-card::before {
+  content: '';
+  position: absolute;
+  top: -45%;
+  left: -15%;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+  pointer-events: none;
+}
+.cloud-title {
+  position: relative;
+  margin: 0 0 0.65rem;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+.cloud-lead {
+  position: relative;
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+}
+.cloud-points {
+  position: relative;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cloud-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.cloud-points strong { color: var(--text-primary); }
+.cloud-emoji {
+  flex: none;
+  font-size: 1.15rem;
+  line-height: 1.45;
+}
+.cloud-cta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.cloud-fine {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.cloud-fine a { color: var(--text-muted); border-bottom: 1px solid transparent; }
+.cloud-fine a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+@media (max-width: 720px) {
+  .section-cloud { padding: 0 1rem 1.5rem; }
+  .cloud-card { padding: 1.25rem 1.25rem; }
+  .cloud-title { font-size: 1.2rem; }
 }
 
 /* ===== download ===== */

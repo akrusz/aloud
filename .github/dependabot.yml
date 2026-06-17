@@ -1,0 +1,41 @@
+# Dependabot config. GitHub's own infrastructure reads this (no CI/workflow
+# involved): on the schedule below it scans each manifest, opens PRs to bump
+# dependencies, and — separately and immediately — opens PRs for any package
+# with a known security advisory. Reviewing/merging those PRs is the workflow;
+# the security *gate* that can block a PR lives in .github/workflows/security.yml.
+version: 2
+updates:
+  # Python backend (being phased out, but still shipped).
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Desktop Rust shell — the largest new native surface (ort/onnxruntime,
+  # espeak-ng, rustls, whisper, tauri).
+  - package-ecosystem: cargo
+    directory: "/ts/src-tauri"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # TS core + UI (one workspace, one lockfile at /ts).
+  - package-ecosystem: npm
+    directory: "/ts"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Hosted server.
+  - package-ecosystem: npm
+    directory: "/ts/server"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Keep the Actions themselves (checkout, setup-node, …) patched.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

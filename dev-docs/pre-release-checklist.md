@@ -12,7 +12,7 @@ Report what's stale and propose fixes; don't assume — grep and read the actual
 When the product's features, providers, platforms, branding, or behavior change,
 check each of these still reflects reality:
 
-- **`docs/index.html`** — hero copy, the two-modes section, provider list, the
+- **`docs/index.html`** — hero copy, the modes section, provider list, the
   hero tagline/pun, **OG/Twitter metadata** (title, description, image), and the
   "iOS and Android coming soon" platform lines.
 - **`docs/privacy/index.html`** — data-flow descriptions, provider examples,
@@ -27,14 +27,14 @@ check each of these still reflects reality:
   tracked here.
 - **`dev-docs/style.md`** — visual identity (orb gradient, color tokens, fonts) if
   branding changed.
-- **`dev-docs/dev-cheatsheet.md`, `building.md`, `README.nix.md`, `voice-barge-in.md`**
+- **`dev-docs/dev-cheatsheet.md`, `desktop.md`, `voice-barge-in.md`**
   — dev/build/feature docs.
 - **`CLAUDE.md`** — the architecture section (commands, modules, data flow,
   pacing/check-in behavior) and any conventions.
 - **App UI text** — settings labels and hints, the tour/onboarding wizard,
   check-in prompts, welcome/empty-state copy.
-- **`config/default.yaml`** — comments describing defaults.
-- **Icons / assets** — `src/web/static/favicon.svg`, `assets/app-icon*.svg`,
+- **`ts/server/.env.example`** — comments describing config keys and defaults.
+- **Icons / assets** — `ts/ui/public/aloud.png` (web favicon), `assets/app-icon*.svg`,
   `aloud.icns/.ico/.png` if the orb/branding changed.
 
 ## Part B — change → consequence matrix
@@ -50,8 +50,9 @@ check each of these still reflects reality:
 - **Changed visual identity** (orb gradient, colors, font) → `dev-docs/style.md`,
   the site CSS + app CSS (kept in sync), all icon/share-image sources, regenerate
   rasters.
-- **Changed a default or config option** → `config/default.yaml` comment,
-  `src/config.py` default, the settings UI, and any doc that quotes the value.
+- **Changed a default or config option** → the relevant defaults in `ts/src`
+  (or `ts/server/.env.example` for server config), the settings UI, and any doc
+  that quotes the value.
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
 

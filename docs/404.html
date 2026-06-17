@@ -6,6 +6,30 @@
   <title>404 — this page isn't aloud.</title>
   <meta name="robots" content="noindex">
 
+  <!-- SPA deep-link fallback for the web app at /app/ (meditation-pal-sgp).
+       GitHub Pages has no rewrite rule, so a hard refresh / shared link to
+       /app/settings etc. lands here. We rewrite ONLY paths under /app/ into a
+       query the app can decode (?/settings) and bounce to /app/, where Pages
+       serves /app/index.html and its decode snippet restores the real path.
+       Every other 404 (a genuine marketing miss) falls through and renders the
+       styled page below. Runs first so the bounce happens before any paint.
+       Trick: rafgraph/spa-github-pages, segment count 1 = the '/app' prefix. -->
+  <script>
+    (function () {
+      var p = location.pathname;
+      if (p.indexOf('/app/') === 0 && p !== '/app/') {
+        var seg = 1;
+        location.replace(
+          location.protocol + '//' + location.host +
+          p.split('/').slice(0, 1 + seg).join('/') + '/?/' +
+          p.slice(1).split('/').slice(seg).join('/').replace(/&/g, '~and~') +
+          (location.search ? '&' + location.search.slice(1).replace(/&/g, '~and~') : '') +
+          location.hash
+        );
+      }
+    })();
+  </script>
+
   <link rel="icon" type="image/png" href="/assets/aloud.png">
   <link rel="apple-touch-icon" href="/assets/aloud.png">
 

@@ -1,34 +1,16 @@
-*.pyc
-__pycache__/
-sessions/
 .DS_Store
+sessions/
 
-# Virtual environments
-.venv/
-venv/
-
-# PyInstaller
-build/
-dist/
-*.spec.bak
-
-# Generated
+# Generated icon set (scripts/generate-icon.sh)
 *.iconset
 
-# Update cache
-.update-cache.json
-
-# Window geometry (user-specific, saved in config dir but just in case)
-window_geometry.json
-
-# Nix
-result
-result-*
-.direnv/
-*.startlock
-
-# Stray pip/uv output
-=*
+# Hosted UI build output — published to Pages by deploy-web.yml as an
+# ephemeral artifact, no longer committed (avoids stale build drift).
+docs/app/
 
 # Recreational Claude scratchpad
 recess.md
+
+# Local state written by ts/server/scripts/durability-probe.sh (the marker id
+# it writes before a stop/redeploy and reads back after) — ephemeral, per-run.
+.durability-probe.json

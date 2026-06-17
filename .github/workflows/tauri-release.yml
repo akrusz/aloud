@@ -1,0 +1,129 @@
+name: Build Release
+
+# THE desktop release workflow (Tauri), built on the official tauri-action so it
+# also emits SIGNED updater artifacts plus a merged latest.json that the in-app
+# self-updater (ui/src/desktop-updater.ts) consumes. Replaced the hand-rolled
+# build+stage jobs at the updater cutover. See dev-docs/desktop.md.
+#
+# Required repo config:
+#   - var  ALOUD_CLOUD_URL  hosted /cloud/v1 origin baked into the desktop UI so
+#                           credits work (else cloud off)
+#   - secrets (updater signing — REQUIRED, else the self-updater can't ship):
+#     TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#       (the matching public key lives in src-tauri/tauri.conf.json → plugins.updater.pubkey)
+#   - secrets (macOS signing + notarization):
+#     MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD, MACOS_SIGN_IDENTITY,
+#     APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+# Windows is unsigned (Authenticode); the updater's minisign signature still
+# guarantees update integrity regardless.
+#
+# tauri-action uploads tauri's standard artifact names
+# (aloud_<version>_<arch>.dmg / _<arch>-setup.exe / _<arch>.AppImage, plus the
+# updater .sig/.tar.gz and latest.json). The website's download.js matches those
+# names — keep the two in sync if bundle naming ever changes.
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+env:
+  # Baked into the UI build so the desktop app can reach the hosted service
+  # (/cloud/v1) for accounts + credits. Local providers work without it.
+  VITE_ALOUD_CLOUD_URL: ${{ vars.ALOUD_CLOUD_URL }}
+
+jobs:
+  # Fail the whole release up front if ALOUD_CLOUD_URL isn't configured:
+  # without it the desktop builds ship with aloud cloud (accounts/credits)
+  # silently disabled. Cheaper to fail here than after three platform builds.
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require ALOUD_CLOUD_URL repo variable
+        run: |
+          if [ -z "${{ vars.ALOUD_CLOUD_URL }}" ]; then
+            echo "::error::Repo variable ALOUD_CLOUD_URL is unset - desktop builds would ship with aloud cloud (sign-in/credits) silently disabled. Set it under Settings → Secrets and variables → Actions → Variables (e.g. https://aloud-cloud.fly.dev)."
+            exit 1
+          fi
+
+  build:
+    needs: preflight
+    strategy:
+      # Don't cancel the other platforms if one fails — a partial release (e.g.
+      # macOS + Linux but no Windows) is more useful than none, and the missing
+      # platform can be re-run to top up the same release's latest.json.
+      fail-fast: false
+      matrix:
+        include:
+          # macOS: dmg for direct download + app (so createUpdaterArtifacts emits
+          # the .app.tar.gz the updater installs). macos-latest is arm64.
+          - platform: macos-latest
+            args: --bundles app,dmg
+          # Linux: AppImage is the only self-updatable target; deb is download-only.
+          - platform: ubuntu-24.04
+            args: --bundles appimage,deb
+          # Windows: NSIS is the updater target; msi is download-only.
+          - platform: windows-latest
+            args: --bundles nsis,msi
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: dtolnay/rust-toolchain@stable
+
+      # whisper-rs / piper-rs (espeak-rs) build C/C++ via CMake.
+      - name: Install macOS build prerequisites
+        if: matrix.platform == 'macos-latest'
+        run: brew install cmake
+
+      # Tauri 2 on Linux: WebKitGTK 4.1 + GTK + appindicator + rsvg + patchelf,
+      # plus CMake/build-essential for whisper-rs / espeak-rs, libfuse2 for the
+      # AppImage. 24.04 (glibc 2.39) not 22.04: the onnxruntime prebuilt pulled
+      # by `ort` (piper-rs) references C23 glibc symbols (>=2.38). (meditation-pal-9vh)
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            cmake build-essential \
+            libfuse2
+
+      - name: Install JS dependencies
+        working-directory: ts
+        run: npm ci
+
+      # Builds (running the configured beforeBuildCommand → ui:build), signs the
+      # updater artifacts, and uploads everything — including a merged latest.json
+      # — to the triggering release. Each platform job appends its own entry.
+      - name: Build, sign & upload
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # Required by tauri-action to upload bundles + updater artifacts to the
+          # triggering release. Auto-provided to every run; must be mapped in here
+          # explicitly or the action fails with "GITHUB_TOKEN is required".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing — the private key whose public half is in
+          # tauri.conf.json. Without these, createUpdaterArtifacts fails the build.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarization (harmlessly unused on Win/Linux).
+          APPLE_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: ts
+          # Attach to the release whose creation triggered this run.
+          releaseId: ${{ github.event.release.id }}
+          args: ${{ matrix.args }}
