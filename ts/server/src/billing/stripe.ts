@@ -14,16 +14,10 @@
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 
 /** A purchasable credit pack. Price embeds the margin (Model B — see meter.ts):
- *  credits debit at COST, so a pack is priced at the provider cost its credits
- *  fund times the markup. Sales tax/VAT is added on top at checkout (Stripe Tax).
- *
- *  At USD_PER_CREDIT $0.05, each credit funds $0.05 of compute; prices below
- *  give effective markups of ~2.0–2.4x (bigger packs = a small volume discount,
- *  still clearing the worst-channel commission — verified by assertSolvent at
- *  boot). All tunable during pre-launch calibration (meditation-pal-7xl). */
+ *  credits debit at COST, so the price funds the provider cost its credits buy
+ *  times the markup. Sales tax/VAT is added on top at checkout (Stripe Tax). */
 export interface CreditPack {
     id: string;
     credits: number;
@@ -31,28 +25,86 @@ export interface CreditPack {
     label: string;
 }
 
+// ---- Pricing curve ----------------------------------------------------------
+// One curve drives BOTH the preset packs and the custom "type your own" amount,
+// so a custom amount is never out of line with a pack. Base rate is 8 credits
+// per dollar (12.5¢/credit); a volume discount ramps linearly from 0% at $5 of
+// spend to 12.5% at $20 (capped above $20), expressed as extra credits for the
+// dollars. Credits round up (ceil). Anchors: $5 → 40, $20 → ceil(160 × 1.125) =
+// 180 (≈11.1¢/credit). All tunable during pre-launch calibration (meditation-pal-7xl).
+
+/** Base list price before any volume discount: 12.5¢/credit (8 credits per $1). */
+export const BASE_CENTS_PER_CREDIT = 12.5;
+/** Spend (cents) at which the volume discount begins — below this it's 0%. */
+export const DISCOUNT_START_CENTS = 500; // $5
+/** Spend (cents) at which the volume discount caps. */
+export const DISCOUNT_FULL_CENTS = 2_000; // $20
+/** Maximum volume discount, reached at DISCOUNT_FULL_CENTS. At 12.5% the $20
+ *  tier lands a round 180 credits (≈11.1¢/credit). */
+export const MAX_DISCOUNT = 0.125; // 12.5%
+
+/** Volume discount fraction for a purchase of `cents` (0 … MAX_DISCOUNT). */
+export function discountForCents(cents: number): number {
+    if (cents <= DISCOUNT_START_CENTS) return 0;
+    if (cents >= DISCOUNT_FULL_CENTS) return MAX_DISCOUNT;
+    return (
+        (MAX_DISCOUNT * (cents - DISCOUNT_START_CENTS)) /
+        (DISCOUNT_FULL_CENTS - DISCOUNT_START_CENTS)
+    );
+}
+
+/** Credits a spend of `cents` buys: base rate scaled up by the volume discount,
+ *  rounded up. The canonical curve — presets are points on it. */
+export function creditsForCents(cents: number): number {
+    return Math.ceil((cents / BASE_CENTS_PER_CREDIT) * (1 + discountForCents(cents)));
+}
+
+/** Inverse of the curve for the custom field (buyer types credits, we price
+ *  them): the cents that buy `credits`. Flat base rate below the ramp, flat
+ *  discounted rate above it, and the closed-form quadratic inverse within —
+ *  derived from the same constants so it can't drift from creditsForCents. */
+export function centsForCredits(credits: number): number {
+    if (credits <= creditsForCents(DISCOUNT_START_CENTS)) {
+        return Math.ceil(credits * BASE_CENTS_PER_CREDIT); // below $5: no discount
+    }
+    if (credits >= creditsForCents(DISCOUNT_FULL_CENTS)) {
+        return Math.ceil((credits * BASE_CENTS_PER_CREDIT) / (1 + MAX_DISCOUNT)); // above $20: capped
+    }
+    // Within the ramp credits = (cents/B)(1 + k(cents − S)), k = M/(F − S):
+    // k·cents² + (1 − kS)·cents − B·credits = 0. Solve the positive root.
+    const k = MAX_DISCOUNT / (DISCOUNT_FULL_CENTS - DISCOUNT_START_CENTS);
+    const b = 1 - k * DISCOUNT_START_CENTS;
+    const cents = (-b + Math.sqrt(b * b + 4 * k * BASE_CENTS_PER_CREDIT * credits)) / (2 * k);
+    return Math.ceil(cents);
+}
+
+/** The preset packs — points on the curve at $5 / $10 / $20. Regenerated from
+ *  the curve so they always match it (and the custom amount). */
 export const CREDIT_PACKS: CreditPack[] = [
-    // ~$0.120/credit · funds $2.50 of compute · ~2.4x markup
-    { id: 'starter', credits: 50, priceUsdCents: 600, label: '50 credits — $6' },
-    // ~$0.109/credit · funds $5.50 of compute · ~2.2x markup
-    { id: 'plus', credits: 110, priceUsdCents: 1200, label: '110 credits — $12 (best value)' },
-    // ~$0.100/credit · funds $12 of compute · ~2.0x markup
-    { id: 'pro', credits: 240, priceUsdCents: 2400, label: '240 credits — $24' },
-];
+    { id: 'starter', cents: 500 },
+    { id: 'plus', cents: 1000 },
+    { id: 'pro', cents: 2000 },
+].map(({ id, cents }) => {
+    const credits = creditsForCents(cents);
+    const dollars = cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+    return {
+        id,
+        credits,
+        priceUsdCents: cents,
+        label: `${credits} credits — ${dollars}`,
+    };
+});
 
 export function packById(id: string): CreditPack | undefined {
     return CREDIT_PACKS.find((p) => p.id === id);
 }
 
-// ---- Custom amounts (meditation-pal: type-your-own credits) -----------------
-// A buyer can name any whole-credit amount instead of a preset. It's priced at
-// the flat list rate (no volume discount): provider cost x the standard markup.
-// The floor is the smallest preset — we don't undercut a pack — and a high
-// ceiling guards against a fat-fingered charge. Server-priced; the client's
-// number is only a preview.
+// ---- Custom amounts (type-your-own credits) ---------------------------------
+// A buyer can name any whole-credit amount instead of a preset. It's priced on
+// the SAME curve (centsForCredits), so it gets the same volume discount as a
+// pack and is never a premium. Floor is the smallest preset; a high ceiling
+// guards a fat-fingered charge. Server-priced; the client number is a preview.
 
-/** Cents per credit for a custom amount = $0.05 cost x 2.5 markup = 12.5¢. */
-export const CUSTOM_CENTS_PER_CREDIT = USD_PER_CREDIT * PACK_MARKUP * 100;
 /** Floor: never below the smallest preset pack (kept in sync with CREDIT_PACKS). */
 export const MIN_CUSTOM_CREDITS = Math.min(...CREDIT_PACKS.map((p) => p.credits));
 /** Ceiling: a sanity cap so a typo can't trigger a four-figure charge. */
@@ -68,12 +120,12 @@ export function isValidCustomCredits(credits: number): boolean {
 }
 
 /** Build a synthetic pack for a custom amount so the checkout/webhook path is
- *  identical to a preset. Price is rounded to the cent. */
+ *  identical to a preset. Priced on the curve via centsForCredits. */
 export function customPack(credits: number): CreditPack {
     return {
         id: 'custom',
         credits,
-        priceUsdCents: Math.round(credits * CUSTOM_CENTS_PER_CREDIT),
+        priceUsdCents: centsForCredits(credits),
         label: `${credits} credits`,
     };
 }
@@ -195,7 +247,9 @@ export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | unde
     // time, but re-derive the credit amount from the server-side pack table
     // anyway so a tampered metadata blob can't inflate the grant. Only the
     // custom pack has no table row — there the metadata number is the source,
-    // re-run through the same bounds check the checkout route applied.
+    // re-run through the same bounds check the checkout route applied. (The
+    // volume discount is already baked into a pack's credits and into the custom
+    // amount the buyer chose, so the grant is simply that credit count.)
     let credits: number;
     if (packId === 'custom') {
         credits = Number(meta['credits']);

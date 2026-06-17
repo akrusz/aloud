@@ -50,7 +50,8 @@ async function main(): Promise<void> {
     // log field can't crash a paying request — but it still never logs content.
     setStrictContentCheck(!config.strict);
 
-    // Refuse to start if any pack's margin can't clear the worst channel.
+    // Refuse to start if any pack's margin can't clear the worst channel. Pack
+    // credits already include the volume discount, so this checks the real margin.
     const solvency = assertSolvent(CREDIT_PACKS);
 
     const deps = buildDeps(config);

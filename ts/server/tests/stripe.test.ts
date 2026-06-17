@@ -8,8 +8,10 @@ import {
     packById,
     customPack,
     isValidCustomCredits,
+    creditsForCents,
+    centsForCredits,
+    discountForCents,
     CREDIT_PACKS,
-    CUSTOM_CENTS_PER_CREDIT,
     MIN_CUSTOM_CREDITS,
     MAX_CUSTOM_CREDITS,
 } from '../src/billing/stripe.js';
@@ -64,10 +66,11 @@ describe('parseCheckoutCompleted', () => {
     }
 
     it('extracts account + credits from a paid checkout event', () => {
-        const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '110' } }));
+        // 'plus' is the $10 pack → 84 credits on the curve.
+        const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '84' } }));
         expect(out).toEqual({
             accountId: 'acct-1',
-            credits: 110,
+            credits: 84,
             packId: 'plus',
             stripeSessionId: 'cs_123',
         });
@@ -80,9 +83,10 @@ describe('parseCheckoutCompleted', () => {
     });
 
     it('re-derives preset-pack credits server-side, ignoring metadata credits', () => {
-        // A tampered metadata blob can't inflate the grant — 'plus' is 110.
+        // A tampered metadata blob can't inflate the grant — 'plus' is 84,
+        // re-derived from the server pack table.
         const out = parseCheckoutCompleted(event({ metadata: { pack_id: 'plus', credits: '999999' } }));
-        expect(out?.credits).toBe(110);
+        expect(out?.credits).toBe(84);
     });
 
     it('refuses an unknown pack id', () => {
@@ -106,7 +110,7 @@ describe('parseCheckoutCompleted', () => {
 
 describe('packById', () => {
     it('looks up known packs', () => {
-        expect(packById('starter')?.credits).toBe(50);
+        expect(packById('starter')?.credits).toBe(40); // $5 on the curve
         expect(packById('nope')).toBeUndefined();
     });
 });
@@ -122,12 +126,38 @@ describe('custom amounts', () => {
         expect(isValidCustomCredits(80.5)).toBe(false); // whole credits only
     });
 
-    it('prices at the flat list rate (cost x markup), rounded to the cent', () => {
-        expect(CUSTOM_CENTS_PER_CREDIT).toBeCloseTo(12.5); // $0.05 x 2.5
-        const pack = customPack(100);
-        expect(pack).toMatchObject({ id: 'custom', credits: 100, priceUsdCents: 1250 });
-        // Odd amount rounds to the nearest cent (75 x 12.5 = 937.5 → 938).
-        expect(customPack(75).priceUsdCents).toBe(938);
+    it('prices on the shared volume-discount curve (matches the anchors)', () => {
+        // Anchor endpoints are exact: $5 → 40, $20 → 180.
+        expect(customPack(40)).toMatchObject({ id: 'custom', credits: 40, priceUsdCents: 500 });
+        expect(customPack(180)).toMatchObject({ id: 'custom', credits: 180, priceUsdCents: 2000 });
+        // A custom amount is never priced above the flat base rate (12.5¢).
+        expect(customPack(120).priceUsdCents).toBeLessThanOrEqual(Math.ceil(120 * 12.5));
+    });
+});
+
+describe('pricing curve', () => {
+    it('uses an 8-credits-per-dollar base (12.5¢/credit)', () => {
+        expect(creditsForCents(500)).toBe(40); // $5 → 40, no discount yet
+        expect(centsForCredits(40)).toBe(500);
+    });
+
+    it('ramps the discount linearly from 0% at $5 to 12.5% at $20, capped', () => {
+        expect(discountForCents(500)).toBe(0); // $5
+        expect(discountForCents(1250)).toBeCloseTo(0.0625); // $12.50 — halfway
+        expect(discountForCents(2000)).toBeCloseTo(0.125); // $20 — cap
+        expect(discountForCents(5000)).toBeCloseTo(0.125); // beyond $20 stays capped
+        expect(creditsForCents(2000)).toBe(180); // $20 → ceil(160 × 1.125)
+    });
+
+    it('regenerates the preset packs from the curve', () => {
+        expect(packById('starter')).toMatchObject({ credits: 40, priceUsdCents: 500 });
+        expect(packById('plus')).toMatchObject({ credits: 84, priceUsdCents: 1000 });
+        expect(packById('pro')).toMatchObject({ credits: 180, priceUsdCents: 2000 });
+    });
+
+    it('keeps creditsForCents and centsForCredits consistent at the anchors', () => {
+        expect(centsForCredits(creditsForCents(500))).toBe(500);
+        expect(centsForCredits(creditsForCents(2000))).toBe(2000);
     });
 });
 

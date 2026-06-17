@@ -13,9 +13,12 @@ import { allowedModels } from '../pricing/providers.js';
 import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 import {
     CREDIT_PACKS,
-    CUSTOM_CENTS_PER_CREDIT,
     MIN_CUSTOM_CREDITS,
     MAX_CUSTOM_CREDITS,
+    BASE_CENTS_PER_CREDIT,
+    DISCOUNT_START_CENTS,
+    DISCOUNT_FULL_CENTS,
+    MAX_DISCOUNT,
 } from '../billing/stripe.js';
 import { x402Configured } from '../billing/x402.js';
 import {
@@ -73,10 +76,15 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         return c.json({
             packs: CREDIT_PACKS,
             x402: x402 ? { enabled: true, network: x402.network } : { enabled: false },
-            // Lets the UI offer a "type your own amount" field, priced at the flat
-            // list rate with the smallest preset as the floor (card checkout only).
+            // Lets the UI offer a "type your own amount" field (card checkout
+            // only), priced on the shared volume-discount curve. The client
+            // replicates the curve from these params to preview the price; the
+            // server re-prices authoritatively at checkout.
             custom: {
-                centsPerCredit: CUSTOM_CENTS_PER_CREDIT,
+                baseCentsPerCredit: BASE_CENTS_PER_CREDIT,
+                discountStartCents: DISCOUNT_START_CENTS,
+                discountFullCents: DISCOUNT_FULL_CENTS,
+                maxDiscount: MAX_DISCOUNT,
                 minCredits: MIN_CUSTOM_CREDITS,
                 maxCredits: MAX_CUSTOM_CREDITS,
             },

@@ -240,7 +240,7 @@ describe('webhook records a gift instead of crediting the buyer', () => {
                     id: 'cs_gift_1',
                     client_reference_id: buyer.id,
                     payment_status: 'paid',
-                    metadata: { pack_id: 'starter', credits: '50', gift_to_email: 'Friend@E.com' },
+                    metadata: { pack_id: 'starter', credits: '40', gift_to_email: 'Friend@E.com' },
                 },
             },
         });
@@ -256,7 +256,7 @@ describe('webhook records a gift instead of crediting the buyer', () => {
 
         const pending = await d.store.getPendingGiftsForEmail('friend@e.com');
         expect(pending).toHaveLength(1);
-        expect(pending[0]?.credits).toBe(50);
+        expect(pending[0]?.credits).toBe(40); // starter re-derived from the pack table
         expect(await d.ledger.balance(buyer.id)).toBe(0); // buyer not credited; clouds await acceptance
     });
 });

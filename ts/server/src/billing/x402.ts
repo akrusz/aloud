@@ -187,6 +187,7 @@ export async function creditFromSettlement(
     if (!settle.success || !settle.transaction) return { credited: false };
     const pack = packId ? packById(packId) : undefined;
     if (!pack) return { credited: false };
+    // The volume discount is already baked into the pack's credits.
     await deps.ledger.purchase(accountId, pack.credits, `purchase:${pack.id}:x402:${settle.transaction}`);
     const creditsRemaining = await deps.ledger.balance(accountId);
     return { credited: true, credits: pack.credits, creditsRemaining };

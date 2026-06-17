@@ -23,10 +23,14 @@ export interface X402Capability {
     network?: 'base' | 'base-sepolia';
 }
 
-/** Custom "type your own amount" pricing — flat list rate, with the smallest
- *  preset as the floor (card checkout only). Mirrors the server's /me/packs. */
+/** Custom "type your own amount" pricing — the shared volume-discount curve so
+ *  the client can preview the price (card checkout only; server re-prices
+ *  authoritatively). Mirrors the server's /me/packs `custom`. */
 export interface CustomCredits {
-    centsPerCredit: number;
+    baseCentsPerCredit: number;
+    discountStartCents: number;
+    discountFullCents: number;
+    maxDiscount: number;
     minCredits: number;
     maxCredits: number;
 }

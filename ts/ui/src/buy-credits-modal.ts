@@ -16,7 +16,13 @@
  * modal shows a success line, updates the live balance, and closes itself.
  */
 
-import { fetchPacks, startCheckout, type CreditPack, type X402Capability } from './cloud-billing.js';
+import {
+    fetchPacks,
+    startCheckout,
+    type CreditPack,
+    type CustomCredits,
+    type X402Capability,
+} from './cloud-billing.js';
 import { payWithUsdc, WalletError } from './x402-pay.js';
 import { getKnownBalance, setKnownBalance, subscribeBalance } from './cloud-balance.js';
 import { fetchMe } from './cloud-auth.js';
@@ -350,11 +356,27 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
     });
 }
 
+/** Price (cents) for a custom credit amount, replicating the server's
+ *  centsForCredits volume-discount curve so the preview matches the charge.
+ *  (ts/server/src/billing/stripe.ts is the source of truth; server re-prices.) */
+function customPriceCents(credits: number, c: CustomCredits): number {
+    const { baseCentsPerCredit: B, discountStartCents: S, discountFullCents: F, maxDiscount: M } = c;
+    const creditsAt = (cents: number): number => {
+        const disc = cents <= S ? 0 : cents >= F ? M : (M * (cents - S)) / (F - S);
+        return Math.ceil((cents / B) * (1 + disc));
+    };
+    if (credits <= creditsAt(S)) return Math.ceil(credits * B); // below the ramp
+    if (credits >= creditsAt(F)) return Math.ceil((credits * B) / (1 + M)); // above the ramp
+    const k = M / (F - S);
+    const b = 1 - k * S;
+    return Math.ceil((-b + Math.sqrt(b * b + 4 * k * B * credits)) / (2 * k));
+}
+
 /** A "type your own amount" row: a credits input that previews the price and
  *  only enables Buy at or above the floor. Server re-prices authoritatively. */
 function renderCustom(
     host: HTMLElement,
-    custom: { centsPerCredit: number; minCredits: number; maxCredits: number },
+    custom: CustomCredits,
     onBuy: (credits: number) => void
 ): void {
     host.classList.remove('hidden');
@@ -377,10 +399,15 @@ function renderCustom(
         const empty = input.value.trim() === '';
         const valid = Number.isInteger(n) && n >= custom.minCredits && n <= custom.maxCredits;
         btn.disabled = !valid;
-        btn.textContent = valid ? `Buy ${n} ☁️ — ${dollars(Math.round(n * custom.centsPerCredit))}` : 'Buy';
+        const price = valid ? customPriceCents(n, custom) : 0;
+        btn.textContent = valid ? `Buy ${n} ☁️ — ${dollars(price)}` : 'Buy';
+        // Volume discount = how far the curve price beats the flat base rate.
+        const baseCents = Math.ceil(n * custom.baseCentsPerCredit);
+        const pct = valid && price < baseCents ? Math.round((1 - price / baseCents) * 100) : 0;
         if (empty) hint.textContent = '';
         else if (n < custom.minCredits) hint.textContent = `Minimum ${custom.minCredits} ☁️.`;
         else if (n > custom.maxCredits) hint.textContent = `Maximum ${custom.maxCredits.toLocaleString()} ☁️.`;
+        else if (pct >= 1) hint.textContent = `${pct}% volume discount applied.`;
         else hint.textContent = '';
     };
     input.addEventListener('input', update);

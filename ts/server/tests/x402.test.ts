@@ -31,8 +31,8 @@ describe('creditFromSettlement', () => {
         const a = await account(d);
         const r = await creditFromSettlement(d, a.id, 'plus', { success: true, transaction: '0xabc' });
         expect(r.credited).toBe(true);
-        expect(r.credits).toBe(110); // the 'plus' pack
-        expect(await d.ledger.balance(a.id)).toBe(110);
+        expect(r.credits).toBe(84); // 'plus' = the $10 pack → 84 credits
+        expect(await d.ledger.balance(a.id)).toBe(84);
     });
 
     it('is idempotent on the settlement tx hash (no double-credit on replay)', async () => {
@@ -41,7 +41,7 @@ describe('creditFromSettlement', () => {
         const settle = { success: true, transaction: '0xdeadbeef' };
         await creditFromSettlement(d, a.id, 'plus', settle);
         await creditFromSettlement(d, a.id, 'plus', settle); // resubmitted same tx
-        expect(await d.ledger.balance(a.id)).toBe(110); // balance moved once
+        expect(await d.ledger.balance(a.id)).toBe(84); // balance moved once
         const purchases = (await d.store.listEntries(a.id)).filter((e) => e.kind === 'purchase');
         expect(purchases).toHaveLength(1);
     });
