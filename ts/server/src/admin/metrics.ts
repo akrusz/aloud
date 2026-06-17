@@ -15,6 +15,7 @@
 
 import type { Account, LedgerEntry } from '../credits/store.js';
 import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
+import { centsForCredits } from '../billing/stripe.js';
 
 export interface MetricsReport {
     generatedAt: number;
@@ -74,6 +75,11 @@ export function buildMetrics(
     let creditsPurchased = 0;
     let creditsDebited = 0;
     let creditsOutstanding = 0;
+    // Actual gross revenue, summed per purchase: every purchase priced its
+    // credits on the volume curve, so centsForCredits(amount) recovers the
+    // dollars paid — accurate for the non-linear curve where a flat markup
+    // over-states. (Not net of refunds — those are a separate ledger kind.)
+    let grossRevenueCents = 0;
 
     const purchasedAccounts = new Set<string>();
     const debitsByAccount = new Map<string, number>();
@@ -83,6 +89,7 @@ export function buildMetrics(
         if (e.kind === 'signup_grant') creditsGranted += e.amount;
         else if (e.kind === 'purchase') {
             creditsPurchased += e.amount;
+            grossRevenueCents += centsForCredits(e.amount);
             purchasedAccounts.add(e.accountId);
         } else if (e.kind === 'debit') {
             const mag = -e.amount;
@@ -134,7 +141,7 @@ export function buildMetrics(
             grantedCostUsd: round2(creditsGranted * USD_PER_CREDIT),
             providerCostUsd: round2(creditsDebited * USD_PER_CREDIT),
             freeBurnUsd: round2(freeBurnCredits * USD_PER_CREDIT),
-            estGrossRevenueUsd: round2(creditsPurchased * USD_PER_CREDIT * PACK_MARKUP),
+            estGrossRevenueUsd: round2(grossRevenueCents / 100),
         },
         window: {
             signups: win.signups,

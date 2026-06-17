@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
     USD_PER_CREDIT,
-    PACK_MARKUP,
     assertSolvent,
     llmCostUsd,
-    packPriceUsd,
     priceLlmTurn,
     priceSession,
     priceTtsChars,
@@ -129,12 +127,6 @@ describe('priceTtsChars', () => {
     it('debits fractional credits at cost (not ceiled)', () => {
         const cost = priceTtsChars(N, { voiceId: 'en-US-Chirp3-HD-Leda' });
         expect(cost.credits).toBeCloseTo(cost.providerCostUsd / USD_PER_CREDIT, 9);
-    });
-});
-
-describe('packPriceUsd', () => {
-    it('marks credits up over the provider cost they fund', () => {
-        expect(packPriceUsd(100)).toBeCloseTo(100 * USD_PER_CREDIT * PACK_MARKUP, 9);
     });
 });
 

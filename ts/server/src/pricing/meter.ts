@@ -8,15 +8,17 @@
  * Money model (Model B — margin lives at PURCHASE, not in the debit):
  *   - 1 credit = USD_PER_CREDIT of PROVIDER COST (what we pay). The debit is at
  *     cost: credits_spent = providerCostUsd / USD_PER_CREDIT. No markup here.
- *   - Margin is applied when CREDITS ARE SOLD: a pack of N credits funds
- *     N * USD_PER_CREDIT of provider cost, and sells for that * PACK_MARKUP
- *     (see billing/stripe.ts). Markup is visible at checkout — the most
- *     transparent place to put it — and sales tax/VAT is collected on top via
- *     Stripe Tax (not absorbed from margin).
- *   - Net of the ~$0.05 cost basis and a ~2.5x pack markup, the user pays
- *     ~$0.125/credit at purchase. Keeping margin out of the debit means the
- *     per-session credit counts the user watches tick down map 1:1 to real
- *     compute cost — easy to verify, on-brand for the published-margin stance.
+ *   - Margin is applied when CREDITS ARE SOLD. The sell price follows a VOLUME
+ *     CURVE (the single source of truth is billing/stripe.ts — creditsForCents /
+ *     centsForCredits): credits-per-dollar steps up with spend, so the effective
+ *     markup is highest at the entry tier and eases for larger buys. Today that's
+ *     ~2.5x / 12.5¢ per credit at the $5 entry tier, easing to ~2.1x / 10.5¢ at
+ *     $20+. PACK_MARKUP below is just that ENTRY-tier rate (the curve's max, and
+ *     the solvency reference) — NOT a flat per-pack multiplier. Markup is visible
+ *     at checkout, and sales tax/VAT is collected on top via Stripe Tax.
+ *   - Keeping margin out of the debit means the per-session credit counts the
+ *     user watches tick down map 1:1 to real compute cost — easy to verify,
+ *     on-brand for the published-margin stance.
  *
  * Solvency (the addendum's "must clear positive margin at the 15% IAP floor"):
  * net pack revenue after commission must exceed the provider cost the sold
@@ -38,16 +40,18 @@ import type { ProviderId } from '../contract.js';
 import type { TtsProvider } from '../providers/voice-catalog.js';
 
 /** Provider COST that one credit represents, in USD. Margin is NOT here — it's
- *  added at purchase (PACK_MARKUP). Tentative $0.05; with a ~2.5x pack markup
- *  the user pays ~$0.125/credit, and a ~50-min Opus session lands at a friendly
- *  single-digit credit count. Calibrate against real testing (meditation-pal-7xl). */
+ *  added at purchase via the sell curve (billing/stripe.ts). Tentative $0.05; at
+ *  the entry rate the user pays ~$0.125/credit (less on larger buys), and a
+ *  ~50-min Opus session lands at a friendly single-digit credit count. Calibrate
+ *  against real testing (meditation-pal-7xl). */
 export const USD_PER_CREDIT = 0.05;
 
-/** Markup applied when SELLING credits (in pack pricing), over the provider
- *  cost the credits fund. Covers margin + payment commission; sales tax is
- *  added on top by Stripe Tax. Comfortably above every channel's commission
- *  floor (see assertSolvent). Published — it's the one "sensitive" number, and
- *  trivially derivable anyway. */
+/** ENTRY-tier sell markup over the provider cost the credits fund — the steepest
+ *  point of the volume curve (billing/stripe.ts), reached at the $5 tier. NOT a
+ *  flat per-pack multiplier: larger buys sell below this (down to ~2.1x at $20+).
+ *  Covers margin + payment commission; sales tax added on top by Stripe Tax.
+ *  Comfortably above every channel's commission floor (see assertSolvent).
+ *  Published — it's the one "sensitive" number, trivially derivable anyway. */
 export const PACK_MARKUP = 2.5;
 
 /** USD provider cost of one LLM turn from its usage split. */
@@ -146,12 +150,6 @@ export function priceSession(
     return toCredits(llm + stt + tts);
 }
 
-/** USD a pack of `credits` sells for: the provider cost it funds, marked up.
- *  Sales tax is added on top at checkout (Stripe Tax), not included here. */
-export function packPriceUsd(credits: number): number {
-    return credits * USD_PER_CREDIT * PACK_MARKUP;
-}
-
 /** A conservative pre-auth hold placed at session start, before any usage is
  *  known (meditation-pal-8sj: "a small pre-auth hold at session start").
  *  Sized to a few minutes of premium use; the unused remainder is released on
@@ -220,7 +218,7 @@ export function assertSolvent(packs: readonly PackLike[]): SolvencyReport[] {
             .join('; ');
         throw new Error(
             `Pricing is insolvent on the worst channel (commission ${worstCommission}): ${detail}. ` +
-                `Raise pack prices or PACK_MARKUP.`
+                `Steepen the sell curve (fewer credits per dollar) in billing/stripe.ts.`
         );
     }
     return reports;
