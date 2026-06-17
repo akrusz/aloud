@@ -108,7 +108,10 @@ export async function generateSessionSummary(
         });
         options.onUsage?.(resultUsage(result));
         return stripThinkTags(result.text).trim();
-    } catch {
+    } catch (err) {
+        // Diagnostic: a failed recap silently falls back to the intention/label,
+        // which is indistinguishable from a short-session skip. Surface why.
+        console.warn('[summary] generation failed:', err);
         return '';
     }
 }

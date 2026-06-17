@@ -1793,6 +1793,14 @@ export async function mountSessionView(
             } catch {
                 /* fall through to fallback */
             }
+            // Diagnostic: distinguishes a guard-skip (low userTurns) from an
+            // empty/failed recap (userTurns ok but chars=0) behind the same
+            // "Exploration" fallback. Remove once the summary path is confirmed.
+            console.info(
+                `[summary] provider=${provider.constructor?.name ?? '?'} ` +
+                    `userTurns=${finalState.exchanges.filter((e) => e.role === 'user').length} ` +
+                    `chars=${summary.length}`
+            );
             finalState.notes = summary || setup.intention.trim();
             try {
                 await sessionStore.save(finalState);
