@@ -56,7 +56,7 @@ rand = "0.8"
 piper-rs = "0.2"
 # Used by /api/providers to detect total system RAM for the Ollama
 # recommendation system (which model tier fits this machine).
-sysinfo = { version = "0.32", default-features = false, features = ["system"] }
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 # Desktop-only plugins. The self-updater (the in-app "Update" button) checks a
 # signed latest.json on GitHub releases, downloads the platform bundle, verifies
