@@ -5,13 +5,6 @@
 # the security *gate* that can block a PR lives in .github/workflows/security.yml.
 version: 2
 updates:
-  # Python backend (being phased out, but still shipped).
-  - package-ecosystem: pip
-    directory: "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
   # Desktop Rust shell — the largest new native surface (ort/onnxruntime,
   # espeak-ng, rustls, whisper, tauri).
   - package-ecosystem: cargo
