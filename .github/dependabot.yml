@@ -13,16 +13,12 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
 
-  # TS core + UI (one workspace, one lockfile at /ts).
+  # TS core + UI + the hosted server. One npm workspace rooted at /ts
+  # (package.json declares workspaces: ["server"]), one lockfile — so this
+  # single entry covers ts/server's package.json too. A separate /ts/server
+  # entry would just open duplicate PRs for the same server deps.
   - package-ecosystem: npm
     directory: "/ts"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  # Hosted server.
-  - package-ecosystem: npm
-    directory: "/ts/server"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
