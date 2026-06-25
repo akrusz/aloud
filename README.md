@@ -1,5 +1,7 @@
 # aloud.
 
+visit [aloud.rest](https://aloud.rest) for the official site!
+
 your voice is an overpowered and underrated tool for meditation and inner work.
 
 **aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, felt sense work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
