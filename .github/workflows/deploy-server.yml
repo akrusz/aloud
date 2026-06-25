@@ -13,7 +13,7 @@ jobs:
     # Fail fast if the deploy token isn't configured rather than half-running.
     environment: production
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
       # Run from ts/ so the Docker build context includes ../src (@aloud/core);
       # the Dockerfile + fly.toml live under server/.

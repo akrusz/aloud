@@ -42,7 +42,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Fail loudly instead of shipping a build where sign-in/credits silently
       # don't work: with no VITE_ALOUD_CLOUD_URL baked in, the hosted app has
