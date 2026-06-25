@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "22"
       # One audit covers everything: ts/server is an npm workspace of ts/, so
       # the root package-lock.json resolves the full tree including the server.
       # Gate only on high/critical — low/moderate advisories shouldn't block a
