@@ -1,6 +1,6 @@
 # aloud.
 
-visit [aloud.rest](https://aloud.rest) for the official site!
+## visit [aloud.rest](https://aloud.rest) for the official site!
 
 your voice is an overpowered and underrated tool for meditation and inner work.
 
