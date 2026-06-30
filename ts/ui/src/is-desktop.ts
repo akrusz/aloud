@@ -36,18 +36,27 @@ export function isTauri(): boolean {
 }
 
 /**
- * Synchronous "are we on Android" check (userAgent sniff).
+ * Synchronous "is this a mobile OS that hands the microphone to a single
+ * owner" check (userAgent / platform sniff for Android + iOS/iPadOS).
  *
- * Used to gate behavior that depends on Android's single-owner microphone:
- * unlike desktop Chrome, Android hands the mic to exactly one consumer, so a
- * second `getUserMedia` capture (e.g. the cosmetic mic-level meter) starves the
- * Web Speech system recognizer and recognition silently returns no results.
- * See startMeter() in views/session.ts.
+ * Unlike desktop browsers, which let multiple captures share the mic, mobile
+ * Safari and Android Chrome give it to exactly one consumer. So a second
+ * `getUserMedia` capture (e.g. the cosmetic mic-level meter) starves the Web
+ * Speech system recognizer and recognition silently returns no results — the
+ * mic ring pulses while nothing is ever transcribed. startMeter() (views/
+ * session.ts) uses this to skip the meter on the Web Speech path there.
+ *
+ * iPadOS 13+ Safari masquerades as desktop Mac, so it's caught via touch
+ * points rather than the UA string (Macs aren't touchscreens).
  */
-export function isAndroid(): boolean {
-    return (
-        typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '')
-    );
+export function isSingleOwnerMicPlatform(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    if (/Android/i.test(ua)) return true;
+    if (/iPhone|iPad|iPod/i.test(ua) || /iPhone|iPad|iPod/i.test(platform)) return true;
+    // iPadOS desktop-mode Safari reports as "MacIntel" but exposes touch.
+    return /Mac/i.test(platform) && (navigator.maxTouchPoints ?? 0) > 1;
 }
 
 let cached: boolean | null = null;

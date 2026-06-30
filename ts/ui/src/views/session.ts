@@ -73,7 +73,7 @@ import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isTauri, isAndroid } from '../is-desktop.js';
+import { isTauri, isSingleOwnerMicPlatform } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { appUrl } from '../app-base.js';
 import {
@@ -1250,13 +1250,15 @@ export async function mountSessionView(
     // can recover). Web Speech hides its audio entirely, so on the desktop it
     // keeps the small dedicated meter stream (cosmetic — failures swallowed).
     //
-    // BUT on Android the mic has a single owner: the dedicated getUserMedia
+    // BUT on mobile the mic has a single owner: the dedicated getUserMedia
     // meter stream starves the system speech recognizer, so onresult never
     // fires — the ring pulses while no words are ever transcribed (the
-    // android-chrome-speech-display bug). Skip the meter there; recognition
-    // matters more than a cosmetic ring, and Web Speech gives us no stream to
-    // share. (iOS Safari doesn't expose Web Speech, so this path is Android-only
-    // on mobile.)
+    // android-chrome-speech-display bug). Skip the meter on those platforms;
+    // recognition matters more than a cosmetic ring, and Web Speech gives us no
+    // stream to share. Android Chrome is the confirmed case; iOS/iPadOS Safari
+    // is gated defensively too — if a future iOS exposes Web Speech here, it has
+    // the same single-owner mic and would hit the identical bug (and if it
+    // doesn't reach this path, the sttBackend check above already returns).
     let micMeter: MicMeter | null = null;
     let engineMeterOn = false;
     function startMeter(): void {
@@ -1274,8 +1276,9 @@ export async function mountSessionView(
             return;
         }
         if (micMeter || sttBackend !== 'web-speech') return;
-        // A second mic capture starves the Android system recognizer (see above).
-        if (isAndroid()) return;
+        // A second mic capture starves the system recognizer on single-owner
+        // mic platforms (Android, iOS/iPadOS) — see above.
+        if (isSingleOwnerMicPlatform()) return;
         void startMicMeter(micBtn)
             .then((m) => {
                 if (torn || muted) m.stop(); // raced with teardown/mute
