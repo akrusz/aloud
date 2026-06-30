@@ -73,7 +73,7 @@ import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isTauri } from '../is-desktop.js';
+import { isTauri, isAndroid } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { appUrl } from '../app-base.js';
 import {
@@ -1247,8 +1247,16 @@ export async function mountSessionView(
     // mic stream. The old desktop-only analyser stream made macOS re-arbitrate
     // its single voice-processing input between two captures, which could
     // glitch or hard-zero the engine's stream mid-utterance (lost words no VAD
-    // can recover). Web Speech hides its audio entirely, so it keeps the small
-    // dedicated meter stream (cosmetic — failures swallowed).
+    // can recover). Web Speech hides its audio entirely, so on the desktop it
+    // keeps the small dedicated meter stream (cosmetic — failures swallowed).
+    //
+    // BUT on Android the mic has a single owner: the dedicated getUserMedia
+    // meter stream starves the system speech recognizer, so onresult never
+    // fires — the ring pulses while no words are ever transcribed (the
+    // android-chrome-speech-display bug). Skip the meter there; recognition
+    // matters more than a cosmetic ring, and Web Speech gives us no stream to
+    // share. (iOS Safari doesn't expose Web Speech, so this path is Android-only
+    // on mobile.)
     let micMeter: MicMeter | null = null;
     let engineMeterOn = false;
     function startMeter(): void {
@@ -1266,6 +1274,8 @@ export async function mountSessionView(
             return;
         }
         if (micMeter || sttBackend !== 'web-speech') return;
+        // A second mic capture starves the Android system recognizer (see above).
+        if (isAndroid()) return;
         void startMicMeter(micBtn)
             .then((m) => {
                 if (torn || muted) m.stop(); // raced with teardown/mute

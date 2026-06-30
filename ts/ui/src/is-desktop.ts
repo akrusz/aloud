@@ -35,6 +35,21 @@ export function isTauri(): boolean {
     );
 }
 
+/**
+ * Synchronous "are we on Android" check (userAgent sniff).
+ *
+ * Used to gate behavior that depends on Android's single-owner microphone:
+ * unlike desktop Chrome, Android hands the mic to exactly one consumer, so a
+ * second `getUserMedia` capture (e.g. the cosmetic mic-level meter) starves the
+ * Web Speech system recognizer and recognition silently returns no results.
+ * See startMeter() in views/session.ts.
+ */
+export function isAndroid(): boolean {
+    return (
+        typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '')
+    );
+}
+
 let cached: boolean | null = null;
 let inflight: Promise<boolean> | null = null;
 
