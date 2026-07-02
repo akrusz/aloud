@@ -532,6 +532,12 @@ export function previewErrorMessage(err: unknown): string {
         return 'aloud cloud voices need credits to preview. Add credits, or pick a free voice.';
     }
     if (/\b403\b/.test(msg)) return 'Verify your email to use aloud cloud voices.';
+    // A browser (speechSynthesis) voice that couldn't render — most often one of
+    // the Microsoft "Online (Natural)" voices, which need a live connection and
+    // aren't always available. Steer the user to a voice that will play.
+    if (/^speechSynthesis /.test(msg)) {
+        return "That browser voice wouldn't play — the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.";
+    }
     return "Couldn't play that voice preview. Check your connection and try again.";
 }
 

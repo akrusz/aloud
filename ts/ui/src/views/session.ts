@@ -49,6 +49,7 @@ import {
     sttBackendForChoice,
     resolveSttChoice,
     invalidateSttBackendCache,
+    sttEngineOptions,
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
@@ -56,7 +57,7 @@ import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.j
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import { type SessionSetup, dirStepToBackend } from '../settings.js';
-import { loadAppSettings } from '../app-settings.js';
+import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
@@ -297,23 +298,26 @@ export async function mountSessionView(
     // Whisper locally, browser speech, or the aloud cloud (credits). No
     // hidden automatic; resolveSttChoice falls back to the mode's flow default
     // when nothing's been chosen.
-    const sttChoice = resolveSttChoice(appSettings.sttEngine, isWebMode());
-    const stt: SttEngine | null = await createSttForChoice(sttChoice, vadOpts);
-    const sttBackend: SttBackend = sttBackendForChoice(sttChoice);
+    // `let` (not const) on the STT config below: a blocked browser recognizer
+    // can be swapped to aloud cloud mid-session via switchSttEngine (the STT
+    // trouble banner's button), which re-derives all of these.
+    let sttChoice = resolveSttChoice(appSettings.sttEngine, isWebMode());
+    let stt: SttEngine | null = await createSttForChoice(sttChoice, vadOpts);
+    let sttBackend: SttBackend = sttBackendForChoice(sttChoice);
 
     // server-Whisper detects barge-in on its own continuous capture stream, so
     // we DON'T wrap TTS with the separate-stream detector there (a second mic
     // stream doesn't get the OS echo-cancellation and trips on the
     // facilitator's own voice — the self-barge-in bug). Other STT backends
     // (web-speech, capacitor) have no such stream, so they keep the wrapper.
-    const engineDrivenBargeIn = sttBackend === 'server-whisper';
+    let engineDrivenBargeIn = sttBackend === 'server-whisper';
     // Continuous capture (meditation-pal-57gl): on the engine-driven (server-
     // Whisper) path the mic stays live through the LLM+TTS window instead of
     // pausing while `busy`, so the user is never "deaf" mid-response. Its VAD
     // rejects TTS echo (the measured echo gate + energy floor vs ~0.005 echo),
     // so this is safe there; web-speech / capacitor can't reject echo in their
     // recognizers, so they keep pause-while-busy + the barge-in wrapper.
-    const continuousCapture = engineDrivenBargeIn;
+    let continuousCapture = engineDrivenBargeIn;
     // Turn supersession + barge-in plumbing (see respondTo / the barge-in
     // handler). turnGen bumps each turn so a stale (superseded) turn bails;
     // activeFullAbort stops a superseded turn generating; activeTtsAbort hushes
@@ -323,7 +327,7 @@ export async function mountSessionView(
     let activeTtsAbort: AbortController | null = null;
     // The continuous-capture engine, when that's the live backend — used for
     // barge-in wiring and per-device echo calibration (setTtsActive below).
-    const whisperEngine =
+    let whisperEngine: WhisperPcmSttEngine | null =
         continuousCapture && stt instanceof WhisperPcmSttEngine ? stt : null;
     async function buildTts(voiceId: string | null) {
         // Server-side synthesis is billable compute — fold chars into usage.
@@ -391,10 +395,13 @@ export async function mountSessionView(
     }
     function ttsPlaybackEnded(): void {
         lastTtsEndedAt = Date.now();
-        if (!whisperEngine) return;
+        // Capture the current engine: whisperEngine is now reassignable (an
+        // in-session STT switch), so pin the one this playback belongs to.
+        const engine = whisperEngine;
+        if (!engine) return;
         ttsActiveOffTimer = setTimeout(() => {
             ttsActiveOffTimer = null;
-            if (ttsSpeakingDepth === 0) whisperEngine.setTtsActive(false);
+            if (ttsSpeakingDepth === 0) engine.setTtsActive(false);
         }, TTS_ACTIVE_HANGOVER_MS);
     }
     /** Echo can only arrive while audio plays or shortly after (capture +
@@ -436,8 +443,11 @@ export async function mountSessionView(
     } satisfies TtsEngine;
     // For the server-Whisper STT path, barge-in is detected on its continuous
     // (echo-cancelled) capture stream — see setBargeInHandler below. Wiring it
-    // up here, after the tts wrapper exists; the engine cancels the live TTS.
-    if (whisperEngine) {
+    // up after the tts wrapper exists; the engine cancels the live TTS. Extracted
+    // so a mid-session switch to the cloud (server-Whisper) engine can re-wire
+    // the new engine's stream (switchSttEngine calls this again).
+    function wireWhisperBargeIn(): void {
+        if (!whisperEngine) return;
         whisperEngine.setBargeInHandler(() => {
             // Only meaningful while the facilitator is actively responding: hush
             // it so the user isn't talked over. The utterance keeps being
@@ -453,6 +463,7 @@ export async function mountSessionView(
             onBargeIn();
         });
     }
+    wireWhisperBargeIn();
 
     // The session view also injects an orb into the global nav's
     // .nav-center slot and overrides the nav links to End / History.
@@ -534,16 +545,97 @@ export async function mountSessionView(
     /** Show the banner once failures pass the threshold; called on each STT error. */
     function noteSttFailure(): void {
         sttFailureStreak++;
-        if (sttFailureStreak >= 2 && sttTroubleEl) {
-            sttTroubleEl.textContent =
-                "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.";
-            sttTroubleEl.classList.remove('hidden');
+        if (sttFailureStreak >= 2 && sttTroubleEl) renderSttTrouble();
+    }
+    /**
+     * Fill the trouble banner. When aloud cloud is an available STT option here
+     * and we're not already on it, offer a one-click switch — so a user whose
+     * browser blocks its speech recognizer (common on Edge/Windows) can get a
+     * working mic without leaving the session or hunting through Settings.
+     */
+    function renderSttTrouble(): void {
+        if (!sttTroubleEl) return;
+        const canSwitchToCloud =
+            sttChoice !== 'aloud' &&
+            sttEngineOptions(isWebMode()).some((o) => o.value === 'aloud');
+        sttTroubleEl.replaceChildren();
+        const msg = document.createElement('span');
+        msg.textContent = canSwitchToCloud
+            ? "Trouble hearing you — your browser may be blocking its speech recognition."
+            : "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.";
+        sttTroubleEl.appendChild(msg);
+        if (canSwitchToCloud) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'stt-trouble-btn';
+            btn.textContent = 'Use aloud cloud speech';
+            btn.addEventListener('click', () => void switchSttEngine('aloud'));
+            sttTroubleEl.appendChild(btn);
         }
+        sttTroubleEl.classList.remove('hidden');
     }
     /** Clear the streak + banner; called whenever a transcription succeeds. */
     function clearSttTrouble(): void {
         sttFailureStreak = 0;
         sttTroubleEl?.classList.add('hidden');
+    }
+
+    // Guards a switch in progress so a double-click (or a fresh STT error firing
+    // renderSttTrouble again) can't build two engines at once.
+    let switchingStt = false;
+    /**
+     * Swap the live STT engine mid-session — the STT trouble banner's "Use aloud
+     * cloud speech" button. Re-derives every backend-shaped bit the listen loop,
+     * meter, and barge-in read (all `let` above), rebuilds TTS so its barge-in
+     * wrapping matches the new backend, and persists the choice so the next
+     * session keeps it. Stopping the old recognizer ends the loop's current
+     * iteration; it then re-enters on the new `stt`.
+     */
+    async function switchSttEngine(choice: SttEngineChoice): Promise<void> {
+        if (switchingStt || torn || choice === sttChoice) return;
+        switchingStt = true;
+        try {
+            setStatus('Switching to aloud cloud speech…');
+            const next = await createSttForChoice(choice, vadOpts);
+            if (!next) {
+                showErrorToast(
+                    "Couldn't start aloud cloud speech — check your connection and that you're signed in."
+                );
+                setStatus(muted ? 'Muted' : 'Listening…');
+                return;
+            }
+            const prev = stt;
+            stt = next;
+            sttChoice = choice;
+            sttBackend = sttBackendForChoice(choice);
+            engineDrivenBargeIn = sttBackend === 'server-whisper';
+            continuousCapture = engineDrivenBargeIn;
+            whisperEngine =
+                continuousCapture && next instanceof WhisperPcmSttEngine ? next : null;
+            wireWhisperBargeIn();
+            await rebuildTts(setup.voice);
+            // Persist so the next session opens on the engine that worked here.
+            try {
+                const s = await loadAppSettings();
+                await saveAppSettings({ ...s, sttEngine: choice });
+            } catch {
+                /* best-effort; the live switch still stands for this session */
+            }
+            stopMeter();
+            clearSttTrouble();
+            // Ends the loop's in-flight `for await` on the old engine; it re-enters
+            // on the new `stt`. Restart it if it had already fallen out.
+            void prev?.stop();
+            if (!muted) {
+                setStatus('Listening…');
+                startMeter();
+                if (!listenLoopRunning) void listenLoop();
+            } else {
+                setStatus('Muted');
+            }
+        } finally {
+            switchingStt = false;
+        }
     }
 
     // Staged-mode phase hint — a quiet word in the input row ("sensing",
@@ -1958,7 +2050,7 @@ export function describeCloudError(msg: string): string | null {
     return null;
 }
 
-function describeSttError(err: unknown): string {
+export function describeSttError(err: unknown): string {
     const msg = err instanceof Error ? err.message : String(err);
     // Hosted (aloud) conditions — credits / auth — get a clear, actionable line
     // instead of a raw "Whisper endpoint 402: {json}".
@@ -1971,6 +2063,19 @@ function describeSttError(err: unknown): string {
     if (/Whisper endpoint 503/.test(msg)) {
         return 'Whisper model still loading. Try again in a moment.';
     }
+    // Web Speech reports a blocked *service* (as opposed to a denied mic) with
+    // `service-not-allowed`. On Windows/Edge that's usually the OS "online
+    // speech recognition" privacy toggle being off, or an Edge/enterprise
+    // policy — the browser recognizer can't work until that's changed, so point
+    // at the in-session switch to aloud cloud (the banner button below).
+    if (msg === 'service-not-allowed') {
+        return "This browser is blocking its speech recognition (on Windows, turn on Settings → Privacy → Speech). Or switch to aloud cloud speech — it doesn't need it.";
+    }
+    // Web Speech's own denied-permission code is the hyphenated `not-allowed`
+    // (distinct from getUserMedia's `NotAllowedError`, matched below).
+    if (msg === 'not-allowed') {
+        return 'Microphone access is blocked. Allow the mic for this site (the padlock in the address bar), or switch to aloud cloud speech.';
+    }
     if (/permission/i.test(msg) || /denied/i.test(msg) || /NotAllowed/.test(msg)) {
         return 'Mic permission denied. Allow microphone access and try again.';
     }
@@ -1978,7 +2083,7 @@ function describeSttError(err: unknown): string {
     // Most often that's a Chromium build (Brave, others) where Google blocks the
     // speech endpoint, so it can never succeed - point at the paths that work.
     if (msg === 'network') {
-        return 'Browser speech recognition is blocked in this browser. Switch speech recognition to aloud cloud in Settings, or use Chrome.';
+        return 'Browser speech recognition is blocked in this browser. Switch to aloud cloud speech, or use Chrome.';
     }
     return `Mic error: ${msg}`;
 }
