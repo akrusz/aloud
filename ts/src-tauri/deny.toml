@@ -37,6 +37,14 @@ ignore = [
     "RUSTSEC-2025-0100",
     # proc-macro-error — maintainer unreachable; transitive build dep.
     "RUSTSEC-2024-0370",
+    # quick-xml 0.39.4 DoS advisories (attribute-dedup blowup / unbounded
+    # namespace-declaration allocation). Both are fixed in quick-xml >=0.41.0,
+    # but we can't reach it: the only path is tauri -> plist, and plist 1.9.0
+    # (latest) pins quick-xml ^0.39. Low real risk here — plist only parses our
+    # own Info.plist at build/bundle time, not untrusted input. Drop these the
+    # moment plist ships a quick-xml 0.41 bump (re-check on every Tauri bump).
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]
 
 [bans]
