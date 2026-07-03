@@ -264,7 +264,7 @@ function showLLMStep(): void {
         // Claude subscription
         html += '<button class="tour-choice" data-action="provider" data-value="claude_proxy">';
         html += '<strong>I have a Claude subscription</strong>';
-        html += '<small>Uses your Pro or Max plan via the locally-installed <code>claude</code> CLI (Claude Code).</small>';
+        html += '<small>Uses your Pro or Max plan via the locally-installed <code>claude</code> command-line tool — install Claude Code with <code>npm install -g @anthropic-ai/claude-code</code> (the CLI, not the Claude desktop app).</small>';
         html += '</button>';
 
         // API key

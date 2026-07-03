@@ -4,6 +4,7 @@ import {
     downloadPercent,
     downloadVoiceModel,
     prefixedVoiceId,
+    previewErrorMessage,
 } from '../ui/src/voice-picker.js';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -217,5 +218,25 @@ describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', ()
         const goog = scored.find((v) => v.name === 'Google US English')!;
         expect(goog.recommended).toBe(true); // Chrome cloud → Best
         expect(goog.displayEngine).toBeUndefined();
+    });
+});
+
+describe('previewErrorMessage', () => {
+    it('gives a browser-voice-specific hint for a speechSynthesis failure', () => {
+        // The Microsoft "Online (Natural)" case: BrowserTtsEngine rejects with
+        // "speechSynthesis synthesis-failed" when a remote voice won't render.
+        const msg = previewErrorMessage(new Error('speechSynthesis synthesis-failed'));
+        expect(msg).toMatch(/Online/i);
+        expect(msg).toMatch(/another voice|aloud cloud/i);
+    });
+
+    it('maps hosted credit/auth failures to their own lines', () => {
+        expect(previewErrorMessage(new Error('TTS endpoint 402'))).toMatch(/credit/i);
+        expect(previewErrorMessage(new Error('TTS endpoint 401'))).toMatch(/sign in/i);
+    });
+
+    it('falls back to a generic line for an unknown failure', () => {
+        const msg = previewErrorMessage(new Error('something odd'));
+        expect(msg).toMatch(/Couldn't play/i);
     });
 });
