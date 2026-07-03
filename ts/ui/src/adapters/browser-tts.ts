@@ -22,6 +22,7 @@ export interface BrowserTtsEngineOptions {
 export class BrowserTtsEngine implements TtsEngine {
     private currentUtterance: SpeechSynthesisUtterance | null = null;
     private currentResolve: (() => void) | null = null;
+    private currentReject: ((err: Error) => void) | null = null;
     private readonly defaultVoice: string | undefined;
 
     constructor(options: BrowserTtsEngineOptions = {}) {
@@ -33,7 +34,7 @@ export class BrowserTtsEngine implements TtsEngine {
 
     speak(text: string, options?: TtsOptions): Promise<void> {
         this.cancelSync();
-        return new Promise<void>((resolve) => {
+        return new Promise<void>((resolve, reject) => {
             const utterance = new SpeechSynthesisUtterance(text);
             if (options?.rate !== undefined) {
                 // speechSynthesis rate is 0.1–10, 1.0 neutral. The TtsOptions
@@ -61,9 +62,17 @@ export class BrowserTtsEngine implements TtsEngine {
             // starts producing audio (synthesis can lag speak() by a beat).
             if (options?.onStart) utterance.onstart = options.onStart;
             utterance.onend = () => this.finish(utterance);
-            utterance.onerror = () => this.finish(utterance);
+            // Surface a genuine synthesis failure instead of resolving as if the
+            // voice spoke. Chrome/Edge fire `onerror` with synthesis-failed /
+            // synthesis-unavailable / network for remote "Online (Natural)"
+            // voices that can't render — previously this resolved like `onend`,
+            // so previewing such a voice was silent with no explanation. Our own
+            // cancel()/new-speak fire error 'interrupted'/'canceled'; those are
+            // normal teardown, not failures, so finish() resolves quietly for them.
+            utterance.onerror = (event) => this.finish(utterance, event.error);
             this.currentUtterance = utterance;
             this.currentResolve = resolve;
+            this.currentReject = reject;
             speechSynthesis.speak(utterance);
             // Android Chrome leaves the speech queue *paused* after a preceding
             // cancel() (the voice picker calls cancel() then speak() to preview),
@@ -87,11 +96,22 @@ export class BrowserTtsEngine implements TtsEngine {
         }
     }
 
-    private finish(utterance: SpeechSynthesisUtterance): void {
+    private finish(utterance: SpeechSynthesisUtterance, error?: string): void {
         if (this.currentUtterance !== utterance) return;
         this.currentUtterance = null;
         const resolve = this.currentResolve;
+        const reject = this.currentReject;
         this.currentResolve = null;
+        this.currentReject = null;
+        // 'interrupted' / 'canceled' are our own cancel()/new-speak churn, not a
+        // real failure — resolve quietly. Anything else (synthesis-failed,
+        // synthesis-unavailable, network, voice-unavailable, …) means no audio
+        // played: reject so the voice preview can say why.
+        if (error && error !== 'interrupted' && error !== 'canceled') {
+            if (reject) reject(new Error(`speechSynthesis ${error}`));
+            else if (resolve) resolve();
+            return;
+        }
         if (resolve) resolve();
     }
 

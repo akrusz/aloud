@@ -81,8 +81,10 @@ pub fn providers() -> Value {
             "hint": if has_claude {
                 ""
             } else {
-                "Claude Code CLI is not installed. Install Claude Code, then \
-                 run `claude` once to log in with your Pro/Max subscription."
+                "The Claude Code command-line tool isn't installed. Install the \
+                 CLI with `npm install -g @anthropic-ai/claude-code` — not the \
+                 Claude desktop app, which can't sign in here — then run \
+                 `claude` once to log in with your Pro/Max subscription."
             },
         },
         "anthropic": api_key_provider("ANTHROPIC_API_KEY"),

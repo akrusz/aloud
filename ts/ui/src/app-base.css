@@ -1382,6 +1382,28 @@ body:has(.session-container) {
     color: var(--text-secondary);
     font-size: 0.85rem;
     line-height: 1.4;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+/* One-click switch to aloud cloud speech, shown in the trouble banner when the
+   browser recognizer is blocked. Compact and calm — a way out, not an alarm. */
+.stt-trouble-btn {
+    flex: none;
+    padding: 0.3rem 0.75rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--warm);
+    background: color-mix(in srgb, var(--warm) 22%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.stt-trouble-btn:hover {
+    background: color-mix(in srgb, var(--warm) 32%, transparent);
 }
 
 .voice-status {
