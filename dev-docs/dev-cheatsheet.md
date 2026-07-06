@@ -4,7 +4,8 @@ The commands you need to run, test, build, and release aloud — a TypeScript +
 Rust stack under `ts/`. **Command quick-reference only.** For the architecture
 (the two TS/Rust stacks, the `/app/v1` vs `/cloud/v1` split, data flow) see
 [CLAUDE.md](../CLAUDE.md); for build/signing detail, [desktop.md](desktop.md);
-for the hosted server, [ts-server.md](ts-server.md).
+for the iOS/Android (Capacitor) build, [mobile.md](mobile.md); for the hosted
+server, [ts-server.md](ts-server.md).
 
 ## Running
 
@@ -168,6 +169,22 @@ notarizes via the `APPLE_*` / `MACOS_*` secrets; updater signing uses
 
 Full build/signing detail: [desktop.md](desktop.md) (Tauri — endpoint list,
 prereqs, release + cutover).
+
+### Mobile (Capacitor — iOS / Android)
+
+```bash
+cd ts
+VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run ui:build   # webDir
+npx cap add ios && npx cap add android   # generates ts/{ios,android}/ (gitignored)
+npx cap sync                             # copy ui/dist + plugins into native
+npx cap open ios | android               # → Xcode / Android Studio
+```
+
+The mobile app wraps `ui/dist` in the OS WebView, runs in **web mode**, and
+talks to aloud cloud. Native adapters (storage, STT, keep-awake, in-app
+browser, sign-in) swap on `isCapacitor()`. Native projects are gitignored, so
+the required Info.plist / AndroidManifest permission strings, icons, and the
+full adapter map live in **[mobile.md](mobile.md)** — read it before building.
 
 ## Config & environment
 

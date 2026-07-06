@@ -8,6 +8,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * in the App Store / Play Store, and once set on a published app they're
  * effectively permanent — don't change them. `npx cap add ios/android`
  * bakes them into the generated native projects.
+ *
+ * Full build/run steps, the required Info.plist / AndroidManifest permission
+ * strings, and the native-adapter map live in dev-docs/mobile.md. The
+ * generated ios/ and android/ projects are gitignored, so that doc is where
+ * the native-side config is kept.
  */
 const config: CapacitorConfig = {
     appId: 'app.aloud.meditation',
@@ -36,13 +41,13 @@ const config: CapacitorConfig = {
     },
 
     plugins: {
-        // @capacitor-community/speech-recognition needs explicit usage
-        // strings on iOS. These show up in the system permission prompt
-        // the first time the user enables the mic.
-        SpeechRecognition: {
-            // Empty for now — gets surfaced in iOS Info.plist after
-            // `cap add ios` runs. Customize for the rebrand.
-        },
+        // @capacitor-community/speech-recognition + the mic need usage strings
+        // on iOS — NOT set here, they live in ios/App/App/Info.plist
+        // (NSMicrophoneUsageDescription + NSSpeechRecognitionUsageDescription).
+        // Without them iOS crashes on first mic use instead of prompting. The
+        // exact strings to paste are in dev-docs/mobile.md. This block is left
+        // empty deliberately; the plugin reads Info.plist, not config.
+        SpeechRecognition: {},
     },
 };
 
