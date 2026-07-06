@@ -131,9 +131,13 @@ device/simulator and are tracked separately:
   is the crux from `meditation-pal-nn1`. WKWebView's `getUserMedia` should work
   once `NSMicrophoneUsageDescription` is set, but the session category behavior
   under TTS playback is the open risk.
-- **Native STT quality** for meditation speech (long pauses, soft/whispered
-  speech, 1–2 word noting) — `meditation-pal-0ao`. If native cuts off, the
-  cloud-Whisper fallback (`aloud` STT) already works on mobile.
+- **Native STT/TTS quality per device** — which device/OS categories the free
+  on-device recognizer + voices are good enough to default to, vs falling back
+  to cloud. Full manual-validation matrix (buckets, test cases, default-by-
+  category-and-cost logic) in
+  [mobile-device-validation.md](mobile-device-validation.md). Beads `0ao`
+  (STT), `g0ox` (TTS). If native cuts off, the cloud fallbacks (`aloud` STT /
+  cloud voices) already work on mobile.
 - **Keep-awake** actually holding the screen on across a full session.
 - **Native Google/Apple sign-in** from the `capacitor://` origin —
   `meditation-pal-tpj4` (decision + plugin choice; email works meanwhile).
