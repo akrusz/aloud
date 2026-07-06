@@ -548,6 +548,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (!hintEl) return;
         const hints: Record<SttEngineChoice, string> = {
             whisper: 'Transcribed on this device. Free and private.',
+            capacitor: 'Transcribed on your phone. Free, and your speech stays on the device.',
             'web-speech': "Uses your browser's built-in speech recognition. Free.",
             aloud: "Audio is transcribed by aloud's server and spends credits.",
         };

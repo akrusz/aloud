@@ -11,19 +11,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../ui/src/is-desktop.js')>();
-    return { ...actual, isTauri: vi.fn(() => false) };
+    return { ...actual, isTauri: vi.fn(() => false), isCapacitor: vi.fn(() => false) };
 });
 
 import {
     sttEngineOptions,
     defaultSttChoice,
     resolveSttChoice,
+    sttBackendForChoice,
 } from '../ui/src/adapters/stt-picker.js';
-import { isTauri } from '../ui/src/is-desktop.js';
+import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
 
 const isTauriMock = vi.mocked(isTauri);
+const isCapacitorMock = vi.mocked(isCapacitor);
 
-beforeEach(() => isTauriMock.mockReturnValue(false)); // default: a browser
+beforeEach(() => {
+    isTauriMock.mockReturnValue(false); // default: a browser
+    isCapacitorMock.mockReturnValue(false);
+});
 
 describe('sttEngineOptions — browser (non-Tauri; no Web Speech in Node)', () => {
     it('local mode offers only the hosted option — no on-device Whisper in a browser', () => {
@@ -84,11 +89,42 @@ describe('sttEngineOptions — Web Speech gating', () => {
     });
 });
 
+describe('sttEngineOptions — native mobile (Capacitor)', () => {
+    // The native app always runs in web mode. On-device (private) leads and
+    // becomes the default; the flaky WebView web-speech is not offered.
+    beforeEach(() => isCapacitorMock.mockReturnValue(true));
+
+    it('offers On-device (private) first, then aloud cloud', () => {
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud']);
+    });
+    it('defaults to the native on-device recognizer', () => {
+        expect(defaultSttChoice(true)).toBe('capacitor');
+    });
+    it('does not offer web-speech even if the WebView exposes it', () => {
+        (globalThis as unknown as { window: unknown }).window = {
+            webkitSpeechRecognition: class {},
+        };
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud']);
+        delete (globalThis as unknown as { window?: unknown }).window;
+    });
+    it('resolveSttChoice honors a stored on-device pick', () => {
+        expect(resolveSttChoice('capacitor', true)).toBe('capacitor');
+    });
+    it("maps the 'capacitor' choice to the capacitor backend (non-continuous)", () => {
+        expect(sttBackendForChoice('capacitor')).toBe('capacitor');
+    });
+});
+
 describe('resolveSttChoice', () => {
     it('uses the flow default when nothing is stored', () => {
         expect(resolveSttChoice(null, false)).toBe('aloud'); // browser
         isTauriMock.mockReturnValue(true);
         expect(resolveSttChoice(null, false)).toBe('whisper'); // desktop
+    });
+    it('a capacitor pick outside the native app falls back to the mode default', () => {
+        // Stored 'capacitor' but not in the native app (isCapacitor=false) → not
+        // offered → hosted default, never a dead native plugin.
+        expect(resolveSttChoice('capacitor', true)).toBe('aloud');
     });
     it('honors a stored pick that is offered in this mode', () => {
         isTauriMock.mockReturnValue(true);

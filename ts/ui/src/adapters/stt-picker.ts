@@ -184,6 +184,11 @@ export async function createSttForChoice(
     vadOpts: VadOpts = {}
 ): Promise<SttEngine | null> {
     switch (choice) {
+        case 'capacitor':
+            // On-device (private) — only reachable inside the native app; a
+            // stale stored pick outside it yields the honest mic-unavailable
+            // state rather than a plugin that throws at start().
+            return isCapacitor() ? new CapacitorSttEngine() : null;
         case 'aloud':
             return createServerAloudStt(vadOpts);
         case 'web-speech':
@@ -205,6 +210,8 @@ export async function createSttForChoice(
  *  downstream (continuous-capture backends self-detect and skip the wrapper). */
 export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     switch (choice) {
+        case 'capacitor':
+            return 'capacitor';
         case 'aloud':
         case 'whisper':
             return 'server-whisper';
@@ -227,6 +234,14 @@ export const CLOUD_STT_CREDITS_PER_HOUR = 1;
  */
 export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
+    // "On-device (private)" — the native mobile recognizer (SFSpeechRecognizer /
+    // Android SpeechRecognizer). Offered (and defaulted, being first) only inside
+    // the Capacitor app: it's free, needs no network or sign-in, and keeps speech
+    // on the device. The web/desktop builds never have it. Vocabulary matches the
+    // capability-tiering plan (meditation-pal-7ej). Quality for meditation speech
+    // is still device-validated (meditation-pal-0ao); aloud cloud stays one tap
+    // away below if a user's device recognizer disappoints.
+    if (isCapacitor()) out.push({ value: 'capacitor', label: 'On-device (private)' });
     // "Whisper (on this device)" only exists where there's an on-device backend:
     // the desktop (Tauri) Rust shell. A browser has no local Whisper — the
     // /app whisper route is desktop-only (Hono doesn't serve it), and the
@@ -239,7 +254,11 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // never returns results inside an embedded webview (same reason
     // detectSttBackend skips it under Tauri), so don't offer a pulsing mic
     // that can never transcribe — desktop has Whisper + aloud cloud.
-    if (!isTauri() && isWebSpeechSupported()) {
+    // Skip it in the native app too: the system WebView may expose
+    // webkitSpeechRecognition, but the native on-device plugin above is the
+    // better path (and Android's web recognizer round-trips to Google servers,
+    // which the "private" native option avoids).
+    if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     }
     out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });

@@ -20,7 +20,7 @@ export type TtsEngineChoice = 'macos' | 'piper' | 'browser' | 'elevenlabs';
  *  the user controls where audio goes and knows when it costs credits. When the
  *  stored value is null, the mode's flow default is used (Whisper locally →
  *  browser speech → hosted; see resolveSttChoice in adapters/stt-picker). */
-export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud';
+export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud' | 'capacitor';
 
 export interface AppSettings {
     // Provider defaults for new sessions
