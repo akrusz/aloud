@@ -6,6 +6,9 @@ same `ts/ui` web app in the OS system WebView (WKWebView / Android System
 WebView) and adds native plugins for the things a browser can't do. Desktop
 stays on Tauri; only the mobile shell + a few platform adapters differ.
 
+Signing + store release (TestFlight / Play internal testing) is a separate
+walkthrough: [mobile-signing.md](mobile-signing.md).
+
 This doc is the source of truth for the **native-side config that isn't
 checked in**. The generated `ts/ios/` and `ts/android/` projects are
 `.gitignore`d (they're regenerated with `npx cap add`), so anything you'd
@@ -60,9 +63,12 @@ npm run ui:build                          # produces ui/dist (webDir)
 # Bake the hosted origin so /app/v1 + /cloud/v1 resolve to aloud cloud:
 VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run ui:build
 
-npx cap add ios                           # generates ts/ios/ (gitignored)
-npx cap add android                       # generates ts/android/ (gitignored)
-npx cap sync                              # copies ui/dist + plugins into native
+# iOS MUST use CocoaPods, not the Capacitor-8 default (SPM):
+# @capacitor-community/speech-recognition@7.0.1 has no Package.swift, so an SPM
+# build silently DROPS it and native STT breaks. CocoaPods links all 5 plugins.
+npx cap add ios --packagemanager CocoaPods   # generates ts/ios/
+npx cap add android                          # generates ts/android/
+npx cap sync                                 # copies ui/dist + plugins into native
 
 npx cap open ios                          # → Xcode  (run on simulator/device)
 npx cap open android                      # → Android Studio

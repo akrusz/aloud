@@ -1,0 +1,131 @@
+# Mobile signing & release walkthrough (iOS TestFlight + Android Play)
+
+How to sign and ship the app once the native projects build. This is the part
+that needs *your* accounts and certificates — it can't be automated headlessly.
+Pairs with [mobile.md](mobile.md) (generate + build) and the beta plan in bead
+`meditation-pal-zp47` (US-only TestFlight / Play internal testing, web-purchase
+credits, no IAP).
+
+## First, a workflow decision: commit the native projects
+
+Right now `.gitignore` excludes `ts/ios/` and `ts/android/` — the "regenerate
+with `npx cap add` every time" model. That only holds if you **never hand-edit
+native files**. But we now do: Info.plist permission strings + the Google URL
+scheme, the Sign in with Apple capability, signing config, icons. Regenerating
+wipes all of that.
+
+**Recommendation: commit `ios/` and `android/`** (the standard practice for app
+teams actively doing native work). Drop them from `.gitignore`, run `cap add`
+once, commit, and from then on `npx cap sync` just updates web assets + plugins
+without clobbering your native edits. Keep secrets (keystore, API keys) out of
+git separately (below). Tracked as a decision in bead — see the note at the end.
+
+The alternative (keep them ignored, script the native edits to re-apply after
+each `cap add`) is more moving parts for no real benefit here.
+
+---
+
+## iOS → TestFlight
+
+**Prerequisites**
+
+- Apple Developer Program membership ($99/yr).
+- The bundle id `app.aloud.meditation` registered as an App ID at
+  developer.apple.com → Certificates, IDs & Profiles → Identifiers. Enable the
+  **Sign in with Apple** capability on it (needed for native Apple sign-in,
+  `tpj4`).
+- An app record in App Store Connect (appstoreconnect.apple.com) using that
+  bundle id.
+
+**Sign & upload (Xcode GUI — simplest first time)**
+
+1. `cd ts && npm run ui:build && npx cap sync ios`, then `npx cap open ios`.
+2. Select the **App** target → **Signing & Capabilities**:
+   - Check **Automatically manage signing**.
+   - Pick your **Team**. Xcode creates the signing certificate + provisioning
+     profile for you.
+   - Confirm **Sign in with Apple** is listed under Capabilities (add it with
+     "+ Capability" if not).
+3. Set the **version** (e.g. 2.0.0) and **build number** (bump every upload).
+4. Choose destination **Any iOS Device (arm64)** (not a simulator).
+5. **Product → Archive**. When it finishes, the Organizer opens.
+6. **Distribute App → App Store Connect → Upload**. Follow the prompts (it
+   validates, signs, and uploads).
+7. In App Store Connect → your app → **TestFlight**: once the build finishes
+   processing, add **Internal Testers** (up to 100; no Beta App Review needed).
+   Testers install via the **TestFlight** app on their device.
+
+**External testers** (up to 10,000) need a one-time lightweight **Beta App
+Review** — this is the "in beta for N weeks" gate. Internal testing does not.
+
+**CLI / CI path** (once the GUI works and you want to automate):
+
+```bash
+xcodebuild -workspace ios/App/App.xcworkspace -scheme App \
+  -configuration Release -archivePath build/App.xcarchive archive
+xcodebuild -exportArchive -archivePath build/App.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -exportPath build/
+xcrun notarytool ... / xcrun altool --upload-app ...   # or Transporter, or Fastlane `pilot`
+```
+
+[Fastlane](https://fastlane.tools) (`fastlane pilot upload`) is the usual way to
+script the archive→upload→TestFlight loop for CI.
+
+---
+
+## Android → Play internal testing
+
+**Prerequisites**
+
+- Google Play Console account ($25 one-time).
+- An app created in the Play Console with package `app.aloud.meditation`.
+
+**Create an upload keystore** (once — back it up; losing it is painful):
+
+```bash
+keytool -genkey -v -keystore aloud-upload.jks -alias aloud \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Keep `aloud-upload.jks` and its passwords **out of git**. Reference them from
+`android/keystore.properties` (also gitignored) and read that in
+`android/app/build.gradle`:
+
+```
+# android/keystore.properties  (never commit)
+storeFile=/absolute/path/aloud-upload.jks
+storePassword=…
+keyAlias=aloud
+keyPassword=…
+```
+
+**Enroll in Play App Signing** (recommended): Google holds the real app-signing
+key; your upload key only signs uploads, so a lost upload key is recoverable.
+
+**Build a release bundle & upload**
+
+```bash
+cd ts && npm run ui:build && npx cap sync android
+cd android && ./gradlew bundleRelease
+# → android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Upload the `.aab` to Play Console → **Testing → Internal testing** → create a
+release, add testers by email. Internal testing has no review wait. Own-billing
+/ external-purchase link-out for credits is sanctioned in the US/UK/EEA (per
+`zp47`), so no Play Billing IAP is needed for the beta.
+
+---
+
+## Secrets checklist (never commit)
+
+- iOS: signing certs/profiles live in your Keychain / Apple account (Xcode
+  managed). Nothing app-repo-side if using automatic signing.
+- Android: `aloud-upload.jks` + `keystore.properties`.
+- Build-time client ids (`VITE_GOOGLE_IOS_CLIENT_ID`, etc.) are public and fine
+  to bake, but keep them in your CI env, not hardcoded.
+
+## Related
+
+`zp47` (beta plan), `tpj4` (native sign-in — needs the Apple capability +
+Google URL scheme above), `mobile.md` (build), `7rh` (store submission).
