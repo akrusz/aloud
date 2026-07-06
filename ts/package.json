@@ -45,10 +45,13 @@
         "vitest": "^3.0.0"
     },
     "dependencies": {
+        "@capacitor-community/keep-awake": "^7.1.0",
         "@capacitor-community/speech-recognition": "^7.0.1",
         "@capacitor/android": "^8.3.4",
+        "@capacitor/browser": "^8.0.3",
         "@capacitor/core": "^8.3.4",
         "@capacitor/ios": "^8.3.4",
+        "@capacitor/preferences": "^8.0.1",
         "@ricky0123/vad-web": "^0.0.30",
         "@tauri-apps/api": "^2.11.0",
         "@tauri-apps/plugin-opener": "^2.5.4",

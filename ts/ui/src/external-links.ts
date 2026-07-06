@@ -1,17 +1,23 @@
 /**
- * Route external-link clicks (http/https/mailto) through Tauri's opener
- * plugin so they land in the system browser / mail client.
+ * Route external-link clicks (http/https/mailto) out of the app webview so
+ * they land in the system browser / an in-app browser instead of taking over
+ * the app window.
  *
- * The webview otherwise swallows these clicks — `<a href="https://…">`
- * does nothing, `target="_blank"` is blocked. Outside Tauri (dev/web)
- * this whole module is a no-op and the browser handles the click as
- * usual.
+ *   - Desktop (Tauri)  → the opener plugin (system browser / mail client).
+ *   - Native mobile (Capacitor) → @capacitor/browser (in-app SFSafariViewController
+ *     / Chrome Custom Tab), so the user stays in the app and returns when done.
+ *
+ * Both webviews otherwise swallow these clicks — `<a href="https://…">` does
+ * nothing, `target="_blank"` is blocked, and a plain navigation would strand
+ * the user on the external page with no way back into the app. Outside those
+ * shells (dev/web) this whole module is a no-op and the browser handles the
+ * click as usual.
  *
  * Internal links (`href="#…"`, `href="/…"`, `data-nav="…"`, anything
  * without an explicit external scheme) fall through untouched.
  */
 
-import { isTauri } from './is-desktop.js';
+import { isTauri, isCapacitor } from './is-desktop.js';
 
 const EXTERNAL_SCHEME = /^(?:https?:|mailto:)/i;
 
@@ -32,13 +38,40 @@ function ensureOpener(): Promise<void> {
     return loading;
 }
 
+// Lazy-load @capacitor/browser the same way, only inside the native app.
+let capBrowser: typeof import('@capacitor/browser').Browser | null = null;
+let capLoading: Promise<void> | null = null;
+function ensureCapBrowser(): Promise<void> {
+    if (capBrowser || capLoading) return capLoading ?? Promise.resolve();
+    capLoading = import('@capacitor/browser')
+        .then((m) => {
+            capBrowser = m.Browser;
+        })
+        .catch(() => {
+            /* leave capBrowser null; the open will just be a no-op */
+        });
+    return capLoading;
+}
+
 /**
- * Open a URL in the system browser when running in the Tauri webview, where
- * a normal navigation would either be swallowed or take over the whole app
- * window. Outside Tauri this is a no-op and returns false, so callers can
- * fall back to an in-page navigation (`window.location.assign`).
+ * Open a URL outside the app webview when running in a shell that would
+ * otherwise swallow or be taken over by the navigation (Tauri desktop, or the
+ * Capacitor native app). Returns true if it handled the open. Outside those
+ * shells this is a no-op and returns false, so callers can fall back to an
+ * in-page navigation (`window.location.assign`).
+ *
+ * On Capacitor a true return is also the signal the buy-credits modal uses to
+ * enter its "finish in your browser, we'll poll for the credits" waiting state
+ * (mirroring desktop) — Stripe can't redirect back into the app's custom-scheme
+ * origin, so fulfilment is detected by polling /me, not by a return URL.
  */
 export async function openExternal(url: string): Promise<boolean> {
+    if (isCapacitor()) {
+        await ensureCapBrowser();
+        if (!capBrowser) return false;
+        await capBrowser.open({ url });
+        return true;
+    }
     if (!isTauri()) return false;
     await ensureOpener();
     if (!openUrl) return false;
@@ -47,7 +80,7 @@ export async function openExternal(url: string): Promise<boolean> {
 }
 
 export function initExternalLinks(): void {
-    if (!isTauri()) return;
+    if (!isTauri() && !isCapacitor()) return;
 
     document.addEventListener(
         'click',

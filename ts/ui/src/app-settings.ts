@@ -11,7 +11,7 @@
  * defaults, when fields are removed old values are silently dropped.
  */
 
-import { LocalStorageKv } from './adapters/localstorage-kv.js';
+import { createKv } from './adapters/kv.js';
 import type { Provider } from './settings.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
@@ -156,7 +156,7 @@ export function detectLocale(): string {
 }
 
 const KEY = 'app:settings';
-const kv = new LocalStorageKv();
+const kv = createKv();
 
 export async function loadAppSettings(): Promise<AppSettings> {
     const raw = await kv.get(KEY);

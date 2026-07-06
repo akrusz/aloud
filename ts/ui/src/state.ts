@@ -5,16 +5,18 @@
  *
  * On desktop (Tauri) sessions persist to disk via the embedded shell
  * (BackendSessionStore → <app-data>/sessions/*.json), so they're durable,
- * openable files. The web build keeps the localStorage-backed store. The
- * shared KV stays localStorage either way (settings, small UI state).
+ * openable files. Native mobile (Capacitor) keeps them in durable Preferences
+ * via the shared KV; the web build keeps the localStorage-backed store. The
+ * shared KV picks its backend per platform (createKv) — settings, small UI
+ * state, and (off-desktop) the session history all ride on it.
  */
 
 import { SessionStore, type SessionStoreApi } from '../../src/platform/index.js';
-import { LocalStorageKv } from './adapters/localstorage-kv.js';
+import { createKv } from './adapters/kv.js';
 import { BackendSessionStore } from './adapters/backend-session-store.js';
 import { isTauri } from './is-desktop.js';
 
-export const sharedKv = new LocalStorageKv();
+export const sharedKv = createKv();
 export const sessionStore: SessionStoreApi = isTauri()
     ? new BackendSessionStore()
     : new SessionStore(sharedKv);

@@ -11,9 +11,15 @@
 
 import { renderGoogleSignInButton, renderDesktopGoogleSignInButton } from './google-signin.js';
 import { renderAppleSignInButton } from './apple-signin.js';
-import { isDesktopSync } from './is-desktop.js';
+import { isDesktopSync, isCapacitor } from './is-desktop.js';
 import { checkAndShowGifts } from './gift-modal.js';
-import { emailLogin, emailSignup, isAppleSignInConfigured, type AuthResponse } from './cloud-auth.js';
+import {
+    emailLogin,
+    emailSignup,
+    isAppleSignInConfigured,
+    isInteractiveSignInConfigured,
+    type AuthResponse,
+} from './cloud-auth.js';
 import { manageModalFocus } from './modal-focus.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
@@ -126,7 +132,27 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                 overlay.querySelector('.signin-divider')?.remove();
             }
         };
-        if (isDesktopSync()) {
+        if (isCapacitor()) {
+            // Native mobile app. The web GIS button and Apple JS both need a
+            // real https OAuth JavaScript origin, which the capacitor:// (or
+            // https://localhost) app origin isn't — so neither can render here.
+            // Native Google/Apple sign-in (their own plugins + OAuth console
+            // reconfig) isn't wired yet (meditation-pal-tpj4); until it is, drop
+            // both OAuth buttons and lean on email, which is a plain fetch and
+            // works from any origin. Show a "coming soon" note only when OAuth is
+            // actually configured upstream, so it reads as pending rather than
+            // as a missing feature.
+            googleHost.remove();
+            appleHost.remove();
+            dropEmptyOauth();
+            if (isInteractiveSignInConfigured()) {
+                const note = document.createElement('p');
+                note.className = 'provider-hint signin-apple-soon';
+                note.textContent =
+                    'Sign in with Google or Apple is coming soon in the app. For now, sign in with email below, or set a password on the web app and use it here.';
+                overlay.querySelector('.signin-modal')?.appendChild(note);
+            }
+        } else if (isDesktopSync()) {
             appleHost.remove(); // desktop Apple OAuth not wired yet (meditation-pal-fae)
             const ok = renderDesktopGoogleSignInButton(googleHost, {
                 onSignedIn,

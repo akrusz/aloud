@@ -29,7 +29,7 @@ import {
 } from './web-speech-stt.js';
 import { cloudUrl } from '../cloud-base.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
-import { isTauri } from '../is-desktop.js';
+import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import type { SttEngineChoice } from '../app-settings.js';
 
@@ -100,12 +100,11 @@ export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
 export async function detectSttBackend(): Promise<SttBackend> {
     if (cachedBackend !== null) return cachedBackend;
 
-    // Capacitor sets `window.Capacitor` when running inside the native
-    // wrapper — cheap synchronous check before the async availability probe.
-    const hasCapacitor =
-        typeof window !== 'undefined' &&
-        (window as unknown as { Capacitor?: unknown }).Capacitor !== undefined;
-    if (hasCapacitor) {
+    // Inside the Capacitor native wrapper, prefer the on-device recognizer
+    // (SFSpeechRecognizer / Android SpeechRecognizer) before the async
+    // availability probe. isCapacitor() is the native-only gate — a plain
+    // browser (Capacitor web shim) reports false and falls through.
+    if (isCapacitor()) {
         try {
             const available = await CapacitorSttEngine.isAvailable();
             if (available) {

@@ -36,6 +36,46 @@ export function isTauri(): boolean {
 }
 
 /**
+ * The slice of the Capacitor runtime bridge we read. Capacitor injects a
+ * `window.Capacitor` global inside the native iOS/Android webview (and a web
+ * shim in a plain browser, where `isNativePlatform()` returns false). We only
+ * touch `isNativePlatform()` / `getPlatform()`, so we type just those.
+ */
+interface CapacitorGlobal {
+    isNativePlatform?: () => boolean;
+    getPlatform?: () => string;
+}
+
+function capacitorGlobal(): CapacitorGlobal | undefined {
+    if (typeof window === 'undefined') return undefined;
+    return (window as unknown as { Capacitor?: CapacitorGlobal }).Capacitor;
+}
+
+/**
+ * Synchronous "are we running inside the Capacitor native mobile wrapper"
+ * check — the mobile analog of {@link isTauri}. True only in the packaged
+ * iOS/Android app, never in a browser (the web shim reports non-native) and
+ * never under Tauri. Used to swap in mobile-specific adapters at boot without
+ * an async probe: durable Preferences storage (state.ts), the native
+ * keep-awake plugin (wakelock.ts), in-app-browser external links
+ * (external-links.ts), and hiding the web OAuth buttons whose GIS/Apple JS
+ * can't run from the `capacitor://` custom-scheme origin (sign-in-modal.ts).
+ */
+export function isCapacitor(): boolean {
+    return capacitorGlobal()?.isNativePlatform?.() === true;
+}
+
+/**
+ * The concrete Capacitor platform: 'ios' | 'android' when native, else 'web'
+ * (a plain browser, desktop Tauri, or Node tests). Thin wrapper over
+ * `Capacitor.getPlatform()` that never throws when the bridge is absent.
+ */
+export function capacitorPlatform(): 'ios' | 'android' | 'web' {
+    const p = capacitorGlobal()?.getPlatform?.();
+    return p === 'ios' || p === 'android' ? p : 'web';
+}
+
+/**
  * Synchronous "is this a mobile OS that hands the microphone to a single
  * owner" check (userAgent / platform sniff for Android + iOS/iPadOS).
  *
