@@ -96,19 +96,38 @@ hardest.
 
 ## Turning results into the default-selection logic
 
-Once the buckets are scored, the runtime default is a small function of
-(platform bucket detected at launch) → (native | cloud), with the user always
-able to override in Settings:
+**Agreed model (2026-07-05):** on **weaker devices, default to aloud cloud**;
+on capable devices, default to the **free native** option. Either way, **all
+options always appear in the Settings selector** so any user can switch. The
+default is a small function of (platform bucket detected at launch) →
+(native | cloud):
 
-- **STT:** default `capacitor` (free) for buckets that passed; default `aloud`
-  (cloud) for buckets that failed. Detection: platform + `isCapacitor()` +
-  (Android) a manufacturer/RAM read for the a3 fallback.
+- **STT:** default `capacitor` (free) for buckets that passed validation;
+  default `aloud` (cloud) for buckets that failed. Detection: platform +
+  `isCapacitor()` + (Android) a `navigator.deviceMemory` / manufacturer read;
+  iOS by device model (`@capacitor/device`) since WKWebView doesn't expose RAM.
 - **TTS:** default `browser` (native) where a known-good voice is present;
-  else a cloud voice. Detection: enumerate voices at launch, match against a
+  else a cloud voice. Detection: enumerate voices at launch, match a
   per-platform known-good allowlist built from this validation.
 
-This keeps the "prefer free/private" default on capable devices (bead `7ej`)
-while never shipping a broken mic or a robotic voice on a device where the
-native option is weak — and it spends credits only where the free path fails.
+### The one catch to weigh: cloud-default means an immediate paywall
 
-Tracked by: `0ao` (native STT) + the native-TTS validation bead. Parent `zp47`.
+Native STT/TTS is free, offline, and needs no sign-in. aloud cloud needs
+**sign-in + credits**. So "default weak devices to cloud" means a **new user on
+a cheaper device hits sign-in and credit spend from their first session**, while
+someone on a flagship gets it free — slightly backwards on accessibility. Weigh
+this per bucket during validation; it may be better to keep native default even
+on some weak buckets if it's merely mediocre (not broken), since the user can
+switch.
+
+### Beta interim (before validation data exists)
+
+Ship **native default everywhere + all options in the selector** (the current
+state). It's free, has no surprise paywall, and meets the "mediocre-for-a-bit,
+user can switch" bar. The selector already lists `capacitor` (default) and
+`aloud` on mobile today, so nobody is stuck. After the buckets above are scored,
+flip the **validated-weak** buckets to cloud-default — a change in one place
+(`defaultSttChoice` / the TTS default), no new architecture.
+
+Tracked by: `0ao` (native STT) + `g0ox` (native TTS) for the data; the
+capability-tier default-selection bead consumes their results. Parent `zp47`.
