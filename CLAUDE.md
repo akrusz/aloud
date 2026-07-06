@@ -77,6 +77,9 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 
 This project uses **Beads** (`.beads/`). Use `bd create`, `bd list`, `bd update`, `bd close`, `bd sync`.
 
+For a **readable backlog** (the CLI is rough for browsing): `python3 scripts/bd-board.py`
+writes a self-contained, filterable HTML board of all tickets — open it in a browser.
+
 ## Interacting with the developer
 
 Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this when running on his machine.
