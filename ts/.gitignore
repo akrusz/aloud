@@ -4,10 +4,11 @@ dist/
 .vitest-cache/
 coverage/
 
-# Capacitor generates ios/ and android/ when `npx cap add` runs.
-# Once you decide to commit them as the canonical native project,
-# remove these two lines so they're tracked. Keeping them ignored
-# until then so the scaffold doesn't introduce hundreds of generated
-# files before we know the rebrand details.
-ios/
-android/
+# Capacitor native projects (ts/ios, ts/android) ARE committed as the canonical
+# native projects (decision meditation-pal-hpoh) — we hand-edit Info.plist perm
+# strings, the Sign in with Apple capability, the Google URL scheme, signing,
+# and icons, which a regenerate would wipe. Their own inner .gitignores exclude
+# build artifacts (Pods/, build/, DerivedData, keystores, copied web assets), so
+# `cap sync` updates them without churn. Regenerate ONLY with
+# `--packagemanager CocoaPods` on iOS (SPM drops the STT plugin) — see
+# dev-docs/mobile.md.
