@@ -48,6 +48,20 @@ const config: CapacitorConfig = {
         // exact strings to paste are in dev-docs/mobile.md. This block is left
         // empty deliberately; the plugin reads Info.plist, not config.
         SpeechRecognition: {},
+
+        // @capgo/capacitor-social-login bundles ALL providers by default —
+        // including the Facebook + Twitter SDKs, which bloat the binary and (the
+        // Facebook SDK especially) drag in data-collection that needs App Store
+        // privacy-manifest disclosures. We only use Google + Apple, so bundle
+        // only those. Applied at `cap sync`/`cap add` time.
+        SocialLogin: {
+            providers: {
+                google: true,
+                apple: true,
+                facebook: false,
+                twitter: false,
+            },
+        },
     },
 };
 

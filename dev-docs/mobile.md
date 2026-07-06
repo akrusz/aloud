@@ -46,8 +46,12 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 - **Node** (repo's version) + the deps: `cd ts && npm install`.
 - **iOS**: macOS, Xcode, and **CocoaPods** (`sudo gem install cocoapods` or
   `brew install cocoapods`). An Apple Developer account for signing / TestFlight.
-- **Android**: Android Studio (or the SDK command-line tools), a **JDK 17+**,
-  and `ANDROID_HOME` set. A Play Console account for internal testing.
+- **Android**: Android Studio (or the SDK command-line tools) and a **JDK 21**
+  — Capacitor 8's Gradle modules target Java 21, so JDK 17 fails with
+  `invalid source release: 21`. Android Studio's bundled JBR is JDK 21; point
+  Gradle at it (`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`)
+  or `brew install --cask temurin@21`. Set `ANDROID_HOME` (default
+  `~/Library/Android/sdk`). A Play Console account for internal testing.
 
 > The dev machine used for the platform-layer work had the `cap` CLI + Xcode but
 > **no CocoaPods, no Android SDK, no JDK** — enough to write and test the
