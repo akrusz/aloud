@@ -36,7 +36,7 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 | STT | `CapacitorSttEngine` (SFSpeechRecognizer / Android SpeechRecognizer) | web-speech / server-whisper / aloud cloud | `adapters/stt-picker.ts`, `adapters/capacitor-stt.ts` |
 | Keep-awake | `@capacitor-community/keep-awake` | web Wake Lock API | `wakelock.ts` |
 | External links / Stripe | `@capacitor/browser` (in-app SFSafariViewController / Custom Tab) | Tauri opener / full-page redirect | `external-links.ts` |
-| Sign-in | email (works from any origin); Google/Apple hidden until native (`tpj4`) | web GIS / Apple JS, or desktop loopback PKCE | `sign-in-modal.ts` |
+| Sign-in | native Google/Apple via `@capgo/capacitor-social-login` (+ email) | web GIS / Apple JS, or desktop loopback PKCE | `sign-in-modal.ts`, `native-signin.ts` |
 
 ## Prerequisites
 
@@ -100,6 +100,43 @@ brand copy rules: no em-dashes, no "AI" tells.)
 `INTERNET` is present by default; `RECORD_AUDIO` must be added. The
 speech-recognition plugin requests it at runtime (first mic use).
 
+### Native sign-in (Google + Apple)
+
+The app-side is wired (`native-signin.ts`, via `@capgo/capacitor-social-login`);
+each provider hands an ID token to the existing `googleSignIn`/`appleSignIn`
+server calls. To turn it on you need the OAuth consoles + build-time client ids
+(bead `tpj4`). App Store Guideline 4.8: if iOS offers Google it must offer Apple
+too — configure both for the store build.
+
+**Build-time env** (bake like `VITE_ALOUD_CLOUD_URL`):
+
+```
+VITE_GOOGLE_CLIENT_ID=<web client id>        # reused as the plugin webClientId
+VITE_GOOGLE_IOS_CLIENT_ID=<iOS client id>    # Google Cloud → iOS OAuth client
+VITE_APPLE_CLIENT_ID=<apple services id>     # Sign in with Apple Services ID
+# VITE_APPLE_REDIRECT_URL=<url>              # only for Apple-on-Android (iOS ignores)
+```
+
+**Google Cloud console:** create an **iOS OAuth client** for bundle
+`app.aloud.meditation`; keep the existing **web** client. Add **both** client ids
+to the server's `GOOGLE_CLIENT_IDS` (accepted token audiences) — the native
+iOS token's `aud` is the iOS client id, the Android/web token's is the web one.
+
+**iOS Info.plist** — add the Google **reversed-client-id** URL scheme (Google
+Cloud shows it for the iOS client; it looks like `com.googleusercontent.apps.NNN`):
+
+```xml
+<key>CFBundleURLTypes</key>
+<array><dict><key>CFBundleURLSchemes</key>
+  <array><string>com.googleusercontent.apps.YOUR-IOS-CLIENT-ID</string></array>
+</dict></array>
+```
+
+**Apple Developer:** enable the **Sign in with Apple** capability + entitlement
+on the app id (add the capability in Xcode too); create/confirm a **Services ID**
+(→ `VITE_APPLE_CLIENT_ID`); ensure the server's Apple verification accepts the
+app **bundle id** as the token audience for the native iOS flow.
+
 ### App icons
 
 iOS **rejects icons with an alpha channel**, so the transparent orb
@@ -139,8 +176,9 @@ device/simulator and are tracked separately:
   (STT), `g0ox` (TTS). If native cuts off, the cloud fallbacks (`aloud` STT /
   cloud voices) already work on mobile.
 - **Keep-awake** actually holding the screen on across a full session.
-- **Native Google/Apple sign-in** from the `capacitor://` origin —
-  `meditation-pal-tpj4` (decision + plugin choice; email works meanwhile).
+- **Native Google/Apple sign-in** — app-side is wired (`native-signin.ts`);
+  needs the Google/Apple console setup + build-time client ids above, then a
+  device to verify. `meditation-pal-tpj4`.
 
 ## Related beads
 

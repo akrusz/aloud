@@ -11,13 +11,16 @@
 
 import { renderGoogleSignInButton, renderDesktopGoogleSignInButton } from './google-signin.js';
 import { renderAppleSignInButton } from './apple-signin.js';
+import {
+    renderNativeGoogleSignInButton,
+    renderNativeAppleSignInButton,
+} from './native-signin.js';
 import { isDesktopSync, isCapacitor } from './is-desktop.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import {
     emailLogin,
     emailSignup,
     isAppleSignInConfigured,
-    isInteractiveSignInConfigured,
     type AuthResponse,
 } from './cloud-auth.js';
 import { manageModalFocus } from './modal-focus.js';
@@ -135,23 +138,26 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         if (isCapacitor()) {
             // Native mobile app. The web GIS button and Apple JS both need a
             // real https OAuth JavaScript origin, which the capacitor:// (or
-            // https://localhost) app origin isn't — so neither can render here.
-            // Native Google/Apple sign-in (their own plugins + OAuth console
-            // reconfig) isn't wired yet (meditation-pal-tpj4); until it is, drop
-            // both OAuth buttons and lean on email, which is a plain fetch and
-            // works from any origin. Show a "coming soon" note only when OAuth is
-            // actually configured upstream, so it reads as pending rather than
-            // as a missing feature.
-            googleHost.remove();
-            appleHost.remove();
-            dropEmptyOauth();
-            if (isInteractiveSignInConfigured()) {
-                const note = document.createElement('p');
-                note.className = 'provider-hint signin-apple-soon';
-                note.textContent =
-                    'Sign in with Google or Apple is coming soon in the app. For now, sign in with email below, or set a password on the web app and use it here.';
-                overlay.querySelector('.signin-modal')?.appendChild(note);
-            }
+            // https://localhost) app origin isn't — so we use the native
+            // account-picker flows via @capgo/capacitor-social-login instead
+            // (native-signin.ts). Each renderer no-ops (returns false) when its
+            // provider isn't configured, so an unconfigured provider drops its
+            // button and email carries the modal. (App Store Guideline 4.8:
+            // configure both Google + Apple for the iOS store build.)
+            void renderNativeGoogleSignInButton(googleHost, {
+                onSignedIn,
+                onError: (e) => showError(e.message),
+            }).then((ok) => {
+                if (!ok) googleHost.remove();
+                dropEmptyOauth();
+            });
+            void renderNativeAppleSignInButton(appleHost, {
+                onSignedIn,
+                onError: (e) => showError(e.message),
+            }).then((ok) => {
+                if (!ok) appleHost.remove();
+                dropEmptyOauth();
+            });
         } else if (isDesktopSync()) {
             appleHost.remove(); // desktop Apple OAuth not wired yet (meditation-pal-fae)
             const ok = renderDesktopGoogleSignInButton(googleHost, {

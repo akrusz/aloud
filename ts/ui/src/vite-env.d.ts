@@ -28,6 +28,15 @@ interface ImportMetaEnv {
      *  at runtime from the server's /config, so this build-time bake is optional;
      *  when present it lets the Apple button paint before the probe resolves. */
     readonly VITE_APPLE_CLIENT_ID?: string;
+    /** Google OAuth *iOS* client id for native mobile sign-in via
+     *  @capgo/capacitor-social-login (meditation-pal-tpj4, native-signin.ts).
+     *  Distinct from the web client id above — iOS OAuth uses its own client.
+     *  The server must accept it as a token audience (GOOGLE_CLIENT_IDS). */
+    readonly VITE_GOOGLE_IOS_CLIENT_ID?: string;
+    /** Optional redirect URL for the *Android* Apple sign-in flow (native
+     *  mobile). iOS ignores it (native flow); only set it when Apple-on-Android
+     *  is wired. Absent → Apple works on iOS only. */
+    readonly VITE_APPLE_REDIRECT_URL?: string;
 }
 
 interface ImportMeta {
