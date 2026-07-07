@@ -39,7 +39,7 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'gpt-5.4': 'GPT-5.4',
 };
 
-function prettyModelName(model: string): string {
+export function prettyModelName(model: string): string {
     const known = CLOUD_MODEL_NAMES[model];
     if (known) return known;
     return model
@@ -49,6 +49,90 @@ function prettyModelName(model: string): string {
         .split(/[-_]/)
         .map((w) => (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
         .join(' ');
+}
+
+/**
+ * Hardcoded, per-model list of "slower" markers. We disable reasoning wherever
+ * we can (including for Opus), so most heavier models answer at normal speed —
+ * the exception is models whose reasoning is always on and can't be turned off
+ * (Fable, and its Mythos sibling), which think before every reply and so run
+ * slower. Matched as a substring against the model id/alias, so one entry
+ * covers every variant — works for the cloud "provider/model" values and the
+ * bare claude_proxy aliases alike. Purely local (no network) — edit this list
+ * to tune which models carry the "may be slower" note.
+ */
+export const SLOW_MODEL_MARKERS: readonly string[] = ['fable', 'mythos'];
+
+export function isSlowModel(value: string): boolean {
+    const v = value.toLowerCase();
+    return SLOW_MODEL_MARKERS.some((m) => v.includes(m));
+}
+
+/** Shown under the picker (and in the session info panel) when a slow model is
+ *  selected. Copy — tune freely. */
+export const SLOW_MODEL_NOTE =
+    'This model responds more slowly than others.';
+
+/**
+ * The "most similar still-standard" Claude subscription model to fall back to
+ * when the selected one can't be served (e.g. Anthropic pulls Fable from the
+ * subscription). Fable's nearest peer is Opus; Opus falls to Sonnet; everything
+ * else lands on Sonnet, the dependable default. Returns null when the given
+ * model IS the safe default (nothing more to fall back to).
+ */
+export function nearestSubscriptionModel(model: string): string | null {
+    const m = model.toLowerCase();
+    if (m.includes('fable')) return 'opus';
+    if (m === 'opus' || m.includes('claude-3-opus') || m.includes('opus-')) return 'sonnet';
+    if (m === 'sonnet' || m === 'haiku') return null;
+    return 'sonnet';
+}
+
+/** Subscription aliases resolve to "the latest of this family", so we don't
+ *  have an exact version to show — label them the same "(latest)" way the
+ *  picker does. Mirrors claude_proxy_models() in providers.rs. */
+const SUBSCRIPTION_ALIAS_NAMES: Record<string, string> = {
+    opus: 'Opus (latest)',
+    fable: 'Fable (latest)',
+    sonnet: 'Sonnet (latest)',
+    haiku: 'Haiku (latest)',
+};
+
+/**
+ * A readable name for the model a session is running on, for history + the
+ * session info panel. Cloud values are "provider/model" (strip the provider);
+ * the subscription (claude_proxy) uses bare aliases resolved to "(latest)".
+ * The provider is recorded separately, so this stays just the model name.
+ */
+export function sessionModelLabel(provider: string, model: string): string {
+    if (!model) return prettyModelName(provider);
+    if (provider === 'aloud') {
+        const slash = model.indexOf('/');
+        return prettyModelName(slash > 0 ? model.slice(slash + 1) : model);
+    }
+    if (provider === 'claude_proxy') {
+        return SUBSCRIPTION_ALIAS_NAMES[model.toLowerCase()] ?? prettyModelName(model);
+    }
+    return prettyModelName(model);
+}
+
+type ProbeStatus = 'available' | 'unavailable' | 'cli_missing' | 'unknown';
+
+/**
+ * Ask the desktop shell whether the local Claude subscription can actually
+ * serve `model` right now (it runs a tiny cached probe against the `claude`
+ * CLI). Only meaningful on desktop for claude_proxy; anywhere else, or on any
+ * error, returns 'unknown' so the caller leaves the model shown optimistically.
+ */
+export async function probeClaudeProxyModel(model: string): Promise<ProbeStatus> {
+    try {
+        const resp = await fetch(appUrl(`/llm/claude_proxy/probe?model=${encodeURIComponent(model)}`));
+        if (!resp.ok) return 'unknown';
+        const data = (await resp.json()) as { status?: ProbeStatus };
+        return data.status ?? 'unknown';
+    } catch {
+        return 'unknown';
+    }
 }
 
 interface ModelOption {
@@ -182,8 +266,10 @@ export function mountModelPicker(
                 ? `<p class="credit-rate-legend" title="${attr(RATE_LEGEND_TITLE)}">${escape(RATE_LEGEND)}</p>`
                 : '';
         container.innerHTML = `
-            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${legend}`;
+            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${legend}
+            <p class="model-slow-note hidden" id="model-slow-note">${escape(SLOW_MODEL_NOTE)}</p>`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
+        const slowNote = container.querySelector<HTMLElement>('#model-slow-note')!;
         // The user wants the picker to always show a concrete model name
         // (no "(provider default)" placeholder), so if the persisted value
         // doesn't match anything in the list we promote the first model
@@ -196,14 +282,62 @@ export function mountModelPicker(
             sel.value = models[0].value;
             currentValue = models[0].value;
         }
+        // Unobtrusive heads-up when a reasoning/heavier model is picked — its
+        // replies can lag a quick chat model.
+        const updateSlowNote = (): void => {
+            slowNote.classList.toggle('hidden', !isSlowModel(currentValue));
+        };
+        updateSlowNote();
         // Notify after every (re)load — promoted or matched — so a consumer
         // (e.g. the setup session-cost estimate) always learns the settled
         // selection once a provider's models arrive, not only when promoted.
         onChange(currentValue);
         sel.addEventListener('change', () => {
             currentValue = sel.value;
+            updateSlowNote();
             onChange(currentValue);
         });
+        // For the Claude subscription, check whether the local `claude` CLI can
+        // still serve any listed-but-removable model (Fable) — Anthropic has
+        // long hinted at pulling models from subscriptions. Non-blocking: the
+        // dropdown renders immediately; if a probe says "unavailable" we grey
+        // that option out and, if it was the active one, drop to its nearest peer.
+        if (provider === 'claude_proxy') {
+            void annotateSubscriptionAvailability(sel, updateSlowNote);
+        }
+    }
+
+    /**
+     * Probe removable subscription models (currently just Fable) and reflect the
+     * result in the live <select>: an unavailable model is disabled + relabelled,
+     * and if it was selected we switch to its nearest peer (Fable → Opus) and
+     * notify. Best-effort — an 'unknown' result leaves everything as shown.
+     */
+    async function annotateSubscriptionAvailability(
+        sel: HTMLSelectElement,
+        updateSlowNote: () => void
+    ): Promise<void> {
+        const removable = currentModels.filter((m) => /fable/i.test(m.value));
+        for (const m of removable) {
+            const status = await probeClaudeProxyModel(m.value);
+            if (status !== 'unavailable') continue;
+            const opt = Array.from(sel.options).find((o) => o.value === m.value);
+            if (opt) {
+                opt.disabled = true;
+                opt.textContent = `${m.label} — unavailable on your subscription`;
+            }
+            if (currentValue === m.value) {
+                const fallback = nearestSubscriptionModel(m.value) ?? 'sonnet';
+                const target =
+                    currentModels.find((o) => o.value === fallback) ?? currentModels[0];
+                if (target) {
+                    sel.value = target.value;
+                    currentValue = target.value;
+                    updateSlowNote();
+                    onChange(currentValue);
+                }
+            }
+        }
     }
 
     /**

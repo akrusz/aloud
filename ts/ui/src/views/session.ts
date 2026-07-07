@@ -38,6 +38,15 @@ import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
 import { wrapTtsWithBargeIn } from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
+import {
+    sessionModelLabel,
+    isSlowModel,
+    nearestSubscriptionModel,
+    probeClaudeProxyModel,
+    prettyModelName,
+    SLOW_MODEL_NOTE,
+} from '../model-picker.js';
+import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { ensureCloudToken, fetchMe } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
@@ -56,7 +65,7 @@ import { isWebMode } from '../app-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
-import { type SessionSetup, dirStepToBackend } from '../settings.js';
+import { type SessionSetup, dirStepToBackend, ALL_PROVIDERS } from '../settings.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
@@ -210,6 +219,9 @@ export interface SessionViewHandle {
      * confirm, tears down and routes the user there via onEnd.
      */
     requestLeave(destination?: SessionEndDestination): void;
+    /** Open the in-session info panel (model, mode, …). Wired to the mobile
+     *  "More" sheet's Session-info entry; the nav ⓘ button opens it directly. */
+    showInfo(): void;
 }
 
 export type SessionEndDestination = 'setup' | 'history' | 'settings' | 'account';
@@ -273,8 +285,21 @@ export async function mountSessionView(
     // the model gets continuity for a few cents instead of re-priming the
     // entire history cold. The full transcript still renders in the UI below
     // (that's free); this only controls what the model sees.
+    // Which model is facilitating this session — for the in-session chip, the
+    // saved-session record, and (on resume) telling a *different* model who ran
+    // the earlier part. `let` so a mid-session availability fallback (below) can
+    // update it. `activeModel` tracks the id/alias actually in use.
+    let activeModel = setup.model;
+    let modelLabel = sessionModelLabel(setup.provider, activeModel);
     if (continueFrom && continueFrom.exchanges.length > 0) {
-        session.loadExchanges(buildResumeContext(continueFrom, appSettings.resumeFromSummary));
+        session.loadExchanges(
+            buildResumeContext(continueFrom, appSettings.resumeFromSummary, {
+                ...(continueFrom.model !== undefined
+                    ? { priorModelLabel: continueFrom.model }
+                    : {}),
+                currentModelLabel: modelLabel,
+            })
+        );
     }
     const pacingConfig = {
         ...defaultPacingConfig,
@@ -308,6 +333,9 @@ export async function mountSessionView(
             requestLeave() {
                 /* no live session to guard */
             },
+            showInfo() {
+                /* no panel when the provider failed to build */
+            },
         };
     }
     // The auxiliary calls — yes/no classifiers, noting labels, and the session
@@ -320,6 +348,77 @@ export async function mountSessionView(
     } catch {
         utilityProvider = provider;
     }
+
+    // Session facts (who you're talking to, the mode, a speed note when it
+    // applies) live behind the nav "ⓘ" button rather than in the always-on
+    // chrome. `modelLabel` is recomputed here so the saved record and the panel
+    // agree, and stays current across an availability fallback.
+    function recomputeModelLabel(): void {
+        modelLabel = sessionModelLabel(setup.provider, activeModel);
+    }
+    recomputeModelLabel();
+    function buildSessionInfoRows(): SessionInfoRow[] {
+        const providerLabel =
+            ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
+        // Streaming providers let the facilitator start speaking mid-reply; the
+        // subscription (claude_proxy) returns the whole turn at once, so there's
+        // a longer silent wait before it speaks.
+        const streams = typeof (provider as { completeStream?: unknown }).completeStream === 'function';
+        return [
+            {
+                label: 'Model',
+                value: modelLabel,
+                ...(isSlowModel(activeModel) ? { note: SLOW_MODEL_NOTE } : {}),
+            },
+            { label: 'Mode', value: mode.label },
+            { label: 'Source', value: providerLabel },
+            {
+                label: 'Response',
+                value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
+            },
+        ];
+    }
+    const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows);
+    // The nav ⓘ button that opens it is created further down (navLinks); wired
+    // there, once it exists in the DOM.
+
+    /**
+     * When a Claude-subscription turn fails, this checks whether the selected
+     * model was actually *removed* from the subscription (Anthropic pulling
+     * Fable, etc.) rather than merely cold-start stalling: it re-probes the
+     * model and, only on a confirmed "unavailable", swaps the live provider to
+     * the nearest peer (Fable → Opus), updates the chip, and tells the user.
+     * Returns true if it swapped (caller then skips the generic stall apology),
+     * false to fall through to that apology. Best-effort — never throws.
+     */
+    async function tryFallbackSubscriptionModel(): Promise<boolean> {
+        if (setup.provider !== 'claude_proxy') return false;
+        const fallback = nearestSubscriptionModel(activeModel);
+        if (!fallback) return false; // already on a dependable default
+        // Only reclassify a stall as a removal when the probe confirms it —
+        // otherwise a plain cold-start hiccup would silently change the model.
+        if ((await probeClaudeProxyModel(activeModel)) !== 'unavailable') return false;
+        const prevLabel = sessionModelLabel('claude_proxy', activeModel);
+        try {
+            setup.model = fallback;
+            provider = await buildProvider(setup);
+        } catch {
+            return false;
+        }
+        activeModel = fallback;
+        recomputeModelLabel();
+        infoPanel.refresh();
+        // Toast carries the specifics; the spoken line stays gentle and stays in
+        // the facilitator's voice (no "subscription"/model jargon mid-session).
+        showErrorToast(
+            `${prevLabel} isn't available on your subscription right now. Switched to ${prettyModelName(fallback)}.`
+        );
+        void tts.speak('I need to switch models for a moment, then we can continue.', {
+            rate: setup.ttsRate,
+        });
+        return true;
+    }
+
     // Build a TTS engine for a voice id, wrapped with a barge-in listener so
     // the user can interrupt the facilitator mid-sentence by speaking. The
     // listener opens its own mic stream during speak() — separate from the STT
@@ -537,11 +636,17 @@ export async function mountSessionView(
         navLinks.innerHTML = `
             <a href="#" id="end-btn" class="nav-end-link">End<span class="nav-word-session"> Session</span></a>
             <a href="#" data-nav="history">History</a>
+            <button type="button" class="nav-info-btn" id="session-info-btn" aria-label="Session info" title="Session info">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
             <button type="button" class="theme-toggle"
                 data-theme-toggle aria-label="Toggle theme"></button>`;
         // Re-init the theme toggle since we just replaced its DOM node.
         const themeBtn = navLinks.querySelector<HTMLElement>('[data-theme-toggle]');
         if (themeBtn) initThemeToggle(themeBtn);
+        navLinks
+            .querySelector<HTMLElement>('#session-info-btn')
+            ?.addEventListener('click', () => infoPanel.toggle());
     }
 
     const conversation = root.querySelector<HTMLElement>('#conversation')!;
@@ -1202,16 +1307,24 @@ export async function mountSessionView(
                 appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
                 void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             } else if (/claude_proxy_stalled/.test(msg)) {
-                // The local Claude CLI stalled across all retries (see
-                // ClaudeProxyHttpProvider). Speak a gentle apology in the
-                // session voice (local Piper/say, so it works offline) and also
-                // toast it; the loop resumes listening so the user can retry by
-                // just speaking again. No "Claude" in the spoken line — it's in
-                // the facilitator's voice mid-session, so keep it non-technical.
-                const apology =
-                    "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
-                showErrorToast(apology);
-                void tts.speak(apology, { rate: setup.ttsRate });
+                // The local Claude CLI failed across all retries (see
+                // ClaudeProxyHttpProvider). First rule out a *removed* model
+                // (Anthropic pulling it from the subscription): if so, swap to
+                // the nearest peer and inform the user instead of apologizing
+                // for a model that will never answer.
+                const swapped = await tryFallbackSubscriptionModel();
+                if (!swapped) {
+                    // A genuine stall. Speak a gentle apology in the session
+                    // voice (local Piper/say, so it works offline) and also toast
+                    // it; the loop resumes listening so the user can retry by
+                    // just speaking again. No "Claude" in the spoken line — it's
+                    // in the facilitator's voice mid-session, so keep it
+                    // non-technical.
+                    const apology =
+                        "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
+                    showErrorToast(apology);
+                    void tts.speak(apology, { rate: setup.ttsRate });
+                }
             } else {
                 // Other failures: a transient toast is more visible than the
                 // small status line, and the loop resumes listening so the
@@ -1496,6 +1609,8 @@ export async function mountSessionView(
     // sessions. One AbortController covers them all; endSession() aborts it,
     // and it's handed to initKasinaMode() so its document listeners detach too.
     const viewCleanup = new AbortController();
+    // Tear the info panel's overlay + document listener down with the view.
+    viewCleanup.signal.addEventListener('abort', () => infoPanel.dispose());
 
     // Guard against accidentally closing/reloading the tab mid-session —
     // mirrors the prior beforeunload handler. The
@@ -1959,6 +2074,10 @@ export async function mountSessionView(
                     `chars=${summary.length}`
             );
             finalState.notes = summary || setup.intention.trim();
+            // Record who facilitated, so history shows it and a later resume can
+            // tell a different model who came before (see buildResumeContext).
+            finalState.model = modelLabel;
+            finalState.provider = setup.provider;
             try {
                 await sessionStore.save(finalState);
             } catch (err) {
@@ -2002,6 +2121,8 @@ export async function mountSessionView(
             ...state,
             endTime: Math.floor(Date.now() / 1000),
             notes: currentSummary || setup.intention.trim(),
+            model: modelLabel,
+            provider: setup.provider,
         };
         try {
             await sessionStore.save(snapshot);
@@ -2050,6 +2171,7 @@ export async function mountSessionView(
         requestLeave(destination?: SessionEndDestination): void {
             showEndConfirm(leaveMessage(destination), destination);
         },
+        showInfo(): void { infoPanel.open(); },
     };
 }
 

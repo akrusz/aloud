@@ -92,6 +92,19 @@ export interface SessionState {
      * autosave so an interrupted session resumes in the phase it left off.
      */
     modePhase?: string;
+    /**
+     * Human-readable name of the LLM that facilitated this session (e.g.
+     * "Claude Fable 5", "Sonnet (Subscription)"). Recorded so history can show
+     * who ran a session and, on resume, so a *different* model picking it up is
+     * told who came before (see buildResumeContext). Optional — sessions saved
+     * before this field existed, and any resumed with an unknown model, simply
+     * omit it. Stamped at save time (endSession/autosave) from the live setup.
+     */
+    model?: string;
+    /** The Provider id behind `model` (e.g. 'claude_proxy', 'aloud'). Kept for
+     *  history/analytics; display uses `model`. Optional for the same
+     *  backward-compatibility reason. */
+    provider?: string;
     /** Compute usage tally. Always present on sessions started by this code. */
     usage: SessionUsage;
 }

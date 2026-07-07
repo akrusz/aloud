@@ -6,9 +6,11 @@
 //! `{text, finish_reason, tokens_used}` shape the TS `ClaudeProxyHttpProvider`
 //! already expects.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
-use std::time::Duration;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -166,6 +168,133 @@ fn format_history(messages: &[Msg]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+// --- Subscription model availability probe ----------------------------------
+
+/// Per-attempt cap for the probe. Shorter than a real turn — a probe that
+/// hangs is inconclusive, not worth waiting out the full 90s.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(25);
+/// How long a probe verdict stays trusted before we re-check. Long enough to
+/// avoid spending subscription quota on every picker open, short enough to
+/// notice a mid-day removal.
+const PROBE_TTL: Duration = Duration::from_secs(30 * 60);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProbeStatus {
+    /// The subscription served the model.
+    Available,
+    /// The model isn't available on this subscription (removed / no access).
+    Unavailable,
+    /// The `claude` CLI isn't installed — the whole provider is unusable.
+    CliMissing,
+    /// Inconclusive (timeout, rate limit, transient/auth error): don't act on it.
+    Unknown,
+}
+
+impl ProbeStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            ProbeStatus::Available => "available",
+            ProbeStatus::Unavailable => "unavailable",
+            ProbeStatus::CliMissing => "cli_missing",
+            ProbeStatus::Unknown => "unknown",
+        }
+    }
+}
+
+fn probe_cache() -> &'static Mutex<HashMap<String, (Instant, ProbeStatus)>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (Instant, ProbeStatus)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Is the local Claude subscription able to serve `model` right now? Runs a
+/// tiny one-word completion against the CLI and classifies the outcome, caching
+/// definitive verdicts for PROBE_TTL so repeated picker opens don't each spend
+/// quota. Returns `{model, status}`. Best-effort — anything ambiguous is
+/// `unknown`, which the UI treats as "leave the model shown".
+pub async fn claude_probe(model: &str, cwd: &Path) -> Value {
+    if let Some((at, status)) = probe_cache().lock().unwrap().get(model).copied() {
+        if at.elapsed() < PROBE_TTL {
+            return json!({ "model": model, "status": status.as_str() });
+        }
+    }
+    let status = run_probe(model, cwd).await;
+    // Cache only definitive verdicts — an `unknown` (transient) shouldn't pin
+    // the model as good-or-bad; let the next call re-probe.
+    if status != ProbeStatus::Unknown {
+        probe_cache()
+            .lock()
+            .unwrap()
+            .insert(model.to_string(), (Instant::now(), status));
+    }
+    json!({ "model": model, "status": status.as_str() })
+}
+
+async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
+    let binary = match which::which("claude") {
+        Ok(b) => b,
+        Err(_) => return ProbeStatus::CliMissing,
+    };
+    let mut cmd = Command::new(binary);
+    cmd.current_dir(cwd);
+    cmd.arg("-p")
+        .arg("--tools")
+        .arg("")
+        .arg("--no-session-persistence")
+        .arg("--disable-slash-commands")
+        .arg("--output-format")
+        .arg("json")
+        .arg("--model")
+        .arg(model)
+        .arg("Reply with just: ok");
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.kill_on_drop(true);
+
+    let output = match timeout(PROBE_TIMEOUT, cmd.output()).await {
+        Ok(Ok(o)) => o,
+        // Couldn't launch or timed out — inconclusive, not a removal.
+        Ok(Err(_)) | Err(_) => return ProbeStatus::Unknown,
+    };
+
+    if output.status.success() {
+        // A zero exit can still carry an in-band `is_error` payload.
+        if let Ok(v) = serde_json::from_slice::<Value>(&output.stdout) {
+            if v.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
+                let detail = v
+                    .get("result")
+                    .or_else(|| v.get("api_error_status"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                return classify_probe_detail(detail);
+            }
+        }
+        return ProbeStatus::Available;
+    }
+    classify_probe_detail(&String::from_utf8_lossy(&output.stderr))
+}
+
+/// Map a CLI error string to a probe verdict. Only a clear model-availability
+/// signal counts as `Unavailable`; everything else stays `Unknown` so a rate
+/// limit or auth blip never masquerades as a removed model. The exact wording
+/// the CLI emits for a pulled model isn't contractual — widen the match here as
+/// real strings are observed.
+fn classify_probe_detail(detail: &str) -> ProbeStatus {
+    let d = detail.to_lowercase();
+    let model_availability = d.contains("model")
+        && (d.contains("not available")
+            || d.contains("unavailable")
+            || d.contains("not found")
+            || d.contains("does not exist")
+            || d.contains("not supported")
+            || d.contains("no access")
+            || d.contains("not allowed")
+            || d.contains("invalid model"));
+    if model_availability || d.contains("not_found_error") {
+        ProbeStatus::Unavailable
+    } else {
+        ProbeStatus::Unknown
+    }
 }
 
 // --- Anthropic proxy --------------------------------------------------------

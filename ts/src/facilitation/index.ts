@@ -24,9 +24,10 @@ export {
 export { generateSessionSummary } from './summary.js';
 export {
     buildResumeContext,
-    RESUME_COMPRESS_OVER,
+    RESUME_COMPRESS_CHARS,
     RESUME_RECENT_KEEP,
     type ResumeMessage,
+    type ResumeContextOptions,
 } from './resume.js';
 export { classifyResumeIntent, classifyHoldConfirm } from './resume-intent.js';
 export { looksLikeTtsEcho, MIN_ECHO_WORDS } from './echo-guard.js';

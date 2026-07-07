@@ -1700,9 +1700,9 @@ function renderSessionLogsSection(s: AppSettings): string {
           <div class="form-group">
               <label class="checkbox-label">
                   <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
-                  <span>Resume from a recap (cheaper)</span>
+                  <span>Resume long sessions from a recap</span>
               </label>
-              <span class="form-hint">Continuing a session sends a short recap plus your recent exchanges, not the whole transcript, so a long one is cheap to reload. You still see the full history.</span>
+              <span class="form-hint">Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.</span>
           </div>
         </div>
     </section>`;

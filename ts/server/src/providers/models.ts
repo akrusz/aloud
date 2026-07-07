@@ -115,11 +115,14 @@ async function fetchAnthropic(key: string | null): Promise<ModelOption[]> {
 // ---- Claude subscription (static aliases) ----------------------------------
 
 function claudeProxyModels(): ModelOption[] {
+    // Mirrors claude_proxy_models() in ts/src-tauri/src/providers.rs — keep in
+    // sync. claude_proxy is desktop-only (web marks it unavailable), so this
+    // list is served for parity; the desktop Rust list is the one users hit.
     return [
         { value: 'opus', label: 'Opus (latest)' },
+        { value: 'fable', label: 'Fable (latest)' },
         { value: 'sonnet', label: 'Sonnet (latest)' },
         { value: 'haiku', label: 'Haiku (latest)' },
-        { value: 'claude-3-opus-20240229', label: 'Opus 3' },
     ];
 }
 

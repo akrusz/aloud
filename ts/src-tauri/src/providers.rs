@@ -251,11 +251,17 @@ fn fetch_anthropic(api_key: Option<&str>) -> Vec<Value> {
 // ---- Claude subscription (static aliases) ----------------------------------
 
 fn claude_proxy_models() -> Vec<Value> {
+    // Aliases the `claude` CLI resolves to the latest of each family, plus a
+    // pinned legacy id. Fable is included but is the one model Anthropic has
+    // hinted it may drop from subscriptions — the UI probes it (see
+    // /llm/claude_proxy/probe) before trusting it in the picker. Order: Opus
+    // first (the picker auto-selects the first option for a fresh pick, and we
+    // don't want the heaviest model to become that default), Fable next.
     vec![
         opt("opus", "Opus (latest)"),
+        opt("fable", "Fable (latest)"),
         opt("sonnet", "Sonnet (latest)"),
         opt("haiku", "Haiku (latest)"),
-        opt("claude-3-opus-20240229", "Opus 3"),
     ]
 }
 

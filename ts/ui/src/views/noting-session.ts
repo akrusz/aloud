@@ -49,10 +49,15 @@ import {
     wireEmberControls,
 } from '../embers.js';
 import { initKasinaMode } from '../kasina.js';
-import type { SessionSetup, NotingParticipantConfig } from '../settings.js';
+import { type SessionSetup, type NotingParticipantConfig, ALL_PROVIDERS } from '../settings.js';
+import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
+import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 
 export interface NotingSessionViewHandle {
     teardown(): void;
+    /** Open the in-session info panel (model, mode, …). See the exploration
+     *  session's SessionViewHandle.showInfo. */
+    showInfo(): void;
     /**
      * Open the standard leave-confirmation overlay for an external nav
      * request (browser/hardware Back). On confirm, the circle ends and
@@ -116,10 +121,38 @@ export async function mountNotingSessionView(
         navLinks.innerHTML = `
             <a href="#" id="end-btn" class="nav-end-link">End<span class="nav-word-session"> Session</span></a>
             <a href="#" data-nav="history">History</a>
+            <button type="button" class="nav-info-btn" id="session-info-btn" aria-label="Session info" title="Session info">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
             <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle theme"></button>`;
         const themeBtn = navLinks.querySelector<HTMLElement>('[data-theme-toggle]');
         if (themeBtn) initThemeToggle(themeBtn);
     }
+
+    // Session info panel behind the nav "ⓘ" button (and the mobile More sheet).
+    const infoPanel = mountSessionInfoPanel(root, (): SessionInfoRow[] => {
+        const providerLabel =
+            ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
+        const modelLabel = sessionModelLabel(setup.provider, setup.model);
+        const streams = typeof (provider as { completeStream?: unknown }).completeStream === 'function';
+        return [
+            {
+                label: 'Model',
+                value: modelLabel,
+                ...(isSlowModel(setup.model) ? { note: SLOW_MODEL_NOTE } : {}),
+            },
+            { label: 'Mode', value: 'Noting circle' },
+            { label: 'Circle', value: `${participants.length} participant${participants.length === 1 ? '' : 's'}` },
+            { label: 'Source', value: providerLabel },
+            {
+                label: 'Response',
+                value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
+            },
+        ];
+    });
+    document
+        .getElementById('session-info-btn')
+        ?.addEventListener('click', () => infoPanel.toggle());
 
     root.innerHTML = `
         <div class="session-container">
@@ -226,6 +259,7 @@ export async function mountNotingSessionView(
     // document-level kasina listeners (drag, outside-click) and the
     // beforeunload guard are tied to viewCleanup so they detach on teardown.
     const viewCleanup = new AbortController();
+    viewCleanup.signal.addEventListener('abort', () => infoPanel.dispose());
     window.addEventListener(
         'beforeunload',
         (e) => {
@@ -696,6 +730,9 @@ export async function mountNotingSessionView(
         requestLeave(destination?: SessionEndDestination): void {
             showEndConfirm(leaveMessage(destination), destination);
         },
+        showInfo(): void {
+            infoPanel.open();
+        },
     };
 }
 
@@ -745,6 +782,7 @@ function mountError(
     return {
         teardown() { /* nothing to tear down */ },
         requestLeave() { /* no live circle to guard */ },
+        showInfo() { /* no panel on the error view */ },
     };
 }
 

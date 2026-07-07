@@ -227,6 +227,10 @@ function wireMobileMore(): void {
         } else if (t.closest('#moreHistory')) {
             close();
             (currentSession ?? currentNoting)?.requestLeave('history');
+        } else if (t.closest('#moreSessionInfo')) {
+            // Session-only: open the in-session info panel (model, mode, …).
+            close();
+            (currentSession ?? currentNoting)?.showInfo();
         } else if (t.closest('#moreAccount')) {
             // Routing is handled by the global data-nav click handler (wireNav);
             // here we just dismiss the sheet.

@@ -141,6 +141,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/tts/uninstall-model", post(tts_uninstall_model))
         .route("/llm/anthropic/messages", post(llm_anthropic_messages))
         .route("/llm/claude_proxy/complete", post(llm_claude_proxy_complete))
+        .route("/llm/claude_proxy/probe", get(llm_claude_proxy_probe))
         .route("/providers", get(providers))
         .route("/models/{provider}", get(models))
         .route("/google-oauth", post(google_oauth))
@@ -879,6 +880,34 @@ async fn llm_anthropic_messages(headers: axum::http::HeaderMap, body: Bytes) -> 
         )
             .into_response(),
     }
+}
+
+#[derive(Deserialize)]
+struct ProbeQuery {
+    model: Option<String>,
+}
+
+/// `GET /app/v1/llm/claude_proxy/probe?model=<id>` — is the local Claude
+/// subscription actually able to serve `<id>` right now? Runs a tiny cached
+/// probe against the `claude` CLI (see `crate::llm::claude_probe`) so the UI can
+/// grey out a model Anthropic has pulled from the subscription (e.g. Fable)
+/// before offering it. Returns `{model, status}` with status one of
+/// available/unavailable/cli_missing/unknown.
+async fn llm_claude_proxy_probe(
+    State(state): State<Shared>,
+    Query(q): Query<ProbeQuery>,
+) -> Response {
+    let model = q.model.unwrap_or_default();
+    if model.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model required" })))
+            .into_response();
+    }
+    // Same app-owned scratch cwd as the completion path, for the same reasons
+    // (no untrusted CLAUDE.md pickup, no macOS file prompt).
+    let cwd = state.data_dir.join("claude-cwd");
+    let _ = std::fs::create_dir_all(&cwd);
+    let body = crate::llm::claude_probe(&model, &cwd).await;
+    (StatusCode::OK, Json(body)).into_response()
 }
 
 async fn llm_claude_proxy_complete(
