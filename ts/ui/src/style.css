@@ -527,8 +527,12 @@
    lifted .setup-footer .btn-begin rule). */
 .setup-footer-inner .btn-begin {
     width: auto;
-    padding-left: 2.2rem;
-    padding-right: 2.2rem;
+    /* Enough to keep the CTA roomy on desktop, trimmed from 2.2rem so the
+       one-line "Begin Session (≈ N☁️/hr)" has more room before it wraps on a
+       narrow phone (the button is full-width there, so side padding eats text
+       space). */
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
 }
 /* A parenthetical aside after the label, SAME size as it. The parens (not
    opacity — house style avoids opacity de-emphasis) mark it as secondary; it
