@@ -4273,9 +4273,11 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         right: 0;
         /* Clear the status bar / notch: this floating header sits at top:0 over
            the webview, which draws under the status bar (viewport-fit=cover), so
-           without the top inset the brand overlaps the clock (bead 3or7). */
-        padding: calc(0.5rem + env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
-            0.5rem max(0.75rem, env(safe-area-inset-left));
+           without the top inset the brand overlaps the clock (bead 3or7). Pull
+           ~0.4rem back out of the full inset so the brand/orb ride a touch
+           higher (still clear of the clock), giving the page more middle room. */
+        padding: max(0.5rem, calc(env(safe-area-inset-top) - 0.4rem)) max(0.75rem, env(safe-area-inset-right))
+            0.4rem max(0.75rem, env(safe-area-inset-left));
         background: transparent;
         border-bottom: none;
         display: flex;
@@ -4317,14 +4319,15 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Reserve room: top space clears the floating brand/orb,
        bottom space clears the fixed bottom nav. */
     .main {
-        padding: calc(3rem + env(safe-area-inset-top)) 1rem calc(4rem + env(safe-area-inset-bottom));
+        padding: calc(2.4rem + env(safe-area-inset-top)) 1rem
+            calc(3.1rem + env(safe-area-inset-bottom) * 0.4);
     }
 
     /* Session page: the .main host is padding:0 by design — push the
        inner container down so chat doesn't underlap the floating chrome
        (the brand/orb header now sits below the notch, so clear that too). */
     .session-container {
-        padding: calc(3rem + env(safe-area-inset-top)) 1rem 0;
+        padding: calc(2.4rem + env(safe-area-inset-top)) 1rem 0;
     }
 
     .message-content {
@@ -4500,7 +4503,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        bottom nav. The body is locked to 100dvh on this page so we
        can't rely on document scroll. */
     .main:has(.session-container) {
-        padding-bottom: calc(3.75rem + env(safe-area-inset-bottom));
+        padding-bottom: calc(3rem + env(safe-area-inset-bottom) * 0.4);
     }
 
     /* During an active session: hide the bottom nav (the floating
@@ -4509,7 +4512,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         display: none;
     }
     body[data-session-active] .main:has(.session-container) {
-        padding-bottom: env(safe-area-inset-bottom);
+        padding-bottom: calc(env(safe-area-inset-bottom) * 0.4);
     }
 
     /* Floating hamburger button — top-right, sharing a chip with the
@@ -4542,12 +4545,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        and forms need enough bottom padding to clear both. */
     .settings-footer,
     .setup-footer {
-        bottom: calc(3.75rem + env(safe-area-inset-bottom));
+        bottom: calc(3rem + env(safe-area-inset-bottom) * 0.4);
     }
     .setup-container {
         max-width: 500px;
         margin: 0 auto;
-        padding-bottom: calc(7rem + 3.75rem + env(safe-area-inset-bottom));
+        padding-bottom: calc(7rem + 3rem + env(safe-area-inset-bottom) * 0.4);
     }
 
     /* Bottom nav itself */
@@ -4559,7 +4562,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         right: 0;
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
-        padding: 0.4rem 0.25rem calc(0.4rem + env(safe-area-inset-bottom));
+        /* Only ~0.4x of the home-indicator inset as bottom clearance — the full
+           inset (~34px) leaves a big dead band under the labels. 0.4x keeps the
+           tap targets off the indicator while reclaiming most of that space. */
+        padding: 0.35rem 0.25rem calc(0.3rem + env(safe-area-inset-bottom) * 0.4);
         z-index: 95;
         justify-content: space-around;
         align-items: stretch;
