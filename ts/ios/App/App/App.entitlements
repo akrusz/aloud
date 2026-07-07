@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sign in with Apple (native mobile sign-in, meditation-pal-tpj4).
+	     Requires the "Sign in with Apple" capability enabled on the App ID
+	     (app.aloud.meditation) in the Apple Developer portal, and the app's
+	     bundle id present in the server's APPLE_CLIENT_IDS (the native token's
+	     aud is the bundle id, not the web Services ID). -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>

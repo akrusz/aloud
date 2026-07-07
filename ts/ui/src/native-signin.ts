@@ -29,7 +29,7 @@
 
 import type { SignInHandlers } from './google-signin.js';
 import { googleClientId, appleClientId, googleSignIn, appleSignIn } from './cloud-auth.js';
-import { isCapacitor } from './is-desktop.js';
+import { isCapacitor, capacitorPlatform } from './is-desktop.js';
 
 function googleIosClientId(): string {
     return import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID ?? '';
@@ -38,15 +38,29 @@ function appleNativeRedirectUrl(): string {
     return import.meta.env.VITE_APPLE_REDIRECT_URL ?? '';
 }
 
-/** Native Google is available when we're in the app and have any Google client
- *  id (an iOS client id for the iOS flow, or the web client id for Android). */
+/**
+ * Native Google is available when we're in the app and have the client id the
+ * platform's flow needs: iOS uses its own iOS OAuth client id; Android uses the
+ * web client id. Missing that id → no button (email carries the modal).
+ */
 export function isNativeGoogleConfigured(): boolean {
-    return isCapacitor() && (googleIosClientId() !== '' || googleClientId() !== '');
+    if (!isCapacitor()) return false;
+    return capacitorPlatform() === 'ios' ? googleIosClientId() !== '' : googleClientId() !== '';
 }
-/** Native Apple is available when we're in the app and an Apple Services ID is
- *  configured (the iOS flow uses the app bundle id natively regardless). */
+/**
+ * Native Apple is available:
+ *   - iOS  → ALWAYS. Sign in with Apple is a first-party system capability keyed
+ *            to the app's bundle id; it needs no Services ID (that's the web /
+ *            Android redirect flow). The server verifies the native token's
+ *            `aud` = bundle id (APPLE_CLIENT_IDS must include it). The app must
+ *            carry the Sign in with Apple entitlement (App.entitlements).
+ *   - Android → only when a Services ID + redirect URL are configured (the
+ *            web-style flow); unset for the beta, so Apple is iOS-only there.
+ */
 export function isNativeAppleConfigured(): boolean {
-    return isCapacitor() && appleClientId() !== '';
+    if (!isCapacitor()) return false;
+    if (capacitorPlatform() === 'ios') return true;
+    return appleClientId() !== '' && appleNativeRedirectUrl() !== '';
 }
 
 // Lazy plugin load + one-time initialize(). Memoized: the first render/login
@@ -67,9 +81,13 @@ function ensureInit(): Promise<SocialLogin> {
                 ...(googleClientId() ? { webClientId: googleClientId() } : {}),
             };
         }
-        if (appleClientId()) {
+        // Enable the Apple provider whenever it's usable here: on iOS always
+        // (system flow off the bundle id — clientId optional), on Android only
+        // when the Services ID + redirect are set. On iOS with no Services ID
+        // that's an empty apple config, which is valid and turns the provider on.
+        if (isNativeAppleConfigured()) {
             options.apple = {
-                clientId: appleClientId(),
+                ...(appleClientId() ? { clientId: appleClientId() } : {}),
                 ...(appleNativeRedirectUrl() ? { redirectUrl: appleNativeRedirectUrl() } : {}),
             };
         }

@@ -161,8 +161,8 @@ li.t .strip{position:absolute;left:0;top:0;bottom:0;width:4px}
 .body{display:none;padding:2px 18px 16px 18px;border-top:1px solid var(--line);
   background:var(--panel-2)}
 li.open .body{display:block}
-.body .txt{font-size:13.5px;color:var(--ink-soft);white-space:normal;margin-top:12px;
-  max-width:78ch}
+.body .txt{font-size:13.5px;color:var(--ink);white-space:normal;margin-top:12px;
+  max-width:78ch;line-height:1.62}
 .body .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-faint);
   font-weight:700;margin:14px 0 4px}
 .body .notes{border-left:2px solid var(--accent);padding-left:12px}

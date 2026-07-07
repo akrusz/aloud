@@ -24,6 +24,21 @@
 	<string>aloud listens while you speak so it can respond in your practice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>aloud transcribes your speech to understand what you share.</string>
+	<!-- Google Sign-In redirect (native mobile sign-in, meditation-pal-tpj4).
+	     REPLACE the placeholder below with your iOS OAuth client's REVERSED
+	     client id (Google Cloud shows it for the iOS client; it looks like
+	     com.googleusercontent.apps.1234567890-abcdef). Until replaced, Google
+	     sign-in won't complete (but nothing crashes). Apple sign-in needs no
+	     URL scheme. See dev-docs/mobile-signin-setup.md. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.REPLACE_WITH_REVERSED_IOS_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
