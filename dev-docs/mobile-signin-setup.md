@@ -1,3 +1,53 @@
+Where the iOS/Android push stands
+
+  Both platforms build, compile, and run. The iOS app has been booted and visually verified in
+  the simulator (iPhone 17 and iPhone 13), talking to the live cloud. This went from
+  "typecheck-clean but never compiled" at the start to "compiles, runs, and looks right on
+  device" today.
+
+  Done this session
+
+  - Native projects generated + committed — ts/ios (CocoaPods, so native STT links) +
+  ts/android; all 5 plugins compile on both. Mic permissions wired.
+  - Native Google/Apple sign-in — code + iOS entitlement/URL-scheme all in place (app-side
+  done; only console values remain).
+  - CORS fixed (your Fly change) + verified live — providers, cloud voices, and sign-in config
+  now load in the app.
+  - Layout polish, all verified in-sim: status-bar overlap fixed, phantom "update available"
+  killed on mobile, reclaimed middle space (top header + bottom nav), and the cost moved
+  inline into the Begin button (Begin Session (≈ 5 ☁/hr), hidden when free).
+  - bd-board.py — the readable backlog viewer, so you're not fighting the CLI.
+
+  What's left for you
+
+  Blocking the beta (your accounts/hardware — I can't do these):
+  1. Push the 15 commits (I have no push access).
+  2. Native sign-in console setup → dev-docs/mobile-signin-setup.md (you're already on it).
+  This is the only doc-driven task. 
+  3. TestFlight: archive + upload in Xcode → dev-docs/mobile-signing.md. Needs your Apple
+  login; ~20 min of clicking once signing is set.
+  4. (Optional) Android Play internal testing — keystore + bundleRelease → same signing doc,
+  if you want Android in the beta too.
+
+  Not blocking — resume anytime:
+  - Device validation on your friends' old phones: native STT quality (0ao) + TTS voices
+  (g0ox) → dev-docs/mobile-device-validation.md.
+  - Capability-tier defaults (wpxe) — flip weak devices to cloud-default once you have that
+  data.
+  - Apple Intelligence LLM (0wbj) — post-launch, and it skips iPhone 13 anyway.
+
+  Two small notes for tomorrow
+
+  - First native sign-in tap is untested (needs a device + your client IDs). If it throws,
+  send me the error — likely a quick plugin-API fix.
+  - Two untracked dirs (ts/src-tauri/icons/{ios,android}/) are pre-existing Tauri desktop
+  icons, not from this session — I left them alone. Decide whether to commit them separately.
+
+  Realistically, my code work for the beta is done — the path to TestFlight is now console
+  setup + signing, both yours. The simulators are still booted if you want a last look before
+  closing out; otherwise this is a clean stopping point. Have a good one, and I'll pick up the
+  sign-in verification (or whatever breaks first) tomorrow.
+
 # Native mobile sign-in — console + config checklist
 
 Everything needed to turn on native Google + Apple sign-in in the iOS app
