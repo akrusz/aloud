@@ -465,6 +465,24 @@ body {
     flex: 1;
 }
 
+/* Two related steppers side by side under one label (e.g. Response Delay:
+   Streaming / Non-streaming). Visual tweaking may follow. */
+.subfield-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.subfield {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1 1 8rem;
+}
+.subfield-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .form-row-thirds > .form-group {
     flex: 1;
 }

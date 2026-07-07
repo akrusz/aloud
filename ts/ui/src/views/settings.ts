@@ -1651,13 +1651,17 @@ function renderPacingSection(s: AppSettings): string {
         <div class="form-row">
             <div class="form-group form-group-half">
                 <label>Response Delay (s)</label>
-                ${stepper('s-response-delay', s.responseDelayMs / 1000, 0.5, 10, 0.5)}
-                <span class="form-hint">Wait after transcription before the facilitator responds (streaming models)</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label>Response Delay — Non-streaming (s)</label>
-                ${stepper('s-nonstream-response-delay', s.nonStreamingResponseDelayMs / 1000, 0, 10, 0.5)}
-                <span class="form-hint">Shorter wait for providers that return the whole reply at once (the Claude subscription); their own latency is the pause.</span>
+                <div class="subfield-row">
+                    <div class="subfield">
+                        <span class="subfield-label">Streaming</span>
+                        ${stepper('s-response-delay', s.responseDelayMs / 1000, 0.5, 10, 0.5)}
+                    </div>
+                    <div class="subfield">
+                        <span class="subfield-label">Non-streaming</span>
+                        ${stepper('s-nonstream-response-delay', s.nonStreamingResponseDelayMs / 1000, 0, 10, 0.5)}
+                    </div>
+                </div>
+                <span class="form-hint">Wait after you stop speaking before the facilitator responds. Streaming models can start talking mid-reply, so they keep the full pause; the subscription returns the whole reply at once, so its own latency is the pause.</span>
             </div>
             <div class="form-group form-group-half" id="s-silence-sec-group">
                 <label class="checkbox-label">
