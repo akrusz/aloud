@@ -46,7 +46,6 @@ import {
     type ServerVoice,
 } from '../voice-picker.js';
 import { rateBadge, rateUnits, RATE_EMOJI, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
-import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
@@ -630,16 +629,12 @@ export async function mountSetupView(
         // covered attendees. fetchMe is a no-op when signed out; repaint once it
         // resolves (it populates the coverage store synchronously before then).
         void fetchMe().then(() => updateSessionEstimate()).catch(() => {});
-        // The cloud-rate pill doubles as the buy-credits entry point: tapping it
-        // opens the buy-credits modal (which shows the live balance). It's only
-        // visible when the session actually spends clouds (see
-        // updateSessionEstimate), so the tap always lands somewhere meaningful.
-        const estimateEl = root.querySelector<HTMLElement>('#session-estimate');
-        if (estimateEl) {
-            estimateEl.addEventListener('click', () => {
-                void showBuyCreditsModal();
-            });
-        }
+        // NOTE (cost-in-button prototype): the cloud-rate estimate now renders
+        // inside the Begin button as a passive label (pointer-events: none), so
+        // it's no longer a tap target. That drops the old pill's tap-to-buy-
+        // credits shortcut — buying credits still lives behind the account/
+        // profile surface. If we keep this treatment, decide whether the setup
+        // screen still needs its own buy-credits entry point.
 
         // Continuation banner — shown when the history view has queued a
         // session for continuation.
@@ -1547,9 +1542,12 @@ function renderSetupHTML(
              tap toggles it to your cloud balance. At very narrow widths it pops
              out above the bar instead (see .session-estimate media query). -->
         <div class="setup-footer-inner">
-            <p class="session-estimate" id="session-estimate"></p>
-            <button id="begin-btn" type="button"
-                class="btn btn-primary btn-begin">Begin Session</button>
+            <button id="begin-btn" type="button" class="btn btn-primary btn-begin">
+                <span class="btn-begin-label">Begin Session</span>
+                <!-- Cloud-rate estimate, rendered inside the CTA (hidden when the
+                     session spends nothing — see updateSessionEstimate). -->
+                <span class="btn-begin-rate" id="session-estimate"></span>
+            </button>
         </div>
     </div>`;
 }

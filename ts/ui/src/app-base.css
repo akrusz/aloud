@@ -4545,12 +4545,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        and forms need enough bottom padding to clear both. */
     .settings-footer,
     .setup-footer {
-        bottom: calc(3rem + env(safe-area-inset-bottom) * 0.4);
+        bottom: calc(3.7rem + env(safe-area-inset-bottom) * 0.4);
     }
     .setup-container {
         max-width: 500px;
         margin: 0 auto;
-        padding-bottom: calc(7rem + 3rem + env(safe-area-inset-bottom) * 0.4);
+        padding-bottom: calc(7rem + 3.7rem + env(safe-area-inset-bottom) * 0.4);
     }
 
     /* Bottom nav itself */

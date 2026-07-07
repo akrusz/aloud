@@ -512,55 +512,40 @@
     flex-wrap: wrap;
 }
 
-/* Combined estimated cloud rate for the configured session (meditation-pal-14s).
-   A small rounded pill that lives IN the setup bar beside a (now narrower)
-   Begin button. Muted + same-size text so it's transparency, not a nag; tap
-   toggles it to the live balance (which stacks two lines, growing the bar a
-   touch). The "≈" carries the estimate/per-hour caveat. */
-/* Three columns — pill off to the left, Begin button centered (the equal 1fr
-   gutters keep it centered regardless of the pill's width), right gutter empty. */
+/* Combined estimated cloud rate for the configured session (meditation-pal-14s),
+   rendered as a small second line INSIDE the Begin button rather than a separate
+   floating pill. Hidden entirely when the session spends nothing (local/BYOK
+   across every leg — see updateSessionEstimate), so a free session shows a plain
+   single-line CTA. The "≈" carries the estimate/per-hour caveat. */
 .setup-footer-inner {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 0.75rem;
 }
-.session-estimate {
-    grid-column: 1;
-    justify-self: start;
-    margin: 0;
-    padding: 0.35rem 0.7rem;
-    background: var(--bg-surface);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    cursor: pointer;
-    /* Tapped state stacks "balance: N☁️" above the rate via a newline. */
-    white-space: pre-line;
-    text-align: center;
-}
-/* Centered, natural-width button (was full-width). Overrides the lifted
-   `.setup-footer .btn-begin { width: 100% }`. */
+/* Stack the label over the rate; natural width on desktop, full-width on phone
+   (the narrow override below + the lifted .setup-footer .btn-begin rule). */
 .setup-footer-inner .btn-begin {
-    grid-column: 2;
+    flex-direction: column;
+    gap: 0.05rem;
+    line-height: 1.15;
     width: auto;
-    /* ~20% wider than its natural width — roomier CTA, still not page-spanning.
-       Horizontal only, so the button height (and the pill matched to it) holds. */
     padding-left: 2.2rem;
     padding-right: 2.2rem;
 }
-/* Narrow: the three-up row (pill · Begin · gutter) gets cramped well before
-   it's truly tiny, so pop the pill out above the bar (the fixed footer is its
-   containing block) and give the button the full width back. */
+.btn-begin-rate {
+    font-size: 0.78rem;
+    font-weight: 500;
+    /* Sits on the accent CTA, so it inherits the button's light text; a touch
+       of transparency keeps it secondary to the label. */
+    opacity: 0.85;
+    /* Taps fall through to the button (begin the session) — the rate is a
+       label, not a control. */
+    pointer-events: none;
+}
+.btn-begin-rate.hidden {
+    display: none;
+}
 @media (max-width: 488px) {
-    .setup-footer-inner {
-        display: block;
-    }
-    .session-estimate {
-        position: absolute;
-        left: 0.75rem;
-        bottom: calc(100% + 0.5rem);
-    }
     .setup-footer-inner .btn-begin {
         width: 100%;
     }
