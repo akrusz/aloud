@@ -24,7 +24,12 @@ import { OllamaProvider, type LLMProvider } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
-import { buildProvider, describeCloudError, type SessionEndDestination } from './session.js';
+import {
+    buildProvider,
+    buildUtilityProvider,
+    describeCloudError,
+    type SessionEndDestination,
+} from './session.js';
 import { showErrorToast } from '../toast.js';
 import { assetPath } from '../route-base.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
@@ -78,6 +83,16 @@ export async function mountNotingSessionView(
         provider = await buildProvider(setup);
     } catch (err) {
         return mountError(root, (err as Error).message, onEnd);
+    }
+    // The auxiliary calls — one-word noting labels and the session recap — run
+    // on a cheap, fast, non-reasoning model (Haiku; see buildUtilityProvider),
+    // not the (possibly slow/always-thinking) facilitation model. Falls back to
+    // `provider`.
+    let utilityProvider = provider;
+    try {
+        utilityProvider = await buildUtilityProvider(setup, provider);
+    } catch {
+        utilityProvider = provider;
     }
 
     // ---- nav chrome (breathing orb + End/History) ----
@@ -469,7 +484,7 @@ export async function mountNotingSessionView(
         const name = participantName(index);
         if (p.type === 'llm') {
             setStatus(`${name} is noting…`);
-            const label = await generateNotingLabel(provider, {
+            const label = await generateNotingLabel(utilityProvider, {
                 context: recentLabels.slice(),
                 ownLabels: ownLabels[index]!.slice(),
                 reactive: p.reactive,
@@ -640,7 +655,7 @@ export async function mountNotingSessionView(
             // are short notes ("warmth", "tension"); the summarizer distils
             // them into a one-line recap. Falls back to the intention.
             setStatus('Saving session…');
-            const summary = await generateSessionSummary(provider, finalState.exchanges, {
+            const summary = await generateSessionSummary(utilityProvider, finalState.exchanges, {
                 onUsage: (u) => session.recordLlmUsage(u),
             });
             finalState.notes = summary || setup.intention.trim();

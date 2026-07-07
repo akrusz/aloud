@@ -157,6 +157,48 @@ export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
     }
 }
 
+/**
+ * A cheap, fast, NON-reasoning model for the auxiliary helper calls — the yes/no
+ * resume/hold-confirm classifiers, one-word noting labels, and the session
+ * recap. Haiku across the board: those calls don't benefit from a premium model
+ * and there's real downside to running them on one. A slow or always-thinking
+ * facilitation model (Fable 5 reasons on every turn and can't be told not to)
+ * makes the tiny-budget classifiers return nothing (reasoning eats the budget),
+ * risks a truncated/thinking-block summary, and — for the end-of-session recap —
+ * keeps the user waiting to close. Haiku is fast, cheap, and never reasons.
+ *
+ * Falls back to the facilitation provider where Haiku isn't reachable: local
+ * Ollama (free anyway) and BYOK-direct providers (no Anthropic key). That's
+ * safe because those users aren't LOCKED into reasoning the way a Fable 5 user
+ * is — they can always pick a non-reasoning facilitation model.
+ */
+export async function buildUtilityProvider(
+    setup: SessionSetup,
+    facilitation: LLMProvider
+): Promise<LLMProvider> {
+    switch (setup.provider) {
+        case 'aloud': {
+            // Any cloud facilitation model → Haiku for helpers. The server holds
+            // the key; the client only names provider + model.
+            await ensureCloudToken();
+            return new CloudLlmProvider({ provider: 'anthropic', model: 'claude-haiku-4-5-20251001' });
+        }
+        case 'anthropic': {
+            const anthropicKey = await getApiKey('anthropic');
+            return new AnthropicProvider({
+                baseUrl: ANTHROPIC_PROXY_URL,
+                ...(anthropicKey ? { apiKey: anthropicKey } : {}),
+                model: 'claude-haiku-4-5-20251001',
+            });
+        }
+        case 'claude_proxy':
+            return new ClaudeProxyHttpProvider({ model: 'haiku' });
+        default:
+            // Ollama (free/local) and BYOK-direct providers: reuse facilitation.
+            return facilitation;
+    }
+}
+
 
 export interface SessionViewHandle {
     /** Tear down the running session and release resources. */
@@ -267,6 +309,16 @@ export async function mountSessionView(
                 /* no live session to guard */
             },
         };
+    }
+    // The auxiliary calls — yes/no classifiers, noting labels, and the session
+    // recap — run on a cheap, fast model (Haiku; see buildUtilityProvider), not
+    // the facilitation model. Falls back to the facilitation provider on any
+    // setup hiccup so a helper-model problem can never block the session itself.
+    let utilityProvider = provider;
+    try {
+        utilityProvider = await buildUtilityProvider(setup, provider);
+    } catch {
+        utilityProvider = provider;
     }
     // Build a TTS engine for a voice id, wrapped with a barge-in listener so
     // the user can interrupt the facilitator mid-sentence by speaking. The
@@ -940,7 +992,7 @@ export async function mountSessionView(
         appendMessage('user', userText);
         silenceBuffer.push(userText);
         setStatus('Holding space, one moment…');
-        const verdict = await classifyResumeIntent(provider, userText, {
+        const verdict = await classifyResumeIntent(utilityProvider, userText, {
             onUsage: (u) => session.recordLlmUsage(u),
         });
         // The user may have toggled out of the hold (or the view may have torn
@@ -974,7 +1026,7 @@ export async function mountSessionView(
     async function handleHoldConfirm(userText: string): Promise<void> {
         if (isNonSpeechOnly(userText)) return;
         awaitingHoldConfirm = false;
-        const confirmed = await classifyHoldConfirm(provider, userText, {
+        const confirmed = await classifyHoldConfirm(utilityProvider, userText, {
             onUsage: (u) => session.recordLlmUsage(u),
         });
         if (torn) return;
@@ -1891,7 +1943,7 @@ export async function mountSessionView(
                 // usage into the session tally before we persist finalState
                 // (same object reference as session.state, so recording still
                 // mutates it after endSession()).
-                summary = await generateSessionSummary(provider, finalState.exchanges, {
+                summary = await generateSessionSummary(utilityProvider, finalState.exchanges, {
                     systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
                     onUsage: (u) => session.recordLlmUsage(u),
                 });
@@ -1978,7 +2030,7 @@ export async function mountSessionView(
         if (exCount - summaryAtExchangeCount < SUMMARY_MIN_NEW_EXCHANGES) return;
         summaryRefreshing = true;
         try {
-            const recap = await generateSessionSummary(provider, state.exchanges, {
+            const recap = await generateSessionSummary(utilityProvider, state.exchanges, {
                 systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
                 onUsage: (u) => session.recordLlmUsage(u),
             });

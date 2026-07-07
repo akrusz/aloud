@@ -44,6 +44,22 @@ const M = 1_000_000;
 
 /** Keyed by `${provider}:${model}`. */
 const MODELS: Record<string, ModelPricing> = {
+    // Fable 5 — Anthropic's most capable model, a premium tier ABOVE Opus 4.8
+    // ($10/$50 per 1M, ~2x Opus). Same 5m/1h prompt caching as the Opus family
+    // (verified live on the metered request shape), so the 1h "anchor" bills
+    // through cacheCreation1h exactly like the others. The "give me the best"
+    // option. Uses the newer tokenizer (~30% more tokens for the same text) —
+    // that inflates token COUNTS but the per-token rates below already account
+    // for what Anthropic charges, so no adjustment is needed here.
+    'anthropic:claude-fable-5': {
+        provider: 'anthropic',
+        model: 'claude-fable-5',
+        input: 10 / M,
+        output: 50 / M,
+        cacheRead: 1 / M,
+        cacheCreation: 12.5 / M, // 5m write, 1.25x input
+        cacheCreation1h: 20 / M, // 1h write, 2x input
+    },
     'anthropic:claude-opus-4-8': {
         provider: 'anthropic',
         model: 'claude-opus-4-8',
@@ -70,6 +86,23 @@ const MODELS: Record<string, ModelPricing> = {
         cacheRead: 0.1 / M,
         cacheCreation: 1.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 2 / M, // 1h write, 2x input
+    },
+    // Opus 3 (claude-3-opus-20240229) — the original Claude 3 flagship, still
+    // served on the API though it's dropped off Anthropic's current price sheet.
+    // A deliberate niche draw: some people specifically prefer its warmer, more
+    // distinctive prose, and the meditation voice is exactly where that lands.
+    // Legacy Opus rate, $15/$75 per 1M (the same tier Opus 4/4.1 legacy still
+    // sit at). 200K context, 4096 max output — well above our 512-token cap.
+    // 5m + 1h caching both verified working on the metered path, so the anchor
+    // breakpoint is fine. Pinned to the dated id — the only form the API exposes.
+    'anthropic:claude-3-opus-20240229': {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        input: 15 / M,
+        output: 75 / M,
+        cacheRead: 1.5 / M,
+        cacheCreation: 18.75 / M, // 5m write, 1.25x input
+        cacheCreation1h: 30 / M, // 1h write, 2x input
     },
     // (Groq llama-3.3-70b was removed as a hosted option: it has NO prompt
     // caching, so on this ~98%-re-sent-history workload the whole transcript

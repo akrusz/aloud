@@ -30,6 +30,18 @@ const ANTHROPIC_API_VERSION = '2023-06-01';
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const DEFAULT_MAX_TOKENS = 300;
 
+/**
+ * Models whose reasoning can't be turned off (thinking is always-on; a
+ * `thinking: {type:"disabled"}` request 400s). For real-time voice facilitation
+ * we want the SHORTEST possible think-before-speak, so we pin these to the
+ * lowest effort — it caps the thinking preamble (latency) and the thinking
+ * tokens (billed as output). Gated to this exact set because `output_config` /
+ * `effort` 400s on models that predate it (e.g. claude-3-opus-20240229), and
+ * the current opt-in thinking models (opus-4-8, sonnet-4-6) run WITHOUT thinking
+ * when we send no `thinking` param, so they neither need nor want it.
+ */
+const EFFORT_LOW_MODELS = new Set(['claude-fable-5']);
+
 /** Upstream statuses worth retrying: rate-limit (429), and the transient 5xx
  *  family including Anthropic's 529 "overloaded". A non-429 4xx is the caller's
  *  fault (bad request / auth) and never retried. */
@@ -218,6 +230,9 @@ export class AnthropicProvider implements LLMProvider {
             ...(stream && { stream: true }),
         };
         if (systemParam) body['system'] = systemParam;
+        // Always-on-thinking models: keep the reasoning preamble minimal so the
+        // facilitator speaks with the least delay (see EFFORT_LOW_MODELS).
+        if (EFFORT_LOW_MODELS.has(this.model)) body['output_config'] = { effort: 'low' };
 
         const headers: Record<string, string> = {
             'content-type': 'application/json',
@@ -247,7 +262,14 @@ export class AnthropicProvider implements LLMProvider {
         }
 
         const data = (await response.json()) as AnthropicMessagesResponse;
-        const text = data.content?.[0]?.text ?? '';
+        // Take the TEXT block(s), not content[0]: an always-thinking model
+        // (Fable 5) leads with a `thinking` block, so content[0].text is
+        // undefined and grabbing it would drop the whole response. Joining all
+        // text blocks is robust to any block ordering/count.
+        const text = (data.content ?? [])
+            .filter((b) => b.type === 'text')
+            .map((b) => b.text ?? '')
+            .join('');
 
         return {
             text,
