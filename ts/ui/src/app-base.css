@@ -479,8 +479,9 @@ body {
     flex: 1 1 8rem;
 }
 .subfield-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
 }
 
 .form-row-thirds > .form-group {
