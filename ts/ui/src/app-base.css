@@ -33,8 +33,10 @@ html { font-size: 16px; }
     --radius-sm: 8px;
     /* Effective height of the sticky top bar (.nav). An estimate kept in sync
        with .nav's padding + brand line-height — used to keep floating modals
-       from sliding up under the bar. Slightly over-reserved on purpose. */
-    --nav-h: 64px;
+       from sliding up under the bar. Slightly over-reserved on purpose.
+       Includes the top safe-area inset so the reserve stays correct on notched
+       phones, where .nav is taller by that inset (0 elsewhere). */
+    --nav-h: calc(64px + env(safe-area-inset-top));
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -101,8 +103,12 @@ body {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    /* ~5px shorter than the old 1rem top/bottom; keep --nav-h in sync. */
-    padding: 0.8rem 2rem;
+    /* ~5px shorter than the old 1rem top/bottom; keep --nav-h in sync.
+       The top pad absorbs the status-bar / notch inset on mobile (env is 0 on
+       desktop + non-notched, so the bar is unchanged there); the sides use
+       max() so a landscape notch can't clip the brand or links (bead 3or7). */
+    padding: calc(0.8rem + env(safe-area-inset-top)) max(2rem, env(safe-area-inset-right))
+        0.8rem max(2rem, env(safe-area-inset-left));
     border-bottom: 1px solid var(--border);
     background: var(--bg-secondary);
     flex-shrink: 0;
@@ -4265,7 +4271,11 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         top: 0;
         left: 0;
         right: 0;
-        padding: 0.5rem 0.75rem;
+        /* Clear the status bar / notch: this floating header sits at top:0 over
+           the webview, which draws under the status bar (viewport-fit=cover), so
+           without the top inset the brand overlaps the clock (bead 3or7). */
+        padding: calc(0.5rem + env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+            0.5rem max(0.75rem, env(safe-area-inset-left));
         background: transparent;
         border-bottom: none;
         display: flex;
@@ -4307,13 +4317,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Reserve room: top space clears the floating brand/orb,
        bottom space clears the fixed bottom nav. */
     .main {
-        padding: 3rem 1rem calc(4rem + env(safe-area-inset-bottom));
+        padding: calc(3rem + env(safe-area-inset-top)) 1rem calc(4rem + env(safe-area-inset-bottom));
     }
 
     /* Session page: the .main host is padding:0 by design — push the
-       inner container down so chat doesn't underlap the floating chrome. */
+       inner container down so chat doesn't underlap the floating chrome
+       (the brand/orb header now sits below the notch, so clear that too). */
     .session-container {
-        padding: 3rem 1rem 0;
+        padding: calc(3rem + env(safe-area-inset-top)) 1rem 0;
     }
 
     .message-content {

@@ -21,7 +21,7 @@
  * previewUpdateVersion.
  */
 
-import { isTauri } from './is-desktop.js';
+import { isTauri, isCapacitor } from './is-desktop.js';
 import { isWebMode } from './app-mode.js';
 import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
 import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
@@ -125,6 +125,13 @@ function dueForCheck(): boolean {
 export function runUpdateNudge(): void {
     const brand = document.getElementById('aboutLink');
     if (!brand) return;
+    // Native mobile (Capacitor) updates through the App Store / Play Store, not
+    // GitHub releases or the Tauri updater — so it must NEVER flag an update
+    // (not even the preview path, which has no native updater to preview).
+    // Gate here explicitly rather than leaning on isWebMode(): mobile IS web
+    // mode, but that's incidental, and a desktop-style update pill on the phone
+    // is exactly the confusing state we don't want.
+    if (isCapacitor()) return;
     // Already flagged, or forced via preview — nothing more to check.
     if (brand.classList.contains('has-update') || brand.classList.contains('has-update-static')) {
         return;
@@ -184,8 +191,10 @@ const ABOUT_CHECK_INTERVAL_MS = 2 * 60 * 1000;
 let lastAboutCheck = 0;
 function runUpdateCheck(updateEl: HTMLElement | null): void {
     const preview = previewUpdateVersion();
-    // Web mode hides the section (auto-updates on reload) — unless previewing,
-    // where the point is to see the flow regardless of platform.
+    // Native mobile never shows the update line (store-updated, no in-app
+    // updater) — even under preview. Web mode hides it too (auto-updates on
+    // reload) unless previewing, where the point is to see the flow.
+    if (isCapacitor()) return;
     if (!updateEl || checking || (isWebMode() && !preview)) return;
     // Preview always re-renders; a real check is throttled to once / 2 min.
     if (!preview && lastAboutCheck && Date.now() - lastAboutCheck < ABOUT_CHECK_INTERVAL_MS) return;

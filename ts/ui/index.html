@@ -2,7 +2,11 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- viewport-fit=cover lets the app draw into the notch/Dynamic Island
+             area on mobile; the nav + bottom bar then pad themselves back out of
+             it with env(safe-area-inset-*). Without cover, those insets report 0
+             and the top nav would sit under the status-bar clock (bead 3or7). -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <title>aloud.</title>
         <meta
             name="description"
