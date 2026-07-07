@@ -462,6 +462,29 @@ describe('admin routes — retreats', () => {
         expect(after[0]!.status).toBe('revoked');
     });
 
+    it('refuses to delete a live pass, but deletes it once revoked (clears it from the list)', async () => {
+        const { app } = makeApp({ token: TOKEN });
+        const pass = (await (
+            await post(app, '/cloud/v1/admin/retreats', { label: 'R', startsAt: 1000, endsAt: 9_999_999_999 })
+        ).json()) as { id: string };
+
+        const del = (id: string) =>
+            app.request(`/cloud/v1/admin/retreats/${id}`, { method: 'DELETE', headers: authed() });
+
+        // Live pass → refused (must revoke or wait for it to end first).
+        const early = await del(pass.id);
+        expect(early.status).toBe(400);
+        let list = (await (await app.request('/cloud/v1/admin/retreats', { headers: authed() })).json()) as unknown[];
+        expect(list).toHaveLength(1);
+
+        // Revoke makes it inert → delete now clears it from the list entirely.
+        await post(app, `/cloud/v1/admin/retreats/${pass.id}/revoke`, {});
+        const gone = await del(pass.id);
+        expect(gone.status).toBe(200);
+        list = (await (await app.request('/cloud/v1/admin/retreats', { headers: authed() })).json()) as unknown[];
+        expect(list).toEqual([]);
+    });
+
     it('404s the retreat routes when the admin token is unset', async () => {
         const { app } = makeApp();
         const res = await app.request('/cloud/v1/admin/retreats', { headers: authed() });

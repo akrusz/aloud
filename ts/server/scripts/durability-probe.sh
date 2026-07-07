@@ -60,7 +60,11 @@ case "${1:-}" in
   cleanup)
     [ -f "$STATE" ] || { echo "nothing to clean ($STATE missing)"; exit 0; }
     id="$(PROBE_STATE="$STATE" python3 -c 'import os,json;print(json.load(open(os.environ["PROBE_STATE"]))["id"])')"
+    # Revoke (makes the pass inert) then delete it — so no revoked marker card
+    # lingers in the admin panel. Delete is refused on a still-live pass, hence
+    # the revoke first.
     curl -fsS "${AUTH[@]}" -X POST "$API/retreats/$id/revoke" >/dev/null && echo "revoked $id"
+    curl -fsS "${AUTH[@]}" -X DELETE "$API/retreats/$id" >/dev/null && echo "deleted $id"
     rm -f "$STATE"
     ;;
   *)

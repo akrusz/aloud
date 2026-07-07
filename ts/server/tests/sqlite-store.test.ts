@@ -313,6 +313,25 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect((await store.listRetreatInvites('pass-1')).map((i) => i.email)).toEqual(['b@e.com']);
         expect(await store.invitesForEmail('a@e.com')).toEqual([]);
     });
+
+    it('deleteRetreatPass removes the pass and its roster (members + invites)', async () => {
+        await store.createAccount(ACCOUNT);
+        await store.createRetreatPass({
+            id: 'pass-1', label: 'R', startsAt: 0, endsAt: 1e12,
+            perAttendeeDailyCap: null, status: 'revoked', createdAt: 0,
+        });
+        await store.addRetreatMember({ passId: 'pass-1', accountId: 'acct-1', joinedAt: 10 });
+        await store.addRetreatInvite({ passId: 'pass-1', email: 'a@e.com', invitedAt: 10 });
+
+        await store.deleteRetreatPass('pass-1');
+
+        expect(await store.getRetreatPass('pass-1')).toBeUndefined();
+        expect(await store.listRetreatPasses()).toEqual([]);
+        // Roster is gone too — the FKs have no CASCADE, so the delete must clear
+        // children first or it would throw against foreign_keys = ON.
+        expect(await store.listRetreatMembers('pass-1')).toEqual([]);
+        expect(await store.listRetreatInvites('pass-1')).toEqual([]);
+    });
 });
 
 describe('SqliteCreditsStore — canonical-email unique index (duplicate-account guard)', () => {

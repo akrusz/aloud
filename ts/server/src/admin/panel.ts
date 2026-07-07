@@ -696,6 +696,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var cap = p.perAttendeeDailyCap == null ? 'unlimited' : dec1(p.perAttendeeDailyCap) + ' credits/day';
       var revoke = p.status === 'revoked' ? ''
         : '<button class="ghost xs" data-revoke="' + p.id + '">revoke</button>';
+      // Once a pass is inert (revoked or past its window) it can be cleared out
+      // for good — spent retreats, durability-probe test markers. Matches the
+      // server guard that refuses to delete a still-live pass.
+      var del = (p.status === 'revoked' || p.endsAt < now)
+        ? '<button class="ghost xs" data-delete="' + p.id + '">delete</button>'
+        : '';
       // Per-attendee rows: email, their provider cost, and suggested bill.
       var memberRows = p.members.length
         ? p.members.map(function (m) {
@@ -711,7 +717,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       return '<div class="card">' +
         '<div style="display:flex;align-items:center;gap:10px">' +
           '<strong>' + esc(p.label) + '</strong> ' + state +
-          '<span style="flex:1"></span>' + revoke +
+          '<span style="flex:1"></span>' + revoke + del +
         '</div>' +
         '<p class="sub" style="margin:8px 0">' + date(p.startsAt) + ' → ' + date(p.endsAt) +
           ' · cap ' + cap + '</p>' +
@@ -734,6 +740,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       btn.addEventListener('click', function () {
         if (!confirm('Revoke this pass? Coverage stops immediately for every attendee.')) return;
         api('/retreats/' + btn.getAttribute('data-revoke') + '/revoke', { method: 'POST' })
+          .then(loadRetreats)
+          .catch(function (e) { alert(e.message); });
+      });
+    });
+    Array.prototype.forEach.call($('retreatList').querySelectorAll('[data-delete]'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Permanently delete this pass and its attendee records? This cannot be undone.')) return;
+        api('/retreats/' + btn.getAttribute('data-delete'), { method: 'DELETE' })
           .then(loadRetreats)
           .catch(function (e) { alert(e.message); });
       });

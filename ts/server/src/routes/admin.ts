@@ -461,6 +461,27 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json({ id: pass.id, status: 'revoked' });
     });
 
+    // Permanently delete a pass and its roster. Revoke stops coverage but leaves
+    // the card in the list; this clears it out (spent retreats, durability-probe
+    // test markers). Only allowed once the pass is inert — revoked or ended — so
+    // a live retreat can't be nuked out from under its attendees by one click.
+    app.delete('/retreats/:id', async (c) => {
+        const fail = await authFailure(c, deps);
+        if (fail) return fail;
+
+        const pass = await deps.store.getRetreatPass(c.req.param('id'));
+        if (!pass) return c.json(apiError('bad_request', 'no such pass'), ERROR_STATUS.bad_request);
+        const inert = pass.status === 'revoked' || pass.endsAt < Date.now() / 1000;
+        if (!inert) {
+            return c.json(
+                apiError('bad_request', 'revoke the pass (or wait for it to end) before deleting'),
+                ERROR_STATUS.bad_request
+            );
+        }
+        await deps.store.deleteRetreatPass(pass.id);
+        return c.json({ id: pass.id, status: 'deleted' });
+    });
+
     return app;
 }
 

@@ -277,6 +277,11 @@ export interface CreditsStore {
     listRetreatPasses(): Promise<RetreatPass[]>;
     /** Flip a pass to 'revoked' — coverage stops immediately. */
     revokeRetreatPass(id: string): Promise<void>;
+    /** Permanently delete a pass and its roster (memberships + pending invites).
+     *  Revoke leaves the card in the admin list; this removes it for good — the
+     *  operator's tool for clearing out spent/test passes (e.g. durability-probe
+     *  markers). Usage rows keep their passId as historical telemetry. */
+    deleteRetreatPass(id: string): Promise<void>;
     /** Add an account to a pass. Idempotent on (passId, accountId). */
     addRetreatMember(membership: RetreatMembership): Promise<void>;
     /** Members of a pass (for the admin roster / attendee count). */

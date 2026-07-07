@@ -771,6 +771,23 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db.prepare("UPDATE retreat_passes SET status = 'revoked' WHERE id = ?").run(id);
     }
 
+    async deleteRetreatPass(id: string): Promise<void> {
+        // Children first — the FKs into retreat_passes have no ON DELETE CASCADE,
+        // and foreign_keys is ON, so the pass row can't go while a membership or
+        // invite still references it. One transaction so the roster and pass
+        // never end up half-deleted. usage_events keep their pass_id (telemetry).
+        this.db.exec('BEGIN');
+        try {
+            this.db.prepare('DELETE FROM retreat_invites WHERE pass_id = ?').run(id);
+            this.db.prepare('DELETE FROM retreat_memberships WHERE pass_id = ?').run(id);
+            this.db.prepare('DELETE FROM retreat_passes WHERE id = ?').run(id);
+            this.db.exec('COMMIT');
+        } catch (e) {
+            this.db.exec('ROLLBACK');
+            throw e;
+        }
+    }
+
     async addRetreatMember(membership: RetreatMembership): Promise<void> {
         this.db
             .prepare(
