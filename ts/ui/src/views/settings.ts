@@ -1049,6 +1049,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             settings.responseDelayMs = Math.round(v * 1000);
             persist();
         });
+        wireStepper('s-nonstream-response-delay', settings.nonStreamingResponseDelayMs / 1000, (v) => {
+            settings.nonStreamingResponseDelayMs = Math.round(v * 1000);
+            persist();
+        });
         wireStepper('s-silence-sec', settings.silenceCheckinSec, (v) => {
             settings.silenceCheckinSec = Math.round(v);
             persist();
@@ -1648,7 +1652,12 @@ function renderPacingSection(s: AppSettings): string {
             <div class="form-group form-group-half">
                 <label>Response Delay (s)</label>
                 ${stepper('s-response-delay', s.responseDelayMs / 1000, 0.5, 10, 0.5)}
-                <span class="form-hint">Wait after transcription before LLM responds</span>
+                <span class="form-hint">Wait after transcription before the facilitator responds (streaming models)</span>
+            </div>
+            <div class="form-group form-group-half">
+                <label>Response Delay — Non-streaming (s)</label>
+                ${stepper('s-nonstream-response-delay', s.nonStreamingResponseDelayMs / 1000, 0, 10, 0.5)}
+                <span class="form-hint">Shorter wait for providers that return the whole reply at once (the Claude subscription); their own latency is the pause.</span>
             </div>
             <div class="form-group form-group-half" id="s-silence-sec-group">
                 <label class="checkbox-label">

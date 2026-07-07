@@ -301,18 +301,6 @@ export async function mountSessionView(
             })
         );
     }
-    const pacingConfig = {
-        ...defaultPacingConfig,
-        responseDelayMs: appSettings.responseDelayMs,
-        silenceCheckinSec: appSettings.silenceCheckinSec,
-        silenceCheckinsEnabled: appSettings.silenceCheckinsEnabled,
-        silenceModeEnabled: appSettings.silenceModeEnabled,
-        silenceBaseMs: appSettings.silenceBaseMs,
-        silenceMaxMs: appSettings.silenceMaxMs,
-    };
-    const pacing = new PacingController({ config: pacingConfig });
-    pacing.startSession();
-
     let provider: LLMProvider;
     try {
         provider = await buildProvider(setup);
@@ -338,6 +326,30 @@ export async function mountSessionView(
             },
         };
     }
+
+    // Pacing — the pre-response delay is provider-aware. A non-streaming
+    // provider (the Claude subscription) returns the whole reply at once, so the
+    // model's own latency already provides the pause; stacking the full delay on
+    // top just lengthens the silence. Streaming providers keep the normal delay
+    // (they can start speaking quickly, so the pause guards against cutting the
+    // user off). Safe for non-streaming: a not-yet-generated reply can't talk
+    // over a mid-thought pause.
+    const providerStreams =
+        typeof (provider as { completeStream?: unknown }).completeStream === 'function';
+    const pacingConfig = {
+        ...defaultPacingConfig,
+        responseDelayMs: providerStreams
+            ? appSettings.responseDelayMs
+            : appSettings.nonStreamingResponseDelayMs,
+        silenceCheckinSec: appSettings.silenceCheckinSec,
+        silenceCheckinsEnabled: appSettings.silenceCheckinsEnabled,
+        silenceModeEnabled: appSettings.silenceModeEnabled,
+        silenceBaseMs: appSettings.silenceBaseMs,
+        silenceMaxMs: appSettings.silenceMaxMs,
+    };
+    const pacing = new PacingController({ config: pacingConfig });
+    pacing.startSession();
+
     // The auxiliary calls — yes/no classifiers, noting labels, and the session
     // recap — run on a cheap, fast model (Haiku; see buildUtilityProvider), not
     // the facilitation model. Falls back to the facilitation provider on any
