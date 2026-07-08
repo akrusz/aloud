@@ -10,6 +10,9 @@ html { font-size: 16px; }
     --bg-secondary: #1a1410;
     --bg-card: #221a13;
     --bg-input: #281f16;
+    /* Between --bg-secondary (view bg) and --bg-input (fields), nearer the
+       field — the .info-panel note surface, distinct from both. */
+    --bg-note: #241b13;
     --bg-surface: #2e2419;
     --bg-tertiary: #1e1710;
     --text-primary: #f5efe6;
@@ -51,6 +54,7 @@ html { font-size: 16px; }
     --bg-secondary: #f5efd7;
     --bg-card: #fad8c0;
     --bg-input: #fffaf2;
+    --bg-note: #fef7ea;
     --bg-surface: #ffffff;
     --bg-tertiary: #efe0cc;
     --text-primary: #1f1a18;
@@ -3343,7 +3347,11 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 .info-panel {
-    background: var(--surface-alt, var(--surface));
+    /* Lift slightly off the view background (--bg-secondary) so the panel
+       reads as a distinct note, without matching the text fields (--bg-input).
+       --surface-alt/--surface aren't in the palette, so the old reference
+       resolved to transparent (page-matching). */
+    background: var(--bg-note);
     border: 1px solid var(--border);
     border-radius: var(--radius, 8px);
     padding: 0.75rem 1rem;
