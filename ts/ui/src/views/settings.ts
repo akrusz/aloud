@@ -6,7 +6,7 @@
  *   2. Language & STT   — language, Whisper model size (stub)
  *   3. Text-to-Speech   — engine selector, voice picker, ElevenLabs key
  *   4. Display          — text scale, theme mode, window mode (stub)
- *   5. Pacing           — silence base/max, response delay, check-in, hold
+ *   5. Pacing           — silence base/max, subscription pause, check-in, hold
  *   6. Network          — host (stub)
  *   7. Updates          — a button that opens the About box (the single update
  *                         surface, desktop self-update); no check/update here
@@ -1045,12 +1045,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             settings.silenceMaxMs = Math.round(v * 1000);
             persist();
         });
-        wireStepper('s-response-delay', settings.responseDelayMs / 1000, (v) => {
-            settings.responseDelayMs = Math.round(v * 1000);
+        wireStepper('s-nonstream-base', settings.nonStreamingSilenceBaseMs / 1000, (v) => {
+            settings.nonStreamingSilenceBaseMs = Math.round(v * 1000);
             persist();
         });
-        wireStepper('s-nonstream-response-delay', settings.nonStreamingResponseDelayMs / 1000, (v) => {
-            settings.nonStreamingResponseDelayMs = Math.round(v * 1000);
+        wireStepper('s-nonstream-max', settings.nonStreamingSilenceMaxMs / 1000, (v) => {
+            settings.nonStreamingSilenceMaxMs = Math.round(v * 1000);
             persist();
         });
         wireStepper('s-silence-sec', settings.silenceCheckinSec, (v) => {
@@ -1633,36 +1633,33 @@ function renderPacingSection(s: AppSettings): string {
             <input type="number" id="${id}" class="stepper-value" min="${min}" max="${max}" step="${step}" value="${value}">
             <button type="button" class="stepper-btn stepper-inc" data-target="${id}" aria-label="Increase">+</button>
         </div>`;
-    return `
-    <section class="settings-section">
-        <h2>Pacing</h2>
-        <div class="form-row">
+    const pauseGroup = (
+        prefix: string,
+        base: number,
+        max: number
+    ) => `
+        <div class="form-row pacing-pause-row">
             <div class="form-group form-group-half">
-                <label>Pause Detection (s)</label>
-                ${stepper('s-silence-base', s.silenceBaseMs / 1000, 1, 15, 0.5)}
-                <span class="form-hint">Minimum pause before your speech is submitted</span>
+                <label>Minimum Pause (s)</label>
+                ${stepper(`${prefix}-base`, base, 1, 15, 0.5)}
+                <span class="form-hint">Pause before your speech is submitted.</span>
             </div>
             <div class="form-group form-group-half">
                 <label>Extended Pause (s)</label>
-                ${stepper('s-silence-max', s.silenceMaxMs / 1000, 2, 20, 0.5)}
-                <span class="form-hint">Maximum pause tolerance after longer speech</span>
+                ${stepper(`${prefix}-max`, max, 1, 20, 0.5)}
+                <span class="form-hint">Pause tolerance after longer speech.</span>
             </div>
-        </div>
+        </div>`;
+    return `
+    <section class="settings-section">
+        <h2>Pacing</h2>
+        <h3 class="pacing-subhead">Pause before submitting user response (streaming providers)</h3>
+        <p class="form-hint pacing-subhead-note">For providers that return text in realtime. Most providers do this.</p>
+        ${pauseGroup('s-silence', s.silenceBaseMs / 1000, s.silenceMaxMs / 1000)}
+        <h3 class="pacing-subhead">Pause before submitting user response (non-streaming providers)</h3>
+        <p class="form-hint pacing-subhead-note">For providers that don't send a response until fully generated - currently just Claude subscriptions. Lower delay recommended because responses are slower.</p>
+        ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
         <div class="form-row">
-            <div class="form-group form-group-half">
-                <label>Response Delay (s)</label>
-                <div class="subfield-row">
-                    <div class="subfield">
-                        <span class="subfield-label">Streaming</span>
-                        ${stepper('s-response-delay', s.responseDelayMs / 1000, 0.5, 10, 0.5)}
-                    </div>
-                    <div class="subfield">
-                        <span class="subfield-label">Non-streaming</span>
-                        ${stepper('s-nonstream-response-delay', s.nonStreamingResponseDelayMs / 1000, 0, 10, 0.5)}
-                    </div>
-                </div>
-                <span class="form-hint">Wait after you stop speaking before the facilitator responds. Streaming models can start talking mid-reply, so they keep the full pause; the subscription returns the whole reply at once, so its own latency is the pause.</span>
-            </div>
             <div class="form-group form-group-half" id="s-silence-sec-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-silence-checkins-enabled"${s.silenceCheckinsEnabled ? ' checked' : ''}>
@@ -1670,15 +1667,6 @@ function renderPacingSection(s: AppSettings): string {
                 </label>
                 ${stepper('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
                 <span class="form-hint">Proactive check-ins after this much silence.</span>
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
-                    <span>Enable holding-space mode</span>
-                </label>
-                <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
             </div>
             <div class="form-group">
                 <label class="checkbox-label">
@@ -1688,6 +1676,15 @@ function renderPacingSection(s: AppSettings): string {
                 ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
                 <span class="form-hint">An open session keeps listening and checking in, which can slowly consume cloud credits if in use.</span>
             </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group-half">
+              <label class="checkbox-label">
+                  <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
+                  <span>Enable holding-space mode</span>
+              </label>
+              <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
+          </div>
         </div>
     </section>`;
 }

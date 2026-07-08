@@ -327,25 +327,30 @@ export async function mountSessionView(
         };
     }
 
-    // Pacing — the pre-response delay is provider-aware. A non-streaming
-    // provider (the Claude subscription) returns the whole reply at once, so the
-    // model's own latency already provides the pause; stacking the full delay on
-    // top just lengthens the silence. Streaming providers keep the normal delay
-    // (they can start speaking quickly, so the pause guards against cutting the
-    // user off). Safe for non-streaming: a not-yet-generated reply can't talk
-    // over a mid-thought pause.
+    // Pacing — the pause-detection window (the STT VAD's trailing-silence submit
+    // window, the real turn-taking gate) is provider-aware, with a separate
+    // base/max pair per provider kind. A non-streaming provider (the Claude
+    // subscription) can't start speaking until its whole reply is generated, so
+    // it can't talk over a mid-thought pause; and these users pay by
+    // subscription, not per request, so a too-early submit that a resumed
+    // utterance supersedes (see respondTo's turnGen/activeFullAbort) costs
+    // nothing. So their window defaults shorter, to cut latency.
     const providerStreams =
         typeof (provider as { completeStream?: unknown }).completeStream === 'function';
+    const silenceBaseMs = providerStreams
+        ? appSettings.silenceBaseMs
+        : appSettings.nonStreamingSilenceBaseMs;
+    const silenceMaxMs = providerStreams
+        ? appSettings.silenceMaxMs
+        : appSettings.nonStreamingSilenceMaxMs;
     const pacingConfig = {
         ...defaultPacingConfig,
-        responseDelayMs: providerStreams
-            ? appSettings.responseDelayMs
-            : appSettings.nonStreamingResponseDelayMs,
+        responseDelayMs: appSettings.responseDelayMs,
         silenceCheckinSec: appSettings.silenceCheckinSec,
         silenceCheckinsEnabled: appSettings.silenceCheckinsEnabled,
         silenceModeEnabled: appSettings.silenceModeEnabled,
-        silenceBaseMs: appSettings.silenceBaseMs,
-        silenceMaxMs: appSettings.silenceMaxMs,
+        silenceBaseMs,
+        silenceMaxMs,
     };
     const pacing = new PacingController({ config: pacingConfig });
     pacing.startSession();

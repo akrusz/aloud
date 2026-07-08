@@ -76,14 +76,17 @@ export interface AppSettings {
     silenceMaxMs: number;
     responseDelayMs: number;
     /**
-     * Response delay used when the facilitation provider does NOT stream (the
-     * Claude subscription returns the whole reply at once). That model latency
-     * already supplies a pause, so stacking the full `responseDelayMs` on top
-     * just lengthens the silence — this is a shorter delay for that case.
-     * Doesn't risk talking over the user: a non-streaming reply can't start
-     * speaking until it's fully generated, well after any mid-thought pause.
+     * Pause-detection window (VAD trailing-silence submit base + max) used when
+     * the facilitation provider does NOT stream — the Claude subscription. Such
+     * a reply can't start speaking until it's fully generated, so it can't talk
+     * over a mid-thought pause, and these users pay by subscription rather than
+     * per request, so a too-early submit that a resumed utterance supersedes
+     * (see respondTo's turnGen/activeFullAbort) costs nothing. Shorter than the
+     * streaming `silenceBaseMs`/`silenceMaxMs`, this just cuts latency. Floored
+     * at 1s in the UI.
      */
-    nonStreamingResponseDelayMs: number;
+    nonStreamingSilenceBaseMs: number;
+    nonStreamingSilenceMaxMs: number;
     silenceCheckinSec: number;
     silenceCheckinsEnabled: boolean;
     silenceModeEnabled: boolean;
@@ -109,7 +112,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     silenceBaseMs: 3000,
     silenceMaxMs: 5000,
     responseDelayMs: 2000,
-    nonStreamingResponseDelayMs: 1000,
+    nonStreamingSilenceBaseMs: 1500,
+    nonStreamingSilenceMaxMs: 4000,
     silenceCheckinSec: 300,
     silenceCheckinsEnabled: true,
     silenceModeEnabled: true,

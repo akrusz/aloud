@@ -465,25 +465,6 @@ body {
     flex: 1;
 }
 
-/* Two related steppers side by side under one label (e.g. Response Delay:
-   Streaming / Non-streaming). Visual tweaking may follow. */
-.subfield-row {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-.subfield {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    flex: 1 1 8rem;
-}
-.subfield-label {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-
 .form-row-thirds > .form-group {
     flex: 1;
 }
@@ -3317,6 +3298,24 @@ html:has(.nav-brand.has-update) .update-btn {
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: var(--space-xs);
+}
+
+/* Sub-group heading within a settings section (e.g. Pacing's Streaming /
+   Non-streaming provider groups). */
+.settings-section .pacing-subhead {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: var(--space-sm) 0 2px;
+}
+.settings-section .pacing-subhead-note {
+    margin: 0 0 var(--space-xs);
+}
+/* Both pause-detection rows (Streaming + Non-streaming) sit below a subhead, so
+   their labels want the same tight top margin — without this only the section's
+   first form-row gets it and the second row's labels indent extra. */
+.settings-section .pacing-pause-row .form-group > label {
+    margin-top: var(--space-xs);
 }
 
 .info-btn {
