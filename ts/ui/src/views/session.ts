@@ -48,7 +48,7 @@ import {
 } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
-import { ensureCloudToken, fetchMe } from '../cloud-auth.js';
+import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
@@ -1086,18 +1086,32 @@ export async function mountSessionView(
     // LLM proxy feeds every turn, so it updates live without extra round-trips.
     let unsubscribeBalance: (() => void) | null = null;
     const balanceEl = root.querySelector<HTMLElement>('#session-balance');
-    // Covered retreat attendees have no meaningful balance to tick down, so the
-    // live readout would only show a frozen number — skip it (meditation-pal-414).
+    // Only reveal the readout once this session actually spends credits: every
+    // metered call (LLM, or hosted TTS/STT — including a mid-session switch to a
+    // credit-spending voice) publishes a lower balance into the shared store, so
+    // we key visibility off a balance *drop* rather than trying to predict from
+    // the provider set. That keeps it hidden on fully local / BYOK / subscription
+    // sessions instead of showing a frozen number (subsumes the retreat-covered
+    // case, meditation-pal-414, which is kept as a cheap guard), and needs no
+    // voice/provider-change wiring. subscribeBalance doesn't fire on subscribe,
+    // so nothing paints until a real spend arrives.
     if (balanceEl && appSettings.showSessionBalance && !getRetreatCovered()) {
-        const paintBalance = (b: number | null): void => {
-            balanceEl.textContent = b == null ? '' : `${creditAmount(b)}${RATE_EMOJI}`;
-            balanceEl.classList.toggle('hidden', b == null);
-        };
-        paintBalance(getKnownBalance());
-        unsubscribeBalance = subscribeBalance(paintBalance);
-        // Seed from /me if we haven't observed a balance yet this load (fetchMe
-        // publishes into the store, which repaints via the subscription).
-        if (getKnownBalance() == null) void fetchMe();
+        let prev = getKnownBalance();
+        let revealed = false;
+        unsubscribeBalance = subscribeBalance((b) => {
+            if (b == null) {
+                balanceEl.classList.add('hidden');
+                revealed = false;
+                prev = b;
+                return;
+            }
+            if (!revealed && prev != null && b < prev) revealed = true;
+            if (revealed) {
+                balanceEl.textContent = `${creditAmount(b)}${RATE_EMOJI}`;
+                balanceEl.classList.remove('hidden');
+            }
+            prev = b;
+        });
     }
 
     // Handle an utterance spoken while the facilitator is holding silence.
