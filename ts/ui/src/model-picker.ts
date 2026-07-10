@@ -142,6 +142,9 @@ interface ModelOption {
      *  for free providers (BYOK/local/Ollama). Lets the setup screen sum a
      *  combined session estimate without re-fetching. */
     creditsPerHour?: number | null;
+    /** The model to pre-select when the user hasn't chosen one (aloud cloud only,
+     *  from /me/models). At most one option carries it; absent everywhere else. */
+    isDefault?: boolean;
 }
 
 const cache = new Map<string, ModelOption[]>();
@@ -164,7 +167,12 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             const resp = await fetch(cloudUrl('/me/models'));
             if (!resp.ok) return null;
             const data = (await resp.json()) as {
-                models?: Array<{ provider: string; model: string; creditsPerHour?: number | null }>;
+                models?: Array<{
+                    provider: string;
+                    model: string;
+                    creditsPerHour?: number | null;
+                    default?: boolean;
+                }>;
             };
             if (!data.models?.length) return null;
             // Hosted models cost credits, so append the cloud-rate badge ("N☁️")
@@ -173,6 +181,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 value: `${m.provider}/${m.model}`,
                 label: `${prettyModelName(m.model)}${rateSuffix(m.creditsPerHour)}`,
                 creditsPerHour: m.creditsPerHour ?? null,
+                isDefault: m.default ?? false,
             }));
             cache.set(provider, opts);
             return opts;
@@ -272,15 +281,15 @@ export function mountModelPicker(
         const slowNote = container.querySelector<HTMLElement>('#model-slow-note')!;
         // The user wants the picker to always show a concrete model name
         // (no "(provider default)" placeholder), so if the persisted value
-        // doesn't match anything in the list we promote the first model
-        // to the active selection and persist it. Keeps the displayed
-        // model honest about what's actually going to run.
+        // doesn't match anything in the list we promote the flagged default
+        // (aloud cloud marks one, e.g. Opus 4.8), falling back to the first
+        // model when none is flagged. Keeps the displayed model honest about
+        // what's actually going to run.
         const matched = models.find((m) => m.value === currentValue);
-        if (matched) {
-            sel.value = matched.value;
-        } else if (models[0]) {
-            sel.value = models[0].value;
-            currentValue = models[0].value;
+        const promoted = matched ?? models.find((m) => m.isDefault) ?? models[0];
+        if (promoted) {
+            sel.value = promoted.value;
+            currentValue = promoted.value;
         }
         // Unobtrusive heads-up when a reasoning/heavier model is picked — its
         // replies can lag a quick chat model.

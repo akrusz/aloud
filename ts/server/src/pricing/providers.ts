@@ -38,6 +38,11 @@ export interface TokenRates {
 export interface ModelPricing extends TokenRates {
     provider: ProviderId;
     model: string;
+    /** The model the picker pre-selects when the user hasn't chosen one. Exactly
+     *  one entry should carry this; the client falls back to the first model if
+     *  none does. Independent of list order, so the dropdown can present models
+     *  in a different order than which one is the default. */
+    default?: boolean;
 }
 
 const M = 1_000_000;
@@ -48,9 +53,12 @@ const MODELS: Record<string, ModelPricing> = {
     // ($10/$50 per 1M, ~2x Opus). Same 5m/1h prompt caching as the Opus family
     // (verified live on the metered request shape), so the 1h "anchor" bills
     // through cacheCreation1h exactly like the others. The "give me the best"
-    // option. Uses the newer tokenizer (~30% more tokens for the same text) —
-    // that inflates token COUNTS but the per-token rates below already account
-    // for what Anthropic charges, so no adjustment is needed here.
+    // option — offered, but NOT the default: it's slow (always reasons) and the
+    // priciest tier, so Opus 4.8 is the pre-selected default (see `default`
+    // below) and Fable is opt-in for those who know they want it. Uses the newer
+    // tokenizer (~30% more tokens for the same text) — that inflates token COUNTS
+    // but the per-token rates below already account for what Anthropic charges,
+    // so no adjustment is needed here.
     'anthropic:claude-fable-5': {
         provider: 'anthropic',
         model: 'claude-fable-5',
@@ -63,6 +71,7 @@ const MODELS: Record<string, ModelPricing> = {
     'anthropic:claude-opus-4-8': {
         provider: 'anthropic',
         model: 'claude-opus-4-8',
+        default: true, // pre-selected default: capable, faster + cheaper than Fable
         input: 5 / M,
         output: 25 / M,
         cacheRead: 0.5 / M,

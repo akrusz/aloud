@@ -302,14 +302,11 @@ function showApiKeyChoices(): void {
 
 /**
  * Locate the model picker element. The picker mounts inside
- * `#s-model-slot` and renders either `#model-select` or `#model-input`
- * depending on whether the /app/v1/models fetch succeeded.
+ * `#s-model-slot` and renders either a `#model-select` dropdown or, when no
+ * models are available, a `#model-none` reason paragraph (not interactive).
  */
-function findModelElement(): HTMLSelectElement | HTMLInputElement | null {
-    return (
-        document.querySelector<HTMLSelectElement>('#s-model-slot #model-select') ||
-        document.querySelector<HTMLInputElement>('#s-model-slot #model-input')
-    );
+function findModelElement(): HTMLSelectElement | null {
+    return document.querySelector<HTMLSelectElement>('#s-model-slot #model-select');
 }
 
 function chooseProvider(value: string): void {
@@ -330,26 +327,17 @@ function chooseProvider(value: string): void {
         // Wait for a model to be available (downloaded) before advancing
         waitForCondition(function () {
             const m = findModelElement();
-            if (!m) return false;
-            if (m instanceof HTMLSelectElement) {
-                if (m.options.length === 0) return false;
-                const text = m.options[0]?.textContent || '';
-                return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
-            }
-            // Text-input fallback — treat any non-empty value as ready.
-            return Boolean(m.value.trim());
+            if (!m || m.options.length === 0) return false;
+            const text = m.options[0]?.textContent || '';
+            return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
         }, resumeToVoice);
     } else if (value === 'claude_proxy') {
         // Wait for the model dropdown to populate (claude CLI detected, models loaded)
         waitForCondition(function () {
             const m = findModelElement();
-            if (!m) return false;
-            if (m instanceof HTMLSelectElement) {
-                if (m.options.length === 0) return false;
-                const text = m.options[0]?.textContent || '';
-                return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
-            }
-            return Boolean(m.value.trim());
+            if (!m || m.options.length === 0) return false;
+            const text = m.options[0]?.textContent || '';
+            return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
         }, resumeToVoice);
     } else {
         // API key provider — wait for key field to be filled. The UI uses
@@ -506,7 +494,7 @@ function showDoneStep(): void {
     positionSpotlight(footer, true);
 
     let html = '<h3>You’re All Set</h3>';
-    html += '<p>Hit <strong>Save &amp; Start</strong> to begin your first meditation. You can always come back to change these settings later.</p>';
+    html += '<p>Your settings apply as you go, so you’re ready to begin your first meditation. You can always come back to change them later.</p>';
     html += footerHtml({ back: true, done: true, skip: false });
 
     showCard(html, 'tour-tooltip');
