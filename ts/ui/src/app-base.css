@@ -12,7 +12,7 @@ html { font-size: 16px; }
     --bg-input: #281f16;
     /* Between --bg-secondary (view bg) and --bg-input (fields), nearer the
        field — the .info-panel note surface, distinct from both. */
-    --bg-note: #241b13;
+    --bg-note: #201608;
     --bg-surface: #2e2419;
     --bg-tertiary: #1e1710;
     --text-primary: #f5efe6;
@@ -54,7 +54,7 @@ html { font-size: 16px; }
     --bg-secondary: #f5efd7;
     --bg-card: #fad8c0;
     --bg-input: #fffaf2;
-    --bg-note: #fef7ea;
+    --bg-note: #fef9ec;
     --bg-surface: #ffffff;
     --bg-tertiary: #efe0cc;
     --text-primary: #1f1a18;
@@ -913,6 +913,10 @@ input[type="range"]::-moz-range-thumb {
     padding: 0.6rem 0.8rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    /* Sit these choice cards on the intermediate note surface — a shade between
+       the view background and the text fields, so they read as raised without
+       looking like inputs. Selected state below tints over it. */
+    background: var(--bg-note);
     transition: all var(--transition);
     width: 100%;
     height: 100%;
@@ -952,6 +956,8 @@ input[type="range"]::-moz-range-thumb {
     padding: 0.5rem 0.7rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    /* Same intermediate note surface as the preset cards, for one system. */
+    background: var(--bg-note);
     cursor: pointer;
     transition: all var(--transition);
 }
