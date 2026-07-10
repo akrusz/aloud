@@ -146,6 +146,11 @@ export function runUpdateNudge(): void {
     } catch {
         // Private mode / disabled storage: proceed unthrottled rather than skip.
     }
+    // Flag whenever a newer stable release exists, so the browser (local build)
+    // and the desktop shell agree instead of diverging: the Tauri updater is
+    // authoritative on desktop; a local/browser build falls back to the GitHub
+    // releases check, which asks the same "is there a newer version?" question.
+    // (Hosted web mode already returned above — it auto-updates on reload.)
     const available = isTauri()
         ? checkDesktopUpdate().then(Boolean)
         : checkForUpdate().then((res) => res.state === 'available');
