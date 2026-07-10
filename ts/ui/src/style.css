@@ -23,6 +23,19 @@
    --accent (dark #df3f88, light #e71f75) so the dark theme gets its slightly
    more luminant accent and the ripples read clearly on both backgrounds.
    Settled/faded out by app.ts:settleBootOrb on boot. */
+
+/* Keep the glow a clean soft circle. .orb-kasina carries an animated filter
+   (orbFlicker) and a transform pulse (kasinaPulse); in Chromium (seen in Brave)
+   an element with an animated filter / composited transform clips its own
+   box-shadow to the border box, so the soft glow squares off. The boot orb is a
+   brief first-paint state that doesn't need the flicker/pulse — the ripple rings
+   below already read as "working" — so we drop both compositing triggers here
+   and the box-shadow renders as the intended round glow. */
+#boot-orb {
+    filter: none;
+    animation: none;
+}
+
 #boot-orb::before,
 #boot-orb::after {
     content: '';
