@@ -18,7 +18,7 @@ import type { Account, IdentityProvider } from '../credits/store.js';
 import type { AccountView, AuthResponse } from '../contract.js';
 import { decideConnectGrant } from '../quota/freetier.js';
 import { issueSessionToken } from './session.js';
-import { emailGrantKey } from './email-key.js';
+import { emailGrantKey, normalizeEmail } from './email-key.js';
 import { log } from '../logger.js';
 
 /** An identity whose proof the route has already validated (OAuth token verified,
@@ -191,6 +191,48 @@ export async function connectIdentity(
     if (breakerTripped) log.warn('free-grant breaker tripped', { accountId: account.id });
 
     return { account, isNewAccount, isNewIdentity: true, granted, breakerTripped };
+}
+
+/**
+ * Set (or change) the email/password credential on an already-signed-in account
+ * (meditation-pal — password for federated accounts). A Google/Apple user who
+ * has no password gains one; a user who already has an 'email' identity changes
+ * it. The identity is keyed on the account's OWN canonical email — never a
+ * client-supplied address — so this can only ever add a password to your own
+ * mailbox, and it grants no credits (email identities are untrusted; we bypass
+ * connectIdentity's grant path entirely).
+ *
+ * Guards against the one unsafe case: an 'email' identity for this canonical
+ * mailbox that belongs to a DIFFERENT account (would be a cross-account
+ * takeover) → IdentityConflictError. The one-account-per-mailbox invariant makes
+ * that unreachable in practice, but we fail closed rather than trust it.
+ */
+export async function setAccountPassword(
+    deps: Deps,
+    account: Account,
+    passwordHash: string
+): Promise<void> {
+    const sub = normalizeEmail(account.email);
+    const existing = await deps.store.getIdentity('email', sub);
+    if (existing && existing.accountId !== account.id) {
+        throw new IdentityConflictError();
+    }
+    if (existing) {
+        await deps.store.setIdentitySecret('email', sub, passwordHash);
+    } else {
+        await deps.store.createIdentity({
+            provider: 'email',
+            sub,
+            accountId: account.id,
+            // The address is already proven by the federated sign-in that owns
+            // this account, so the password identity inherits that trust.
+            emailVerified: account.emailVerified,
+            grantedCredits: false,
+            createdAt: Date.now() / 1000,
+            secretHash: passwordHash,
+        });
+    }
+    log.info('account password set', { accountId: account.id, changed: existing != null });
 }
 
 /** The account + live balance + linked sign-in methods (GET /me and every auth

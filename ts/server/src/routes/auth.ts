@@ -20,6 +20,7 @@ import type {
     EmailAuthRequest,
     GoogleAuthRequest,
     GoogleDesktopAuthRequest,
+    SetPasswordRequest,
 } from '../contract.js';
 import type { Deps } from '../deps.js';
 import { verifyGoogleIdToken, exchangeGoogleCode } from '../auth/google.js';
@@ -28,7 +29,7 @@ import { hashPassword, verifyPassword } from '../auth/password.js';
 import { ipRateLimit } from '../auth/middleware.js';
 import { RateGuard } from '../quota/freetier.js';
 import { verifySessionToken } from '../auth/session.js';
-import { connectIdentity, issueAuthResponse, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
+import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
@@ -229,6 +230,41 @@ export function authRoutes(deps: Deps): Hono {
         const account = await deps.store.getAccountById(identity.accountId);
         if (!account) return reject();
         return c.json(await issueAuthResponse(deps, account, false));
+    });
+
+    // Add (or change) a password on the already-signed-in account, so a
+    // Google/Apple user can also sign in with email + password. Bearer-required:
+    // only the account owner sets their own password, keyed on the account's own
+    // verified email (never a client-supplied address), so it can't attach a
+    // password to someone else's mailbox or mint free credits. Under the same
+    // /email/* IP rate limit as signup/login.
+    app.post('/email/set-password', async (c) => {
+        const accountId = await callerAccountId(c, deps);
+        if (!accountId) {
+            return c.json(apiError('unauthenticated', 'sign in first'), ERROR_STATUS.unauthenticated);
+        }
+        const account = await deps.store.getAccountById(accountId);
+        if (!account || account.deletedAt != null) {
+            return c.json(apiError('unauthenticated', 'sign in first'), ERROR_STATUS.unauthenticated);
+        }
+        const body = (await c.req.json().catch(() => ({}))) as Partial<SetPasswordRequest>;
+        const password = body.password ?? '';
+        if (password.length < MIN_PASSWORD_LEN) {
+            return c.json(
+                apiError('bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`),
+                ERROR_STATUS.bad_request
+            );
+        }
+        try {
+            await setAccountPassword(deps, account, await hashPassword(password));
+            return c.json(await issueAuthResponse(deps, account, false));
+        } catch (err) {
+            if (err instanceof IdentityConflictError) {
+                return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
+            }
+            log.error('set-password failed', { err: String(err) });
+            return c.json(apiError('internal', 'could not set the password'), ERROR_STATUS.internal);
+        }
     });
 
     // Stable identity for the single local dev account. Reused across sign-ins

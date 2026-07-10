@@ -514,6 +514,16 @@ export class SqliteCreditsStore implements CreditsStore {
             .run(provider, sub);
     }
 
+    async setIdentitySecret(
+        provider: IdentityProvider,
+        sub: string,
+        secretHash: string
+    ): Promise<void> {
+        this.db
+            .prepare('UPDATE identities SET secret_hash = ? WHERE provider = ? AND sub = ?')
+            .run(secretHash, provider, sub);
+    }
+
     async deleteIdentitiesForAccount(accountId: string): Promise<void> {
         this.db.prepare('DELETE FROM identities WHERE account_id = ?').run(accountId);
     }

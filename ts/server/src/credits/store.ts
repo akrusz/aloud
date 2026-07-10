@@ -191,6 +191,10 @@ export interface CreditsStore {
     getIdentitiesForAccount(accountId: string): Promise<Identity[]>;
     /** Flip an identity's grantedCredits flag to true after a grant settles. */
     markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void>;
+    /** Replace the credential hash on an existing identity — a Google/Apple user
+     *  adding an email/password to their account, or later changing it. No-op if
+     *  (provider, sub) doesn't exist. */
+    setIdentitySecret(provider: IdentityProvider, sub: string, secretHash: string): Promise<void>;
     /** Remove every identity linked to an account, freeing each (provider, sub)
      *  so the same Google/Apple/email can sign in fresh later. Used by account
      *  deletion (meditation-pal-8jc). */

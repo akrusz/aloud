@@ -151,6 +151,13 @@ export interface EmailAuthRequest {
     password: string;
 }
 
+/** POST /auth/email/set-password — add or change the password on the
+ *  already-signed-in account (bearer required). The email is the account's own,
+ *  so only the password travels. */
+export interface SetPasswordRequest {
+    password: string;
+}
+
 export interface AuthResponse {
     /** Bearer token for subsequent requests (our own short-lived JWT). */
     token: string;

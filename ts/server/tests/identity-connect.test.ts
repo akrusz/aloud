@@ -13,11 +13,14 @@ import type { Deps } from '../src/deps.js';
 import {
     connectIdentity,
     deleteAccount,
+    setAccountPassword,
     IdentityConflictError,
     EmailInUseError,
     type VerifiedIdentity,
 } from '../src/auth/identity.js';
 import { decideConnectGrant, isTrustedProvider } from '../src/quota/freetier.js';
+import { hashPassword, verifyPassword } from '../src/auth/password.js';
+import { normalizeEmail } from '../src/auth/email-key.js';
 
 function deps(env: Record<string, string> = {}): Deps {
     return buildDeps(loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_FREE_SIGNUP_CREDITS: '20', ...env }));
@@ -100,6 +103,59 @@ describe('connectIdentity — email signup vs connecting an identity', () => {
         );
         expect(apple.granted).toBe(0); // account already granted via Google
         expect(await d.ledger.balance(r.account.id)).toBe(20);
+    });
+});
+
+describe('setAccountPassword — add/change a password on a federated account', () => {
+    it('adds an email identity keyed on the account email; grants nothing', async () => {
+        const d = deps();
+        const g = await connectIdentity(d, google()); // Google account, no password
+        const balanceBefore = await d.ledger.balance(g.account.id);
+
+        await setAccountPassword(d, g.account, await hashPassword('a good password'));
+
+        const ident = await d.store.getIdentity('email', normalizeEmail(g.account.email));
+        expect(ident?.accountId).toBe(g.account.id);
+        expect(ident?.secretHash).toBeTruthy();
+        expect(await verifyPassword('a good password', ident!.secretHash!)).toBe(true);
+        // No credit side effect — email identities are untrusted.
+        expect(await d.ledger.balance(g.account.id)).toBe(balanceBefore);
+        // The new method shows up alongside Google.
+        const idents = await d.store.getIdentitiesForAccount(g.account.id);
+        expect(idents.map((i) => i.provider).sort()).toEqual(['email', 'google']);
+    });
+
+    it('changing the password replaces the hash in place (no duplicate identity)', async () => {
+        const d = deps();
+        const g = await connectIdentity(d, google());
+        await setAccountPassword(d, g.account, await hashPassword('first password'));
+        await setAccountPassword(d, g.account, await hashPassword('second password'));
+
+        const idents = await d.store.getIdentitiesForAccount(g.account.id);
+        expect(idents.filter((i) => i.provider === 'email')).toHaveLength(1);
+        const ident = await d.store.getIdentity('email', normalizeEmail(g.account.email));
+        expect(await verifyPassword('second password', ident!.secretHash!)).toBe(true);
+        expect(await verifyPassword('first password', ident!.secretHash!)).toBe(false);
+    });
+
+    it('refuses to hijack an email identity owned by a different account', async () => {
+        const d = deps();
+        // Someone already holds the email/password identity for this mailbox.
+        const other = await connectIdentity(d, {
+            provider: 'email',
+            sub: normalizeEmail('shared@example.com'),
+            email: 'shared@example.com',
+            emailVerified: false,
+        });
+        // A separate Google account (different mailbox). The one-account-per-
+        // mailbox invariant means two accounts never legitimately share an
+        // email, so we spoof the account's email to the shared mailbox to prove
+        // the guard fails closed rather than overwrite another account's login.
+        const g = await connectIdentity(d, google({ sub: 'g-2', email: 'b@example.com' }));
+        expect(g.account.id).not.toBe(other.account.id);
+        await expect(
+            setAccountPassword(d, { ...g.account, email: 'shared@example.com' }, await hashPassword('takeover1'))
+        ).rejects.toBeInstanceOf(IdentityConflictError);
     });
 });
 

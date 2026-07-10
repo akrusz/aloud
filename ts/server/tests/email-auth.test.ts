@@ -10,6 +10,8 @@ import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import type { AuthResponse } from '../src/contract.js';
 import { hashPassword, verifyPassword } from '../src/auth/password.js';
+import { connectIdentity } from '../src/auth/identity.js';
+import { issueSessionToken } from '../src/auth/session.js';
 
 function app() {
     return createApp(buildDeps(loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_FREE_SIGNUP_CREDITS: '20' })));
@@ -102,5 +104,69 @@ describe('POST /cloud/v1/auth/email/login', () => {
         expect((await attempt('203.0.113.9')).status).toBe(429);
         // A different IP is unaffected (the key is the IP, not the route).
         expect((await attempt('198.51.100.4')).status).toBe(401);
+    });
+});
+
+describe('POST /cloud/v1/auth/email/set-password', () => {
+    // A signed-in Google account (no password) + its bearer token.
+    async function googleSession() {
+        const d = buildDeps(loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_FREE_SIGNUP_CREDITS: '20' }));
+        const a = createApp(d);
+        const r = await connectIdentity(d, {
+            provider: 'google',
+            sub: 'g-set-pw',
+            email: 'guser@example.com',
+            emailVerified: true,
+        });
+        const token = await issueSessionToken(r.account.id, d.config.sessionSecret);
+        return { a, token, accountId: r.account.id };
+    }
+
+    const setPassword = (a: ReturnType<typeof createApp>, token: string | null, password: string) =>
+        a.request('/cloud/v1/auth/email/set-password', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                ...(token ? { authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ password }),
+        });
+
+    it('lets a Google user add a password, then sign in with email + password', async () => {
+        const { a, token } = await googleSession();
+        const res = await setPassword(a, token, 'my new password');
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as AuthResponse;
+        expect(body.account.providers.sort()).toEqual(['email', 'google']);
+
+        // The email/password now authenticates against the SAME account.
+        const login = await post(a, '/cloud/v1/auth/email/login', {
+            email: 'guser@example.com',
+            password: 'my new password',
+        });
+        expect(login.status).toBe(200);
+        const loginBody = (await login.json()) as AuthResponse;
+        expect(loginBody.account.id).toBe(body.account.id);
+    });
+
+    it('changes an existing password (old one stops working)', async () => {
+        const { a, token } = await googleSession();
+        await setPassword(a, token, 'first password');
+        expect((await setPassword(a, token, 'second password')).status).toBe(200);
+
+        expect(
+            (await post(a, '/cloud/v1/auth/email/login', { email: 'guser@example.com', password: 'first password' }))
+                .status
+        ).toBe(401);
+        expect(
+            (await post(a, '/cloud/v1/auth/email/login', { email: 'guser@example.com', password: 'second password' }))
+                .status
+        ).toBe(200);
+    });
+
+    it('rejects without a bearer (401) and a too-short password (400)', async () => {
+        const { a, token } = await googleSession();
+        expect((await setPassword(a, null, 'longenough1')).status).toBe(401);
+        expect((await setPassword(a, token, 'short')).status).toBe(400);
     });
 });
