@@ -855,6 +855,27 @@
     align-items: center;
     min-height: 2.75rem;
 }
+/* aloud cloud cold-start note in the model slot — matches .model-unavailable's
+   height so the slot doesn't jump while the hosted service wakes. Muted via
+   color (not opacity), consistent with .ollama-rec-hint. */
+.model-cloud-waking {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+/* Inline "try again" affordance inside the unreachable message. */
+.model-retry-btn {
+    font: inherit;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+}
 /* The revealed BYOK body, neutral (at-your-own-risk, not destructive). */
 .settings-advanced-body:not(.hidden) {
     margin-top: 1rem;

@@ -376,15 +376,51 @@ export function mountModelPicker(
             </p>`;
     }
 
+    /** aloud cloud scales to zero when idle, so a cold visit may not answer the
+     *  first request(s) while the machine boots. Show a reassuring "waking"
+     *  note rather than an error while we retry. */
+    function renderCloudWaking(): void {
+        container.innerHTML = `
+            <p class="model-cloud-waking" id="model-cloud-waking">
+                Waking up aloud cloud - this can take a few seconds…
+            </p>`;
+    }
+
+    /** aloud cloud didn't answer after several retries. Say so plainly and give a
+     *  manual Retry, since it may just be a slow cold start. */
+    function renderCloudUnreachable(): void {
+        container.innerHTML = `
+            <p class="model-unavailable" id="model-cloud-down">
+                aloud cloud is temporarily unreachable. It may be waking up -
+                <button type="button" class="model-retry-btn" id="model-cloud-retry">try again</button>.
+            </p>`;
+        container
+            .querySelector<HTMLButtonElement>('#model-cloud-retry')
+            ?.addEventListener('click', () => void refresh('aloud'));
+    }
+
     async function refresh(provider: string): Promise<void> {
         currentModels = [];
         container.innerHTML = `
             <select disabled><option>Loading models…</option></select>`;
-        const models = await fetchModels(provider);
+        let models = await fetchModels(provider);
+        // aloud cloud may be cold-starting: Fly boots the machine on the request
+        // and serves once it's up, so a first miss isn't a real failure. Show the
+        // "waking" note and retry a few times with backoff before giving up.
+        if (!models && provider === 'aloud') {
+            for (const ms of [1500, 2500, 4000, 6000]) {
+                renderCloudWaking();
+                await new Promise((resolve) => setTimeout(resolve, ms));
+                models = await fetchModels(provider);
+                if (models) break;
+            }
+        }
         if (models && models.length > 0) {
             renderSelect(provider, models);
         } else if (provider === 'ollama') {
             renderOllamaEmpty();
+        } else if (provider === 'aloud') {
+            renderCloudUnreachable();
         } else {
             await renderUnavailable(provider);
         }

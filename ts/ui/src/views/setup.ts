@@ -19,6 +19,7 @@ import {
     NOTING_SOUNDS,
     ALL_PROVIDERS,
     isProviderAvailable,
+    resolveSetupProvider,
     providerNeedsKey,
     type ProviderAvailabilityOpts,
     DIRECTIVENESS_VALUES,
@@ -59,7 +60,7 @@ import {
     CLOUD_STT_CREDITS_PER_HOUR,
 } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
-import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
+import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
 import {
@@ -156,6 +157,14 @@ export async function mountSetupView(
         webMode: isWebMode(),
         allowByok: appSettings.enableByok,
     };
+    // The shared app default provider is 'ollama' (desktop-only). In web mode a
+    // fresh setup must not stay on it before the first render — otherwise a fresh
+    // browser mounts the local-model picker and shows a nonsensical "Install
+    // Ollama" empty state. applyProviderIndicators reorders the <select>
+    // available-first later, but can't rescue us when NO provider is available
+    // (e.g. aloud cloud momentarily unreachable) — there'd be nothing to switch
+    // to. Resolve a web-valid provider up front instead.
+    setup.provider = resolveSetupProvider(setup.provider, capabilitiesSync(), byokOpts);
     // Speech-recognition source, shown alongside provider/model so it's visible
     // (and changeable) before starting a session. Edits the app-level default,
     // same as the Voice control. The select itself is built in renderSetupHTML.
@@ -265,6 +274,12 @@ export async function mountSetupView(
     // the model picker once it mounts (in a deeper scope); 0 until then / for
     // free providers.
     let getModelRate: () => number = () => 0;
+    // Re-fetch the model picker for a provider — wired to the mounted picker so
+    // the cloud-wake watcher can repopulate it once aloud cloud is up.
+    let refreshModelPicker: (provider: string) => void = () => {};
+    // Unsubscribe for the shared cloud-wake watcher (web/mobile only). Called on
+    // hide so a pending wait doesn't fire into a torn-down view.
+    let cloudUnwatch: (() => void) | null = null;
 
     function updateVoiceButtonLabel(): void {
         // One button per tab panel (exploration + felt sense), all painting
@@ -583,6 +598,7 @@ export async function mountSetupView(
             }
         );
         getModelRate = () => modelPicker.getRate();
+        refreshModelPicker = (p) => void modelPicker.refresh(p);
 
         // Speech-recognition source — app-level (like the default voice), so
         // saving it here mirrors Settings. The visible options are already
@@ -708,6 +724,9 @@ export async function mountSetupView(
         }
         applyProviderIndicators();
         updateProviderHint();
+        // If aloud cloud reads unreachable (cold start), keep re-probing so the
+        // page comes alive on its own once the machine boots.
+        scheduleCloudWakePoll();
     }
 
     /**
@@ -734,6 +753,13 @@ export async function mountSetupView(
         // Ollama: a running local daemon (direct probe) is usable even when the
         // app backend can't see it (browser dev preview against Hono).
         if (setup.provider === 'ollama' && capabilitiesSync().ollama) return true;
+        // aloud cloud on web: the app backend (/app/v1/providers, Hono) reports it
+        // available unconditionally — it can't see the hosted service's health —
+        // so gate on the real reachability probe (capabilities.cloud) instead.
+        // A cold machine reads unavailable until the wake poll confirms it's up,
+        // so Begin stays blocked (with a "waking" hint) rather than starting a
+        // session that would stall on its first turn.
+        if (setup.provider === 'aloud' && byokOpts.webMode) return capabilitiesSync().cloud;
         const info = providerStatus?.[setup.provider];
         return !info || info.available;
     }
@@ -820,6 +846,14 @@ export async function mountSetupView(
     function updateProviderHint(): void {
         const hintEl = root.querySelector<HTMLElement>('#provider-hint');
         if (!hintEl) return;
+        // aloud cloud on web, not yet reachable: it's almost always a cold start
+        // (the service scales to zero when idle). Say so — reassuring, not an
+        // error — while the background poll waits for it to boot.
+        if (setup.provider === 'aloud' && byokOpts.webMode && !capabilitiesSync().cloud) {
+            hintEl.textContent = 'aloud cloud is waking up - one moment…';
+            hintEl.classList.remove('hidden');
+            return;
+        }
         // A running Ollama (direct probe) has no "unavailable" hint to show even
         // when the app backend reported it absent — same override as the ✘/Begin
         // gate, so the "Ollama runs on your own machine" box doesn't linger.
@@ -833,6 +867,26 @@ export async function mountSetupView(
         } else {
             hintEl.classList.add('hidden');
         }
+    }
+
+    /**
+     * aloud cloud scales to zero when idle, so a fresh web/mobile visit can land
+     * while the machine is still cold. The initial capability probe may have
+     * given up before it booted (leaving cloud=false), which would strand Begin
+     * behind a "waking" hint forever. Subscribe to the shared cloud-wake watcher;
+     * the moment the machine answers, refresh the provider markers, model picker,
+     * and Begin gate so the page heals itself without a reload. Web/mobile-only
+     * (desktop shows aloud alongside local providers), and a no-op once cloud is
+     * reachable or a wait is already pending.
+     */
+    function scheduleCloudWakePoll(): void {
+        if (!byokOpts.webMode || cloudUnwatch !== null) return;
+        if (capabilitiesSync().cloud) return;
+        cloudUnwatch = watchCloudReachable(() => {
+            cloudUnwatch = null;
+            void refreshProviderAvailability();
+            refreshModelPicker(setup.provider);
+        });
     }
 
     function wireTabBar(): void {
@@ -1276,6 +1330,10 @@ export async function mountSetupView(
         },
         hide() {
             closeGuideIfActive();
+            if (cloudUnwatch !== null) {
+                cloudUnwatch();
+                cloudUnwatch = null;
+            }
             root.innerHTML = '';
         },
         getSetup() { return setup; },

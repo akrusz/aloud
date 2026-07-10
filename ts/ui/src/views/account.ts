@@ -9,7 +9,7 @@
  * Only reachable when aloud cloud is up; the nav entry is hidden otherwise.
  */
 
-import { detectCapabilities } from '../capabilities.js';
+import { detectCapabilities, watchCloudReachable } from '../capabilities.js';
 import { fetchMe, clearCloudToken, deleteAccount } from '../cloud-auth.js';
 import { clearKnownBalance } from '../cloud-balance.js';
 import { clearRetreatCovered } from '../cloud-coverage.js';
@@ -43,9 +43,12 @@ async function render(root: HTMLElement): Promise<void> {
         // Account = the cloud account, and nothing else. If the cloud's down,
         // say so plainly and stay in that lane — your own API keys are a Settings
         // concern (device-scoped), so we don't muddy this page with them.
+        // It's almost always a cold start (the service scales to zero when idle),
+        // so watch for it to come up and re-render in place — no reload needed.
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
-            <p class="provider-hint">aloud cloud is unreachable right now. Your account, balance, and gifts will be back as soon as it's reachable again.</p>
+            <p class="provider-hint">aloud cloud is waking up… Your account, balance, and gifts will appear as soon as it's reachable. This can take a few seconds.</p>
             </section>`;
+        watchCloudReachable(() => void render(root));
         return;
     }
 

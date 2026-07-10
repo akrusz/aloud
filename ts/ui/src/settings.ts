@@ -84,7 +84,11 @@ export function isProviderAvailable(
 ): boolean {
     if (opts.webMode) {
         if (meta.requires === 'ollama' || meta.requires === 'flask') return false;
-        if (meta.requires === 'cloud') return caps.cloud;
+        // aloud cloud is ALWAYS offered on web — it's the point of the hosted
+        // app. Whether it's reachable *right now* (it scales to zero when idle
+        // and cold-starts on demand) is a separate, transient question, surfaced
+        // at the model picker + Begin gate so the option never vanishes mid-wake.
+        if (meta.requires === 'cloud') return true;
         return opts.allowByok === true;
     }
     return true;
@@ -92,6 +96,29 @@ export function isProviderAvailable(
 
 export function providerNeedsKey(p: Provider): boolean {
     return ALL_PROVIDERS.find((x) => x.value === p)?.needsKey ?? false;
+}
+
+/**
+ * Pick a provider that can actually run in the current mode, given a seeded
+ * default. The shared app default is 'ollama' (a desktop-only, local provider),
+ * so on web a fresh setup must not stay on it — otherwise the model picker
+ * mounts the local-model state and shows a nonsensical "Install Ollama" message.
+ * In web mode, if the seeded provider isn't available we return the first
+ * available web provider, falling back to 'aloud' (the canonical hosted
+ * provider) when NONE is reachable — its picker then surfaces the right "cloud
+ * unreachable" message rather than the desktop Ollama one. In local mode every
+ * provider is available (runtime readiness shows via markers), so the seeded
+ * provider is returned unchanged.
+ */
+export function resolveSetupProvider(
+    provider: Provider,
+    caps: Capabilities,
+    opts: ProviderAvailabilityOpts
+): Provider {
+    if (!opts.webMode) return provider;
+    const available = ALL_PROVIDERS.filter((p) => isProviderAvailable(p, caps, opts));
+    if (available.some((p) => p.value === provider)) return provider;
+    return (available[0]?.value ?? 'aloud') as Provider;
 }
 
 /** The modes the setup tab bar offers — ModeSpec ids from facilitation/modes.ts.

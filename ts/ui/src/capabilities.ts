@@ -153,3 +153,59 @@ export function capabilitiesSync(): Capabilities {
 export function invalidateCapabilities(): void {
     cached = null;
 }
+
+// --- Cloud wake watch --------------------------------------------------------
+//
+// aloud cloud scales to zero when idle (cost control), so a cold visit can find
+// it unreachable for the first few seconds while Fly boots the machine on the
+// first request. The boot probe (probeCloudWithRetry) uses only a short retry so
+// first paint stays fast; this watcher is the longer tail — a shared,
+// exponential-backoff re-probe that fires once the machine answers, so any
+// surface gated on cloud reachability (the account page, the sign-in nav, the
+// setup provider/model pickers) heals itself without a reload. Platform-agnostic:
+// desktop, mobile, and web all hit the same cold-starting hosted service.
+
+type CloudUpListener = () => void;
+const cloudUpListeners = new Set<CloudUpListener>();
+let cloudWatchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function runCloudWatch(): void {
+    if (cloudWatchTimer !== null) return; // a poll is already scheduled
+    let delayMs = 1500;
+    const tick = async (): Promise<void> => {
+        cloudWatchTimer = null;
+        if (cloudUpListeners.size === 0) return; // nobody waiting → stop polling
+        // detectCapabilities re-probes the cloud axis whenever it's currently
+        // down (a positive result is cached for the session), so this rides its
+        // inflight de-dup rather than hammering a parallel probe.
+        const caps = await detectCapabilities();
+        if (caps.cloud) {
+            const listeners = [...cloudUpListeners];
+            cloudUpListeners.clear();
+            for (const fn of listeners) fn();
+            return;
+        }
+        delayMs = Math.min(Math.round(delayMs * 1.5), 15000);
+        cloudWatchTimer = setTimeout(() => void tick(), delayMs);
+    };
+    cloudWatchTimer = setTimeout(() => void tick(), delayMs);
+}
+
+/**
+ * Call `onUp` once aloud cloud is reachable — synchronously if it already is,
+ * otherwise when a shared background backoff re-probe first reaches it. Returns
+ * an unsubscribe fn; call it on teardown so a still-pending wait can't fire into
+ * a view that's gone. Fires at most once (a positive cloud result sticks for the
+ * session), so there's nothing to clean up after it resolves.
+ */
+export function watchCloudReachable(onUp: CloudUpListener): () => void {
+    if (capabilitiesSync().cloud) {
+        onUp();
+        return () => {};
+    }
+    cloudUpListeners.add(onUp);
+    runCloudWatch();
+    return () => {
+        cloudUpListeners.delete(onUp);
+    };
+}

@@ -40,10 +40,13 @@ describe('isProviderAvailable', () => {
         }
     });
 
-    it('web mode: aloud still needs the cloud service to be reachable', () => {
+    it('web mode: aloud is always offered, reachable or not (status shown separately)', () => {
+        // aloud cloud scales to zero when idle; hiding it while cold would make
+        // the whole hosted app vanish mid-wake. It's always listed; the model
+        // picker + Begin gate communicate whether it's reachable right now.
         const get = (v: string) => mod.ALL_PROVIDERS.find((p) => p.value === v)!;
         expect(mod.isProviderAvailable(get('aloud'), caps({ cloud: true }), { webMode: true })).toBe(true);
-        expect(mod.isProviderAvailable(get('aloud'), caps({}), { webMode: true })).toBe(false);
+        expect(mod.isProviderAvailable(get('aloud'), caps({}), { webMode: true })).toBe(true);
     });
 
     it('in local mode, BYOK shows by default', () => {
@@ -83,5 +86,38 @@ describe('isProviderAvailable', () => {
         expect(on).toContain('anthropic');
         expect(on).not.toContain('ollama');
         expect(on).not.toContain('claude_proxy');
+    });
+});
+
+describe('resolveSetupProvider', () => {
+    // The shared default is the desktop-only 'ollama'; a fresh web browser must
+    // never keep it, or the model picker shows a nonsensical "Install Ollama".
+    it('web mode: coerces the local-only default to the reachable aloud cloud', () => {
+        expect(
+            mod.resolveSetupProvider('ollama', caps({ cloud: true }), { webMode: true })
+        ).toBe('aloud');
+    });
+
+    it('web mode: keeps an already-web-valid provider unchanged', () => {
+        expect(
+            mod.resolveSetupProvider('aloud', caps({ cloud: true }), { webMode: true })
+        ).toBe('aloud');
+        expect(
+            mod.resolveSetupProvider('anthropic', caps({ cloud: true }), {
+                webMode: true,
+                allowByok: true,
+            })
+        ).toBe('anthropic');
+    });
+
+    it('web mode with cloud down (BYOK off): still resolves to aloud, never ollama', () => {
+        // aloud is always offered on web, so even with cloud unreachable it's the
+        // available option. The desktop-only 'ollama' default must never survive
+        // into web mode (its picker shows a nonsensical "Install Ollama").
+        expect(mod.resolveSetupProvider('ollama', caps({}), { webMode: true })).toBe('aloud');
+    });
+
+    it('local mode: returns the seeded provider unchanged (markers show readiness)', () => {
+        expect(mod.resolveSetupProvider('ollama', caps({}), { webMode: false })).toBe('ollama');
     });
 });
