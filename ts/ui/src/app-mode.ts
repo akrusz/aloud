@@ -52,14 +52,52 @@ function readOverride(): AppMode | null {
     return null;
 }
 
+const BYPASS_KEY = 'dev:cloudBypass';
+
 /**
- * Capture a `?mode=` override into sessionStorage at boot. MUST run before the
- * SPA router normalizes the URL (it replaceState()s the query string away on
- * the initial deep-link), otherwise readOverride() would never see the param.
- * Call once, early, from main.ts.
+ * DEV-only cloud sign-in bypass. With `?dev` in the URL (remembered for the tab,
+ * like ?mode=), cloud services authenticate through the server's local
+ * `/auth/dev` account instead of requiring interactive Google/Apple sign-in — so
+ * you can start a hosted-STT/LLM/TTS session in a browser where the sign-in
+ * popup won't work (e.g. Brave) without spending a real account's credits. Clear
+ * it with `?dev=off`.
+ *
+ * SECURITY: same compile-time gate as readOverride — `vite build` sets
+ * import.meta.env.DEV false, so this short-circuits to false (and tree-shakes
+ * away) in any deployed build. A hosted visitor can never skip sign-in. The
+ * `/auth/dev` route it leans on is itself local-only (404 in production server
+ * mode), so even a forced-true couldn't mint a token against real infra.
+ */
+export function isDevBypass(): boolean {
+    if (!import.meta.env.DEV) return false;
+    try {
+        const q = new URL(window.location.href).searchParams.get('dev');
+        if (q === 'off' || q === '0') {
+            sessionStorage.removeItem(BYPASS_KEY);
+            return false;
+        }
+        if (q !== null) {
+            sessionStorage.setItem(BYPASS_KEY, '1');
+            return true;
+        }
+        return sessionStorage.getItem(BYPASS_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Capture `?mode=` / `?dev` overrides into sessionStorage at boot. MUST run
+ * before the SPA router normalizes the URL (it replaceState()s the query string
+ * away on the initial deep-link), otherwise the readers would never see the
+ * param. Call once, early, from main.ts.
  */
 export function initAppMode(): void {
     readOverride();
+    if (isDevBypass()) {
+        // eslint-disable-next-line no-console
+        console.info('[aloud] dev cloud-bypass ON — cloud services use the local /auth/dev account (no sign-in). Clear with ?dev=off.');
+    }
 }
 
 /** The active mode: a dev override if set, else the build default. */

@@ -299,6 +299,12 @@ body {
     margin: 0 auto;
 }
 
+/* The Account page holds little content, so the full 900px .main width reads as
+   an odd expanse of empty. Cap it at ~2/3 of that (it still centers). */
+.account-container {
+    max-width: 600px;
+}
+
 .setup-header {
     text-align: center;
     margin-bottom: 2.5rem;
@@ -3075,12 +3081,42 @@ html:has(.nav-brand.has-update) .update-btn {
     gap: 0.5rem;
 }
 
-.account-actions {
+/* Account rows: a label (email / balance / password field) on the left, its
+   action button on the right. Each row stacks with a consistent 0.75rem rhythm;
+   they wrap on narrow widths. */
+.account-row {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     flex-wrap: wrap;
-    /* Breathing room from the balance line above, matching the rhythm of the
-       connect-prompt below (0.75rem). */
+}
+.account-row + .account-row {
+    margin-top: 0.75rem;
+}
+.account-email {
+    font-weight: 600;
+}
+.account-credits {
+    /* No font-size: inherit the base size so it matches the email line above. */
+    font-weight: 600;
+    color: var(--text-primary);
+}
+/* Divider under the "Account Name" header, insetting the header from the row
+   below it. Reuses the section border token so it reads as one system. */
+.account-rule {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0 0 0.75rem;
+}
+/* Second in-section header ("Cloud Balance") needs top breathing room the
+   first h2 (flush to the section top) doesn't. */
+.account-subhead {
+    margin-top: 1.25rem;
+}
+/* Signed-out prompt: space the sign-in button off the info blob above it, so
+   the text blob isn't flush against the button (matches the page's rhythm). */
+.account-signin-cta {
     margin-top: 0.75rem;
 }
 
@@ -3115,6 +3151,9 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 .signin-modal-subtitle {
     margin-top: 1rem;
+    /* Space the subtitle box off the OAuth buttons below it (it only had a top
+       margin, so it sat flush against "Continue with Google"). */
+    margin-bottom: 1rem;
 }
 
 .signin-oauth {
@@ -3190,6 +3229,19 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 .signin-email-submit {
     width: 100%;
+}
+/* Account → Password: input grows, button sits beside it; stacks on narrow.
+   The top margin gives the hint text above the same breathing room the account
+   rows have between them (0.75rem). */
+.account-password-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+.account-password-row .signin-input {
+    flex: 1 1 14rem;
 }
 .signin-email-toggle {
     background: none;

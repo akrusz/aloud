@@ -17,6 +17,7 @@ import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import { cloudUrl } from './cloud-base.js';
 import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
 import { setRetreatCovered, clearRetreatCovered } from './cloud-coverage.js';
+import { isDevBypass } from './app-mode.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
@@ -326,6 +327,18 @@ export function emailLogin(email: string, password: string): Promise<AuthRespons
     );
 }
 
+/** POST /cloud/v1/auth/email/set-password — add (or change) an email/password
+ *  credential on the signed-in account, so a Google/Apple user can also sign in
+ *  with their email + a password. postAuthAndCache rides the current session as
+ *  bearer (required) and refreshes the cached token from the response. */
+export function setCloudPassword(password: string): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/email/set-password', { password }, (status) =>
+        status === 401
+            ? 'Please sign in again to set a password.'
+            : `Could not set the password (${status}).`
+    );
+}
+
 /**
  * Return a valid server token. A cached token wins. Otherwise: a Google-
  * configured (hosted) build can't mint one non-interactively, so it throws
@@ -338,7 +351,11 @@ export function emailLogin(email: string, password: string): Promise<AuthRespons
 export async function ensureCloudToken(): Promise<string> {
     const existing = await getCloudToken();
     if (existing) return existing;
-    if (isGoogleSignInConfigured()) throw new CloudSignInRequiredError();
+    // DEV cloud-bypass (?dev): mint a local /auth/dev session even against a
+    // Google-configured server, so hosted STT/LLM/TTS run without the sign-in
+    // popup (e.g. in Brave). Compile-time gated + local-only route — see
+    // app-mode.isDevBypass.
+    if (isGoogleSignInConfigured() && !isDevBypass()) throw new CloudSignInRequiredError();
     const { token } = await devSignIn();
     return token;
 }

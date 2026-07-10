@@ -10,7 +10,7 @@
  */
 
 import { detectCapabilities, watchCloudReachable } from '../capabilities.js';
-import { fetchMe, clearCloudToken, deleteAccount } from '../cloud-auth.js';
+import { fetchMe, clearCloudToken, deleteAccount, setCloudPassword } from '../cloud-auth.js';
 import { clearKnownBalance } from '../cloud-balance.js';
 import { clearRetreatCovered } from '../cloud-coverage.js';
 import {
@@ -19,7 +19,7 @@ import {
     claimReturnedGift,
     type ReturnedGiftView,
 } from '../cloud-billing.js';
-import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
+import { creditAmount, RATE_EMOJI, withCloudOutline } from '../credit-rate.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { showSignInModal } from '../sign-in-modal.js';
 import { confirmTypedDialog, alertDialog } from '../dialog.js';
@@ -27,7 +27,7 @@ import { showSuccessToast, showErrorToast } from '../toast.js';
 
 export async function mountAccountView(root: HTMLElement): Promise<void> {
     root.innerHTML = `
-    <div class="setup-container">
+    <div class="setup-container account-container">
         <h1 class="settings-title">Account</h1>
         <div id="account-page-body"><p class="provider-hint">Loading…</p></div>
     </div>`;
@@ -56,7 +56,7 @@ async function render(root: HTMLElement): Promise<void> {
     if (!account) {
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
             <p class="provider-hint">Sign in to use aloud cloud for hosted speech-to-text, text-to-speech, and LLMs with no setup. Connect Google or Apple for free credits.</p>
-            <button type="button" class="btn btn-primary" id="acct-signin">Sign in or create account</button>
+            <button type="button" class="btn btn-primary account-signin-cta" id="acct-signin">Sign in or create account</button>
             </section>`;
         body.querySelector('#acct-signin')?.addEventListener('click', () => {
             void showSignInModal().then(() => render(root));
@@ -67,6 +67,15 @@ async function render(root: HTMLElement): Promise<void> {
     const returned = await fetchReturnedGifts();
 
     const providers = account.providers ?? [];
+    const hasPassword = providers.includes('email');
+    // Name the federated method the account already has, for the "add a
+    // password" copy. Falls back to a neutral phrase for the (rare) case with
+    // neither — the branch only renders when hasPassword is false anyway.
+    const federated = providers.includes('google')
+        ? 'Google'
+        : providers.includes('apple')
+          ? 'Apple'
+          : 'your current sign-in';
     const needsConnect =
         providers.length > 0 && !providers.some((p) => p === 'google' || p === 'apple');
     const connectPrompt = needsConnect
@@ -77,22 +86,39 @@ async function render(root: HTMLElement): Promise<void> {
 
     body.innerHTML = `
         <section class="settings-section">
-            <h2>Account</h2>
+            <h2>Account Name</h2>
+            <hr class="account-rule">
             <div class="account-row">
-                <div class="account-info">
-                    <div class="account-email">${escape(account.email)}</div>
-                    <div class="account-credits provider-hint">${
-                        account.retreatCovered
-                            ? 'Retreat access — usage is on your retreat for now'
-                            : `${creditAmount(account.creditsRemaining)} remaining`
-                    }</div>
-                </div>
-                <div class="account-actions">
-                    ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>`}
-                    <button type="button" class="btn btn-secondary" id="acct-signout">Sign out</button>
-                </div>
+                <span class="account-email">${escape(account.email)}</span>
+                <button type="button" class="btn btn-secondary" id="acct-signout">Sign out</button>
+            </div>
+            <h2 class="account-subhead">Cloud Balance</h2>
+            <div class="account-row">
+                <span class="account-credits">${
+                    account.retreatCovered
+                        ? 'Retreat access — usage is on your retreat for now'
+                        : withCloudOutline(`${creditAmount(account.creditsRemaining)} remaining`)
+                }</span>
+                ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>`}
             </div>
             ${connectPrompt}
+        </section>
+        <section class="settings-section" id="password-section">
+            <h2>Password</h2>
+            <p class="form-hint">${
+                hasPassword
+                    ? 'Change the password used to sign in with your email.'
+                    : `Add a password to enable signing in with email, in addition to your ${escape(federated)} account.`
+            }</p>
+            <div class="account-password-row">
+                <input type="password" id="acct-password" class="signin-input"
+                    placeholder="${hasPassword ? 'New password' : 'Password'} (8+ characters)"
+                    autocomplete="new-password" minlength="8"
+                    aria-label="${hasPassword ? 'New password' : 'Password'}">
+                <button type="button" class="btn btn-primary" id="acct-set-password">${
+                    hasPassword ? 'Change password' : 'Set password'
+                }</button>
+            </div>
         </section>
         ${
             returned.length
@@ -123,8 +149,43 @@ async function render(root: HTMLElement): Promise<void> {
         </section>`;
 
     wireAccountSection(root);
+    wirePasswordSection(root, hasPassword);
     if (returned.length) wireGiftableList(root, returned);
     wireDangerZone(root, account.email);
+}
+
+function wirePasswordSection(root: HTMLElement, hasPassword: boolean): void {
+    const input = root.querySelector<HTMLInputElement>('#acct-password');
+    const btn = root.querySelector<HTMLButtonElement>('#acct-set-password');
+    if (!input || !btn) return;
+    const submit = (): void => {
+        const password = input.value;
+        if (password.length < 8) {
+            showErrorToast('Password must be at least 8 characters.');
+            input.focus();
+            return;
+        }
+        btn.disabled = true;
+        input.disabled = true;
+        setCloudPassword(password)
+            .then(() => {
+                showSuccessToast(
+                    hasPassword
+                        ? 'Password changed.'
+                        : 'Password set — you can now sign in with your email and password.'
+                );
+                void render(root);
+            })
+            .catch((err: unknown) => {
+                btn.disabled = false;
+                input.disabled = false;
+                showErrorToast(err instanceof Error ? err.message : String(err));
+            });
+    };
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submit();
+    });
 }
 
 function wireAccountSection(root: HTMLElement): void {
