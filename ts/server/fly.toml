@@ -47,15 +47,20 @@ kill_timeout = "20s"
 [http_service]
   internal_port = 8787
   force_https = true           # mic needs a secure context; Fly terminates TLS
-  # Cost control at trial scale: stop when idle, cold-boot on the next request.
-  # NOT "suspend" — suspend freezes the VM with no clean shutdown, so SQLite's
-  # WAL/-shm state is frozen mid-flight and committed ledger rows could be lost
-  # across a resume/redeploy (meditation-pal-5iv4). "stop" sends SIGTERM, so
-  # litestream does a final R2 sync and SQLite closes cleanly (WAL checkpointed)
-  # before the machine goes away; the next request pays a ~1-2s cold start.
+  # Keep one machine warm 24/7 (min_machines_running = 1) so there's no cold
+  # start on the first request after an idle stretch — worth the ~$3-4/mo at this
+  # scale for a snappy first turn. The UI is also robust to a cold machine (the
+  # capabilities cloud-wake watcher + model-picker retry ride out a boot), so
+  # dropping this back to 0 to scale-to-zero is a safe cost lever if that changes.
+  #
+  # auto_stop stays "stop" (NOT "suspend": suspend freezes the VM mid-flight, so
+  # SQLite's WAL/-shm could lose committed ledger rows across a resume/redeploy —
+  # meditation-pal-5iv4). "stop" sends SIGTERM, so litestream does a final R2
+  # sync and SQLite closes cleanly before a machine goes away. With min = 1 the
+  # warm machine isn't stopped; auto_stop only reaps any extra machines.
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [[http_service.checks]]
     interval = "30s"
