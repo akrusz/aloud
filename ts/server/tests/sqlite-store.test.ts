@@ -244,7 +244,7 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         // A pass covering [100, 200], member added twice (idempotent).
         await store.createRetreatPass({
             id: 'pass-1',
-            label: 'Spring Vipassana',
+            label: 'Retreat Name',
             startsAt: 100,
             endsAt: 200,
             perAttendeeDailyCap: null,

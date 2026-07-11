@@ -1,4 +1,4 @@
-# aloud. — visual identity
+# aloud. visual identity
 
 Reference for the brand and color system locked in 2026-05-19. When in doubt, prefer this doc over what's "natural" to grep — the palette is deliberately loud, and previous warm/amber values still appear in places that were missed.
 

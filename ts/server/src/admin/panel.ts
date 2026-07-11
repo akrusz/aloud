@@ -245,7 +245,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
       <div class="row">
-        <div><label for="rLabel">Label</label><input id="rLabel" placeholder="Spring Vipassana 2026" autocomplete="off"></div>
+        <div><label for="rLabel">Label</label><input id="rLabel" placeholder="Retreat Name" autocomplete="off"></div>
         <div style="flex:0 0 150px"><label for="rStart">Starts</label><input id="rStart" type="date"></div>
         <div style="flex:0 0 150px"><label for="rEnd">Ends</label><input id="rEnd" type="date"></div>
         <div style="flex:0 0 150px"><label for="rCap">Daily cap / person</label><input id="rCap" type="number" min="1" step="1" placeholder="unlimited"></div>

@@ -1024,6 +1024,10 @@ input[type="range"]::-moz-range-thumb {
 .advanced-settings {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    /* Raise the "Additional instructions" box onto the note surface so it reads
+       as a panel, not a bordered patch of the page. The textarea inside keeps
+       its lighter --bg-input, nesting cleanly. */
+    background: var(--bg-note);
     padding: 0;
 }
 

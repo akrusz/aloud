@@ -136,7 +136,7 @@ export type RetreatPassStatus = 'active' | 'revoked';
 
 export interface RetreatPass {
     id: string;
-    /** Operator-facing label, e.g. "Spring Vipassana 2026". */
+    /** Operator-facing label, e.g. "Retreat Name". */
     label: string;
     /** Coverage window (seconds since epoch). A pass covers an account only when
      *  startsAt <= now <= endsAt and status === 'active'. */
