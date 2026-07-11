@@ -240,6 +240,12 @@ body {
     text-decoration: none;
 }
 
+/* Dark mode dims the contrast on button labels, so bump the weight for legibility. */
+[data-theme="dark"] .btn,
+:root:not([data-theme="light"]) .btn {
+    font-weight: 600;
+}
+
 .btn:hover {
     border-color: var(--accent);
     color: var(--accent);

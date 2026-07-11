@@ -140,7 +140,7 @@ async function render(root: HTMLElement): Promise<void> {
                     <div class="settings-danger-row">
                         <div>
                             <div class="settings-danger-label">Delete account</div>
-                            <span class="form-hint">Permanently deletes your account and frees your sign-in to start over. Any remaining credits are forfeited and can't be refunded. This can't be undone.</span>
+                            <span class="form-hint">Permanently deletes your account. Any remaining credits are forfeited and can't be refunded. This can't be undone. You can make a fresh account with the same address later.</span>
                         </div>
                         <button type="button" class="btn btn-danger" id="acct-delete">Delete account</button>
                     </div>
