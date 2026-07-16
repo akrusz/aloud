@@ -47,6 +47,7 @@ import {
     SLOW_MODEL_NOTE,
 } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
+import { openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
@@ -395,7 +396,9 @@ export async function mountSessionView(
             },
         ];
     }
-    const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows);
+    const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows, 'Session', [
+        { label: 'Report a bug', onClick: () => void openBugReport() },
+    ]);
     // The nav ⓘ button that opens it is created further down (navLinks); wired
     // there, once it exists in the DOM.
 

@@ -157,6 +157,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         )
         .route("/open-config-folder", post(open_config_folder))
         .route("/open-sessions-folder", post(open_sessions_folder))
+        .route("/open-session-file/{id}", post(open_session_file))
         .route("/open-voice-settings", post(open_voice_settings));
     // The webview origin (tauri://localhost in prod, http://localhost:4649 in
     // dev) differs from this server's 127.0.0.1:<port>, so every request is
@@ -686,6 +687,54 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
         c
     };
     cmd.spawn().map(|_| ())
+}
+
+/// Reveal a single file in the platform file browser, *selecting* it (not just
+/// opening its folder). macOS `open -R` / Windows `explorer /select,` highlight
+/// the file; Linux has no portable "select" flag, so we open the parent dir.
+fn reveal_file(path: &Path) -> std::io::Result<()> {
+    use std::process::Command;
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = Command::new("open");
+        c.arg("-R").arg(path);
+        c
+    };
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = Command::new("explorer");
+        c.arg(format!("/select,{}", path.display()));
+        c
+    };
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let mut cmd = {
+        let mut c = Command::new("xdg-open");
+        c.arg(path.parent().unwrap_or(path));
+        c
+    };
+    cmd.spawn().map(|_| ())
+}
+
+/// `POST /app/v1/open-session-file/{id}` — reveal one saved session's JSON file
+/// on disk, highlighting it in the file browser. 404 if it hasn't been written
+/// yet (or the id is bad), so the UI can fail-soft.
+async fn open_session_file(
+    State(state): State<Shared>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> (StatusCode, Json<Value>) {
+    let Some(path) = session_path(&state, &id) else {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "bad session id" })));
+    };
+    if !path.exists() {
+        return (StatusCode::NOT_FOUND, Json(json!({ "error": "session file not found" })));
+    }
+    match reveal_file(&path) {
+        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("could not reveal file: {e}") })),
+        ),
+    }
 }
 
 /// `POST /app/v1/open-config-folder` — reveal the app's data directory (where

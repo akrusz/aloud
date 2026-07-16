@@ -52,6 +52,7 @@ import { initKasinaMode } from '../kasina.js';
 import { type SessionSetup, type NotingParticipantConfig, ALL_PROVIDERS } from '../settings.js';
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
+import { openBugReport } from '../bug-report.js';
 
 export interface NotingSessionViewHandle {
     teardown(): void;
@@ -149,7 +150,7 @@ export async function mountNotingSessionView(
                 value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
             },
         ];
-    });
+    }, 'Session', [{ label: 'Report a bug', onClick: () => void openBugReport() }]);
     document
         .getElementById('session-info-btn')
         ?.addEventListener('click', () => infoPanel.toggle());

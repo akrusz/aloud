@@ -14,6 +14,7 @@
 
 import { mountSetupView } from './views/setup.js';
 import { runUpdateNudge } from './about.js';
+import { openBugReport } from './bug-report.js';
 import { closeIfActive as closeGuideIfActive } from './tour/index-guide.js';
 import { mountSessionView, type SessionViewHandle } from './views/session.js';
 import {
@@ -240,6 +241,9 @@ function wireMobileMore(): void {
             // About, it just opens the box (where the install button lives).
             close();
             document.getElementById('aboutLink')?.click();
+        } else if (t.closest('#moreReportBug')) {
+            close();
+            void openBugReport();
         } else if (t.closest('#moreTheme')) {
             close();
             document.querySelector<HTMLElement>('.nav-links [data-theme-toggle]')?.click();

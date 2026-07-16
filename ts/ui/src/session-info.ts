@@ -18,6 +18,13 @@ export interface SessionInfoRow {
     note?: string;
 }
 
+export interface SessionInfoAction {
+    /** Button label ("Report a bug"). */
+    label: string;
+    /** Fired on click; the panel closes first. */
+    onClick: () => void;
+}
+
 export interface SessionInfoPanel {
     open(): void;
     close(): void;
@@ -44,7 +51,8 @@ function escape(s: string): string {
 export function mountSessionInfoPanel(
     root: HTMLElement,
     buildRows: () => SessionInfoRow[],
-    title = 'Session'
+    title = 'Session',
+    footerActions: SessionInfoAction[] = []
 ): SessionInfoPanel {
     const overlay = document.createElement('div');
     overlay.className = 'session-info-overlay hidden';
@@ -60,6 +68,16 @@ export function mountSessionInfoPanel(
                 <button type="button" class="session-info-close" data-info-close aria-label="Close">&times;</button>
             </div>
             <div class="session-info-body" id="session-info-body"></div>
+            ${
+                footerActions.length
+                    ? `<div class="session-info-actions">${footerActions
+                          .map(
+                              (a, i) =>
+                                  `<button type="button" class="btn btn-secondary btn-small session-info-action" data-info-action="${i}">${escape(a.label)}</button>`
+                          )
+                          .join('')}</div>`
+                    : ''
+            }
         </div>`;
     root.appendChild(overlay);
     const body = overlay.querySelector<HTMLElement>('#session-info-body')!;
@@ -89,7 +107,16 @@ export function mountSessionInfoPanel(
     }
 
     overlay.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement).closest('[data-info-close]')) close();
+        const el = e.target as HTMLElement;
+        if (el.closest('[data-info-close]')) {
+            close();
+            return;
+        }
+        const action = el.closest<HTMLElement>('[data-info-action]');
+        if (action) {
+            close();
+            footerActions[Number(action.dataset['infoAction'])]?.onClick();
+        }
     });
     const onKey = (e: KeyboardEvent): void => {
         if (e.key === 'Escape' && isOpen()) close();

@@ -1047,6 +1047,14 @@
     color: var(--text-muted);
     margin-top: 0.15rem;
 }
+.session-info-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+}
 
 /* Returned-gift row (meditation-pal-bd5): the re-gift email + its two buttons
    share the actions area and wrap together on narrow widths. */

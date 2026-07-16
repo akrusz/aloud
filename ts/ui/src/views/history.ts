@@ -70,6 +70,12 @@ export async function mountHistoryView(
                 copyTranscript(session, copyBtn);
             });
 
+            const revealBtn = item.querySelector<HTMLButtonElement>('.btn-reveal');
+            revealBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                revealSessionFile(session, revealBtn);
+            });
+
             const deleteBtn = item.querySelector<HTMLButtonElement>('.btn-delete');
             deleteBtn?.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -148,6 +154,23 @@ export async function mountHistoryView(
     return { show: loadAndRender };
 }
 
+/** Reveal this session's JSON file on disk (desktop only). The Rust shell
+ *  highlights it in Finder/Explorer; a missing file (never saved) flips the
+ *  label briefly rather than failing silently. */
+function revealSessionFile(session: SessionState, btn: HTMLButtonElement): void {
+    const original = btn.textContent;
+    fetch(appUrl(`/open-session-file/${encodeURIComponent(session.sessionId)}`), { method: 'POST' })
+        .then((res) => {
+            if (res.ok) return;
+            btn.textContent = 'Not on disk';
+            setTimeout(() => (btn.textContent = original), 1500);
+        })
+        .catch(() => {
+            btn.textContent = "Couldn't open";
+            setTimeout(() => (btn.textContent = original), 1500);
+        });
+}
+
 /** Download all saved sessions as one JSON file (web only — desktop reveals the
  *  on-disk sessions folder instead). For backup or moving the data elsewhere. */
 function exportSessions(sessions: readonly SessionState[]): void {
@@ -169,10 +192,10 @@ function exportSessions(sessions: readonly SessionState[]): void {
 // ---- rendering ----
 
 function renderShellHTML(sessions: readonly SessionState[]): string {
-    // Sessions live in localStorage (no folder on any platform), so "export"
-    // downloads them as JSON rather than opening a directory. The old
-    // "Open sessions folder" button POSTed to the removed backend and
-    // opened the wrong directory. Hidden when there's nothing to export.
+    // Desktop persists each session as a JSON file, so the header reveals the
+    // on-disk folder (and each row can reveal its own file). Web/mobile keep
+    // sessions in browser storage, so there "export" downloads them as JSON
+    // instead. Hidden when there's nothing to export.
     const header = `
         <div class="history-header">
             <h1>Past Sessions</h1>
@@ -240,6 +263,7 @@ function renderItem(session: SessionState): string {
             <div class="session-actions">
                 <button type="button" class="btn btn-secondary btn-small btn-continue">Continue from here</button>
                 <button type="button" class="btn btn-secondary btn-small btn-copy">Copy text</button>
+                ${isTauri() ? `<button type="button" class="btn btn-secondary btn-small btn-reveal">Open on disk</button>` : ''}
                 <button type="button" class="btn btn-danger btn-small btn-delete">Delete</button>
             </div>
         </div>
