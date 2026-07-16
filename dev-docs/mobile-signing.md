@@ -127,5 +127,7 @@ release, add testers by email. Internal testing has no review wait. Own-billing
 
 ## Related
 
-`zp47` (beta plan), `tpj4` (native sign-in — needs the Apple capability +
-Google URL scheme above), `mobile.md` (build), `7rh` (store submission).
+[store-submission-checklist.md](store-submission-checklist.md) (the end-to-end
+checklist this walkthrough plugs into), `zp47` (beta plan), `tpj4` (native
+sign-in — needs the Apple capability + Google URL scheme above), `mobile.md`
+(build), `7rh` (store submission).
