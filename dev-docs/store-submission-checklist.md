@@ -51,8 +51,8 @@ Fastest route to real testers.
 Easy to forget, because it's separate from the privacy *page*.
 
 - [ ] Apple **App Privacy** labels + Google **Data Safety** form, filled from the real data flows (account email, transcribed audio, credits).
-- [ ] iOS **privacy manifest** (`PrivacyInfo.xcprivacy`): none in the App target yet, and Capacitor Preferences uses a required-reason API, so add one.
-- [ ] iOS **export compliance**: add `ITSAppUsesNonExemptEncryption` = `false` to Info.plist (HTTPS-only is exempt) to skip the per-upload prompt.
+- [x] iOS **privacy manifest** (`ts/ios/App/App/PrivacyInfo.xcprivacy`): tracking = false, UserDefaults required-reason (CA92.1), wired into the App target. Collected-data-types left empty; the App Store Connect labels above are the source of truth.
+- [x] iOS **export compliance**: `ITSAppUsesNonExemptEncryption` = `false` in Info.plist (HTTPS-only is exempt) skips the per-upload prompt.
 - [ ] **Reviewer note**: Noting works free with no account; give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
 - [ ] Listing assets: screenshots (required sizes), description, keywords, support + privacy URLs, age / content rating. Copy direction in bead `7ej` (lead with values, no device-spec claims). Play also wants a 1024x500 feature graphic + 512 icon.
 

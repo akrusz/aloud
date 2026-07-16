@@ -20,6 +20,11 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Export compliance: aloud uses only standard HTTPS/TLS, which is exempt,
+	     so declare non-exempt encryption = false. This skips the encryption
+	     question App Store Connect otherwise asks on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>aloud listens while you speak so it can respond in your practice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

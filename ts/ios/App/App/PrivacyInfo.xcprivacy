@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App privacy manifest (Apple required-reason APIs + tracking disclosure).
+	     Third-party SDKs (Capacitor plugins, Google, Alamofire, …) ship their
+	     own manifests under Pods/; this one covers the App target's own code. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<!-- Authoritative data-collection disclosure lives in the App Store Connect
+	     "App Privacy" labels (account email + transcribed audio handled via
+	     aloud cloud). Kept empty here so the two can't drift; fill only if you
+	     want the machine-readable manifest to mirror the labels. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- UserDefaults: durable local settings/session storage via
+			     @capacitor/preferences. Reason CA92.1 = access from the app
+			     itself, not shared with other apps. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
