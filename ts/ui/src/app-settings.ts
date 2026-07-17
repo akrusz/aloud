@@ -22,6 +22,14 @@ export type TtsEngineChoice = 'macos' | 'piper' | 'browser' | 'elevenlabs';
  *  browser speech → hosted; see resolveSttChoice in adapters/stt-picker). */
 export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud' | 'capacitor';
 
+/** When the facilitator checks in during silence: never, after a fixed
+ *  interval (silenceCheckinSec), or model-decided ('smart' — not built yet;
+ *  the settings UI offers it disabled). */
+export type CheckinTiming = 'none' | 'simple' | 'smart';
+/** What a check-in says: a stock phrase, or an LLM line generated from the
+ *  session so far (which may choose to stay quiet). */
+export type CheckinContent = 'simple' | 'smart';
+
 export interface AppSettings {
     // Provider defaults for new sessions
     defaultProvider: Provider;
@@ -88,7 +96,8 @@ export interface AppSettings {
     nonStreamingSilenceBaseMs: number;
     nonStreamingSilenceMaxMs: number;
     silenceCheckinSec: number;
-    silenceCheckinsEnabled: boolean;
+    checkinTiming: CheckinTiming;
+    checkinContent: CheckinContent;
     silenceModeEnabled: boolean;
 }
 
@@ -115,7 +124,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     nonStreamingSilenceBaseMs: 1500,
     nonStreamingSilenceMaxMs: 4000,
     silenceCheckinSec: 300,
-    silenceCheckinsEnabled: true,
+    checkinTiming: 'simple',
+    checkinContent: 'smart',
     silenceModeEnabled: true,
 };
 
@@ -179,7 +189,14 @@ export async function loadAppSettings(): Promise<AppSettings> {
     // pre-selected navigator.language). An explicit stored choice wins.
     if (!raw) return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
     try {
-        const parsed = JSON.parse(raw) as Partial<AppSettings>;
+        const parsed = JSON.parse(raw) as Partial<AppSettings> & {
+            /** Pre-radio check-in toggle; folded into checkinTiming on load. */
+            silenceCheckinsEnabled?: boolean;
+        };
+        if (parsed.checkinTiming === undefined && parsed.silenceCheckinsEnabled === false) {
+            parsed.checkinTiming = 'none';
+        }
+        delete parsed.silenceCheckinsEnabled;
         return { ...DEFAULT_APP_SETTINGS, ...parsed, language: parsed.language ?? detectLocale() };
     } catch {
         return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };

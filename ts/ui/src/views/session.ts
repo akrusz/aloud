@@ -348,7 +348,7 @@ export async function mountSessionView(
         ...defaultPacingConfig,
         responseDelayMs: appSettings.responseDelayMs,
         silenceCheckinSec: appSettings.silenceCheckinSec,
-        silenceCheckinsEnabled: appSettings.silenceCheckinsEnabled,
+        silenceCheckinsEnabled: appSettings.checkinTiming !== 'none',
         silenceModeEnabled: appSettings.silenceModeEnabled,
         silenceBaseMs,
         silenceMaxMs,

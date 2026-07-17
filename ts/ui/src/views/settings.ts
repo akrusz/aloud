@@ -1058,29 +1058,40 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             persist();
         });
 
-        const checkinsEnabled = root.querySelector<HTMLInputElement>('#s-silence-checkins-enabled');
-        if (checkinsEnabled) {
-            // Grey out the check-in interval stepper when check-ins are off,
-            // so it's clear the value is inert (.is-disabled).
-            const checkinWrap = root
-                .querySelector<HTMLInputElement>('#s-silence-sec')
-                ?.closest<HTMLElement>('.stepper');
-            const syncCheckinStepper = (): void => {
-                if (!checkinWrap) return;
-                const on = checkinsEnabled.checked;
-                checkinWrap.classList.toggle('is-disabled', !on);
-                checkinWrap
-                    .querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')
-                    .forEach((el) => {
-                        el.disabled = !on;
-                    });
-            };
-            checkinsEnabled.checked = settings.silenceCheckinsEnabled;
-            syncCheckinStepper();
-            checkinsEnabled.addEventListener('change', () => {
-                settings.silenceCheckinsEnabled = checkinsEnabled.checked;
+        // Check-in timing radios. The interval stepper only means anything for
+        // 'simple' timing, so it greys out (.is-disabled) on the other picks.
+        const timingRadios = Array.from(
+            root.querySelectorAll<HTMLInputElement>('input[name="s-checkin-timing"]')
+        );
+        const checkinWrap = root
+            .querySelector<HTMLInputElement>('#s-silence-sec')
+            ?.closest<HTMLElement>('.stepper');
+        const syncCheckinStepper = (): void => {
+            if (!checkinWrap) return;
+            const on = settings.checkinTiming === 'simple';
+            checkinWrap.classList.toggle('is-disabled', !on);
+            checkinWrap
+                .querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')
+                .forEach((el) => {
+                    el.disabled = !on;
+                });
+        };
+        syncCheckinStepper();
+        for (const radio of timingRadios) {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                settings.checkinTiming = radio.value as AppSettings['checkinTiming'];
                 persist();
                 syncCheckinStepper();
+            });
+        }
+        for (const radio of root.querySelectorAll<HTMLInputElement>(
+            'input[name="s-checkin-content"]'
+        )) {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                settings.checkinContent = radio.value as AppSettings['checkinContent'];
+                persist();
             });
         }
         const silenceModeEnabled = root.querySelector<HTMLInputElement>('#s-silence-mode-enabled');
@@ -1659,16 +1670,46 @@ function renderPacingSection(s: AppSettings): string {
         <h3 class="pacing-subhead">Pause before submitting user response (non-streaming providers)</h3>
         <p class="form-hint pacing-subhead-note">For providers that don't send a response until fully generated - currently just Claude subscriptions. Lower delay recommended because responses are slower.</p>
         ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
+        <h3 class="pacing-subhead">Check-In</h3>
         <div class="form-row">
-            <div class="form-group form-group-half" id="s-silence-sec-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-silence-checkins-enabled"${s.silenceCheckinsEnabled ? ' checked' : ''}>
-                    <span>Check-in After Silence (s)</span>
-                </label>
-                ${stepper('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
-                <span class="form-hint">Proactive check-ins after this much silence.</span>
+            <div class="form-group form-group-half" id="s-checkin-timing-group">
+                <label>Timing</label>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="s-checkin-timing" value="none"${s.checkinTiming === 'none' ? ' checked' : ''}>
+                        <span>None</span>
+                    </label>
+                    <div class="radio-inline">
+                        <label class="radio-label">
+                            <input type="radio" name="s-checkin-timing" value="simple"${s.checkinTiming === 'simple' ? ' checked' : ''}>
+                            <span>Simple (s)</span>
+                        </label>
+                        ${stepper('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
+                    </div>
+                    <label class="radio-label is-disabled">
+                        <input type="radio" name="s-checkin-timing" value="smart" disabled${s.checkinTiming === 'smart' ? ' checked' : ''}>
+                        <span>Smart (soon)</span>
+                    </label>
+                </div>
+                <span class="form-hint">When the facilitator speaks up during silence.</span>
             </div>
-            <div class="form-group">
+            <div class="form-group form-group-half" id="s-checkin-content-group">
+                <label>Content</label>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="s-checkin-content" value="simple"${s.checkinContent === 'simple' ? ' checked' : ''}>
+                        <span>Simple</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="s-checkin-content" value="smart"${s.checkinContent === 'smart' ? ' checked' : ''}>
+                        <span>Smart</span>
+                    </label>
+                </div>
+                <span class="form-hint">Simple says a stock phrase. Smart asks the model for a line that fits the session, or stays quiet.</span>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group form-group-half">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-auto-quit"${s.autoQuitAfterSilence ? ' checked' : ''}>
                     <span>Auto-save and quit after silence (min)</span>
@@ -1676,15 +1717,13 @@ function renderPacingSection(s: AppSettings): string {
                 ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
                 <span class="form-hint">An open session keeps listening and checking in, which can slowly consume cloud credits if in use.</span>
             </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group form-group-half">
-              <label class="checkbox-label">
-                  <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
-                  <span>Enable holding-space mode</span>
-              </label>
-              <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
-          </div>
+            <div class="form-group form-group-half">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
+                    <span>Enable holding-space mode</span>
+                </label>
+                <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
+            </div>
         </div>
     </section>`;
 }

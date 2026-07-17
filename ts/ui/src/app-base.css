@@ -894,6 +894,62 @@ input[type="range"]::-moz-range-thumb {
     transform: rotate(45deg);
 }
 
+/* Radio — same look as the checkbox, but round with a dot. */
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.radio-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.radio-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    font-size: 0.9rem !important;
+    color: var(--text-primary) !important;
+}
+
+.radio-label input[type="radio"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg-surface);
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.radio-label input[type="radio"]:checked {
+    border-color: var(--accent);
+}
+
+.radio-label input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.radio-label.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
 /* Style cards */
 
 .style-cards {
