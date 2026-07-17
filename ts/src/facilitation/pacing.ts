@@ -11,8 +11,10 @@
  *   the facilitator's turn to respond.
  * - A contemplative drop: the meditator has gone inward and stopped talking
  *   entirely. Interrupting defeats the practice, so nothing fires until a
- *   long interval (silenceCheckinSec) passes, then a gentle canned check-in
- *   (no LLM round-trip) confirms presence and the timer resets.
+ *   long interval (silenceCheckinSec) passes, then a gentle check-in
+ *   confirms presence and the timer resets. What the check-in says is the
+ *   caller's choice: a canned phrase (no LLM round-trip) or a smart one
+ *   (smart-checkin.ts — the LLM offers a line in context, or declines).
  * - Requested silence: the LLM prefixed its reply with [HOLD], entering an
  *   explicit hold where even check-ins stay quiet; any new speech exits it
  *   (subject to the resume-intent classifier upstream).

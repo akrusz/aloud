@@ -22,6 +22,9 @@ import {
     classifyResumeIntent,
     classifyHoldConfirm,
     defaultPacingConfig,
+    runSmartCheckin,
+    buildSmartCheckinEvent,
+    isSmartCheckinEvent,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
@@ -1032,6 +1035,8 @@ export async function mountSessionView(
         const oldDate = new Date(continueFrom.startTime * 1000).toLocaleString();
         insertDivider(`continuing from ${oldDate}`);
         for (const ex of continueFrom.exchanges) {
+            // Synthetic check-in event turns are model context, not speech.
+            if (ex.role === 'user' && isSmartCheckinEvent(ex.content)) continue;
             if (ex.role === 'user' || ex.role === 'assistant') {
                 appendMessage(ex.role, ex.content);
             }
@@ -1048,6 +1053,13 @@ export async function mountSessionView(
     let muted = false;
     let listenLoopRunning = false;
     let torn = false;
+    // Smart check-ins: single-flight guard + how many have fired in the
+    // current silence stretch (reset on any real user turn). Past the cap we
+    // stop paying for LLM calls — the model has had its chances to help, and
+    // auto-quit handles true walk-aways.
+    let checkinInFlight = false;
+    let smartCheckinStreak = 0;
+    const SMART_CHECKIN_MAX_STREAK = 4;
     let silenceMode = false;
     // Require-confirm handshake for a model-initiated [HOLD] (rlgm). Models —
     // small ones especially — emit [HOLD] far too eagerly, often off a
@@ -1220,6 +1232,7 @@ export async function mountSessionView(
             // silence mode if we were in it, returns RESPOND.
             pacing.onSpeechEnd();
             pacing.onTranscription(userText);
+            smartCheckinStreak = 0;
             if (silenceMode) {
                 silenceMode = false;
                 setHolding(false);
@@ -1934,8 +1947,11 @@ export async function mountSessionView(
               if (whisperEngine?.userSpeechActive) return;
               const decision = pacing.shouldRespond();
               if (decision !== TurnDecision.CheckIn) return;
-              const text = builder.getCheckInPrompt();
-              void respondWithFacilitatorLine(text);
+              if (appSettings.checkinContent === 'smart') {
+                  void respondWithSmartCheckIn();
+              } else {
+                  void respondWithFacilitatorLine(builder.getCheckInPrompt());
+              }
           }, CHECK_IN_POLL_MS)
         : null;
 
@@ -1983,6 +1999,68 @@ export async function mountSessionView(
             // Capture facilitator-initiated lines (check-ins) too, so a crash
             // between turns doesn't lose them. No-op unless logging is on.
             void autosaveSession();
+        }
+    }
+
+    /**
+     * Smart check-in: ask the model for a line that fits the session — or
+     * for permission to keep quiet. See facilitation/smart-checkin.ts for
+     * the contract. Any failure degrades to a canned line, so this can
+     * never be worse than the simple check-in.
+     */
+    async function respondWithSmartCheckIn(): Promise<void> {
+        if (checkinInFlight || busy) return;
+        if (smartCheckinStreak >= SMART_CHECKIN_MAX_STREAK) {
+            // Out of chances: silent no-op that resets the interval so the
+            // poll doesn't refire every tick. Auto-quit takes it from here.
+            pacing.onResponseEnd();
+            return;
+        }
+        checkinInFlight = true;
+        // Don't own the turn (no turnGen bump): a real utterance arriving
+        // mid-call must win. Registering our abort as the active one lets
+        // respondTo cancel the in-flight completion; the gen check below
+        // catches the takeover either way.
+        const myGen = turnGen;
+        const myAbort = new AbortController();
+        activeFullAbort = myAbort;
+        try {
+            smartCheckinStreak++;
+            const eventText = buildSmartCheckinEvent(
+                pacing.getSilenceDuration(),
+                smartCheckinStreak
+            );
+            const { reply, usage } = await runSmartCheckin(
+                provider,
+                [...session.getContextMessages(), { role: 'user', content: eventText }],
+                {
+                    system: builder.buildSystemPrompt(stager?.promptSection()),
+                    signal: myAbort.signal,
+                }
+            );
+            if (torn || myGen !== turnGen || busy) return;
+            // The call happened whether or not anything gets spoken; tally it.
+            session.recordLlmUsage(usage);
+            if (reply.kind === 'pass') {
+                pacing.onResponseEnd();
+                return;
+            }
+            if (reply.kind === 'speak') {
+                // Event turn enters history only when the model speaks, so
+                // the next turn's model sees why the facilitator piped up.
+                session.addUserMessage(eventText);
+                await respondWithFacilitatorLine(reply.text);
+            } else {
+                await respondWithFacilitatorLine(builder.getCheckInPrompt());
+            }
+        } catch {
+            // Provider hiccup (or aborted by a real turn) — canned fallback,
+            // unless a real turn took over.
+            if (!torn && myGen === turnGen && !busy) {
+                await respondWithFacilitatorLine(builder.getCheckInPrompt());
+            }
+        } finally {
+            checkinInFlight = false;
         }
     }
 

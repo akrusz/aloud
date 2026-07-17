@@ -30,6 +30,18 @@ export {
     type ResumeContextOptions,
 } from './resume.js';
 export { classifyResumeIntent, classifyHoldConfirm } from './resume-intent.js';
+export {
+    runSmartCheckin,
+    parseSmartCheckinReply,
+    buildSmartCheckinEvent,
+    isSmartCheckinEvent,
+    PASS_PREFIX,
+    SMART_CHECKIN_EVENT_PREFIX,
+    SMART_CHECKIN_MAX_CHARS,
+    SMART_CHECKIN_MAX_TOKENS,
+    type SmartCheckinReply,
+    type SmartCheckinResult,
+} from './smart-checkin.js';
 export { looksLikeTtsEcho, MIN_ECHO_WORDS } from './echo-guard.js';
 
 export {
