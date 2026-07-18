@@ -24,7 +24,7 @@ import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { LedgerEntry } from '../credits/store.js';
 import { buildMetrics } from '../admin/metrics.js';
-import { buildUsageReport, buildUsageHistory } from '../credits/usage.js';
+import { buildUsageReport, buildUsageHistory, buildProviderDailyCosts } from '../credits/usage.js';
 import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
@@ -116,11 +116,14 @@ export function adminRoutes(deps: Deps): Hono {
         if (fail) return fail;
 
         const sinceHours = Number(c.req.query('sinceHours') ?? 24);
+        // Sessions with fewer LLM turns than this are dropped from the
+        // per-session distributions (drive-by sessions skew the medians).
+        const minSessionTurns = Math.max(0, Number(c.req.query('minTurns') ?? 0) || 0);
         const now = Date.now() / 1000;
         const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
 
         const events = await deps.store.allUsage();
-        return c.json(buildUsageReport(events, now, windowSinceTs));
+        return c.json(buildUsageReport(events, now, windowSinceTs, { minSessionTurns }));
     });
 
     // Daily usage history for the trend charts — sessions, turns, spend, and
@@ -135,6 +138,20 @@ export function adminRoutes(deps: Deps): Hono {
         const now = Date.now() / 1000;
         const events = await deps.store.allUsage();
         return c.json({ generatedAt: now, days, buckets: buildUsageHistory(events, now, days) });
+    });
+
+    // Per-provider, per-UTC-day computed spend — the "our side" of reconciling
+    // against the provider cost reports (scripts/reconcile-cloud-spend.mjs,
+    // meditation-pal-xejm). Buckets by event time, not session start, so rows
+    // line up with the providers' own daily billing buckets.
+    app.get('/usage/provider-daily', async (c) => {
+        const fail = await authFailure(c, deps);
+        if (fail) return fail;
+
+        const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
+        const now = Date.now() / 1000;
+        const events = await deps.store.allUsage();
+        return c.json({ generatedAt: now, days, rows: buildProviderDailyCosts(events, now, days) });
     });
 
     // Every account with derived balance, lifetime granted/spent, and whether

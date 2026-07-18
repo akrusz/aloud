@@ -138,6 +138,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="720">last 30d</option>
           <option value="1000000">all time</option>
         </select>
+        <select id="usageMinTurns" style="width:auto;padding:4px 8px;font-size:16px">
+          <option value="4" selected>4+ turn sessions</option>
+          <option value="0">all sessions</option>
+        </select>
         <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
@@ -332,14 +336,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // ---- cost attribution --------------------------------------------------
   var SVC = { llm: 'LLM', stt: 'STT', tts: 'TTS' };
   function loadUsage() {
-    return api('/usage?sinceHours=' + $('usageWindow').value).then(function (u) {
+    return api('/usage?sinceHours=' + $('usageWindow').value + '&minTurns=' + $('usageMinTurns').value).then(function (u) {
       var s = u.sessions;
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
         ['Credits spent', dec1(u.totals.credits)],
         ['Metered calls', int(u.events)],
         ['LLM cache-hit', pct(u.llmCacheHitRatio)],
-        ['Sessions', int(s.count)],
+        ['Sessions', int(s.count) + (s.excludedShort ? ' (+' + int(s.excludedShort) + ' short)' : '')],
         ['Avg cost / session', usdp(s.costUsd.mean)],
         ['Median credits / session', dec1(s.credits.p50)],
         ['Avg turns / session', num1(s.turns.mean)],
@@ -866,6 +870,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
+  $('usageMinTurns').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('historyDays').addEventListener('change', function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   // Metric switch is a pure client-side re-render — no refetch needed.

@@ -202,7 +202,18 @@ export interface UsageReport {
         turns: Distribution;
         /** Mean wall-clock minutes per session (first→last event). */
         meanDurationMin: number;
+        /** Sessions dropped from the distributions by minSessionTurns. */
+        excludedShort: number;
     };
+}
+
+export interface UsageReportOptions {
+    /** Exclude reconstructed sessions with fewer than this many LLM turns from
+     *  the per-session distributions — a drive-by "opened the app, said one
+     *  thing" session drags the medians down and isn't what estimates should
+     *  calibrate against. Totals and the service/model/cache aggregates always
+     *  cover every event; only the `sessions` block is filtered. */
+    minSessionTurns?: number;
 }
 
 /** One day of aggregated usage for the admin trend charts. */
@@ -281,7 +292,8 @@ function clusterSessions(events: UsageEvent[]): UsageEvent[][] {
 export function buildUsageReport(
     events: UsageEvent[],
     now: number,
-    windowSinceTs: number
+    windowSinceTs: number,
+    opts: UsageReportOptions = {}
 ): UsageReport {
     const inWindow = events.filter((e) => e.ts >= windowSinceTs);
 
@@ -372,7 +384,12 @@ export function buildUsageReport(
         svc.costShare = totalCost > 0 ? svc.providerCostUsd / totalCost : 0;
     }
 
-    const sessions = clusterSessions(inWindow);
+    const allSessions = clusterSessions(inWindow);
+    const minTurns = Math.max(0, opts.minSessionTurns ?? 0);
+    const sessions = allSessions.filter(
+        (s) => s.filter((e) => e.kind === 'llm').length >= minTurns
+    );
+    const excludedShort = allSessions.length - sessions.length;
     const sessionCosts = sessions.map((s) => s.reduce((sum, e) => sum + e.providerCostUsd, 0));
     const sessionCredits = sessions.map((s) => s.reduce((sum, e) => sum + e.credits, 0));
     const sessionTurns = sessions.map((s) => s.filter((e) => e.kind === 'llm').length);
@@ -430,6 +447,7 @@ export function buildUsageReport(
             credits: distribution(sessionCredits),
             turns: distribution(sessionTurns),
             meanDurationMin,
+            excludedShort,
         },
     };
 }
@@ -483,4 +501,48 @@ export function buildUsageHistory(
     }
 
     return [...buckets.values()].sort((a, b) => a.dayStartTs - b.dayStartTs);
+}
+
+/** One provider's computed spend for one UTC day — the "our side" row of the
+ *  provider-bill reconciliation (meditation-pal-xejm). */
+export interface ProviderDailyCost {
+    /** UTC start-of-day, seconds since epoch. */
+    dayStartTs: number;
+    provider: string;
+    events: number;
+    providerCostUsd: number;
+}
+
+/** Per-provider, per-UTC-day computed spend over the last `days` days. Unlike
+ *  buildUsageHistory this buckets each EVENT by its own timestamp — provider
+ *  invoices bill by when the call happened, not by when our reconstructed
+ *  session started — so these rows line up with the Anthropic/OpenAI daily
+ *  cost-report buckets. Days with no usage for a provider emit no row. */
+export function buildProviderDailyCosts(
+    events: UsageEvent[],
+    now: number,
+    days: number
+): ProviderDailyCost[] {
+    const dayCount = Math.max(1, Math.floor(days));
+    const todayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
+    const firstDay = todayStart - (dayCount - 1) * DAY_SEC;
+
+    const rows = new Map<string, ProviderDailyCost>();
+    for (const e of events) {
+        if (e.ts < firstDay || e.ts >= todayStart + DAY_SEC) continue;
+        const day = Math.floor(e.ts / DAY_SEC) * DAY_SEC;
+        const key = `${day}:${e.provider}`;
+        const row = rows.get(key) ?? {
+            dayStartTs: day,
+            provider: e.provider,
+            events: 0,
+            providerCostUsd: 0,
+        };
+        row.events += 1;
+        row.providerCostUsd += e.providerCostUsd;
+        rows.set(key, row);
+    }
+    return [...rows.values()].sort(
+        (a, b) => a.dayStartTs - b.dayStartTs || a.provider.localeCompare(b.provider)
+    );
 }

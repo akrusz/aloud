@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
     buildUsageReport,
     buildUsageHistory,
+    buildProviderDailyCosts,
     SESSION_GAP_SEC,
     type UsageEvent,
 } from '../src/credits/usage.js';
@@ -192,6 +193,31 @@ describe('buildUsageReport', () => {
         expect(r.sessions.turns.mean).toBeCloseTo(2, 9);
     });
 
+    it('minSessionTurns drops short sessions from the distributions, not the totals', () => {
+        const events = [
+            // session 1: 4 LLM turns, $0.40
+            ev({ ts: 1000, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1010, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1020, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1030, kind: 'llm', providerCostUsd: 0.1 }),
+            // session 2 (after a gap): a 1-turn drive-by, $0.01
+            ev({ ts: 1000 + SESSION_GAP_SEC + 60, kind: 'llm', providerCostUsd: 0.01 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0, { minSessionTurns: 4 });
+        // Totals still cover every event.
+        expect(r.totals.providerCostUsd).toBeCloseTo(0.41, 9);
+        expect(r.events).toBe(5);
+        // Distributions only see the 4-turn session; the drive-by is counted out.
+        expect(r.sessions.count).toBe(1);
+        expect(r.sessions.excludedShort).toBe(1);
+        expect(r.sessions.turns.mean).toBeCloseTo(4, 9);
+        expect(r.sessions.costUsd.mean).toBeCloseTo(0.4, 9);
+        // Default keeps everything.
+        const all = buildUsageReport(events, 1_000_000, 0);
+        expect(all.sessions.count).toBe(2);
+        expect(all.sessions.excludedShort).toBe(0);
+    });
+
     it('returns zeroed aggregates for an empty window', () => {
         const r = buildUsageReport([], 2000, 1000);
         expect(r.events).toBe(0);
@@ -253,5 +279,40 @@ describe('buildUsageHistory', () => {
         const events = [ev({ ts: 50 * DAY, kind: 'llm', providerCostUsd: 99 })];
         const h = buildUsageHistory(events, NOW, 7);
         expect(h.every((b) => b.sessions === 0)).toBe(true);
+    });
+});
+
+describe('buildProviderDailyCosts', () => {
+    const NOW = 100 * DAY + 3600; // mid-day on day 100
+
+    it('buckets each event by its own UTC day, split by provider', () => {
+        const events = [
+            ev({ ts: 99 * DAY + 100, provider: 'anthropic', providerCostUsd: 0.2 }),
+            ev({ ts: 99 * DAY + 200, provider: 'anthropic', providerCostUsd: 0.1 }),
+            ev({ ts: 99 * DAY + 300, provider: 'openai', kind: 'tts', providerCostUsd: 0.05 }),
+            ev({ ts: 100 * DAY + 60, provider: 'anthropic', providerCostUsd: 0.4 }),
+        ];
+        const rows = buildProviderDailyCosts(events, NOW, 7);
+        expect(rows).toEqual([
+            { dayStartTs: 99 * DAY, provider: 'anthropic', events: 2, providerCostUsd: expect.closeTo(0.3, 9) },
+            { dayStartTs: 99 * DAY, provider: 'openai', events: 1, providerCostUsd: expect.closeTo(0.05, 9) },
+            { dayStartTs: 100 * DAY, provider: 'anthropic', events: 1, providerCostUsd: expect.closeTo(0.4, 9) },
+        ]);
+    });
+
+    it('splits a midnight-spanning session across the days its events fall on', () => {
+        // Unlike buildUsageHistory, provider billing doesn't care about our
+        // session boundaries — each event lands on its own day.
+        const events = [
+            ev({ sessionId: 's1', ts: 99 * DAY - 60, provider: 'anthropic', providerCostUsd: 0.1 }),
+            ev({ sessionId: 's1', ts: 99 * DAY + 60, provider: 'anthropic', providerCostUsd: 0.2 }),
+        ];
+        const rows = buildProviderDailyCosts(events, NOW, 7);
+        expect(rows.map((r) => r.dayStartTs)).toEqual([98 * DAY, 99 * DAY]);
+    });
+
+    it('ignores events outside the window', () => {
+        const events = [ev({ ts: 50 * DAY, provider: 'anthropic', providerCostUsd: 99 })];
+        expect(buildProviderDailyCosts(events, NOW, 7)).toEqual([]);
     });
 });
