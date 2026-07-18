@@ -27,7 +27,7 @@ import { iterateSseEvents } from './sse.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_MODEL = 'claude-sonnet-5';
 const DEFAULT_MAX_TOKENS = 300;
 
 /**
@@ -41,6 +41,16 @@ const DEFAULT_MAX_TOKENS = 300;
  * when we send no `thinking` param, so they neither need nor want it.
  */
 const EFFORT_LOW_MODELS = new Set(['claude-fable-5']);
+
+/**
+ * Models where thinking is opt-OUT: omitting the `thinking` param runs adaptive
+ * thinking by default (Sonnet 5 is the first). For real-time voice that means a
+ * silent think-before-speak delay plus thinking tokens billed as output on
+ * every turn, so we send an explicit disable. Gated to this exact set: the
+ * disable is a 400 on always-on models (Fable), and the opt-in models above
+ * are already off without it.
+ */
+const THINKING_OFF_MODELS = new Set(['claude-sonnet-5']);
 
 /** Upstream statuses worth retrying: rate-limit (429), and the transient 5xx
  *  family including Anthropic's 529 "overloaded". A non-429 4xx is the caller's
@@ -233,6 +243,9 @@ export class AnthropicProvider implements LLMProvider {
         // Always-on-thinking models: keep the reasoning preamble minimal so the
         // facilitator speaks with the least delay (see EFFORT_LOW_MODELS).
         if (EFFORT_LOW_MODELS.has(this.model)) body['output_config'] = { effort: 'low' };
+        // Opt-out-thinking models: disable the default adaptive thinking so the
+        // facilitator speaks immediately (see THINKING_OFF_MODELS).
+        if (THINKING_OFF_MODELS.has(this.model)) body['thinking'] = { type: 'disabled' };
 
         const headers: Record<string, string> = {
             'content-type': 'application/json',

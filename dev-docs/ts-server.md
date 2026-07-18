@@ -147,7 +147,7 @@ TOK=$(curl -s -X POST localhost:8787/v1/auth/dev | node -pe 'JSON.parse(require(
 curl -s localhost:8787/v1/me -H "authorization: Bearer $TOK"          # account + balance
 curl -s -X POST localhost:8787/v1/llm/complete -H "authorization: Bearer $TOK" \
   -H 'content-type: application/json' \
-  -d '{"provider":"anthropic","model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}]}'
+  -d '{"provider":"anthropic","model":"claude-sonnet-5","messages":[{"role":"user","content":"hi"}]}'
 ```
 
 ## Routes

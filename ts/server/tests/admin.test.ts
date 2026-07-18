@@ -348,7 +348,7 @@ describe('metered pause (soft launch)', () => {
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
             body: JSON.stringify({
                 provider: 'anthropic',
-                model: 'claude-sonnet-4-6',
+                model: 'claude-sonnet-5',
                 messages: [{ role: 'user', content: 'hi' }],
                 stream: false,
             }),

@@ -57,7 +57,7 @@ describe('CloudLlmProvider.complete', () => {
         let seenBody: Record<string, unknown> = {};
         const provider = new CloudLlmProvider({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             fetchImpl: async (_url, init) => {
                 seenAuth = (init?.headers as Record<string, string>)['authorization'] ?? '';
                 seenBody = JSON.parse(init?.body as string);
@@ -76,7 +76,7 @@ describe('CloudLlmProvider.complete', () => {
         const result = await provider.complete([{ role: 'user', content: 'hi' }], { system: 'be kind' });
         expect(seenAuth).toBe('Bearer tok-1');
         expect(seenBody['provider']).toBe('anthropic');
-        expect(seenBody['model']).toBe('claude-sonnet-4-6');
+        expect(seenBody['model']).toBe('claude-sonnet-5');
         expect(seenBody['system']).toBe('be kind');
         expect(seenBody['stream']).toBe(false);
         expect(result.text).toBe('Welcome.');
@@ -88,7 +88,7 @@ describe('CloudLlmProvider.complete', () => {
         const authSeen: string[] = [];
         const provider = new CloudLlmProvider({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             fetchImpl: async (_url, init) => {
                 authSeen.push((init?.headers as Record<string, string>)['authorization'] ?? '');
                 if (authSeen.length === 1) {
@@ -112,7 +112,7 @@ describe('CloudLlmProvider.complete', () => {
         await kv.set('server:token', 'tok-1');
         const provider = new CloudLlmProvider({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             fetchImpl: async () =>
                 new Response(JSON.stringify({ error: { code: 'insufficient_credits', message: 'out of credits' } }), {
                     status: 402,
@@ -133,7 +133,7 @@ describe('CloudLlmProvider.completeStream', () => {
         await kv.set('server:token', 'tok-1');
         const provider = new CloudLlmProvider({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             fetchImpl: async () =>
                 sseResponse([
                     `data: ${JSON.stringify({ text: 'Hello ', done: false })}\n\n`,
@@ -158,7 +158,7 @@ describe('CloudLlmProvider.completeStream', () => {
         await kv.set('server:token', 'tok-1');
         const provider = new CloudLlmProvider({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             // One frame delivered in two pieces, the split landing mid-JSON.
             fetchImpl: async () =>
                 sseResponse([
@@ -178,7 +178,7 @@ describe('CloudLlmProvider.completeStream', () => {
         await kv.set('server:token', 'tok-1');
         const provider = new CloudLlmProvider({
             provider: 'anthropic',
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             fetchImpl: async () =>
                 sseResponse([
                     `event: error\ndata: ${JSON.stringify({ error: { code: 'provider_error', message: 'upstream provider error' } })}\n\n`,

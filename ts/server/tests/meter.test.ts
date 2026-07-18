@@ -12,7 +12,7 @@ import {
 describe('llmCostUsd', () => {
     it('prices input, output, and cache-read separately (never summed)', () => {
         // sonnet: 3/M in, 15/M out, 0.3/M cache-read
-        const cost = llmCostUsd('anthropic', 'claude-sonnet-4-6', {
+        const cost = llmCostUsd('anthropic', 'claude-sonnet-5', {
             tokensIn: 1_000_000,
             tokensOut: 1_000_000,
             cacheRead: 1_000_000,
@@ -50,16 +50,16 @@ describe('llmCostUsd', () => {
     });
 
     it('treats null/absent usage fields as zero', () => {
-        expect(llmCostUsd('anthropic', 'claude-sonnet-4-6', {})).toBe(0);
+        expect(llmCostUsd('anthropic', 'claude-sonnet-5', {})).toBe(0);
         expect(
-            llmCostUsd('anthropic', 'claude-sonnet-4-6', { tokensIn: null, tokensOut: 1000 })
+            llmCostUsd('anthropic', 'claude-sonnet-5', { tokensIn: null, tokensOut: 1000 })
         ).toBeCloseTo(1000 * (15 / 1_000_000), 9);
     });
 });
 
 describe('priceLlmTurn', () => {
     it('debits at COST (no markup), fractional — never rounds a turn up', () => {
-        const turn = priceLlmTurn('anthropic', 'claude-sonnet-4-6', {
+        const turn = priceLlmTurn('anthropic', 'claude-sonnet-5', {
             tokensIn: 1000,
             tokensOut: 500,
         });

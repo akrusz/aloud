@@ -41,7 +41,7 @@ describe('app', () => {
         const res = await app().request('/cloud/v1/llm/complete', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-4-6', messages: [] }),
+            body: JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-5', messages: [] }),
         });
         expect(res.status).toBe(401);
     });

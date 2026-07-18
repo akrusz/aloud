@@ -78,9 +78,19 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
-    'anthropic:claude-sonnet-4-6': {
+    // Sonnet 5 (replaced Sonnet 4.6 here, July 2026) - same $3/$15 sticker and
+    // cache multipliers as 4.6, near-Opus quality. Two Sonnet-5-specific notes:
+    // (1) it uses the newer tokenizer (~30% more tokens for the same text than
+    // 4.6) - that inflates token COUNTS, not these per-token rates, so no
+    // adjustment here (same stance as the Fable comment above); (2) Anthropic
+    // runs intro pricing ($2/$10) through 2026-08-31 - we bill at LIST rates
+    // below and simply pay less until then, so nothing to revisit on Sept 1.
+    // The core AnthropicProvider sends an explicit thinking-disabled for this
+    // model (adaptive thinking is otherwise ON by default), so no thinking
+    // tokens ever accrue on the metered path.
+    'anthropic:claude-sonnet-5': {
         provider: 'anthropic',
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         input: 3 / M,
         output: 15 / M,
         cacheRead: 0.3 / M,

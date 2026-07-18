@@ -94,6 +94,28 @@ describe('AnthropicProvider', () => {
         expect(headers['anthropic-version']).toBe('2023-06-01');
     });
 
+    it('disables thinking on opt-out models (Sonnet 5) and omits the param elsewhere', async () => {
+        const bodyFor = async (model: string) => {
+            const fetchImpl = vi.fn(async () =>
+                mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
+            );
+            const provider = new AnthropicProvider({
+                apiKey: 'k',
+                model,
+                fetchImpl: fetchImpl as unknown as typeof fetch,
+            });
+            await provider.complete([{ role: 'user', content: 'hi' }]);
+            return JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+        };
+
+        // Sonnet 5 runs adaptive thinking when the param is omitted — the
+        // voice loop needs the explicit disable to speak without a preamble.
+        expect((await bodyFor('claude-sonnet-5'))['thinking']).toEqual({ type: 'disabled' });
+        // Opt-in models are already off without it; Fable would 400 on it.
+        expect((await bodyFor('claude-opus-4-8'))['thinking']).toBeUndefined();
+        expect((await bodyFor('claude-fable-5'))['thinking']).toBeUndefined();
+    });
+
     it('sends the system prompt without its own cache_control and strips system from messages', async () => {
         const fetchImpl = vi.fn(async () =>
             mockJsonResponse({
