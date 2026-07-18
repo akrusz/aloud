@@ -285,18 +285,20 @@ describe('buildUsageHistory', () => {
 describe('buildProviderDailyCosts', () => {
     const NOW = 100 * DAY + 3600; // mid-day on day 100
 
-    it('buckets each event by its own UTC day, split by provider', () => {
+    it('buckets each event by its own UTC day, split by provider and kind with units', () => {
         const events = [
             ev({ ts: 99 * DAY + 100, provider: 'anthropic', providerCostUsd: 0.2 }),
             ev({ ts: 99 * DAY + 200, provider: 'anthropic', providerCostUsd: 0.1 }),
-            ev({ ts: 99 * DAY + 300, provider: 'openai', kind: 'tts', providerCostUsd: 0.05 }),
+            ev({ ts: 99 * DAY + 300, provider: 'openai', kind: 'tts', providerCostUsd: 0.05, chars: 1200 }),
+            ev({ ts: 99 * DAY + 400, provider: 'openai', kind: 'stt', providerCostUsd: 0.02, seconds: 90 }),
             ev({ ts: 100 * DAY + 60, provider: 'anthropic', providerCostUsd: 0.4 }),
         ];
         const rows = buildProviderDailyCosts(events, NOW, 7);
         expect(rows).toEqual([
-            { dayStartTs: 99 * DAY, provider: 'anthropic', events: 2, providerCostUsd: expect.closeTo(0.3, 9) },
-            { dayStartTs: 99 * DAY, provider: 'openai', events: 1, providerCostUsd: expect.closeTo(0.05, 9) },
-            { dayStartTs: 100 * DAY, provider: 'anthropic', events: 1, providerCostUsd: expect.closeTo(0.4, 9) },
+            { dayStartTs: 99 * DAY, provider: 'anthropic', kind: 'llm', events: 2, providerCostUsd: expect.closeTo(0.3, 9), seconds: 0, chars: 0 },
+            { dayStartTs: 99 * DAY, provider: 'openai', kind: 'stt', events: 1, providerCostUsd: expect.closeTo(0.02, 9), seconds: 90, chars: 0 },
+            { dayStartTs: 99 * DAY, provider: 'openai', kind: 'tts', events: 1, providerCostUsd: expect.closeTo(0.05, 9), seconds: 0, chars: 1200 },
+            { dayStartTs: 100 * DAY, provider: 'anthropic', kind: 'llm', events: 1, providerCostUsd: expect.closeTo(0.4, 9), seconds: 0, chars: 0 },
         ]);
     });
 

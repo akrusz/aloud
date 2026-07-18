@@ -83,18 +83,30 @@ async function getJson(url, headers) {
     return res.json();
 }
 
-// ---- our side: day -> provider -> USD --------------------------------------
+// ---- our side --------------------------------------------------------------
+// daily: provider -> Map(dayStartTs -> usd), all days, for the main table.
+// legs:  provider -> kind -> {usd, seconds, chars}, FULL days only, for the
+//        per-leg effective-rate comparison.
 async function fetchOurs() {
     const data = await getJson(`${cloudUrl}/cloud/v1/admin/usage/provider-daily?days=${days}`, {
         authorization: `Bearer ${adminToken}`,
     });
-    const byProvider = new Map(); // provider -> Map(dayStartTs -> usd)
+    const daily = new Map();
+    const legs = new Map();
     for (const row of data.rows) {
-        const m = byProvider.get(row.provider) ?? new Map();
+        const m = daily.get(row.provider) ?? new Map();
         m.set(row.dayStartTs, (m.get(row.dayStartTs) ?? 0) + row.providerCostUsd);
-        byProvider.set(row.provider, m);
+        daily.set(row.provider, m);
+        if (row.dayStartTs === todayStart) continue; // partial day skews rates
+        const kinds = legs.get(row.provider) ?? new Map();
+        const leg = kinds.get(row.kind) ?? { usd: 0, seconds: 0, chars: 0 };
+        leg.usd += row.providerCostUsd;
+        leg.seconds += row.seconds;
+        leg.chars += row.chars;
+        kinds.set(row.kind, leg);
+        legs.set(row.provider, kinds);
     }
-    return byProvider;
+    return { daily, legs };
 }
 
 // ---- Anthropic: cost_report, amounts are decimal-string CENTS --------------
@@ -123,8 +135,18 @@ async function fetchAnthropic() {
 }
 
 // ---- OpenAI: organization costs, amount.value is USD -----------------------
+// Grouped by line_item so each service leg (LLM / STT / TTS) reconciles
+// independently — the aggregate can hide one leg's drift behind another's.
+function kindOfLineItem(lineItem) {
+    const li = String(lineItem ?? '').toLowerCase();
+    if (li.includes('transcribe') || li.includes('whisper')) return 'stt';
+    if (li.includes('tts') || li.includes('speech')) return 'tts';
+    return 'llm';
+}
+
 async function fetchOpenAI() {
-    const daily = new Map();
+    const daily = new Map(); // dayStartTs -> usd (all line items)
+    const legs = new Map(); // kind -> {usd, lineItems:Set}, full days only
     let page;
     do {
         const params = new URLSearchParams({
@@ -133,18 +155,27 @@ async function fetchOpenAI() {
             bucket_width: '1d',
             limit: String(days),
         });
+        params.append('group_by', 'line_item');
         if (page) params.set('page', page);
         const data = await getJson(`https://api.openai.com/v1/organization/costs?${params}`, {
             authorization: `Bearer ${openaiKey}`,
         });
         for (const bucket of data.data ?? []) {
             const day = Math.floor(bucket.start_time / DAY) * DAY;
-            const usd = (bucket.results ?? []).reduce((s, r) => s + Number(r.amount?.value ?? 0), 0);
-            daily.set(day, (daily.get(day) ?? 0) + usd);
+            for (const r of bucket.results ?? []) {
+                const usd = Number(r.amount?.value ?? 0);
+                daily.set(day, (daily.get(day) ?? 0) + usd);
+                if (day === todayStart) continue;
+                const kind = kindOfLineItem(r.line_item);
+                const leg = legs.get(kind) ?? { usd: 0, lineItems: new Set() };
+                leg.usd += usd;
+                if (r.line_item) leg.lineItems.add(r.line_item);
+                legs.set(kind, leg);
+            }
         }
         page = data.has_more ? data.next_page : undefined;
     } while (page);
-    return daily;
+    return { daily, legs };
 }
 
 // ---- diff + report ---------------------------------------------------------
@@ -186,6 +217,32 @@ function reportProvider(name, ours, theirs) {
     return { flagged };
 }
 
+/** Per-leg (LLM/STT/TTS) totals + effective rates, so a drift number turns
+ *  directly into the corrected constant for pricing/providers.ts. */
+function reportOpenAILegs(ourLegs, theirLegs) {
+    console.log('\nOpenAI by service leg (full days):');
+    for (const kind of ['llm', 'stt', 'tts']) {
+        const a = ourLegs?.get(kind);
+        const b = theirLegs.get(kind);
+        if (!a && !b) continue;
+        const oursUsd = a?.usd ?? 0;
+        const billedUsd = b?.usd ?? 0;
+        const pct = billedUsd > 0 ? ((oursUsd - billedUsd) / billedUsd) * 100 : 100;
+        let rate = '';
+        if (kind === 'stt' && a?.seconds > 0) {
+            const perHr = (v) => '$' + ((v / a.seconds) * 3600).toFixed(3) + '/hr';
+            rate = ` | rate ours ${perHr(oursUsd)} vs billed ${perHr(billedUsd)}`;
+        } else if (kind === 'tts' && a?.chars > 0) {
+            const perM = (v) => '$' + ((v / a.chars) * 1e6).toFixed(2) + '/1M chars';
+            rate = ` | rate ours ${perM(oursUsd)} vs billed ${perM(billedUsd)}`;
+        }
+        const items = b?.lineItems?.size ? ` [${[...b.lineItems].join(', ')}]` : '';
+        console.log(
+            `${kind.toUpperCase().padEnd(4)} | ours ${usd(oursUsd).padStart(8)} | billed ${usd(billedUsd).padStart(8)} | ${pct.toFixed(1)}%${rate}${items}`
+        );
+    }
+}
+
 const ours = await fetchOurs();
 console.log(`Reconciling ${cloudUrl} vs provider billing, last ${days} days (UTC), threshold ${thresholdPct}%`);
 
@@ -194,7 +251,7 @@ const covered = new Set();
 
 if (anthropicKey) {
     covered.add('anthropic');
-    const r = reportProvider('anthropic', ours.get('anthropic') ?? new Map(), await fetchAnthropic());
+    const r = reportProvider('anthropic', ours.daily.get('anthropic') ?? new Map(), await fetchAnthropic());
     anyFlagged = anyFlagged || r.flagged > 0;
 } else {
     console.log('\nANTHROPIC_ADMIN_KEY not set - skipping Anthropic');
@@ -202,14 +259,16 @@ if (anthropicKey) {
 
 if (openaiKey) {
     covered.add('openai');
-    const r = reportProvider('openai', ours.get('openai') ?? new Map(), await fetchOpenAI());
+    const oa = await fetchOpenAI();
+    const r = reportProvider('openai', ours.daily.get('openai') ?? new Map(), oa.daily);
+    reportOpenAILegs(ours.legs.get('openai'), oa.legs);
     anyFlagged = anyFlagged || r.flagged > 0;
 } else {
     console.log('\nOPENAI_ADMIN_KEY not set - skipping OpenAI');
 }
 
 // Providers we metered but can't pull a bill for programmatically.
-for (const [provider, dailyMap] of ours) {
+for (const [provider, dailyMap] of ours.daily) {
     if (covered.has(provider)) continue;
     const total = [...dailyMap.values()].reduce((s, v) => s + v, 0);
     if (total > 0) {

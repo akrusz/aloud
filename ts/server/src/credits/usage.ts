@@ -503,14 +503,22 @@ export function buildUsageHistory(
     return [...buckets.values()].sort((a, b) => a.dayStartTs - b.dayStartTs);
 }
 
-/** One provider's computed spend for one UTC day — the "our side" row of the
- *  provider-bill reconciliation (meditation-pal-xejm). */
+/** One provider+service leg's computed spend for one UTC day — the "our side"
+ *  row of the provider-bill reconciliation (meditation-pal-xejm). Split by kind
+ *  and carrying the raw units (seconds, chars) so the reconciler can derive the
+ *  EFFECTIVE billed rate per leg ($/hr STT, $/1M-chars TTS) from the provider's
+ *  line-item costs, not just flag aggregate drift. */
 export interface ProviderDailyCost {
     /** UTC start-of-day, seconds since epoch. */
     dayStartTs: number;
     provider: string;
+    kind: UsageKind;
     events: number;
     providerCostUsd: number;
+    /** STT audio seconds in the bucket (0 for other legs). */
+    seconds: number;
+    /** TTS characters in the bucket (0 for other legs). */
+    chars: number;
 }
 
 /** Per-provider, per-UTC-day computed spend over the last `days` days. Unlike
@@ -531,18 +539,26 @@ export function buildProviderDailyCosts(
     for (const e of events) {
         if (e.ts < firstDay || e.ts >= todayStart + DAY_SEC) continue;
         const day = Math.floor(e.ts / DAY_SEC) * DAY_SEC;
-        const key = `${day}:${e.provider}`;
+        const key = `${day}:${e.provider}:${e.kind}`;
         const row = rows.get(key) ?? {
             dayStartTs: day,
             provider: e.provider,
+            kind: e.kind,
             events: 0,
             providerCostUsd: 0,
+            seconds: 0,
+            chars: 0,
         };
         row.events += 1;
         row.providerCostUsd += e.providerCostUsd;
+        row.seconds += e.seconds;
+        row.chars += e.chars;
         rows.set(key, row);
     }
     return [...rows.values()].sort(
-        (a, b) => a.dayStartTs - b.dayStartTs || a.provider.localeCompare(b.provider)
+        (a, b) =>
+            a.dayStartTs - b.dayStartTs ||
+            a.provider.localeCompare(b.provider) ||
+            a.kind.localeCompare(b.kind)
     );
 }
