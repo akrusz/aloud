@@ -22,6 +22,7 @@ import {
     classifyResumeIntent,
     classifyHoldConfirm,
     defaultPacingConfig,
+    defaultWaitMinutes,
     runSmartCheckin,
     buildSmartCheckinEvent,
     isSmartCheckinEvent,
@@ -360,6 +361,11 @@ export async function mountSessionView(
     };
     const pacing = new PacingController({ config: pacingConfig });
     pacing.startSession();
+    // Smart timing: until the model's first [WAIT], the guidance level sets
+    // the wait (20/8/5/2/1 min across the slider stops).
+    if (appSettings.checkinTiming === 'smart') {
+        pacing.setCheckinInterval(defaultWaitMinutes(directiveness) * 60);
+    }
 
     // The auxiliary calls — yes/no classifiers, noting labels, and the session
     // recap — run on a cheap, fast model (Haiku; see buildUtilityProvider), not

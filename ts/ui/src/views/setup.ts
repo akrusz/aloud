@@ -1476,13 +1476,16 @@ function renderSetupHTML(
 
             <div class="form-row form-row-thirds">
                 <div class="form-group">
-                    <label for="directiveness">Guidance Level</label>
+                    <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
+                    <div class="info-panel hidden" id="info-guidance">
+                        <p>How actively the facilitator leads. At the low end it mostly reflects what you share and asks open questions; higher settings offer more direction, suggestions, and structure.</p>
+                        <p>With smart check-ins, it also sets how readily the facilitator speaks up during silence, from about 20 minutes at the low end to a minute or two at the high end.</p>
+                    </div>
                     <input type="range" id="directiveness" min="0" max="${dirTickCount}" step="1" value="1">
                     <div class="range-labels">
                         <span>Following</span>
                         <span>Directing</span>
                     </div>
-                    <span class="form-hint">Higher guidance also speaks up sooner during silences.</span>
                 </div>
                 <div class="form-group">
                     <label for="verbosity">Response Length</label>

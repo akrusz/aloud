@@ -101,6 +101,7 @@ export {
     REALTIME_VOICE_FRAGMENT,
     WAIT_SIGNAL_FRAGMENT,
     waitBiasFragment,
+    defaultWaitMinutes,
     FOCUS_PROMPTS,
     QUALITY_PROMPTS,
     DIRECTIVENESS_ADDITIONS,

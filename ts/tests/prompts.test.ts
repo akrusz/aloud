@@ -8,6 +8,7 @@ import {
     PromptBuilder,
     QUALITY_PROMPTS,
     WAIT_SIGNAL_FRAGMENT,
+    defaultWaitMinutes,
     parseHoldSignal,
 } from '../src/facilitation/prompts.js';
 
@@ -55,17 +56,22 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         ).toContain(WAIT_SIGNAL_FRAGMENT);
     });
 
-    it('biases the [WAIT] default by guidance level', () => {
+    it('biases the [WAIT] default by guidance level (20/8/5/2/1 min)', () => {
         const at = (directiveness: number) =>
             new PromptBuilder({ config: { waitSignal: true, directiveness } }).buildSystemPrompt();
         expect(at(10)).toContain('[WAIT:1m]');
-        expect(at(7)).toContain('[WAIT:1m]');
+        expect(at(7)).toContain('[WAIT:2m]');
         expect(at(5)).toContain('[WAIT:5m]');
-        expect(at(0)).toContain('[WAIT:30m]');
+        expect(at(3)).toContain('[WAIT:8m]');
+        expect(at(0)).toContain('[WAIT:20m]');
         // Off entirely when the signal is off, regardless of guidance.
         expect(
             new PromptBuilder({ config: { directiveness: 10 } }).buildSystemPrompt()
         ).not.toContain('[WAIT:1m]');
+    });
+
+    it('defaultWaitMinutes maps the five slider stops', () => {
+        expect([0, 3, 5, 7, 10].map(defaultWaitMinutes)).toEqual([20, 8, 5, 2, 1]);
     });
 
     it('composes selected focuses and qualities', () => {
