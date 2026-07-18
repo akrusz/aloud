@@ -38,9 +38,31 @@ const days = Math.min(31, Math.max(1, argValue('--days', 14)));
 const thresholdPct = argValue('--threshold', 10);
 
 const cloudUrl = (process.env.ALOUD_CLOUD_URL ?? 'https://aloud-cloud.fly.dev').replace(/\/$/, '');
-const adminToken = process.env.ALOUD_ADMIN_TOKEN;
-const anthropicKey = process.env.ANTHROPIC_ADMIN_KEY;
-const openaiKey = process.env.OPENAI_ADMIN_KEY;
+
+/** Secrets go into HTTP headers, which must be Latin-1. A pasted token with a
+ *  Unicode lookalike (e.g. Cyrillic "у" for "u") crashes fetch with a cryptic
+ *  ByteString error - catch it here and point at the exact character. */
+function cleanSecret(name) {
+    const raw = process.env[name];
+    if (!raw) return undefined;
+    const value = raw.trim();
+    for (let i = 0; i < value.length; i++) {
+        const code = value.codePointAt(i);
+        if (code > 0x7e || code < 0x21) {
+            console.error(
+                `${name} contains a non-ASCII character at position ${i} ` +
+                    `("${value[i]}", U+${code.toString(16).toUpperCase().padStart(4, '0')}). ` +
+                    'Likely a copy-paste homoglyph - re-copy the value from its source.'
+            );
+            process.exit(2);
+        }
+    }
+    return value;
+}
+
+const adminToken = cleanSecret('ALOUD_ADMIN_TOKEN');
+const anthropicKey = cleanSecret('ANTHROPIC_ADMIN_KEY');
+const openaiKey = cleanSecret('OPENAI_ADMIN_KEY');
 
 if (!adminToken) {
     console.error('ALOUD_ADMIN_TOKEN is required (the admin bearer token for ' + cloudUrl + ')');
