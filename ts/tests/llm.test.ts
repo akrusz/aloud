@@ -568,8 +568,9 @@ describe('OpenAIProvider', () => {
         // gpt-5 family rejects max_tokens — the new name is required.
         expect(body.max_completion_tokens).toBe(150);
         expect(body.max_tokens).toBeUndefined();
-        // Reasoning models default to minimal effort (no thinking budget).
-        expect(body.reasoning_effort).toBe('minimal');
+        // Reasoning models default to their family's lowest effort (no
+        // thinking budget) — 'none' for versioned gpt-5.x.
+        expect(body.reasoning_effort).toBe('none');
         expect(body.messages).toEqual([
             { role: 'system', content: 'be warm' },
             { role: 'user', content: 'hi' },
@@ -617,7 +618,32 @@ describe('OpenAIProvider', () => {
         const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
         expect(body.max_completion_tokens).toBe(80);
         expect(body.max_tokens).toBeUndefined();
-        expect(body.reasoning_effort).toBe('minimal');
+        expect(body.reasoning_effort).toBe('none');
+    });
+
+    it('picks each OpenAI reasoning family\'s lowest accepted reasoning_effort', async () => {
+        // Probed July 2026: each family 400s on the other families' floor
+        // values, so getting these wrong breaks the model outright (the
+        // gpt-5.6-sol "Unsupported value: 'minimal'" stream-forward failure).
+        const cases: Array<[string, string]> = [
+            ['gpt-5.6-sol', 'none'],
+            ['gpt-5.5', 'none'],
+            ['gpt-5', 'minimal'],
+            ['gpt-5-mini', 'minimal'],
+            ['o3', 'low'],
+            ['o4-mini', 'low'],
+        ];
+        for (const [model, effort] of cases) {
+            const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+            const provider = new OpenAIProvider({
+                apiKey: 'sk-test',
+                model,
+                fetchImpl: fetchImpl as unknown as typeof fetch,
+            });
+            await provider.complete([{ role: 'user', content: 'hi' }]);
+            const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
+            expect(body.reasoning_effort, model).toBe(effort);
+        }
     });
 
     it('strips trailing slashes from baseUrl', async () => {

@@ -28,6 +28,17 @@ const DEFAULT_MAX_TOKENS = 300;
  *  own reasoning controls and still expects `max_tokens`). */
 const REASONING_MODEL_RE = /^(gpt-5|o\d)/;
 
+/** Lowest `reasoning_effort` each OpenAI reasoning family accepts (probed
+ *  July 2026, each family 400s on the others' floor): versioned gpt-5.x
+ *  models take 'none' and reject 'minimal'; the original bare gpt-5 family
+ *  (gpt-5, gpt-5-mini, …) is the reverse; o-series reject both, so 'low' is
+ *  the floor there. */
+function lowestReasoningEffort(model: string): 'none' | 'minimal' | 'low' {
+    if (/^o\d/.test(model)) return 'low';
+    if (/^gpt-5\.\d/.test(model)) return 'none';
+    return 'minimal';
+}
+
 export interface OpenAIProviderOptions {
     /**
      * API key. Required for direct calls. Omit when pointing `baseUrl`
@@ -141,11 +152,12 @@ export class OpenAIProvider implements LLMProvider {
             // Reasoning tokens add latency and cost and a spoken meditation
             // turn gains nothing from them — same intent as OpenRouter's
             // `reasoning.enabled: false` and Gemini's `reasoning_effort:
-            // "none"` defaults below. OpenAI's reasoning models don't accept
-            // "none", so "minimal" is the floor; non-reasoning models reject
-            // the param, hence the model gate. extraBody merges after this,
-            // so callers can still override.
-            ...(reasoningModel && { reasoning_effort: 'minimal' }),
+            // "none"` defaults below. Each OpenAI reasoning family has a
+            // different lowest accepted value (lowestReasoningEffort);
+            // non-reasoning models reject the param entirely, hence the model
+            // gate. extraBody merges after this, so callers can still
+            // override.
+            ...(reasoningModel && { reasoning_effort: lowestReasoningEffort(this.model) }),
             ...(stream && {
                 stream: true,
                 // Some providers (Groq, Together) need this to send usage on
