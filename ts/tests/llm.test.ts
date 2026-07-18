@@ -733,6 +733,36 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         expect(body.reasoning).toEqual({ effort: 'low' });
     });
 
+    it('OpenRouter adds reasoning headroom to max_tokens for mandatory-reasoning models', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-or-test',
+            model: 'moonshotai/kimi-k3',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        // Default 300 content budget + 1024 headroom; the thinking preamble
+        // bills against max_tokens, so without headroom a long think returns
+        // an empty turn (finish_reason "length").
+        await provider.complete([{ role: 'user', content: 'hi' }]);
+        let body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+        expect(body.max_tokens).toBe(300 + 1024);
+        // Per-request budgets (resume-intent's 10, noting's 20) get it too.
+        await provider.complete([{ role: 'user', content: 'hi' }], { maxTokens: 10 });
+        body = JSON.parse((fetchImpl.mock.calls[1]![1] as RequestInit).body as string);
+        expect(body.max_tokens).toBe(10 + 1024);
+    });
+
+    it('OpenRouter adds no headroom for models that run without reasoning', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-or-test',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }]);
+        const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+        expect(body.max_tokens).toBe(300);
+    });
+
     it('Venice uses api.venice.ai and injects extraBody for system prompt suppression', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse());
         const provider = new VeniceProvider({

@@ -46,6 +46,16 @@ export interface OpenAIProviderOptions {
      * `venice_parameters.include_venice_system_prompt: false`.
      */
     extraBody?: Record<string, unknown>;
+    /**
+     * Extra completion tokens added to every request's max_tokens, on top of
+     * the caller's content budget. For models whose always-on reasoning bills
+     * against max_tokens (OPENROUTER_MANDATORY_REASONING): without headroom
+     * the thinking preamble can consume the whole budget and the turn comes
+     * back EMPTY with finish_reason "length" (kimi-k3 spends ~100-300
+     * reasoning tokens even at effort:'low', and ignores reasoning.max_tokens
+     * caps).
+     */
+    reasoningHeadroom?: number;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
 }
@@ -78,6 +88,7 @@ export class OpenAIProvider implements LLMProvider {
     private readonly apiKey: string | undefined;
     private readonly baseUrl: string;
     private readonly extraBody: Record<string, unknown> | undefined;
+    private readonly reasoningHeadroom: number;
     private readonly fetchImpl: typeof fetch;
 
     constructor(options: OpenAIProviderOptions = {}) {
@@ -94,6 +105,7 @@ export class OpenAIProvider implements LLMProvider {
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.baseUrl = baseUrl;
         this.extraBody = options.extraBody;
+        this.reasoningHeadroom = options.reasoningHeadroom ?? 0;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     }
 
@@ -118,7 +130,7 @@ export class OpenAIProvider implements LLMProvider {
         // Groq, Venice, Gemini-compat) still expect `max_tokens`.
         const openaiDirect = this.baseUrl === OPENAI_BASE_URL;
         const reasoningModel = REASONING_MODEL_RE.test(this.model);
-        const maxTokens = options.maxTokens ?? this.maxTokens;
+        const maxTokens = (options.maxTokens ?? this.maxTokens) + this.reasoningHeadroom;
 
         const body: Record<string, unknown> = {
             model: this.model,
@@ -317,14 +329,25 @@ const OPENROUTER_MANDATORY_REASONING = new Set(['moonshotai/kimi-k3']);
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v3.2';
 
+/** Completion-token headroom for mandatory-reasoning models. Observed kimi-k3
+ *  preambles run 100-300 tokens at effort:'low'; 1024 leaves >3x margin so a
+ *  long think can't blank a turn, while still bounding worst-case output
+ *  spend. (Reasoning tokens bill as output either way — the headroom only
+ *  raises the ceiling, not typical usage.) */
+const MANDATORY_REASONING_HEADROOM = 1024;
+
 /** OpenRouter — multi-vendor LLM proxy. */
 export class OpenRouterProvider extends OpenAIProvider {
     constructor(options: OpenAIProviderOptions = {}) {
         const model = options.model ?? OPENROUTER_DEFAULT_MODEL;
+        const mandatoryReasoning = OPENROUTER_MANDATORY_REASONING.has(model);
         super({
             ...options,
             baseUrl: options.baseUrl ?? OPENROUTER_BASE_URL,
             model,
+            ...(mandatoryReasoning && {
+                reasoningHeadroom: options.reasoningHeadroom ?? MANDATORY_REASONING_HEADROOM,
+            }),
             // aloud never wants chain-of-thought: a spoken meditation turn
             // gains nothing from reasoning tokens, which only add latency and
             // cost. Several routable models (deepseek-v3.2 included) reason by
@@ -332,9 +355,7 @@ export class OpenRouterProvider extends OpenAIProvider {
             // vendors. Models that refuse to disable it get effort:'low'
             // instead (see OPENROUTER_MANDATORY_REASONING).
             extraBody: {
-                reasoning: OPENROUTER_MANDATORY_REASONING.has(model)
-                    ? { effort: 'low' }
-                    : { enabled: false },
+                reasoning: mandatoryReasoning ? { effort: 'low' } : { enabled: false },
                 ...(options.extraBody ?? {}),
             },
         });
