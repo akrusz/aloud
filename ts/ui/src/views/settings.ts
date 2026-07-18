@@ -1649,7 +1649,7 @@ function renderPacingSection(s: AppSettings): string {
         base: number,
         max: number
     ) => `
-        <div class="form-row pacing-pause-row">
+        <div class="form-row">
             <div class="form-group form-group-half">
                 <label>Minimum Pause (s)</label>
                 ${stepper(`${prefix}-base`, base, 1, 15, 0.5)}
@@ -1670,7 +1670,7 @@ function renderPacingSection(s: AppSettings): string {
         <h3 class="pacing-subhead">Pause before submitting user response (non-streaming providers)</h3>
         <p class="form-hint pacing-subhead-note">For providers that don't send a response until fully generated - currently just Claude subscriptions. Lower delay recommended because responses are slower.</p>
         ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
-        <h3 class="pacing-subhead">Check-In</h3>
+        <h3 class="pacing-subhead">Check-Ins After Silence</h3>
         <div class="form-row">
             <div class="form-group form-group-half" id="s-checkin-timing-group">
                 <label>Timing</label>
@@ -1686,12 +1686,12 @@ function renderPacingSection(s: AppSettings): string {
                         </label>
                         ${stepper('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
                     </div>
-                    <label class="radio-label is-disabled">
-                        <input type="radio" name="s-checkin-timing" value="smart" disabled${s.checkinTiming === 'smart' ? ' checked' : ''}>
-                        <span>Smart (soon)</span>
+                    <label class="radio-label">
+                        <input type="radio" name="s-checkin-timing" value="smart"${s.checkinTiming === 'smart' ? ' checked' : ''}>
+                        <span>Smart</span>
                     </label>
                 </div>
-                <span class="form-hint">When the facilitator speaks up during silence.</span>
+                <span class="form-hint">When to speak up during silence. Smart lets the model set the wait each turn.</span>
             </div>
             <div class="form-group form-group-half" id="s-checkin-content-group">
                 <label>Content</label>

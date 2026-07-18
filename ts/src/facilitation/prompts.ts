@@ -28,6 +28,9 @@ export interface PromptConfig {
     directiveness: number;
     verbosity: Verbosity;
     customInstructions: string;
+    /** Smart check-in timing: teach the model the [WAIT:Nm] signal
+     *  (WAIT_SIGNAL_FRAGMENT). Off by default. */
+    waitSignal: boolean;
 }
 
 export const defaultPromptConfig: PromptConfig = {
@@ -36,6 +39,7 @@ export const defaultPromptConfig: PromptConfig = {
     directiveness: 3,
     verbosity: 'low',
     customInstructions: '',
+    waitSignal: false,
 };
 
 /** Returns a number in [0, 1). Injectable so randomness is testable. */
@@ -61,6 +65,12 @@ Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a 
 When the silence ends, you'll receive everything they said while you were quiet.`;
 
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
+
+/** Appended to the system prompt only when smart check-in timing is on
+ *  (PromptConfig.waitSignal) — no point asking every model for [WAIT]
+ *  tokens the app would ignore. */
+export const WAIT_SIGNAL_FRAGMENT = `Check-in timing — [WAIT:Nm] signal:
+If the meditator goes quiet after your reply, the app waits before gently checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Let it unfold."). Match it to the moment — someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by [WAIT:2m] or [WAIT:3m]. Use 1-60 minutes. If you omit the signal, your previous timing stays in effect.`;
 
 // ---------------------------------------------------------------------------
 // Base system prompt — universal, not somatic-specific
@@ -498,6 +508,8 @@ export class PromptBuilder {
         }
 
         parts.push(VERBOSITY_ADDITIONS[this.config.verbosity]);
+
+        if (this.config.waitSignal) parts.push(WAIT_SIGNAL_FRAGMENT);
 
         if (composes?.custom !== false && this.config.customInstructions) {
             parts.push(`\nAdditional instructions:\n${this.config.customInstructions}`);

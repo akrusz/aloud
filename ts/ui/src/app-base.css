@@ -945,10 +945,6 @@ input[type="range"]::-moz-range-thumb {
     background: var(--accent);
 }
 
-.radio-label.is-disabled {
-    opacity: 0.45;
-    pointer-events: none;
-}
 
 /* Style cards */
 
@@ -3439,10 +3435,11 @@ html:has(.nav-brand.has-update) .update-btn {
 .settings-section .pacing-subhead-note {
     margin: 0 0 var(--space-xs);
 }
-/* Both pause-detection rows (Streaming + Non-streaming) sit below a subhead, so
-   their labels want the same tight top margin — without this only the section's
-   first form-row gets it and the second row's labels indent extra. */
-.settings-section .pacing-pause-row .form-group > label {
+/* A row directly under a subhead (or its note) keeps its labels tight — the
+   subhead already provides the separation; the generic .form-group > label
+   space-md below is for groups stacked without one. */
+.settings-section .pacing-subhead + .form-row .form-group > label,
+.settings-section .pacing-subhead-note + .form-row .form-group > label {
     margin-top: var(--space-xs);
 }
 

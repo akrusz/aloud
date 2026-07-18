@@ -86,27 +86,56 @@ export type StageSignal = 'advance' | 'back' | 'none';
 export const NEXT_PREFIX = '[NEXT]';
 export const BACK_PREFIX = '[BACK]';
 
+/** Opening of the check-in timing token, e.g. "[WAIT:12m]" (smart timing:
+ *  the LLM sets how long a following silence is protected before the next
+ *  check-in may fire). */
+export const WAIT_PREFIX = '[WAIT:';
+
+// [WAIT:12m] / [WAIT:90s] / bare [WAIT:12] (minutes). Anchored — leading
+// tokens only, like the other signals.
+const WAIT_TOKEN_RE = /^\[WAIT:\s*(\d+)\s*(M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?\s*\]/i;
+
+/**
+ * Match a leading [WAIT:Nm] token. Returns the requested interval in seconds
+ * (unit defaults to minutes) plus the matched length so callers can strip it.
+ * No clamping here — that's the pacing layer's policy.
+ */
+export function matchWaitToken(text: string): { seconds: number; length: number } | null {
+    const m = WAIT_TOKEN_RE.exec(text);
+    if (!m) return null;
+    const n = Number(m[1]);
+    const seconds = (m[2] ?? 'm').toLowerCase().startsWith('s') ? n : n * 60;
+    return { seconds, length: m[0].length };
+}
+
 export interface TurnSignals {
     /** A [HOLD] token was present — enter silence mode (same as parseHoldSignal). */
     hold: boolean;
     stage: StageSignal;
+    /** Seconds from a [WAIT:Nm] token, or null when absent. Unclamped. */
+    waitSec: number | null;
     /** Response with all leading control tokens stripped; this is what gets spoken. */
     cleanText: string;
 }
 
 /**
- * Parse the control tokens ([HOLD], [NEXT], [BACK]) off the start of an LLM
- * reply, in any order and combination. Tokens appearing mid-text are left
- * alone — only a leading run counts, mirroring parseHoldSignal. If the model
- * emits contradictory stage tokens, the first one wins.
+ * Parse the control tokens ([HOLD], [NEXT], [BACK], [WAIT:Nm]) off the start
+ * of an LLM reply, in any order and combination. Tokens appearing mid-text
+ * are left alone — only a leading run counts, mirroring parseHoldSignal. If
+ * the model emits contradictory tokens, the first one wins.
  */
 export function parseTurnSignals(response: string): TurnSignals {
     let text = response.trim();
     let hold = false;
     let stage: StageSignal = 'none';
+    let waitSec: number | null = null;
     for (;;) {
         const upper = text.toUpperCase();
-        if (upper.startsWith(HOLD_PREFIX)) {
+        const wait = matchWaitToken(text);
+        if (wait) {
+            if (waitSec === null) waitSec = wait.seconds;
+            text = text.slice(wait.length).trimStart();
+        } else if (upper.startsWith(HOLD_PREFIX)) {
             hold = true;
             text = text.slice(HOLD_PREFIX.length).trimStart();
         } else if (upper.startsWith(NEXT_PREFIX)) {
@@ -119,7 +148,7 @@ export function parseTurnSignals(response: string): TurnSignals {
             break;
         }
     }
-    return { hold, stage, cleanText: text.trim() };
+    return { hold, stage, waitSec, cleanText: text.trim() };
 }
 
 // ---------------------------------------------------------------------------

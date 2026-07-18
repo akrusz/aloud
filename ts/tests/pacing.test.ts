@@ -112,6 +112,38 @@ describe('PacingController — shouldRespond timing', () => {
         expect(controller.shouldRespond()).toBe(TurnDecision.Wait);
     });
 
+    it('setCheckinInterval overrides the configured interval (sticky, clearable)', () => {
+        const { controller, fake } = makeController({
+            config: { silenceCheckinSec: 10, silenceCheckinsEnabled: true },
+        });
+        controller.startSession();
+        controller._setHasSpoken(true);
+        controller.setCheckinInterval(600);
+        fake.tick(11); // past config, before override
+        expect(controller.shouldRespond()).toBe(TurnDecision.Wait);
+        fake.tick(590); // past override
+        expect(controller.shouldRespond()).toBe(TurnDecision.CheckIn);
+        controller.setCheckinInterval(null);
+        expect(controller.getCheckinInterval()).toBe(10);
+    });
+
+    it('setCheckinInterval clamps to sane bounds', () => {
+        const { controller } = makeController();
+        controller.setCheckinInterval(5);
+        expect(controller.getCheckinInterval()).toBe(60);
+        controller.setCheckinInterval(999_999);
+        expect(controller.getCheckinInterval()).toBe(3600);
+    });
+
+    it('startSession clears a check-in interval override', () => {
+        const { controller } = makeController({
+            config: { silenceCheckinSec: 10 },
+        });
+        controller.setCheckinInterval(600);
+        controller.startSession();
+        expect(controller.getCheckinInterval()).toBe(10);
+    });
+
     it('does not check in before the meditator has spoken at all', () => {
         const { controller, fake } = makeController({
             config: { silenceCheckinSec: 10 },

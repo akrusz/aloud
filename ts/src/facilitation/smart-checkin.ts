@@ -22,6 +22,7 @@
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import type { LlmUsage } from './session.js';
+import { matchWaitToken } from './modes.js';
 import { HOLD_PREFIX } from './prompts.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
@@ -50,54 +51,70 @@ export function isSmartCheckinEvent(text: string): boolean {
  * The synthetic user-role turn sent (and, when the model speaks, recorded)
  * for one check-in. `checkinIndex` is 1-based within the current silence
  * stretch; later check-ins tell the model how many went unanswered so its
- * tone can shift (or it can pass).
+ * tone can shift (or it can pass). `withWaitHint` (smart timing on) reminds
+ * the model it can also reschedule the next check-in with [WAIT:Nm].
  */
-export function buildSmartCheckinEvent(silenceSec: number, checkinIndex: number): string {
+export function buildSmartCheckinEvent(
+    silenceSec: number,
+    checkinIndex: number,
+    withWaitHint = false
+): string {
     const mins = Math.round(silenceSec / 60);
     const dur = mins < 2 ? 'about a minute' : `about ${mins} minutes`;
     const prior =
         checkinIndex > 1
             ? ` You have checked in ${checkinIndex - 1} time${checkinIndex > 2 ? 's' : ''} already with no reply.`
             : '';
+    const waitHint = withWaitHint
+        ? ' Either way you may prefix [WAIT:Nm] to set when the next check-in may happen.'
+        : '';
     return (
         `${SMART_CHECKIN_EVENT_PREFIX} the meditator has been quiet for ${dur}. ` +
         `They have not spoken; this message is automatic.${prior} ` +
         `If a brief word would support their practice right now, reply with one short sentence. ` +
-        `If staying quiet serves them better, reply with exactly ${PASS_PREFIX}.]`
+        `If staying quiet serves them better, reply with exactly ${PASS_PREFIX}.${waitHint}]`
     );
 }
 
 export type SmartCheckinReply =
     /** Speak this line, record event + line in history. */
-    | { kind: 'speak'; text: string }
+    | { kind: 'speak'; text: string; waitSec: number | null }
     /** The model chose silence — say nothing, record nothing. */
-    | { kind: 'pass' }
+    | { kind: 'pass'; waitSec: number | null }
     /** Unusable reply — speak a canned line instead, record nothing. */
     | { kind: 'fallback' };
 
 /**
  * Parse the model's check-in reply. Leading bracketed control tokens are
- * stripped ([PASS] and [HOLD] both mean "stay quiet" — entering real silence
- * mode needs the user's confirmation, which a check-in can't get; stray
- * [NEXT]/[BACK] and the like are ignored rather than spoken).
+ * stripped: [PASS] and [HOLD] both mean "stay quiet" (entering real silence
+ * mode needs the user's confirmation, which a check-in can't get), a
+ * [WAIT:Nm] reschedules the next check-in (smart timing), and stray
+ * [NEXT]/[BACK] and the like are ignored rather than spoken.
  */
 export function parseSmartCheckinReply(raw: string): SmartCheckinReply {
     let text = stripThinkTags(raw).trim();
     let pass = false;
+    let waitSec: number | null = null;
     for (;;) {
+        const wait = matchWaitToken(text);
+        if (wait) {
+            if (waitSec === null) waitSec = wait.seconds;
+            text = text.slice(wait.length).trimStart();
+            continue;
+        }
         const m = /^\[[A-Z]+\]/.exec(text.toUpperCase());
         if (!m) break;
         const token = m[0];
         if (token === PASS_PREFIX || token === HOLD_PREFIX) pass = true;
         text = text.slice(token.length).trimStart();
     }
-    if (pass) return { kind: 'pass' };
+    if (pass) return { kind: 'pass', waitSec };
     if (!text) return { kind: 'fallback' };
-    if (text.length <= SMART_CHECKIN_MAX_CHARS) return { kind: 'speak', text };
+    if (text.length <= SMART_CHECKIN_MAX_CHARS) return { kind: 'speak', text, waitSec };
     // Too long — salvage the first sentence if it stands alone as a line.
     const sentence = /^[\s\S]*?[.!?…]+(?=\s|$)/.exec(text)?.[0]?.trim();
     if (sentence && sentence.length <= SMART_CHECKIN_MAX_CHARS) {
-        return { kind: 'speak', text: sentence };
+        return { kind: 'speak', text: sentence, waitSec };
     }
     return { kind: 'fallback' };
 }

@@ -52,6 +52,11 @@ describe('buildSmartCheckinEvent', () => {
         expect(buildSmartCheckinEvent(900, 3)).toContain('2 times already');
     });
 
+    it('mentions [WAIT:Nm] only when the wait hint is on', () => {
+        expect(buildSmartCheckinEvent(300, 1)).not.toContain('[WAIT:');
+        expect(buildSmartCheckinEvent(300, 1, true)).toContain('[WAIT:Nm]');
+    });
+
     it('round-trips through isSmartCheckinEvent', () => {
         expect(isSmartCheckinEvent(buildSmartCheckinEvent(300, 1))).toBe(true);
         expect(isSmartCheckinEvent('I feel some tightness')).toBe(false);
@@ -63,39 +68,62 @@ describe('parseSmartCheckinReply', () => {
         expect(parseSmartCheckinReply('Take your time with that heaviness.')).toEqual({
             kind: 'speak',
             text: 'Take your time with that heaviness.',
+            waitSec: null,
         });
     });
 
     it('passes on [PASS]', () => {
-        expect(parseSmartCheckinReply('[PASS]')).toEqual({ kind: 'pass' });
+        expect(parseSmartCheckinReply('[PASS]')).toEqual({ kind: 'pass', waitSec: null });
     });
 
     it('passes on [PASS] with trailing chatter', () => {
-        expect(parseSmartCheckinReply('[PASS] Silence serves them.')).toEqual({ kind: 'pass' });
+        expect(parseSmartCheckinReply('[PASS] Silence serves them.')).toEqual({ kind: 'pass', waitSec: null });
     });
 
     it('treats [HOLD] as a pass (no unconfirmed silence mode)', () => {
-        expect(parseSmartCheckinReply('[HOLD] Staying quiet.')).toEqual({ kind: 'pass' });
+        expect(parseSmartCheckinReply('[HOLD] Staying quiet.')).toEqual({ kind: 'pass', waitSec: null });
     });
 
     it('is case-insensitive on tokens', () => {
-        expect(parseSmartCheckinReply('[pass]')).toEqual({ kind: 'pass' });
+        expect(parseSmartCheckinReply('[pass]')).toEqual({ kind: 'pass', waitSec: null });
     });
 
     it('strips stray leading control tokens and speaks the rest', () => {
         expect(parseSmartCheckinReply('[NEXT] What do you notice?')).toEqual({
             kind: 'speak',
             text: 'What do you notice?',
+            waitSec: null,
         });
     });
 
     it('strips a <think> block first', () => {
         expect(parseSmartCheckinReply('<think>should I speak?</think>[PASS]')).toEqual({
             kind: 'pass',
+            waitSec: null,
         });
         expect(parseSmartCheckinReply('<think>hmm</think>Still here.')).toEqual({
             kind: 'speak',
             text: 'Still here.',
+            waitSec: null,
+        });
+    });
+
+    it('captures [WAIT:Nm] on a pass', () => {
+        expect(parseSmartCheckinReply('[PASS][WAIT:15m]')).toEqual({
+            kind: 'pass',
+            waitSec: 900,
+        });
+        expect(parseSmartCheckinReply('[WAIT:15m] [PASS]')).toEqual({
+            kind: 'pass',
+            waitSec: 900,
+        });
+    });
+
+    it('captures [WAIT:Nm] on a spoken line', () => {
+        expect(parseSmartCheckinReply('[WAIT:5m] Take your time.')).toEqual({
+            kind: 'speak',
+            text: 'Take your time.',
+            waitSec: 300,
         });
     });
 
@@ -110,6 +138,7 @@ describe('parseSmartCheckinReply', () => {
         expect(parseSmartCheckinReply(ramble)).toEqual({
             kind: 'speak',
             text: "I'm right here with you.",
+            waitSec: null,
         });
     });
 
@@ -129,7 +158,7 @@ describe('runSmartCheckin', () => {
     it('returns the parsed reply and the usage split', async () => {
         const provider = new StubProvider('Still with you.');
         const { reply, usage } = await runSmartCheckin(provider, messages, { system: 'sys' });
-        expect(reply).toEqual({ kind: 'speak', text: 'Still with you.' });
+        expect(reply).toEqual({ kind: 'speak', text: 'Still with you.', waitSec: null });
         expect(usage).toMatchObject({ tokensIn: 120, tokensOut: 8, cacheRead: 100 });
         expect(provider.seenSystem).toBe('sys');
         expect(provider.seenMaxTokens).toBe(SMART_CHECKIN_MAX_TOKENS);

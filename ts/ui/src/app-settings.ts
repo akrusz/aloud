@@ -23,8 +23,8 @@ export type TtsEngineChoice = 'macos' | 'piper' | 'browser' | 'elevenlabs';
 export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud' | 'capacitor';
 
 /** When the facilitator checks in during silence: never, after a fixed
- *  interval (silenceCheckinSec), or model-decided ('smart' — not built yet;
- *  the settings UI offers it disabled). */
+ *  interval (silenceCheckinSec), or model-set ('smart' — the LLM prefixes
+ *  [WAIT:Nm] to say how long the next silence stays protected). */
 export type CheckinTiming = 'none' | 'simple' | 'smart';
 /** What a check-in says: a stock phrase, or an LLM line generated from the
  *  session so far (which may choose to stay quiet). */

@@ -41,7 +41,32 @@ describe('mode registry', () => {
 describe('parseTurnSignals', () => {
     it('passes plain text through untouched', () => {
         const r = parseTurnSignals('What do you notice?');
-        expect(r).toEqual({ hold: false, stage: 'none', cleanText: 'What do you notice?' });
+        expect(r).toEqual({
+            hold: false,
+            stage: 'none',
+            waitSec: null,
+            cleanText: 'What do you notice?',
+        });
+    });
+
+    it('parses [WAIT:Nm] into seconds (minutes default, seconds accepted)', () => {
+        expect(parseTurnSignals('[WAIT:12m] Let it unfold.').waitSec).toBe(720);
+        expect(parseTurnSignals('[WAIT:5] Rest here.').waitSec).toBe(300);
+        expect(parseTurnSignals('[WAIT:90s] Almost there.').waitSec).toBe(90);
+        expect(parseTurnSignals('[wait: 3 min] ok').waitSec).toBe(180);
+    });
+
+    it('combines [WAIT] with other tokens; first WAIT wins', () => {
+        const r = parseTurnSignals('[HOLD] [WAIT:10m] [WAIT:2m] Quietly now.');
+        expect(r.hold).toBe(true);
+        expect(r.waitSec).toBe(600);
+        expect(r.cleanText).toBe('Quietly now.');
+    });
+
+    it('leaves a mid-text [WAIT] alone', () => {
+        const r = parseTurnSignals('We can [WAIT:5m] later.');
+        expect(r.waitSec).toBeNull();
+        expect(r.cleanText).toBe('We can [WAIT:5m] later.');
     });
 
     it('parses a leading [HOLD] like parseHoldSignal', () => {

@@ -7,6 +7,7 @@ import {
     FOCUS_PROMPTS,
     PromptBuilder,
     QUALITY_PROMPTS,
+    WAIT_SIGNAL_FRAGMENT,
     parseHoldSignal,
 } from '../src/facilitation/prompts.js';
 
@@ -45,6 +46,13 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         const prompt = builder.buildSystemPrompt();
         expect(prompt).toContain(BASE_SYSTEM_PROMPT);
         expect(prompt).toContain(FOCUS_PROMPTS.open_awareness);
+    });
+
+    it('includes the [WAIT] fragment only when waitSignal is on', () => {
+        expect(new PromptBuilder().buildSystemPrompt()).not.toContain(WAIT_SIGNAL_FRAGMENT);
+        expect(
+            new PromptBuilder({ config: { waitSignal: true } }).buildSystemPrompt()
+        ).toContain(WAIT_SIGNAL_FRAGMENT);
     });
 
     it('composes selected focuses and qualities', () => {

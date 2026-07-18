@@ -250,6 +250,10 @@ export async function mountSessionView(
     // dimensions compose, and (for staged modes like felt sense) the phase
     // arc the facilitator privately moves through.
     const mode = getMode(setup.meditationType) ?? EXPLORATION_MODE;
+    // App settings — loaded before the prompt builder because smart check-in
+    // timing rides on the system prompt (the [WAIT:Nm] fragment). Also feeds
+    // the pacing config below, so tuned values affect the running session.
+    const appSettings = await loadAppSettings();
     const builder = new PromptBuilder({
         config: {
             focuses: setup.focuses,
@@ -257,6 +261,7 @@ export async function mountSessionView(
             directiveness: dirStepToBackend(setup.dirStep),
             verbosity: setup.verbosity,
             customInstructions: setup.customInstructions,
+            waitSignal: appSettings.checkinTiming === 'smart',
         },
         mode,
     });
@@ -277,11 +282,6 @@ export async function mountSessionView(
     // id, so the server's cost report attributes them to one session exactly
     // (cloud-session.ts). Carries no content/PII; cleared at endSession().
     startCloudSession();
-
-    // Pacing config — read from persisted app settings so the values the
-    // user tunes in the settings page actually affect the running
-    // session. Falls back to defaults when nothing is persisted.
-    const appSettings = await loadAppSettings();
 
     // If continuing from a previous session, hydrate the new session with
     // context. By default (resumeFromSummary) a long session is seeded from its
@@ -1291,7 +1291,7 @@ export async function mountSessionView(
                 bubble.discard();
                 return;
             }
-            const { hold, stage, cleanText } = parseTurnSignals(rawText);
+            const { hold, stage, waitSec, cleanText } = parseTurnSignals(rawText);
             // A soft-launch-pause canned turn (proxy spoke a graceful apology,
             // charged nothing): show it transiently but keep it OUT of session
             // history/logs, so we resume from the last real turn. No buy prompt
@@ -1316,6 +1316,11 @@ export async function mountSessionView(
             if (stager && !ephemeral && stage !== 'none' && stager.apply(stage)) {
                 session.setModePhase(stager.phase.id);
                 setPhaseHint();
+            }
+            // Smart timing: [WAIT:Nm] sets when the next check-in may fire
+            // (sticky across turns, clamped by the controller).
+            if (!ephemeral && waitSec !== null && appSettings.checkinTiming === 'smart') {
+                pacing.setCheckinInterval(waitSec);
             }
 
             // Wait for any in-flight TTS chunks to finish so the next
@@ -2026,9 +2031,11 @@ export async function mountSessionView(
         activeFullAbort = myAbort;
         try {
             smartCheckinStreak++;
+            const smartTiming = appSettings.checkinTiming === 'smart';
             const eventText = buildSmartCheckinEvent(
                 pacing.getSilenceDuration(),
-                smartCheckinStreak
+                smartCheckinStreak,
+                smartTiming
             );
             const { reply, usage } = await runSmartCheckin(
                 provider,
@@ -2041,6 +2048,11 @@ export async function mountSessionView(
             if (torn || myGen !== turnGen || busy) return;
             // The call happened whether or not anything gets spoken; tally it.
             session.recordLlmUsage(usage);
+            // A check-in reply can also carry [WAIT:Nm] ("not now — ask
+            // again in 15 minutes"), honored under smart timing.
+            if (smartTiming && reply.kind !== 'fallback' && reply.waitSec !== null) {
+                pacing.setCheckinInterval(reply.waitSec);
+            }
             if (reply.kind === 'pass') {
                 pacing.onResponseEnd();
                 return;

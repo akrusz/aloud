@@ -77,6 +77,12 @@ export interface PacingConfig {
     minSpeechDurationMs: number;
 }
 
+/** Clamp bounds for a model-set check-in interval ([WAIT:Nm] smart timing).
+ *  A floor keeps a confused model from turning check-ins into chatter; the
+ *  ceiling keeps one from silencing check-ins entirely. */
+export const CHECKIN_INTERVAL_MIN_SEC = 60;
+export const CHECKIN_INTERVAL_MAX_SEC = 3600;
+
 export const defaultPacingConfig: PacingConfig = {
     responseDelayMs: 2000,
     silenceCheckinSec: 300,
@@ -108,6 +114,7 @@ export class PacingController {
     private _lastResponseTime = 0;
     private _silenceModeStart: number | null = null;
     private _hasSpoken = false;
+    private _checkinIntervalOverride: number | null = null;
 
     constructor(options: PacingControllerOptions = {}) {
         this.config = { ...defaultPacingConfig, ...options.config };
@@ -124,6 +131,25 @@ export class PacingController {
         this._lastResponseTime = this.clock();
         this._silenceModeStart = null;
         this._hasSpoken = false;
+        this._checkinIntervalOverride = null;
+    }
+
+    /**
+     * Smart timing: override the check-in interval (seconds), clamped to
+     * [CHECKIN_INTERVAL_MIN_SEC, CHECKIN_INTERVAL_MAX_SEC]. Sticky — the
+     * model's latest estimate stands across turns until it sets a new one;
+     * null restores the configured silenceCheckinSec.
+     */
+    setCheckinInterval(sec: number | null): void {
+        this._checkinIntervalOverride =
+            sec === null
+                ? null
+                : Math.min(CHECKIN_INTERVAL_MAX_SEC, Math.max(CHECKIN_INTERVAL_MIN_SEC, sec));
+    }
+
+    /** The interval currently gating check-ins (override or configured). */
+    getCheckinInterval(): number {
+        return this._checkinIntervalOverride ?? this.config.silenceCheckinSec;
     }
 
     endSession(): void {
@@ -174,7 +200,7 @@ export class PacingController {
         if (
             this._hasSpoken &&
             this.config.silenceCheckinsEnabled &&
-            now - this._lastResponseTime >= this.config.silenceCheckinSec
+            now - this._lastResponseTime >= this.getCheckinInterval()
         ) {
             return TurnDecision.CheckIn;
         }
