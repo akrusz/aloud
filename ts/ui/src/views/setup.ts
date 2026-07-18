@@ -1482,6 +1482,7 @@ function renderSetupHTML(
                         <span>Following</span>
                         <span>Directing</span>
                     </div>
+                    <span class="form-hint">Higher guidance also speaks up sooner during silences.</span>
                 </div>
                 <div class="form-group">
                     <label for="verbosity">Response Length</label>

@@ -42,6 +42,7 @@ export {
     SMART_CHECKIN_MAX_CHARS,
     SMART_CHECKIN_MAX_TOKENS,
     type SmartCheckinReply,
+    type SmartCheckinEventOptions,
     type SmartCheckinResult,
 } from './smart-checkin.js';
 export { looksLikeTtsEcho, MIN_ECHO_WORDS } from './echo-guard.js';
@@ -99,6 +100,7 @@ export {
     HOLD_SIGNAL_FRAGMENT,
     REALTIME_VOICE_FRAGMENT,
     WAIT_SIGNAL_FRAGMENT,
+    waitBiasFragment,
     FOCUS_PROMPTS,
     QUALITY_PROMPTS,
     DIRECTIVENESS_ADDITIONS,

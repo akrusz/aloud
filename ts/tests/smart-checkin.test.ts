@@ -54,7 +54,14 @@ describe('buildSmartCheckinEvent', () => {
 
     it('mentions [WAIT:Nm] only when the wait hint is on', () => {
         expect(buildSmartCheckinEvent(300, 1)).not.toContain('[WAIT:');
-        expect(buildSmartCheckinEvent(300, 1, true)).toContain('[WAIT:Nm]');
+        expect(buildSmartCheckinEvent(300, 1, { withWaitHint: true })).toContain('[WAIT:Nm]');
+    });
+
+    it('invites substance (not just presence) when directive', () => {
+        expect(buildSmartCheckinEvent(300, 1)).toContain('one short sentence');
+        const directive = buildSmartCheckinEvent(300, 1, { directive: true });
+        expect(directive).not.toContain('one short sentence');
+        expect(directive).toContain('a suggestion');
     });
 
     it('round-trips through isSmartCheckinEvent', () => {

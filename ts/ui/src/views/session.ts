@@ -255,11 +255,12 @@ export async function mountSessionView(
     // timing rides on the system prompt (the [WAIT:Nm] fragment). Also feeds
     // the pacing config below, so tuned values affect the running session.
     const appSettings = await loadAppSettings();
+    const directiveness = dirStepToBackend(setup.dirStep);
     const builder = new PromptBuilder({
         config: {
             focuses: setup.focuses,
             qualities: setup.qualities,
-            directiveness: dirStepToBackend(setup.dirStep),
+            directiveness,
             verbosity: setup.verbosity,
             customInstructions: setup.customInstructions,
             waitSignal: appSettings.checkinTiming === 'smart',
@@ -2086,7 +2087,7 @@ export async function mountSessionView(
             const eventText = buildSmartCheckinEvent(
                 pacing.getSilenceDuration(),
                 smartCheckinStreak,
-                smartTiming
+                { withWaitHint: smartTiming, directive: directiveness >= 7 }
             );
             debugLog(
                 `event #${smartCheckinStreak} sent (silence ${Math.round(pacing.getSilenceDuration())}s)`

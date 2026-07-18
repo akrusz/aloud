@@ -47,17 +47,24 @@ export function isSmartCheckinEvent(text: string): boolean {
     return text.trimStart().startsWith(SMART_CHECKIN_EVENT_PREFIX);
 }
 
+export interface SmartCheckinEventOptions {
+    /** Smart timing on — remind the model it can reschedule with [WAIT:Nm]. */
+    withWaitHint?: boolean;
+    /** High guidance-level session — invite substance (an observation or
+     *  suggestion), not just a word of presence. */
+    directive?: boolean;
+}
+
 /**
  * The synthetic user-role turn sent (and, when the model speaks, recorded)
  * for one check-in. `checkinIndex` is 1-based within the current silence
  * stretch; later check-ins tell the model how many went unanswered so its
- * tone can shift (or it can pass). `withWaitHint` (smart timing on) reminds
- * the model it can also reschedule the next check-in with [WAIT:Nm].
+ * tone can shift (or it can pass).
  */
 export function buildSmartCheckinEvent(
     silenceSec: number,
     checkinIndex: number,
-    withWaitHint = false
+    opts: SmartCheckinEventOptions = {}
 ): string {
     const mins = Math.round(silenceSec / 60);
     const dur = mins < 2 ? 'about a minute' : `about ${mins} minutes`;
@@ -65,13 +72,16 @@ export function buildSmartCheckinEvent(
         checkinIndex > 1
             ? ` You have checked in ${checkinIndex - 1} time${checkinIndex > 2 ? 's' : ''} already with no reply.`
             : '';
-    const waitHint = withWaitHint
+    const ask = opts.directive
+        ? 'If a word would support their practice right now, offer it — an observation, a suggestion, or a possible next step, in a sentence or two.'
+        : 'If a brief word would support their practice right now, reply with one short sentence.';
+    const waitHint = opts.withWaitHint
         ? ' Either way you may prefix [WAIT:Nm] to set when the next check-in may happen.'
         : '';
     return (
         `${SMART_CHECKIN_EVENT_PREFIX} the meditator has been quiet for ${dur}. ` +
         `They have not spoken; this message is automatic.${prior} ` +
-        `If a brief word would support their practice right now, reply with one short sentence. ` +
+        `${ask} ` +
         `If staying quiet serves them better, reply with exactly ${PASS_PREFIX}.${waitHint}]`
     );
 }

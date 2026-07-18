@@ -1733,7 +1733,7 @@ function renderPacingSection(s: AppSettings): string {
                         <span>Smart</span>
                     </label>
                 </div>
-                <span class="form-hint">When to speak up during silence. Smart lets the model set the wait each turn.</span>
+                <span class="form-hint">When to speak up during silence. Smart lets the model set the wait each turn, biased by your guidance level.</span>
             </div>
             <div class="form-group form-group-half" id="s-checkin-content-group">
                 <label>Content</label>

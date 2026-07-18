@@ -68,9 +68,27 @@ export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice convers
 
 /** Appended to the system prompt only when smart check-in timing is on
  *  (PromptConfig.waitSignal) — no point asking every model for [WAIT]
- *  tokens the app would ignore. */
+ *  tokens the app would ignore. Followed by waitBiasFragment, which folds
+ *  the guidance-level slider into the default wait. */
 export const WAIT_SIGNAL_FRAGMENT = `Check-in timing — [WAIT:Nm] signal:
-If the meditator goes quiet after your reply, the app waits before gently checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Let it unfold."). Match it to the moment — someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by [WAIT:2m] or [WAIT:3m]. Use 1-60 minutes. If you omit the signal, your previous timing stays in effect.`;
+If the meditator goes quiet after your reply, the app waits before gently checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Let it unfold."). Match it to the moment — someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by a short one. Use 1-60 minutes. If you omit the signal, your previous timing stays in effect.`;
+
+/**
+ * Guidance-level bias for the [WAIT] default — the proactivity half of the
+ * directiveness slider. High guidance = an actively-present facilitator:
+ * short waits, timing re-set on most replies. Low = long protected
+ * silences. The moment always wins over the default (a stated intention to
+ * sit still earns its long wait at any guidance level).
+ */
+export function waitBiasFragment(directiveness: number): string {
+    if (directiveness >= 7) {
+        return `The meditator chose high guidance: default to short waits — [WAIT:1m] or [WAIT:2m] — and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
+    }
+    if (directiveness <= 3) {
+        return `The meditator chose light guidance: default to long, protected waits — [WAIT:10m] up to [WAIT:30m] — and let silences run; shorten only when something clearly needs tending.`;
+    }
+    return `Default to moderate waits — [WAIT:5m] to [WAIT:10m] — adjusting as the moment suggests.`;
+}
 
 // ---------------------------------------------------------------------------
 // Base system prompt — universal, not somatic-specific
@@ -509,7 +527,9 @@ export class PromptBuilder {
 
         parts.push(VERBOSITY_ADDITIONS[this.config.verbosity]);
 
-        if (this.config.waitSignal) parts.push(WAIT_SIGNAL_FRAGMENT);
+        if (this.config.waitSignal) {
+            parts.push(`${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(this.config.directiveness)}`);
+        }
 
         if (composes?.custom !== false && this.config.customInstructions) {
             parts.push(`\nAdditional instructions:\n${this.config.customInstructions}`);
