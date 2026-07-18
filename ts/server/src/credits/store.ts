@@ -200,9 +200,14 @@ export interface CreditsStore {
      *  deletion (meditation-pal-8jc). */
     deleteIdentitiesForAccount(accountId: string): Promise<void>;
     /** Anonymize + tombstone an account in place (soft-delete). Scrubs the email
-     *  to `anonymizedEmail` and stamps `deletedAt`; keeps the row so ledger FKs
-     *  hold. */
+     *  to `anonymizedEmail` and the signup IP, and stamps `deletedAt`; keeps the
+     *  row so ledger FKs hold. With email, identities, and IP gone, the surviving
+     *  ledger/usage rows hang off a random UUID only (meditation-pal-9rkg). */
     markAccountDeleted(accountId: string, deletedAt: number, anonymizedEmail: string): Promise<void>;
+    /** Scrub the signup IP from every account created at or before `cutoff`
+     *  (data minimization, meditation-pal-9rkg — the IP's only job is
+     *  velocity-checking new signups). Returns how many rows were cleared. */
+    clearSignupIpsBefore(cutoff: number): Promise<number>;
 
     // ---- Grant-eligibility keys (anti-farming, meditation-pal-8jc) ----------
     // An append-only log of email-derived keys (see auth/email-key.ts) that have

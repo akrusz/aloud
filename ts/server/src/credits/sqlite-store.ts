@@ -535,9 +535,18 @@ export class SqliteCreditsStore implements CreditsStore {
     ): Promise<void> {
         this.db
             .prepare(
-                'UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0 WHERE id = ?'
+                'UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0, signup_ip = NULL WHERE id = ?'
             )
             .run(deletedAt, anonymizedEmail, accountId);
+    }
+
+    async clearSignupIpsBefore(cutoff: number): Promise<number> {
+        const result = this.db
+            .prepare(
+                'UPDATE accounts SET signup_ip = NULL WHERE signup_ip IS NOT NULL AND created_at <= ?'
+            )
+            .run(cutoff);
+        return Number(result.changes);
     }
 
     async hasGrantKey(keyHash: string): Promise<boolean> {

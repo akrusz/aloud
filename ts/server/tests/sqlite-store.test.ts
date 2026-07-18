@@ -96,6 +96,37 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect(await store.findLiveAccountByEmail('john.doe@gmail.com')).toBeUndefined();
     });
 
+    it('markAccountDeleted scrubs the signup IP along with the email (meditation-pal-9rkg)', async () => {
+        // Spread copy: the memory store keeps the caller's object by reference,
+        // and this test mutates the account in place.
+        await store.createAccount({ ...ACCOUNT });
+        await store.markAccountDeleted('acct-1', 200, 'deleted+acct-1@deleted.invalid');
+        const got = await store.getAccountById('acct-1');
+        expect(got?.email).toBe('deleted+acct-1@deleted.invalid');
+        expect('signupIp' in got!).toBe(false);
+    });
+
+    it('clearSignupIpsBefore scrubs only accounts at/before the cutoff, and counts them', async () => {
+        await store.createAccount({ ...ACCOUNT }); // createdAt 100, has an IP
+        await store.createAccount({
+            ...ACCOUNT,
+            id: 'acct-2',
+            email: 'b@example.com',
+            createdAt: 500,
+            signupIp: '198.51.100.9',
+        });
+        const noIp: Account = { ...ACCOUNT, id: 'acct-3', email: 'c@example.com' };
+        delete noIp.signupIp;
+        await store.createAccount(noIp);
+
+        // Inclusive cutoff: acct-1 cleared; acct-2 too new; acct-3 had none.
+        expect(await store.clearSignupIpsBefore(100)).toBe(1);
+        expect('signupIp' in (await store.getAccountById('acct-1'))!).toBe(false);
+        expect((await store.getAccountById('acct-2'))?.signupIp).toBe('198.51.100.9');
+        // Idempotent — a second sweep finds nothing left to clear.
+        expect(await store.clearSignupIpsBefore(100)).toBe(0);
+    });
+
     it('round-trips an identity by (provider, sub) and lists by account', async () => {
         await store.createAccount(ACCOUNT);
         await store.createIdentity(IDENTITY);

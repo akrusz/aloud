@@ -258,8 +258,11 @@ export async function buildAccountView(deps: Deps, account: Account): Promise<Ac
  *     refunded — the ledger stays a complete, append-only audit trail),
  *   - delete the account's identities so each (provider, sub) is free to sign in
  *     fresh later (a genuine clean start for the human), and
- *   - anonymize + tombstone the account row (scrub email, stamp deletedAt) so it
- *     can no longer authenticate while its ledger foreign keys still resolve.
+ *   - anonymize + tombstone the account row (scrub email + signup IP, stamp
+ *     deletedAt) so it can no longer authenticate while its ledger foreign keys
+ *     still resolve. With no email, identities, or IP left, the surviving
+ *     ledger/usage rows are keyed by a random UUID only — effectively anonymous
+ *     (meditation-pal-9rkg).
  * The email's grant key (recorded at grant time) is deliberately KEPT, so the
  * person can return and buy credits but can't re-claim the free grant.
  */
@@ -272,6 +275,20 @@ export async function deleteAccount(deps: Deps, account: Account): Promise<void>
     await deps.store.deleteIdentitiesForAccount(account.id);
     await deps.store.markAccountDeleted(account.id, now, `deleted+${account.id}@deleted.invalid`);
     log.info('account deleted', { accountId: account.id, forfeited: balance });
+}
+
+/** How long a signup IP is kept before being scrubbed (meditation-pal-9rkg).
+ *  Its only job is velocity-checking new signups; past this window it's just
+ *  personal data sitting in the DB and its backups. */
+export const SIGNUP_IP_RETENTION_DAYS = 90;
+
+/** Scrub signup IPs older than the retention window. Called from the hourly
+ *  sweep in the entrypoint; idempotent, so overlapping runs are harmless. */
+export async function ageOutSignupIps(deps: Deps, now: number): Promise<number> {
+    const cutoff = now - SIGNUP_IP_RETENTION_DAYS * 86_400;
+    const cleared = await deps.store.clearSignupIpsBefore(cutoff);
+    if (cleared > 0) log.info('signup IPs aged out', { cleared });
+    return cleared;
 }
 
 /** Resolve any pending retreat invites (meditation-pal-n9kd) addressed to this
