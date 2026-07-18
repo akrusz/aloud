@@ -1456,9 +1456,9 @@ function renderSetupHTML(
                 <label>Attention Focus <button type="button" class="info-btn" data-info="focus" aria-label="About attention focus">?</button></label>
                 <div class="info-panel hidden" id="info-focus">
                     <p>These let the facilitator know where you intend to place your attention.</p>
-                    <p><strong>Body &amp; sensations</strong> &mdash; Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.</p>
-                    <p><strong>Emotions &amp; feeling tone</strong> &mdash; The emotional landscape underneath: what's warm, contracted, alive, or wanting to move.</p>
-                    <p><strong>Parts &amp; inner world</strong> &mdash; Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.</p>
+                    <p><strong>Body &amp; sensations:</strong> Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.</p>
+                    <p><strong>Emotions &amp; feeling tone:</strong> More complex collections of sensations and labels - joy, anger, something unnamed.</p>
+                    <p><strong>Parts &amp; inner world:</strong> Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.</p>
                     <p>You can also select multiple, or leave all unchecked to keep things open.</p>
                 </div>
                 <div class="modifier-toggles">${focusToggles}</div>
@@ -1467,9 +1467,9 @@ function renderSetupHTML(
             <div class="form-group">
                 <label>Vibe <button type="button" class="info-btn" data-info="vibe" aria-label="About vibes">?</button></label>
                 <div class="info-panel hidden" id="info-vibe">
-                    <p>Vibes color the tone of facilitation. Select any combination &mdash; they blend naturally.</p>
-                    <p><strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> leaves more breathing room and silence. <strong>Effortless</strong> invites letting go rather than trying.</p>
-                    <p>There's no wrong choice. Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.</p>
+                    <p>Vibes color the tone of facilitation. Select any combination; they blend naturally.</p>
+                    <p><strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.</p>
+                    <p>Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.</p>
                 </div>
                 <div class="modifier-toggles">${qualityToggles}</div>
             </div>
