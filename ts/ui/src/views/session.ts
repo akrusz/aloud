@@ -66,6 +66,7 @@ import {
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
+import { isCheckinDebugOn } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
@@ -1061,14 +1062,12 @@ export async function mountSessionView(
     let smartCheckinStreak = 0;
     const SMART_CHECKIN_MAX_STREAK = 4;
 
-    // ---- Check-in debug HUD (?debug=checkin) ---------------------------
+    // ---- Check-in debug HUD --------------------------------------------
     // Dev tool: a fixed monospace readout of the [WAIT]/check-in traffic —
     // active modes, effective interval + countdown, and a rolling log of
-    // signals and outcomes. Mounted only when the query param is present
-    // (?debug=1 and ?debug=pacing also work).
-    const checkinDebug = /^(1|true|checkin|pacing)$/i.test(
-        new URLSearchParams(location.search).get('debug') ?? ''
-    );
+    // signals and outcomes. Mounted via ?debug=checkin or the Developer
+    // settings toggle (dev-mode.ts).
+    const checkinDebug = isCheckinDebugOn();
     let debugPanel: HTMLElement | null = null;
     const debugLogLines: string[] = [];
     const debugT0 = Date.now();

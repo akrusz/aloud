@@ -23,6 +23,7 @@
 
 import { isTauri, isCapacitor } from './is-desktop.js';
 import { isWebMode } from './app-mode.js';
+import { isDevMode, setDevMode, DEV_MODE_TAPS } from './dev-mode.js';
 import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
 import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
 
@@ -40,7 +41,22 @@ export function initAbout(): void {
     if (!brand || !modal || !close) return;
 
     const versionEl = document.getElementById('aboutVersion');
-    if (versionEl) versionEl.textContent = `Version ${__APP_VERSION__}`;
+    const syncVersionLine = (): void => {
+        if (versionEl) {
+            versionEl.textContent = `Version ${__APP_VERSION__}${isDevMode() ? ' · dev' : ''}`;
+        }
+    };
+    syncVersionLine();
+    // Hidden developer-mode toggle: tap the version line DEV_MODE_TAPS times.
+    // Gates the Developer section in Settings (see dev-mode.ts) — deliberately
+    // undiscoverable for someone who just installed the app.
+    let devTaps = 0;
+    versionEl?.addEventListener('click', () => {
+        if (++devTaps < DEV_MODE_TAPS) return;
+        devTaps = 0;
+        setDevMode(!isDevMode());
+        syncVersionLine();
+    });
     const updateEl = document.getElementById('aboutUpdate');
 
     // The nav "Update" pill and its mobile More-sheet twin are revealed by CSS
@@ -300,6 +316,8 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
  * release required. To clear: drop the query param, or
  * `localStorage.removeItem('aloud:previewUpdate')`.
  */
+export const PREVIEW_UPDATE_KEY = 'aloud:previewUpdate';
+
 function previewUpdateVersion(): string | null {
     let raw: string | null = null;
     try {
@@ -308,10 +326,10 @@ function previewUpdateVersion(): string | null {
             // Persist so preview survives the router normalizing the query
             // string away (same reason ?mode= is stored) — the nudge fires on
             // boot but the About box opens later, after the param is gone.
-            localStorage.setItem('aloud:previewUpdate', fromUrl);
+            localStorage.setItem(PREVIEW_UPDATE_KEY, fromUrl);
             raw = fromUrl;
         } else {
-            raw = localStorage.getItem('aloud:previewUpdate');
+            raw = localStorage.getItem(PREVIEW_UPDATE_KEY);
         }
     } catch {
         return null;

@@ -38,9 +38,17 @@ import { sttEngineOptions, resolveSttChoice } from '../adapters/stt-picker.js';
 import { ALL_PROVIDERS, isProviderAvailable, providerNeedsKey, type Provider } from '../settings.js';
 import { isDesktopSync, isTauri } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
-import { isWebMode } from '../app-mode.js';
+import {
+    isWebMode,
+    isDevBypass,
+    devGetModeOverride,
+    devSetModeOverride,
+    devSetCloudBypass,
+    type AppMode,
+} from '../app-mode.js';
+import { isDevMode, getCheckinDebugSetting, setCheckinDebug } from '../dev-mode.js';
 import { appUrl } from '../app-base.js';
-import { openAbout } from '../about.js';
+import { openAbout, PREVIEW_UPDATE_KEY } from '../about.js';
 import {
     computeProviderMarker,
     stripMarker,
@@ -177,6 +185,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireSessionLogsSection();
         wireUpdatesSection();
         wireAdvancedSection();
+        wireDeveloperSection();
         wireFooter();
     }
 
@@ -1171,6 +1180,34 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         btn?.addEventListener('click', () => openAbout());
     }
 
+    // ---- Developer (hidden unless dev mode; see dev-mode.ts) -----------
+    // These write straight to their storage keys, outside the settings
+    // object / undo machinery — they're debug switches, not user settings.
+    function wireDeveloperSection(): void {
+        const hud = root.querySelector<HTMLInputElement>('#s-dev-checkin-hud');
+        hud?.addEventListener('change', () => setCheckinDebug(hud.checked));
+        const preview = root.querySelector<HTMLInputElement>('#s-dev-preview-update');
+        preview?.addEventListener('change', () => {
+            try {
+                const v = preview.value.trim();
+                if (v) localStorage.setItem(PREVIEW_UPDATE_KEY, v);
+                else localStorage.removeItem(PREVIEW_UPDATE_KEY);
+            } catch {
+                /* ignore */
+            }
+        });
+        // Dev-build-only rows — guard the wiring with the same compile-time
+        // flag as the markup so release bundles carry none of it.
+        if (import.meta.env.DEV) {
+            const modeSel = root.querySelector<HTMLSelectElement>('#s-dev-mode-override');
+            modeSel?.addEventListener('change', () => {
+                devSetModeOverride(modeSel.value as AppMode | 'auto');
+            });
+            const bypass = root.querySelector<HTMLInputElement>('#s-dev-cloud-bypass');
+            bypass?.addEventListener('change', () => devSetCloudBypass(bypass.checked));
+        }
+    }
+
     // ---- Advanced (BYOK reveal) ----------------------------------------
     // The BYOK toggle itself is wired in wireProviderSection (by id); here we
     // just expand/collapse the section.
@@ -1338,6 +1375,11 @@ function renderHTML(s: AppSettings): string {
                 // Updates (desktop auto-updater) is meaningless in a hosted
                 // browser tab — it only applies to the desktop / self-host builds.
                 isWebMode() ? '' : renderUpdatesSection(s)
+            }
+            ${
+                // Hidden unless developer mode is on (tap the About-box
+                // version line 7 times — see dev-mode.ts).
+                isDevMode() ? renderDeveloperSection() : ''
             }
         </form>
     </div>
@@ -1754,6 +1796,64 @@ function renderSessionLogsSection(s: AppSettings): string {
               <span class="form-hint">Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.</span>
           </div>
         </div>
+    </section>`;
+}
+
+/**
+ * Developer section — rendered only in developer mode (dev-mode.ts). Homes
+ * for the debug switches that otherwise need query params, which the desktop
+ * webview has no URL bar for. The mode-override and cloud-bypass rows exist
+ * only in dev builds (import.meta.env.DEV — same compile-time gate as their
+ * readers in app-mode.ts), so a release build's section carries only the
+ * harmless conveniences.
+ */
+function renderDeveloperSection(): string {
+    const preview = (() => {
+        try {
+            return localStorage.getItem(PREVIEW_UPDATE_KEY) ?? '';
+        } catch {
+            return '';
+        }
+    })();
+    const devBuildRows = import.meta.env.DEV
+        ? `
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label for="s-dev-mode-override">App mode override</label>
+                <select id="s-dev-mode-override">
+                    <option value="auto"${devGetModeOverride() === 'auto' ? ' selected' : ''}>auto (build default)</option>
+                    <option value="web"${devGetModeOverride() === 'web' ? ' selected' : ''}>web</option>
+                    <option value="local"${devGetModeOverride() === 'local' ? ' selected' : ''}>local</option>
+                </select>
+                <span class="form-hint">Same as ?mode=. Dev builds only; reload to apply.</span>
+            </div>
+            <div class="form-group form-group-half">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-dev-cloud-bypass"${isDevBypass() ? ' checked' : ''}>
+                    <span>Cloud sign-in bypass</span>
+                </label>
+                <span class="form-hint">Same as ?dev. Uses the local /auth/dev account; reload to apply.</span>
+            </div>
+        </div>`
+        : '';
+    return `
+    <section class="settings-section">
+        <h2>Developer</h2>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-dev-checkin-hud"${getCheckinDebugSetting() ? ' checked' : ''}>
+                    <span>Check-in debug HUD</span>
+                </label>
+                <span class="form-hint">Live check-in/[WAIT] pacing readout in sessions. Same as ?debug=checkin.</span>
+            </div>
+            <div class="form-group form-group-half">
+                <label for="s-dev-preview-update">Preview update banner</label>
+                <input type="text" id="s-dev-preview-update" value="${escape(preview)}" placeholder="empty = off; 1 or a version">
+                <span class="form-hint">Fakes an available release (nothing installs). Same as ?previewUpdate.</span>
+            </div>
+        </div>
+        ${devBuildRows}
     </section>`;
 }
 

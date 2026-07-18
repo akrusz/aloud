@@ -83,6 +83,23 @@ sets the version verbatim. Unlike the params above this one is **not** DEV-gated
 Clear it by dropping the param or `localStorage.removeItem('aloud:previewUpdate')`.
 Read in `about.ts` (`previewUpdateVersion`).
 
+**Check-in / [WAIT] debug HUD** — `?debug=checkin` (also `1`, `pacing`) mounts a
+fixed monospace readout in the session view: active timing/content modes, the
+effective check-in interval (+ override marker), a countdown, and a rolling log
+of `[WAIT]` signals and check-in outcomes. Not DEV-gated (like `previewUpdate`),
+so it works in bundled builds too. Read in `dev-mode.ts` (`isCheckinDebugOn`).
+
+### Developer mode (hidden settings section)
+
+The desktop webview has no URL bar, so the params above get a settings home:
+tap the **version line in the About box 7 times** to toggle developer mode
+(`dev-mode.ts`, persisted in `localStorage aloud:devMode`; the version line
+grows a `· dev` marker). Settings then shows a **Developer** section: the
+check-in debug HUD toggle and the update-preview banner everywhere, plus — in
+dev builds only, same compile-time gate as the params — the `?mode=` override
+and the `?dev` cloud sign-in bypass. Invisible to anyone who just installed
+the app.
+
 ### Hosted server (Hono)
 
 ```bash

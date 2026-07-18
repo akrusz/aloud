@@ -87,6 +87,42 @@ export function isDevBypass(): boolean {
 }
 
 /**
+ * DEV-build-only accessors for the Developer settings section — the Tauri dev
+ * webview has no URL bar to type `?mode=` / `?dev` into, so the section offers
+ * the same overrides as controls. No-ops (and tree-shaken) in release builds,
+ * exactly like the URL readers above. Overrides take effect on reload.
+ */
+export function devGetModeOverride(): AppMode | 'auto' {
+    if (!import.meta.env.DEV) return 'auto';
+    try {
+        const stored = sessionStorage.getItem(OVERRIDE_KEY);
+        return stored === 'web' || stored === 'local' ? stored : 'auto';
+    } catch {
+        return 'auto';
+    }
+}
+
+export function devSetModeOverride(mode: AppMode | 'auto'): void {
+    if (!import.meta.env.DEV) return;
+    try {
+        if (mode === 'auto') sessionStorage.removeItem(OVERRIDE_KEY);
+        else sessionStorage.setItem(OVERRIDE_KEY, mode);
+    } catch {
+        /* ignore */
+    }
+}
+
+export function devSetCloudBypass(on: boolean): void {
+    if (!import.meta.env.DEV) return;
+    try {
+        if (on) sessionStorage.setItem(BYPASS_KEY, '1');
+        else sessionStorage.removeItem(BYPASS_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/**
  * Capture `?mode=` / `?dev` overrides into sessionStorage at boot. MUST run
  * before the SPA router normalizes the URL (it replaceState()s the query string
  * away on the initial deep-link), otherwise the readers would never see the
