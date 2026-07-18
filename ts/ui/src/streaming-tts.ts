@@ -19,7 +19,14 @@ import type {
     StreamChunk,
 } from '../../src/llm/index.js';
 import type { LlmUsage } from '../../src/facilitation/index.js';
-import { HOLD_PREFIX, NEXT_PREFIX, BACK_PREFIX, parseTurnSignals } from '../../src/facilitation/index.js';
+import {
+    HOLD_PREFIX,
+    NEXT_PREFIX,
+    BACK_PREFIX,
+    WAIT_PREFIX,
+    matchWaitToken,
+    parseTurnSignals,
+} from '../../src/facilitation/index.js';
 import type { TtsEngine, TtsOptions } from '../../src/platform/index.js';
 
 /** Pull the usage split out of a completion result or final stream chunk. */
@@ -179,15 +186,30 @@ export async function streamCompletionWithChunkedTts(
             });
     }
 
-    // The control tokens a reply can open with: [HOLD] always, plus
-    // [NEXT]/[BACK] in staged modes. They can stack ("[NEXT] [HOLD] …"),
-    // and a token can arrive split across chunks ("[NE" + "XT]").
+    // The control tokens a reply can open with: [HOLD] always, [NEXT]/[BACK]
+    // in staged modes, and [WAIT:Nm] with smart check-in timing. They can
+    // stack ("[NEXT] [HOLD] …"), and a token can arrive split across chunks
+    // ("[NE" + "XT]", "[WAIT:1" + "m]").
     const CONTROL_PREFIXES = [HOLD_PREFIX, NEXT_PREFIX, BACK_PREFIX];
 
+    /** True when `lead` (uppercased) could still grow into a [WAIT:Nm] token:
+     *  a prefix of "[WAIT:", or an unclosed "[WAIT:…" whose body still looks
+     *  like the token grammar (digits/spaces/unit letters). Bounded so a
+     *  malformed non-token can't hold TTS until stream end. */
+    function isPartialWaitToken(lead: string): boolean {
+        if (lead.length <= WAIT_PREFIX.length) return WAIT_PREFIX.startsWith(lead);
+        if (!lead.startsWith(WAIT_PREFIX)) return false;
+        const body = lead.slice(WAIT_PREFIX.length);
+        return body.length < 16 && /^[\d\sA-Z]*$/.test(body);
+    }
+
     /** True when `lead` (uppercased) could still grow into a control token
-     *  once more chunks arrive ("[", "[NE", "[HOL"). */
+     *  once more chunks arrive ("[", "[NE", "[HOL", "[WAIT:1"). */
     function isPartialControlPrefix(lead: string): boolean {
-        return CONTROL_PREFIXES.some((t) => t.length > lead.length && t.startsWith(lead));
+        return (
+            CONTROL_PREFIXES.some((t) => t.length > lead.length && t.startsWith(lead)) ||
+            isPartialWaitToken(lead)
+        );
     }
 
     /**
@@ -205,6 +227,12 @@ export async function streamCompletionWithChunkedTts(
             const token = CONTROL_PREFIXES.find((t) => upper.startsWith(t));
             if (token) {
                 pendingTtsText = lead.slice(token.length).trimStart();
+                continue;
+            }
+            // Variable-length [WAIT:Nm] — same grammar the turn parser uses.
+            const wait = matchWaitToken(lead);
+            if (wait) {
+                pendingTtsText = lead.slice(wait.length).trimStart();
                 continue;
             }
             // A token may still be arriving split across chunks — hold the

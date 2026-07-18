@@ -196,6 +196,48 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(tts.spoken).toEqual(['Take all the time you need.']);
     });
 
+    it('strips a [WAIT:Nm] timing token before speaking', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider([
+            '[WAIT:1m] Take a moment to notice',
+            " what's here inside.",
+        ]);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'ok' },
+        ]);
+        await result.ttsDone;
+        // Full text (token intact) returned so the caller sets the interval…
+        expect(result.text).toBe("[WAIT:1m] Take a moment to notice what's here inside.");
+        // …but the token is never voiced.
+        expect(tts.spoken).toEqual(["Take a moment to notice what's here inside."]);
+    });
+
+    it('strips a [WAIT:Nm] token split across chunks, stacked with [HOLD]', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider([
+            '[WAI',
+            'T:12',
+            'm] [HOLD] Let it',
+            ' unfold.',
+        ]);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: "I'll sit with this a while" },
+        ]);
+        await result.ttsDone;
+        expect(result.text).toBe('[WAIT:12m] [HOLD] Let it unfold.');
+        expect(tts.spoken).toEqual(['Let it unfold.']);
+    });
+
+    it('leaves a non-leading [WAIT:Nm] alone', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider(['We can wait [WAIT:5m] style here.']);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'hm' },
+        ]);
+        await result.ttsDone;
+        expect(tts.spoken).toEqual(['We can wait [WAIT:5m] style here.']);
+    });
+
     it('strips stage tokens on the non-streaming fallback too', async () => {
         const tts = new RecordingTts();
         const result = await streamCompletionWithChunkedTts(
