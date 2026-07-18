@@ -79,8 +79,9 @@ export interface PacingConfig {
 
 /** Clamp bounds for a model-set check-in interval ([WAIT:Nm] smart timing).
  *  A floor keeps a confused model from turning check-ins into chatter; the
- *  ceiling keeps one from silencing check-ins entirely. */
-export const CHECKIN_INTERVAL_MIN_SEC = 60;
+ *  ceiling keeps one from silencing check-ins entirely. The floor admits the
+ *  30s high-guidance default (defaultWaitSeconds). */
+export const CHECKIN_INTERVAL_MIN_SEC = 30;
 export const CHECKIN_INTERVAL_MAX_SEC = 3600;
 
 export const defaultPacingConfig: PacingConfig = {

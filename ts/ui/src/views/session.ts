@@ -22,7 +22,7 @@ import {
     classifyResumeIntent,
     classifyHoldConfirm,
     defaultPacingConfig,
-    defaultWaitMinutes,
+    defaultWaitSeconds,
     runSmartCheckin,
     buildSmartCheckinEvent,
     isSmartCheckinEvent,
@@ -364,7 +364,7 @@ export async function mountSessionView(
     // Smart timing: until the model's first [WAIT], the guidance level sets
     // the wait (20/8/5/2/1 min across the slider stops).
     if (appSettings.checkinTiming === 'smart') {
-        pacing.setCheckinInterval(defaultWaitMinutes(directiveness) * 60);
+        pacing.setCheckinInterval(defaultWaitSeconds(directiveness));
     }
 
     // The auxiliary calls — yes/no classifiers, noting labels, and the session

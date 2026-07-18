@@ -71,17 +71,23 @@ export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice convers
  *  tokens the app would ignore. Followed by waitBiasFragment, which folds
  *  the guidance-level slider into the default wait. */
 export const WAIT_SIGNAL_FRAGMENT = `Check-in timing — [WAIT:Nm] signal:
-If the meditator goes quiet after your reply, the app waits before gently checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Let it unfold."). Match it to the moment — someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by a short one. Use 1-60 minutes. If you omit the signal, your previous timing stays in effect.`;
+If the meditator goes quiet after your reply, the app waits before gently checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Let it unfold."; seconds also work, like [WAIT:90s]). Match it to the moment — someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by a short one. Use 30 seconds to 60 minutes. If you omit the signal, your previous timing stays in effect.`;
 
 /**
- * Default smart check-in wait, in minutes, per guidance level — the
- * slider's five stops (directiveness 0/3/5/7/10) map to 20/8/5/2/1. Used
- * for the [WAIT] bias fragment and to seed the pacing interval before the
- * model's first [WAIT].
+ * Default smart check-in wait, in seconds, per guidance level — the
+ * slider's five stops (directiveness 0/3/5/7/10) map to 20m/8m/5m/90s/30s.
+ * Used for the [WAIT] bias fragment and to seed the pacing interval before
+ * the model's first [WAIT].
  */
-export function defaultWaitMinutes(directiveness: number): number {
-    const byKey: Record<number, number> = { 0: 20, 3: 8, 5: 5, 7: 2, 10: 1 };
-    return byKey[nearestDirectivenessKey(directiveness)] ?? 5;
+export function defaultWaitSeconds(directiveness: number): number {
+    const byKey: Record<number, number> = { 0: 1200, 3: 480, 5: 300, 7: 90, 10: 30 };
+    return byKey[nearestDirectivenessKey(directiveness)] ?? 300;
+}
+
+/** Render a wait in the token form the model should echo: whole minutes when
+ *  even ("5m"), seconds otherwise ("90s") — both parse (matchWaitToken). */
+function waitTokenUnit(seconds: number): string {
+    return seconds % 60 === 0 ? `${seconds / 60}m` : `${seconds}s`;
 }
 
 /**
@@ -92,14 +98,15 @@ export function defaultWaitMinutes(directiveness: number): number {
  * sit still earns its long wait at any guidance level).
  */
 export function waitBiasFragment(directiveness: number): string {
-    const def = defaultWaitMinutes(directiveness);
-    if (def <= 2) {
-        return `The meditator chose high guidance: default to short waits around [WAIT:${def}m] and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
+    const def = defaultWaitSeconds(directiveness);
+    const token = waitTokenUnit(def);
+    if (def <= 120) {
+        return `The meditator chose high guidance: default to short waits around [WAIT:${token}] and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
     }
-    if (def >= 8) {
-        return `The meditator chose light guidance: default to long, protected waits around [WAIT:${def}m] and let silences run; shorten only when something clearly needs tending.`;
+    if (def >= 480) {
+        return `The meditator chose light guidance: default to long, protected waits around [WAIT:${token}] and let silences run; shorten only when something clearly needs tending.`;
     }
-    return `Default to moderate waits around [WAIT:${def}m], adjusting as the moment suggests.`;
+    return `Default to moderate waits around [WAIT:${token}], adjusting as the moment suggests.`;
 }
 
 // ---------------------------------------------------------------------------

@@ -130,7 +130,7 @@ describe('PacingController — shouldRespond timing', () => {
     it('setCheckinInterval clamps to sane bounds', () => {
         const { controller } = makeController();
         controller.setCheckinInterval(5);
-        expect(controller.getCheckinInterval()).toBe(60);
+        expect(controller.getCheckinInterval()).toBe(30);
         controller.setCheckinInterval(999_999);
         expect(controller.getCheckinInterval()).toBe(3600);
     });
