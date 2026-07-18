@@ -57,8 +57,11 @@ interface OpenAIUsage {
     /** Cached-prompt breakdown. OpenAI and OpenRouter surface this for models
      *  with implicit/automatic prompt caching (e.g. Gemini, DeepSeek). When
      *  present, `cached_tokens` is the portion of prompt_tokens served from
-     *  cache — billed far cheaper, so it's split out for the cost model. */
-    prompt_tokens_details?: { cached_tokens?: number };
+     *  cache — billed far cheaper, so it's split out for the cost model.
+     *  `cache_write_tokens` (GPT-5.6+ family) is the portion written TO cache,
+     *  billed at 1.25x the input rate; absent on older models, where writes
+     *  carry no fee. */
+    prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
 }
 
 interface OpenAIChatResponse {
@@ -223,26 +226,37 @@ export class OpenAIProvider implements LLMProvider {
  * via OpenRouter, OpenAI prompt caching), they're split out as cacheRead and
  * subtracted from inputTokens, so `inputTokens` is the FRESH (full-price)
  * portion. Cache reads price ~75-98% cheaper, so collapsing them would
- * mis-bill cache-friendly value models. cacheCreation isn't reported by this
- * API shape, so it's left null.
+ * mis-bill cache-friendly value models. Cache WRITES (cache_write_tokens,
+ * GPT-5.6+ — billed at 1.25x input) are likewise split out as cacheCreation
+ * and subtracted from the fresh portion; older models never report the field
+ * and keep cacheCreation null.
  */
 function usageToResult(usage: OpenAIUsage | undefined): {
     tokensUsed: number | null;
     inputTokens: number | null;
     outputTokens: number | null;
     cacheReadTokens: number | null;
+    cacheCreationTokens: number | null;
 } {
     if (!usage) {
-        return { tokensUsed: null, inputTokens: null, outputTokens: null, cacheReadTokens: null };
+        return {
+            tokensUsed: null,
+            inputTokens: null,
+            outputTokens: null,
+            cacheReadTokens: null,
+            cacheCreationTokens: null,
+        };
     }
     const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
+    const written = usage.prompt_tokens_details?.cache_write_tokens ?? 0;
     const prompt = usage.prompt_tokens ?? null;
     return {
         tokensUsed: usage.total_tokens ?? null,
-        // Fresh (uncached) input = prompt_tokens - cached_tokens.
-        inputTokens: prompt === null ? null : prompt - cached,
+        // Fresh (full-price) input = prompt_tokens - cached - written.
+        inputTokens: prompt === null ? null : prompt - cached - written,
         outputTokens: usage.completion_tokens ?? null,
         cacheReadTokens: cached > 0 ? cached : null,
+        cacheCreationTokens: written > 0 ? written : null,
     };
 }
 

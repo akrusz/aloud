@@ -145,6 +145,26 @@ const MODELS: Record<string, ModelPricing> = {
     // cacheRead). Automatic caching has no write surcharge and cacheCreation
     // never accrues for the OpenAI usage shape, so it's left at input rate
     // harmlessly (mirrors gemini above). $5/$30 per 1M, $0.50 cached (Apr 2026).
+    // OpenAI's current flagship (GA July 2026): the top "Sol" tier of the 5.6
+    // family (Terra/Luna are the mid/value tiers we don't list — Terra ≈ 5.4's
+    // price, Luna loses to Gemini on this workload). Same $5/$30 sticker and
+    // ~90%-off cached input as 5.5, and pinned to the exact tier id for the
+    // same reason 5.5 is. ONE pricing difference from every earlier OpenAI
+    // model: the 5.6 family bills cache WRITES at 1.25x input and reports them
+    // (prompt_tokens_details.cache_write_tokens, parsed into cacheCreation by
+    // OpenAIProvider) — so cacheCreation here is a real accruing rate, not the
+    // never-accrues placeholder the older entries carry. No 1h write tier
+    // exists (automatic caching), so cacheCreation1h mirrors the 5m rate and
+    // never actually accrues. $5/$30 per 1M, $0.50 cached, $6.25 write (Jul 2026).
+    'openai:gpt-5.6-sol': {
+        provider: 'openai',
+        model: 'gpt-5.6-sol',
+        input: 5 / M,
+        output: 30 / M,
+        cacheRead: 0.5 / M,
+        cacheCreation: 6.25 / M, // real 1.25x write fee, new in the 5.6 family
+        cacheCreation1h: 6.25 / M, // no 1h tier on automatic caching; never accrues
+    },
     'openai:gpt-5.5': {
         provider: 'openai',
         model: 'gpt-5.5',
@@ -166,6 +186,26 @@ const MODELS: Record<string, ModelPricing> = {
         cacheRead: 0.25 / M,
         cacheCreation: 2.5 / M,
         cacheCreation1h: 2.5 / M, // no 1h write on automatic caching; never accrues
+    },
+    // Moonshot's Kimi K3 (July 2026) — the open-weight frontier model, served
+    // via OpenRouter (the one openrouter entry in this table; the server's
+    // OPENROUTER_API_KEY must be set for it to forward). Sonnet-ish price tier
+    // with a distinct voice, which is the draw. Rates are Moonshot's list
+    // prices, which OpenRouter passes through: $3/$15 per 1M, $0.30 cache-hit
+    // input. Caching is automatic on Moonshot's side; reads surface as
+    // prompt_tokens_details.cached_tokens (parsed into cacheRead), writes have
+    // no fee and are never reported, so cacheCreation sits at the input rate
+    // and never accrues (same treatment as gemini/gpt-5.5 above). If OpenRouter
+    // routes to a non-Moonshot host the cache fields simply never appear and
+    // every input token bills at the full (higher, safe) fresh rate.
+    'openrouter:moonshotai/kimi-k3': {
+        provider: 'openrouter',
+        model: 'moonshotai/kimi-k3',
+        input: 3 / M,
+        output: 15 / M,
+        cacheRead: 0.3 / M,
+        cacheCreation: 3 / M,
+        cacheCreation1h: 3 / M, // no 1h write on automatic caching; never accrues
     },
 };
 

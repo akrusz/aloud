@@ -811,8 +811,35 @@ describe('usage split — input/output/cache kept separate', () => {
         expect(result.inputTokens).toBe(30);
         expect(result.outputTokens).toBe(9);
         expect(result.tokensUsed).toBe(39);
-        // OpenAI-style providers don't surface cache breakdowns
+        // no prompt_tokens_details reported -> no cache breakdown
         expect(result.cacheReadTokens ?? null).toBeNull();
+        expect(result.cacheCreationTokens ?? null).toBeNull();
+    });
+
+    it('OpenAI complete() splits cached + written prompt tokens out of fresh input', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockJsonResponse({
+                choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+                usage: {
+                    prompt_tokens: 100,
+                    completion_tokens: 10,
+                    total_tokens: 110,
+                    // GPT-5.6+ shape: reads (cached_tokens) and 1.25x-billed
+                    // writes (cache_write_tokens) are both prompt subsets.
+                    prompt_tokens_details: { cached_tokens: 60, cache_write_tokens: 25 },
+                },
+            })
+        );
+        const provider = new OpenAIProvider({
+            apiKey: 'k',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        const result = await provider.complete([{ role: 'user', content: 'hi' }]);
+        // fresh = 100 - 60 cached - 25 written
+        expect(result.inputTokens).toBe(15);
+        expect(result.cacheReadTokens).toBe(60);
+        expect(result.cacheCreationTokens).toBe(25);
+        expect(result.outputTokens).toBe(10);
     });
 
     it('Ollama maps prompt_eval_count/eval_count to input/output (no cache)', async () => {

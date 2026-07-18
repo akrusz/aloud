@@ -27,7 +27,7 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isMeteredBlocked, FREE_LIMIT_MESSAGE, BILLING_PAUSED_FINISH } from '../admin/runtime-config.js';
-import { isModelAllowed } from '../pricing/providers.js';
+import { isModelAllowed, allowedModels } from '../pricing/providers.js';
 import { SESSION_HOLD_CREDITS, MAX_OUTPUT_TOKENS, priceLlmTurn, type CostBreakdown } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
@@ -69,7 +69,10 @@ function recordLlmUsage(
     });
 }
 
-const VALID_PROVIDERS = new Set(['anthropic', 'groq', 'openrouter', 'google']);
+// Derived from the pricing allowlist so it can't drift from it: a provider is
+// billable exactly when some model of its is. (A hand-kept copy of this set
+// once silently dropped 'openai', bouncing every gpt-5.x turn as bad_request.)
+const VALID_PROVIDERS = new Set<string>(allowedModels().map((m) => m.provider));
 
 export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
