@@ -1428,6 +1428,11 @@ export async function mountSessionView(
                 showErrorToast(describeCloudError(msg) ?? `Something went wrong: ${msg}`);
             }
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            // The turn ended (badly) — reset the check-in clock like the
+            // success path does, or a long failed turn leaves a stale
+            // timestamp and the next poll fires a check-in right on top of
+            // the error apology.
+            pacing.onResponseEnd();
         } finally {
             // Only the latest turn owns the shared flags — a superseded turn
             // unwinding later must not clear the busy/abort state the live one
