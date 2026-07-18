@@ -165,8 +165,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">Per-model / per-voice cost, biggest first.</p>
       <table>
-        <thead><tr><th>Service</th><th>Model / voice</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
-        <tbody id="usageModelRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
+        <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
+        <tbody id="usageModelRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
       </table>
     </div>
     <div class="card">
@@ -385,9 +385,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       }).join('') || '<tr><td colspan="5" class="muted">No usage in this window.</td></tr>';
 
       $('usageModelRows').innerHTML = u.byModel.map(function (m) {
-        return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.model) + '</code></td><td class="num">' +
+        return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) + '</code></td><td class="num">' +
           usdp(m.providerCostUsd) + '</td><td class="num">' + dec1(m.credits) + '</td><td class="num">' + int(m.events) + '</td></tr>';
-      }).join('') || '<tr><td colspan="5" class="muted">No usage in this window.</td></tr>';
+      }).join('') || '<tr><td colspan="6" class="muted">No usage in this window.</td></tr>';
 
       function distRow(label, d, fmt) {
         return '<tr><td>' + label + '</td><td class="num">' + fmt(d.p50) + '</td><td class="num">' + fmt(d.p90) +
