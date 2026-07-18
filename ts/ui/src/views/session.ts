@@ -515,15 +515,14 @@ export async function mountSessionView(
         // Server-side synthesis is billable compute — fold chars into usage.
         const ttsOpts = { onServerSynthesize: (chars: number) => session.recordTts(chars) };
         let engine;
-        if (setup.provider === 'aloud' && !voiceId?.startsWith('browser:')) {
-            // Hosted pipeline: synthesize via the server (Google Cloud TTS).
-            // `aloud:<name>` selects a Google voice; a null/unset voice uses the
-            // server's default. A `browser:<name>` voice is the user explicitly
-            // picking a client-side speechSynthesis voice (e.g. a macOS system
-            // voice) — honor it by falling through to the normal picker instead
-            // of overriding it with the hosted default (the Ava→Leda bug).
-            const v = voiceId?.startsWith('aloud:') ? voiceId.slice('aloud:'.length) : '';
-            engine = createCloudAloudTts(v, ttsOpts);
+        if (setup.provider === 'aloud' && !voiceId) {
+            // Hosted pipeline with no voice picked: the server's default Google
+            // voice. Any explicit pick goes through the normal picker instead —
+            // `aloud:<name>` routes to this same hosted engine there, and a
+            // `browser:`/`server:` voice (e.g. a macOS system voice) must not be
+            // overridden with the hosted default (the Ava→Leda bug; its desktop
+            // twin was `server:`-prefixed macOS voices hitting this override).
+            engine = createCloudAloudTts('', ttsOpts);
         } else {
             ({ engine } = await createTtsForVoice(voiceId, ttsOpts));
         }
