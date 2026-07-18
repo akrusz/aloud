@@ -62,17 +62,22 @@ describe('GPT-5.6 Sol (openai)', () => {
     });
 });
 
-describe('Kimi K3 (moonshotai via openrouter)', () => {
+describe('Kimi K2 0711 (moonshotai via openrouter)', () => {
     it('is allowlisted under openrouter with the org-prefixed id', () => {
-        const p = pricingFor('openrouter', 'moonshotai/kimi-k3');
+        const p = pricingFor('openrouter', 'moonshotai/kimi-k2');
         expect(p).toBeDefined();
-        expect(p!.input).toBeCloseTo(3 / M, 12);
-        expect(p!.output).toBeCloseTo(15 / M, 12);
-        expect(p!.cacheRead).toBeCloseTo(0.3 / M, 12);
+        expect(p!.input).toBeCloseTo(0.57 / M, 12);
+        expect(p!.output).toBeCloseTo(2.3 / M, 12);
+        // No cache pricing on this endpoint — reads bill at the input rate.
+        expect(p!.cacheRead).toBeCloseTo(0.57 / M, 12);
 
         // Not reachable without the org prefix or under other providers.
-        expect(isModelAllowed('openrouter', 'kimi-k3')).toBe(false);
-        expect(isModelAllowed('groq', 'moonshotai/kimi-k3')).toBe(false);
+        expect(isModelAllowed('openrouter', 'kimi-k2')).toBe(false);
+        expect(isModelAllowed('groq', 'moonshotai/kimi-k2')).toBe(false);
+
+        // K3 was swapped OUT (mandatory reasoning: 7-12s first-token, could
+        // blank a turn) — it must no longer be billable.
+        expect(isModelAllowed('openrouter', 'moonshotai/kimi-k3')).toBe(false);
     });
 });
 
@@ -82,8 +87,8 @@ describe('POST /cloud/v1/llm/complete accepts every allowlisted provider', () =>
         expect(res.status).toBe(200);
     });
 
-    it('serves an openrouter turn (moonshotai/kimi-k3)', async () => {
-        const res = await completeTurn('openrouter', 'moonshotai/kimi-k3');
+    it('serves an openrouter turn (moonshotai/kimi-k2)', async () => {
+        const res = await completeTurn('openrouter', 'moonshotai/kimi-k2');
         expect(res.status).toBe(200);
     });
 

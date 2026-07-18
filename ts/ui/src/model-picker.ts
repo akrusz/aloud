@@ -38,7 +38,7 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'gpt-5.6-sol': 'GPT-5.6 Sol',
     'gpt-5.5': 'GPT-5.5',
     'gpt-5.4': 'GPT-5.4',
-    'moonshotai/kimi-k3': 'Kimi K3',
+    'moonshotai/kimi-k2': 'Kimi K2',
 };
 
 export function prettyModelName(model: string): string {
@@ -57,15 +57,15 @@ export function prettyModelName(model: string): string {
  * Hardcoded, per-model list of "slower" markers. We disable reasoning wherever
  * we can (including for Opus), so most heavier models answer at normal speed —
  * the exception is models whose reasoning is always on and can't be turned off
- * (Fable and its Mythos sibling; Kimi K3, whose OpenRouter endpoint rejects
- * disabling — measured ~7-12s to first token even at effort:'low', vs ~1s for
- * non-reasoning peers), which think before every reply and so run slower.
+ * (Fable and its Mythos sibling), which think before every reply and so run
+ * slower. (Kimi K2 0711 doesn't reason at all — its K3 successor was dropped
+ * from the hosted list for exactly that 7-12s always-on thinking delay.)
  * Matched as a substring against the model id/alias, so one entry
  * covers every variant — works for the cloud "provider/model" values and the
  * bare claude_proxy aliases alike. Purely local (no network) — edit this list
  * to tune which models carry the "may be slower" note.
  */
-export const SLOW_MODEL_MARKERS: readonly string[] = ['fable', 'mythos', 'kimi'];
+export const SLOW_MODEL_MARKERS: readonly string[] = ['fable', 'mythos'];
 
 export function isSlowModel(value: string): boolean {
     const v = value.toLowerCase();

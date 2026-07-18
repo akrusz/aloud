@@ -197,25 +197,30 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 2.5 / M,
         cacheCreation1h: 2.5 / M, // no 1h write on automatic caching; never accrues
     },
-    // Moonshot's Kimi K3 (July 2026) — the open-weight frontier model, served
-    // via OpenRouter (the one openrouter entry in this table; the server's
-    // OPENROUTER_API_KEY must be set for it to forward). Sonnet-ish price tier
-    // with a distinct voice, which is the draw. Rates are Moonshot's list
-    // prices, which OpenRouter passes through: $3/$15 per 1M, $0.30 cache-hit
-    // input. Caching is automatic on Moonshot's side; reads surface as
-    // prompt_tokens_details.cached_tokens (parsed into cacheRead), writes have
-    // no fee and are never reported, so cacheCreation sits at the input rate
-    // and never accrues (same treatment as gemini/gpt-5.5 above). If OpenRouter
-    // routes to a non-Moonshot host the cache fields simply never appear and
-    // every input token bills at the full (higher, safe) fresh rate.
-    'openrouter:moonshotai/kimi-k3': {
+    // Moonshot's Kimi K2 0711 — the ORIGINAL K2 (July 2025), served via
+    // OpenRouter (the one openrouter entry in this table; the server's
+    // OPENROUTER_API_KEY must be set for it to forward). Replaced Kimi K3 here
+    // (July 2026): K3's reasoning is mandatory (can't be disabled), which
+    // measured 7-12s to first spoken token and could blank a turn outright
+    // when the thinking preamble hit max_tokens — unusable pacing for voice.
+    // K2 0711 has no reasoning at all (~1s to first token) and is the release
+    // the Kimi personality lore is actually about ("genuine literary
+    // intelligence"; later K2.5 was widely called a personality regression
+    // from it) — the same niche-draw logic as Opus 3 above, at 1/5 the K3
+    // price: $0.57/$2.30 per 1M. OpenRouter lists NO cache pricing for this
+    // endpoint, so all cache fields sit at the input rate: cached_tokens never
+    // appear and everything bills as fresh input (and if a host ever does
+    // report them, input-rate is an over-charge, never an under-bill). Full
+    // fresh-input billing is what disqualified Groq llama above, but at $0.57
+    // it stays cheaper per turn than cached mid-tier models.
+    'openrouter:moonshotai/kimi-k2': {
         provider: 'openrouter',
-        model: 'moonshotai/kimi-k3',
-        input: 3 / M,
-        output: 15 / M,
-        cacheRead: 0.3 / M,
-        cacheCreation: 3 / M,
-        cacheCreation1h: 3 / M, // no 1h write on automatic caching; never accrues
+        model: 'moonshotai/kimi-k2',
+        input: 0.57 / M,
+        output: 2.3 / M,
+        cacheRead: 0.57 / M,
+        cacheCreation: 0.57 / M,
+        cacheCreation1h: 0.57 / M, // no caching on this endpoint; never accrues
     },
 };
 
