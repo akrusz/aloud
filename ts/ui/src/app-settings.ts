@@ -124,7 +124,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     nonStreamingSilenceBaseMs: 1500,
     nonStreamingSilenceMaxMs: 4000,
     silenceCheckinSec: 300,
-    checkinTiming: 'simple',
+    // Smart-by-default for both halves of the check-in: the model paces the
+    // silences ([WAIT:Nm], guidance-biased defaults) and writes the line.
+    // 'simple' timing (fixed silenceCheckinSec interval) stays available in
+    // Settings.
+    checkinTiming: 'smart',
     checkinContent: 'smart',
     silenceModeEnabled: true,
 };
