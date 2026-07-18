@@ -1478,8 +1478,8 @@ function renderSetupHTML(
                 <div class="form-group">
                     <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
                     <div class="info-panel hidden" id="info-guidance">
-                        <p>How actively the facilitator leads. At the low end it mostly reflects what you share and asks open questions; higher settings offer more direction, suggestions, and structure.</p>
-                        <p>With smart check-ins, it also sets how readily the facilitator speaks up during silence, from about 20 minutes at the low end to a minute or two at the high end.</p>
+                        <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
+                        <p>If the <strong>Check-In Timing</strong> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, 1-2 on high.</p>
                     </div>
                     <input type="range" id="directiveness" min="0" max="${dirTickCount}" step="1" value="1">
                     <div class="range-labels">
