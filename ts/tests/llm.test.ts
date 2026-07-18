@@ -710,6 +710,29 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         );
     });
 
+    it('OpenRouter disables reasoning by default', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-or-test',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }]);
+        const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+        expect(body.reasoning).toEqual({ enabled: false });
+    });
+
+    it('OpenRouter pins effort low for mandatory-reasoning models (kimi-k3) instead of disabling', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-or-test',
+            model: 'moonshotai/kimi-k3',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }]);
+        const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+        expect(body.reasoning).toEqual({ effort: 'low' });
+    });
+
     it('Venice uses api.venice.ai and injects extraBody for system prompt suppression', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse());
         const provider = new VeniceProvider({

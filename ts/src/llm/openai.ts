@@ -306,16 +306,40 @@ function preconfigured(defaults: {
     };
 }
 
+/** OpenRouter models whose endpoints run reasoning always-on: sending
+ *  `reasoning: {enabled: false}` 400s ("Reasoning is mandatory for this
+ *  endpoint and cannot be disabled" — kimi-k3). For these, pin the lowest
+ *  effort instead (both list `reasoning`/`reasoning_effort` in the model's
+ *  supported_parameters) — same intent as anthropic.ts EFFORT_LOW_MODELS:
+ *  the shortest think-before-speak and the fewest billed reasoning tokens. */
+const OPENROUTER_MANDATORY_REASONING = new Set(['moonshotai/kimi-k3']);
+
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v3.2';
+
 /** OpenRouter — multi-vendor LLM proxy. */
-export const OpenRouterProvider = preconfigured({
-    baseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'deepseek/deepseek-v3.2',
-    // aloud never wants chain-of-thought: a spoken meditation turn gains nothing
-    // from reasoning tokens, which only add latency and cost. Several routable
-    // models (deepseek-v3.2 included) reason by default; OpenRouter normalizes
-    // `reasoning.enabled` across vendors and ignores it for models that can't.
-    extraBody: { reasoning: { enabled: false } },
-});
+export class OpenRouterProvider extends OpenAIProvider {
+    constructor(options: OpenAIProviderOptions = {}) {
+        const model = options.model ?? OPENROUTER_DEFAULT_MODEL;
+        super({
+            ...options,
+            baseUrl: options.baseUrl ?? OPENROUTER_BASE_URL,
+            model,
+            // aloud never wants chain-of-thought: a spoken meditation turn
+            // gains nothing from reasoning tokens, which only add latency and
+            // cost. Several routable models (deepseek-v3.2 included) reason by
+            // default; OpenRouter normalizes `reasoning.enabled` across
+            // vendors. Models that refuse to disable it get effort:'low'
+            // instead (see OPENROUTER_MANDATORY_REASONING).
+            extraBody: {
+                reasoning: OPENROUTER_MANDATORY_REASONING.has(model)
+                    ? { effort: 'low' }
+                    : { enabled: false },
+                ...(options.extraBody ?? {}),
+            },
+        });
+    }
+}
 
 /** Venice — privacy-focused open-weights inference. */
 export const VeniceProvider = preconfigured({
