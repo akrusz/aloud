@@ -733,6 +733,20 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         expect(body.reasoning).toEqual({ effort: 'low' });
     });
 
+    it('OpenRouter omits the reasoning param entirely for models that do not support it (kimi-k2)', async () => {
+        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-or-test',
+            model: 'moonshotai/kimi-k2',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }]);
+        const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+        // Sending `reasoning` to the kimi-k2 endpoint intermittently flipped it
+        // into a thinking template whose planning got spoken or blanked the turn.
+        expect(body.reasoning).toBeUndefined();
+    });
+
     it('OpenRouter adds reasoning headroom to max_tokens for mandatory-reasoning models', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse());
         const provider = new OpenRouterProvider({

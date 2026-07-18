@@ -326,6 +326,16 @@ function preconfigured(defaults: {
  *  the shortest think-before-speak and the fewest billed reasoning tokens. */
 const OPENROUTER_MANDATORY_REASONING = new Set(['moonshotai/kimi-k3']);
 
+/** OpenRouter models whose (only) endpoints do NOT support the `reasoning`
+ *  parameter at all — send nothing rather than `{enabled: false}`. Kimi K2
+ *  0711 (Novita, fp8) has no reasoning, but sending the param anyway flipped
+ *  the endpoint into a thinking-style template intermittently (~10% of
+ *  measured openers): the model narrates its planning, which either blanks
+ *  the turn (all tokens billed as reasoning_tokens, finish "length") or gets
+ *  SPOKEN as content when a "[WAIT:Nm]" prefix lands before the think block.
+ *  0/40 anomalies with the param omitted vs 4/42 with it. */
+const OPENROUTER_REASONING_UNSUPPORTED = new Set(['moonshotai/kimi-k2']);
+
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v3.2';
 
@@ -353,9 +363,13 @@ export class OpenRouterProvider extends OpenAIProvider {
             // cost. Several routable models (deepseek-v3.2 included) reason by
             // default; OpenRouter normalizes `reasoning.enabled` across
             // vendors. Models that refuse to disable it get effort:'low'
-            // instead (see OPENROUTER_MANDATORY_REASONING).
+            // instead (OPENROUTER_MANDATORY_REASONING); models whose endpoints
+            // don't take the param at all get nothing (OPENROUTER_REASONING_
+            // UNSUPPORTED — sending it anyway destabilized kimi-k2).
             extraBody: {
-                reasoning: mandatoryReasoning ? { effort: 'low' } : { enabled: false },
+                ...(OPENROUTER_REASONING_UNSUPPORTED.has(model)
+                    ? {}
+                    : { reasoning: mandatoryReasoning ? { effort: 'low' } : { enabled: false } }),
                 ...(options.extraBody ?? {}),
             },
         });
