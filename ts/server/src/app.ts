@@ -47,7 +47,7 @@ export function createApp(deps: Deps): Hono {
             allowMethods: ['GET', 'POST', 'OPTIONS'],
             allowHeaders: ['authorization', 'content-type'],
             // So the browser can read per-request cost off the /cloud/v1/tts response.
-            exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining'],
+            exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining', 'X-Session-Refresh'],
         })
     );
 

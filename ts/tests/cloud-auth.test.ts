@@ -108,6 +108,33 @@ describe('ensureCloudToken', () => {
     });
 });
 
+describe('fetchMe — sliding session refresh', () => {
+    it('adopts a re-minted token from X-Session-Refresh', async () => {
+        await kv.set('server:token', 'tok-day-old');
+        setCloudAuthFetch(async () =>
+            new Response(
+                JSON.stringify({ id: 'a1', email: 'u@e.com', emailVerified: true, creditsRemaining: 5, providers: [] }),
+                { status: 200, headers: { 'x-session-refresh': 'tok-slid' } }
+            )
+        );
+        const me = await fetchMe();
+        expect(me?.creditsRemaining).toBe(5);
+        expect(await getCloudToken()).toBe('tok-slid');
+    });
+
+    it('keeps the cached token when the server sends no refresh header', async () => {
+        await kv.set('server:token', 'tok-fresh-enough');
+        setCloudAuthFetch(async () =>
+            new Response(
+                JSON.stringify({ id: 'a1', email: 'u@e.com', emailVerified: true, creditsRemaining: 5, providers: [] }),
+                { status: 200 }
+            )
+        );
+        await fetchMe();
+        expect(await getCloudToken()).toBe('tok-fresh-enough');
+    });
+});
+
 describe('fetchMe — tolerant of an older server', () => {
     it('defaults a missing `providers` to [] so the account panel can map it', async () => {
         await kv.set('server:token', 'tok');

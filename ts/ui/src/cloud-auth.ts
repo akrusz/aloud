@@ -154,6 +154,15 @@ export async function getCloudToken(): Promise<string | null> {
     return kv().get(TOKEN_KEY);
 }
 
+/** Adopt a slid session: on authed requests the server re-mints a token once
+ *  the presented one is a day old (X-Session-Refresh, CORS-exposed). fetchMe
+ *  runs on every app launch (views/setup.ts), so any weekly-or-more user keeps
+ *  a live session indefinitely without re-signing in. */
+async function adoptRefreshedToken(res: Response): Promise<void> {
+    const fresh = res.headers.get('x-session-refresh');
+    if (fresh) await kv().set(TOKEN_KEY, fresh);
+}
+
 /** GET /cloud/v1/me — the signed-in account + live balance. Returns null when
  *  there's no cached token or the server rejects it (expired/invalid); callers
  *  treat null as "signed out". Shape mirrors the server's AccountView. */
@@ -176,6 +185,7 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
         res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${fresh}` } });
     }
     if (!res.ok) return null;
+    await adoptRefreshedToken(res);
     const account = (await res.json()) as AuthResponse['account'];
     // Seed the shared balance store with this authoritative reading (live
     // surfaces subscribe to it — meditation-pal-14s).

@@ -8,12 +8,16 @@ import type { Context, MiddlewareHandler, Next } from 'hono';
 import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { RateGuard } from '../quota/freetier.js';
-import { verifySessionToken } from './session.js';
+import { REFRESH_AFTER_SECONDS, issueSessionToken, verifySessionToken } from './session.js';
 import type { Account } from '../credits/store.js';
 
 /** Context variables set by the middleware. */
 export interface AuthVars {
     account: Account;
+}
+
+function nowSeconds(): number {
+    return Math.floor(Date.now() / 1000);
 }
 
 function bearer(c: Context): string | undefined {
@@ -54,6 +58,16 @@ export function requireAuth(deps: Deps): MiddlewareHandler {
         // (meditation-pal-8jc).
         if (!account || account.deletedAt != null) {
             return c.json(apiError('unauthenticated', 'sign in required'), ERROR_STATUS.unauthenticated);
+        }
+        // Sliding session: a day-old token gets a fresh 7-day one riding back in
+        // a response header, adopted client-side (cloud-auth.ts fetchMe) — so
+        // weekly-or-more users never see a re-sign-in. Set BEFORE next(): the
+        // LLM proxy streams its body, and headers can't change once it starts.
+        if (nowSeconds() - claims!.issuedAtSeconds > REFRESH_AFTER_SECONDS) {
+            c.header(
+                'X-Session-Refresh',
+                await issueSessionToken(account.id, deps.config.sessionSecret)
+            );
         }
         c.set('account', account);
         await next();
