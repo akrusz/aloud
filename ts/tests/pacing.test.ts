@@ -135,6 +135,21 @@ describe('PacingController — shouldRespond timing', () => {
         expect(controller.getCheckinInterval()).toBe(3600);
     });
 
+    it('getCheckinEtaSec counts down from the effective interval', () => {
+        const { controller, fake } = makeController({
+            config: { silenceCheckinSec: 100 },
+        });
+        controller.startSession();
+        expect(controller.getCheckinEtaSec()).toBe(100);
+        fake.tick(40);
+        expect(controller.getCheckinEtaSec()).toBe(60);
+        controller.setCheckinInterval(600);
+        expect(controller.hasCheckinOverride()).toBe(true);
+        expect(controller.getCheckinEtaSec()).toBe(560);
+        fake.tick(1000);
+        expect(controller.getCheckinEtaSec()).toBe(0);
+    });
+
     it('startSession clears a check-in interval override', () => {
         const { controller } = makeController({
             config: { silenceCheckinSec: 10 },

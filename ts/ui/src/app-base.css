@@ -894,6 +894,26 @@ input[type="range"]::-moz-range-thumb {
     transform: rotate(45deg);
 }
 
+/* Dev HUD (?debug=checkin) — live [WAIT]/check-in pacing readout,
+   mounted by the session view. Click-through so it never eats a tap. */
+.checkin-debug {
+    position: fixed;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 60;
+    max-width: 24rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    pointer-events: none;
+}
+
 /* Radio — same look as the checkbox, but round with a dot. */
 
 .radio-group {

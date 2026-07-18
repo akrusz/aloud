@@ -152,6 +152,18 @@ export class PacingController {
         return this._checkinIntervalOverride ?? this.config.silenceCheckinSec;
     }
 
+    /** True when a [WAIT:Nm] override is currently in effect. */
+    hasCheckinOverride(): boolean {
+        return this._checkinIntervalOverride !== null;
+    }
+
+    /** Seconds until a check-in could fire (0 = due now). Purely the timing
+     *  math — ignores enablement, holds, and the has-spoken gate. */
+    getCheckinEtaSec(): number {
+        const elapsed = this.clock() - this._lastResponseTime;
+        return Math.max(0, this.getCheckinInterval() - elapsed);
+    }
+
     endSession(): void {
         this._state = ConversationState.Idle;
     }

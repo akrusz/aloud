@@ -1060,6 +1060,46 @@ export async function mountSessionView(
     let checkinInFlight = false;
     let smartCheckinStreak = 0;
     const SMART_CHECKIN_MAX_STREAK = 4;
+
+    // ---- Check-in debug HUD (?debug=checkin) ---------------------------
+    // Dev tool: a fixed monospace readout of the [WAIT]/check-in traffic —
+    // active modes, effective interval + countdown, and a rolling log of
+    // signals and outcomes. Mounted only when the query param is present
+    // (?debug=1 and ?debug=pacing also work).
+    const checkinDebug = /^(1|true|checkin|pacing)$/i.test(
+        new URLSearchParams(location.search).get('debug') ?? ''
+    );
+    let debugPanel: HTMLElement | null = null;
+    const debugLogLines: string[] = [];
+    const debugT0 = Date.now();
+    function debugLog(line: string): void {
+        if (!checkinDebug) return;
+        const t = Math.round((Date.now() - debugT0) / 1000);
+        const mm = String(Math.floor(t / 60)).padStart(2, '0');
+        const ss = String(t % 60).padStart(2, '0');
+        debugLogLines.push(`${mm}:${ss} ${line}`);
+        if (debugLogLines.length > 8) debugLogLines.shift();
+        renderCheckinDebug();
+    }
+    function renderCheckinDebug(): void {
+        if (!debugPanel) return;
+        const over = pacing.hasCheckinOverride() ? ' (wait)' : '';
+        debugPanel.textContent = [
+            `timing ${appSettings.checkinTiming} · content ${appSettings.checkinContent}`,
+            `interval ${pacing.getCheckinInterval()}s${over} · next ${Math.round(
+                pacing.getCheckinEtaSec()
+            )}s · streak ${smartCheckinStreak}/${SMART_CHECKIN_MAX_STREAK}`,
+            ...debugLogLines,
+        ].join('\n');
+    }
+    let debugTimer: ReturnType<typeof setInterval> | null = null;
+    if (checkinDebug) {
+        debugPanel = document.createElement('div');
+        debugPanel.className = 'checkin-debug';
+        root.appendChild(debugPanel);
+        debugTimer = setInterval(renderCheckinDebug, 1000);
+        renderCheckinDebug();
+    }
     let silenceMode = false;
     // Require-confirm handshake for a model-initiated [HOLD] (rlgm). Models —
     // small ones especially — emit [HOLD] far too eagerly, often off a
@@ -1319,8 +1359,13 @@ export async function mountSessionView(
             }
             // Smart timing: [WAIT:Nm] sets when the next check-in may fire
             // (sticky across turns, clamped by the controller).
-            if (!ephemeral && waitSec !== null && appSettings.checkinTiming === 'smart') {
-                pacing.setCheckinInterval(waitSec);
+            if (!ephemeral && waitSec !== null) {
+                if (appSettings.checkinTiming === 'smart') {
+                    pacing.setCheckinInterval(waitSec);
+                    debugLog(`turn [WAIT] ${waitSec}s → interval ${pacing.getCheckinInterval()}s`);
+                } else {
+                    debugLog(`turn [WAIT] ${waitSec}s ignored (timing ${appSettings.checkinTiming})`);
+                }
             }
 
             // Wait for any in-flight TTS chunks to finish so the next
@@ -1955,6 +2000,7 @@ export async function mountSessionView(
               if (appSettings.checkinContent === 'smart') {
                   void respondWithSmartCheckIn();
               } else {
+                  debugLog('canned check-in');
                   void respondWithFacilitatorLine(builder.getCheckInPrompt());
               }
           }, CHECK_IN_POLL_MS)
@@ -2018,6 +2064,7 @@ export async function mountSessionView(
         if (smartCheckinStreak >= SMART_CHECKIN_MAX_STREAK) {
             // Out of chances: silent no-op that resets the interval so the
             // poll doesn't refire every tick. Auto-quit takes it from here.
+            debugLog('check-in skipped (streak cap)');
             pacing.onResponseEnd();
             return;
         }
@@ -2037,6 +2084,9 @@ export async function mountSessionView(
                 smartCheckinStreak,
                 smartTiming
             );
+            debugLog(
+                `event #${smartCheckinStreak} sent (silence ${Math.round(pacing.getSilenceDuration())}s)`
+            );
             const { reply, usage } = await runSmartCheckin(
                 provider,
                 [...session.getContextMessages(), { role: 'user', content: eventText }],
@@ -2053,22 +2103,30 @@ export async function mountSessionView(
             if (smartTiming && reply.kind !== 'fallback' && reply.waitSec !== null) {
                 pacing.setCheckinInterval(reply.waitSec);
             }
+            const waitNote =
+                reply.kind !== 'fallback' && reply.waitSec !== null
+                    ? ` [WAIT] ${reply.waitSec}s`
+                    : '';
             if (reply.kind === 'pass') {
+                debugLog(`→ pass${waitNote}`);
                 pacing.onResponseEnd();
                 return;
             }
             if (reply.kind === 'speak') {
+                debugLog(`→ speak "${reply.text.slice(0, 40)}"${waitNote}`);
                 // Event turn enters history only when the model speaks, so
                 // the next turn's model sees why the facilitator piped up.
                 session.addUserMessage(eventText);
                 await respondWithFacilitatorLine(reply.text);
             } else {
+                debugLog('→ fallback (canned)');
                 await respondWithFacilitatorLine(builder.getCheckInPrompt());
             }
         } catch {
             // Provider hiccup (or aborted by a real turn) — canned fallback,
             // unless a real turn took over.
             if (!torn && myGen === turnGen && !busy) {
+                debugLog('→ error (canned)');
                 await respondWithFacilitatorLine(builder.getCheckInPrompt());
             }
         } finally {
@@ -2138,6 +2196,7 @@ export async function mountSessionView(
         unsubscribeBalance?.();
         if (checkInTimer) clearInterval(checkInTimer);
         clearInterval(idleQuitTimer);
+        if (debugTimer) clearInterval(debugTimer);
         clearInterval(timerInterval);
         pacing.endSession();
         const finalState = session.endSession();
