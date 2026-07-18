@@ -57,7 +57,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: July 10, 2026</p>
+    <p class="updated">Last updated: July 17, 2026</p>
 
     <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains, plainly, what happens to your data in each case.</p>
 
@@ -103,6 +103,7 @@
       <li><strong>Account.</strong> The sign-in details needed to give you an account. You can sign in with Google or Apple (which share a basic identifier such as your email address), or with an email address and password. We use this only to identify your account and credit balance, so keep your sign-in secure.</li>
       <li><strong>Credits and usage.</strong> Your credit balance and a metered record of usage (for example, the amount of audio or text processed, and aggregate per-session totals such as how many turns a session ran) so we can charge credits accurately, understand our costs, and prevent abuse. This is operational metering for billing and reliability, <em>not</em> behavioral profiling, and it does not include the content of your sessions.</li>
       <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our payment processor, <strong>Stripe</strong>, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
+      <li><strong>Abuse prevention.</strong> When you create an account, we record the IP address you signed up from, used only to catch abusive signup patterns (like farming free credits). It's deleted automatically after 90 days, and right away if you delete your account.</li>
       <li><strong>Operational logs.</strong> We may keep minimal, short-lived technical logs (for diagnostics, security, and abuse prevention) that do not contain your session content.</li>
     </ul>
     <p><strong>We don't retain the content of your sessions on aloud cloud. None of it.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
@@ -122,6 +123,7 @@
     <h2>Third-party services</h2>
     <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
     <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use <strong>Anthropic, Google, and OpenAI</strong> for language models; <strong>OpenAI</strong> (Whisper) for speech-to-text; and <strong>Google Cloud Text-to-Speech and OpenAI</strong> for voice. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
+    <p>Behind the service itself: aloud cloud runs on <strong>Fly.io</strong> in the United States, and our account database (sign-in details, credits, and usage metering, never your session content) is backed up to <strong>Cloudflare R2</strong>. Both handle data for us as infrastructure providers under data processing agreements.</p>
 
     <h2>Your control</h2>
     <ul>
@@ -129,8 +131,20 @@
       <li>Choose on-device providers for maximum privacy if your hardware is capable.</li>
       <li>Your credentials and settings live on your device in local mode. Clear them anytime.</li>
       <li>Delete saved sessions from your device whenever you like.</li>
-      <li>For aloud cloud, you can close your account and request deletion of the account data we hold; email us at the address below.</li>
+      <li>For aloud cloud, delete your account anytime from the app's account screen, or email us at the address below.</li>
     </ul>
+
+    <h2>Where your data lives, and for how long</h2>
+    <p>aloud cloud is operated from the <strong>United States</strong>, so if you use it from somewhere else (including the EU or UK), your account information, and the session content we relay, are processed in the US. The providers we relay to may process data in other regions under their own terms.</p>
+    <ul>
+      <li><strong>Session content:</strong> never stored, so there is nothing to retain.</li>
+      <li><strong>Account and credit records:</strong> kept while your account exists. When you delete your account, we remove your sign-in identities and scrub the record of your email address and IP; what remains is an anonymous credit ledger we keep for accounting.</li>
+      <li><strong>Signup IP address:</strong> deleted after 90 days at most.</li>
+      <li><strong>Backups:</strong> the account database backup is continuously replaced; data scrubbed from the live database ages out of it within about a day.</li>
+    </ul>
+
+    <h2>Your rights</h2>
+    <p>You can see, correct, export, or delete the account data we hold, and object to or restrict our use of it. Deleting your account from the app removes it immediately; for anything else, email us and we'll sort it out. If you're in the EU, UK, or another region with a data protection law, these are the rights that law gives you, and you can also complain to your local data protection authority. Where a legal basis is required, ours are: performing our contract with you (accounts, credits, relaying your sessions) and our legitimate interest in keeping the service secure and preventing abuse.</p>
 
     <h2>Children's privacy</h2>
     <p>aloud is not directed to children under 13 (or the minimum age in your jurisdiction), and we do not knowingly collect information from them.</p>
