@@ -110,6 +110,24 @@ Boots with in-memory stores + stubs in dev (no secrets required). Config comes
 from `ts/server/.env` — copy `ts/server/.env.example` and fill what you need.
 Deeper operational notes: [ts-server.md](ts-server.md).
 
+#### Granting yourself credits (dev)
+
+The dev server has its own ledger (`ALOUD_DB_PATH` in `ts/server/.env`,
+`.data/aloud-dev.db`) — balances there are separate from production. To top up
+an account, use the admin panel at <http://localhost:8787/cloud/v1/admin>
+(paste `ALOUD_ADMIN_TOKEN` from `ts/server/.env`, then the "Grant credits"
+form), or curl the same endpoint:
+
+```bash
+curl -X POST http://localhost:8787/cloud/v1/admin/grant \
+  -H "Authorization: Bearer $ALOUD_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "credits": 100}'
+```
+
+Works against production too — swap in the fly.dev origin and its token. Full
+admin surface: [ts-server.md](ts-server.md).
+
 ### Ports at a glance
 
 | Port | Who |
