@@ -25,7 +25,7 @@ docs/
     aloud-screen-dark.webp  ← screenshot, dark theme
 ```
 
-The landing page links the hosted web app at `/app/` (early access) and
+The landing page links the hosted web app at `/app/` and
 describes **aloud cloud**, the optional hosted relay. Keep the marketing copy,
 the FAQ, and the `/privacy` + `/terms` pages in sync as those features land.
 
@@ -83,5 +83,6 @@ source to keep in sync. They're downscaled to 1800px wide and WebP-encoded
       are no longer hosted LLMs per ts/server/src/pricing/providers.ts — Groq stays a
       BYOK/STT option). Still operator decisions if they change: refund stance
       and BYO-key-on-web.
-- [ ] revisit the web app's "early access / beta" framing on `index.html` once
-      the launch-blockers land, and drop the beta badge when it's ready
+- [x] web app "early access / beta" framing dropped (2026-07-19): beta badge
+      and early-access wording removed from `index.html`; mobile keeps its
+      closed-beta line
