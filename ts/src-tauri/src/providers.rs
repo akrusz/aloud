@@ -633,7 +633,7 @@ fn pick_tier(ram_gb: Option<u32>) -> &'static OllamaTier {
 
 // --- Hardware detection ----------------------------------------------------
 
-fn system_ram_gb() -> Option<u32> {
+pub(crate) fn system_ram_gb() -> Option<u32> {
     let mut sys = sysinfo::System::new();
     sys.refresh_memory();
     let bytes = sys.total_memory();

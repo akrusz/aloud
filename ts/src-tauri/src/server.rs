@@ -304,6 +304,9 @@ async fn system_info() -> Json<Value> {
         // This is the local desktop backend; the UI's is-desktop probe keys off
         // this to enable desktop-only features (the web Hono answers false).
         "desktop": true,
+        // Total system RAM; the UI sizes the Ollama context window from it
+        // (contextLengthForRam). null when detection fails.
+        "ram_gb": crate::providers::system_ram_gb(),
         "has_homebrew": which::which("brew").is_ok(),
         "tools": {
             "claude_cli": { "installed": claude.is_some(), "path": path_str(claude) },

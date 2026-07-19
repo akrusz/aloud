@@ -15,6 +15,28 @@ import type {
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen3.5:4b';
 const DEFAULT_MAX_TOKENS = 300;
+/**
+ * Context window (num_ctx) requested per call. Ollama's own default is small
+ * (4096 unless OLLAMA_CONTEXT_LENGTH is set), and overflow truncates the
+ * prompt SILENTLY — in a long session the facilitator loses its system
+ * prompt and quietly forgets its role (meditation-pal-76qx). 16k covers a
+ * multi-hour session (system prompt worst case ~3k tokens + short voice
+ * turns) while keeping KV-cache memory reasonable on small local models;
+ * current local models are trained far beyond it (qwen3.5/gemma4: 262k),
+ * so the cap is ours, not the model's.
+ */
+const DEFAULT_NUM_CTX = 16384;
+
+/**
+ * Pick a context length from total system RAM. Down-only: 16k is already
+ * hours of voice-paced conversation, so more RAM never raises it; on an
+ * <=8GB machine the KV cache competes with the model weights, so step down
+ * to 8k (still a multi-hour session). Unknown RAM (browser, probe pending)
+ * keeps the default.
+ */
+export function contextLengthForRam(ramGb: number | null): number {
+    return ramGb !== null && ramGb <= 8 ? 8192 : DEFAULT_NUM_CTX;
+}
 
 export interface OllamaProviderOptions {
     baseUrl?: string;
@@ -28,6 +50,9 @@ export interface OllamaProviderOptions {
      * relaxKeepAlive() on session end to let it idle out sooner.
      */
     keepAlive?: string;
+    /** Context window (num_ctx) to request. Defaults to DEFAULT_NUM_CTX;
+     *  raise for very long sessions at the cost of KV-cache memory. */
+    contextLength?: number;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
 }
@@ -48,6 +73,7 @@ export class OllamaProvider implements LLMProvider {
     readonly maxTokens: number;
     readonly think: boolean;
     readonly keepAlive: string;
+    readonly contextLength: number;
     private readonly baseUrl: string;
     private readonly fetchImpl: typeof fetch;
 
@@ -57,6 +83,7 @@ export class OllamaProvider implements LLMProvider {
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.think = options.think ?? false;
         this.keepAlive = options.keepAlive ?? '30m';
+        this.contextLength = options.contextLength ?? DEFAULT_NUM_CTX;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     }
 
@@ -74,7 +101,10 @@ export class OllamaProvider implements LLMProvider {
             stream,
             think: this.think,
             keep_alive: this.keepAlive,
-            options: { num_predict: options.maxTokens ?? this.maxTokens },
+            options: {
+                num_predict: options.maxTokens ?? this.maxTokens,
+                num_ctx: this.contextLength,
+            },
         });
     }
 

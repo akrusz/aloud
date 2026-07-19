@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { AnthropicProvider } from '../src/llm/anthropic.js';
-import { OllamaProvider } from '../src/llm/ollama.js';
+import { OllamaProvider, contextLengthForRam } from '../src/llm/ollama.js';
 import {
     OpenAIProvider,
     OpenRouterProvider,
@@ -399,11 +399,21 @@ describe('OllamaProvider', () => {
         expect(body.model).toBe('qwen3.5:4b');
         expect(body.stream).toBe(false);
         expect(body.think).toBe(false);
-        expect(body.options).toEqual({ num_predict: 150 });
+        // num_ctx always rides along: Ollama's own default window is small
+        // and overflows silently (meditation-pal-76qx).
+        expect(body.options).toEqual({ num_predict: 150, num_ctx: 16384 });
         expect(body.messages).toEqual([
             { role: 'system', content: 'be a facilitator' },
             { role: 'user', content: "I'm here" },
         ]);
+    });
+
+    it('contextLengthForRam only steps down, and only on low RAM', () => {
+        expect(contextLengthForRam(null)).toBe(16384);
+        expect(contextLengthForRam(8)).toBe(8192);
+        expect(contextLengthForRam(7)).toBe(8192);
+        expect(contextLengthForRam(16)).toBe(16384);
+        expect(contextLengthForRam(64)).toBe(16384);
     });
 
     it('strips trailing slashes from the base URL', () => {

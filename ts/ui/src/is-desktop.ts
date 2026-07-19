@@ -100,6 +100,7 @@ export function isSingleOwnerMicPlatform(): boolean {
 }
 
 let cached: boolean | null = null;
+let cachedRamGb: number | null = null;
 let inflight: Promise<boolean> | null = null;
 
 export async function detectIsDesktop(): Promise<boolean> {
@@ -114,8 +115,12 @@ export async function detectIsDesktop(): Promise<boolean> {
             }
             // Desktop unless the backend explicitly says otherwise (web Hono
             // answers desktop:false). A missing field → desktop.
-            const info = (await resp.json().catch(() => ({}))) as { desktop?: boolean };
+            const info = (await resp.json().catch(() => ({}))) as {
+                desktop?: boolean;
+                ram_gb?: number | null;
+            };
             cached = info.desktop !== false;
+            cachedRamGb = typeof info.ram_gb === 'number' ? info.ram_gb : null;
             return cached;
         } catch {
             cached = false;
@@ -125,6 +130,13 @@ export async function detectIsDesktop(): Promise<boolean> {
         }
     })();
     return inflight;
+}
+
+/** Total system RAM in GB as reported by the desktop shell's system-info,
+ *  or null when unknown (browser, hosted web, probe not finished). Used to
+ *  size the Ollama context window (contextLengthForRam). */
+export function systemRamGb(): number | null {
+    return cachedRamGb;
 }
 
 /** Synchronous read — returns the cached value, or `false` until the
