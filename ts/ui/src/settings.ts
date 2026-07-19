@@ -214,6 +214,37 @@ export type NotingParticipantConfig =
 
 export const DIRECTIVENESS_VALUES: readonly number[] = [0, 3, 5, 7, 10];
 
+/** Display names for the five guidance-slider stops (indexed by dirStep). */
+export const GUIDANCE_LEVEL_LABELS: readonly string[] = [
+    'Following',
+    'Somewhat following',
+    'Balanced',
+    'Somewhat directing',
+    'Directing',
+];
+
+export const VERBOSITY_LABELS: Readonly<Record<Verbosity, string>> = {
+    low: 'Brief',
+    medium: 'Medium',
+    high: 'Longer',
+};
+
+export const FOCUS_LABELS: Readonly<Record<Focus, string>> = {
+    body_sensations: 'Body & sensations',
+    emotions: 'Emotions & feeling tone',
+    inner_parts: 'Parts & inner world',
+    open_awareness: 'Open awareness',
+};
+
+export const QUALITY_LABELS: Readonly<Record<Quality, string>> = {
+    playful: 'Playful & light',
+    compassionate: 'Compassionate',
+    loving: 'Loving & kind',
+    spacious: 'Spacious',
+    effortless: 'Effortless',
+    feeling_good: 'Feeling good',
+};
+
 export function dirStepToBackend(step: number): number {
     const v = DIRECTIVENESS_VALUES[Math.max(0, Math.min(step, DIRECTIVENESS_VALUES.length - 1))];
     return v ?? 3;

@@ -23,6 +23,9 @@ import {
     providerNeedsKey,
     type ProviderAvailabilityOpts,
     DIRECTIVENESS_VALUES,
+    FOCUS_LABELS,
+    QUALITY_LABELS,
+    VERBOSITY_LABELS,
     loadSetup,
     saveSetup,
 } from '../settings.js';
@@ -79,17 +82,17 @@ import {
 const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }> = [
     {
         value: 'body_sensations',
-        name: 'Body & sensations',
+        name: FOCUS_LABELS.body_sensations,
         description: 'Physical experience: texture, temperature, movement',
     },
     {
         value: 'emotions',
-        name: 'Emotions & feeling tone',
+        name: FOCUS_LABELS.emotions,
         description: 'Emotional landscape, warmth, what’s alive underneath',
     },
     {
         value: 'inner_parts',
-        name: 'Parts & inner world',
+        name: FOCUS_LABELS.inner_parts,
         description: 'Inner parts, protectors, body parts, speaking to/as parts',
     },
 ];
@@ -97,41 +100,39 @@ const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }
 const QUALITIES: ReadonlyArray<{ value: Quality; name: string; description: string }> = [
     {
         value: 'playful',
-        name: 'Playful & light',
+        name: QUALITY_LABELS.playful,
         description: 'Play, spontaneity, delight. Doesn’t have to be serious',
     },
     {
         value: 'compassionate',
-        name: 'Compassionate',
+        name: QUALITY_LABELS.compassionate,
         description: 'Meeting what arises with care, tenderness, gentleness',
     },
     {
         value: 'loving',
-        name: 'Loving & kind',
+        name: QUALITY_LABELS.loving,
         description: 'Generating and radiating love and goodwill',
     },
     {
         value: 'spacious',
-        name: 'Spacious',
+        name: QUALITY_LABELS.spacious,
         description: 'Notice the openness that’s already here',
     },
     {
         value: 'effortless',
-        name: 'Effortless',
+        name: QUALITY_LABELS.effortless,
         description: 'Hands off the wheel, let things unfold',
     },
     {
         value: 'feeling_good',
-        name: 'Feeling good',
+        name: QUALITY_LABELS.feeling_good,
         description: 'Noticing and cultivating pleasant sensations',
     },
 ];
 
-const VERBOSITY_OPTIONS: ReadonlyArray<{ value: Verbosity; label: string }> = [
-    { value: 'low', label: 'Brief' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'Longer' },
-];
+const VERBOSITY_OPTIONS: ReadonlyArray<{ value: Verbosity; label: string }> = (
+    ['low', 'medium', 'high'] as const
+).map((value) => ({ value, label: VERBOSITY_LABELS[value] }));
 
 export interface SetupViewHandle {
     /** Show the setup view (replaces any current content in `root`). */
@@ -1424,7 +1425,7 @@ function renderSetupHTML(
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
                 <p><strong>exploration</strong>: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.</p>
-                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good). presets give you quick starting points, or you can build your own style. there's a directiveness slider so you can dial in how much guidance you want. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
+                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good). presets give you quick starting points, or you can build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
                 <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
             </div>
             <div data-method="noting" class="hidden">
@@ -1479,7 +1480,7 @@ function renderSetupHTML(
                     <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
                     <div class="info-panel hidden" id="info-guidance">
                         <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
-                        <p>If the <strong>Check-In Timing</strong> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, 1-2 on high.</p>
+                        <p>If the <strong>Check-In Timing</strong> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
                     </div>
                     <input type="range" id="directiveness" min="0" max="${dirTickCount}" step="1" value="1">
                     <div class="range-labels">

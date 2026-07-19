@@ -293,6 +293,10 @@ Don't apologize for pleasure or treat it as a stepping stone to something 'deepe
 // Directiveness additions — always active
 // ---------------------------------------------------------------------------
 
+// Naming convention: in code this dimension is always "directiveness"; every
+// user-facing surface (and the prompt text the model sees) calls it the
+// guidance level. Bare "guidance" in code/comments means facilitation content
+// (phase guidance, custom instructions), not this dimension.
 export const DIRECTIVENESS_ADDITIONS: Record<number, string> = {
     0: `Be extremely non-directive. Only reflect back what is shared.
 Ask "What's here?" or "What do you notice?" and nothing more specific.

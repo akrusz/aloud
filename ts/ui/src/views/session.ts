@@ -71,7 +71,15 @@ import { isCheckinDebugOn } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
-import { type SessionSetup, dirStepToBackend, ALL_PROVIDERS } from '../settings.js';
+import {
+    type SessionSetup,
+    dirStepToBackend,
+    ALL_PROVIDERS,
+    GUIDANCE_LEVEL_LABELS,
+    VERBOSITY_LABELS,
+    FOCUS_LABELS,
+    QUALITY_LABELS,
+} from '../settings.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
@@ -393,19 +401,42 @@ export async function mountSessionView(
         // subscription (claude_proxy) returns the whole turn at once, so there's
         // a longer silent wait before it speaks.
         const streams = typeof (provider as { completeStream?: unknown }).completeStream === 'function';
-        return [
+        // Focus/vibe rows only appear when the mode composes them into the
+        // prompt (felt sense defines its own attention and tone). Guidance
+        // always shows: even in staged modes it biases smart check-in timing.
+        const rows: SessionInfoRow[] = [
             {
                 label: 'Model',
                 value: modelLabel,
                 ...(isSlowModel(activeModel) ? { note: SLOW_MODEL_NOTE } : {}),
             },
             { label: 'Mode', value: mode.label },
+        ];
+        if (mode.composes?.focuses !== false) {
+            rows.push({
+                label: 'Focus',
+                value:
+                    setup.focuses.length > 0
+                        ? setup.focuses.map((f) => FOCUS_LABELS[f]).join(', ')
+                        : FOCUS_LABELS.open_awareness,
+            });
+        }
+        if (mode.composes?.qualities !== false && setup.qualities.length > 0) {
+            rows.push({
+                label: 'Vibe',
+                value: setup.qualities.map((q) => QUALITY_LABELS[q]).join(', '),
+            });
+        }
+        rows.push(
+            { label: 'Guidance', value: GUIDANCE_LEVEL_LABELS[setup.dirStep] ?? 'Balanced' },
+            { label: 'Response length', value: VERBOSITY_LABELS[setup.verbosity] },
             { label: 'Source', value: providerLabel },
             {
-                label: 'Response',
+                label: 'Delivery',
                 value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
-            },
-        ];
+            }
+        );
+        return rows;
     }
     const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows, 'Session', [
         { label: 'Report a bug', onClick: () => void openBugReport() },

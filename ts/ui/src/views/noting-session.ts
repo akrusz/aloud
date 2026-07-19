@@ -146,7 +146,7 @@ export async function mountNotingSessionView(
             { label: 'Circle', value: `${participants.length} participant${participants.length === 1 ? '' : 's'}` },
             { label: 'Source', value: providerLabel },
             {
-                label: 'Response',
+                label: 'Delivery',
                 value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
             },
         ];
