@@ -555,6 +555,15 @@ export async function mountSetupView(
             updatePresetHighlights();
         });
 
+        // Felt-sense check-in pace — same stops as the guidance slider, its
+        // own stored value (timing only; see SessionSetup.feltSensePaceStep).
+        const paceSlider = root.querySelector<HTMLInputElement>('#checkin-pace')!;
+        paceSlider.value = String(setup.feltSensePaceStep);
+        paceSlider.addEventListener('input', () => {
+            setup.feltSensePaceStep = Number(paceSlider.value);
+            persist();
+        });
+
         // Verbosity
         const verbositySel = root.querySelector<HTMLSelectElement>('#verbosity')!;
         verbositySel.value = setup.verbosity;
@@ -929,16 +938,10 @@ export async function mountSetupView(
         if (exploration) exploration.classList.toggle('hidden', active !== 'exploration');
         if (noting) noting.classList.toggle('hidden', active !== 'noting');
         if (feltSense) feltSense.classList.toggle('hidden', active !== 'felt_sense');
-        // Felt sense lays the controls out two-and-two: Voice + Speech
-        // Recognition in the panel row, Provider + Model on the shared row
-        // below. The STT group is one DOM node re-parented between the rows,
-        // so its select keeps its wiring, options, and value either way.
-        const sttGroup = root.querySelector<HTMLElement>('#setup-stt-group');
-        const feltVoiceRow = root.querySelector<HTMLElement>('#felt-sense-voice-row');
-        const sharedRow = root.querySelector<HTMLElement>('#ai-shared-row');
-        if (sttGroup && feltVoiceRow && sharedRow) {
-            (active === 'felt_sense' ? feltVoiceRow : sharedRow).appendChild(sttGroup);
-        }
+        // Felt sense matches the other tabs' layout: Check-In Pace + Voice in
+        // the panel row, Provider + Model + Speech Recognition on the shared
+        // row below. (It used to re-parent the STT group into the panel row
+        // when Voice sat there alone; the pace slider fills that slot now.)
     }
 
     /**
@@ -1037,7 +1040,7 @@ export async function mountSetupView(
                         <div class="participant-field participant-reactive-field${p.type === 'llm' ? '' : ' hidden'}">
                             <label>Responsiveness</label>
                             <div class="reactive-slider-wrap">
-                                <input type="range" class="participant-reactive" min="0" max="2" value="${reactiveIdx}" step="1">
+                                <input type="range" class="participant-reactive slider-stops" min="0" max="2" value="${reactiveIdx}" step="1">
                                 <span class="reactive-label">${REACTIVE_LABELS[reactiveIdx]}</span>
                             </div>
                         </div>
@@ -1482,7 +1485,7 @@ function renderSetupHTML(
                         <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
                         <p>If the <strong>Check-In Timing</strong> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
                     </div>
-                    <input type="range" id="directiveness" min="0" max="${dirTickCount}" step="1" value="1">
+                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
                     <div class="range-labels">
                         <span>Following</span>
                         <span>Directing</span>
@@ -1537,6 +1540,18 @@ function renderSetupHTML(
 
             <div class="form-row form-row-thirds" id="felt-sense-voice-row">
                 <div class="form-group">
+                    <label for="checkin-pace">Check-In Pace <button type="button" class="info-btn" data-info="checkin-pace" aria-label="About check-in pace">?</button></label>
+                    <div class="info-panel hidden" id="info-checkin-pace">
+                        <p>How present the facilitator is during your silences. It never changes how the practice itself is guided - the felt-sense process always leads.</p>
+                        <p>If the <strong>Check-In Timing</strong> setting is set to Smart, Patient waits ~20 minutes before a gentle check-in; Attentive checks in within a minute.</p>
+                    </div>
+                    <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
+                    <div class="range-labels">
+                        <span>Patient</span>
+                        <span>Attentive</span>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label>Voice</label>
                     <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
                     <div class="no-voices-banner inline hidden" role="alert">
@@ -1548,7 +1563,7 @@ function renderSetupHTML(
 
         <div class="form-row form-row-thirds" id="ai-shared-row">
             <div class="form-group" id="ai-provider-group">
-                <label for="provider">Provider</label>
+                <label for="provider">AI Provider</label>
                 <select id="provider">
                     ${ALL_PROVIDERS.filter((p) => isProviderAvailable(p, capabilitiesSync(), byokOpts))
                         .map(

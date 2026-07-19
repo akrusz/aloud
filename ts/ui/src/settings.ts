@@ -149,6 +149,13 @@ export interface SessionSetup {
     qualities: Quality[];
     /** UI slider value 0-4. Map via DIRECTIVENESS_VALUES below. */
     dirStep: number;
+    /**
+     * Felt sense's "Check-in pace" slider value 0-4, kept separate from
+     * dirStep: same five stops and backend mapping, but it drives ONLY
+     * smart check-in timing (patient <-> attentive), never facilitation
+     * directiveness — the felt-sense protocol owns that.
+     */
+    feltSensePaceStep: number;
     verbosity: Verbosity;
     customInstructions: string;
     provider: Provider;
@@ -223,6 +230,17 @@ export const GUIDANCE_LEVEL_LABELS: readonly string[] = [
     'Directing',
 ];
 
+/** Display names for the five felt-sense check-in pace stops (indexed by
+ *  feltSensePaceStep). Same wait mapping as the guidance stops (20m → 30s),
+ *  different framing: presence during silence, not directiveness. */
+export const CHECKIN_PACE_LABELS: readonly string[] = [
+    'Very patient',
+    'Patient',
+    'Moderate',
+    'Attentive',
+    'Very attentive',
+];
+
 export const VERBOSITY_LABELS: Readonly<Record<Verbosity, string>> = {
     low: 'Brief',
     medium: 'Medium',
@@ -258,6 +276,7 @@ export const defaultSetup: SessionSetup = {
     focuses: ['body_sensations', 'emotions'],
     qualities: ['playful', 'feeling_good'],
     dirStep: 1,
+    feltSensePaceStep: 1,
     verbosity: 'medium',
     customInstructions: '',
     provider: 'ollama',

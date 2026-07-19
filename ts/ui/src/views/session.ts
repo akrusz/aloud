@@ -31,6 +31,7 @@ import type { SessionState } from '../../../src/facilitation/session.js';
 import {
     AnthropicProvider,
     OllamaProvider,
+    contextLengthForRam,
     OpenAIProvider,
     OpenRouterProvider,
     VeniceProvider,
@@ -76,6 +77,7 @@ import {
     dirStepToBackend,
     ALL_PROVIDERS,
     GUIDANCE_LEVEL_LABELS,
+    CHECKIN_PACE_LABELS,
     VERBOSITY_LABELS,
     FOCUS_LABELS,
     QUALITY_LABELS,
@@ -97,7 +99,7 @@ import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isTauri, isSingleOwnerMicPlatform } from '../is-desktop.js';
+import { isTauri, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { appUrl } from '../app-base.js';
 import {
@@ -139,7 +141,13 @@ export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
             return new CloudLlmProvider({ provider: sub as CloudProviderId, model });
         }
         case 'ollama':
-            return new OllamaProvider({ baseUrl: OLLAMA_PROXY_URL, ...modelOpt });
+            return new OllamaProvider({
+                baseUrl: OLLAMA_PROXY_URL,
+                // Down-clamp the context window on low-RAM machines (the
+                // system-info probe has run by the time a session starts).
+                contextLength: contextLengthForRam(systemRamGb()),
+                ...modelOpt,
+            });
         case 'anthropic': {
             // Anthropic blocks browser-origin requests (no CORS), so we always
             // go through the app backend's proxy, forwarding the user's BYOK
@@ -264,7 +272,13 @@ export async function mountSessionView(
     // timing rides on the system prompt (the [WAIT:Nm] fragment). Also feeds
     // the pacing config below, so tuned values affect the running session.
     const appSettings = await loadAppSettings();
-    const directiveness = dirStepToBackend(setup.dirStep);
+    // In checkinPaceSlider modes (felt sense) the guidance slider is hidden
+    // and directiveness doesn't compose; the "Check-in pace" slider stands in
+    // for it, driving only timing (the [WAIT] bias, the pacing seed, and
+    // whether check-ins may be substantive).
+    const directiveness = mode.checkinPaceSlider
+        ? dirStepToBackend(setup.feltSensePaceStep)
+        : dirStepToBackend(setup.dirStep);
     const builder = new PromptBuilder({
         config: {
             focuses: setup.focuses,
@@ -369,8 +383,10 @@ export async function mountSessionView(
     };
     const pacing = new PacingController({ config: pacingConfig });
     pacing.startSession();
-    // Smart timing: until the model's first [WAIT], the guidance level sets
-    // the wait (20/8/5/2/1 min across the slider stops).
+    // Smart timing: until the model's first [WAIT], the slider sets the wait
+    // (20/8/5/2/1 min across the stops) — the guidance level, or in
+    // checkinPaceSlider modes the check-in pace (already folded into
+    // `directiveness` above).
     if (appSettings.checkinTiming === 'smart') {
         pacing.setCheckinInterval(defaultWaitSeconds(directiveness));
     }
@@ -401,9 +417,9 @@ export async function mountSessionView(
         // subscription (claude_proxy) returns the whole turn at once, so there's
         // a longer silent wait before it speaks.
         const streams = typeof (provider as { completeStream?: unknown }).completeStream === 'function';
-        // Focus/vibe rows only appear when the mode composes them into the
-        // prompt (felt sense defines its own attention and tone). Guidance
-        // always shows: even in staged modes it biases smart check-in timing.
+        // Dimension rows only appear when the mode composes them into the
+        // prompt (felt sense defines its own attention, tone, guidance, and
+        // brevity — and carries its own check-in timing default).
         const rows: SessionInfoRow[] = [
             {
                 label: 'Model',
@@ -427,9 +443,18 @@ export async function mountSessionView(
                 value: setup.qualities.map((q) => QUALITY_LABELS[q]).join(', '),
             });
         }
+        if (mode.composes?.directiveness !== false) {
+            rows.push({ label: 'Guidance', value: GUIDANCE_LEVEL_LABELS[setup.dirStep] ?? 'Balanced' });
+        } else if (mode.checkinPaceSlider) {
+            rows.push({
+                label: 'Check-in pace',
+                value: CHECKIN_PACE_LABELS[setup.feltSensePaceStep] ?? 'Patient',
+            });
+        }
+        if (mode.composes?.verbosity !== false) {
+            rows.push({ label: 'Response length', value: VERBOSITY_LABELS[setup.verbosity] });
+        }
         rows.push(
-            { label: 'Guidance', value: GUIDANCE_LEVEL_LABELS[setup.dirStep] ?? 'Balanced' },
-            { label: 'Response length', value: VERBOSITY_LABELS[setup.verbosity] },
             { label: 'Source', value: providerLabel },
             {
                 label: 'Delivery',
@@ -2123,7 +2148,13 @@ export async function mountSessionView(
             const eventText = buildSmartCheckinEvent(
                 pacing.getSilenceDuration(),
                 smartCheckinStreak,
-                { withWaitHint: smartTiming, directive: directiveness >= 7 }
+                {
+                    withWaitHint: smartTiming,
+                    // Substantive check-ins at the attentive end of either
+                    // slider. In pace modes the line is generated under the
+                    // mode's own system prompt, so it stays in-stance.
+                    directive: directiveness >= 7,
+                }
             );
             debugLog(
                 `event #${smartCheckinStreak} sent (silence ${Math.round(pacing.getSilenceDuration())}s)`

@@ -1449,7 +1449,7 @@ function renderProviderSection(s: AppSettings): string {
 
         <div class="form-row provider-row">
             <div class="form-group form-group-half">
-                <label for="s-provider">Default Provider</label>
+                <label for="s-provider">Default AI Provider</label>
                 <select id="s-provider" name="provider">${providerOptions}</select>
             </div>
             <div class="form-group form-group-half">

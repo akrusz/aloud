@@ -832,6 +832,41 @@ input[type="range"]::-moz-range-thumb {
     border: 2px solid var(--bg-primary);
 }
 
+/* Tick dots for range inputs that snap to a few fixed stops (guidance,
+   check-in pace, participant reactivity). One repeating gradient tile per
+   interval, with a half-dot painted at EACH tile edge: the halves from
+   adjacent tiles meet at every seam to form full dots exactly at the snap
+   positions, inset by half the thumb width so each dot sits under the
+   thumb's center at that stop. --slider-segs = stops - 1. */
+input[type="range"].slider-stops {
+    --slider-segs: 4;
+    --slider-thumb: 18px;
+    --slider-dot: color-mix(in srgb, var(--text-muted) 55%, transparent);
+    background-image:
+        radial-gradient(circle at 0 50%, var(--slider-dot) 2.5px, transparent 3px),
+        radial-gradient(circle at 100% 50%, var(--slider-dot) 2.5px, transparent 3px);
+    background-size: calc((100% - var(--slider-thumb)) / var(--slider-segs)) 100%;
+    background-position: calc(var(--slider-thumb) / 2) 50%;
+    background-repeat: repeat-x;
+}
+.reactive-slider-wrap input[type="range"].slider-stops {
+    --slider-segs: 2;
+}
+
+/* A slider cluster (label, track, end captions) reads as one control —
+   show the finger across all of it, not just the 12px track. The label
+   needs its own rule: the UA stylesheet gives <label> cursor: default,
+   which beats the inherited value. Opened info panels are reading
+   material, not a control, so they keep the normal cursor. */
+.form-group:has(> input[type="range"]),
+.form-group:has(> input[type="range"]) > label,
+.reactive-slider-wrap {
+    cursor: pointer;
+}
+.form-group:has(> input[type="range"]) .info-panel {
+    cursor: auto;
+}
+
 .range-value {
     display: inline-flex;
     align-items: center;
@@ -4602,6 +4637,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     input[type="range"]::-moz-range-thumb {
         width: 24px;
         height: 24px;
+    }
+    /* Keep the stop dots under the bigger thumb's center. */
+    input[type="range"].slider-stops {
+        --slider-thumb: 24px;
     }
 
     /* iOS Safari auto-zooms when focusing inputs with font-size < 16px.
