@@ -126,6 +126,73 @@ describe('scrubControlTokens', () => {
             'It felt like [something] shifted.'
         );
     });
+
+    it('drops tag-shaped leftovers the model invented', () => {
+        expect(scrubControlTokens('[PAUSE] Let it settle.')).toBe('Let it settle.');
+        expect(scrubControlTokens('Rest here. <SILENCE>')).toBe('Rest here.');
+    });
+
+    it('never strands the decoration a removed token was wrapped in', () => {
+        expect(scrubControlTokens('([NEXT]) Move on now.')).toBe('Move on now.');
+        expect(scrubControlTokens('**[HOLD]** Bolded.')).toBe('Bolded.');
+        expect(scrubControlTokens('[[HOLD]] Doubled.')).toBe('Doubled.');
+        expect(scrubControlTokens('- [HOLD] Bulleted.')).toBe('Bulleted.');
+        expect(scrubControlTokens('[HOLD]: Colon after.')).toBe('Colon after.');
+    });
+});
+
+// Models render the tokens imperfectly. Each near-miss costs twice: the signal
+// is not honored AND the token gets spoken, so both halves are asserted.
+describe('parseTurnSignals on mangled tokens', () => {
+    const cases: Array<[string, string]> = [
+        ['[ HOLD ] Inner spaces.', 'Inner spaces.'],
+        ['[HOLD Missing close.', 'Missing close.'],
+        ['HOLD] Missing open.', 'Missing open.'],
+        ['<HOLD> Angle brackets.', 'Angle brackets.'],
+        ['{HOLD} Braces.', 'Braces.'],
+        ['(HOLD) All-caps parens.', 'All-caps parens.'],
+        ['**[HOLD]** Bolded.', 'Bolded.'],
+        ['"[HOLD]" Quoted.', 'Quoted.'],
+        ['[[HOLD]] Doubled.', 'Doubled.'],
+    ];
+    it.each(cases)('honors and strips %j', (raw, clean) => {
+        const r = parseTurnSignals(raw);
+        expect(r.hold).toBe(true);
+        expect(r.cleanText).toBe(clean);
+    });
+
+    it('accepts a mangled stage token', () => {
+        expect(parseTurnSignals('([NEXT]) Move on now.').stage).toBe('advance');
+        expect(parseTurnSignals('[ BACK ] Set it down again.').stage).toBe('back');
+    });
+
+    it('swallows a malformed [WAIT] rather than speaking it', () => {
+        for (const raw of ['[WAIT] Bare wait.', '[WAIT:] Empty wait.']) {
+            const r = parseTurnSignals(raw);
+            expect(r.waitSec).toBeNull();
+            expect(r.cleanText).not.toMatch(/[[\]<>]/);
+        }
+    });
+
+    // The other half of being loose: ordinary facilitation language that merely
+    // contains a token word must survive intact. Lowercase "(hold)" is the one
+    // that forces the paren form to stay case-sensitive.
+    it.each([
+        'Back to the breath whenever you are ready.',
+        'Hold that for a moment.',
+        'Gently (hold) the breath there.',
+        "What's next for you?",
+        'Pass no judgment on what arises.',
+        'Wait: what is here right now?',
+        'It felt like [something] shifted.',
+    ])('leaves %j untouched', (line) => {
+        expect(parseTurnSignals(line)).toEqual({
+            hold: false,
+            stage: 'none',
+            waitSec: null,
+            cleanText: line,
+        });
+    });
 });
 
 const TINY_STAGED: ModeSpec = {

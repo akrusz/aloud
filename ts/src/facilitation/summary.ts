@@ -48,11 +48,11 @@ const SUMMARY_SYSTEM_PROMPT =
  */
 const SUMMARY_USER_PROMPT =
     'The meditation session above has ended. Step out of the facilitator role ' +
-    'for a moment — you are not speaking to the meditator now, and this is not ' +
+    'for a moment. You are not speaking to the meditator now, and this is not ' +
     "part of the session. Write a brief recap for the meditator's history log: " +
     'what was explored, where it landed, and any thread left open to pick up ' +
     'later. 2-3 sentences (about 40-60 words), a neutral note to self. Output ' +
-    'only the recap, nothing else — no questions, no facilitation.';
+    'only the recap, nothing else: no questions, no facilitation.';
 
 /**
  * Don't spend an LLM call recapping a session that barely started; asking anyway

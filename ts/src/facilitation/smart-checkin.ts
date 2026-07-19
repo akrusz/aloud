@@ -68,7 +68,7 @@ export function buildSmartCheckinEvent(
             ? ` You have checked in ${checkinIndex - 1} time${checkinIndex > 2 ? 's' : ''} already with no reply.`
             : '';
     const ask = opts.directive
-        ? 'If a word would support their practice right now, offer it — an observation, a suggestion, or a possible next step, in a sentence or two.'
+        ? 'If a word would support their practice right now, offer it: an observation, a suggestion, or a possible next step, in a sentence or two.'
         : 'If a brief word would support their practice right now, reply with one short sentence.';
     const waitHint = opts.withWaitHint
         ? ' Either way you may prefix [WAIT:Nm] to set when the next check-in may happen.'

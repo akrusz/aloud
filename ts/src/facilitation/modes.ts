@@ -82,7 +82,8 @@ export interface ModeSpec {
 
 export type StageSignal = 'advance' | 'back' | 'none';
 
-/** Literal tokens the LLM prefixes to a reply to move through the arc. */
+/** Literal tokens the LLM prefixes to a reply to move through the arc. What the
+ *  prompts ask for; the parser below also accepts sloppier renderings. */
 export const NEXT_PREFIX = '[NEXT]';
 export const BACK_PREFIX = '[BACK]';
 
@@ -91,9 +92,52 @@ export const BACK_PREFIX = '[BACK]';
  *  check-in may fire. */
 export const WAIT_PREFIX = '[WAIT:';
 
-// [WAIT:12m] / [WAIT:90s] / bare [WAIT:12] (minutes). Anchored: leading tokens
-// only, like the other signals.
-const WAIT_TOKEN_RE = /^\[WAIT:\s*(\d+)\s*(M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?\s*\]/i;
+// --- Token grammar ---------------------------------------------------------
+//
+// Models render control tokens imperfectly, and every near-miss has two costs:
+// the signal isn't honored, AND the token gets spoken. So the grammar is
+// deliberately loose about presentation while staying strict about which words
+// count as tokens.
+//
+// Tolerated: inner whitespace ("[ HOLD ]"), angle brackets from models that
+// default to XML-ish tags ("<HOLD>"), and a wrapping layer of markdown, quotes,
+// or redundant brackets ("**[HOLD]**", "([NEXT])", "[[HOLD]]"). The wrapper is
+// consumed WITH the token, so stripping never leaves an orphan "( )" or "** **"
+// behind to be read aloud.
+//
+// Not tolerated: bare words. "(hold)" and a reply opening "Back to the breath"
+// are ordinary facilitation language, so a token always needs a bracket.
+
+/** Markdown emphasis, quotes, or a redundant bracket layer around a token. */
+const WRAP_OPEN = String.raw`[*_"'“‘([{]*\s*`;
+const WRAP_CLOSE = String.raw`\s*[*_"'”’)\]}]*`;
+/** The token's own delimiters. `[` is what we ask for; `<` and `{` are the
+ *  common slips. Parens are handled separately (PAREN_*), case-sensitively. */
+const DELIM_OPEN = String.raw`[[<{]\s*`;
+const DELIM_CLOSE = String.raw`\s*[\]>}]`;
+
+const NAMED_BODY = String.raw`HOLD|NEXT|BACK|PASS`;
+const WAIT_BODY = String.raw`WAIT\s*:\s*(\d+)\s*(M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?`;
+
+const WAIT_TOKEN_RE = new RegExp(
+    `^${WRAP_OPEN}${DELIM_OPEN}(?:${WAIT_BODY})${DELIM_CLOSE}${WRAP_CLOSE}`,
+    'i'
+);
+const NAMED_TOKEN_RE = new RegExp(
+    `^${WRAP_OPEN}${DELIM_OPEN}(${NAMED_BODY})${DELIM_CLOSE}${WRAP_CLOSE}`,
+    'i'
+);
+/** A leading token missing one delimiter ("[HOLD Take your time", "HOLD] ..."):
+ *  honored only at position 0, and only when the word stands alone, so
+ *  "BACKground" and ordinary prose are untouched. */
+const HALF_TOKEN_RE = new RegExp(
+    String.raw`^(?:\[\s*(${NAMED_BODY})(?=[\s.,;:!?]|$)|(${NAMED_BODY})\s*\])`,
+    'i'
+);
+/** Parenthesized tokens, ALL-CAPS only. "(HOLD)" is a mangled token; "(hold)"
+ *  is a facilitator saying hold, so case is the only safe discriminator here. */
+const PAREN_TOKEN_SRC = `${WRAP_OPEN}\\(\\s*(${NAMED_BODY})\\s*\\)${WRAP_CLOSE}`;
+const PAREN_TOKEN_RE = new RegExp(`^${PAREN_TOKEN_SRC}`);
 
 /**
  * Match a leading [WAIT:Nm] token. Returns the interval in seconds (unit
@@ -108,23 +152,47 @@ export function matchWaitToken(text: string): { seconds: number; length: number 
     return { seconds, length: m[0].length };
 }
 
-// Every control token the app knows, wherever it appears: [HOLD]/[NEXT]/[BACK],
-// [PASS] (smart-checkin.ts declines with it), and the [WAIT:Nm] grammar. Used by
+/** Match a leading [HOLD]/[NEXT]/[BACK]/[PASS], however rendered. */
+function matchNamedToken(text: string): { name: string; length: number } | null {
+    const m = NAMED_TOKEN_RE.exec(text) ?? PAREN_TOKEN_RE.exec(text) ?? HALF_TOKEN_RE.exec(text);
+    const name = m && (m[1] ?? m[2]);
+    return name ? { name: name.toUpperCase(), length: m[0].length } : null;
+}
+
+// Every control token the app knows, wherever it appears. Used by
 // scrubControlTokens only; semantic parsing stays anchored.
-const ANY_CONTROL_TOKEN_RE =
-    /\[(?:HOLD|NEXT|BACK|PASS)\]|\[WAIT:\s*\d+\s*(?:M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?\s*\]/gi;
+const ANY_CONTROL_TOKEN_RE = new RegExp(
+    `${WRAP_OPEN}${DELIM_OPEN}(?:${NAMED_BODY}|${WAIT_BODY}|WAIT)${DELIM_CLOSE}${WRAP_CLOSE}`,
+    'gi'
+);
+/** The paren form, scrubbed globally but still ALL-CAPS only (no `i` flag). */
+const ANY_PAREN_TOKEN_RE = new RegExp(PAREN_TOKEN_SRC, 'g');
 
 /**
- * Remove known control tokens ANYWHERE in text about to be spoken. Small models
+ * Anything else shaped like a control token: a bracketed ALL-CAPS word the model
+ * invented ("[PAUSE]", "<SILENCE>", "[WAIT:]"). Never honored, but the user must
+ * never hear or read a tag, so unrecognized ones are dropped too. Requires all
+ * caps, which no ordinary facilitation line uses, so real bracketed prose lives.
+ */
+const TAG_SHAPED_RE = /[*_"']*[[<{]\s*[A-Z][A-Z0-9 _:.-]{0,23}\s*[\]>}][*_"']*/g;
+
+/**
+ * Remove control tokens ANYWHERE in text about to be spoken. Small models
  * misplace them mid-reply ("Sure. [HOLD] Want some quiet?"); a misplaced token
  * is never honored (signals parse leading-only) but would otherwise be read
- * aloud. Unknown bracketed text is left alone.
+ * aloud. Also drops tag-shaped leftovers (TAG_SHAPED_RE) and tidies the
+ * punctuation a removal can strand.
  */
 export function scrubControlTokens(text: string): string {
     return text
         .replace(ANY_CONTROL_TOKEN_RE, ' ')
+        .replace(ANY_PAREN_TOKEN_RE, ' ')
+        .replace(TAG_SHAPED_RE, ' ')
         .replace(/[ \t]{2,}/g, ' ')
         .replace(/ +([,.;:!?])/g, '$1')
+        // Punctuation or a list marker the removal stranded at the front.
+        .replace(/^[\s,.;:!?]+/, '')
+        .replace(/^[-*•]\s+/, '')
         .trim();
 }
 
@@ -152,23 +220,18 @@ export function parseTurnSignals(response: string): TurnSignals {
     let stage: StageSignal = 'none';
     let waitSec: number | null = null;
     for (;;) {
-        const upper = text.toUpperCase();
         const wait = matchWaitToken(text);
         if (wait) {
             if (waitSec === null) waitSec = wait.seconds;
             text = text.slice(wait.length).trimStart();
-        } else if (upper.startsWith(HOLD_PREFIX)) {
-            hold = true;
-            text = text.slice(HOLD_PREFIX.length).trimStart();
-        } else if (upper.startsWith(NEXT_PREFIX)) {
-            if (stage === 'none') stage = 'advance';
-            text = text.slice(NEXT_PREFIX.length).trimStart();
-        } else if (upper.startsWith(BACK_PREFIX)) {
-            if (stage === 'none') stage = 'back';
-            text = text.slice(BACK_PREFIX.length).trimStart();
-        } else {
-            break;
+            continue;
         }
+        const named = matchNamedToken(text);
+        if (!named) break;
+        if (named.name === 'HOLD') hold = true;
+        else if (named.name === 'NEXT') { if (stage === 'none') stage = 'advance'; }
+        else if (named.name === 'BACK') { if (stage === 'none') stage = 'back'; }
+        text = text.slice(named.length).trimStart();
     }
     return { hold, stage, waitSec, cleanText: scrubControlTokens(text) };
 }
@@ -251,17 +314,17 @@ function buildStageSection(spec: ModeSpec, index: number): string {
         .join('\n');
 
     const lines = [
-        'Session arc — this practice moves through stages. The meditator does not see this list; you hold it for them:',
+        'Session arc: this practice moves through stages. The meditator does not see this list; you hold it for them:',
         arc,
         '',
         phase.prompt.trim(),
         '',
-        `Moving between stages — ${NEXT_PREFIX} / ${BACK_PREFIX} signals:`,
+        `Moving between stages, the ${NEXT_PREFIX} / ${BACK_PREFIX} signals:`,
         'You decide movement through the arc with a hidden control token at the very start of your reply (stripped before speech, like [HOLD]):',
     ];
     if (!last) {
         lines.push(
-            `- Start with ${NEXT_PREFIX} when the stage guidance above says this stage's work is complete — shown by the meditator's own words, not by your hopes for them. The rest of that same reply should already be facilitating the next stage, naturally.`
+            `- Start with ${NEXT_PREFIX} when the stage guidance above says this stage's work is complete, shown by the meditator's own words, not by your hopes for them. The rest of that same reply should already be facilitating the next stage, naturally.`
         );
     }
     if (!first) {
