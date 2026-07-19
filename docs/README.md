@@ -83,6 +83,10 @@ source to keep in sync. They're downscaled to 1800px wide and WebP-encoded
       are no longer hosted LLMs per ts/server/src/pricing/providers.ts — Groq stays a
       BYOK/STT option). Still operator decisions if they change: refund stance
       and BYO-key-on-web.
+- [x] provider list re-synced (2026-07-19): Kimi K2 is hosted again via
+      OpenRouter, and the policy now names Novita (the US inference host, Groq
+      as fallback) instead of Moonshot AI, since session content goes to the
+      host, not Moonshot's API.
 - [x] web app "early access / beta" framing dropped (2026-07-19): beta badge
       and early-access wording removed from `index.html`; mobile keeps its
       closed-beta line
