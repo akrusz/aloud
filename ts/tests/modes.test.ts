@@ -3,6 +3,7 @@ import {
     getMode,
     listModes,
     parseTurnSignals,
+    scrubControlTokens,
     StagedModeController,
     EXPLORATION_MODE,
     NOTING_MODE,
@@ -63,10 +64,10 @@ describe('parseTurnSignals', () => {
         expect(r.cleanText).toBe('Quietly now.');
     });
 
-    it('leaves a mid-text [WAIT] alone', () => {
+    it('never honors a mid-text [WAIT], but scrubs it from the spoken text', () => {
         const r = parseTurnSignals('We can [WAIT:5m] later.');
         expect(r.waitSec).toBeNull();
-        expect(r.cleanText).toBe('We can [WAIT:5m] later.');
+        expect(r.cleanText).toBe('We can later.');
     });
 
     it('parses a leading [HOLD] like parseHoldSignal', () => {
@@ -106,10 +107,24 @@ describe('parseTurnSignals', () => {
         expect(r.cleanText).toBe('hm');
     });
 
-    it('ignores tokens that are not leading', () => {
+    it('ignores tokens that are not leading (but scrubs them from speech)', () => {
         const r = parseTurnSignals('We can go [NEXT] later.');
         expect(r.stage).toBe('none');
-        expect(r.cleanText).toBe('We can go [NEXT] later.');
+        expect(r.cleanText).toBe('We can go later.');
+    });
+});
+
+describe('scrubControlTokens', () => {
+    it('removes known tokens anywhere, tidying spacing and punctuation', () => {
+        expect(scrubControlTokens('Sure. [HOLD] Want some quiet?')).toBe('Sure. Want some quiet?');
+        expect(scrubControlTokens('Take a breath [WAIT:10m].')).toBe('Take a breath.');
+        expect(scrubControlTokens('One[NEXT]two [pass] three')).toBe('One two three');
+    });
+
+    it('leaves unknown bracketed text alone', () => {
+        expect(scrubControlTokens('It felt like [something] shifted.')).toBe(
+            'It felt like [something] shifted.'
+        );
     });
 });
 
@@ -200,13 +215,29 @@ describe('PromptBuilder with a mode', () => {
         const prompt = builder.buildSystemPrompt();
         expect(prompt).toContain('felt-sense session');
         expect(prompt).not.toContain(BASE_SYSTEM_PROMPT.slice(0, 60));
-        // None of the user-tunable exploration dimensions compose...
+        // None of the user-tunable exploration dimensions compose — the
+        // protocol defines attention, tone, guidance, and brevity itself —
+        // and the dimensions preamble goes with them.
         expect(prompt).not.toContain('Attention focus');
         expect(prompt).not.toContain('Facilitator vibe');
         expect(prompt).not.toContain('Actively direct the meditation');
+        expect(prompt).not.toContain('Keep responses very brief');
+        expect(prompt).not.toContain('How this session is tuned');
         expect(prompt).not.toContain('SECRET-CUSTOM');
-        // ...but verbosity always does.
-        expect(prompt).toContain('Keep responses very brief');
+    });
+
+    it('a checkinPaceSlider mode maps directiveness to the [WAIT] bias only', () => {
+        expect(FELT_SENSE_MODE.checkinPaceSlider).toBe(true);
+        // The session view feeds the pace value through config.directiveness;
+        // with directiveness not composing, its only effect is the wait bias.
+        const at = (directiveness: number) =>
+            new PromptBuilder({
+                mode: FELT_SENSE_MODE,
+                config: { waitSignal: true, directiveness },
+            }).buildSystemPrompt();
+        expect(at(3)).toContain('[WAIT:8m]');
+        expect(at(10)).toContain('[WAIT:30s]');
+        expect(at(10)).not.toContain('Actively direct the meditation');
     });
 
     it('includes the stage section right after the base prompt', () => {
@@ -241,6 +272,6 @@ describe('PromptBuilder with a mode', () => {
         expect(exploration).toBe(bare);
         expect(bare).toContain('Attention focus');
         expect(bare).toContain('Facilitator vibe');
-        expect(bare).toContain('Additional instructions:\nextra');
+        expect(bare).toContain('Additional instructions from the meditator:\nextra');
     });
 });

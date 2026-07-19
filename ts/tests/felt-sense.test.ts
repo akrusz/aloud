@@ -62,6 +62,7 @@ describe('felt sense mode', () => {
             focuses: false,
             qualities: false,
             directiveness: false,
+            verbosity: false,
             custom: false,
         });
         expect(FELT_SENSE_MODE.openers?.length).toBeGreaterThan(0);

@@ -45,12 +45,14 @@ export interface ModePhase {
  * Which user-tunable prompt dimensions compose into the system prompt.
  * Every field defaults to true (classic exploration behavior); staged modes
  * typically turn everything off because the protocol defines attention,
- * tone, and guidance level itself. Verbosity always composes.
+ * tone, guidance level, and brevity itself. The setup UI hides the controls
+ * for dimensions a mode turns off, so a stale stored value never leaks in.
  */
 export interface ModeComposes {
     focuses?: boolean;
     qualities?: boolean;
     directiveness?: boolean;
+    verbosity?: boolean;
     custom?: boolean;
 }
 
@@ -74,6 +76,12 @@ export interface ModeSpec {
     checkIns?: readonly string[];
     /** Ordered phases — present only for staged modes. */
     phases?: readonly ModePhase[];
+    /** This mode doesn't compose directiveness but still offers the slider
+     *  as a timing-only "Check-in pace" control (patient <-> attentive). The
+     *  session view feeds the pace value through PromptConfig.directiveness,
+     *  whose only remaining effect in such a mode is check-in timing (the
+     *  [WAIT] bias + pacing seed + directive check-ins). */
+    checkinPaceSlider?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,20 +116,44 @@ export function matchWaitToken(text: string): { seconds: number; length: number 
     return { seconds, length: m[0].length };
 }
 
+// Every control token the app knows, wherever it appears: [HOLD]/[NEXT]/
+// [BACK], [PASS] (smart-checkin.ts declines with it), and the [WAIT:Nm]
+// grammar. Used by scrubControlTokens only — semantic parsing stays anchored.
+const ANY_CONTROL_TOKEN_RE =
+    /\[(?:HOLD|NEXT|BACK|PASS)\]|\[WAIT:\s*\d+\s*(?:M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?\s*\]/gi;
+
+/**
+ * Remove known control tokens ANYWHERE in text that is about to be spoken.
+ * Small models misplace tokens mid-reply ("Sure. [HOLD] Want some quiet?");
+ * a misplaced token is never honored — signals are parsed leading-only — but
+ * without this it would be read aloud by TTS. Unknown bracketed text is left
+ * alone: only the app's own token vocabulary is scrubbed.
+ */
+export function scrubControlTokens(text: string): string {
+    return text
+        .replace(ANY_CONTROL_TOKEN_RE, ' ')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/ +([,.;:!?])/g, '$1')
+        .trim();
+}
+
 export interface TurnSignals {
     /** A [HOLD] token was present — enter silence mode (same as parseHoldSignal). */
     hold: boolean;
     stage: StageSignal;
     /** Seconds from a [WAIT:Nm] token, or null when absent. Unclamped. */
     waitSec: number | null;
-    /** Response with all leading control tokens stripped; this is what gets spoken. */
+    /** Response with leading control tokens stripped and any stray mid-text
+     *  ones scrubbed (scrubControlTokens); this is what gets spoken. */
     cleanText: string;
 }
 
 /**
  * Parse the control tokens ([HOLD], [NEXT], [BACK], [WAIT:Nm]) off the start
  * of an LLM reply, in any order and combination. Tokens appearing mid-text
- * are left alone — only a leading run counts, mirroring parseHoldSignal. If
+ * are never honored — only a leading run counts, mirroring parseHoldSignal —
+ * but they are scrubbed from cleanText so a misplaced token is never spoken
+ * (or recorded back into history, where it would re-teach the placement). If
  * the model emits contradictory tokens, the first one wins.
  */
 export function parseTurnSignals(response: string): TurnSignals {
@@ -148,7 +180,7 @@ export function parseTurnSignals(response: string): TurnSignals {
             break;
         }
     }
-    return { hold, stage, waitSec, cleanText: text.trim() };
+    return { hold, stage, waitSec, cleanText: scrubControlTokens(text) };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +312,7 @@ export const NOTING_MODE: ModeSpec = {
     label: 'Noting',
     historyLabel: 'Noting circle',
     basePrompt: NOTING_SYSTEM_PROMPT,
-    composes: { focuses: false, qualities: false, directiveness: false, custom: false },
+    composes: { focuses: false, qualities: false, directiveness: false, verbosity: false, custom: false },
     openers: [NOTING_STATIC_OPENER],
     checkIns: NOTING_CHECK_IN_PROMPTS,
 };

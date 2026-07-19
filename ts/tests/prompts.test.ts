@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
     BASE_SYSTEM_PROMPT,
     CHECK_IN_PROMPTS,
+    DIMENSIONS_PREAMBLE,
     DIRECTIVENESS_ADDITIONS,
     FOCUS_PROMPTS,
     PromptBuilder,
@@ -47,6 +48,16 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         const prompt = builder.buildSystemPrompt();
         expect(prompt).toContain(BASE_SYSTEM_PROMPT);
         expect(prompt).toContain(FOCUS_PROMPTS.open_awareness);
+    });
+
+    it('places the dimensions preamble before the dimension sections', () => {
+        const prompt = new PromptBuilder({
+            config: { focuses: ['body_sensations'], qualities: ['playful'] },
+        }).buildSystemPrompt();
+        expect(prompt).toContain(DIMENSIONS_PREAMBLE);
+        expect(prompt.indexOf(DIMENSIONS_PREAMBLE)).toBeLessThan(
+            prompt.indexOf(FOCUS_PROMPTS.body_sensations)
+        );
     });
 
     it('includes the [WAIT] fragment only when waitSignal is on', () => {
@@ -94,7 +105,7 @@ describe('PromptBuilder.buildSystemPrompt', () => {
             config: { customInstructions: 'do the thing' },
         });
         const prompt = builder.buildSystemPrompt();
-        expect(prompt).toContain('Additional instructions:');
+        expect(prompt).toContain('Additional instructions from the meditator:');
         expect(prompt).toContain('do the thing');
     });
 

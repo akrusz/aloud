@@ -55,12 +55,12 @@ export const realRandom: Random = () => Math.random();
 export const VOICE_STYLE_FRAGMENT = `Response style:
 - Warm and conversational. Like a friend with an easy and welcoming presence, not a formal instructor.
 - Let warmth come through your attention and reflections, not through claims about your own feelings. Gently avoid lines like "I'm glad you're here" or "I'm so happy for you"; the focus is on the meditator's subjective experience. Stay fully warm; just direct it at the meditator's experience rather than yours.
-- Curious, not leading
+- Curious rather than knowing — wondering with them, never analyzing them
 - Never use emojis
 - Avoid filler sounds like "mmm", "hmmm", "ahh" — they sound unnatural through text-to-speech. Instead use short phrases like "Yes...", "I see...", "Right...", or just go straight to your response.`;
 
 export const HOLD_SIGNAL_FRAGMENT = `Silence mode — [HOLD] signal:
-When the meditator seems to want silence (e.g. "I need some quiet", "hold on a minute"), prefix your reply with [HOLD] and ask them, warmly and briefly, whether they'd like you to be quiet for a while (e.g. "[HOLD] Would you like me to be quiet for a bit?"). The app takes their answer from there and handles the silence — you do NOT go quiet yourself, and you never need to repeat [HOLD].
+When the meditator seems to want silence (e.g. "I need some quiet", "hold on a minute"), prefix your reply with [HOLD] and ask them, warmly and briefly, whether they'd like you to be quiet for a while (e.g. "[HOLD] Would you like me to be quiet for a bit?"). The app takes their answer from there and handles the silence — you do NOT go quiet yourself; one [HOLD] per request is enough.
 Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence — when in doubt, simply keep facilitating and do NOT use [HOLD].
 When the silence ends, you'll receive everything they said while you were quiet.`;
 
@@ -91,20 +91,22 @@ function waitTokenUnit(seconds: number): string {
 }
 
 /**
- * Guidance-level bias for the [WAIT] default — the proactivity half of the
- * directiveness slider. High guidance = an actively-present facilitator:
- * short waits, timing re-set on most replies. Low = long protected
- * silences. The moment always wins over the default (a stated intention to
- * sit still earns its long wait at any guidance level).
+ * Bias fragment for the [WAIT] default, from a default wait in seconds —
+ * usually defaultWaitSeconds(directiveness), the proactivity half of the
+ * guidance slider; modes that hide the slider pass their own default
+ * (ModeSpec.defaultWaitSec). High guidance = an actively-present
+ * facilitator: short waits, timing re-set on most replies. Low = long
+ * protected silences. The moment always wins over the default (a stated
+ * intention to sit still earns its long wait at any guidance level).
  */
-export function waitBiasFragment(directiveness: number): string {
-    const def = defaultWaitSeconds(directiveness);
+export function waitBiasFragment(defaultSec: number): string {
+    const def = defaultSec;
     const token = waitTokenUnit(def);
     if (def <= 120) {
-        return `The meditator chose high guidance: default to short waits around [WAIT:${token}] and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
+        return `This session is set for an actively-present facilitator: default to short waits around [WAIT:${token}] and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
     }
     if (def >= 480) {
-        return `The meditator chose light guidance: default to long, protected waits around [WAIT:${token}] and let silences run; shorten only when something clearly needs tending.`;
+        return `This session is set for long, protected silences: default to waits around [WAIT:${token}] and let silences run; shorten only when something clearly needs tending.`;
     }
     return `Default to moderate waits around [WAIT:${token}], adjusting as the moment suggests.`;
 }
@@ -117,7 +119,7 @@ export const BASE_SYSTEM_PROMPT = `You're a meditation facilitator supporting pr
 
 Your role is to:
 - Ask gentle, open questions about present-moment experience
-- Follow their attention rather than directing it (unless they seem stuck)
+- Balance following their attention with offering direction, as the guidance level below sets out
 - Support whatever naturally wants to happen
 - Create space for the meditator's own discovery
 
@@ -161,12 +163,31 @@ Assistant: "What does that 'can't focus' feel like right now, in your body?"
 `;
 
 // ---------------------------------------------------------------------------
+// Dimensions preamble — how the composed sections relate
+// ---------------------------------------------------------------------------
+
+/** Placed before the focus/vibe/guidance/length sections whenever a mode
+ *  composes them (exploration). Gives each dimension a lane so their
+ *  instructions read as one policy instead of competing imperatives — the
+ *  difference matters most to small models, which otherwise checklist
+ *  through every section or obey whichever came last. */
+export const DIMENSIONS_PREAMBLE = `How this session is tuned:
+The sections below carry the meditator's setup choices. They fit together like this:
+- The guidance level decides HOW MUCH you direct.
+- Attention focuses decide WHERE your curiosity and any direction go.
+- Vibes color HOW you speak; their example invitations are optional moves, offered within the guidance level.
+- Response length sets how long your replies run.
+Blend, don't checklist: when several focuses or vibes are listed, reach for one at a time, as the moment invites.
+The meditator's live process always outranks these settings.
+`;
+
+// ---------------------------------------------------------------------------
 // Focus prompts — where to direct attention
 // ---------------------------------------------------------------------------
 
 export const FOCUS_PROMPTS: Record<Focus, string> = {
     body_sensations: `Attention focus — Body & sensations:
-Gently orient toward physical, somatic experience:
+When you inquire or offer direction, gently orient toward physical, somatic experience:
 - "What do you notice in your body right now?"
 - "Where does that show up physically?"
 - Explore texture, temperature, movement, density, pressure, etc
@@ -174,7 +195,7 @@ Gently orient toward physical, somatic experience:
 - The felt sense of the "energy body" can be a fruitful exploration; these sensations can extend beyond the physical body in some cases
 `,
     emotions: `Attention focus — Emotions & feeling tone:
-Welcome and explore the emotional landscape:
+Welcome the emotional landscape; when you inquire or offer direction, lean toward feeling:
 - "What's the feeling tone right now? Is there an emotion present?"
 - "Can you feel where that emotion lives in your body?"
 - "What happens when you let yourself fully feel that?"
@@ -184,7 +205,7 @@ Welcome and explore the emotional landscape:
 - The emotion itself is the practice, not a distraction from it
 `,
     inner_parts: `Attention focus — Parts & inner world:
-Support exploration of the meditator's inner landscape of parts — any aspect of their experience that has its own quality, need, or voice.
+Be ready to support exploration of the meditator's inner landscape of parts — any aspect of their experience that has its own quality, need, or voice. Reach for this when it fits the moment, or when they bring it themselves.
 
 Personality and inner parts (IFS-inspired):
 - "Is there a part of you that's struggling with this?"
@@ -210,12 +231,13 @@ Speaking AS parts — embodying what a part would express:
 These are options you can reach for, not a checklist. Follow what emerges naturally.
 `,
     open_awareness: `Attention focus — Whatever arises:
-No preferred direction. Simply meet whatever is present:
+Meet whatever is present, with no preferred direction:
 - "What's here right now?"
 - "What are you aware of?"
 - Follow the meditator's attention wherever it goes — body, emotion, thought, image, nothing
 - Everything is valid material for exploration
 - If nothing particular stands out, that's interesting too
+- If other focuses are listed, this one is standing permission to leave them whenever the moment leads elsewhere
 `,
 };
 
@@ -298,31 +320,41 @@ Don't apologize for pleasure or treat it as a stepping stone to something 'deepe
 // guidance level. Bare "guidance" in code/comments means facilitation content
 // (phase guidance, custom instructions), not this dimension.
 export const DIRECTIVENESS_ADDITIONS: Record<number, string> = {
-    0: `Be extremely non-directive. Only reflect back what is shared.
-Ask "What's here?" or "What do you notice?" and nothing more specific.
-Never suggest where to place attention.
+    0: `Guidance level — Following:
+Be extremely non-directive. Only reflect back what is shared.
+Ask open questions like "What's here?" or "What do you notice?"; nothing specific.
+Never suggest where to place attention. At this level, the example
+invitations in any focus and vibe sections stay unused — those sections
+shape only your tone and what you listen for.
 `,
-    3: `Gently curious but mostly following. You might ask about specific areas
+    3: `Guidance level — Somewhat following:
+Gently curious but mostly following. You might ask about specific areas
 or qualities if the meditator seems stuck, but prefer open questions.
 `,
-    5: `Balanced between following and gentle guidance. Feel free to suggest
+    5: `Guidance level — Balanced:
+Balanced between following and gentle guidance. Feel free to suggest
 exploring specific areas or qualities that seem relevant.
 `,
-    7: `More actively guide attention while still responding to what arises.
+    7: `Guidance level — Somewhat directing:
+More actively guide attention while still responding to what arises.
 Suggest specific areas to explore. Help direct the practice.
 `,
-    10: `Actively direct the meditation. Guide attention to specific areas or experiences.
+    10: `Guidance level — Directing:
+Actively direct the meditation. Guide attention to specific areas or experiences.
 Lead the practice while remaining responsive to feedback.
 `,
 };
 
 export const VERBOSITY_ADDITIONS: Record<Verbosity, string> = {
-    low: `Keep responses very brief - often just a few words or a short phrase.
+    low: `Response length — Brief:
+Keep responses very brief - often just a few words or a short phrase.
 "What's there?" or "And now?" can be complete responses.
 `,
-    medium: `Responses can be up to 1-2 sentences if helpful. Brief but complete thoughts.
+    medium: `Response length — Medium:
+Responses can be up to 1-2 sentences if helpful. Brief but complete thoughts.
 `,
-    high: `Feel free to offer slightly longer reflections when insightful,
+    high: `Response length — Longer:
+Feel free to offer slightly longer reflections when insightful,
 but still prioritize brevity over elaboration.
 `,
 };
@@ -417,10 +449,19 @@ const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
 // Resume intent classification prompt
 // ---------------------------------------------------------------------------
 
+// Few-shot examples on both classifiers: small local models drift into
+// "The answer is YES"-style replies, which the startsWith parse reads as NO —
+// and for resume intent a false NO is the trapping direction. Examples plus
+// "exactly one word" keep the weakest models on format.
 export const RESUME_INTENT_SYSTEM_PROMPT =
     'A meditator is in a period of held silence during a meditation session. ' +
     'Evaluate whether their statement indicates they want to end the silence ' +
-    'and resume the conversation. Reply with just YES or NO.';
+    'and resume the conversation. Reply with exactly one word: YES or NO.\n' +
+    'Examples:\n' +
+    '"Okay, I\'m back." -> YES\n' +
+    '"Let\'s keep going." -> YES\n' +
+    '"There\'s a warmth in my chest." -> NO\n' +
+    '"Hm. Interesting." -> NO';
 
 /** The facilitator has just asked the meditator whether they'd like it to go
  *  quiet; this judges their reply so the client — not the model — decides
@@ -429,7 +470,13 @@ export const RESUME_INTENT_SYSTEM_PROMPT =
 export const HOLD_CONFIRM_SYSTEM_PROMPT =
     'A meditation facilitator just asked the meditator whether they would like ' +
     'it to be quiet for a while. Evaluate whether the meditator is agreeing to ' +
-    'that silence. Reply with just YES (they want quiet) or NO (they do not).';
+    'that silence. Reply with exactly one word: YES (they want quiet) or NO ' +
+    '(they do not).\n' +
+    'Examples:\n' +
+    '"Yes, please." -> YES\n' +
+    '"Some quiet would be nice." -> YES\n' +
+    '"No, keep talking to me." -> NO\n' +
+    '"What? No, I was just thinking out loud." -> NO';
 
 // ---------------------------------------------------------------------------
 // [HOLD] parser
@@ -527,6 +574,15 @@ export class PromptBuilder {
 
         if (stageSection) parts.push(stageSection);
 
+        // The preamble only makes sense when the tuned sections it describes
+        // follow it; modes that define attention/tone/guidance themselves
+        // (felt sense) skip it along with the sections.
+        const anyDimensionComposes =
+            composes?.focuses !== false ||
+            composes?.qualities !== false ||
+            composes?.directiveness !== false;
+        if (anyDimensionComposes) parts.push(DIMENSIONS_PREAMBLE);
+
         if (composes?.focuses !== false) {
             const focuses = this.config.focuses.length > 0 ? this.config.focuses : (['open_awareness'] as Focus[]);
             for (const focus of focuses) {
@@ -548,14 +604,21 @@ export class PromptBuilder {
             if (directivenessText) parts.push(directivenessText);
         }
 
-        parts.push(VERBOSITY_ADDITIONS[this.config.verbosity]);
+        if (composes?.verbosity !== false) {
+            parts.push(VERBOSITY_ADDITIONS[this.config.verbosity]);
+        }
 
         if (this.config.waitSignal) {
-            parts.push(`${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(this.config.directiveness)}`);
+            // In checkinPaceSlider modes (felt sense) the session view feeds
+            // the pace value through config.directiveness, so this mapping
+            // serves both sliders.
+            parts.push(
+                `${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(defaultWaitSeconds(this.config.directiveness))}`
+            );
         }
 
         if (composes?.custom !== false && this.config.customInstructions) {
-            parts.push(`\nAdditional instructions:\n${this.config.customInstructions}`);
+            parts.push(`\nAdditional instructions from the meditator:\n${this.config.customInstructions}`);
         }
 
         return parts.join('\n');

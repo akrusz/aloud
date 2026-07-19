@@ -49,7 +49,7 @@ How you speak:
 Right distance, always:
 - If something is too big or too close, help them find a little space from it: "Maybe you can sit next to it, rather than in it." Don't push toward or into anything.
 - Reluctance or resistance is met with friendliness — something in them is protecting them, and it belongs too.
-- You do not receive any response while the user is silent. When they're finished speaking, you'll have the opportunity to respond. Much of the work is done in silence; you may invite them to pause, to turn inwards, or to take as much time as they need.
+- While the meditator is silent, nothing reaches you — their words arrive only once they finish speaking. Much of the work is done in silence; you may invite them to pause, to turn inwards, or to take as much time as they need.
 
 ${VOICE_STYLE_FRAGMENT}
 
@@ -180,15 +180,20 @@ export const FELT_SENSE_CHECK_INS: readonly string[] = [
 // Mode spec
 // ---------------------------------------------------------------------------
 
-/** The protocol defines attention, tone, and guidance itself, so none of the
- *  exploration dimensions compose; verbosity still applies (always does). */
+/** The protocol defines attention, tone, guidance, and brevity itself, so
+ *  none of the exploration dimensions compose (the setup UI hides those
+ *  controls in this mode). Check-in timing is the one knob that survives:
+ *  the "Check-in pace" slider (SessionSetup.feltSensePaceStep) reuses the
+ *  guidance stops for timing only — patient by default, since in this
+ *  practice a long silence usually means it's working. */
 export const FELT_SENSE_MODE: ModeSpec = {
     id: 'felt_sense',
     label: 'Felt Sense',
     basePrompt: FELT_SENSE_SYSTEM_PROMPT,
-    composes: { focuses: false, qualities: false, directiveness: false, custom: false },
+    composes: { focuses: false, qualities: false, directiveness: false, verbosity: false, custom: false },
     openers: FELT_SENSE_OPENERS,
     openerPrompt: FELT_SENSE_OPENER_PROMPT,
     checkIns: FELT_SENSE_CHECK_INS,
     phases: FELT_SENSE_PHASES,
+    checkinPaceSlider: true,
 };

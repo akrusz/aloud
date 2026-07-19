@@ -22,7 +22,7 @@
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import type { LlmUsage } from './session.js';
-import { matchWaitToken } from './modes.js';
+import { matchWaitToken, scrubControlTokens } from './modes.js';
 import { HOLD_PREFIX } from './prompts.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
@@ -99,7 +99,10 @@ export type SmartCheckinReply =
  * stripped: [PASS] and [HOLD] both mean "stay quiet" (entering real silence
  * mode needs the user's confirmation, which a check-in can't get), a
  * [WAIT:Nm] reschedules the next check-in (smart timing), and stray
- * [NEXT]/[BACK] and the like are ignored rather than spoken.
+ * [NEXT]/[BACK] and the like are ignored rather than spoken. Known tokens
+ * misplaced mid-text are scrubbed before speaking, and a bare unbracketed
+ * "pass" — a small model flubbing the [PASS] format — still counts as a
+ * pass rather than being said into the silence.
  */
 export function parseSmartCheckinReply(raw: string): SmartCheckinReply {
     let text = stripThinkTags(raw).trim();
@@ -118,7 +121,8 @@ export function parseSmartCheckinReply(raw: string): SmartCheckinReply {
         if (token === PASS_PREFIX || token === HOLD_PREFIX) pass = true;
         text = text.slice(token.length).trimStart();
     }
-    if (pass) return { kind: 'pass', waitSec };
+    text = scrubControlTokens(text);
+    if (pass || /^["']?pass[."'!]*$/i.test(text)) return { kind: 'pass', waitSec };
     if (!text) return { kind: 'fallback' };
     if (text.length <= SMART_CHECKIN_MAX_CHARS) return { kind: 'speak', text, waitSec };
     // Too long — salvage the first sentence if it stands alone as a line.

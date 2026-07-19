@@ -228,14 +228,15 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(tts.spoken).toEqual(['Let it unfold.']);
     });
 
-    it('leaves a non-leading [WAIT:Nm] alone', async () => {
+    it('scrubs a non-leading [WAIT:Nm] from speech (never honored, never spoken)', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider(['We can wait [WAIT:5m] style here.']);
         const result = await streamCompletionWithChunkedTts(provider, tts, [
             { role: 'user', content: 'hm' },
         ]);
         await result.ttsDone;
-        expect(tts.spoken).toEqual(['We can wait [WAIT:5m] style here.']);
+        expect(result.text).toBe('We can wait [WAIT:5m] style here.');
+        expect(tts.spoken).toEqual(['We can wait style here.']);
     });
 
     it('strips stage tokens on the non-streaming fallback too', async () => {
@@ -250,15 +251,17 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(tts.spoken).toEqual(['Maybe it can set things down again.']);
     });
 
-    it('leaves non-leading bracket tokens alone (only a leading run counts)', async () => {
+    it('non-leading tokens are not honored, but are scrubbed from speech', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider(['We can go [NEXT] later.']);
         const result = await streamCompletionWithChunkedTts(provider, tts, [
             { role: 'user', content: 'hm' },
         ]);
         await result.ttsDone;
+        // The raw text keeps the token — signal parsing stays leading-only —
+        // and unknown brackets are untouched (scrubControlTokens tests).
         expect(result.text).toBe('We can go [NEXT] later.');
-        expect(tts.spoken).toEqual(['We can go [NEXT] later.']);
+        expect(tts.spoken).toEqual(['We can go later.']);
     });
 
     it('ttsSignal hushes speech but still returns the full reply text', async () => {

@@ -87,6 +87,28 @@ describe('parseSmartCheckinReply', () => {
         expect(parseSmartCheckinReply('[PASS] Silence serves them.')).toEqual({ kind: 'pass', waitSec: null });
     });
 
+    it('passes on a bare unbracketed "pass" (small model flubbing the format)', () => {
+        expect(parseSmartCheckinReply('PASS')).toEqual({ kind: 'pass', waitSec: null });
+        expect(parseSmartCheckinReply('pass.')).toEqual({ kind: 'pass', waitSec: null });
+        expect(parseSmartCheckinReply('"pass"')).toEqual({ kind: 'pass', waitSec: null });
+    });
+
+    it('does not treat a sentence containing "pass" as a pass', () => {
+        expect(parseSmartCheckinReply('Let that pass through you.')).toEqual({
+            kind: 'speak',
+            text: 'Let that pass through you.',
+            waitSec: null,
+        });
+    });
+
+    it('scrubs a misplaced mid-text token from the spoken line', () => {
+        expect(parseSmartCheckinReply('Still here. [HOLD] No rush.')).toEqual({
+            kind: 'speak',
+            text: 'Still here. No rush.',
+            waitSec: null,
+        });
+    });
+
     it('treats [HOLD] as a pass (no unconfirmed silence mode)', () => {
         expect(parseSmartCheckinReply('[HOLD] Staying quiet.')).toEqual({ kind: 'pass', waitSec: null });
     });

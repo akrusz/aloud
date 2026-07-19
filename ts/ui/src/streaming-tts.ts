@@ -26,6 +26,7 @@ import {
     WAIT_PREFIX,
     matchWaitToken,
     parseTurnSignals,
+    scrubControlTokens,
 } from '../../src/facilitation/index.js';
 import type { TtsEngine, TtsOptions } from '../../src/platform/index.js';
 
@@ -157,6 +158,11 @@ export async function streamCompletionWithChunkedTts(
     let finishReason: string | null = null;
 
     function enqueueSpeak(text: string): void {
+        // Safety net for misplaced control tokens: the leading run is handled
+        // by checkControlPrefix, but a small model can drop a token mid-reply
+        // and it would be read aloud. Never honored (signals stay leading-
+        // only) — just never spoken.
+        text = scrubControlTokens(text);
         if (!text.trim() || hushed()) return;
         // Kick synthesis off NOW, concurrent with earlier sentences' playback,
         // so this chunk's audio is (usually) already fetched when its turn to
