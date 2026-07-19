@@ -1,14 +1,12 @@
 /**
- * Model picker — fetches available models per provider from
- * `/app/v1/models/<provider>` and populates a <select>.
+ * Model picker - fetches a provider's models from `/app/v1/models/<provider>`
+ * and populates a <select>. The BYOK key (localStorage) is forwarded as
+ * `x-provider-key` for the backend to query with (OpenRouter needs none,
+ * claude_proxy is static).
  *
- * The provider's API key lives in the UI's BYOK store (localStorage), so it's
- * forwarded as `x-provider-key`; the app backend uses it to query the
- * provider's models endpoint (OpenRouter needs none, claude_proxy is static).
- * When the endpoint returns nothing — no key set, the backend is unreachable,
- * or a provider with no live list — we render NO selector (just a reason), not
- * a free-text box: a model picker should only appear when we can list the
- * provider's currently-accessible models.
+ * When nothing comes back - no key, backend unreachable, or a provider with no
+ * live list - we render a reason, NOT a free-text box: a model picker should
+ * only appear when we can list the provider's currently-accessible models.
  */
 
 import { cloudUrl } from './cloud-base.js';
@@ -24,10 +22,9 @@ function providerNeedsKey(provider: string): boolean {
     return !['aloud', 'ollama', 'claude_proxy'].includes(provider);
 }
 
-/** Friendly display names for the aloud cloud allowlist, so the dropdown reads
- *  "Claude Opus 4.8" rather than the raw "claude-opus-4-8" id. Unknown ids fall
- *  back to a generic prettifier (drop any date stamp, Title-Case the words). The
- *  option VALUE keeps the raw id — only the label changes. */
+/** Display names for the aloud cloud allowlist, so the dropdown reads "Claude
+ *  Opus 4.8" not "claude-opus-4-8". Unknown ids fall back to prettyModelName.
+ *  The option VALUE keeps the raw id; only the label changes. */
 const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-fable-5': 'Claude Fable 5',
     'claude-opus-4-8': 'Claude Opus 4.8',
@@ -54,16 +51,14 @@ export function prettyModelName(model: string): string {
 }
 
 /**
- * Hardcoded, per-model list of "slower" markers. We disable reasoning wherever
- * we can (including for Opus), so most heavier models answer at normal speed —
- * the exception is models whose reasoning is always on and can't be turned off
- * (Fable and its Mythos sibling), which think before every reply and so run
- * slower. (Kimi K2 0711 doesn't reason at all — its K3 successor was dropped
- * from the hosted list for exactly that 7-12s always-on thinking delay.)
- * Matched as a substring against the model id/alias, so one entry
- * covers every variant — works for the cloud "provider/model" values and the
- * bare claude_proxy aliases alike. Purely local (no network) — edit this list
- * to tune which models carry the "may be slower" note.
+ * ⭐ TWEAK ME to change which models carry the "may be slower" note. Purely
+ * local, no network. We disable reasoning wherever possible (Opus included), so
+ * most heavy models answer at normal speed; the exceptions are models whose
+ * reasoning can't be turned off (Fable and its Mythos sibling), which think
+ * before every reply. (Kimi K2 0711 doesn't reason at all; its K3 successor was
+ * dropped from the hosted list over exactly that 7-12s always-on delay.)
+ * Substring-matched against the model id/alias, so one entry covers every
+ * variant - cloud "provider/model" values and bare claude_proxy aliases alike.
  */
 export const SLOW_MODEL_MARKERS: readonly string[] = ['fable', 'mythos'];
 
@@ -73,16 +68,15 @@ export function isSlowModel(value: string): boolean {
 }
 
 /** Shown under the picker (and in the session info panel) when a slow model is
- *  selected. Copy — tune freely. */
+ *  selected. Copy - tune freely. */
 export const SLOW_MODEL_NOTE =
     'This model responds more slowly than others.';
 
 /**
- * The "most similar still-standard" Claude subscription model to fall back to
- * when the selected one can't be served (e.g. Anthropic pulls Fable from the
- * subscription). Fable's nearest peer is Opus; Opus falls to Sonnet; everything
- * else lands on Sonnet, the dependable default. Returns null when the given
- * model IS the safe default (nothing more to fall back to).
+ * The nearest still-standard Claude subscription model, for when the selected
+ * one can't be served (e.g. Anthropic pulls Fable from the subscription). Fable
+ * → Opus, Opus → Sonnet, everything else → Sonnet, the dependable default. Null
+ * when the model IS the safe default.
  */
 export function nearestSubscriptionModel(model: string): string | null {
     const m = model.toLowerCase();
@@ -92,9 +86,9 @@ export function nearestSubscriptionModel(model: string): string | null {
     return 'sonnet';
 }
 
-/** Subscription aliases resolve to "the latest of this family", so we don't
- *  have an exact version to show — label them the same "(latest)" way the
- *  picker does. Mirrors claude_proxy_models() in providers.rs. */
+/** Subscription aliases resolve to "the latest of this family", so there's no
+ *  exact version to show - label them "(latest)" as the picker does. Mirrors
+ *  claude_proxy_models() in providers.rs. */
 const SUBSCRIPTION_ALIAS_NAMES: Record<string, string> = {
     opus: 'Opus (latest)',
     fable: 'Fable (latest)',
@@ -103,10 +97,9 @@ const SUBSCRIPTION_ALIAS_NAMES: Record<string, string> = {
 };
 
 /**
- * A readable name for the model a session is running on, for history + the
- * session info panel. Cloud values are "provider/model" (strip the provider);
- * the subscription (claude_proxy) uses bare aliases resolved to "(latest)".
- * The provider is recorded separately, so this stays just the model name.
+ * Readable model name for history + the session info panel. Cloud values are
+ * "provider/model" (strip the provider); claude_proxy uses bare aliases resolved
+ * to "(latest)". The provider is recorded separately, so this is model only.
  */
 export function sessionModelLabel(provider: string, model: string): string {
     if (!model) return prettyModelName(provider);
@@ -123,10 +116,10 @@ export function sessionModelLabel(provider: string, model: string): string {
 type ProbeStatus = 'available' | 'unavailable' | 'cli_missing' | 'unknown';
 
 /**
- * Ask the desktop shell whether the local Claude subscription can actually
- * serve `model` right now (it runs a tiny cached probe against the `claude`
- * CLI). Only meaningful on desktop for claude_proxy; anywhere else, or on any
- * error, returns 'unknown' so the caller leaves the model shown optimistically.
+ * Ask the desktop shell whether the local Claude subscription can serve `model`
+ * right now (a small cached probe against the `claude` CLI). Meaningful only on
+ * desktop for claude_proxy; anywhere else, or on error, 'unknown' leaves the
+ * model shown optimistically.
  */
 export async function probeClaudeProxyModel(model: string): Promise<ProbeStatus> {
     try {
@@ -142,30 +135,27 @@ export async function probeClaudeProxyModel(model: string): Promise<ProbeStatus>
 interface ModelOption {
     value: string;
     label: string;
-    /** Typical-session credits/hr for a hosted model (from /me/models). Absent
-     *  for free providers (BYOK/local/Ollama). Lets the setup screen sum a
-     *  combined session estimate without re-fetching. */
+    /** Typical-session credits/hr for a hosted model (/me/models), absent for
+     *  free providers. Lets the setup screen sum a session estimate without
+     *  re-fetching. */
     creditsPerHour?: number | null;
-    /** The model to pre-select when the user hasn't chosen one (aloud cloud only,
-     *  from /me/models). At most one option carries it; absent everywhere else. */
+    /** Pre-select when the user hasn't chosen (aloud cloud only, from
+     *  /me/models). At most one option carries it. */
     isDefault?: boolean;
 }
 
 const cache = new Map<string, ModelOption[]>();
 let providerStatusCache: Record<string, { available: boolean; models?: string[] }> | null = null;
 
-/**
- * Fetch model options for a provider. Returns null when the endpoint
- * isn't reachable (e.g. no app backend), so callers can swap in a text input
- * gracefully.
- */
+/** Fetch model options for a provider. Null when the endpoint isn't reachable
+ *  (e.g. no app backend), so callers can render an empty state. */
 export async function fetchModels(provider: string): Promise<ModelOption[] | null> {
     if (cache.has(provider)) return cache.get(provider)!;
 
-    // aloud cloud publishes its allowlisted models (with pricing) at
-    // /v1/me/models — public, no auth. The option value encodes provider/model
-    // so buildProvider can route the turn (model ids may themselves contain a
-    // slash, e.g. openrouter, so the leading segment is the provider).
+    // aloud cloud publishes its allowlisted models with pricing at /v1/me/models
+    // (public, no auth). The value encodes provider/model so buildProvider can
+    // route the turn - model ids can contain slashes themselves (openrouter), so
+    // the LEADING segment is the provider.
     if (provider === 'aloud') {
         try {
             const resp = await fetch(cloudUrl('/me/models'));
@@ -179,8 +169,8 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 }>;
             };
             if (!data.models?.length) return null;
-            // Hosted models cost credits, so append the cloud-rate badge ("N☁️")
-            // to the label — the only provider where the picker shows it.
+            // Hosted models cost credits, so the label carries the cloud-rate
+            // badge ("N☁️") - the only provider where the picker shows it.
             const opts: ModelOption[] = data.models.map((m) => ({
                 value: `${m.provider}/${m.model}`,
                 label: `${prettyModelName(m.model)}${rateSuffix(m.creditsPerHour)}`,
@@ -194,11 +184,10 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
         }
     }
 
-    // Ollama models come from /app/v1/providers (the app backend's aggregated,
-    // curated list). When that backend isn't running (e.g. Vite dev without
-    // the app backend), fall back to probing the Ollama daemon directly via
-    // the /ollama proxy, the same source capabilities.ts trusts, so local
-    // models still populate without the app backend.
+    // Ollama models come from the app backend's curated /app/v1/providers list.
+    // Without that backend (e.g. Vite dev alone), probe the Ollama daemon
+    // directly via the /ollama proxy - the same source capabilities.ts trusts -
+    // so local models still populate.
     if (provider === 'ollama') {
         const status = await fetchProviderStatus();
         const fromBackend = status?.['ollama']?.models ?? [];
@@ -210,8 +199,8 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
     }
 
     try {
-        // Forward the BYOK key so the backend can query the provider; it only
-        // travels to the loopback (desktop) or same-origin (web) backend.
+        // The BYOK key travels only to the loopback (desktop) or same-origin
+        // (web) backend, which uses it to query the provider.
         const key = await getApiKey(provider as Provider);
         const resp = await fetch(appUrl(`/models/${encodeURIComponent(provider)}`), {
             headers: key ? { 'x-provider-key': key } : {},
@@ -243,13 +232,10 @@ async function fetchProviderStatus(): Promise<typeof providerStatusCache | null>
 }
 
 /**
- * Render a <select> of model options for a given provider. When the
- * fetch fails, replace the select with a free-form text input so the
- * user can type a model name anyway.
- *
- * The returned function lets the caller refresh the picker when the
- * provider changes — call refresh(newProvider) and the same DOM slot
- * gets re-populated.
+ * Render a <select> of model options for a provider, or an explanatory empty
+ * state when none can be listed (see renderUnavailable - no free-text fallback).
+ * The returned refresh(provider) re-populates the same DOM slot when the
+ * provider changes.
  */
 export function mountModelPicker(
     container: HTMLElement,
@@ -258,8 +244,8 @@ export function mountModelPicker(
     onChange: (value: string) => void
 ): { refresh: (provider: string) => Promise<void>; getValue: () => string; getRate: () => number } {
     let currentValue = initialValue;
-    // The options currently loaded, so getRate() can map the selected value to
-    // its credits/hr without another fetch.
+    // Loaded options, so getRate() can map the selection to credits/hr without
+    // another fetch.
     let currentModels: ModelOption[] = [];
 
     container.innerHTML = `
@@ -272,8 +258,8 @@ export function mountModelPicker(
         const optionsHTML = models
             .map((m) => `<option value="${attr(m.value)}">${escape(m.label)}</option>`)
             .join('');
-        // Only the hosted ('aloud') models carry the cloud-rate badge, so the
-        // legend explaining it belongs only under that provider's selector.
+        // Only hosted models carry the rate badge, so its legend belongs only
+        // under that provider's selector.
         const legend =
             provider === 'aloud'
                 ? `<p class="credit-rate-legend" title="${attr(RATE_LEGEND_TITLE)}">${escape(RATE_LEGEND)}</p>`
@@ -283,48 +269,42 @@ export function mountModelPicker(
             <p class="model-slow-note hidden" id="model-slow-note">${escape(SLOW_MODEL_NOTE)}</p>`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
         const slowNote = container.querySelector<HTMLElement>('#model-slow-note')!;
-        // The user wants the picker to always show a concrete model name
-        // (no "(provider default)" placeholder), so if the persisted value
-        // doesn't match anything in the list we promote the flagged default
-        // (aloud cloud marks one, e.g. Opus 4.8), falling back to the first
-        // model when none is flagged. Keeps the displayed model honest about
-        // what's actually going to run.
+        // The picker always shows a concrete model name, never a "(provider
+        // default)" placeholder: an unmatched persisted value promotes the
+        // flagged default (aloud cloud marks one), else the first model. Keeps
+        // the displayed model honest about what will actually run.
         const matched = models.find((m) => m.value === currentValue);
         const promoted = matched ?? models.find((m) => m.isDefault) ?? models[0];
         if (promoted) {
             sel.value = promoted.value;
             currentValue = promoted.value;
         }
-        // Unobtrusive heads-up when a reasoning/heavier model is picked — its
-        // replies can lag a quick chat model.
         const updateSlowNote = (): void => {
             slowNote.classList.toggle('hidden', !isSlowModel(currentValue));
         };
         updateSlowNote();
-        // Notify after every (re)load — promoted or matched — so a consumer
-        // (e.g. the setup session-cost estimate) always learns the settled
-        // selection once a provider's models arrive, not only when promoted.
+        // Notify after every (re)load, promoted or matched, so consumers (e.g.
+        // the setup session-cost estimate) always learn the settled selection
+        // once a provider's models arrive.
         onChange(currentValue);
         sel.addEventListener('change', () => {
             currentValue = sel.value;
             updateSlowNote();
             onChange(currentValue);
         });
-        // For the Claude subscription, check whether the local `claude` CLI can
-        // still serve any listed-but-removable model (Fable) — Anthropic has
-        // long hinted at pulling models from subscriptions. Non-blocking: the
-        // dropdown renders immediately; if a probe says "unavailable" we grey
-        // that option out and, if it was the active one, drop to its nearest peer.
+        // Can the local `claude` CLI still serve a listed-but-removable model
+        // (Fable)? Anthropic has long hinted at pulling models from
+        // subscriptions. Non-blocking - the dropdown renders immediately.
         if (provider === 'claude_proxy') {
             void annotateSubscriptionAvailability(sel, updateSlowNote);
         }
     }
 
     /**
-     * Probe removable subscription models (currently just Fable) and reflect the
-     * result in the live <select>: an unavailable model is disabled + relabelled,
-     * and if it was selected we switch to its nearest peer (Fable → Opus) and
-     * notify. Best-effort — an 'unknown' result leaves everything as shown.
+     * Probe removable subscription models (currently just Fable) and reflect it
+     * in the live <select>: an unavailable model is disabled + relabelled, and a
+     * selected one switches to its nearest peer with a notify. Best-effort - an
+     * 'unknown' result leaves everything as shown.
      */
     async function annotateSubscriptionAvailability(
         sel: HTMLSelectElement,
@@ -354,10 +334,9 @@ export function mountModelPicker(
     }
 
     /**
-     * No model list could be fetched. Per product direction, we do NOT fall
-     * back to a free-text box — a model selector only appears when we can list
-     * the provider's currently-accessible models. Show why instead (missing key
-     * vs. unreachable), so the user knows what to fix.
+     * No model list could be fetched. Deliberately no free-text fallback - a
+     * selector only appears when we can list the provider's currently-accessible
+     * models. Show why (missing key vs unreachable) so the user knows what to fix.
      */
     async function renderUnavailable(provider: string): Promise<void> {
         const reason =
@@ -367,12 +346,8 @@ export function mountModelPicker(
         container.innerHTML = `<p class="model-unavailable" id="model-none">${escape(reason)}</p>`;
     }
 
-    /**
-     * Ollama-specific empty state. Unlike BYOK providers — where a hand-typed
-     * model name is the legitimate fallback — typing a model name when no local
-     * model is present is useless: the daemon has nothing to run. So show a
-     * pointer to the Ollama manager below instead of a dead text box.
-     */
+    /** Ollama empty state: naming a model is useless when the daemon has none to
+     *  run, so point at the Ollama manager below. */
     function renderOllamaEmpty(): void {
         container.innerHTML = `
             <p class="ollama-rec-hint" id="model-ollama-empty">
@@ -381,8 +356,8 @@ export function mountModelPicker(
     }
 
     /** aloud cloud scales to zero when idle, so a cold visit may not answer the
-     *  first request(s) while the machine boots. Show a reassuring "waking"
-     *  note rather than an error while we retry. */
+     *  first requests while the machine boots - a "waking" note beats an error
+     *  while we retry. */
     function renderCloudWaking(): void {
         container.innerHTML = `
             <p class="model-cloud-waking" id="model-cloud-waking">
@@ -390,8 +365,8 @@ export function mountModelPicker(
             </p>`;
     }
 
-    /** aloud cloud didn't answer after several retries. Say so plainly and give a
-     *  manual Retry, since it may just be a slow cold start. */
+    /** No answer after several retries. Say so plainly, with a manual Retry -
+     *  it may still be a slow cold start. */
     function renderCloudUnreachable(): void {
         container.innerHTML = `
             <p class="model-unavailable" id="model-cloud-down">
@@ -408,9 +383,8 @@ export function mountModelPicker(
         container.innerHTML = `
             <select disabled><option>Loading models…</option></select>`;
         let models = await fetchModels(provider);
-        // aloud cloud may be cold-starting: Fly boots the machine on the request
-        // and serves once it's up, so a first miss isn't a real failure. Show the
-        // "waking" note and retry a few times with backoff before giving up.
+        // Fly boots the machine on the request and serves once it's up, so a
+        // first miss isn't a real failure. Retry with backoff before giving up.
         if (!models && provider === 'aloud') {
             for (const ms of [1500, 2500, 4000, 6000]) {
                 renderCloudWaking();
@@ -434,8 +408,8 @@ export function mountModelPicker(
     return {
         refresh,
         getValue: () => currentValue,
-        // Credits/hr of the selected hosted model; 0 for free providers (their
-        // options carry no rate). Used to sum the setup session estimate.
+        // Credits/hr of the selected hosted model, 0 for free providers, summed
+        // into the setup session estimate.
         getRate: () => currentModels.find((m) => m.value === currentValue)?.creditsPerHour ?? 0,
     };
 }

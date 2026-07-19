@@ -1,30 +1,29 @@
 /**
- * Native mobile sign-in (Capacitor) — Google + Apple via
+ * Native mobile sign-in (Capacitor): Google + Apple via
  * @capgo/capacitor-social-login (meditation-pal-tpj4).
  *
- * The web GIS button and Apple JS SDK can't run from the app's capacitor://
- * origin (not a valid OAuth JavaScript origin), so inside the native app we
- * use the plugin's native account-picker flows instead. Both providers hand
- * back an OpenID Connect ID token, which we pass straight into the SAME server
- * calls the web/desktop flows use — googleSignIn(idToken) / appleSignIn(idToken)
- * (cloud-auth.ts) — so there's no new server surface; the server just has to
- * accept the native client IDs as token audiences.
+ * The web GIS button and Apple JS SDK can't run from the capacitor:// origin
+ * (not a valid OAuth JavaScript origin), so the native app uses the plugin's
+ * account-picker flows. Both hand back an OIDC ID token, passed into the SAME
+ * server calls the web/desktop flows use (googleSignIn / appleSignIn), so
+ * there's no new server surface; the server just has to accept the native
+ * client IDs as token audiences.
  *
  * Config (build-time, inlined by Vite; see vite-env.d.ts):
- *   - VITE_GOOGLE_IOS_CLIENT_ID  — the iOS OAuth client id (Google Cloud).
- *   - VITE_GOOGLE_CLIENT_ID      — the existing web client id, reused as the
- *                                  plugin's webClientId (Android/token audience).
- *   - VITE_APPLE_CLIENT_ID       — the existing Apple Services ID.
- *   - VITE_APPLE_REDIRECT_URL    — optional; only Android's Apple flow needs it
- *                                  (iOS ignores it). Absent → iOS-only Apple.
+ *   - VITE_GOOGLE_IOS_CLIENT_ID  iOS OAuth client id.
+ *   - VITE_GOOGLE_CLIENT_ID      the web client id, reused as the plugin's
+ *                                webClientId (Android/token audience).
+ *   - VITE_APPLE_CLIENT_ID       the Apple Services ID.
+ *   - VITE_APPLE_REDIRECT_URL    only Android's Apple flow needs it (iOS ignores
+ *                                it). Absent means iOS-only Apple.
  *
- * Everything here is a no-op off Capacitor: the render functions return false
- * when not in the native app or when the provider isn't configured, so callers
- * (sign-in-modal.ts) drop the button and fall back to email. The plugin is
- * lazy-imported so web/desktop bundles don't pull it in.
+ * All a no-op off Capacitor: the render functions return false when not native
+ * or the provider isn't configured, so sign-in-modal.ts drops the button and
+ * falls back to email. The plugin is lazy-imported to keep it out of web/desktop
+ * bundles.
  *
- * App Store note: Guideline 4.8 requires that if the iOS app offers Google
- * sign-in it ALSO offers Apple — so configure both for the iOS store build.
+ * App Store Guideline 4.8: an iOS app offering Google sign-in must ALSO offer
+ * Apple, so configure both for the iOS store build.
  */
 
 import type { SignInHandlers } from './google-signin.js';
@@ -39,9 +38,9 @@ function appleNativeRedirectUrl(): string {
 }
 
 /**
- * Native Google is available when we're in the app and have the client id the
- * platform's flow needs: iOS uses its own iOS OAuth client id; Android uses the
- * web client id. Missing that id → no button (email carries the modal).
+ * Available when we're in the app and hold the client id the platform's flow
+ * needs: iOS its own OAuth client id, Android the web client id. Without it,
+ * no button, and email carries the modal.
  */
 export function isNativeGoogleConfigured(): boolean {
     if (!isCapacitor()) return false;
@@ -49,13 +48,13 @@ export function isNativeGoogleConfigured(): boolean {
 }
 /**
  * Native Apple is available:
- *   - iOS  → ALWAYS. Sign in with Apple is a first-party system capability keyed
- *            to the app's bundle id; it needs no Services ID (that's the web /
- *            Android redirect flow). The server verifies the native token's
- *            `aud` = bundle id (APPLE_CLIENT_IDS must include it). The app must
- *            carry the Sign in with Apple entitlement (App.entitlements).
- *   - Android → only when a Services ID + redirect URL are configured (the
- *            web-style flow); unset for the beta, so Apple is iOS-only there.
+ *   - iOS: ALWAYS. Sign in with Apple is a first-party system capability keyed
+ *     to the bundle id and needs no Services ID (that's the web/Android redirect
+ *     flow). The server verifies the native token's `aud` = bundle id, so
+ *     APPLE_CLIENT_IDS must include it, and the app must carry the Sign in with
+ *     Apple entitlement (App.entitlements).
+ *   - Android: only with a Services ID + redirect URL (the web-style flow),
+ *     unset for the beta, so Apple is iOS-only there.
  */
 export function isNativeAppleConfigured(): boolean {
     if (!isCapacitor()) return false;
@@ -63,7 +62,7 @@ export function isNativeAppleConfigured(): boolean {
     return appleClientId() !== '' && appleNativeRedirectUrl() !== '';
 }
 
-// Lazy plugin load + one-time initialize(). Memoized: the first render/login
+// Lazy plugin load + one-time initialize(), memoized: the first render/login
 // triggers it, later callers await the same promise.
 type SocialLogin = typeof import('@capgo/capacitor-social-login').SocialLogin;
 let initPromise: Promise<SocialLogin> | null = null;
@@ -73,7 +72,7 @@ function ensureInit(): Promise<SocialLogin> {
         const { SocialLogin } = await import('@capgo/capacitor-social-login');
         const options: Parameters<SocialLogin['initialize']>[0] = {};
         // exactOptionalPropertyTypes: build each config with only the keys we
-        // actually have — never assign `undefined` to an optional field.
+        // actually have, never assigning `undefined` to an optional field.
         if (googleIosClientId() || googleClientId()) {
             options.google = {
                 mode: 'online',
@@ -81,10 +80,9 @@ function ensureInit(): Promise<SocialLogin> {
                 ...(googleClientId() ? { webClientId: googleClientId() } : {}),
             };
         }
-        // Enable the Apple provider whenever it's usable here: on iOS always
-        // (system flow off the bundle id — clientId optional), on Android only
-        // when the Services ID + redirect are set. On iOS with no Services ID
-        // that's an empty apple config, which is valid and turns the provider on.
+        // On iOS with no Services ID this is an empty apple config, which is
+        // valid and still turns the provider on (the system flow keys off the
+        // bundle id, so clientId is optional).
         if (isNativeAppleConfigured()) {
             options.apple = {
                 ...(appleClientId() ? { clientId: appleClientId() } : {}),
@@ -105,8 +103,8 @@ function makeButton(label: string, extraClass: string): HTMLButtonElement {
     return btn;
 }
 
-/** Render a native "Continue with Google" button. Returns false (render nothing)
- *  when not applicable, so the caller drops the host element. */
+/** Returns false without rendering when not applicable, so the caller drops the
+ *  host element. */
 export async function renderNativeGoogleSignInButton(
     container: HTMLElement,
     handlers: SignInHandlers
@@ -128,8 +126,8 @@ async function runNativeGoogle(btn: HTMLButtonElement, handlers: SignInHandlers)
             provider: 'google',
             options: { scopes: ['email', 'profile'] },
         });
-        // Online mode returns idToken; the offline branch (serverAuthCode) is
-        // never hit since we initialize with mode:'online'.
+        // Online mode returns idToken; we never hit the offline branch
+        // (serverAuthCode) because we initialize with mode:'online'.
         const idToken = 'idToken' in result ? result.idToken : null;
         if (!idToken) throw new Error('Google sign-in did not return an ID token.');
         handlers.onSignedIn(await googleSignIn(idToken));
@@ -141,8 +139,8 @@ async function runNativeGoogle(btn: HTMLButtonElement, handlers: SignInHandlers)
     }
 }
 
-/** Render a native "Continue with Apple" button. Returns false when not
- *  applicable. Pair with Google on iOS (App Store Guideline 4.8). */
+/** Returns false when not applicable. Pair with Google on iOS (App Store
+ *  Guideline 4.8). */
 export async function renderNativeAppleSignInButton(
     container: HTMLElement,
     handlers: SignInHandlers

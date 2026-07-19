@@ -1,9 +1,7 @@
 /**
- * Session state management and conversation context.
- *
- * Holds the live transcript (exchanges), per-session compute usage tally,
- * and the context-window strategy used to shape LLM prompts. Timestamps
- * are unix seconds; callers format for display themselves.
+ * Session state and conversation context: the live transcript, the compute
+ * usage tally, and the context-window strategy shaping LLM prompts.
+ * Timestamps are unix seconds; callers format for display.
  */
 
 import { realClock, type Clock } from '../clock.js';
@@ -15,13 +13,12 @@ export interface Exchange {
     content: string;
     /** Unix timestamp in seconds. */
     timestamp: number;
-    /** Display name (e.g. participant name in noting circles). */
+    /** Display name, e.g. participant name in noting circles. */
     name?: string;
     /**
-     * LLM usage for assistant turns produced by a completion (omitted
-     * otherwise — user turns and static/fallback facilitator messages).
-     * Input and output are kept SEPARATE (priced very differently); cache
-     * fields are included only when non-zero.
+     * LLM usage, present only on assistant turns from a completion (not user
+     * turns or static/fallback messages). Input and output stay SEPARATE
+     * (priced very differently); cache fields appear only when non-zero.
      */
     tokensIn?: number;
     tokensOut?: number;
@@ -30,11 +27,10 @@ export interface Exchange {
 }
 
 /**
- * Running tally of compute consumed by a session. Three legs mirror the
- * metered-billing model (LLM tokens + STT seconds + TTS chars). `llmCalls`
- * counts every completion, including off-transcript ones (summary,
- * resume-intent, noting labels), so totals here can exceed the sum of
- * per-exchange token counts.
+ * Running tally of compute consumed by a session. The three legs mirror the
+ * metered-billing model (LLM tokens, STT seconds, TTS chars). `llmCalls` counts
+ * every completion including off-transcript ones (summary, resume-intent,
+ * noting labels), so totals can exceed the sum of per-exchange token counts.
  */
 export interface SessionUsage {
     llmCalls: number;
@@ -52,8 +48,8 @@ export interface LlmUsage {
     tokensOut?: number | null;
     cacheRead?: number | null;
     cacheCreation?: number | null;
-    /** Subset of cacheCreation written at the 1h TTL (priced at 2x input vs the
-     *  5m default's 1.25x). Null/absent when the turn used no 1h breakpoint. */
+    /** Subset of cacheCreation written at the 1h TTL (2x input vs the 5m
+     *  default's 1.25x). Absent when the turn used no 1h breakpoint. */
     cacheCreation1h?: number | null;
 }
 
@@ -79,31 +75,27 @@ export interface SessionState {
     tags: string[];
     notes: string;
     /**
-     * Which meditation flow produced this session — a ModeSpec id from
-     * modes.ts ('exploration', 'noting', 'felt_sense', ...). Deliberately a
+     * A ModeSpec id from modes.ts ('exploration', 'noting', 'felt_sense'). A
      * plain string so saved sessions survive modes coming and going across
-     * releases. Optional for backward compatibility with sessions saved
-     * before this field existed; the history view falls back to inferring
-     * it from legacy `notes`.
+     * releases. Optional for sessions saved before this field existed; the
+     * history view falls back to inferring it from legacy `notes`.
      */
     meditationType?: string;
     /**
      * Active phase id for staged modes (StagedModeController). Persisted by
-     * autosave so an interrupted session resumes in the phase it left off.
+     * autosave so an interrupted session resumes where it left off.
      */
     modePhase?: string;
     /**
-     * Human-readable name of the LLM that facilitated this session (e.g.
-     * "Claude Fable 5", "Sonnet (Subscription)"). Recorded so history can show
-     * who ran a session and, on resume, so a *different* model picking it up is
-     * told who came before (see buildResumeContext). Optional — sessions saved
-     * before this field existed, and any resumed with an unknown model, simply
-     * omit it. Stamped at save time (endSession/autosave) from the live setup.
+     * Human-readable name of the facilitating LLM ("Claude Fable 5", "Sonnet
+     * (Subscription)"), so history can show who ran a session and a different
+     * model resuming it is told who came before (buildResumeContext). Stamped
+     * at save time from the live setup; omitted on older or unknown-model
+     * sessions.
      */
     model?: string;
-    /** The Provider id behind `model` (e.g. 'claude_proxy', 'aloud'). Kept for
-     *  history/analytics; display uses `model`. Optional for the same
-     *  backward-compatibility reason. */
+    /** The Provider id behind `model` ('claude_proxy', 'aloud'). Kept for
+     *  history/analytics; display uses `model`. */
     provider?: string;
     /** Compute usage tally. Always present on sessions started by this code. */
     usage: SessionUsage;
@@ -113,21 +105,18 @@ export type ContextStrategy = 'rolling' | 'full';
 
 export interface SessionManagerOptions {
     contextStrategy?: ContextStrategy;
-    /**
-     * Rolling-window size, in MESSAGES (not user/assistant exchange pairs).
-     * Only used when contextStrategy is 'rolling'.
-     */
+    /** Rolling-window size in MESSAGES, not exchange pairs. 'rolling' only. */
     windowSize?: number;
     clock?: Clock;
-    /** Override for generated session IDs (defaults to date-based). */
+    /** Override for generated session IDs (default: date-based). */
     generateSessionId?: () => string;
 }
 
 function defaultSessionId(clock: Clock): string {
     const d = new Date(clock() * 1000);
     const pad = (n: number) => n.toString().padStart(2, '0');
-    // Short random suffix so two sessions started in the same second
-    // (e.g. a quick end-and-restart) can't collide on the same store key.
+    // Random suffix so two sessions started in the same second (a quick
+    // end-and-restart) can't collide on the same store key.
     const suffix = Math.random().toString(36).slice(2, 6);
     return (
         `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-` +
@@ -179,7 +168,7 @@ export class SessionManager {
         return this._state;
     }
 
-    /** Record (or clear) the active staged-mode phase — see SessionState.modePhase. */
+    /** Record or clear the active staged-mode phase (SessionState.modePhase). */
     setModePhase(phaseId: string | null): void {
         if (this._state === null) return;
         if (phaseId === null) delete this._state.modePhase;
@@ -202,12 +191,10 @@ export class SessionManager {
     }
 
     /**
-     * Add an assistant (facilitator) message to the session.
-     *
-     * Pass `usage` (from the CompletionResult that produced this message) for
-     * LLM turns; omit it for static or fallback messages (no LLM call). When
-     * usage is given, it's recorded on the exchange AND folded into the
-     * session-level tally, so callers don't double-count.
+     * Add an assistant (facilitator) message. Pass `usage` from the
+     * CompletionResult for LLM turns, omit for static/fallback messages. Usage
+     * is recorded on the exchange AND folded into the session tally, so callers
+     * must not also call recordLlmUsage.
      */
     addAssistantMessage(content: string, name?: string, usage?: LlmUsage): void {
         const hasUsage =
@@ -229,10 +216,9 @@ export class SessionManager {
     }
 
     /**
-     * Fold one LLM completion into the session usage tally. Use directly for
-     * off-transcript completions (summary, resume-intent, noting labels);
-     * `addAssistantMessage` calls this for on-transcript turns so callers
-     * don't double-count.
+     * Fold one LLM completion into the session usage tally. Call directly only
+     * for off-transcript completions (summary, resume-intent, noting labels);
+     * `addAssistantMessage` already calls it for on-transcript turns.
      */
     recordLlmUsage(usage: LlmUsage): void {
         if (this._state === null) return;
@@ -245,9 +231,8 @@ export class SessionManager {
     }
 
     /**
-     * Accumulate STT audio seconds transcribed this session. Counts all
-     * transcriptions (including speculative/command audio) since each consumes
-     * STT compute.
+     * Accumulate STT audio seconds. Counts all transcriptions, including
+     * speculative/command audio, since each consumes STT compute.
      */
     recordStt(seconds: number): void {
         if (this._state !== null && seconds) {
@@ -256,8 +241,8 @@ export class SessionManager {
     }
 
     /**
-     * Accumulate TTS characters synthesized server-side this session.
-     * Browser-side speechSynthesis isn't counted (no server compute).
+     * Accumulate server-side synthesized TTS characters. Browser
+     * speechSynthesis isn't counted (no server compute).
      */
     recordTts(chars: number): void {
         if (this._state !== null && chars) {
@@ -265,7 +250,7 @@ export class SessionManager {
         }
     }
 
-    /** Append previously-saved exchanges, used for session continuation. */
+    /** Append previously-saved exchanges, for session continuation. */
     loadExchanges(exchanges: ReadonlyArray<Partial<Exchange> & { role: Exchange['role']; content: string }>): void {
         const state = this.requireActive();
         for (const ex of exchanges) {
@@ -279,14 +264,12 @@ export class SessionManager {
     }
 
     /**
-     * Conversation history shaped for an LLM provider — role/content only.
+     * Conversation history shaped for an LLM provider (role/content only).
      *
-     * With the 'rolling' strategy, returns at most `windowSize` MESSAGES
-     * (not exchange pairs), trimmed forward to the nearest user-message
-     * boundary so the window always opens with a user turn — a window that
-     * opens mid-exchange with an assistant message breaks providers that
-     * require user/assistant alternation starting from user. If the window
-     * contains no user message at all (degenerate), it's returned as-is.
+     * The 'rolling' strategy returns at most `windowSize` MESSAGES, trimmed
+     * forward to the nearest user-message boundary: a window opening on an
+     * assistant message breaks providers that require alternation starting from
+     * user. A window with no user message at all is returned as-is.
      */
     getContextMessages(): Array<{ role: Exchange['role']; content: string }> {
         if (this._state === null) return [];

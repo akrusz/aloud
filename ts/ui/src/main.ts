@@ -12,12 +12,10 @@ import { initAppMode } from './app-mode.js';
 // strips the query string off the initial URL.
 initAppMode();
 
-// Dev only: clear any service worker controlling this origin. The dev server
-// now shares port 4649 with the retired app, whose service worker may still be
-// registered in the browser from a past session — it would shadow Vite with
-// stale cached assets (the classic "unstyled page until a hard reload").
-// Unregister it + drop its caches, then reload once (loop-guarded) so the page
-// is served fresh. No-op once nothing is registered.
+// Dev only: the dev server shares port 4649 with the retired app, whose service
+// worker may still be registered from a past session - it would shadow Vite
+// with stale cached assets (the classic "unstyled page until a hard reload").
+// Unregister it, drop its caches, reload once (loop-guarded).
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     void navigator.serviceWorker.getRegistrations().then(async (regs) => {
         if (regs.length === 0) return;
@@ -33,15 +31,14 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     });
 }
 
-// Tag the document for the Tauri desktop shell so CSS can apply app-like
-// chrome (block text selection, etc.). Set before first paint to avoid a flash
-// of selectable web chrome.
+// Tag the document for the Tauri shell so CSS can apply app-like chrome (block
+// text selection, etc.), before first paint to avoid a flash of web chrome.
 if (isTauri()) {
     document.documentElement.setAttribute('data-shell', 'tauri');
-    // The overlaid title bar (traffic lights drawn over the top-left of the
-    // webview) is macOS-only — lib.rs gates title_bar_style(Overlay) on Darwin.
-    // Mark it so only macOS pads the nav clear of the buttons; Windows/Linux
-    // have a normal native title bar and must not get that left gap.
+    // The overlaid title bar (traffic lights over the webview's top-left) is
+    // macOS-only - lib.rs gates title_bar_style(Overlay) on Darwin. Only macOS
+    // should pad the nav clear of the buttons; Windows/Linux have a native
+    // title bar and must not get that left gap.
     if (/Mac|iPhone|iPad/.test(navigator.platform || '')) {
         document.documentElement.setAttribute('data-titlebar', 'overlay');
     }
@@ -49,22 +46,18 @@ if (isTauri()) {
 
 // Apply theme before the app renders so the FOUC is invisible.
 applyTheme(resolveTheme());
-// Embers are session-only — the container is mounted by the session
-// view on entry. regenerateEmbers is a no-op when no session is
-// active, so the theme toggle click handler is still safe to call it.
+// Embers are session-only (the session view mounts the container).
+// regenerateEmbers is a no-op with no active session, so the theme toggle
+// handler below is safe to call it.
 
-// Wire the theme toggle once the DOM is ready. Listening on document
-// click and re-running setup is idempotent (initThemeToggle guards).
 function setupGlobalChrome(): void {
     const btn = document.querySelector<HTMLElement>('[data-theme-toggle]');
     if (btn) initThemeToggle(btn);
     initAbout();
     initTauriWindowDrag();
     initExternalLinks();
-    // Watch for OS-level theme flips (e.g. macOS Auto switching at sunset)
-    // so the app follows along without a refresh. The watcher itself
-    // respects Settings/sticky and recent manual toggles. Regenerate embers
-    // on flip so the palette doesn't stay stuck on the previous theme.
+    // Follow OS-level theme flips (e.g. macOS Auto at sunset) without a
+    // refresh. The watcher respects Settings/sticky and recent manual toggles.
     watchSystemTheme(() => regenerateEmbers());
 }
 if (document.readyState === 'loading') {
@@ -73,12 +66,11 @@ if (document.readyState === 'loading') {
     setupGlobalChrome();
 }
 
-// Palette differs between light/dark — regenerate embers whenever the
-// theme flips so they switch immediately instead of waiting for the
-// current particles to expire naturally.
+// The ember palette differs between light/dark, so regenerate on a theme flip
+// instead of waiting for the current particles to expire.
 document.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('[data-theme-toggle]')) {
-        // initThemeToggle has already changed the theme; just refresh embers.
+        // initThemeToggle has already changed the theme.
         regenerateEmbers();
     }
 });

@@ -1,23 +1,20 @@
 /**
- * Felt sense mode — a staged facilitation arc adapted from Eugene Gendlin's
- * Focusing (the six movements: clearing a space, felt sense, handle,
- * resonating, asking, receiving), with language influenced by Ann Weiser
- * Cornell's Inner Relationship Focusing ("something in you...").
+ * Felt sense mode: a staged arc adapted from Eugene Gendlin's Focusing (six
+ * movements: clearing a space, felt sense, handle, resonating, asking,
+ * receiving), with language from Ann Weiser Cornell's Inner Relationship
+ * Focusing ("something in you...").
  *
- * "Felt sense" is the user-facing name — Gendlin's term for the body's
- * whole, pre-verbal sense of a situation — keeping "Focusing" (the
- * Institute's term of art for the method) out of the product copy.
+ * "Felt sense" is the user-facing name (Gendlin's term for the body's whole
+ * pre-verbal sense of a situation), keeping the Institute's term of art
+ * "Focusing" out of product copy.
  *
- * This is the first mode built on the staged-mode rails (modes.ts): the
- * facilitator privately holds the arc, the active phase's guidance rides on
- * the system prompt, and the LLM signals movement with [NEXT]/[BACK].
- * Unlike the deliberately directive NEDERA design (meditation-pal-pmxb),
- * felt-sense facilitation stays follow-the-meditator within each phase —
- * the listener says almost nothing, which is exactly what the base voice
- * already does well.
+ * First mode on the staged-mode rails (modes.ts): the facilitator privately
+ * holds the arc, the active phase's guidance rides on the system prompt, and
+ * the LLM signals movement with [NEXT]/[BACK]. Unlike the directive NEDERA
+ * design (meditation-pal-pmxb), facilitation stays follow-the-meditator within
+ * each phase - the listener says almost nothing.
  *
- * These strings shape the entire experience of the mode; edit them
- * deliberately (same care as prompts.ts).
+ * These strings shape the whole mode; edit with the same care as prompts.ts.
  */
 
 import type { ModePhase, ModeSpec } from './modes.js';
@@ -27,9 +24,7 @@ import {
     REALTIME_VOICE_FRAGMENT,
 } from './prompts.js';
 
-// ---------------------------------------------------------------------------
-// Base prompt — the listening stance, constant across all phases
-// ---------------------------------------------------------------------------
+// Base prompt: the listening stance, constant across all phases.
 
 export const FELT_SENSE_SYSTEM_PROMPT = `You're a meditation facilitator companioning a felt-sense session — a practice of sensing how something in the meditator's life sits in their body, and letting that bodily sense speak in its own time.
 
@@ -58,9 +53,7 @@ ${HOLD_SIGNAL_FRAGMENT}
 ${REALTIME_VOICE_FRAGMENT}
 `;
 
-// ---------------------------------------------------------------------------
-// Phases — Gendlin's six movements, voice-adapted
-// ---------------------------------------------------------------------------
+// Phases: Gendlin's six movements, voice-adapted.
 
 export const FELT_SENSE_PHASES: readonly ModePhase[] = [
     {
@@ -150,9 +143,7 @@ This is the last stage, so there is no [NEXT]. If something new and alive opens 
     },
 ];
 
-// ---------------------------------------------------------------------------
 // Openers + check-ins
-// ---------------------------------------------------------------------------
 
 export const FELT_SENSE_OPENERS: readonly string[] = [
     "Take a moment to arrive... and when you're ready, you might ask inside: what's between me and feeling fine right now?",
@@ -165,8 +156,8 @@ export const FELT_SENSE_OPENER_PROMPT =
     'two welcoming the meditator, inviting them to settle, and, when they feel ' +
     'ready, to ask inside what is between them and feeling fine right now.';
 
-/** Long-silence check-ins: even more patient than the exploration pool — in
- *  this practice a long silence usually means it's working. */
+/** Long-silence check-ins, more patient than the exploration pool: here a long
+ *  silence usually means it's working. */
 export const FELT_SENSE_CHECK_INS: readonly string[] = [
     'No rush. The body takes its time.',
     'Still here, whenever something comes.',
@@ -176,16 +167,13 @@ export const FELT_SENSE_CHECK_INS: readonly string[] = [
     'However long it takes is fine.',
 ];
 
-// ---------------------------------------------------------------------------
 // Mode spec
-// ---------------------------------------------------------------------------
 
-/** The protocol defines attention, tone, guidance, and brevity itself, so
- *  none of the exploration dimensions compose (the setup UI hides those
- *  controls in this mode). Check-in timing is the one knob that survives:
- *  the "Check-in pace" slider (SessionSetup.feltSensePaceStep) reuses the
- *  guidance stops for timing only — patient by default, since in this
- *  practice a long silence usually means it's working. */
+/** The protocol defines attention, tone, guidance, and brevity itself, so no
+ *  exploration dimension composes (the setup UI hides those controls here).
+ *  Check-in timing is the one surviving knob: the "Check-in pace" slider
+ *  (SessionSetup.feltSensePaceStep) reuses the guidance stops for timing only,
+ *  patient by default. */
 export const FELT_SENSE_MODE: ModeSpec = {
     id: 'felt_sense',
     label: 'Felt Sense',

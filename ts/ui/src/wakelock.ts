@@ -1,18 +1,15 @@
-/* wakelock.ts — keep the screen on during an active meditation session.
-   Without this, the phone sleeps mid-session and the audio/WebSocket
-   connection breaks. Acquired on session start, released on session end,
+/* Keep the screen on during a session; otherwise the phone sleeps mid-session
+   and the audio connection breaks. Acquired on session start, released on end,
    re-acquired on visibility change so a tab-switch doesn't drop it.
 
    Two backends:
-     - Native mobile (Capacitor) → @capacitor-community/keep-awake, because a
-       WKWebView / Android System WebView often doesn't implement the web Wake
-       Lock API at all, so navigator.wakeLock is simply absent there.
+     - Native mobile (Capacitor) → @capacitor-community/keep-awake, since
+       WKWebView / Android System WebView often lack navigator.wakeLock.
      - Everything else (browser, desktop) → the web Wake Lock API. */
 
 import { isCapacitor } from './is-desktop.js';
 
-// The Wake Lock API isn't in TypeScript's default DOM lib yet. We type
-// just what we need to call `request('screen')` and the release event.
+// The Wake Lock API isn't in TypeScript's default DOM lib yet.
 interface WakeLockSentinelLike {
     release(): Promise<void>;
     addEventListener(type: 'release', listener: () => void): void;
@@ -29,9 +26,8 @@ function getWakeLockApi(): WakeLockApi | null {
     return nav.wakeLock ?? null;
 }
 
-// Native keep-awake, lazy-loaded so web/desktop bundles don't pull the
-// Capacitor plugin. Tracked separately from `wakeLock` (the web sentinel)
-// since it has no sentinel object — it's a global on/off toggle.
+// Lazy-loaded so web/desktop bundles don't pull the Capacitor plugin. Tracked
+// separately from `wakeLock`: it's a global on/off toggle, not a sentinel.
 let nativeKeptAwake = false;
 let keepAwakeMod: typeof import('@capacitor-community/keep-awake') | null = null;
 async function ensureKeepAwake(): Promise<typeof import('@capacitor-community/keep-awake') | null> {
@@ -64,8 +60,8 @@ export async function acquireWakeLock(): Promise<void> {
             wakeLock = null;
         });
     } catch (err) {
-        // Common reasons: tab not visible, page not in a secure context.
-        // Not fatal — we'll try again on visibilitychange.
+        // Usually tab not visible or no secure context. Not fatal: we retry on
+        // visibilitychange.
         console.warn('Wake Lock not acquired:', err && (err as Error).message);
     }
 }
@@ -100,6 +96,5 @@ function installVisibilityHandler(): void {
     });
 }
 
-// Match the original module-load side effect — the visibility handler is
-// always installed once this module is imported.
+// Module-load side effect: the handler installs on first import.
 installVisibilityHandler();

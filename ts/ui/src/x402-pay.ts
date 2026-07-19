@@ -1,16 +1,15 @@
 /**
- * "Pay with USDC" client (meditation-pal-du9 Phase 2). The lean path: NO
- * viem/web3 in the bundle. We talk to the user's injected wallet (EIP-1193 —
- * MetaMask, Coinbase Wallet, etc.) directly; it does the signing, we just build
- * the EIP-712 typed data and base64 the payload. Mirrors x402's reference
- * `exact` EVM scheme (EIP-3009 TransferWithAuthorization) field-for-field so the
- * server's facilitator accepts the signature.
+ * "Pay with USDC" client (meditation-pal-du9 Phase 2). No viem/web3 in the
+ * bundle: we talk to the injected EIP-1193 wallet (MetaMask, Coinbase Wallet)
+ * directly, it signs, and we only build the EIP-712 typed data and base64 the
+ * payload. Mirrors x402's reference `exact` EVM scheme (EIP-3009
+ * TransferWithAuthorization) field-for-field so the facilitator accepts it.
  *
- * Flow: POST the buy endpoint with no payment → the server's 402 carries the
- * payment requirements → the wallet signs a transferWithAuthorization → re-POST
- * with an X-PAYMENT header → the server verifies + settles + credits. All
- * cryptography stays in the wallet; a wrong field here just means the signature
- * won't verify (caught on testnet), never that funds move incorrectly.
+ * Flow: POST the buy endpoint with no payment, the 402 carries the payment
+ * requirements, the wallet signs a transferWithAuthorization, re-POST with an
+ * X-PAYMENT header, the server verifies + settles + credits. All cryptography
+ * stays in the wallet, so a wrong field here only means the signature won't
+ * verify (caught on testnet), never that funds move incorrectly.
  */
 
 import { cloudUrl } from './cloud-base.js';
@@ -51,7 +50,8 @@ const CHAIN_PARAMS: Record<X402Network, Record<string, unknown>> = {
     },
 };
 
-/** A wallet rejection (EIP-1193 code 4001) or no-wallet, surfaced friendly. */
+/** A wallet rejection (EIP-1193 code 4001) or missing wallet, shown as friendly
+ *  copy rather than a raw error. */
 export class WalletError extends Error {
     constructor(message: string) {
         super(message);
@@ -69,7 +69,8 @@ function injected(): Eip1193Provider {
     return eth;
 }
 
-/** Ensure the wallet is on the target chain; add it if the wallet doesn't know it. */
+/** Switch the wallet to the target chain, adding it if the wallet doesn't know
+ *  it (EIP-1193 code 4902). */
 async function ensureChain(provider: Eip1193Provider, network: X402Network): Promise<void> {
     const chainIdHex = '0x' + CHAIN_ID[network].toString(16);
     try {
@@ -94,9 +95,8 @@ export interface X402PurchaseResult {
 }
 
 /**
- * Buy a pack with USDC via x402. Returns the credited amount + the new balance.
- * Throws WalletError on a missing wallet or user cancellation, or a friendly
- * Error on a server/settlement failure.
+ * Buy a pack with USDC via x402. Throws WalletError on a missing wallet or user
+ * cancellation, or a friendly Error on a server/settlement failure.
  */
 export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
     let token = await getCloudToken();
@@ -107,10 +107,10 @@ export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
     // 1) Ask for the payment requirements (the server answers 402).
     let challenge = await fetch(url, { method: 'POST', headers });
     if (challenge.status === 401) {
-        // Stale token — clear and re-mint once, then retry, matching the
-        // LLM/TTS/STT proxies' self-heal. ensureCloudToken throws
-        // CloudSignInRequiredError on hosted builds with no live session,
-        // which surfaces as the modal's error line.
+        // Stale token: clear, re-mint once, retry, matching the LLM/TTS/STT
+        // proxies' self-heal. ensureCloudToken throws CloudSignInRequiredError
+        // on a hosted build with no live session, which surfaces as the modal's
+        // error line.
         await clearCloudToken();
         token = await ensureCloudToken();
         headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };

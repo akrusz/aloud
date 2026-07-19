@@ -1,19 +1,15 @@
 /**
- * Capacitor Preferences adapter for the KvStorage interface — the durable
- * key-value store on native mobile (iOS UserDefaults / Android
- * SharedPreferences via @capacitor/preferences).
+ * Capacitor Preferences adapter for KvStorage - durable native key-value storage
+ * on mobile (iOS UserDefaults / Android SharedPreferences).
  *
- * Why not localStorage on mobile: a WKWebView's localStorage lives in the
- * WebKit data store, which iOS may evict under storage pressure (and which a
- * "Clear website data" style sweep can wipe). Preferences is real native
- * persistence — settings, the STT/voice picks, and the session history that
- * SessionStore keeps here survive that. Mobile is always a fresh install when
- * this store first runs, so there's no localStorage→Preferences migration to
- * do (unlike an upgrade of an existing web build).
+ * Not localStorage: a WKWebView's localStorage lives in the WebKit data store,
+ * which iOS may evict under storage pressure and a "clear website data" sweep
+ * wipes. Preferences is real native persistence, so settings, STT/voice picks,
+ * and SessionStore history survive. Mobile is always a fresh install when this
+ * first runs, so there's no localStorage→Preferences migration.
  *
- * Keeps the same "aloud:" key prefix as LocalStorageKv so keys()/clear() only
- * touch our own entries and the two stores stay behaviourally interchangeable.
- * The whole KvStorage contract is async, which the native plugin already is.
+ * Same "aloud:" prefix as LocalStorageKv, so keys()/clear() touch only our own
+ * entries and the two stores stay interchangeable.
  */
 
 import { Preferences } from '@capacitor/preferences';
@@ -53,8 +49,8 @@ export class CapacitorKv implements KvStorage {
     }
 
     async clear(): Promise<void> {
-        // Only remove our own prefixed keys, mirroring LocalStorageKv — never
-        // Preferences.clear(), which would nuke any other plugin's data too.
+        // Our own prefixed keys only, mirroring LocalStorageKv - never
+        // Preferences.clear(), which would nuke other plugins' data too.
         const keys = await this.keys();
         for (const key of keys) {
             await this.delete(key);

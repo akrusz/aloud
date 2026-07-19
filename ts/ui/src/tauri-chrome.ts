@@ -2,13 +2,11 @@
  * Tauri desktop window chrome: make the whole top bar drag the window while
  * keeping its links/buttons clickable.
  *
- * `data-tauri-drag-region` can't do this — an element with the attribute
- * starts dragging on mousedown, which swallows clicks. Instead we watch for a
- * mousedown on the nav and only start dragging once the pointer actually moves
- * past a small threshold. A plain click (no movement) falls through to the
- * link/button underneath, so navigation, the About logo, the theme toggle, and
- * the in-session orb/hamburger all still work — and you can grab the bar
- * anywhere (including over those controls) to move the window.
+ * `data-tauri-drag-region` can't do this: it starts dragging on mousedown,
+ * which swallows clicks. Instead we watch mousedown on the nav and only drag
+ * once the pointer moves past a threshold. A plain click falls through to the
+ * control underneath, so the bar stays grabbable anywhere while navigation, the
+ * About logo, the theme toggle, and the orb/hamburger still work.
  *
  * No-op outside Tauri.
  */
@@ -22,7 +20,6 @@ export function initTauriWindowDrag(): void {
     const nav = document.querySelector<HTMLElement>('nav.nav');
     if (!nav) return;
 
-    // Load the window handle once; calls are guarded by isTauri() above.
     let appWindow: { startDragging: () => Promise<unknown> } | null = null;
     void import('@tauri-apps/api/window')
         .then((m) => {
@@ -32,9 +29,9 @@ export function initTauriWindowDrag(): void {
             /* drag is a nicety; ignore load failures */
         });
 
-    // When a drag happens, the native drag consumes the gesture but WebKit
-    // still synthesizes a `click` on release — which would e.g. open the About
-    // modal when you drag the window by the logo. Swallow that one click.
+    // The native drag consumes the gesture but WebKit still synthesizes a
+    // `click` on release, which would e.g. open About when you drag the window
+    // by the logo. Swallow that one click.
     let dragged = false;
     document.addEventListener(
         'click',
@@ -49,7 +46,7 @@ export function initTauriWindowDrag(): void {
     );
 
     nav.addEventListener('mousedown', (e: MouseEvent) => {
-        // Fresh interaction — clear any stale suppression so a real click works.
+        // Clear stale suppression so a real click works.
         dragged = false;
         if (e.button !== 0 || !appWindow) return; // primary button only
         const startX = e.clientX;

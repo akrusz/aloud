@@ -1,14 +1,13 @@
 /**
- * POST /v1/auth/google — exchange a Google ID token for an aloud session. On the
- * first sign-in with a Google identity it creates an account (or, when the
- * request carries a session token, links Google to that existing account — the
- * "connect to claim free credits" flow) and grants free credits per the rules in
+ * Sign-in routes, mounted at /cloud/v1/auth: Google (web + desktop PKCE), Apple,
+ * and email/password. Each verifies a proof, then creates an account, or links
+ * the identity to the caller's existing account when the request carries a
+ * session token (the "connect to claim free credits" flow), granting credits per
  * auth/identity.ts + quota/freetier.ts (meditation-pal-116).
  *
- * POST /v1/auth/dev — local-only shortcut that mints a session for a fixed dev
- * account without Google, so the browser UI can exercise the metered proxy
- * end-to-end. 404s unless ALOUD_ENABLE_DEV_AUTH is set (explicit opt-in, set in
- * the local .env) — a dev convenience, never on by default.
+ * POST /dev is a local-only shortcut minting a session for a fixed dev account,
+ * so the browser UI can exercise the metered proxy end-to-end. 404s unless
+ * ALOUD_ENABLE_DEV_AUTH is set: explicit opt-in, never on by default.
  */
 
 import { Hono } from 'hono';
@@ -33,13 +32,13 @@ import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflic
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
-/** Loose email shape check — enough to reject obvious garbage; real validity is
- *  proven later if/when the address is used. */
+/** Loose shape check, enough to reject obvious garbage; real validity is proven
+ *  later if/when the address is used. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
 
-/** The account id from a (valid) bearer token on the request, if any — used to
- *  link a freshly-verified identity to the already-signed-in account. */
+/** Account id from a valid bearer token on the request, if any. Used to link a
+ *  freshly-verified identity to the already-signed-in account. */
 async function callerAccountId(c: Context, deps: Deps): Promise<string | undefined> {
     const header = c.req.header('authorization') ?? c.req.header('Authorization');
     const [scheme, token] = (header ?? '').split(' ');
@@ -49,8 +48,8 @@ async function callerAccountId(c: Context, deps: Deps): Promise<string | undefin
 }
 
 /** Shared tail for federated (Google/Apple) sign-in once an identity is verified:
- *  connect/create the account (linking to the caller's account when a bearer
- *  token is present), grant credits per the rules, and issue a session. */
+ *  connect/create the account (linking to the caller's when a bearer token is
+ *  present), grant credits per the rules, issue a session. */
 async function finishFederatedSignIn(
     c: Context,
     deps: Deps,
@@ -86,10 +85,10 @@ async function finishFederatedSignIn(
 export function authRoutes(deps: Deps): Hono {
     const app = new Hono();
 
-    // Email/password endpoints are the credential-guessing surface (federated
-    // sign-in is rate-limited upstream by Google/Apple, and scrypt verification
-    // burns real CPU per attempt) — cap attempts per IP. 10/min is generous for
-    // a human mistyping a password and useless for an online brute force.
+    // Email/password is the credential-guessing surface (federated sign-in is
+    // rate-limited upstream by Google/Apple, and scrypt verification burns real
+    // CPU per attempt), so cap attempts per IP. 10/min is generous for a human
+    // mistyping a password and useless for an online brute force.
     const emailAuthGuard = new RateGuard(10, 60_000);
     app.use('/email/*', ipRateLimit(emailAuthGuard));
 
@@ -109,9 +108,9 @@ export function authRoutes(deps: Deps): Hono {
         return finishFederatedSignIn(c, deps, 'google', identity);
     });
 
-    // Desktop (Tauri) loopback PKCE: the app caught an authorization code on its
-    // 127.0.0.1 listener; redeem it here (the client secret stays server-side) and
-    // finish exactly like /google. (meditation-pal-fae)
+    // Desktop (Tauri) loopback PKCE (meditation-pal-fae): the app caught an
+    // authorization code on its 127.0.0.1 listener; redeem it here, where the
+    // client secret stays server-side, then finish exactly like /google.
     app.post('/google/desktop', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<GoogleDesktopAuthRequest>;
         if (!body.code || !body.codeVerifier || !body.redirectUri) {
@@ -160,8 +159,8 @@ export function authRoutes(deps: Deps): Hono {
         return finishFederatedSignIn(c, deps, 'apple', identity);
     });
 
-    // Email/password. Signup creates an UNTRUSTED 'email' identity — an account
-    // with NO free credits until it connects Google/Apple (meditation-pal-116).
+    // Signup creates an UNTRUSTED 'email' identity: an account with NO free
+    // credits until it connects Google/Apple (meditation-pal-116).
     app.post('/email/signup', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<EmailAuthRequest>;
         const email = (body.email ?? '').trim().toLowerCase();
@@ -175,11 +174,11 @@ export function authRoutes(deps: Deps): Hono {
                 ERROR_STATUS.bad_request
             );
         }
-        // Canonical mailbox is the identity key, so j.o.h.n+x@gmail.com and
-        // john@gmail.com are one password identity (sign-up once, log in with any
+        // The canonical mailbox is the identity key, so j.o.h.n+x@gmail.com and
+        // john@gmail.com are one password identity (sign up once, log in with any
         // variant). Guard against BOTH a duplicate password identity and the
-        // mailbox already owning an account via Google/Apple — an unverified
-        // signup must never attach to (or shadow) a verified account.
+        // mailbox already owning an account via Google/Apple: an unverified signup
+        // must never attach to, or shadow, a verified account.
         const canonicalSub = normalizeEmail(email);
         if (
             (await deps.store.getIdentity('email', canonicalSub)) ||
@@ -216,13 +215,13 @@ export function authRoutes(deps: Deps): Hono {
         const body = (await c.req.json().catch(() => ({}))) as Partial<EmailAuthRequest>;
         const email = (body.email ?? '').trim().toLowerCase();
         const password = body.password ?? '';
-        // One generic message for both "no such email" and "wrong password" so
+        // One generic message for both "no such email" and "wrong password", so
         // the endpoint doesn't confirm which emails are registered.
         const reject = () =>
             c.json(apiError('unauthenticated', 'incorrect email or password'), ERROR_STATUS.unauthenticated);
 
-        // Match the canonical mailbox used at signup, so any dot/+tag variant of
-        // the same address logs into the one password identity.
+        // Match the canonical mailbox used at signup, so any dot/+tag variant
+        // logs into the one password identity.
         const identity = await deps.store.getIdentity('email', normalizeEmail(email));
         if (!identity?.secretHash || !(await verifyPassword(password, identity.secretHash))) {
             return reject();
@@ -232,12 +231,11 @@ export function authRoutes(deps: Deps): Hono {
         return c.json(await issueAuthResponse(deps, account, false));
     });
 
-    // Add (or change) a password on the already-signed-in account, so a
-    // Google/Apple user can also sign in with email + password. Bearer-required:
-    // only the account owner sets their own password, keyed on the account's own
-    // verified email (never a client-supplied address), so it can't attach a
-    // password to someone else's mailbox or mint free credits. Under the same
-    // /email/* IP rate limit as signup/login.
+    // Add (or change) a password on the signed-in account, so a Google/Apple user
+    // can also sign in with email + password. Bearer-required: only the owner
+    // sets their own password, keyed on the account's own verified email (never a
+    // client-supplied address), so it can't attach a password to someone else's
+    // mailbox or mint free credits. Under the same /email/* IP rate limit.
     app.post('/email/set-password', async (c) => {
         const accountId = await callerAccountId(c, deps);
         if (!accountId) {
@@ -267,14 +265,14 @@ export function authRoutes(deps: Deps): Hono {
         }
     });
 
-    // Stable identity for the single local dev account. Reused across sign-ins
-    // so the credit ledger and history persist for the duration of a server run.
+    // Stable identity for the single local dev account, reused across sign-ins so
+    // the ledger and history persist for a server run.
     const DEV_GOOGLE_SUB = 'dev:local';
 
     app.post('/dev', async (c) => {
         // Explicit opt-in (ALOUD_ENABLE_DEV_AUTH) rather than "off when
-        // ALOUD_ENV=production" — a deploy that forgets to set the env can't
-        // ship a credential-free sign-in. Behave as if the route doesn't exist.
+        // ALOUD_ENV=production", so a deploy that forgets an env var can't ship a
+        // credential-free sign-in. Behave as if the route doesn't exist.
         if (!deps.config.enableDevAuth) {
             return c.json(apiError('bad_request', 'dev sign-in is disabled'), 404);
         }

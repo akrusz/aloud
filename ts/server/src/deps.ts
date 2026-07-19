@@ -1,8 +1,7 @@
 /**
- * Dependency container — everything the routes need, assembled once at boot
- * and threaded through. Keeps routes pure (no module-level singletons) and
- * makes tests trivial: build a Deps with a MemoryCreditsStore and a fake key
- * set, no network.
+ * Dependency container: everything the routes need, assembled once at boot and
+ * threaded through. No module-level singletons, so tests build a Deps with a
+ * MemoryCreditsStore and fake keys, no network.
  */
 
 import type { Config } from './config.js';
@@ -27,12 +26,9 @@ export interface BuildDepsOptions {
 }
 
 export function buildDeps(config: Config, options: BuildDepsOptions = {}): Deps {
-    // Persistence selection: an explicit store wins (tests inject a
-    // MemoryCreditsStore); otherwise a configured dbPath gives a durable
-    // SQLite store (any real deploy), and with neither we fall back to
-    // in-memory for zero-config local dev. The in-memory store loses the
-    // ledger on restart — fine for dev, never for a deploy holding real
-    // balances, which is why production (strict) requires a dbPath (config.ts).
+    // Store precedence: injected (tests) > dbPath SQLite (real deploys) >
+    // in-memory (zero-config dev). In-memory loses the ledger on restart, so
+    // production (strict) requires a dbPath - see config.ts.
     const store =
         options.store ??
         (config.dbPath ? new SqliteCreditsStore(config.dbPath) : new MemoryCreditsStore());

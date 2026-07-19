@@ -1,14 +1,10 @@
 /**
- * Server-sent events line reader.
+ * Server-sent events line reader for the Anthropic/OpenAI streaming formats:
+ * "event: <name>" / "data: <json>" lines separated by blank lines. Yields one
+ * `{ event, data }` per logical event; callers parse the payload, since the
+ * shapes differ per provider.
  *
- * Anthropic and OpenAI both stream completions as SSE. The format is
- * minimal — lines of "event: <name>" and "data: <json>" separated by
- * blank lines. We tokenize the stream and yield one `{ event, data }`
- * object per logical event. Callers parse the data payload themselves
- * (the shapes differ per provider).
- *
- * Reads from a Response's `body` ReadableStream; pure DOM/Web API, no
- * Node-only deps, so this works in browser and Capacitor WebView.
+ * Pure Web API (no Node-only deps), so it works in browser and Capacitor.
  */
 
 export interface SseEvent {
@@ -18,10 +14,7 @@ export interface SseEvent {
     data: string;
 }
 
-/**
- * Iterate SSE events from a fetch Response. Throws if the response has
- * no body (e.g. HEAD response or error response with empty body).
- */
+/** Iterate SSE events from a fetch Response. Throws if the response has no body. */
 export async function* iterateSseEvents(response: Response): AsyncIterable<SseEvent> {
     if (!response.body) {
         throw new Error('SSE response has no body');
@@ -34,8 +27,7 @@ export async function* iterateSseEvents(response: Response): AsyncIterable<SseEv
         while (true) {
             const { value, done } = await reader.read();
             if (done) {
-                // Final flush — emit any buffered event without a
-                // trailing blank line. Rare but legal per spec.
+                // Final flush: an event with no trailing blank line is legal.
                 const tail = buffer.trim();
                 if (tail.length > 0) {
                     const parsed = parseEvent(tail);
@@ -44,8 +36,7 @@ export async function* iterateSseEvents(response: Response): AsyncIterable<SseEv
                 return;
             }
             buffer += decoder.decode(value, { stream: true });
-            // SSE events are separated by blank lines. Split on \n\n
-            // (some servers use \r\n\r\n — normalize).
+            // Events are blank-line separated; some servers send \r\n\r\n.
             buffer = buffer.replace(/\r\n/g, '\n');
             let boundary: number;
             while ((boundary = buffer.indexOf('\n\n')) >= 0) {
@@ -56,12 +47,10 @@ export async function* iterateSseEvents(response: Response): AsyncIterable<SseEv
             }
         }
     } finally {
-        // Tear down the HTTP body when the consumer abandons the iterator
-        // mid-stream (barge-in cancellation): cancel() signals "no more data
-        // wanted" upstream so the connection is actually closed, not just
-        // unlocked. cancel() keeps the reader's lock, so releaseLock() after
-        // is still needed to detach from the stream. Both are best-effort —
-        // the stream may already be closed or errored.
+        // Tear down the HTTP body when a consumer abandons the iterator
+        // mid-stream (barge-in): cancel() closes the connection rather than
+        // merely unlocking it, and keeps the reader's lock, so releaseLock()
+        // is still needed. Both best-effort; the stream may already be dead.
         await reader.cancel().catch(() => {
             /* ignore */
         });
@@ -83,7 +72,7 @@ function parseEvent(raw: string): SseEvent | null {
         } else if (line.startsWith('data:')) {
             dataLines.push(line.slice(5).replace(/^\s/, ''));
         }
-        // ignore "id:", "retry:" etc — we don't reconnect.
+        // "id:"/"retry:" ignored; we don't reconnect.
     }
     if (dataLines.length === 0) return null;
     return { event, data: dataLines.join('\n') };

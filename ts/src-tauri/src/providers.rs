@@ -1,20 +1,18 @@
 //! Provider availability + Ollama model management for the desktop backend.
 //!
-//! Builds the `/app/v1/providers` body the TS UI consumes — including the
-//! elaborate Ollama recommendation system (RAM + GPU detection, curated tier
-//! list, "fits this machine" + "installed" annotations, version / outdated
-//! banner) that's used by the Settings page to help users pick and manage
-//! local models.
+//! Builds the `/app/v1/providers` and `/app/v1/models/{provider}` bodies,
+//! including the Ollama recommendation block the Settings page uses to help
+//! users pick local models: RAM + GPU detection, curated tier list, "fits this
+//! machine" / "installed" annotations, and a version-outdated banner.
 
 use serde_json::{json, Value};
 
 const OLLAMA_URL: &str = "http://localhost:11434";
-/// Minimum Ollama version that can pull the recommended models. Below this,
-/// the manifest format is too old and pulls fail with HTTP 412.
+/// Minimum version that can pull the recommended models: below this the
+/// manifest format is too old and pulls fail with HTTP 412.
 const MIN_OLLAMA_VERSION: &str = "0.21.0";
 
-/// One curated Ollama tier. The catalog is project-curated, not
-/// provider-supplied.
+/// One curated Ollama tier. Project-curated, not provider-supplied.
 struct OllamaTier {
     model: &'static str,
     label: &'static str,
@@ -22,8 +20,8 @@ struct OllamaTier {
     download: &'static str,
     ram: &'static str,
     note: &'static str,
-    /// `false` means "visible in the picker but skipped by the auto-pick" —
-    /// dense models that work but are too slow to be a default recommendation.
+    /// `false` = visible in the picker but skipped by the auto-pick: dense
+    /// models that work but are too slow to be a default recommendation.
     auto_recommend: bool,
 }
 
@@ -66,8 +64,8 @@ const DEFAULT_TIERS: &[OllamaTier] = &[
     },
 ];
 
-/// `GET /app/v1/providers` body. Synchronous: shells out (`which`), probes
-/// localhost, and inspects system RAM/GPU — callers run it on a blocking thread.
+/// `GET /app/v1/providers` body. Synchronous (shells out via `which`, probes
+/// localhost, inspects RAM/GPU), so callers run it on a blocking thread.
 pub fn providers() -> Value {
     let has_claude = which::which("claude").is_ok();
     let has_ollama_bin = which::which("ollama").is_ok();
@@ -101,12 +99,11 @@ pub fn providers() -> Value {
     })
 }
 
-/// `GET /app/v1/models/<provider>` body — `[{value, label}]`. Fetches the live
-/// model list from the provider's API. The key lives in the UI's localStorage
-/// (BYOK), so the UI forwards it as `x-provider-key`; `api_key` is that value.
-/// OpenRouter is public (no key) and claude_proxy is a static alias list. Any
-/// failure returns `[]`, on which the model picker falls back to a free-form
-/// text input.
+/// `GET /app/v1/models/<provider>` body: `[{value, label}]` fetched live from
+/// the provider's API. `api_key` is the BYOK key the UI forwards from its
+/// localStorage as `x-provider-key`. OpenRouter needs no key and claude_proxy
+/// is a static alias list. Any failure returns `[]`, on which the model picker
+/// falls back to a free-form text input.
 pub fn models(provider: &str, api_key: Option<&str>) -> Value {
     let list = match provider {
         "openai" => fetch_openai(api_key),
@@ -120,8 +117,8 @@ pub fn models(provider: &str, api_key: Option<&str>) -> Value {
     Value::Array(list)
 }
 
-/// GET a JSON body with the given headers and a short timeout. `None` on any
-/// transport/parse error — callers degrade to an empty model list.
+/// GET a JSON body with a short timeout. `None` on any transport/parse error;
+/// callers degrade to an empty model list.
 fn get_json(url: &str, headers: &[(&str, &str)], timeout_secs: u64) -> Option<Value> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
@@ -243,7 +240,7 @@ fn fetch_anthropic(api_key: Option<&str>) -> Vec<Value> {
                 .collect()
         })
         .unwrap_or_default();
-    // Newest first (created_at is an ISO string; lexical sort works).
+    // Newest first: created_at is ISO, so a lexical sort works.
     rows.sort_by(|a, b| b.0.cmp(&a.0));
     rows.iter().map(|(_, id, label)| opt(id, label)).collect()
 }
@@ -251,12 +248,10 @@ fn fetch_anthropic(api_key: Option<&str>) -> Vec<Value> {
 // ---- Claude subscription (static aliases) ----------------------------------
 
 fn claude_proxy_models() -> Vec<Value> {
-    // Aliases the `claude` CLI resolves to the latest of each family, plus a
-    // pinned legacy id. Fable is included but is the one model Anthropic has
-    // hinted it may drop from subscriptions — the UI probes it (see
-    // /llm/claude_proxy/probe) before trusting it in the picker. Order: Opus
-    // first (the picker auto-selects the first option for a fresh pick, and we
-    // don't want the heaviest model to become that default), Fable next.
+    // Aliases the `claude` CLI resolves to the latest of each family. Fable is
+    // the one Anthropic has hinted it may drop from subscriptions, so the UI
+    // probes it (/llm/claude_proxy/probe) before offering it. Order matters:
+    // the picker auto-selects the first option for a fresh pick.
     vec![
         opt("opus", "Opus (latest)"),
         opt("fable", "Fable (latest)"),
@@ -321,7 +316,7 @@ fn fetch_venice(api_key: Option<&str>) -> Vec<Value> {
             arr.iter()
                 .filter_map(|m| {
                     let id = m.get("id").and_then(Value::as_str)?;
-                    // Venice mixes in image/code models — keep text/chat.
+                    // Venice mixes in image/code models; keep text/chat.
                     let mtype = m.get("type").and_then(Value::as_str).unwrap_or("");
                     if !matches!(mtype, "" | "text" | "chat") {
                         return None;
@@ -375,8 +370,7 @@ fn fetch_groq(api_key: Option<&str>) -> Vec<Value> {
     rows.iter().map(|(_, id)| opt(id, &groq_label(id))).collect()
 }
 
-/// Strip the org prefix and title-case: `meta-llama/llama-3.1-70b` ->
-/// `Llama 3.1 70b`.
+/// `meta-llama/llama-3.1-70b` -> `Llama 3.1 70b`.
 fn groq_label(id: &str) -> String {
     let tail = id.rsplit('/').next().unwrap_or(id);
     tail.split('-')
@@ -402,14 +396,14 @@ fn api_key_provider(env_var: &str) -> Value {
 
 // --- Ollama ----------------------------------------------------------------
 
-/// One raw model entry as returned by Ollama's `/api/tags` (name + byte size).
+/// One entry from Ollama's `/api/tags`.
 struct RawOllamaModel {
     name: String,
     size_bytes: u64,
 }
 
-/// Returns (running, models). `running == true` means the daemon responded;
-/// models may still be empty (nothing pulled).
+/// `running == true` means the daemon responded; models may still be empty
+/// (nothing pulled).
 fn probe_ollama_tags() -> (bool, Vec<RawOllamaModel>) {
     let url = format!("{OLLAMA_URL}/api/tags");
     let resp = match ureq::get(&url)
@@ -454,9 +448,8 @@ fn probe_ollama_version() -> Option<String> {
     body.get("version").and_then(Value::as_str).map(String::from)
 }
 
-/// Build the Ollama section of the providers response: availability, hint,
-/// model list with sizes, version/outdated info, and the per-machine
-/// recommendation (tiers + which fit / are installed + the auto-pick).
+/// The Ollama section of the providers response: availability, hint, models
+/// with sizes, version/outdated info, and the per-machine recommendation.
 fn ollama_section(
     has_bin: bool,
     running: bool,
@@ -517,8 +510,8 @@ fn ollama_hint(
     }
 }
 
-/// `{ <name>: "X.XGB" or "XMB" }` for every pulled model — used by the
-/// settings UI to render the size next to each installed model.
+/// `{ <name>: "X.XGB" or "XMB" }` per pulled model, which the settings UI shows
+/// next to each installed model.
 fn build_model_sizes(raw_models: &[RawOllamaModel]) -> Value {
     let mut sizes = serde_json::Map::new();
     for m in raw_models {
@@ -540,10 +533,9 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
-/// Build the per-machine recommendation block: the auto-picked tier, RAM
-/// detection, and the full tier list annotated with `fits` (does this tier's
-/// `min_gb` fit?) + `installed` (is any matching variant pulled?). The
-/// settings UI uses this to render the "Recommended models" picker.
+/// The per-machine recommendation block behind the "Recommended models"
+/// picker: auto-picked tier, detected RAM, and every tier annotated with `fits`
+/// (does its `min_gb` fit?) and `installed` (is a matching variant pulled?).
 fn build_recommendation(
     ram_gb: Option<u32>,
     has_gpu: bool,
@@ -554,9 +546,9 @@ fn build_recommendation(
     let tier_list: Vec<Value> = DEFAULT_TIERS
         .iter()
         .map(|t| {
-            // "Installed" if any pulled model shares the tier's base name AND
-            // the tier's suffix (e.g. tier qwen3.5:4b matches a pulled
-            // qwen3.5:4b-instruct-q5_K_M).
+            // Installed if a pulled model shares the tier's base name AND its
+            // suffix, so tier qwen3.5:4b matches a pulled
+            // qwen3.5:4b-instruct-q5_K_M.
             let base = t.model.split(':').next().unwrap_or(t.model);
             let suffix = t.model.split(':').next_back().unwrap_or("");
             let mut installed = false;
@@ -568,9 +560,9 @@ fn build_recommendation(
                 }
             }
 
-            // Note can be augmented for high-RAM tiers on machines without a
-            // fast GPU — heads up that this will be slow on integrated
-            // graphics. Apple Silicon's unified memory always counts as fast.
+            // High-RAM tiers on a machine without a fast GPU get a heads-up
+            // that integrated graphics will be slow. Apple Silicon's unified
+            // memory always counts as fast.
             let mut note = t.note.to_string();
             if !has_gpu && t.min_gb >= 24 {
                 if !note.is_empty() {
@@ -593,8 +585,8 @@ fn build_recommendation(
         })
         .collect();
 
-    // Anything pulled by the user outside the curated tiers — they should
-    // still see + manage these from the settings list.
+    // Models pulled outside the curated tiers still need to be manageable from
+    // the settings list.
     let model_sizes_map = build_model_sizes(raw_models);
     let other_installed: Vec<Value> = raw_models
         .iter()
@@ -616,10 +608,9 @@ fn build_recommendation(
     })
 }
 
-/// Pick the largest tier that fits the machine's RAM. Falls back to the
-/// smallest tier when RAM is unknown. Tiers marked `auto_recommend = false`
-/// are visible in the UI but skipped here (they're too slow even when they
-/// fit).
+/// Largest tier that fits the machine's RAM, falling back to the smallest when
+/// RAM is unknown. `auto_recommend = false` tiers are visible in the UI but
+/// skipped here, being too slow even when they fit.
 fn pick_tier(ram_gb: Option<u32>) -> &'static OllamaTier {
     let last = DEFAULT_TIERS.last().expect("non-empty tier list");
     let Some(ram_gb) = ram_gb else {
@@ -643,9 +634,9 @@ pub(crate) fn system_ram_gb() -> Option<u32> {
     Some((bytes / 1024 / 1024 / 1024) as u32)
 }
 
-/// Apple Silicon's unified memory is fast enough that we always treat macOS
-/// as "has fast GPU." On Linux/Windows we look for an NVIDIA card via
-/// `nvidia-smi` and require at least `min_vram_gb` of VRAM.
+/// Apple Silicon's unified memory is fast enough that macOS always counts as
+/// "has fast GPU". Elsewhere, look for an NVIDIA card via `nvidia-smi` with at
+/// least `min_vram_gb` of VRAM.
 fn has_fast_gpu() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -686,8 +677,8 @@ fn parse_version(v: &str) -> Vec<u32> {
         .collect()
 }
 
-/// True if `version` is below `MIN_OLLAMA_VERSION`. Empty/garbage parses
-/// return false (we don't surface an outdated banner when we can't tell).
+/// True if `version` is below `MIN_OLLAMA_VERSION`. Empty/garbage returns
+/// false: no outdated banner when we can't tell.
 fn version_outdated(version: &str) -> bool {
     let v = parse_version(version);
     let min = parse_version(MIN_OLLAMA_VERSION);
@@ -707,8 +698,8 @@ mod tests {
 
     #[test]
     fn picks_largest_fitting_auto_tier() {
-        // 32 GB machine should auto-pick "Good" (gemma4:26b, min 24) — the
-        // 31b tier is auto_recommend=false even though it fits.
+        // 32 GB auto-picks "Good" (gemma4:26b, min 24); the 31b tier is
+        // auto_recommend=false even though it fits.
         assert_eq!(pick_tier(Some(32)).model, "gemma4:26b");
         // 16 GB → "Decent".
         assert_eq!(pick_tier(Some(16)).model, "gemma4:e4b");
@@ -724,7 +715,7 @@ mod tests {
         assert!(!version_outdated("0.21.0"));
         assert!(!version_outdated("0.22.0"));
         assert!(!version_outdated("v1.0.0"));
-        // Unknown/garbage → not outdated (no banner shown).
+        // Unknown/garbage → not outdated.
         assert!(!version_outdated(""));
         assert!(!version_outdated("nightly"));
     }
@@ -737,11 +728,10 @@ mod tests {
 
     #[test]
     fn tiers_carry_fits_and_installed_flags() {
-        // Tag the curated qwen tier with a matching pulled model.
         let pulled = vec![raw("qwen3.5:4b-instruct-q5_K_M", 3_500_000_000)];
         let rec = build_recommendation(Some(16), true, &pulled);
         let tiers = rec["tiers"].as_array().unwrap();
-        // 16GB fits down to Decent (e4b, min 16) and below; doesn't fit Good (24) or Slow (32).
+        // 16GB fits Decent (e4b, min 16) and below, not Good (24) or Slow (32).
         let lookup = |model: &str| -> &Value {
             tiers.iter().find(|t| t["model"] == model).unwrap()
         };
@@ -754,7 +744,7 @@ mod tests {
 
     #[test]
     fn other_installed_omits_tier_matches() {
-        // One model that matches a tier (qwen3.5:4b...) and one that doesn't (mistral).
+        // One model matching a tier, one not.
         let pulled = vec![
             raw("qwen3.5:4b-instruct-q5_K_M", 3_500_000_000),
             raw("mistral:latest", 4_100_000_000),

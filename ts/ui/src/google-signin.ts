@@ -1,21 +1,18 @@
 /**
- * Google Identity Services (GIS) wrapper — the browser half of hosted sign-in
+ * Google Identity Services (GIS) wrapper, the browser half of hosted sign-in
  * (meditation-pal-rfb). Loads Google's script on demand, renders the official
- * sign-in button, and hands the resulting ID token to the server
- * (`googleSignIn` in cloud-auth.ts), which verifies it and mints our session.
+ * button, and hands the ID token to the server (`googleSignIn` in cloud-auth.ts)
+ * to verify and mint our session.
  *
- * Gated on a build-time client id (`VITE_GOOGLE_CLIENT_ID`,
- * `isGoogleSignInConfigured()`): with none, this module's entry points no-op so
- * a dev build cleanly falls back to the local dev sign-in. Nothing here runs at
- * import time — the GIS script only loads when a sign-in surface is actually
- * mounted.
+ * Gated on a client id (`isGoogleSignInConfigured()`): with none, the entry
+ * points no-op so a dev build falls back to local dev sign-in. Nothing runs at
+ * import time; GIS only loads when a sign-in surface mounts.
  *
- * We don't depend on `@types/google.accounts`; the slice of the GIS API we use
- * is declared locally below. Reference: Google Identity Services for Web.
+ * The slice of the GIS API we use is declared locally below rather than
+ * depending on `@types/google.accounts`.
  *
- * Mounted by the sign-in modal (sign-in-modal.ts): `renderGoogleSignInButton`
- * on web, `renderDesktopGoogleSignInButton` (the loopback PKCE flow) under the
- * desktop (Tauri) shell.
+ * Mounted by sign-in-modal.ts: `renderGoogleSignInButton` on web,
+ * `renderDesktopGoogleSignInButton` (loopback PKCE) under the Tauri shell.
  */
 
 import {
@@ -51,8 +48,8 @@ interface GsiButtonConfiguration {
     shape?: 'rectangular' | 'pill' | 'circle' | 'square';
     logo_alignment?: 'left' | 'center';
     /** Fixed button width in px (max 400). Pinning it makes GIS render at this
-     *  width from the start instead of briefly filling the container, which is
-     *  the "starts full-width then snaps narrow" flash. */
+     *  width from the start instead of briefly filling the container, which
+     *  reads as a "full-width then snaps narrow" flash. */
     width?: number;
 }
 
@@ -77,8 +74,8 @@ export interface SignInHandlers {
 let scriptPromise: Promise<GoogleAccountsId> | null = null;
 
 /** Inject the GIS script once and resolve with `google.accounts.id`. Memoized,
- *  so repeated callers share a single load. Rejects if the script can't load
- *  (offline, blocked) — the caller should fall back gracefully. */
+ *  so repeated callers share one load. Rejects when the script can't load
+ *  (offline, blocked); callers should fall back gracefully. */
 function loadGis(): Promise<GoogleAccountsId> {
     if (scriptPromise) return scriptPromise;
     scriptPromise = new Promise<GoogleAccountsId>((resolve, reject) => {
@@ -100,8 +97,8 @@ function loadGis(): Promise<GoogleAccountsId> {
     return scriptPromise;
 }
 
-/** Build the GIS callback: turn an ID token into an aloud session via the
- *  server, then notify the caller. Shared by the button and One Tap. */
+/** The GIS callback: trade the ID token for a session, then notify the caller.
+ *  Shared by the button and One Tap. */
 function makeCallback(handlers: SignInHandlers): (r: CredentialResponse) => void {
     return (response) => {
         if (!response.credential) {
@@ -117,9 +114,9 @@ function makeCallback(handlers: SignInHandlers): (r: CredentialResponse) => void
 }
 
 /**
- * Render the official Google sign-in button into `container`. No-op (returns
- * false) when no client id is configured, so callers can use the return value
- * to decide whether to show a dev-sign-in affordance instead.
+ * Render the official Google button into `container`. Returns false without
+ * rendering when no client id is configured, so callers can show a dev-sign-in
+ * affordance instead.
  */
 export async function renderGoogleSignInButton(
     container: HTMLElement,
@@ -146,8 +143,8 @@ export async function renderGoogleSignInButton(
 }
 
 /**
- * Trigger Google One Tap (a non-modal prompt). Optional alternative/companion
- * to the button. No-op when unconfigured. Returns false if it couldn't start.
+ * Google One Tap (a non-modal prompt), an optional companion to the button.
+ * Returns false when unconfigured or it couldn't start.
  */
 export async function promptGoogleOneTap(handlers: SignInHandlers): Promise<boolean> {
     const clientId = googleClientId();
@@ -169,11 +166,11 @@ export async function promptGoogleOneTap(handlers: SignInHandlers): Promise<bool
 
 /**
  * Desktop (Tauri) Google sign-in. The GIS button can't run in the webview's
- * custom-scheme origin, so render a plain button that runs the loopback PKCE
- * flow: POST to the embedded local server (`/app/v1/google-oauth`) which opens
- * the system browser and catches the redirect on 127.0.0.1, then finish at the
- * hosted `/cloud/v1/auth/google/desktop`. Returns false when no desktop client
- * id is configured (the caller then removes the host). (meditation-pal-fae)
+ * custom-scheme origin, so a plain button drives the loopback PKCE flow: POST to
+ * the embedded server (`/app/v1/google-oauth`), which opens the system browser
+ * and catches the redirect on 127.0.0.1, then finish at the hosted
+ * `/cloud/v1/auth/google/desktop`. Returns false when no desktop client id is
+ * configured, and the caller removes the host. (meditation-pal-fae)
  */
 export function renderDesktopGoogleSignInButton(
     container: HTMLElement,
@@ -199,8 +196,8 @@ async function runDesktopGoogleSignIn(
     btn.disabled = true;
     btn.textContent = 'Waiting for your browser…';
     try {
-        // The embedded server runs the browser dance and returns the code; it
-        // blocks until the user finishes (or it times out), so this awaits.
+        // The embedded server runs the browser dance and returns the code,
+        // blocking until the user finishes or it times out.
         const res = await fetch(appUrl('/google-oauth'), {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

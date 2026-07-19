@@ -1,10 +1,9 @@
 /**
  * Typed persistence for session state on top of any KvStorage.
  *
- * Stores each session under a prefixed key plus an index key listing all
- * session IDs. The index is updated atomically with each save/delete so
- * `list()` doesn't require enumerating all keys (which is fast for the
- * in-memory backend but can be slow for Capacitor Preferences).
+ * Each session lives under a prefixed key, plus an index key listing all IDs.
+ * The index is kept current on save/delete so `list()` avoids enumerating all
+ * keys, which is slow on Capacitor Preferences.
  */
 
 import { emptyUsage, type SessionState } from '../facilitation/session.js';
@@ -18,9 +17,9 @@ export interface SessionStoreOptions {
 }
 
 /**
- * The persistence surface the UI depends on. Implemented by SessionStore (over
- * any KvStorage — localStorage on web) and by the UI's BackendSessionStore
- * (HTTP to the desktop shell, which writes one JSON file per session to disk).
+ * The persistence surface the UI depends on. Implemented by SessionStore (any
+ * KvStorage, localStorage on web) and by the UI's BackendSessionStore (HTTP to
+ * the desktop shell, one JSON file per session on disk).
  */
 export interface SessionStoreApi {
     save(state: SessionState): Promise<void>;
@@ -52,8 +51,8 @@ export class SessionStore implements SessionStoreApi {
     async load(sessionId: string): Promise<SessionState | null> {
         const raw = await getJson<SessionState>(this.storage, this.keyFor(sessionId));
         if (raw === null) return null;
-        // Records saved before usage tracking existed lack `usage`; the type
-        // is non-optional, so backfill a zeroed tally on read.
+        // Records predating usage tracking lack `usage`, which is non-optional;
+        // backfill a zeroed tally on read.
         return { ...raw, usage: raw.usage ?? emptyUsage() };
     }
 

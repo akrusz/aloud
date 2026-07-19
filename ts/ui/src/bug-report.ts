@@ -1,8 +1,7 @@
 /**
- * "Report a bug" — opens the user's mail composer with a prefilled report so a
- * reply doesn't have to start by asking "which version? what device?". The
- * body carries a short diagnostics block (version, platform, mode, user agent)
- * plus a two-line template for the user to fill in.
+ * "Report a bug": opens the mail composer prefilled with a diagnostics block
+ * (version, platform, mode, user agent) so a reply doesn't start by asking
+ * "which version? what device?".
  *
  * Reached from the in-session ⓘ info panel (desktop) and the mobile More sheet.
  */
@@ -11,7 +10,7 @@ import { isTauri, isCapacitor, capacitorPlatform } from './is-desktop.js';
 import { appMode } from './app-mode.js';
 import { openExternal } from './external-links.js';
 
-/** Where reports land. Same inbox as the About "kind words" / privacy contact. */
+/** Same inbox as the About "kind words" / privacy contact. */
 const SUPPORT_EMAIL = 'lexkrusz@gmail.com';
 
 function platformLabel(): string {
@@ -37,10 +36,9 @@ export function bugReportMailtoHref(): string {
 }
 
 /**
- * Open the prefilled bug-report email. On desktop the opener plugin hands the
- * `mailto:` to the system mail client; on web and native mobile we let the
- * webview pass it to the OS composer (`@capacitor/browser` can't open
- * `mailto:`, so we don't route those through `openExternal`).
+ * Desktop hands the `mailto:` to the opener plugin; web and native mobile let
+ * the webview pass it to the OS composer, since `@capacitor/browser` can't open
+ * `mailto:`.
  */
 export async function openBugReport(): Promise<void> {
     const href = bugReportMailtoHref();

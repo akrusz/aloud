@@ -1,16 +1,14 @@
 /**
- * Hosted-server LLM provider — the web tier's only LLM source.
+ * Hosted-server LLM provider - the web tier's only LLM source. POSTs to the
+ * aloud cloud's metered proxy (/v1/llm/complete) with a bearer session token
+ * (cloud-auth.ts); the server holds the real provider keys, forwards the turn,
+ * meters it, and returns text plus credits charged/remaining, so the browser
+ * never sees a key. Contrast claude-proxy-http.ts, which targets the desktop
+ * backend's `claude` CLI subprocess.
  *
- * POSTs to the aloud cloud's metered proxy (/v1/llm/complete) with a
- * bearer session token (see cloud-auth.ts). The server holds the real
- * provider keys, forwards the turn, meters it against the account's credits,
- * and returns the text (+ credits charged/remaining). The browser never sees
- * a provider key. Contrast claude-proxy-http.ts, which targets the desktop
- * app backend's `claude` CLI subprocess.
- *
- * Implements both complete() and completeStream() so it slots into the same
+ * Implements complete() and completeStream() so it slots into the same
  * streaming-TTS pipeline as the BYOK providers. Tickets: meditation-pal-vd3
- * (this server), meditation-pal-8sj (metering), meditation-pal-rfb (auth).
+ * (server), -8sj (metering), -rfb (auth).
  */
 
 import type {
@@ -32,11 +30,10 @@ export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
 const ENDPOINT = '/llm/complete';
 const DEFAULT_MAX_TOKENS = 400;
 
-// Stall guard: if the proxy accepts the connection but goes quiet this long —
-// no response to the non-streaming call, or no further SSE bytes mid-stream —
-// treat the turn as dead and reject so the session recovers instead of hanging
-// forever on "Thinking…". Generous: a live turn (even Opus warming up its first
-// token) speaks far sooner; only a genuine stall waits this long.
+// Stall guard: the proxy going quiet this long (no response, or no further SSE
+// bytes mid-stream) means the turn is dead - reject so the session recovers
+// instead of hanging on "Thinking…". Generous; even Opus warming up its first
+// token speaks far sooner.
 const CLOUD_STALL_MS = 60_000;
 
 export interface CloudLlmProviderOptions {
@@ -87,12 +84,12 @@ export class CloudLlmProvider implements LLMProvider {
             maxTokens: options.maxTokens ?? this.maxTokens,
             ...(options.system ? { system: options.system } : {}),
             stream,
-            // Group this turn with the rest of the session for the cost report.
+            // Group with the rest of the session for the cost report.
             ...(sessionId ? { sessionId } : {}),
         });
     }
 
-    /** POST with bearer auth; on a 401 the cached token is stale — clear it,
+    /** POST with bearer auth; on a 401 the cached token is stale - clear it,
      *  re-sign-in, and retry once before giving up. */
     private async post(
         messages: Message[],
@@ -126,7 +123,7 @@ export class CloudLlmProvider implements LLMProvider {
             const data = (await res.json()) as ApiErrorBody;
             if (data.error?.message) message = data.error.message;
         } catch {
-            /* non-JSON body — keep the status message */
+            /* non-JSON body - keep the status message */
         }
         throw new Error(message);
     }
@@ -139,8 +136,8 @@ export class CloudLlmProvider implements LLMProvider {
         );
         if (!res.ok) return this.throwFromError(res);
         const data = (await res.json()) as CompleteResponseBody;
-        // The server hands back the authoritative post-turn balance every call;
-        // publish it so balance surfaces stay live without an extra /me round-trip
+        // The server returns the authoritative post-turn balance every call;
+        // publish it so balance surfaces stay live without a /me round-trip
         // (meditation-pal-14s).
         if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
         return {
@@ -157,8 +154,8 @@ export class CloudLlmProvider implements LLMProvider {
     ): AsyncIterable<StreamChunk> {
         const ac = new AbortController();
         let stallTimer: ReturnType<typeof setTimeout> | undefined;
-        // Re-armed before each await: a turn that keeps streaming stays alive
-        // indefinitely; only a gap longer than CLOUD_STALL_MS aborts the fetch.
+        // Re-armed before each await, so a turn that keeps streaming stays alive
+        // indefinitely and only a gap longer than CLOUD_STALL_MS aborts.
         const armStall = (): void => {
             clearTimeout(stallTimer);
             stallTimer = setTimeout(
@@ -178,7 +175,7 @@ export class CloudLlmProvider implements LLMProvider {
             );
             if (!res.ok) return void (await this.throwFromError(res));
             if (!res.body) {
-                // No streaming body (some environments) — degrade to one chunk.
+                // No streaming body (some environments) - degrade to one chunk.
                 const data = (await res.json()) as CompleteResponseBody;
                 if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
                 yield { text: data.text ?? '', done: false };
@@ -232,10 +229,10 @@ export class CloudLlmProvider implements LLMProvider {
             yield { text: '', done: true, finishReason };
         } finally {
             clearTimeout(stallTimer);
-            // Release the fetch on every exit — normal completion, a thrown
+            // Release the fetch on every exit: normal completion, a thrown
             // upstream/stall error, or the consumer breaking the for-await on
-            // barge-in (generator return runs this finally). Previously a
-            // barge-in left the socket streaming until GC.
+            // barge-in (generator return runs this finally). Without it a
+            // barge-in leaves the socket streaming until GC.
             ac.abort();
         }
     }

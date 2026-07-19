@@ -1,13 +1,12 @@
 /**
- * Hono app factory. Wires CORS, a health check, and the /cloud/v1 routes onto
- * an injected Deps. Kept free of process/network side effects so tests can
- * drive it with `app.request(...)` against an in-memory store (see tests/).
+ * Hono app factory: CORS, health check, and routes over an injected Deps. Free
+ * of process/network side effects so tests drive it with `app.request(...)`
+ * against an in-memory store (see tests/).
  *
- * Route naming: this server hosts the signed-in, billed cloud service under
- * `/cloud/v1/*` (auth, account, billing, metered LLM/STT/TTS forwarding). The
- * app's own backend — provider/voice catalogs, system info, on-device
- * inference — lives at `/app/v1/*` (the Rust shell on desktop; mirrored here
- * for the web build, see bkg).
+ * `/cloud/v1/*` is the signed-in, billed cloud service (auth, account, billing,
+ * metered LLM/STT/TTS forwarding). `/app/v1/*` is the app's own backend
+ * (provider/voice catalogs, system info, on-device inference): the Rust shell
+ * on desktop, mirrored here for the web build (bkg).
  */
 
 import { Hono } from 'hono';
@@ -30,12 +29,11 @@ import { appBackendRoutes } from './routes/app.js';
 export function createApp(deps: Deps): Hono {
     const app = new Hono();
 
-    // Allowlist match is trailing-slash tolerant on both sides: a browser sends
-    // Origin with no trailing slash, but a configured value like
-    // `https://aloud.rest/` is an easy mistake — normalize both so it still
-    // matches instead of silently dropping the CORS header (which surfaces as an
-    // opaque "Access-Control-Allow-Origin missing" in the browser). With no
-    // origins configured we fall back to '*' (open) for zero-config local dev.
+    // Allowlist match is trailing-slash tolerant on both sides: browsers send
+    // Origin without one, but a configured `https://aloud.rest/` is an easy
+    // mistake. Normalizing both avoids silently dropping the CORS header, which
+    // surfaces only as an opaque "Access-Control-Allow-Origin missing". With no
+    // origins configured we fall open to '*' for zero-config local dev.
     const allowedOrigins = deps.config.corsOrigins.map(stripTrailingSlash);
     app.use(
         '*',
@@ -57,34 +55,33 @@ export function createApp(deps: Deps): Hono {
             ok: true,
             providers: configuredProviders(deps.config),
             billing: Boolean(deps.config.stripeSecretKey),
-            // Which media capabilities the client can route here (vs Flask/native).
+            // Which media capabilities the client can route here (vs native).
             stt: Boolean(deps.config.sttConfig),
             tts: Boolean(deps.config.googleTtsApiKey || deps.config.openaiTtsApiKey),
         })
     );
 
-    // Public: the build-agnostic bits a client needs *before* sign-in. Today just
-    // the Google OAuth web client id (public by design — it ships in the hosted
-    // bundle already), so ANY install — local, desktop, or web — pointed at this
-    // server can render the Google sign-in button without baking the id in at
-    // build time. Empty when the server has no GOOGLE_CLIENT_IDS, in which case
-    // the client keeps its dev-sign-in fallback. (meditation-pal-rfb)
+    // Public: what a client needs *before* sign-in, chiefly the Google OAuth web
+    // client id. It's public by design (it already ships in the hosted bundle),
+    // so any install pointed at this server can render the sign-in button without
+    // baking the id in at build time. Empty when GOOGLE_CLIENT_IDS is unset; the
+    // client then keeps its dev-sign-in fallback. (meditation-pal-rfb)
     app.get('/cloud/v1/config', (c) =>
         c.json({
             googleClientId: deps.config.googleClientIds[0] ?? '',
             appleClientId: deps.config.appleClientIds[0] ?? '',
             // Desktop (Tauri) uses a separate "Desktop app" OAuth client for the
-            // loopback PKCE flow; the id is public (it appears in the auth URL the
-            // user sees), the secret stays server-side. Empty disables it.
+            // loopback PKCE flow. The id is public (it appears in the auth URL the
+            // user sees); the secret stays server-side. Empty disables it.
             googleDesktopClientId: deps.config.googleDesktopClientId ?? '',
         })
     );
 
     // Public: the curated hosted voices, or [] when TTS isn't configured. The
-    // client merges these into its voice picker (availability-driven menus).
+    // client merges these into its voice picker.
     app.get('/cloud/v1/voices', (c) => {
-        // Each provider's voices appear only when its key is configured, so the
-        // picker never offers a voice the server can't actually synthesize.
+        // A provider's voices appear only when its key is configured, so the
+        // picker never offers a voice the server can't synthesize.
         const hasKey = {
             google: Boolean(deps.config.googleTtsApiKey),
             openai: Boolean(deps.config.openaiTtsApiKey),
@@ -107,15 +104,15 @@ export function createApp(deps: Deps): Hono {
     app.route('/cloud/v1/gifts', giftRoutes(deps));
     app.route('/cloud/v1/admin', adminRoutes(deps));
 
-    // The app's own backend surface for the web build (the desktop shell serves
-    // these natively). Non-inference only; see routes/app.ts.
+    // The app's own backend for the web build (desktop serves these natively).
+    // Non-inference only; see routes/app.ts.
     app.route('/app/v1', appBackendRoutes(deps));
 
     return app;
 }
 
 /** Drop trailing slashes so origin comparison is robust to `https://x/` vs the
- *  `https://x` a browser actually sends. Empty string stays empty. */
+ *  `https://x` a browser sends. Empty string stays empty. */
 function stripTrailingSlash(origin: string): string {
     return origin.replace(/\/+$/, '');
 }

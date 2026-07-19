@@ -1,41 +1,34 @@
 /**
- * Silero VAD (v5) frame classifier — a small neural net (~2 MB ONNX, MIT)
- * running fully client-side over onnxruntime-web's WASM backend. It replaces
- * the absolute RMS-energy thresholds in whisper-pcm-stt.ts as the "is the user
- * speaking" signal: per ~32 ms chunk it emits a speech probability that is
- * robust to quiet mics, soft trailing speech, and breathing — the cases where
- * a fixed energy gate tuned on one device falls over on another (fgbj).
+ * Silero VAD (v5) frame classifier - a small neural net (~2 MB ONNX, MIT) run
+ * client-side over onnxruntime-web's WASM backend. Replaces the absolute
+ * RMS-energy thresholds in whisper-pcm-stt.ts as the "is the user speaking"
+ * signal: a per-~32ms speech probability, robust to quiet mics, soft trailing
+ * speech, and breathing - where a gate tuned on one device fails on another (fgbj).
  *
- * Scope: this classifies SPEECH, not SPEAKERS. The facilitator's own TTS
- * leaking into the mic is real speech and scores high — echo rejection stays
- * energy-based (the measured echo gate in whisper-pcm-stt.ts), layered on top.
+ * Classifies SPEECH, not SPEAKERS: the facilitator's own TTS leaking into the
+ * mic scores high, so echo rejection stays energy-based (the measured echo gate
+ * in whisper-pcm-stt.ts) layered on top.
  *
- * No server involvement: the model and the ort WASM binary ship as static
- * assets (Vite `?url` imports → hashed files in the build, served by GitHub
- * Pages / bundled into the desktop app) and inference runs on-device.
- *
- * This module is loaded lazily (dynamic import) so the ort runtime stays out
- * of the main bundle. The loaded model is an app-lifetime singleton
- * (loadSileroVad) shared across engines/sessions: the setup view preloads it
- * while the user configures, and the engine's prime()/start() await the same
- * promise — so by the time a session starts, the download is usually done.
+ * No server involvement - model + ort WASM ship as static assets (Vite `?url`
+ * imports) and inference runs on-device. Loaded lazily so the ort runtime stays
+ * out of the main bundle, then held as an app-lifetime singleton
+ * (loadSileroVad): the setup view preloads it while the user configures and
+ * prime()/start() await the same promise, so the download is usually done.
  */
 
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
 import modelUrl from '@ricky0123/vad-web/dist/silero_vad_v5.onnx?url';
 
-/** Samples per model invocation at 16 kHz (~32 ms) — fixed by Silero v5. */
+/** Samples per model invocation at 16 kHz (~32 ms) - fixed by Silero v5. */
 const CHUNK_SAMPLES = 512;
 const MODEL_SAMPLE_RATE = 16_000;
 // Speech-probability hysteresis (vad-web's defaults): enter "speaking" at ON,
-// leave below OFF, hold the previous state in between. The band is what keeps
-// soft trailing speech (which hovers mid-probability) from reading as silence
-// the way it does under a hard energy threshold.
+// leave below OFF, hold in between. The band is what keeps soft trailing speech
+// (which hovers mid-probability) from reading as silence.
 const SPEECH_ON = 0.5;
 const SPEECH_OFF = 0.35;
-// If inference falls this many chunks (~1 s) behind realtime, drop incoming
-// chunks rather than queue unboundedly. State continuity suffers a little;
-// memory doesn't.
+// Once inference is this many chunks (~1s) behind realtime, drop rather than
+// queue unboundedly. Costs a little state continuity, not memory.
 const MAX_PENDING_CHUNKS = 32;
 
 /** The slice of vad-web's Model interface we use (see models/common.d.ts). */
@@ -46,21 +39,21 @@ export interface SileroModel {
 }
 
 export class SileroFrameVad {
-    /** Latest hysteresis-debounced speech state. Read each audio frame by the
-     *  caller; updated asynchronously as chunks clear inference (sub-ms per
-     *  chunk, so at most one ~32 ms chunk stale). */
+    /** Latest hysteresis-debounced speech state, read per audio frame by the
+     *  caller. Updated as chunks clear inference (sub-ms each, so at most one
+     *  ~32ms chunk stale). */
     speaking = false;
     /** Latest raw speech probability (diagnostics / tuning). */
     lastProb = 0;
 
-    // Streaming resampler state: native-rate residue not yet consumed, and the
-    // fractional read position into it (carried across feed() calls so the
-    // resampling is phase-continuous at frame boundaries).
+    // Streaming resampler state: unconsumed native-rate residue and the
+    // fractional read position into it, carried across feed() calls so
+    // resampling stays phase-continuous at frame boundaries.
     private residue = new Float32Array(0);
     private phase = 0;
     private chunk = new Float32Array(CHUNK_SAMPLES);
     private chunkFill = 0;
-    // Inference is serialized (the model is a stateful RNN — chunk order
+    // Inference is serialized (the model is a stateful RNN - chunk order
     // matters), so chunks chain on one promise.
     private queue: Promise<void> = Promise.resolve();
     private pending = 0;
@@ -68,8 +61,7 @@ export class SileroFrameVad {
 
     constructor(private readonly model: SileroModel) {}
 
-    /** Load ort (WASM backend) + the v5 model. Throws on any failure — the
-     *  caller falls back to energy VAD. */
+    /** Load ort (WASM backend) + the v5 model. Throws on any failure. */
     static async create(): Promise<SileroFrameVad> {
         const ort = await import('onnxruntime-web/wasm');
         // Single-threaded WASM: plenty for this model, and it sidesteps the
@@ -89,10 +81,10 @@ export class SileroFrameVad {
     }
 
     /**
-     * Feed one capture frame at the device's native rate. Resamples to 16 kHz,
-     * slices into model-sized chunks, and queues inference; `speaking` /
-     * `lastProb` update as results land. Call for every frame while the mic is
-     * open — the model's recurrent state assumes a continuous stream.
+     * Feed one native-rate capture frame: resamples to 16 kHz, slices into
+     * model-sized chunks, queues inference; `speaking`/`lastProb` update as
+     * results land. Call for EVERY frame while the mic is open - the model's
+     * recurrent state assumes a continuous stream.
      */
     feed(frame: Float32Array, nativeRate: number): void {
         const ratio = nativeRate / MODEL_SAMPLE_RATE;
@@ -145,9 +137,9 @@ export class SileroFrameVad {
     }
 
     /**
-     * Clear streaming state for a fresh capture stream (new session adopting
-     * the shared instance): resampler residue, chunk fill, speech state, and —
-     * serialized behind any in-flight chunks — the model's recurrent state.
+     * Clear streaming state for a fresh capture stream: resampler residue, chunk
+     * fill, speech state, and - serialized behind any in-flight chunks - the
+     * model's recurrent state.
      */
     reset(): void {
         this.residue = new Float32Array(0);
@@ -167,10 +159,9 @@ export class SileroFrameVad {
     }
 }
 
-// App-lifetime singleton: one ort session shared by every engine instance.
-// Memoized on the promise so concurrent callers (setup-page preload + the
-// session's prime()) share one load; reset on failure so a later session
-// retries (e.g. a transient network error fetching the model).
+// App-lifetime singleton: one ort session for every engine instance. Memoized
+// on the promise so concurrent callers (setup preload + the session's prime())
+// share one load; cleared on failure so a later session retries.
 let pendingLoad: Promise<SileroFrameVad> | null = null;
 
 export function loadSileroVad(): Promise<SileroFrameVad> {

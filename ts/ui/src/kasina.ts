@@ -1,15 +1,12 @@
 /**
- * Kasina gazing mode — shared between the exploration and noting session views.
+ * Kasina gazing mode, shared by the exploration and noting session views. The
+ * orb leaves the nav to become a 140px center gaze object (.orb-kasina),
+ * draggable anywhere, with a shake or 4 quick clicks toggling the rainbow easter
+ * egg. Clicking outside (or re-toggling) exits. Forces dark theme while gazing.
  *
- * The orb leaves the nav, grows to a 140px center gaze object (.orb-kasina),
- * can be dragged anywhere, and a shake or 4 quick clicks toggles the rainbow
- * easter egg. Click outside (or re-toggle) exits. Forces dark theme while
- * gazing.
- *
- * Window/document-level listeners (drag, outside-click) outlive the view's own
- * elements, so — unlike the old multi-page app, which reloaded per navigation —
- * they must be removed on teardown or they leak across sessions. The caller passes
- * an AbortSignal (one per view, aborted in endSession) that covers them all.
+ * The window/document listeners (drag, outside-click) outlive the view's own
+ * elements, so they must be removed on teardown or they leak across sessions.
+ * The caller's AbortSignal (one per view, aborted in endSession) covers them all.
  */
 
 import { setRainbow } from './embers.js';
@@ -17,11 +14,11 @@ import { setRainbow } from './embers.js';
 export interface KasinaOptions {
     /** The breathing orb (id="orb"), nav-anchored at rest. */
     orb: HTMLElement;
-    /** The session view's root container — used to find `.session-container`. */
+    /** The session view's root container - used to find `.session-container`. */
     root: ParentNode;
     /** The hidden checkbox that toggles kasina mode (id="kasina-toggle"). */
     toggle: HTMLInputElement;
-    /** Aborted on view teardown — detaches all document-level listeners. */
+    /** Aborted on view teardown - detaches all document-level listeners. */
     signal: AbortSignal;
 }
 
@@ -48,8 +45,8 @@ export function initKasinaMode(opts: KasinaOptions): void {
         rainbowCooldownUntil = now + 2000;
     }
 
-    // Click orb in nav to enter kasina; 4 quick clicks while gazing
-    // toggles rainbow. Suppress the click that ends a drag.
+    // Nav orb click enters kasina; 4 quick clicks while gazing toggles rainbow.
+    // The click that ends a drag is suppressed.
     orb.addEventListener('click', (e) => {
         if (orbMoved) {
             orbMoved = false;
@@ -74,9 +71,8 @@ export function initKasinaMode(opts: KasinaOptions): void {
         }
     });
 
-    // FLIP animation for the kasina toggle: snapshot the orb's
-    // position/appearance before and after the layout change, then
-    // animate the delta so the orb glides between nav and center.
+    // FLIP animation: snapshot the orb's position/appearance either side of the
+    // layout change, then animate the delta so it glides between nav and center.
     toggle.addEventListener('change', () => {
         const cs = getComputedStyle(orb);
         const startOpacity = cs.opacity;

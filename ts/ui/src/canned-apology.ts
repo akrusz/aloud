@@ -1,13 +1,10 @@
 /**
  * Voice the fixed billing apology to a user who's out of credits (or paused).
  *
- * The normal hosted TTS (/v1/tts) 402s at a zero balance — exactly when we most
- * need to speak. So we hit the server's free, unmetered /v1/tts/canned, which
- * synthesizes one of a few server-owned constants once per voice and serves the
- * cached audio. If that fails for any reason (offline, server hiccup, a
- * browser-side voice choice), we fall back to the browser's speechSynthesis so
- * the user still hears the message. Never throws — voicing the apology is
- * best-effort garnish on top of the on-screen bubble.
+ * Metered hosted TTS 402s at a zero balance, precisely when we need to speak, so
+ * we hit the free unmetered canned endpoint (server-owned strings, synthesized
+ * once per voice and cached). Falls back to browser speechSynthesis on any
+ * failure. Never throws: the voicing is garnish on top of the on-screen bubble.
  */
 
 import { ensureCloudToken, clearCloudToken } from './cloud-auth.js';
@@ -29,9 +26,8 @@ export async function playCannedApology(
     }
 }
 
-/** POST to the free canned endpoint with bearer auth; self-heal a stale token
- *  once on 401, mirroring the LLM/TTS proxies. Throws on any non-OK response so
- *  the caller falls back to the browser voice. */
+/** Self-heals a stale token once on 401, like the LLM/TTS proxies. Throws on
+ *  non-OK so the caller falls back to the browser voice. */
 async function fetchCanned(reason: CannedReason, voice: string | null): Promise<Blob> {
     const send = async (token: string): Promise<Response> =>
         fetch(cloudUrl(CANNED_ENDPOINT), {
@@ -70,6 +66,6 @@ function speakViaBrowser(text: string): void {
         synth.cancel();
         synth.speak(new SpeechSynthesisUtterance(text));
     } catch {
-        /* no speech synthesis available — the on-screen bubble stands alone */
+        /* no speech synthesis: the on-screen bubble stands alone */
     }
 }

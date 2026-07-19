@@ -1,21 +1,18 @@
 /**
- * Meditation modes as data, not forks — the ModeSpec registry.
+ * Meditation modes as data, not forks: the ModeSpec registry.
  *
- * A mode bundles everything the engine needs to run a different facilitation
- * flow: its base system prompt, which user-tunable prompt dimensions still
- * compose with it, opener/check-in pools, and (for staged modes) an ordered
- * list of phases the facilitator moves through. The session view looks the
- * spec up by id; the rest of the engine stays mode-agnostic.
+ * A mode bundles what the engine needs to run a different facilitation flow:
+ * base system prompt, which user-tunable dimensions still compose, opener and
+ * check-in pools, and for staged modes an ordered phase list. The session view
+ * looks the spec up by id; the rest of the engine stays mode-agnostic.
  *
- * Staged modes put a small state machine ON TOP of the LLM facilitation:
- * the active phase's guidance is appended to the system prompt each turn,
- * and the LLM itself signals movement by prefixing a reply with [NEXT] /
- * [BACK] — parsed exactly like [HOLD]. Advancement is deliberately
- * conservative: the protocol section tells the model to stay put when
- * unsure, because rushing a meditator past an unfinished step is the worst
- * failure mode. The same rails are intended to carry future staged modes
- * (e.g. NEDERA, meditation-pal-hysr), which can add corroboration
- * requirements on top.
+ * Staged modes put a small state machine on top of the LLM: the active phase's
+ * guidance is appended to the system prompt each turn, and the LLM signals
+ * movement by prefixing [NEXT]/[BACK], parsed like [HOLD]. Advancement is
+ * conservative - the protocol section tells the model to stay put when unsure,
+ * since rushing a meditator past an unfinished step is the worst failure mode.
+ * Future staged modes (NEDERA, meditation-pal-hysr) ride the same rails and can
+ * add corroboration requirements on top.
  */
 
 import { BASE_SYSTEM_PROMPT, HOLD_PREFIX } from './prompts.js';
@@ -26,9 +23,7 @@ import {
 } from './noting.js';
 import { FELT_SENSE_MODE } from './felt-sense.js';
 
-// ---------------------------------------------------------------------------
 // Spec types
-// ---------------------------------------------------------------------------
 
 export interface ModePhase {
     /** Stable id, persisted on SessionState.modePhase for resume. */
@@ -42,11 +37,10 @@ export interface ModePhase {
 }
 
 /**
- * Which user-tunable prompt dimensions compose into the system prompt.
- * Every field defaults to true (classic exploration behavior); staged modes
- * typically turn everything off because the protocol defines attention,
- * tone, guidance level, and brevity itself. The setup UI hides the controls
- * for dimensions a mode turns off, so a stale stored value never leaks in.
+ * Which user-tunable prompt dimensions compose into the system prompt. Fields
+ * default to true (classic exploration); staged modes usually turn all off,
+ * since the protocol defines attention, tone, guidance, and brevity itself.
+ * The setup UI hides controls a mode turns off, so no stale stored value leaks.
  */
 export interface ModeComposes {
     focuses?: boolean;
@@ -66,27 +60,25 @@ export interface ModeSpec {
     /** parts[0] of the system prompt. */
     basePrompt: string;
     composes?: ModeComposes;
-    /** Static opener pool (fallback when the LLM opener fails). Omitted =
-     *  the classic exploration pools keyed off focuses/qualities. */
+    /** Static opener pool (fallback when the LLM opener fails). Omitted = the
+     *  classic exploration pools keyed off focuses/qualities. */
     openers?: readonly string[];
-    /** Instruction for the LLM-generated opener. Omitted = classic
-     *  exploration wording built from the active dimensions. */
+    /** Instruction for the LLM-generated opener. Omitted = classic exploration
+     *  wording built from the active dimensions. */
     openerPrompt?: string;
     /** Check-in pool for long silences. Omitted = CHECK_IN_PROMPTS. */
     checkIns?: readonly string[];
-    /** Ordered phases — present only for staged modes. */
+    /** Ordered phases, present only for staged modes. */
     phases?: readonly ModePhase[];
-    /** This mode doesn't compose directiveness but still offers the slider
-     *  as a timing-only "Check-in pace" control (patient <-> attentive). The
-     *  session view feeds the pace value through PromptConfig.directiveness,
-     *  whose only remaining effect in such a mode is check-in timing (the
-     *  [WAIT] bias + pacing seed + directive check-ins). */
+    /** The mode doesn't compose directiveness but still shows the slider as a
+     *  timing-only "Check-in pace" control (patient <-> attentive). The session
+     *  view feeds the pace through PromptConfig.directiveness, whose only
+     *  remaining effect here is check-in timing ([WAIT] bias, pacing seed,
+     *  directive check-ins). */
     checkinPaceSlider?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Stage signals — [NEXT] / [BACK], parsed like [HOLD]
-// ---------------------------------------------------------------------------
+// Stage signals: [NEXT] / [BACK], parsed like [HOLD].
 
 export type StageSignal = 'advance' | 'back' | 'none';
 
@@ -94,19 +86,19 @@ export type StageSignal = 'advance' | 'back' | 'none';
 export const NEXT_PREFIX = '[NEXT]';
 export const BACK_PREFIX = '[BACK]';
 
-/** Opening of the check-in timing token, e.g. "[WAIT:12m]" (smart timing:
- *  the LLM sets how long a following silence is protected before the next
- *  check-in may fire). */
+/** Opening of the check-in timing token, e.g. "[WAIT:12m]": smart timing, where
+ *  the LLM sets how long the following silence is protected before the next
+ *  check-in may fire. */
 export const WAIT_PREFIX = '[WAIT:';
 
-// [WAIT:12m] / [WAIT:90s] / bare [WAIT:12] (minutes). Anchored — leading
-// tokens only, like the other signals.
+// [WAIT:12m] / [WAIT:90s] / bare [WAIT:12] (minutes). Anchored: leading tokens
+// only, like the other signals.
 const WAIT_TOKEN_RE = /^\[WAIT:\s*(\d+)\s*(M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?\s*\]/i;
 
 /**
- * Match a leading [WAIT:Nm] token. Returns the requested interval in seconds
- * (unit defaults to minutes) plus the matched length so callers can strip it.
- * No clamping here — that's the pacing layer's policy.
+ * Match a leading [WAIT:Nm] token. Returns the interval in seconds (unit
+ * defaults to minutes) plus the matched length so callers can strip it.
+ * Clamping is the pacing layer's policy, not done here.
  */
 export function matchWaitToken(text: string): { seconds: number; length: number } | null {
     const m = WAIT_TOKEN_RE.exec(text);
@@ -116,18 +108,17 @@ export function matchWaitToken(text: string): { seconds: number; length: number 
     return { seconds, length: m[0].length };
 }
 
-// Every control token the app knows, wherever it appears: [HOLD]/[NEXT]/
-// [BACK], [PASS] (smart-checkin.ts declines with it), and the [WAIT:Nm]
-// grammar. Used by scrubControlTokens only — semantic parsing stays anchored.
+// Every control token the app knows, wherever it appears: [HOLD]/[NEXT]/[BACK],
+// [PASS] (smart-checkin.ts declines with it), and the [WAIT:Nm] grammar. Used by
+// scrubControlTokens only; semantic parsing stays anchored.
 const ANY_CONTROL_TOKEN_RE =
     /\[(?:HOLD|NEXT|BACK|PASS)\]|\[WAIT:\s*\d+\s*(?:M(?:IN(?:UTE)?S?)?|S(?:EC(?:OND)?S?)?)?\s*\]/gi;
 
 /**
- * Remove known control tokens ANYWHERE in text that is about to be spoken.
- * Small models misplace tokens mid-reply ("Sure. [HOLD] Want some quiet?");
- * a misplaced token is never honored — signals are parsed leading-only — but
- * without this it would be read aloud by TTS. Unknown bracketed text is left
- * alone: only the app's own token vocabulary is scrubbed.
+ * Remove known control tokens ANYWHERE in text about to be spoken. Small models
+ * misplace them mid-reply ("Sure. [HOLD] Want some quiet?"); a misplaced token
+ * is never honored (signals parse leading-only) but would otherwise be read
+ * aloud. Unknown bracketed text is left alone.
  */
 export function scrubControlTokens(text: string): string {
     return text
@@ -138,23 +129,22 @@ export function scrubControlTokens(text: string): string {
 }
 
 export interface TurnSignals {
-    /** A [HOLD] token was present — enter silence mode (same as parseHoldSignal). */
+    /** A [HOLD] token was present: enter silence mode (as parseHoldSignal). */
     hold: boolean;
     stage: StageSignal;
     /** Seconds from a [WAIT:Nm] token, or null when absent. Unclamped. */
     waitSec: number | null;
-    /** Response with leading control tokens stripped and any stray mid-text
-     *  ones scrubbed (scrubControlTokens); this is what gets spoken. */
+    /** What gets spoken: leading control tokens stripped, stray mid-text ones
+     *  scrubbed (scrubControlTokens). */
     cleanText: string;
 }
 
 /**
- * Parse the control tokens ([HOLD], [NEXT], [BACK], [WAIT:Nm]) off the start
- * of an LLM reply, in any order and combination. Tokens appearing mid-text
- * are never honored — only a leading run counts, mirroring parseHoldSignal —
- * but they are scrubbed from cleanText so a misplaced token is never spoken
- * (or recorded back into history, where it would re-teach the placement). If
- * the model emits contradictory tokens, the first one wins.
+ * Parse control tokens ([HOLD], [NEXT], [BACK], [WAIT:Nm]) off the start of an
+ * LLM reply, in any order and combination. Only a leading run is honored (as in
+ * parseHoldSignal), but mid-text tokens are scrubbed from cleanText so they are
+ * never spoken or recorded back into history, where they'd re-teach the bad
+ * placement. Contradictory tokens: first wins.
  */
 export function parseTurnSignals(response: string): TurnSignals {
     let text = response.trim();
@@ -183,16 +173,13 @@ export function parseTurnSignals(response: string): TurnSignals {
     return { hold, stage, waitSec, cleanText: scrubControlTokens(text) };
 }
 
-// ---------------------------------------------------------------------------
 // Staged-mode controller
-// ---------------------------------------------------------------------------
 
 /**
- * Tracks the active phase of a staged mode and renders the per-phase system
- * prompt section. One instance lives for the duration of a session; the
- * session view applies each turn's parsed StageSignal and persists the
- * resulting phase id (SessionState.modePhase) so an interrupted session
- * resumes where it left off.
+ * Tracks the active phase of a staged mode and renders its system-prompt
+ * section. One instance per session; the session view applies each turn's
+ * StageSignal and persists the phase id (SessionState.modePhase) so an
+ * interrupted session resumes where it left off.
  */
 export class StagedModeController {
     readonly spec: ModeSpec;
@@ -206,8 +193,8 @@ export class StagedModeController {
         const idx = initialPhaseId
             ? spec.phases.findIndex((p) => p.id === initialPhaseId)
             : 0;
-        // An unknown persisted id (e.g. a phase renamed between releases)
-        // falls back to the first phase rather than failing the session.
+        // An unknown persisted id (a phase renamed between releases) falls back
+        // to the first phase rather than failing the session.
         this.index = idx >= 0 ? idx : 0;
     }
 
@@ -241,11 +228,10 @@ export class StagedModeController {
     }
 
     /**
-     * The system-prompt section for the active phase: arc overview, the
-     * phase's guidance, and the movement protocol. Pass the result to
-     * PromptBuilder.buildSystemPrompt(). Rebuilt every turn; a phase shift
-     * invalidates the prompt-cache prefix once, which is acceptable
-     * (meditation-pal-jqvh).
+     * System-prompt section for the active phase: arc overview, phase guidance,
+     * movement protocol. Pass to PromptBuilder.buildSystemPrompt(). Rebuilt each
+     * turn; a phase shift invalidates the prompt-cache prefix once, which is
+     * acceptable (meditation-pal-jqvh).
      */
     promptSection(): string {
         return buildStageSection(this.spec, this.index);
@@ -291,21 +277,19 @@ function buildStageSection(spec: ModeSpec, index: number): string {
     return lines.join('\n') + '\n';
 }
 
-// ---------------------------------------------------------------------------
 // Registry
-// ---------------------------------------------------------------------------
 
-/** The classic mode. No openers/openerPrompt here on purpose: PromptBuilder's
- *  built-in pools (keyed off focuses/qualities/directiveness) are richer than
- *  a flat list, so this spec behaves identically to passing no mode at all. */
+/** The classic mode. No openers/openerPrompt on purpose: PromptBuilder's pools
+ *  (keyed off focuses/qualities/directiveness) are richer than a flat list, so
+ *  this spec behaves as if no mode were passed. */
 export const EXPLORATION_MODE: ModeSpec = {
     id: 'exploration',
     label: 'Exploration',
     basePrompt: BASE_SYSTEM_PROMPT,
 };
 
-/** Registered for labels/registry completeness; the noting circle has its own
- *  orchestration (noting.ts + the noting-session view) and doesn't run
+/** Registered for labels and registry completeness; the noting circle has its
+ *  own orchestration (noting.ts + the noting-session view) and never runs
  *  through PromptBuilder. */
 export const NOTING_MODE: ModeSpec = {
     id: 'noting',

@@ -1,21 +1,16 @@
 /**
- * Barge-in detector — listens for the user starting to speak while TTS
- * is playing, and triggers cancellation.
+ * Barge-in detector - listens for the user speaking over TTS and triggers
+ * cancellation. Opens a parallel mic stream during playback, for STT backends
+ * that are dormant between turns (Web Speech / Capacitor, which haven't been
+ * start()ed yet). WhisperPcmSttEngine captures continuously and detects
+ * barge-in on its own stream, so it skips this wrapper (see
+ * sttBackendForChoice).
  *
- * During TTS playback the STT adapter is dormant (the mic stream is
- * released between utterances by the server-Whisper-STT adapter, and
- * the Web Speech / Capacitor STT plugins haven't been start()ed yet).
- * This detector opens a parallel mic stream during TTS so the user can
- * interrupt the facilitator mid-sentence by speaking.
+ * Does NOT capture the audio that triggered it: after cancellation the regular
+ * listen loop wakes (busy clears once TTS resolves) and captures the next
+ * utterance. Users pause ~300ms after interrupting, which covers the gap.
  *
- * The detector does NOT capture the audio that triggered it. After
- * cancellation, the regular listen loop wakes up (busy goes false once
- * TTS resolves) and the user's next utterance is captured normally.
- * In practice users pause ~300ms after interrupting, which the listen
- * loop more than makes up.
- *
- * The threshold/chunk-count constants were tuned in the existing app and
- * work well at typical conversation volume.
+ * The threshold/chunk-count defaults are tuned for typical conversation volume.
  */
 
 const FRAME_SIZE = 4096;
@@ -43,26 +38,21 @@ export class BargeInListener {
         this.requiredChunks = options.requiredChunks ?? BARGE_IN_REQUIRED_CHUNKS;
     }
 
-    /**
-     * Begin listening. Calls `onBargeIn` at most once per start()/stop()
-     * cycle, then stops itself so the same callback can't fire repeatedly
-     * for a single barge-in event.
-     */
+    /** Begin listening. Calls `onBargeIn` at most once per start()/stop() cycle,
+     *  then stops itself so one barge-in can't fire it repeatedly. */
     async start(onBargeIn: () => void): Promise<void> {
         if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-            return; // no mic API — silently disabled
+            return; // no mic API - silently disabled
         }
         try {
-            // echoCancellation keeps the facilitator's own TTS (coming out the
-            // speakers) from leaking into this mic and falsely tripping a
-            // barge-in — the facilitator interrupting itself. The old app set
-            // this on its capture stream; the default {audio:true} doesn't
-            // guarantee it, especially in a WebView.
+            // echoCancellation keeps TTS coming out of the speakers from leaking
+            // in and tripping a barge-in - the facilitator interrupting itself.
+            // Plain {audio:true} doesn't guarantee it, especially in a WebView.
             this.stream = await navigator.mediaDevices.getUserMedia({
                 audio: { echoCancellation: true },
             });
         } catch {
-            return; // mic access denied — silently disabled, TTS plays normally
+            return; // mic access denied - silently disabled, TTS plays normally
         }
         if (this.stopped) {
             this.releaseStream();
@@ -94,7 +84,7 @@ export class BargeInListener {
                 if (count >= this.requiredChunks) {
                     fired = true;
                     onBargeIn();
-                    // Stop self — caller will release after TTS cancel.
+                    // Stop self - caller will release after TTS cancel.
                     void this.stop();
                 }
             } else {
@@ -141,10 +131,9 @@ export class BargeInListener {
 }
 
 /**
- * Wrap a TtsEngine so that each speak() call runs a BargeInListener in
- * parallel. When the listener fires, the underlying tts.cancel() is
- * called, which makes the in-flight speak() promise resolve. Pure
- * pass-through otherwise — listVoices, voice IDs, options all untouched.
+ * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
+ * listener fires, tts.cancel() resolves the in-flight speak(). Pure
+ * pass-through otherwise.
  */
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../src/platform/index.js';
 

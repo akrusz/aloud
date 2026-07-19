@@ -1,12 +1,12 @@
 /**
- * POST /v1/tts — metered text-to-speech. Takes JSON { text, voice?, rate? },
- * synthesizes via Google Cloud TTS, debits fractional credits by character
- * count, and returns the MP3 bytes (audio/mpeg). Cost rides in the
- * X-Credits-Charged / X-Credits-Remaining headers so the body stays a clean
+ * POST /v1/tts, metered text-to-speech. Takes JSON { text, voice?, rate? },
+ * synthesizes via the resolved voice's provider (Google or OpenAI), debits
+ * fractional credits by character count, returns MP3 bytes (audio/mpeg). Cost
+ * rides in X-Credits-Charged / X-Credits-Remaining so the body stays a clean
  * audio stream the client hands straight to an <audio> element.
  *
  * POST (not GET) keeps the meditation text out of URL query strings, which
- * intermediaries/access logs could capture — the body never gets logged
+ * intermediaries/access logs could capture; the body is never logged
  * (logger.ts privacy invariant).
  */
 
@@ -29,9 +29,9 @@ import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
 
 /** A bound synth call for a resolved voice, or null when that voice's provider
- *  has no key configured (the caller maps null to a provider_error). Centralizes
- *  the provider→(key, synth fn) dispatch so the three routes below stay uniform:
- *  any curated voice "just works" once its provider key is present. */
+ *  has no key configured (callers map null to provider_error). Centralizing the
+ *  provider→(key, synth fn) dispatch keeps the three routes below uniform: any
+ *  curated voice works once its provider key is present. */
 type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
 function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
     if (resolved.provider === 'openai') {
@@ -42,27 +42,26 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
     return key ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, rate, key) : null;
 }
 
-/** Synthesized canned-apology audio, keyed `${reason}:${voiceId}`. The texts are
- *  fixed and server-owned, so each (reason, voice) pair is synthesized once for
- *  the whole process lifetime and then served free — no per-user provider cost.
- *  Re-synthesized lazily after a restart; negligible. */
+/** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`. The texts are
+ *  fixed and server-owned, so each (reason, voice) pair is synthesized once per
+ *  process and served free thereafter: no per-user provider cost. Re-warmed
+ *  lazily after a restart. */
 const CANNED_AUDIO = new Map<string, Uint8Array>();
 
-/** Synthesized voice-preview audio, keyed by Google voice id. Same rationale as
- *  CANNED_AUDIO: the phrase is fixed (PREVIEW_PHRASE) and the voice must be one
- *  we curate, so each curated voice is synthesized at most once per process
- *  lifetime and then served free to anyone — a handful of short clips per
- *  deploy, re-warmed lazily after a restart. */
+/** Synthesized voice-preview audio, keyed `${provider}:${voiceId}`. Same rationale as
+ *  CANNED_AUDIO: the phrase is fixed (PREVIEW_PHRASE) and the voice must be
+ *  curated, so each is synthesized at most once per process and then served
+ *  free to anyone: a handful of short clips per deploy. */
 const PREVIEW_AUDIO = new Map<string, Uint8Array>();
 
 export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
 
-    // Voice the fixed out-of-credits / paused apology. UNMETERED and with NO
-    // balance gate by design: the whole point is to speak gracefully to an
-    // account that has run out (the metered POST / below would 402). Safe to
-    // give away because the text is one of a few server-controlled constants —
-    // a caller can't turn this into free synthesis of arbitrary input.
+    // Voice the fixed out-of-credits / paused apology. UNMETERED with NO balance
+    // gate by design: the point is to speak gracefully to an account that has
+    // run out (the metered POST / below would 402). Safe to give away because
+    // the text is one of a few server-owned constants, so a caller can't turn
+    // this into free synthesis of arbitrary input.
     app.post('/canned', requireAuth(deps), async (c) => {
         const account = c.get('account');
         if (!deps.rateGuard.allow(account.id)) {
@@ -98,12 +97,11 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     // Public, UNAUTHENTICATED, UNMETERED preview of a curated voice. No sign-in
     // and no balance gate by design: the spoken text is the server-owned
-    // PREVIEW_PHRASE and the voice must be one we curate, so a caller can't turn
-    // this into free synthesis of arbitrary input. Each curated voice is
-    // synthesized at most once per process (cached in PREVIEW_AUDIO) and then
-    // served from memory, so signed-out visitors can audition voices for the
-    // cost of a few short clips per deploy. Real, metered synthesis stays on the
-    // authed POST / below. GET so the result is plainly cacheable downstream.
+    // PREVIEW_PHRASE and the voice must be curated, so a caller can't turn this
+    // into free synthesis of arbitrary input. Cached in PREVIEW_AUDIO, so
+    // signed-out visitors audition voices for a few short clips per deploy.
+    // Real metered synthesis stays on the authed POST / below. GET so the
+    // result is cacheable downstream.
     app.get('/preview', async (c) => {
         const curated = CURATED_VOICES.find((v) => v.name === (c.req.query('voice') ?? ''));
         if (!curated) {
@@ -127,7 +125,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             PREVIEW_AUDIO.set(cacheKey, audio);
         }
         c.header('content-type', 'audio/mpeg');
-        // Fixed phrase per voice — safe to cache hard in the browser/CDN.
+        // Fixed phrase per voice: safe to cache hard in the browser/CDN.
         c.header('cache-control', 'public, max-age=86400');
         return c.body(audio.buffer as ArrayBuffer);
     });
@@ -145,20 +143,19 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('bad_request', 'text required'), ERROR_STATUS.bad_request);
         }
 
-        // Resolve a curated short name ("Leda", "Lyra") or raw Google id to its
-        // (provider, voiceId) once, and reuse it for synthesis, pricing (the
-        // rate is provider/tier-specific), and telemetry — so the charge matches
-        // the voice actually synthesized. A null synth means the resolved
-        // provider has no key configured on this server.
+        // Resolve once and reuse for synthesis, pricing (the rate is
+        // provider/tier-specific), and telemetry, so the charge matches the
+        // voice actually synthesized. Null synth = the resolved provider has no
+        // key configured here.
         const resolved = resolveVoice(body.voice);
         const synth = synthFor(deps, resolved);
         if (!synth) {
             return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
         }
 
-        // A retreat pass (meditation-pal-414) covers this synthesis: speak with no
-        // balance gate and no debit. Otherwise the ESTIMATED cost (known exactly
-        // up front — it's character-priced) must fit the balance, or a near-zero
+        // A retreat pass (meditation-pal-414) covers this synthesis: speak with
+        // no balance gate and no debit. Otherwise the cost (known exactly up
+        // front, it's character-priced) must fit the balance, or a near-zero
         // balance would buy an unbounded provider call with the debit clamped
         // after the fact.
         const cost = priceTtsChars(text.length, { provider: resolved.provider, voiceId: resolved.voiceId });
@@ -177,8 +174,8 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
 
         // Debit clamped to balance so a concurrent-spend race can't overdraw
-        // (the up-front gate already refused requests the balance can't cover).
-        // Under a pass nothing is debited, but we record the metered credits so
+        // (the up-front gate already refused what the balance can't cover).
+        // Under a pass nothing is debited, but record the metered credits so
         // per-retreat spend and the daily-cap sum stay honest.
         const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${text.length}c`);

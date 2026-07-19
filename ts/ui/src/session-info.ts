@@ -1,27 +1,24 @@
 /**
- * In-session info panel — the small popover behind the nav "ⓘ" button.
+ * In-session info panel: the popover behind the nav "ⓘ" button. Keeps session
+ * facts (model, mode, speed notes) one tap away instead of in the always-on
+ * chrome. Content is caller-supplied via `buildRows`, so the meditation session
+ * and the noting circle share the panel with different rows.
  *
- * Keeps session facts (which model you're talking to, the mode, a speed note
- * when relevant, …) out of the always-on chrome and one tap away instead. The
- * content is caller-supplied via `buildRows`, so the meditation session and the
- * noting circle can show different things through the same panel.
- *
- * The overlay is appended to the view root, so it's torn down with the view.
+ * The overlay is appended to the view root, so it tears down with the view.
  */
 
 export interface SessionInfoRow {
     /** Short label ("Model", "Mode"). */
     label: string;
-    /** The value shown for this row. */
     value: string;
-    /** Optional sub-line under the value — e.g. a speed heads-up. */
+    /** Optional sub-line under the value, e.g. a speed heads-up. */
     note?: string;
 }
 
 export interface SessionInfoAction {
     /** Button label ("Report a bug"). */
     label: string;
-    /** Fired on click; the panel closes first. */
+    /** The panel closes before this fires. */
     onClick: () => void;
 }
 
@@ -29,11 +26,10 @@ export interface SessionInfoPanel {
     open(): void;
     close(): void;
     toggle(): void;
-    /** Re-render if the panel is currently open (e.g. after a model swap). */
+    /** Re-render if open, e.g. after a model swap. */
     refresh(): void;
     isOpen(): boolean;
-    /** Remove the overlay + its document-level listener. Wire to the view's
-     *  teardown so nothing leaks across sessions. */
+    /** Wire to the view's teardown; removes the document-level listener too. */
     dispose(): void;
 }
 
@@ -43,11 +39,7 @@ function escape(s: string): string {
     );
 }
 
-/**
- * Mount the info panel into `root`. Returns handles to open/close/refresh it.
- * `buildRows` is called each time the panel opens (and on refresh), so it can
- * reflect live session state.
- */
+/** `buildRows` runs on every open and refresh, so rows reflect live state. */
 export function mountSessionInfoPanel(
     root: HTMLElement,
     buildRows: () => SessionInfoRow[],

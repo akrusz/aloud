@@ -1,11 +1,8 @@
 /**
- * History view — list of past sessions with per-row Continue / Copy /
- * Delete actions. Renders the .session-item markup in the lifted CSS.
- *
- * Clicking a row expands it inline to show the transcript. Continue
- * stashes the session id in sessionStorage and routes back to setup;
- * the setup view picks the stash up and hydrates the next session
- * with the old exchanges.
+ * History view - past sessions with per-row Continue / Copy / Delete; rows
+ * expand inline to the transcript. Continue stashes the session id in
+ * sessionStorage and routes to setup, which picks it up and hydrates the next
+ * session with the old exchanges.
  */
 
 import {
@@ -33,16 +30,14 @@ export async function mountHistoryView(
         const ids = await sessionStore.list();
         const states = await Promise.all(ids.map((id) => sessionStore.load(id)));
         const sessions = states.filter((s): s is SessionState => s !== null);
-        // Newest first — we sort by startTime since SessionStore doesn't carry
-        // a saved-at metadata field. Same effect for sessions you didn't
-        // backdate.
+        // Newest first by startTime; SessionStore carries no saved-at field.
         sessions.sort((a, b) => b.startTime - a.startTime);
 
         root.innerHTML = renderShellHTML(sessions);
         wireEvents(sessions);
 
-        // Desktop persists sessions as files, so reveal the folder; the web
-        // build can't, so it offers a JSON download instead.
+        // Desktop persists sessions as files (reveal the folder); web offers a
+        // JSON download instead.
         const folderBtn = root.querySelector<HTMLButtonElement>('#btn-open-sessions-folder');
         folderBtn?.addEventListener('click', () => {
             void fetch(appUrl('/open-sessions-folder'), { method: 'POST' }).catch(() => {});
@@ -87,8 +82,7 @@ export async function mountHistoryView(
                 if (!(await confirmDialog('Delete this session permanently?', { okLabel: 'Delete', danger: true })))
                     return;
                 await sessionStore.delete(session.sessionId);
-                // Fade-out animation, then re-render so other rows don't
-                // jump.
+                // Fade out before re-rendering so other rows don't jump.
                 item.style.transition = 'opacity 0.3s';
                 item.style.opacity = '0';
                 setTimeout(() => {
@@ -111,7 +105,6 @@ export async function mountHistoryView(
             item.classList.add('open');
             body.classList.remove('hidden');
             expanded.add(id);
-            // Lazy transcript fill (ours is in-memory already so just render).
             const tx = body.querySelector<HTMLElement>('.session-transcript');
             if (tx && tx.dataset['loaded'] !== '1') {
                 tx.innerHTML = renderTranscript(session.exchanges);
@@ -121,9 +114,8 @@ export async function mountHistoryView(
     }
 
     function continueSession(session: SessionState): void {
-        // Stash the id on sessionStorage and route back to setup — the
-        // setup view picks it up via loadQueuedContinuation() and threads
-        // it through onBegin.
+        // Setup picks this up via loadQueuedContinuation() and threads it
+        // through onBegin.
         if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem('continueFrom', session.sessionId);
             const { summary } = sessionTypeAndSummary(session);
@@ -160,9 +152,8 @@ export async function mountHistoryView(
     return { show: loadAndRender };
 }
 
-/** Reveal this session's JSON file on disk (desktop only). The Rust shell
- *  highlights it in Finder/Explorer; a missing file (never saved) flips the
- *  label briefly rather than failing silently. */
+/** Reveal this session's JSON file on disk (desktop only). A missing file
+ *  (never saved) flips the label briefly rather than failing silently. */
 function revealSessionFile(session: SessionState, btn: HTMLButtonElement): void {
     const original = btn.textContent;
     fetch(appUrl(`/open-session-file/${encodeURIComponent(session.sessionId)}`), { method: 'POST' })
@@ -177,8 +168,8 @@ function revealSessionFile(session: SessionState, btn: HTMLButtonElement): void 
         });
 }
 
-/** Download all saved sessions as one JSON file (web only — desktop reveals the
- *  on-disk sessions folder instead). For backup or moving the data elsewhere. */
+/** Download all saved sessions as one JSON file (web only; desktop reveals the
+ *  on-disk sessions folder instead). */
 function exportSessions(sessions: readonly SessionState[]): void {
     try {
         const blob = new Blob([JSON.stringify(sessions, null, 2)], { type: 'application/json' });
@@ -198,10 +189,6 @@ function exportSessions(sessions: readonly SessionState[]): void {
 // ---- rendering ----
 
 function renderShellHTML(sessions: readonly SessionState[]): string {
-    // Desktop persists each session as a JSON file, so the header reveals the
-    // on-disk folder (and each row can reveal its own file). Web/mobile keep
-    // sessions in browser storage, so there "export" downloads them as JSON
-    // instead. Hidden when there's nothing to export.
     const header = `
         <div class="history-header">
             <h1>Past Sessions</h1>
@@ -226,10 +213,9 @@ function renderShellHTML(sessions: readonly SessionState[]): string {
 }
 
 /**
- * Resolve a session's meditation type and display summary, tolerating
- * legacy data. Sessions saved before the `meditationType` field existed
- * stored the literal `"noting circle"` in `notes` (the same slot used for
- * the LLM summary), so infer the type from that and drop it as a summary.
+ * Meditation type + display summary, tolerating legacy data: sessions saved
+ * before `meditationType` existed stored the literal `"noting circle"` in
+ * `notes` (the LLM-summary slot), so infer the type and drop it as a summary.
  */
 function sessionTypeAndSummary(session: SessionState): { typeLabel: string; summary: string } {
     const rawNotes = session.notes ?? '';
@@ -237,8 +223,7 @@ function sessionTypeAndSummary(session: SessionState): { typeLabel: string; summ
     const type = session.meditationType ?? (legacyNoting ? 'noting' : undefined);
     const mode = getMode(type);
     return {
-        // Registry-driven label; a type from a mode this build doesn't know
-        // (removed, or from a newer release) just shows no label.
+        // A mode this build doesn't know (removed, or newer) shows no label.
         typeLabel: mode ? (mode.historyLabel ?? mode.label) : '',
         summary: legacyNoting ? '' : rawNotes,
     };

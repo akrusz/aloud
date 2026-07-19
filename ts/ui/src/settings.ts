@@ -1,10 +1,7 @@
 /**
- * Typed setup state + persistence.
- *
- * Maps the existing setup-form shape onto the PromptBuilder's
- * config shape. The slider is 0-4 for UX; we map to 0/3/5/7/10 for
- * the PromptBuilder so it lines up with the
- * DIRECTIVENESS_ADDITIONS keys.
+ * Typed setup state + persistence. Maps the setup-form shape onto the
+ * PromptBuilder's config. The slider is 0-4 for UX; DIRECTIVENESS_VALUES maps
+ * it to 0/3/5/7/10 to line up with the DIRECTIVENESS_ADDITIONS keys.
  */
 
 import type {
@@ -30,21 +27,19 @@ export interface ProviderMeta {
     value: Provider;
     label: string;
     needsKey: boolean;
-    /** Capability this provider needs to be usable. Omitted = always available
-     *  (BYOK providers work from any browser with a key). The menu hides
-     *  providers whose capability the environment can't reach. */
+    /** Capability this provider needs. Omitted = always available (BYOK works
+     *  from any browser with a key). The menu hides providers whose capability
+     *  the environment can't reach. */
     requires?: Capability;
 }
 
 export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
-    // aloud cloud: no key, no local model — credits-metered premium
-    // LLMs. The only LLM source for the web tier (meditation-pal-vd3). Shown
-    // only when aloud cloud is reachable.
+    // Credits-metered premium LLMs, no key or local model. The only LLM source
+    // for the web tier (meditation-pal-vd3).
     { value: 'aloud', label: 'aloud cloud', needsKey: false, requires: 'cloud' },
-    // Local Ollama — only when a daemon is actually reachable (e.g. not on the
-    // hosted website).
+    // Only when a local daemon is reachable (so, not on the hosted website).
     { value: 'ollama', label: 'Ollama (Local)', needsKey: false, requires: 'ollama' },
-    // claude_proxy shells out to the local `claude` CLI via the app backend — desktop only.
+    // Shells out to the local `claude` CLI via the app backend - desktop only.
     { value: 'claude_proxy', label: 'Anthropic (Subscription)', needsKey: false, requires: 'flask' },
     { value: 'anthropic', label: 'Anthropic (API Key)', needsKey: true },
     { value: 'openai', label: 'OpenAI (API Key)', needsKey: true },
@@ -54,29 +49,22 @@ export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
 ];
 
 export interface ProviderAvailabilityOpts {
-    /** Web mode — the hosted browser deployment (app-mode.isWebMode()): Ollama +
-     *  local providers off, BYOK off unless opted in. Defaults by environment
-     *  (desktop/dev = local, hosted browser = web); a dev override can force it
-     *  (see app-mode.ts). */
+    /** Web mode (app-mode.isWebMode()): local providers off, BYOK off unless
+     *  opted in. */
     webMode?: boolean;
     /** User opted into bring-your-own-key in web mode. */
     allowByok?: boolean;
 }
 
-/** Whether a provider belongs in the menu at all on this platform — a
- *  structural filter, NOT a runtime-readiness check. Runtime readiness (a key
- *  entered, the Ollama daemon up, the `claude` CLI logged in) is shown via the
- *  ✘/✱ markers (provider-markers.ts), not by removing the option.
+/** Whether a provider belongs in the menu on this platform: a structural
+ *  filter, NOT a runtime-readiness check. Readiness (key entered, Ollama daemon
+ *  up, `claude` CLI logged in) shows via the ✘/✱ markers (provider-markers.ts),
+ *  not by removing the option.
  *
- *  - Web (the hosted demo): only browser-runnable providers. Ollama (local
- *    daemon) and claude_proxy (local CLI) can NEVER run in a tab, so they're
- *    hidden regardless of what a stray local probe found; aloud cloud needs the
- *    service; BYOK API providers are opt-in (asking a public site's visitors for
- *    their own key feels wrong).
- *  - Local (desktop / full dev): nothing is removed — every provider is
- *    platform-possible, and the markers say which are ready.
- *  - A future mobile build would filter here too (hide claude_proxy; decide
- *    whether BYOK defaults on). */
+ *  - Web: only browser-runnable providers. Ollama and claude_proxy can never run
+ *    in a tab, so they're hidden regardless of what a stray local probe found;
+ *    BYOK is opt-in (asking a public site's visitors for their key feels wrong).
+ *  - Local (desktop / dev): nothing is removed; the markers say what's ready. */
 export function isProviderAvailable(
     meta: ProviderMeta,
     caps: Capabilities,
@@ -84,10 +72,10 @@ export function isProviderAvailable(
 ): boolean {
     if (opts.webMode) {
         if (meta.requires === 'ollama' || meta.requires === 'flask') return false;
-        // aloud cloud is ALWAYS offered on web — it's the point of the hosted
-        // app. Whether it's reachable *right now* (it scales to zero when idle
-        // and cold-starts on demand) is a separate, transient question, surfaced
-        // at the model picker + Begin gate so the option never vanishes mid-wake.
+        // Always offered on web - it's the point of the hosted app. Whether it's
+        // reachable right now (it scales to zero when idle) is a transient
+        // question, surfaced at the model picker + Begin gate so the option
+        // never vanishes mid-wake.
         if (meta.requires === 'cloud') return true;
         return opts.allowByok === true;
     }
@@ -100,15 +88,12 @@ export function providerNeedsKey(p: Provider): boolean {
 
 /**
  * Pick a provider that can actually run in the current mode, given a seeded
- * default. The shared app default is 'ollama' (a desktop-only, local provider),
- * so on web a fresh setup must not stay on it — otherwise the model picker
- * mounts the local-model state and shows a nonsensical "Install Ollama" message.
- * In web mode, if the seeded provider isn't available we return the first
- * available web provider, falling back to 'aloud' (the canonical hosted
- * provider) when NONE is reachable — its picker then surfaces the right "cloud
- * unreachable" message rather than the desktop Ollama one. In local mode every
- * provider is available (runtime readiness shows via markers), so the seeded
- * provider is returned unchanged.
+ * default. The app default is 'ollama' (desktop-only), so a fresh web setup must
+ * not stay on it, or the model picker shows a nonsensical "Install Ollama".
+ * On web, an unavailable seed falls back to the first available provider, then
+ * to 'aloud' when none is reachable, so the picker surfaces the "cloud
+ * unreachable" message rather than the Ollama one. Local mode returns the seed
+ * unchanged (readiness shows via markers).
  */
 export function resolveSetupProvider(
     provider: Provider,
@@ -130,18 +115,16 @@ export interface SessionSetup {
     /** Which top-level meditation mode the user is in. */
     meditationType: MeditationType;
     /**
-     * The ACTIVE mode's intention — what sessions, prompts, and history
-     * consume. Kept in sync with intentionByMode[meditationType] by the
-     * setup view (and normalized on load), so downstream code never has
-     * to know about the per-mode split.
+     * The ACTIVE mode's intention - what sessions, prompts, and history consume.
+     * The setup view keeps it in sync with intentionByMode[meditationType] (and
+     * load normalizes it), so downstream code never sees the per-mode split.
      */
     intention: string;
     /**
-     * Per-mode intention drafts. Exploration's "intention" and felt
-     * sense's "something to sit with" are semantically different inputs,
-     * so each tab keeps its own text instead of sharing one value that
-     * leaks across mode switches. Noting has no intention field — its
-     * slot stays empty.
+     * Per-mode intention drafts. Exploration's "intention" and felt sense's
+     * "something to sit with" are different inputs, so each tab keeps its own
+     * text rather than leaking one value across mode switches. Noting has no
+     * intention field.
      */
     intentionByMode: Partial<Record<MeditationType, string>>;
     preset: string | null;
@@ -150,10 +133,9 @@ export interface SessionSetup {
     /** UI slider value 0-4. Map via DIRECTIVENESS_VALUES below. */
     dirStep: number;
     /**
-     * Felt sense's "Check-in pace" slider value 0-4, kept separate from
-     * dirStep: same five stops and backend mapping, but it drives ONLY
-     * smart check-in timing (patient <-> attentive), never facilitation
-     * directiveness — the felt-sense protocol owns that.
+     * Felt sense's "Check-in pace" slider (0-4). Same stops and mapping as
+     * dirStep but kept separate: it drives ONLY smart check-in timing (patient
+     * <-> attentive), never directiveness, which the felt-sense protocol owns.
      */
     feltSensePaceStep: number;
     verbosity: Verbosity;
@@ -168,9 +150,9 @@ export interface SessionSetup {
     /** TTS rate in words-per-minute. Browser TTS normalizes; server TTS passes through. */
     ttsRate: number;
     /**
-     * Noting circle participants (noting mode only). Empty = solo noting (just
-     * you + an opener). Each LLM participant takes a turn after you, generating
-     * a 1–2 word label in its own voice.
+     * Noting circle participants (noting mode only). Empty = solo noting. Each
+     * LLM participant takes a turn after you with a 1-2 word label in its own
+     * voice.
      */
     notingParticipants: NotingParticipantConfig[];
     /** Play a sound when it becomes the user's turn in the noting circle. */
@@ -187,10 +169,9 @@ export const NOTING_SOUNDS = ['bell', 'bottle', 'card', 'crow', 'plop', 'poof', 
 export type NotingSound = (typeof NOTING_SOUNDS)[number];
 
 /**
- * One configured noting-circle participant: an AI that notes a generated
- * label, a fixed phrase spoken aloud, or a sound effect. Timing is adaptive
- * (matches the user's cadence) or a fixed
- * number of seconds before the participant takes its turn.
+ * One noting-circle participant: an AI noting a generated label, a fixed phrase
+ * spoken aloud, or a sound effect. Timing is adaptive (matches the user's
+ * cadence) or a fixed number of seconds before the turn.
  */
 export type NotingParticipantConfig =
     | {
@@ -231,8 +212,8 @@ export const GUIDANCE_LEVEL_LABELS: readonly string[] = [
 ];
 
 /** Display names for the five felt-sense check-in pace stops (indexed by
- *  feltSensePaceStep). Same wait mapping as the guidance stops (20m → 30s),
- *  different framing: presence during silence, not directiveness. */
+ *  feltSensePaceStep). Same wait mapping as the guidance stops (20m -> 30s),
+ *  framed as presence during silence rather than directiveness. */
 export const CHECKIN_PACE_LABELS: readonly string[] = [
     'Very patient',
     'Patient',
@@ -283,8 +264,7 @@ export const defaultSetup: SessionSetup = {
     model: '',
     voice: null,
     ttsRate: 160,
-    // Default circle: one AI participant at the settings default voice, middle
-    // reactivity, adaptive timing. (voice: null = inherit the resolved default.)
+    // One AI participant, adaptive timing. (voice: null = inherit the default.)
     notingParticipants: [{ type: 'llm', voice: null, reactive: 'low', timing: 'adaptive', fixedDelaySec: 4 }],
     notingUserTurnCue: false,
     notingUserTurnCueSound: null,
@@ -294,18 +274,16 @@ const SETTINGS_KEY = 'preview:setup';
 const kv = new LocalStorageKv();
 
 export async function loadSetup(): Promise<SessionSetup> {
-    // Two different inheritance rules, on purpose:
+    // Two inheritance rules, on purpose:
     //
-    //  - provider/model: the app default merely *seeds* a fresh setup; a
-    //    per-session override persisted in 'preview:setup' wins. (Trying a
-    //    different provider for one session is a reasonable thing to want.)
+    //  - provider/model: the app default only *seeds* a fresh setup; a
+    //    per-session override in 'preview:setup' wins.
     //
-    //  - voice/ttsRate: the app-level default is *canonical* and ALWAYS wins.
-    //    There is no separate per-session voice — the setup picker writes
-    //    through to app settings (see setup.ts:persistDefaultVoice). This is
-    //    the fix for meditation-pal-9hu: previously any setup interaction
-    //    persisted setup.voice, which then shadowed the Settings default
-    //    forever, so changing the default voice never took effect.
+    //  - voice/ttsRate: the app-level default is canonical and ALWAYS wins.
+    //    There is no per-session voice; the setup picker writes through to app
+    //    settings (setup.ts:persistDefaultVoice). Fix for meditation-pal-9hu:
+    //    setup.voice used to shadow the Settings default forever, so changing
+    //    the default voice never took effect.
     const s = await loadAppSettings();
     const base: SessionSetup = {
         ...defaultSetup,
@@ -321,14 +299,12 @@ export async function loadSetup(): Promise<SessionSetup> {
             merged = base;
         }
     }
-    // App-level voice/rate are the single source of truth — clobber any
-    // value that an older 'preview:setup' may have persisted.
+    // App-level voice/rate win; clobber anything an older 'preview:setup' has.
     merged.voice = s.defaultVoice;
     merged.ttsRate = s.defaultTtsRate;
-    // Migrate a pre-split setup (single shared intention, no per-mode map):
-    // credit the legacy text to the mode it was last used with. Then make
-    // `intention` canonical-for-the-active-mode, so a value typed under a
-    // different tab can't leak into this one.
+    // Migrate a pre-split setup (one shared intention, no per-mode map): credit
+    // the legacy text to the mode it was last used with, then make `intention`
+    // canonical for the active mode so another tab's value can't leak in.
     if (!merged.intentionByMode || Object.keys(merged.intentionByMode).length === 0) {
         merged.intentionByMode = merged.intention
             ? { [merged.meditationType]: merged.intention }

@@ -1,25 +1,18 @@
 /**
- * Noting meditation — engine pieces.
+ * Noting meditation: participants take turns naming present-moment experience
+ * in 1-2 words ("warmth", "thinking", "belly tension"). The circle rotates
+ * through human and AI participants; LLM participants generate labels from
+ * their own prompt, separate from the main facilitation system prompt.
  *
- * Noting is a meditation style where participants take turns briefly
- * naming present-moment experience with 1–2 word labels ("warmth",
- * "thinking", "belly tension"). The circle rotates through human and
- * AI participants; LLM-driven participants generate their labels via
- * a separate prompt that's distinct from the main facilitation system
- * prompt.
- *
- * This module holds the prompts and label generation only; the circle
- * orchestrator (setup, turn rotation, sound cues, mute pause) lives in
- * the ui/ tree.
+ * Prompts and label generation only. The circle orchestrator (setup, rotation,
+ * sound cues, mute pause) lives in ui/.
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import type { LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
-// ---------------------------------------------------------------------------
 // System prompts
-// ---------------------------------------------------------------------------
 
 export const NOTING_SYSTEM_PROMPT = `You're part of a noting meditation circle.
 
@@ -85,11 +78,9 @@ export const NOTING_LABEL_REACTIVE_NONE = `Stay with your own unfolding experien
 Output ONLY your label.
 `;
 
-// ---------------------------------------------------------------------------
 // Participant model
-// ---------------------------------------------------------------------------
 
-/** A non-AI fixed-phrase participant — speaks a single recorded short label. */
+/** A non-AI participant: speaks a single recorded short label. */
 export interface SoundParticipant {
     type: 'sound';
     /** The sound's short name (matches a registered audio file). */
@@ -108,14 +99,12 @@ export interface LlmParticipant {
 export type Participant = SoundParticipant | LlmParticipant;
 export type ReactiveLevel = 'none' | 'low' | 'high';
 
-/** Static opener text used when an LLM-driven opener isn't desired. */
+/** Opener used when an LLM-generated one isn't wanted. */
 export const NOTING_STATIC_OPENER =
     'On your turn, just say one or two words that describe something in your awareness. ' +
     "Let's begin.";
 
-// ---------------------------------------------------------------------------
 // Label generation
-// ---------------------------------------------------------------------------
 
 export interface GenerateLabelOptions {
     /** All labels in the circle so far (any participant). */
@@ -124,23 +113,19 @@ export interface GenerateLabelOptions {
     ownLabels?: readonly string[];
     /** How reactive this participant is to others' notes. */
     reactive?: ReactiveLevel;
-    /** Token cap for the label — labels are 1–3 words, so this is a tiny number. */
+    /** Token cap. Labels are 1-3 words, so this is tiny. */
     maxTokens?: number;
     /**
-     * Reports the off-transcript LLM usage for this label call so the caller
-     * can fold it into session usage tracking. Fired only on a successful
-     * completion.
+     * Reports this call's off-transcript usage for session usage tracking.
+     * Fired only on success.
      */
     onUsage?: (usage: LlmUsage) => void;
 }
 
 /**
- * Generate a single noting label for an LLM participant in a circle.
- *
- * Composes the system prompt from the participant's reactive level and
- * the circle's context, then asks the model for a 1–3 word label.
- * Returns a fallback ("breathing") if the LLM call fails or returns
- * nothing usable — keeps the turn loop running on transient errors.
+ * Generate one noting label for an LLM participant, composing the system prompt
+ * from the participant's reactive level and the circle's context. Falls back to
+ * "breathing" when the call fails, keeping the turn loop running.
  */
 export async function generateNotingLabel(
     provider: LLMProvider,
@@ -154,8 +139,8 @@ export async function generateNotingLabel(
         onUsage,
     } = options;
 
-    // Replacer functions, not replacement strings — a label containing `$`
-    // would otherwise trigger String.replace's pattern expansion ($&, $', …).
+    // Replacer functions, not strings: a label containing `$` would otherwise
+    // trigger String.replace's pattern expansion ($&, $', ...).
     let system = NOTING_LABEL_SYSTEM_PROMPT;
     if (context.length > 0) {
         system += NOTING_LABEL_CONTEXT.replace('{context}', () => context.join(', '));

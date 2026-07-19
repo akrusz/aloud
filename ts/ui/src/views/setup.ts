@@ -1,10 +1,8 @@
 /**
- * Setup view — pre-session configuration.
+ * Setup view - pre-session configuration.
  *
- * Mirrors the existing index.html setup form's Exploration tab: intention,
- * preset cards, focus checkboxes, vibe checkboxes, guidance slider,
- * response length, additional instructions, provider, "Begin Session"
- * button. Noting mode is deferred to a later port.
+ * Three mode tabs (exploration / noting / felt sense) over a shared
+ * provider + model + speech-recognition row, a voice picker, and Begin.
  */
 
 import type { Focus, Quality, Verbosity } from '../../../src/facilitation/index.js';
@@ -148,9 +146,8 @@ export async function mountSetupView(
     onBegin: (setup: SessionSetup, continueFrom: SessionState | null) => void
 ): Promise<SetupViewHandle> {
     const setup = await loadSetup();
-    // Resolve environment capabilities before the first render so the provider
-    // menu shows exactly what's reachable (also populates the is-desktop cache
-    // for the env-var hints).
+    // Before first render so the provider menu shows only what's reachable
+    // (also populates the is-desktop cache the env-var hints read).
     await detectCapabilities();
     const appSettings = await loadAppSettings();
     // BYOK visibility: always in local mode; opt-in in web mode.
@@ -158,23 +155,19 @@ export async function mountSetupView(
         webMode: isWebMode(),
         allowByok: appSettings.enableByok,
     };
-    // The shared app default provider is 'ollama' (desktop-only). In web mode a
-    // fresh setup must not stay on it before the first render — otherwise a fresh
-    // browser mounts the local-model picker and shows a nonsensical "Install
-    // Ollama" empty state. applyProviderIndicators reorders the <select>
-    // available-first later, but can't rescue us when NO provider is available
-    // (e.g. aloud cloud momentarily unreachable) — there'd be nothing to switch
-    // to. Resolve a web-valid provider up front instead.
+    // The shared app default is 'ollama' (desktop-only), which in web mode would
+    // mount the local-model picker with an "Install Ollama" empty state.
+    // applyProviderIndicators reorders available-first later but can't rescue us
+    // when NO provider is available (cloud momentarily unreachable), so resolve
+    // a web-valid provider up front.
     setup.provider = resolveSetupProvider(setup.provider, capabilitiesSync(), byokOpts);
-    // Speech-recognition source, shown alongside provider/model so it's visible
-    // (and changeable) before starting a session. Edits the app-level default,
-    // same as the Voice control. The select itself is built in renderSetupHTML.
+    // Edits the app-level default, same as the Voice control. The select itself
+    // is built in renderSetupHTML.
     const sttSetupSelected = resolveSttChoice(appSettings.sttEngine, isWebMode());
-    // Warm the Silero VAD while the user configures: the whisper-pcm engine's
-    // prime() awaits the same app-lifetime singleton (loadSileroVad), so by the
-    // time they click Begin the model download (multi-MB on a cold web cache)
-    // is usually done. Only when this mode's STT choice actually uses it -
-    // web-speech and capacitor never load the model.
+    // Warm the Silero VAD while the user configures: whisper-pcm's prime()
+    // awaits the same app-lifetime singleton, so the multi-MB download is
+    // usually done by the time they click Begin. web-speech and capacitor never
+    // load the model.
     if (sttBackendForChoice(sttSetupSelected) === 'server-whisper') {
         void import('../adapters/silero-vad.js')
             .then((m) => m.loadSileroVad())
@@ -182,20 +175,17 @@ export async function mountSetupView(
                 /* best-effort warmup; the session start surfaces real errors */
             });
     }
-    // Scored voice list for the modal. Lazy-loaded; the setup form is
-    // interactive while voices fetch in the background.
+    // Lazy-loaded; the setup form is interactive while voices fetch.
     let scoredVoices: ScoredVoice[] = [];
 
-    // Pull a queued continuation off sessionStorage — the history view
-    // writes 'continueFrom' there and routes back to setup, which picks it
-    // up and threads it into onBegin. Returns null when nothing is queued or
-    // the referenced session is gone.
+    // The history view writes 'continueFrom' to sessionStorage and routes back
+    // here; we pick it up and thread it into onBegin.
     async function loadQueuedContinuation(): Promise<SessionState | null> {
         if (typeof sessionStorage === 'undefined') return null;
         const id = sessionStorage.getItem('continueFrom');
         if (!id) return null;
         const state = await sessionStore.load(id);
-        // One-shot — clear so a reload doesn't keep auto-continuing.
+        // One-shot: clear so a reload doesn't keep auto-continuing.
         sessionStorage.removeItem('continueFrom');
         sessionStorage.removeItem('continueFromSummary');
         if (!state) return null;
@@ -207,11 +197,10 @@ export async function mountSetupView(
     }
 
     /**
-     * Voice + rate are app-level defaults, not per-session state (see
-     * loadSetup in settings.ts). The setup picker edits the same global
-     * default the Settings page does, so changes here propagate to every
-     * session — and to the Settings voice display. We keep the in-memory
-     * `setup` in sync for the live form, then write through to app settings.
+     * Voice + rate are app-level defaults, not per-session state (see loadSetup
+     * in settings.ts): this picker edits the same global default the Settings
+     * page does, so changes propagate to every session. Callers keep the
+     * in-memory `setup` in sync for the live form, then write through here.
      */
     async function persistDefaultVoice(voice: string | null, rate: number): Promise<void> {
         const s = await loadAppSettings();
@@ -219,16 +208,12 @@ export async function mountSetupView(
     }
 
     /**
-     * Pull voices from `/app/v1/voices` (when the app backend is reachable)
-     * and from the browser's speechSynthesis API, score them, and store on
-     * scoredVoices. Includes browser voices since the TS preview can
-     * also drive browser TTS — when the session view runs server TTS
-     * exclusively the picker still shows the right set since server
-     * voices win for any overlapping name.
+     * Score voices from `/app/v1/voices`, aloud cloud, and the browser's
+     * speechSynthesis into scoredVoices. Browser voices are included because
+     * preview can drive browser TTS; server voices win any name collision.
      */
     async function loadVoiceCatalog(): Promise<void> {
-        // speechSynthesis voice list often loads async on first call;
-        // give it a tick before snapshotting.
+        // speechSynthesis often loads its list async on first call.
         if (
             typeof speechSynthesis !== 'undefined' &&
             speechSynthesis.getVoices().length === 0
@@ -244,9 +229,8 @@ export async function mountSetupView(
         }
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         scoredVoices = buildScoredVoiceList(server, true, hosted);
-        // Auto-select the top available voice when the user hasn't chosen one
-        // — never leave the picker on a bare "Default". The list is sorted
-        // best-first; skip voices that still need downloading.
+        // Never leave the picker on a bare "Default": take the best (list is
+        // sorted best-first) voice that doesn't need downloading.
         if (!stripVoicePrefix(setup.voice)) {
             const top = scoredVoices.find((v) => !v.needsDownload);
             if (top) {
@@ -255,12 +239,10 @@ export async function mountSetupView(
             }
         }
         updateVoiceButtonLabel();
-        // Voices just arrived — repopulate participant voice dropdowns.
+        // Voices just arrived: repopulate participant voice dropdowns.
         renderParticipantList();
-        // Guide a user with zero usable voices toward fixing TTS. Checked only
-        // after the catalog finishes loading (server + cloud + browser voices
-        // all resolved above) so it doesn't flash during the load — a
-        // post-timeout no-voices banner.
+        // Zero usable voices means TTS needs fixing. Checked only after the
+        // catalog resolves so the banner doesn't flash during the load.
         root.querySelectorAll<HTMLElement>('.no-voices-banner').forEach((banner) => {
             banner.classList.toggle('hidden', scoredVoices.length > 0);
         });
@@ -271,26 +253,25 @@ export async function mountSetupView(
         return scoredVoices.find((v) => v.name === name) ?? null;
     }
 
-    // The selected hosted model's credits/hr, for the session estimate. Wired to
-    // the model picker once it mounts (in a deeper scope); 0 until then / for
-    // free providers.
+    // Selected hosted model's credits/hr for the estimate. Wired to the model
+    // picker once it mounts; 0 until then / for free providers.
     let getModelRate: () => number = () => 0;
-    // Re-fetch the model picker for a provider — wired to the mounted picker so
-    // the cloud-wake watcher can repopulate it once aloud cloud is up.
+    // Wired to the mounted picker so the cloud-wake watcher can repopulate it
+    // once aloud cloud is up.
     let refreshModelPicker: (provider: string) => void = () => {};
-    // Unsubscribe for the shared cloud-wake watcher (web/mobile only). Called on
-    // hide so a pending wait doesn't fire into a torn-down view.
+    // Cloud-wake watcher unsubscribe (web/mobile only). Called on hide so a
+    // pending wait doesn't fire into a torn-down view.
     let cloudUnwatch: (() => void) | null = null;
 
     function updateVoiceButtonLabel(): void {
-        // One button per tab panel (exploration + felt sense), all painting
-        // the same app-level default voice.
+        // One button per tab panel (exploration + felt sense), all painting the
+        // same app-level default voice.
         const btns = root.querySelectorAll<HTMLButtonElement>('[data-default-voice]');
         if (btns.length === 0) return;
         const selectedName = stripVoicePrefix(setup.voice);
         const entry = findVoice(selectedName);
-        // Surface the ☁️ rate of a cloud voice on the collapsed button too, so a
-        // paid pick reads as paid without opening the picker.
+        // Show a cloud voice's ☁️ rate on the collapsed button too, so a paid
+        // pick reads as paid without opening the picker.
         const rate = entry ? rateBadge(entry.creditsPerHour) : '';
         const ratePart = rate ? ` · ${rate}` : '';
         let text: string;
@@ -303,28 +284,24 @@ export async function mountSetupView(
             text = scoredVoices.length > 0 ? 'Default' : 'Voice';
         }
         for (const btn of btns) btn.textContent = text;
-        // The voice leg feeds the combined estimate; refresh it whenever the
-        // voice display does (selection change, or voices finishing loading).
+        // The voice leg feeds the combined estimate.
         updateSessionEstimate();
     }
 
     /**
-     * Combined estimated cloud burn for the configured session, shown on the
-     * setup footer (estimate only, per the dev's call — a live in-session
-     * countdown would be distracting with eyes closed; account balance lives
-     * behind the profile button, meditation-pal-e3e). Sums the hosted legs at a
-     * typical talk profile: LLM (only when the provider is the aloud cloud) +
-     * cloud STT (only when picked) + cloud voice. All three rates come from the
-     * same pricing the meter bills with, so the estimate can't drift from real
-     * charges — only the assumed usage profile can. Local/BYOK legs are free and
-     * contribute 0.
+     * Estimated cloud burn for the configured session, on the setup footer.
+     * Estimate only, no live in-session countdown - that would be distracting
+     * with eyes closed; balance lives behind the profile button
+     * (meditation-pal-e3e). Sums the hosted legs at a typical talk profile:
+     * aloud-cloud LLM + cloud STT + cloud voice, each 0 when local/BYOK. Rates
+     * come from the same pricing the meter bills with, so only the assumed
+     * usage profile can drift, not the prices.
      */
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
 
-        // Retreat attendees aren't metered (meditation-pal-414) — drop the
-        // cloud-rate estimate and its buy-credits tap target entirely.
+        // Retreat attendees aren't metered (meditation-pal-414).
         if (getRetreatCovered()) {
             el.classList.add('hidden');
             el.innerHTML = '';
@@ -340,17 +317,13 @@ export async function mountSetupView(
         // Noting mode burns far less than the exploration-calibrated legs imply.
         const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1);
 
-        // No cloud spend (local/BYOK across every leg) → hide the pill entirely
-        // rather than show a bare "0☁️". There's nothing to meter and nothing to
-        // buy, so the indicator (and its buy-credits tap target) has no purpose.
+        // All-local/BYOK: hide the pill rather than show a bare "0☁️".
         if (total <= 0) {
             el.classList.add('hidden');
             el.innerHTML = '';
             return;
         }
         el.classList.remove('hidden');
-        // Compact for the floating pill; the "≈" carries the estimate/per-hour
-        // caveat.
         const rate = `≈ ${rateUnits(total)}${RATE_EMOJI}/hr`;
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
@@ -358,15 +331,10 @@ export async function mountSetupView(
     }
 
     /**
-     * Open the voice modal — renders the scored list, wires up row
-     * clicks (select), preview clicks, the speed slider, and the close
-     * button. Re-running render() blows the modal away with the rest of
-     * the form, so the wiring lives inline here instead of in render().
-     */
-    /**
      * Open the shared voice picker. With no target it edits setup.voice (the
-     * exploration/narrator voice); pass a target to edit a noting participant's
-     * voice with the exact same modal + previews.
+     * narrator voice); pass a target to edit a noting participant's voice.
+     * Wiring lives inline because render() would blow the modal away with the
+     * rest of the form.
      */
     function openVoiceModal(target?: {
         current: () => string | null;
@@ -391,9 +359,8 @@ export async function mountSetupView(
             if (!row) return;
             const name = row.dataset['voiceName'];
             if (!name) return;
-            // Download button — stream the Piper model down with live percent,
-            // then re-render so the voice (and any model-sharing speakers)
-            // unlock.
+            // Stream the Piper model down with live percent, then re-render so
+            // the voice (and any model-sharing speakers) unlock.
             const downloadBtn = target2.closest<HTMLButtonElement>('.voice-row-download');
             if (downloadBtn) {
                 e.preventDefault();
@@ -431,8 +398,8 @@ export async function mountSetupView(
                 return;
             }
             if (row.classList.contains('voice-row-locked')) return;
-            // Select the voice. Persist with engine prefix so createTtsForVoice
-            // picks the right backend.
+            // Persist with the engine prefix so createTtsForVoice picks the
+            // right backend.
             const entry = findVoice(name);
             const voiceId = prefixedVoiceId(entry?.engine, name);
             updateVoiceSelection(listEl, name);
@@ -476,10 +443,9 @@ export async function mountSetupView(
         wireInfoButtons();
         wireNotingPanel();
 
-        // Intention — exploration's "intention" and felt sense's "something
-        // to sit with" are different inputs, so each textarea binds to its
-        // own intentionByMode slot. setup.intention mirrors the ACTIVE
-        // mode's value (syncIntentionForMode keeps it fresh on tab switch)
+        // Exploration's "intention" and felt sense's "something to sit with"
+        // are different inputs, so each textarea binds to its own
+        // intentionByMode slot. setup.intention mirrors the ACTIVE mode's value
         // so sessions/prompts downstream stay single-field.
         const intentionEl = root.querySelector<HTMLTextAreaElement>('#intention')!;
         const feltIntentionEl = root.querySelector<HTMLTextAreaElement>('#felt-sense-intention')!;
@@ -555,8 +521,8 @@ export async function mountSetupView(
             updatePresetHighlights();
         });
 
-        // Felt-sense check-in pace — same stops as the guidance slider, its
-        // own stored value (timing only; see SessionSetup.feltSensePaceStep).
+        // Felt-sense check-in pace: same stops as the guidance slider, its own
+        // stored value, timing only (SessionSetup.feltSensePaceStep).
         const paceSlider = root.querySelector<HTMLInputElement>('#checkin-pace')!;
         paceSlider.value = String(setup.feltSensePaceStep);
         paceSlider.addEventListener('input', () => {
@@ -593,9 +559,8 @@ export async function mountSetupView(
             // the picker's onChange once the new provider's models load.
             updateSessionEstimate();
         });
-        // Model picker — fetches /app/v1/models/<provider>,
-        // falls back to a free-form text input when the endpoint isn't
-        // available.
+        // Fetches /app/v1/models/<provider>; falls back to a free-form text
+        // input when the endpoint isn't available.
         const modelContainer = root.querySelector<HTMLElement>('#model-picker-slot')!;
         const modelPicker = mountModelPicker(
             modelContainer,
@@ -610,9 +575,7 @@ export async function mountSetupView(
         getModelRate = () => modelPicker.getRate();
         refreshModelPicker = (p) => void modelPicker.refresh(p);
 
-        // Speech-recognition source — app-level (like the default voice), so
-        // saving it here mirrors Settings. The visible options are already
-        // mode-aware (rendered above); persist the explicit pick.
+        // App-level (like the default voice), so saving here mirrors Settings.
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
         sttSel?.addEventListener('change', async () => {
             const s = await loadAppSettings();
@@ -620,24 +583,18 @@ export async function mountSetupView(
             updateSessionEstimate();
         });
 
-        // Provider availability — fetch /app/v1/providers, annotate the
-        // provider <option>s with ✱ (installed but not running) or
-        // ✘ (not installed/configured), and surface a hint below for
-        // the active provider. API key entry itself lives in Settings,
-        // not here.
+        // API key entry itself lives in Settings, not here.
         void refreshProviderAvailability();
 
-        // Voice — a button per tab panel, each opening the same picker modal
-        // (which also has the speed slider). All edit the one app-level
-        // default voice.
+        // One button per tab panel, all opening the same picker modal and all
+        // editing the one app-level default voice.
         updateVoiceButtonLabel();
         root.querySelectorAll<HTMLButtonElement>('[data-default-voice]').forEach((btn) => {
             btn.addEventListener('click', () => openVoiceModal());
         });
 
-        // Begin session — uses any queued continuation from sessionStorage
-        // (set by the history view's "Continue" button) so the same Begin
-        // path handles both fresh and continued sessions.
+        // One Begin path handles both fresh and continued sessions: it picks up
+        // any continuation the history view queued.
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
             void (async () => {
@@ -648,32 +605,26 @@ export async function mountSetupView(
         // Initial gate state (recomputed once /providers status arrives).
         updateBeginButton();
         updateAiNotes();
-        // Initial estimate (the LLM leg fills in once models load; the voice
-        // leg once voices load — both re-call updateSessionEstimate).
+        // Initial estimate; the LLM and voice legs fill in once models/voices
+        // load and re-call this.
         updateSessionEstimate();
         // Learn retreat coverage (meditation-pal-414) so the pill can hide for
-        // covered attendees. fetchMe is a no-op when signed out; repaint once it
-        // resolves (it populates the coverage store synchronously before then).
+        // covered attendees. fetchMe is a no-op when signed out.
         void fetchMe().then(() => updateSessionEstimate()).catch(() => {});
-        // NOTE (cost-in-button prototype): the cloud-rate estimate now renders
-        // inside the Begin button as a passive label (pointer-events: none), so
-        // it's no longer a tap target. That drops the old pill's tap-to-buy-
-        // credits shortcut — buying credits still lives behind the account/
-        // profile surface. If we keep this treatment, decide whether the setup
-        // screen still needs its own buy-credits entry point.
+        // The rate now renders inside the Begin button as a passive label
+        // (pointer-events: none), so it's no longer the old pill's tap-to-buy
+        // shortcut. Buying credits lives behind the profile surface.
 
-        // Continuation banner — shown when the history view has queued a
-        // session for continuation.
+        // Continuation banner, shown when history has queued a session.
         void (async () => {
             if (typeof sessionStorage === 'undefined') return;
             const id = sessionStorage.getItem('continueFrom');
             if (!id) return;
             const state = await sessionStore.load(id);
             if (!state) return;
-            // Resuming re-enters the session's own mode — a felt-sense
-            // session must come back staged (and in its saved phase), not as
-            // whatever tab happened to be active. Unknown/legacy types keep
-            // the current tab.
+            // Resuming re-enters the session's own mode: a felt-sense session
+            // must come back staged (in its saved phase), not as whatever tab
+            // was active. Unknown/legacy types keep the current tab.
             const t = state.meditationType;
             if (
                 (t === 'exploration' || t === 'noting' || t === 'felt_sense') &&
@@ -694,8 +645,7 @@ export async function mountSetupView(
                 sessionStorage.getItem('continueFromSummary') ||
                 new Date(state.startTime * 1000).toLocaleString();
             text.textContent = `Continuing from: ${summary}`;
-            // Use the .hidden class (sets display:none !important via the
-            // lifted CSS). Toggling the HTML hidden attribute loses to
+            // Must be the .hidden class: the HTML hidden attribute loses to
             // .continue-banner's `display: flex`.
             banner.classList.remove('hidden');
             cancel.addEventListener('click', () => {
@@ -706,11 +656,10 @@ export async function mountSetupView(
         })();
     }
 
-    // Provider status from /app/v1/providers — see provider-markers.ts.
+    // Provider status from /app/v1/providers - see provider-markers.ts.
     let providerStatus: ProviderStatusMap | null = null;
-    // Whether a BYOK provider has a key stored. A keyless API provider is
-    // marked ✘ (unavailable) — you can't run it without a key. Populated from
-    // the localStorage BYOK store on each availability refresh.
+    // Which BYOK providers have a key stored. A keyless API provider is marked
+    // ✘: it can't run without one.
     let keyPresent: Record<string, boolean> = {};
 
     async function refreshKeyPresence(): Promise<void> {
@@ -728,21 +677,19 @@ export async function mountSetupView(
             const resp = await fetch(appUrl('/providers'));
             if (resp.ok) providerStatus = (await resp.json()) as ProviderStatusMap;
         } catch {
-            // Backend not reachable — leave provider status unknown; the
-            // key-presence ✘ marks below still apply, and the session view
-            // surfaces a real error if a provider call fails later.
+            // Backend not reachable: leave status unknown. The key-presence ✘
+            // marks still apply, and the session view surfaces a real error if
+            // a provider call fails later.
         }
         applyProviderIndicators();
         updateProviderHint();
-        // If aloud cloud reads unreachable (cold start), keep re-probing so the
-        // page comes alive on its own once the machine boots.
         scheduleCloudWakePoll();
     }
 
     /**
-     * Whether the chosen flow needs a working LLM. Exploration always does;
-     * a noting circle only does if at least one participant is an AI (or it's
-     * a solo/empty circle, which falls back to an AI-led intro).
+     * Whether the chosen flow needs a working LLM. Exploration always does; a
+     * noting circle only if a participant is an AI, or it's a solo/empty circle
+     * (which falls back to an AI-led intro).
      */
     function needsLLM(): boolean {
         if (setup.meditationType !== 'noting') return true;
@@ -752,32 +699,30 @@ export async function mountSetupView(
     }
 
     /**
-     * Whether the currently selected provider is usable. Unknown status
-     * (e.g. the /providers probe failed) counts as available so we never
-     * block on missing information.
+     * Whether the selected provider is usable. Unknown status (the /providers
+     * probe failed) counts as available so we never block on missing info.
      */
     function providerAvailable(): boolean {
-        // An API provider with no stored key can't run — treat as unavailable
-        // so Begin is blocked and the ✘ is consistent with the gate.
+        // A keyless API provider can't run; block Begin so the ✘ and the gate
+        // agree.
         if (providerNeedsKey(setup.provider) && keyPresent[setup.provider] === false) return false;
-        // Ollama: a running local daemon (direct probe) is usable even when the
+        // A running local Ollama daemon (direct probe) is usable even when the
         // app backend can't see it (browser dev preview against Hono).
         if (setup.provider === 'ollama' && capabilitiesSync().ollama) return true;
-        // aloud cloud on web: the app backend (/app/v1/providers, Hono) reports it
-        // available unconditionally — it can't see the hosted service's health —
-        // so gate on the real reachability probe (capabilities.cloud) instead.
-        // A cold machine reads unavailable until the wake poll confirms it's up,
-        // so Begin stays blocked (with a "waking" hint) rather than starting a
-        // session that would stall on its first turn.
+        // /app/v1/providers (Hono) reports aloud cloud available unconditionally
+        // - it can't see the hosted service's health - so gate on the real
+        // reachability probe. A cold machine reads unavailable until the wake
+        // poll confirms it's up, keeping Begin blocked rather than starting a
+        // session that stalls on its first turn.
         if (setup.provider === 'aloud' && byokOpts.webMode) return capabilitiesSync().cloud;
         const info = providerStatus?.[setup.provider];
         return !info || info.available;
     }
 
     /**
-     * Disable "Begin session" when an LLM is needed but the selected provider
-     * isn't available, so a user with (say) Ollama stopped sees a blocked
-     * button instead of a session that dies on the first turn.
+     * Block Begin when an LLM is needed but its provider isn't available, so a
+     * user with (say) Ollama stopped sees a disabled button instead of a
+     * session that dies on the first turn.
      */
     function updateBeginButton(): void {
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
@@ -788,19 +733,16 @@ export async function mountSetupView(
     }
 
     /**
-     * Gray out the Provider + Model pickers when no AI will run — i.e. a noting
-     * circle whose participants are all fixed phrases / sounds. The picker stays
-     * legible (so the user sees what would be used) but reads as inactive, with
-     * a one-line note saying why. Exploration, and any circle that leans on an
-     * AI (an llm participant, or an empty/solo circle's AI-led intro), keep it
-     * live. Mirrors the needsLLM() gate the Begin button already uses.
+     * Gray out the Provider + Model pickers when no AI will run (a noting circle
+     * of only fixed phrases / sounds). They stay legible so the user still sees
+     * what would be used. Mirrors the needsLLM() gate on Begin.
      */
     function updateAiNotes(): void {
         const active = needsLLM();
         root.querySelector<HTMLElement>('#ai-provider-group')?.classList.toggle('ai-group-disabled', !active);
         root.querySelector<HTMLElement>('#ai-model-group')?.classList.toggle('ai-group-disabled', !active);
-        // The "AI isn't used" note only makes sense inside a noting circle —
-        // exploration/focusing always use the model, so never explain its absence there.
+        // Only noting can lack an AI; exploration/felt sense always use the
+        // model, so never explain its absence there.
         const showAiNote = !active && setup.meditationType === 'noting';
         root.querySelector<HTMLElement>('#ai-inactive-note')?.classList.toggle('hidden', !showAiNote);
 
@@ -810,10 +752,10 @@ export async function mountSetupView(
     }
 
     /**
-     * Annotate provider <option>s with ✱ / ✘, reorder available-first, float
-     * claude_proxy to the top when it's working, and auto-select the saved
-     * provider if available (else the first available one). ✱ means installed
-     * but not running (Ollama stopped), ✘ means not configured at all.
+     * Annotate provider <option>s with ✱ (installed but not running, e.g.
+     * Ollama stopped) or ✘ (not configured at all), reorder available-first,
+     * float claude_proxy to the top when it works, and select the saved
+     * provider if available, else the first available one.
      */
     function applyProviderIndicators(): void {
         const providerSel = root.querySelector<HTMLSelectElement>('#provider');
@@ -828,22 +770,20 @@ export async function mountSetupView(
             );
             opt.textContent = stripMarker(opt.textContent ?? '') + suffix;
             opt.classList.toggle('provider-unavailable', isUnavailable);
-            // ✘ providers can't run (no key / not installed) → unavailable group;
-            // ✱ (installed but not running, e.g. Ollama stopped) stays selectable.
+            // ✱ stays selectable; only ✘ drops to the unavailable group.
             if (isUnavailable) unavailable.push(opt);
             else available.push(opt);
         }
         available.sort((a, b) => (a.value === 'claude_proxy' ? -1 : b.value === 'claude_proxy' ? 1 : 0));
         for (const opt of [...available, ...unavailable]) providerSel.appendChild(opt);
 
-        // Prefer the persisted provider when it's available, else the first
-        // available one, so a fresh user isn't stranded on an unavailable
-        // default with no nudge toward a working one.
+        // Fall back to the first available provider so a fresh user isn't
+        // stranded on an unavailable default with no nudge toward a working one.
         const savedAvailable = available.some((o) => o.value === setup.provider);
         const target = savedAvailable ? setup.provider : (available[0]?.value ?? setup.provider);
         if (target !== setup.provider) {
-            // Auto-switch to an available provider; reuse the select's change
-            // handler so the model picker, hint, and begin gate all refresh.
+            // Reuse the change handler so the model picker, hint, and Begin gate
+            // all refresh.
             providerSel.value = target;
             providerSel.dispatchEvent(new Event('change'));
             return;
@@ -856,17 +796,17 @@ export async function mountSetupView(
     function updateProviderHint(): void {
         const hintEl = root.querySelector<HTMLElement>('#provider-hint');
         if (!hintEl) return;
-        // aloud cloud on web, not yet reachable: it's almost always a cold start
-        // (the service scales to zero when idle). Say so — reassuring, not an
-        // error — while the background poll waits for it to boot.
+        // aloud cloud unreachable on web is almost always a cold start (it
+        // scales to zero when idle), so say so rather than showing an error,
+        // while the background poll waits for it to boot.
         if (setup.provider === 'aloud' && byokOpts.webMode && !capabilitiesSync().cloud) {
             hintEl.textContent = 'aloud cloud is waking up - one moment…';
             hintEl.classList.remove('hidden');
             return;
         }
-        // A running Ollama (direct probe) has no "unavailable" hint to show even
-        // when the app backend reported it absent — same override as the ✘/Begin
-        // gate, so the "Ollama runs on your own machine" box doesn't linger.
+        // Same override as the ✘/Begin gate: a directly-probed running Ollama
+        // shows no hint even when the app backend reported it absent, so the
+        // install box doesn't linger.
         const info =
             setup.provider === 'ollama' && capabilitiesSync().ollama
                 ? { available: true }
@@ -880,14 +820,11 @@ export async function mountSetupView(
     }
 
     /**
-     * aloud cloud scales to zero when idle, so a fresh web/mobile visit can land
-     * while the machine is still cold. The initial capability probe may have
-     * given up before it booted (leaving cloud=false), which would strand Begin
-     * behind a "waking" hint forever. Subscribe to the shared cloud-wake watcher;
-     * the moment the machine answers, refresh the provider markers, model picker,
-     * and Begin gate so the page heals itself without a reload. Web/mobile-only
-     * (desktop shows aloud alongside local providers), and a no-op once cloud is
-     * reachable or a wait is already pending.
+     * aloud cloud scales to zero when idle, so the initial capability probe can
+     * give up before the machine boots (cloud=false), stranding Begin behind a
+     * "waking" hint forever. Watch for it to answer, then refresh markers, model
+     * picker, and gate so the page heals without a reload. Web/mobile only;
+     * no-op once cloud is reachable or a wait is already pending.
      */
     function scheduleCloudWakePoll(): void {
         if (!byokOpts.webMode || cloudUnwatch !== null) return;
@@ -908,15 +845,14 @@ export async function mountSetupView(
                 if (tab !== 'exploration' && tab !== 'noting' && tab !== 'felt_sense') return;
                 if (setup.meditationType === tab) return;
                 setup.meditationType = tab;
-                // setup.intention follows the active mode (noting has no
-                // intention field, so its slot is always empty).
+                // Noting has no intention field, so its slot is always empty.
                 setup.intention = setup.intentionByMode[tab] ?? '';
                 persist();
                 applyTabSelection(tab);
-                // Switching to/from noting changes whether an LLM is needed.
+                // Switching to/from noting changes whether an LLM is needed,
+                // and changes the estimate (noting has its own multiplier).
                 updateBeginButton();
                 updateAiNotes();
-                // ...and changes the estimate (noting applies the 0.4 multiplier).
                 updateSessionEstimate();
             });
         });
@@ -926,9 +862,9 @@ export async function mountSetupView(
         root.querySelectorAll<HTMLElement>('.tab-bar .tab-btn').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset['tab'] === active);
         });
-        // The methods info panel shows only the active tab's description —
-        // the full three-method text overflows small screens. The guided
-        // tour steps through the tabs to cover all three.
+        // Only the active tab's description: the full three-method text
+        // overflows small screens. The tour steps through the tabs to cover all
+        // three.
         root.querySelectorAll<HTMLElement>('#info-methods [data-method]').forEach((block) => {
             block.classList.toggle('hidden', block.dataset['method'] !== active);
         });
@@ -938,23 +874,13 @@ export async function mountSetupView(
         if (exploration) exploration.classList.toggle('hidden', active !== 'exploration');
         if (noting) noting.classList.toggle('hidden', active !== 'noting');
         if (feltSense) feltSense.classList.toggle('hidden', active !== 'felt_sense');
-        // Felt sense matches the other tabs' layout: Check-In Pace + Voice in
-        // the panel row, Provider + Model + Speech Recognition on the shared
-        // row below. (It used to re-parent the STT group into the panel row
-        // when Voice sat there alone; the pace slider fills that slot now.)
     }
 
     /**
-     * Wire the `?` info buttons. The tour module (./tour/index-guide.ts)
-     * installs a single delegated document-level handler that drives all
-     * `.info-btn[data-info]` clicks with the accordion-style toggle
-     * (clicking one info button closes any other open panels). It also
-     * suppresses the toggle while the guided tour is active so the tour
-     * controls the open panel.
-     *
-     * The "Take the full tour" link inside the methods info panel goes
-     * here too — it resets the dismissed state and jumps straight to the
-     * first section.
+     * The `?` info buttons themselves need no wiring: tour/index-guide.ts
+     * installs one delegated document-level handler for all
+     * `.info-btn[data-info]` clicks (accordion toggle, suppressed while the
+     * tour is running). Only the "Take the full tour" link is wired here.
      */
     function wireInfoButtons(): void {
         const guideLink = root.querySelector<HTMLAnchorElement>('#start-guide-link');
@@ -967,8 +893,6 @@ export async function mountSetupView(
     }
 
     // ---- Noting circle participants ----
-    // The lifted .participant-* CSS keeps layout, sizing, and the
-    // stepper/slider/phrase widths matching the original exactly.
     const MAX_PARTICIPANTS = 4;
     const REACTIVE_LEVELS: NotingReactive[] = ['none', 'low', 'high'];
     const REACTIVE_LABELS = ['None', 'Low', 'High'];
@@ -1150,7 +1074,7 @@ export async function mountSetupView(
             });
         });
         updateAddBtn();
-        // Participant edits (type/add/remove) can flip whether an LLM is needed.
+        // Participant edits can flip whether an LLM is needed.
         updateBeginButton();
         updateAiNotes();
     }
@@ -1219,8 +1143,8 @@ export async function mountSetupView(
             return;
         }
         try {
-            // assetPath: the hosted build serves under /app/, so a bare
-            // /audio/... 404s there.
+            // assetPath: the hosted build serves under /app/, where a bare
+            // /audio/... 404s.
             const audio = new Audio(assetPath(`/audio/${encodeURIComponent(name)}.mp3`));
             void audio.play().catch(() => {});
         } catch {
@@ -1318,12 +1242,11 @@ export async function mountSetupView(
     }
 
     render();
-    // Load voices asynchronously so the rest of the form is interactive
-    // immediately; server-side voices fetch in the background and the
-    // dropdown populates when ready.
+    // Async so the form is interactive immediately; the picker populates when
+    // the voices arrive.
     void loadVoiceCatalog();
-    // Kick off the welcome tour on first visit. autoStart short-circuits
-    // when the user has already dismissed, completed, or used the app.
+    // autoStart short-circuits when the user has already dismissed, completed,
+    // or used the app.
     void autoStartGuide();
 
     return {
@@ -1350,8 +1273,8 @@ function escapeAttr(s: string): string {
     );
 }
 
-/** SessionSetup.voice carries a 'server:' or 'browser:' prefix; the voice
- *  picker works with raw names. Strip the prefix on the way in. */
+/** SessionSetup.voice carries an engine prefix; the picker works with raw
+ *  names. */
 function stripVoicePrefix(voice: string | null): string | null {
     if (!voice) return null;
     const m = /^(server|browser|aloud):(.*)$/.exec(voice);
@@ -1370,10 +1293,9 @@ function renderSetupHTML(
         )
         .join('');
 
-    // Presets are radio inputs wrapped in labels styled as cards. The radio
-    // is visually hidden by the CSS
-    // (.style-card input { display: none }), and the .selected class
-    // on the label drives the active border.
+    // Radio inputs wrapped in labels styled as cards. The radio is hidden by
+    // CSS (.style-card input { display: none }); the label's .selected class
+    // drives the active border.
     const presetCards = PRESETS.map(
         (p) => `
         <label class="style-card" data-preset="${p.id}">
@@ -1599,8 +1521,8 @@ function renderSetupHTML(
         speedValue: 110,
     })}
 
-    <!-- Sound picker (noting sound participants + the user-turn cue). Reuses
-         the voice-modal chrome + .voice-row list styling. -->
+    <!-- Sound picker (sound participants + the user-turn cue). Reuses the
+         voice-modal chrome and .voice-row list styling. -->
     <div class="voice-modal-overlay hidden" id="sound-modal">
         <div class="voice-modal">
             <div class="voice-modal-header">
@@ -1611,19 +1533,15 @@ function renderSetupHTML(
         </div>
     </div>
 
-    <!-- setup-footer is a sibling of the form so position: fixed (from
-         the lifted CSS) anchors it to the viewport bottom; the inner
-         wrapper caps width to 640 px so the Begin button doesn't span
-         the whole page on wide screens. Matches the original index.html. -->
+    <!-- A sibling of the form, so position: fixed anchors it to the viewport
+         bottom; the inner wrapper caps width so Begin doesn't span wide
+         screens. -->
     <div class="setup-footer">
-        <!-- Cloud-rate pill sits in the bar beside (a narrower) Begin button;
-             tap toggles it to your cloud balance. At very narrow widths it pops
-             out above the bar instead (see .session-estimate media query). -->
         <div class="setup-footer-inner">
             <button id="begin-btn" type="button" class="btn btn-primary btn-begin">
                 <span class="btn-begin-label">Begin Session</span>
-                <!-- Cloud-rate estimate, rendered inside the CTA (hidden when the
-                     session spends nothing — see updateSessionEstimate). -->
+                <!-- Cloud-rate estimate, hidden when the session spends
+                     nothing (updateSessionEstimate). -->
                 <span class="btn-begin-rate" id="session-estimate"></span>
             </button>
         </div>

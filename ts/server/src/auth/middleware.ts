@@ -1,7 +1,6 @@
 /**
- * Bearer-auth middleware for Hono. Pulls the session token, verifies it, loads
- * the account, and stashes it on the request context for downstream handlers.
- * Returns 401 when absent/invalid.
+ * Bearer-auth middleware for Hono: verify the session token, load the account,
+ * stash it on the context. 401 when absent/invalid.
  */
 
 import type { Context, MiddlewareHandler, Next } from 'hono';
@@ -28,16 +27,16 @@ function bearer(c: Context): string | undefined {
 }
 
 /** Best-effort client IP for rate-limit keying. x-forwarded-for is set by the
- *  proxy in front of us (Fly/Render) — first hop is the caller. Falls back to a
+ *  proxy in front of us (Fly/Render); first hop is the caller. Falls back to a
  *  shared 'unknown' bucket rather than skipping the limit, so a deploy without
- *  the header still has SOME ceiling instead of none. */
+ *  the header still has SOME ceiling. */
 export function clientIp(c: Context): string {
     const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
     return fwd || c.req.header('x-real-ip') || 'unknown';
 }
 
-/** Per-IP sliding-window rate limit (pre-auth surfaces: sign-in endpoints and
- *  unauthenticated forwarders, where there's no account id to key on). Same
+/** Per-IP sliding-window rate limit for pre-auth surfaces (sign-in endpoints,
+ *  unauthenticated forwarders) where there's no account id to key on. Same
  *  refusal shape as the per-account guard so clients handle both identically. */
 export function ipRateLimit(guard: RateGuard): MiddlewareHandler {
     return async (c: Context, next: Next) => {
@@ -53,16 +52,16 @@ export function requireAuth(deps: Deps): MiddlewareHandler {
         const token = bearer(c);
         const claims = token ? await verifySessionToken(token, deps.config.sessionSecret) : undefined;
         const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
-        // A deleted (soft-deleted) account keeps its row for ledger FKs but must
-        // not authenticate — treat its still-valid-signature token as signed out
+        // A soft-deleted account keeps its row for ledger FKs but must not
+        // authenticate: treat its still-valid-signature token as signed out
         // (meditation-pal-8jc).
         if (!account || account.deletedAt != null) {
             return c.json(apiError('unauthenticated', 'sign in required'), ERROR_STATUS.unauthenticated);
         }
-        // Sliding session: a day-old token gets a fresh 7-day one riding back in
-        // a response header, adopted client-side (cloud-auth.ts fetchMe) — so
-        // weekly-or-more users never see a re-sign-in. Set BEFORE next(): the
-        // LLM proxy streams its body, and headers can't change once it starts.
+        // Sliding session: a day-old token gets a fresh 7-day one in a response
+        // header, adopted client-side (cloud-auth.ts fetchMe), so weekly users
+        // never see a re-sign-in. Set BEFORE next(): the LLM proxy streams its
+        // body, and headers can't change once it starts.
         if (nowSeconds() - claims!.issuedAtSeconds > REFRESH_AFTER_SECONDS) {
             c.header(
                 'X-Session-Refresh',

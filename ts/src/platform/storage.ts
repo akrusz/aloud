@@ -1,13 +1,9 @@
 /**
- * Async key-value storage.
+ * Async key-value storage. Impls: Capacitor Preferences on mobile, localStorage
+ * or IndexedDB on web, fs on Node. Async even for sync backends so callers
+ * never branch on platform.
  *
- * Concrete impls: Capacitor Preferences plugin on mobile, localStorage
- * (wrapped) or IndexedDB on web, fs on Node. The interface is async
- * across the board so callers don't need to branch on platform — even
- * for synchronous backends, returning a Promise is cheap.
- *
- * Named `KvStorage` (not `Storage`) to avoid colliding with the DOM
- * `Storage` global type in browser builds.
+ * Named `KvStorage`, not `Storage`, to avoid colliding with the DOM global.
  */
 
 export interface KvStorage {
@@ -18,9 +14,7 @@ export interface KvStorage {
     clear(): Promise<void>;
 }
 
-// ---------------------------------------------------------------------------
-// In-memory implementation — tests, ephemeral CLI runs, fallback
-// ---------------------------------------------------------------------------
+// In-memory implementation: tests, ephemeral CLI runs, fallback.
 
 export class InMemoryKvStorage implements KvStorage {
     private readonly data = new Map<string, string>();
@@ -46,15 +40,7 @@ export class InMemoryKvStorage implements KvStorage {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Typed helper for storing JSON-serializable values
-// ---------------------------------------------------------------------------
-
-/**
- * Read a JSON value, returning `defaultValue` (or null) when the key is
- * missing or unparseable. Avoids sprinkling JSON.parse / try-catch all
- * over callers.
- */
+/** Read a JSON value, falling back to `defaultValue` when missing or unparseable. */
 export async function getJson<T>(
     storage: KvStorage,
     key: string,

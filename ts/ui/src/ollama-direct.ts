@@ -1,21 +1,17 @@
 /**
- * Direct probes to the local Ollama daemon via the `/ollama` dev proxy — the
- * same path capabilities.ts uses for reachability (Vite rewrites `/ollama` →
- * http://localhost:11434).
+ * Direct probes to the local Ollama daemon via the `/ollama` dev proxy (Vite
+ * rewrites it to http://localhost:11434), the same path capabilities.ts uses.
  *
- * The app backend (the Rust backend in the desktop app, Hono on the web and in
- * browser dev) normally aggregates Ollama state at `/app/v1/providers`,
- * including the curated RAM-tier recommendations. But when that backend isn't
- * running — e.g. `tauri dev` starts Vite without the Hono server on :8787 —
- * that endpoint is unreachable and the UI would wrongly conclude Ollama isn't
- * installed even
- * though the daemon is up. These probes answer the basic "is it there + what's
- * pulled" questions directly so the model picker and settings section stay
- * honest without the backend. The curated recommendation still needs it.
+ * The app backend normally aggregates Ollama state at `/app/v1/providers`,
+ * curated RAM-tier recommendations included. When that backend isn't running
+ * (e.g. `tauri dev` starts Vite without Hono on :8787) the UI would wrongly
+ * conclude Ollama isn't installed while the daemon is up. These probes answer
+ * "is it there + what's pulled" directly. The curated recommendation still
+ * needs the backend.
  */
 
 export interface OllamaDirectProbe {
-    /** The daemon answered (version or tags) — i.e. Ollama is installed + running. */
+    /** The daemon answered (version or tags): Ollama is installed + running. */
     installed: boolean;
     version: string | null;
     /** Pulled model names, e.g. 'gemma4:26b'. */
@@ -48,7 +44,7 @@ export async function fetchOllamaModelsDirect(): Promise<string[]> {
     }
 }
 
-/** Combined probe: installed flag + version + pulled models, all via /ollama. */
+/** Combined: installed flag + version + pulled models. */
 export async function probeOllamaDirect(): Promise<OllamaDirectProbe> {
     const [version, models] = await Promise.all([
         fetchOllamaVersionDirect(),

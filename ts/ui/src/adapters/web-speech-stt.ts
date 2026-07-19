@@ -7,18 +7,18 @@
  *   - Brave (any platform):         ✗ (ships the API but Google blocks the
  *                                       speech endpoint for non-Chrome Chromium,
  *                                       so it only ever errors `network`)
- *   - Desktop Safari (Sequoia+):    partial — requires on-device dictation
+ *   - Desktop Safari (Sequoia+):    partial - requires on-device dictation
  *   - iOS Safari, iOS Capacitor:    ✗ (Apple doesn't expose SpeechRecognition;
  *                                       use a Capacitor speech plugin instead)
  *
- * Bridges the event-callback API to the AsyncIterable shape via a small
- * internal queue. We resume the iterator each time the recognizer emits.
+ * Bridges the event-callback API to AsyncIterable via a small internal queue,
+ * resuming the iterator each time the recognizer emits.
  */
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 
-// `SpeechRecognition` and `webkitSpeechRecognition` aren't in lib.dom.
-// Declare just enough surface to satisfy the adapter.
+// `SpeechRecognition` / `webkitSpeechRecognition` aren't in lib.dom - declare
+// just enough surface for the adapter.
 interface SpeechRecognitionResultItem {
     readonly transcript: string;
     readonly confidence: number;
@@ -54,8 +54,8 @@ interface SpeechRecognitionCtor {
 }
 
 function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
-    // Guard for non-browser contexts (Node tests, SSR) — no window means no
-    // Web Speech, not a ReferenceError.
+    // Non-browser contexts (Node tests, SSR): no window means no Web Speech,
+    // not a ReferenceError.
     if (typeof window === 'undefined') return null;
     const w = window as unknown as {
         SpeechRecognition?: SpeechRecognitionCtor;
@@ -65,11 +65,10 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
 }
 
 /**
- * Brave injects `navigator.brave` as its own marker. We treat it as a hard
- * "no Web Speech" signal: Brave exposes `webkitSpeechRecognition` but Google
- * disabled the speech endpoint for non-Chrome Chromium, so recognition always
- * fails with a `network` error. Reporting it unsupported steers the STT picker
- * to aloud cloud instead of defaulting to a mic that can't work.
+ * `navigator.brave` is Brave's own marker, and a hard "no Web Speech" signal:
+ * Brave exposes `webkitSpeechRecognition` but Google disabled the speech
+ * endpoint for non-Chrome Chromium, so recognition always errors `network`.
+ * Reporting unsupported steers the picker to aloud cloud instead of a dead mic.
  */
 function isBrave(): boolean {
     return typeof navigator !== 'undefined' && 'brave' in navigator;
@@ -88,22 +87,19 @@ export interface WebSpeechSttEngineOptions {
     /** Emit `partial` events as the recognizer narrows in. On by default. */
     interimResults?: boolean;
     /**
-     * Base pause (ms) of no new speech before the turn is submitted. When > 0,
-     * the recognizer runs continuously and WE decide the turn is over after
-     * this much silence — so a mid-thought pause doesn't make the facilitator
-     * jump in. Maps to the "minimum pause before your speech is submitted"
-     * setting. 0 (default) defers to the browser's own end-of-speech detection.
+     * Base pause (ms) before the turn is submitted. When > 0 the recognizer runs
+     * continuously and WE decide the turn is over, so a mid-thought pause
+     * doesn't make the facilitator jump in. 0 (default) defers to the browser's
+     * own end-of-speech detection.
      */
     submitDelayMs?: number;
-    /**
-     * Max pause (ms) tolerated, the cap on the adaptive ramp below. Maps to
-     * "maximum pause tolerance after longer speech". Defaults to submitDelayMs.
-     */
+    /** Max pause (ms) tolerated - the cap on the ramp below. Defaults to
+     *  submitDelayMs. */
     submitMaxDelayMs?: number;
     /**
      * Adaptive ramp: each ms of speech buys this many ms of extra pause
-     * tolerance, capped at submitMaxDelayMs — mirrors the server-Whisper VAD
-     * (longer turns get more patience for mid-sentence pauses). 0 = flat delay.
+     * tolerance, capped at submitMaxDelayMs. Mirrors the server-Whisper VAD;
+     * longer turns get more patience for mid-sentence pauses. 0 = flat delay.
      */
     submitRampRate?: number;
 }
@@ -174,9 +170,8 @@ export class WebSpeechSttEngine implements SttEngine {
                 w();
             }
         };
-        // Emit the accumulated transcript as the final turn and stop the
-        // recognizer (its onend then ends iteration). Guarded so the timer
-        // and onend can't both submit.
+        // Emit the accumulated transcript and stop the recognizer (its onend
+        // ends iteration). Guarded so the timer and onend can't both submit.
         const submit = (): void => {
             if (submitted) return;
             submitted = true;
@@ -190,9 +185,8 @@ export class WebSpeechSttEngine implements SttEngine {
         };
 
         recognition.onresult = (event) => {
-            // Concatenate every result segment (joined with spaces so phrases
-            // don't run together), not just the latest — otherwise the live
-            // bubble only shows the last word or two.
+            // Join every result segment with spaces, not just the latest -
+            // otherwise the live bubble shows only the last word or two.
             const parts: string[] = [];
             let isFinal = false;
             for (let i = 0; i < event.results.length; i++) {
@@ -205,10 +199,9 @@ export class WebSpeechSttEngine implements SttEngine {
             latestTranscript = transcript;
 
             if (submitDelayMs > 0) {
-                // We own end-of-turn: show interim text live, and (re)arm the
-                // silence timer. The tolerated pause ramps with how long the
-                // user has been speaking (capped at submitMaxDelayMs), mirroring
-                // the server-Whisper VAD. Speaking again resets the timer.
+                // We own end-of-turn: show interim text live and (re)arm the
+                // silence timer. The tolerated pause ramps with speech duration,
+                // capped at submitMaxDelayMs. Speaking again resets it.
                 if (speechStartMs === 0) speechStartMs = Date.now();
                 const speechDur = Date.now() - speechStartMs;
                 const needed = Math.min(
@@ -241,8 +234,8 @@ export class WebSpeechSttEngine implements SttEngine {
         try {
             recognition.start();
         } catch (err) {
-            // start() throws if the recognizer is already running, which can happen
-            // when the user clicks the mic button twice in quick succession.
+            // start() throws if the recognizer is already running - e.g. a
+            // double-click on the mic button.
             push({ type: 'error', error: err });
             finish();
         }
@@ -278,11 +271,10 @@ export class WebSpeechSttEngine implements SttEngine {
 }
 
 /**
- * Light cleanup for Web Speech output, which arrives lowercase, unpunctuated,
- * and (across result segments) can run together. Collapse whitespace and
- * capitalize the first letter plus anything after sentence-ending punctuation.
- * We don't try to restore punctuation — just make it read less like a jumble.
- * (Server Whisper already returns cased, punctuated text, so it skips this.)
+ * Web Speech output arrives lowercase, unpunctuated, and can run together across
+ * segments. Collapse whitespace and capitalize sentence starts - no attempt to
+ * restore punctuation, just to read less like a jumble. (Server Whisper already
+ * returns cased, punctuated text and skips this.)
  */
 function tidyTranscript(text: string): string {
     const collapsed = text.replace(/\s+/g, ' ').trim();

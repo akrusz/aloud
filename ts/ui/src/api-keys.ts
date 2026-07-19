@@ -1,15 +1,12 @@
 /**
  * BYOK API key storage.
  *
- * Keys live in a dedicated KvStorage slot, separately from session
- * setup, so we can swap the backend per-platform without touching the
- * setup persistence:
- *   - Browser preview / Capacitor today: localStorage
- *   - Capacitor mobile (future): @capacitor-community/secure-storage
+ * Keys live in their own KvStorage slot, apart from session setup, so the
+ * backend can be swapped per-platform (localStorage today; secure storage on
+ * mobile later) without touching setup persistence.
  *
- * Consumers should call getApiKey(provider) lazily, just before
- * constructing an LLM provider, and never include keys in any object
- * that gets serialized into setup/state.
+ * Call getApiKey(provider) lazily, just before constructing an LLM provider, and
+ * never put keys in any object that gets serialized into setup/state.
  */
 
 import type { Provider } from './settings.js';
@@ -18,8 +15,8 @@ import type { KvStorage } from '../../src/platform/storage.js';
 
 const KEY_PREFIX = 'apikey:';
 
-// Lazy singleton so a test can swap the backend by reassigning before
-// any caller pulls a key out. Mirrors the sharedKv approach in state.ts.
+// Singleton so a test can swap the backend before any caller pulls a key out.
+// Mirrors the sharedKv approach in state.ts.
 let backend: KvStorage = new LocalStorageKv();
 
 export function setApiKeyBackend(kv: KvStorage): void {

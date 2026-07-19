@@ -1,17 +1,14 @@
 /**
  * Desktop self-update via the Tauri updater plugin.
  *
- * Only meaningful inside the Tauri shell (isTauri()); in a browser there's
- * nothing to install — the page just reloads to pick up a new deploy. The
- * plugin fetches the signed latest.json manifest (tauri.conf.json →
- * plugins.updater.endpoints), compares its version to the running app, and — on
- * the user's click — downloads that platform's bundle over Rust (not the
- * webview, so no CSP entry is needed), verifies its minisign signature against
- * the configured pubkey, installs it, and we relaunch into the new version.
+ * Tauri-shell only; a browser just reloads to pick up a new deploy. The plugin
+ * fetches the signed latest.json manifest (tauri.conf.json →
+ * plugins.updater.endpoints), compares versions, then on the user's click
+ * downloads the bundle over Rust (not the webview, so no CSP entry is needed),
+ * verifies its minisign signature, installs, and relaunches.
  *
- * The plugin modules are imported dynamically, matching external-links.ts, so
- * they only load inside the desktop bundle — the shared web build never pulls
- * in updater/process code.
+ * Plugin modules are imported dynamically (as in external-links.ts) so the
+ * shared web build never pulls in updater/process code.
  */
 
 import { isTauri } from './is-desktop.js';
@@ -22,18 +19,16 @@ export interface DesktopUpdate {
     /** Release notes from the manifest, if the release carried a body. */
     notes?: string | undefined;
     /**
-     * Download + install the update, reporting 0..1 progress (null while the
-     * total size is unknown), then relaunch into the new version. On success
-     * the app restarts, so this never resolves; it rejects if the download or
-     * install fails.
+     * Download + install, reporting 0..1 progress (null while total size is
+     * unknown), then relaunch. On success the app restarts, so this never
+     * resolves; it rejects if download or install fails.
      */
     installAndRelaunch: (onProgress?: (fraction: number | null) => void) => Promise<void>;
 }
 
 /**
- * Check for a newer desktop release. Returns null when not on desktop, when
- * already up to date, or when the check fails — callers treat all three the
- * same (nothing to offer). Never throws: failures resolve to null.
+ * Null when not on desktop, already up to date, or the check failed: callers
+ * treat all three as "nothing to offer". Never throws.
  */
 export async function checkDesktopUpdate(): Promise<DesktopUpdate | null> {
     if (!isTauri()) return null;

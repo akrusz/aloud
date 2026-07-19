@@ -1,24 +1,18 @@
 /**
- * Voice picker — scoring, modal rendering, preview.
- *
- * The classes used by renderVoiceList (.voice-row, .voice-tier-label,
- * .voice-row-name, .voice-row-preview, etc.) come from the base CSS, so visual
- * styling lands automatically.
+ * Voice picker - scoring, modal rendering, preview. renderVoiceList's classes
+ * (.voice-row, .voice-tier-label, …) come from the base CSS.
  *
  * Scoring tiers (descending):
- *   4  Very Good — explicit "Premium" in name (Apple Premium) + the hosted
- *                  Neural2 ("value") voices
- *   3  Good      — Piper (desktop)
- *   2  Quality   — "Enhanced", "Online", "Natural"
- *   1  Standard  — Google, known-good macOS voice list
- *   0  Other     — everything else
+ *   4  Very Good - "Premium" in the name (Apple Premium) + hosted Neural2 ("value")
+ *   3  Good      - Piper (desktop)
+ *   2  Quality   - "Enhanced", "Online", "Natural"
+ *   1  Standard  - Google, known-good macOS voices
+ *   0  Other     - everything else
  *
- * A separate "Best" group appears above the tiers, reserved for the genuinely
- * top-quality voices: the hosted Chirp3-HD ("premium") voices and Chrome's
- * cloud voices. The hosted Neural2 ("value") voices and local Apple Premium
- * drop one rung into "Very Good"; Piper sits in "Good". (Per the developer's
- * preference: cloud-neural beats local, and the cheaper Neural2 tier sits a
- * notch below the top Chirp3-HD picks.)
+ * A "Best" group sits above the tiers, reserved for hosted Chirp3-HD ("premium")
+ * and Chrome's cloud voices. Per the developer's preference cloud-neural beats
+ * local, and the cheaper Neural2 tier sits a notch below Chirp3-HD, so Neural2
+ * and Apple Premium drop into "Very Good" and Piper into "Good".
  */
 
 import type { TtsEngine } from '../../src/platform/index.js';
@@ -45,13 +39,13 @@ export interface ServerVoice {
     model?: string;
 }
 
-/** A curated hosted voice from the server's GET /v1/voices (mirrors the
- *  server's CloudVoice contract by hand). */
+/** A curated hosted voice from GET /v1/voices (hand-mirrors the server's
+ *  CloudVoice contract). */
 export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
-    /** Relative cost tier for the picker's $ indicator. Optional for resilience
-     *  against an older server that doesn't send it. */
+    /** Relative cost tier for the picker's $ indicator. Optional so an older
+     *  server that doesn't send it still works. */
     tier?: 'premium' | 'value';
     /** Estimated credits/hr at a typical talk profile (server-computed). */
     creditsPerHourTypical?: number;
@@ -63,9 +57,8 @@ export interface ScoredVoice {
     lang: string;
     score: number;
     engine: string | undefined;
-    /** Display-only engine override for the badge. Playback still routes by
-     *  `engine`; this just lets a browser-sourced macOS voice read "macOS"
-     *  instead of "Browser" (detected via the com.apple voiceURI). */
+    /** Display-only badge override; playback still routes by `engine`. Lets a
+     *  browser-sourced macOS voice read "macOS" instead of "Browser". */
     displayEngine?: string;
     /** Backing browser SpeechSynthesisVoice when available. */
     browserVoice?: SpeechSynthesisVoice;
@@ -77,7 +70,7 @@ export interface ScoredVoice {
     model?: string;
     /** Small muted label after the name (e.g. a hosted voice's gender). */
     note?: string;
-    /** Cost tier for a hosted voice — drives the "$"/"$$" cost badge. */
+    /** Cost tier for a hosted voice - drives the "$"/"$$" cost badge. */
     costTier?: 'premium' | 'value';
     /** Estimated credits/hr for a hosted voice (shown in the badge tooltip). */
     creditsPerHour?: number;
@@ -123,32 +116,28 @@ function isMac(): boolean {
 
 export function scoreVoice(name: string, engine?: string): number {
     const baseName = name.replace(/\s*\(.*\)$/, '');
-    // Apple "Premium" system voices — the best local option, a rung below
-    // cloud-neural; they get their own "Very Good" tier (alongside hosted
-    // Neural2, scored in buildScoredVoiceList).
+    // Apple "Premium" system voices: best local option, a rung below
+    // cloud-neural, so "Very Good" alongside hosted Neural2 (scored in
+    // buildScoredVoiceList).
     if (/Premium/i.test(name)) return 4;
-    // ElevenLabs is premium cloud TTS; keep it in the Quality tier even though
-    // its voice names carry no quality keyword (it no longer rides the server
-    // "recommended" flag — see buildScoredVoiceList).
+    // ElevenLabs is premium cloud TTS - hold it in Quality even though its
+    // voice names carry no quality keyword.
     if (engine === 'elevenlabs') return 2;
     if (/Enhanced/i.test(name)) return 2;
     if (/Online|Natural/i.test(name)) return 2;
     if (/^Google/i.test(name)) return 1;
     if (MACOS_QUALITY_VOICES.test(baseName)) return 1;
-    // Piper (the desktop app's bundled neural voices) sits in the top local
-    // tier — "Good" — per the developer's preference; they're genuinely solid.
+    // Piper (the desktop's bundled neural voices) tops the local tiers per the
+    // developer's preference - they're genuinely solid.
     if (engine === 'piper') return 3;
     return 0;
 }
 
 /**
- * Build a scored, sorted voice list from server + browser voices.
- * Server voices come first when present (they're what actually speak
- * through the app backend's TTS engines). Browser voices fill in when
- * `includeBrowserVoices` is true and the server engine is browser-only
- * or no server is reachable.
- *
- * Filters to English plus the navigator's primary language.
+ * Scored, sorted voice list from server + browser voices, filtered to English
+ * plus the navigator's primary language. Server voices lead when present
+ * (they're what the app backend's TTS engines actually speak); browser voices
+ * fill in when `includeBrowserVoices` and no server voice covers them.
  */
 export function buildScoredVoiceList(
     serverVoices: readonly ServerVoice[] | null,
@@ -167,16 +156,14 @@ export function buildScoredVoiceList(
     const scored: ScoredVoice[] = [];
     const seen = new Set<string>();
 
-    // Curated hosted voices (only present when the server is reachable + has a
-    // TTS key) lead the "Best" tier — the genuinely top-quality option. The
-    // Best tier is reserved for these and Chrome's cloud voices; local engines
-    // (macOS Premium, Piper) sort into Premium/Standard below, per the
-    // developer's preference (they're good, but not as good as cloud neural).
+    // Curated hosted voices (present only when the server is reachable and has a
+    // TTS key) lead the "Best" tier, which is reserved for these and Chrome's
+    // cloud voices.
     for (const hv of hostedVoices) {
-        // Chirp3-HD ("premium") voices lead the Best tier. The cheaper Neural2
-        // ("value") voices are still excellent but drop one rung into "Very
-        // Good" (score 4) alongside Apple Premium — Best stays the very top. An
-        // older server that omits tier defaults to Best (the safe direction).
+        // Chirp3-HD ("premium") leads Best; the cheaper Neural2 ("value") voices
+        // are still excellent but drop one rung to "Very Good" (4) alongside
+        // Apple Premium. An older server omitting tier defaults to Best, the
+        // safe direction.
         const isValue = hv.tier === 'value';
         scored.push({
             name: hv.name,
@@ -217,9 +204,9 @@ export function buildScoredVoiceList(
                 if (sv.size_display) entry.sizeDisplay = sv.size_display;
                 if (sv.model) entry.model = sv.model;
             }
-            // NOTE: we intentionally do NOT promote server-"recommended" voices
-            // (macOS Premium, Piper Libritts) into the Best tier — they sort by
-            // score into Premium/Standard. Best is hosted + Chrome cloud only.
+            // Deliberately no promotion of server-"recommended" voices (macOS
+            // Premium, Piper Libritts) into Best - they sort by score. Best is
+            // hosted + Chrome cloud only.
             scored.push(entry);
             seen.add(sv.name);
             if (browserVoice) seen.add(browserVoice.name);
@@ -234,16 +221,15 @@ export function buildScoredVoiceList(
 
         let score = scoreVoice(v.name);
         // Non-local browser voices (Chrome/Edge cloud) are the genuinely good
-        // ones — bump their score and float them into the Best tier alongside
-        // the hosted voices (developer preference: cloud-neural over local).
+        // ones - bump them into Best alongside the hosted voices.
         const remote = !v.localService;
         if (remote) score = Math.max(score, 2);
         const recommended = remote;
-        // macOS system voices reach us through the browser (engine stays
-        // 'browser' so playback routes to speechSynthesis), but tag them "macOS"
-        // in the badge. Safari exposes a com.apple voiceURI; Chrome on macOS
-        // uses a plain-name voiceURI, so the reliable signal is "on a Mac, a
-        // local voice is an Apple voice" (the only local TTS engine there).
+        // macOS system voices arrive through the browser (engine stays 'browser'
+        // so playback routes to speechSynthesis) but badge as "macOS". Safari
+        // exposes a com.apple voiceURI while Chrome on macOS uses a plain-name
+        // one, so the reliable signal is "on a Mac, a local voice is an Apple
+        // voice" - the only local TTS engine there.
         const isApple =
             (v.voiceURI || '').startsWith('com.apple') || (isMac() && (v.localService ?? false));
 
@@ -281,10 +267,8 @@ export interface RenderListOptions {
     showUninstall?: boolean;
 }
 
-/**
- * Render the voice modal list into a container. Splits recommended
- * voices out into their own section, then groups the rest by tier.
- */
+/** Render the modal list: recommended voices in their own section, the rest
+ *  grouped by tier. */
 export function renderVoiceList(
     listEl: HTMLElement,
     voices: readonly ScoredVoice[],
@@ -321,9 +305,8 @@ export function renderVoiceList(
         for (const v of items) appendRow(listEl, v, selectedName, options);
     }
 
-    // Show the "☁️ per hour" legend in the modal header (next to the title) only
-    // when a paid hosted voice is actually in the list — so a local-only picker
-    // stays clean.
+    // Show the "☁️ per hour" legend in the header only when a paid hosted voice
+    // is actually listed, so a local-only picker stays clean.
     const legend = listEl.closest('.voice-modal')?.querySelector('.voice-modal-legend');
     if (legend) {
         legend.classList.toggle('hidden', !voices.some((v) => rateBadge(v.creditsPerHour)));
@@ -348,8 +331,8 @@ function appendRow(
     if (entry.needsDownload && !entry.downloaded) row.classList.add('voice-row-locked');
     if (entry.name === selectedName) row.classList.add('selected');
     row.dataset['voiceName'] = entry.name;
-    // Speakers sharing one model file carry the same data-model, so a download
-    // in flight can disable all their Download buttons at once.
+    // Speakers sharing a model file share data-model, so an in-flight download
+    // can disable all their Download buttons at once.
     if (entry.model) row.dataset['model'] = entry.model;
 
     const nameSpan = document.createElement('span');
@@ -361,9 +344,9 @@ function appendRow(
         note.textContent = entry.note;
         nameSpan.appendChild(note);
     }
-    // Cloud-rate badge for hosted voices: "N☁️" ≈ N credits/hr, colored by tier
-    // (green value, amber premium) so a pricier voice reads as pricier at a
-    // glance. The tooltip carries the concrete credits/hr (meditation-pal-b7i).
+    // Hosted-voice rate badge: "N☁️" ≈ N credits/hr, colored by tier (green
+    // value, amber premium) so a pricier voice reads pricier at a glance
+    // (meditation-pal-b7i).
     const rateText = rateBadge(entry.creditsPerHour);
     if (rateText) {
         const cost = document.createElement('span');
@@ -434,9 +417,7 @@ function appendRow(
     parent.appendChild(row);
 }
 
-/**
- * Update the checkmark/selected state without re-rendering the whole list.
- */
+/** Update the checkmark/selected state without re-rendering the list. */
 export function updateVoiceSelection(
     listEl: HTMLElement,
     selectedName: string
@@ -466,16 +447,14 @@ export function updateVoiceSelection(
 let activePreviewEngine: TtsEngine | null = null;
 
 /**
- * Construct the right TTS engine for the voice and speak the preview
- * phrase. `voiceId` here is the raw voice name (not the 'server:'/
- * 'browser:' prefixed id used by SessionSetup). Engine override lets callers
- * force a specific backend when the same voice name exists across engines.
+ * Speak the preview phrase through the right engine for a voice. `voiceName` is
+ * the raw name, not the prefixed id SessionSetup stores; `engine` forces a
+ * backend when the same name exists across several.
  *
- * Rejects on a real failure (not signed in, out of credits, server
- * unreachable, autoplay blocked) so the caller can tell the user *why*
- * a preview produced no sound — previously every failure was swallowed,
- * which hid hosted-voice problems (especially on mobile) entirely.
- * Cancelling one preview by starting another resolves quietly (no error).
+ * Rejects on a real failure (not signed in, out of credits, server unreachable,
+ * autoplay blocked) so the caller can say WHY a preview was silent - swallowing
+ * these hid hosted-voice problems, especially on mobile. Cancelling one preview
+ * by starting another resolves quietly.
  */
 export async function previewVoice(
     voiceName: string,
@@ -486,13 +465,13 @@ export async function previewVoice(
     try {
         let ttsEngine: TtsEngine;
         if (engine === 'aloud') {
-            // Hosted Google voices preview through the PUBLIC, free preview
-            // endpoint — no sign-in, no credits. (Selecting one for a real
-            // session still synthesizes through the authed, metered path.)
+            // Hosted voices preview through the PUBLIC, free endpoint - no
+            // sign-in, no credits. Selecting one for a real session still goes
+            // through the authed, metered path.
             ttsEngine = createCloudAloudPreviewTts(voiceName);
         } else {
-            // Build a prefixed id that createTtsForVoice understands. We
-            // assume server voices unless the engine is explicitly 'browser'.
+            // Prefixed id for createTtsForVoice; assume server unless the engine
+            // is explicitly 'browser'.
             const id = engine === 'browser' ? `browser:${voiceName}` : `server:${voiceName}`;
             ({ engine: ttsEngine } = await createTtsForVoice(id));
         }
@@ -502,7 +481,7 @@ export async function previewVoice(
         await ttsEngine.speak(text, rate !== undefined ? { rate } : undefined);
     } finally {
         if (activePreviewEngine) {
-            // Best-effort cleanup; the engine handles double-cancel safely.
+            // Engines handle double-cancel safely.
             void activePreviewEngine.cancel();
             activePreviewEngine = null;
         }
@@ -510,10 +489,10 @@ export async function previewVoice(
 }
 
 /**
- * Turn a previewVoice() rejection into a short, user-facing line. Kept here so
- * all three pickers (setup / settings / in-session) report the same way.
- * Matches on error name/message rather than importing the cloud error classes,
- * so this stays free of cloud-auth coupling (and node-testable).
+ * A previewVoice() rejection as a short user-facing line, shared so all three
+ * pickers (setup / settings / in-session) report the same way. Matches on error
+ * name/message rather than importing the cloud error classes, which keeps this
+ * free of cloud-auth coupling and node-testable.
  */
 export function previewErrorMessage(err: unknown): string {
     const name = err instanceof Error ? err.name : '';
@@ -521,9 +500,8 @@ export function previewErrorMessage(err: unknown): string {
     if (name === 'CloudSignInRequiredError') {
         return 'Sign in to aloud cloud (in Settings) to preview these voices.';
     }
-    // Browsers reject HTMLAudioElement.play() with NotAllowedError when audio
-    // isn't allowed yet (the mobile/iOS autoplay gate). The fetch consumed the
-    // tap's user-gesture window, so the play that follows is blocked.
+    // The iOS/mobile autoplay gate: the fetch consumes the tap's user-gesture
+    // window, so the play that follows is blocked with NotAllowedError.
     if (name === 'NotAllowedError') {
         return 'Tap preview again to play this voice (your browser blocked the first play).';
     }
@@ -532,9 +510,8 @@ export function previewErrorMessage(err: unknown): string {
         return 'aloud cloud voices need credits to preview. Add credits, or pick a free voice.';
     }
     if (/\b403\b/.test(msg)) return 'Verify your email to use aloud cloud voices.';
-    // A browser (speechSynthesis) voice that couldn't render — most often one of
-    // the Microsoft "Online (Natural)" voices, which need a live connection and
-    // aren't always available. Steer the user to a voice that will play.
+    // A speechSynthesis voice that couldn't render, most often a Microsoft
+    // "Online (Natural)" voice, which needs a live connection.
     if (/^speechSynthesis /.test(msg)) {
         return "That browser voice wouldn't play — the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.";
     }
@@ -561,16 +538,13 @@ export interface VoiceModalConfig {
     /** id for the list container. */
     listId: string;
     title?: string;
-    /** Speed slider — omit to hide the footer. */
+    /** Speed slider - omit to hide the footer. */
     speedSliderId?: string;
     speedLabelId?: string;
     /** Initial slider value (wpm). */
     speedValue?: number;
 }
 
-/**
- * Render the picker_modal markup.
- */
 export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
     const title = cfg.title ?? 'Choose Voice';
     const speedValue = cfg.speedValue ?? 110;
@@ -614,7 +588,7 @@ export async function fetchServerVoices(force = false): Promise<ServerVoice[] | 
         serverVoicesCache = data;
         return serverVoicesCache;
     } catch {
-        // The app backend isn't reachable — we'll fall back to browser voices only.
+        // The app backend isn't reachable - we'll fall back to browser voices only.
         return null;
     }
 }
@@ -636,12 +610,12 @@ export interface DownloadProgress {
 
 /**
  * Download a Piper voice model, streaming byte progress via `onProgress`.
- * Resolves once the model is on disk (`done` / `already_downloaded`), rejects
- * on an error line or transport failure. Consumes the NDJSON stream emitted by
- * the desktop Rust server, so callers stay backend-agnostic.
+ * Consumes the desktop Rust server's NDJSON stream so callers stay
+ * backend-agnostic; resolves once the model is on disk, rejects on an error line
+ * or transport failure.
  *
- * Multi-speaker voices share one model file — after this resolves, re-fetch
- * `/app/v1/voices` and every speaker for that model reports `downloaded:true`.
+ * Multi-speaker voices share one model file, so after this resolves a re-fetch
+ * of /app/v1/voices reports `downloaded:true` for every speaker of that model.
  */
 export async function downloadVoiceModel(
     voiceName: string,
@@ -687,7 +661,7 @@ export async function downloadVoiceModel(
                     file: msg.file ?? '',
                 });
             }
-            // "done"/"already_downloaded" need no action; the loop ends when
+            // "done"/"already_downloaded" need no action - the loop ends when
             // the server closes the stream.
         }
     }
@@ -707,10 +681,10 @@ export async function uninstallVoiceModel(
 }
 
 /**
- * Disable (or re-enable) the Download buttons of every voice row sharing
- * `model` — used while one speaker of a multi-speaker model is downloading, so
- * the user can't kick off the same 100 MB fetch from a sibling. `exceptBtn`
- * (the clicked button, showing live percent) is left alone.
+ * Disable (or re-enable) the Download buttons of every row sharing `model`,
+ * while one speaker of a multi-speaker model downloads, so the user can't kick
+ * off the same 100 MB fetch from a sibling. `exceptBtn` (the clicked button,
+ * showing live percent) is left alone.
  */
 export function setModelDownloadsDisabled(
     listEl: HTMLElement,
@@ -729,10 +703,10 @@ export function setModelDownloadsDisabled(
 }
 
 /**
- * Cumulative download percent (0–100). `completed` is cumulative across files
- * while `total` is the current file's size, so once we roll onto the tiny
- * `.onnx.json` `completed` exceeds `total`; clamping to the larger of the two
- * keeps the bar monotonic and pinned at ~100% for that last hop.
+ * Cumulative download percent (0–100). `completed` spans all files while `total`
+ * is only the current file's size, so `completed` exceeds `total` once we roll
+ * onto the tiny `.onnx.json`; taking the larger keeps the bar monotonic and
+ * pinned near 100% for that last hop.
  */
 export function downloadPercent(p: DownloadProgress): number {
     const denom = Math.max(p.total, p.completed);
@@ -747,9 +721,9 @@ export function downloadPercent(p: DownloadProgress): number {
 let cloudVoicesCache: CloudVoice[] | null = null;
 
 /**
- * Fetch the curated hosted voices from the server. Returns [] (cached) when the
- * server is unreachable or has no TTS key — so the picker only surfaces hosted
- * voices that can actually speak (availability-driven menus).
+ * Fetch the curated hosted voices. Caches [] when the server is unreachable or
+ * has no TTS key, so the picker only surfaces hosted voices that can actually
+ * speak (availability-driven menus).
  */
 export async function fetchCloudVoices(force = false): Promise<CloudVoice[]> {
     if (!force && cloudVoicesCache !== null) return cloudVoicesCache;

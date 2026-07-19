@@ -1,12 +1,11 @@
 /**
  * Live model lists for the web build's `/app/v1/models/:provider`.
  *
- * Mirrors the desktop fetchers (`src-tauri/src/providers.rs`, themselves a port
- * of Flask's `provider_routes.py`): query each provider's models API, filter to
- * chat-capable text models, and shape `[{value, label}]`. The BYOK key is
- * forwarded by the UI as `x-provider-key` (the aloud cloud never persists
- * it); OpenRouter is public and claude_proxy is a static alias list. Any
- * failure returns `[]`, on which the picker falls back to a free-form input.
+ * Mirrors the desktop fetchers (`src-tauri/src/providers.rs`): query each
+ * provider's models API, filter to chat-capable text models, shape
+ * `[{value, label}]`. The BYOK key arrives as `x-provider-key` and is never
+ * persisted; OpenRouter is public and claude_proxy is a static alias list. Any
+ * failure returns `[]`, on which the picker falls back to free-form input.
  */
 
 export interface ModelOption {
@@ -36,7 +35,7 @@ function dataArray(body: unknown): Array<Record<string, unknown>> {
     return Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
 }
 
-/** Dispatch by provider. `apiKey` is the forwarded BYOK key (may be empty). */
+/** `apiKey` is the forwarded BYOK key (may be empty). */
 export async function fetchModels(provider: string, apiKey: string | null): Promise<ModelOption[]> {
     switch (provider) {
         case 'openai':
@@ -115,9 +114,9 @@ async function fetchAnthropic(key: string | null): Promise<ModelOption[]> {
 // ---- Claude subscription (static aliases) ----------------------------------
 
 function claudeProxyModels(): ModelOption[] {
-    // Mirrors claude_proxy_models() in ts/src-tauri/src/providers.rs — keep in
+    // Mirrors claude_proxy_models() in ts/src-tauri/src/providers.rs; keep in
     // sync. claude_proxy is desktop-only (web marks it unavailable), so this
-    // list is served for parity; the desktop Rust list is the one users hit.
+    // list is parity only; the desktop Rust list is the one users hit.
     return [
         { value: 'opus', label: 'Opus (latest)' },
         { value: 'fable', label: 'Fable (latest)' },
@@ -186,7 +185,7 @@ async function fetchGroq(key: string | null): Promise<ModelOption[]> {
         .map((m) => ({ value: m.id, label: groqLabel(m.id) }));
 }
 
-/** Strip the org prefix and title-case: `meta-llama/llama-3.1-70b` -> `Llama 3.1 70b`. */
+/** `meta-llama/llama-3.1-70b` -> `Llama 3.1 70b`. */
 function groqLabel(id: string): string {
     const tail = id.split('/').pop() ?? id;
     return tail

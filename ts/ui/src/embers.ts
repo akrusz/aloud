@@ -1,12 +1,10 @@
 /**
- * Ember particles — ambient background animation.
+ * Ember particles - ambient background animation. Easter egg: 5 clicks at level
+ * 4 unlocks level 5 with a 100-particle burst.
  *
- * Same level counts, color palettes, shrink rate, easter egg (5 clicks
- * at level 4 unlocks level 5 with a 100-particle burst).
- *
- * Embers render into a single fixed container at body level so the
- * particles persist across view changes. Controls live in views that
- * want to expose them — currently only the session view.
+ * Renders into a single fixed container at body level so particles persist
+ * across view changes. Controls live in views that expose them - currently only
+ * the session view.
  */
 
 const EMBER_COUNTS: readonly number[] = [0, 3, 6, 12, 24, 48];
@@ -49,10 +47,9 @@ function hexGlow(hex: string): string {
 }
 
 /**
- * Resolve (or create) the ember container. Embers are session-only: the
- * container is created lazily inside the body the FIRST time a session view
- * calls mountEmberContainer(). Once removed (when the session view tears
- * down), regenerateEmbers / burstEmbers become no-ops.
+ * Resolve the ember container. Embers are session-only: mountEmberContainer()
+ * creates it lazily, and once the session view tears it down regenerateEmbers /
+ * burstEmbers become no-ops.
  */
 function existingContainer(): HTMLElement | null {
     if (containerEl && document.body.contains(containerEl)) return containerEl;
@@ -62,8 +59,8 @@ function existingContainer(): HTMLElement | null {
 
 /** Called by the session view on mount. */
 export function mountEmberContainer(): void {
-    // The session/noting views render their own `.ember-container` in the
-    // template; reuse it when present, otherwise create one at body level.
+    // The session/noting views render their own `.ember-container`; reuse it
+    // when present, otherwise create one at body level.
     if (!existingContainer()) {
         const el = document.createElement('div');
         el.className = 'ember-container';
@@ -78,15 +75,13 @@ export function mountEmberContainer(): void {
         }
         levelLoaded = true;
     }
-    // Always generate for the current level. Previously this bailed whenever a
-    // container already existed — but the views always render one in their
-    // template, so the early return meant embers never started on a fresh
-    // session until the user nudged the level (which calls setEmberLevel
-    // directly). (meditation-pal-q7bg)
+    // Always generate, never early-return on an existing container: the views
+    // always render one in their template, so bailing meant embers never started
+    // on a fresh session until the user nudged the level (meditation-pal-q7bg).
     setEmberLevel(state.level);
 }
 
-/** Called when the session view unmounts — clears particles + container. */
+/** Session view unmount - clears particles + container. */
 export function unmountEmberContainer(): void {
     const el = existingContainer();
     if (el) el.remove();
@@ -128,7 +123,7 @@ function gracefullyEndEmbers(): void {
 
 export function regenerateEmbers(): void {
     const container = existingContainer();
-    if (!container) return; // No session view mounted — nothing to do.
+    if (!container) return; // no session view mounted
     gracefullyEndEmbers();
     if (state.level === 0) {
         if (!container.querySelector('.ember')) container.classList.remove('active');
@@ -259,11 +254,8 @@ export function setRainbow(rainbow: boolean): void {
     regenerateEmbers();
 }
 
-/**
- * Wire +/- buttons and the per-block click handler onto a freshly
- * rendered ember-control widget. Returns nothing; safe to call once
- * per view mount (it scopes by element refs).
- */
+/** Wire +/- buttons and the per-block click handler onto a freshly rendered
+ *  ember-control widget. Scopes by element refs, so call once per view mount. */
 export function wireEmberControls(root: ParentNode): void {
     const minus = root.querySelector<HTMLButtonElement>('#ember-minus');
     const plus = root.querySelector<HTMLButtonElement>('#ember-plus');

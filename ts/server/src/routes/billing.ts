@@ -1,11 +1,10 @@
 /**
  * Billing routes (meditation-pal-8sj). Credit packs sold via Stripe Checkout,
- * fulfilled on a signature-verified webhook. Degrades gracefully when Stripe
- * isn't configured (dev runs on the free-tier grant alone).
+ * fulfilled on a signature-verified webhook. Degrades when Stripe isn't
+ * configured (dev runs on the free-tier grant alone).
  *
- * The webhook is the trust boundary: credits are added to the ledger ONLY here,
- * after Stripe confirms payment and the signature verifies. The checkout route
- * just starts the flow.
+ * The webhook is the trust boundary: credits reach the ledger ONLY here, after
+ * Stripe confirms payment and the signature verifies. Checkout just starts it.
  */
 
 import { Hono } from 'hono';
@@ -37,10 +36,10 @@ import { log } from '../logger.js';
 /** Loose email shape check for gift recipients (mirrors routes/auth.ts). */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** A client-supplied post-checkout return path, sanitised to a single clean
- *  relative path ending in '/'. Anything not starting with a single '/' (absolute
- *  URLs, scheme-relative '//host', missing) falls back to '/'. The trailing '?'
- *  for the purchase param is added by the caller. */
+/** A client-supplied post-checkout return path, sanitised to one clean relative
+ *  path ending in '/'. Anything not starting with a single '/' (absolute URLs,
+ *  scheme-relative '//host', missing) falls back to '/'. The caller adds the
+ *  '?purchase' param. */
 export function safeReturnPath(raw: string | undefined): string {
     if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) return '/';
     // Strip any query/hash the client tacked on; we own the ?purchase param.
@@ -74,18 +73,18 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
             }
         }
-        // Optional gift recipient. Validate the shape now so a typo fails fast at
-        // checkout rather than minting an undeliverable gift after payment.
+        // Validate the gift recipient now so a typo fails at checkout rather than
+        // minting an undeliverable gift after payment.
         const giftToEmail = body.giftToEmail ? body.giftToEmail.trim().toLowerCase() : '';
         if (giftToEmail && !EMAIL_RE.test(giftToEmail)) {
             return c.json(apiError('bad_request', 'gift recipient email is not valid'), ERROR_STATUS.bad_request);
         }
         const origin = deps.config.corsOrigins[0] ?? '';
         // Where Stripe returns the user. The client passes its own app path (e.g.
-        // '/app/' on the Pages subpath build) so the redirect lands back IN the
-        // app, not the marketing root; we only honour a clean relative path
-        // (leading '/', no '//' scheme-relative) and always prefix our own
-        // origin, so this can't be turned into an open redirect.
+        // '/app/' on the Pages subpath build) so the redirect lands IN the app,
+        // not the marketing root. We honour only a clean relative path (leading
+        // '/', no scheme-relative '//') and always prefix our own origin, so this
+        // can't become an open redirect.
         const returnBase = `${origin}${safeReturnPath(body.returnPath)}`;
         try {
             const url = await createCheckoutSession(
@@ -105,7 +104,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
     });
 
-    // Stripe calls this — no user auth; trust comes from signature verification.
+    // Stripe calls this: no user auth, trust comes from signature verification.
     app.post('/webhook', async (c) => {
         const secret = deps.config.stripeWebhookSecret;
         if (!secret) return c.json(apiError('internal', 'webhook not configured'), ERROR_STATUS.internal);
@@ -119,14 +118,15 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const event = JSON.parse(payload) as unknown;
         const purchase = parseCheckoutCompleted(event);
         if (purchase && purchase.giftToEmail) {
-            // A GIFT: the payment cleared, but the clouds become a pending gift the
-            // recipient accepts on next sign-in (declined/expired → back to buyer).
-            // createGift is idempotent on the session id, so a webhook retry is safe.
+            // A GIFT: the payment cleared, but the credits become a pending gift
+            // the recipient accepts on next sign-in (declined/expired → back to
+            // buyer). createGift is idempotent on the session id, so a webhook
+            // retry is safe.
             await deps.store.createGift({
                 id: randomUUID(),
                 buyerAccountId: purchase.accountId,
-                // Normalize here too — matching (accept/list) is all lower-cased,
-                // so the stored address must be, regardless of how it arrived.
+                // Normalize here too: matching (accept/list) is all lower-cased,
+                // so the stored address must be, however it arrived.
                 recipientEmail: purchase.giftToEmail.trim().toLowerCase(),
                 credits: purchase.credits,
                 stripeSessionId: purchase.stripeSessionId,
@@ -151,8 +151,8 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             });
         } else {
             // Refund / chargeback → claw back the credits (meditation-pal-7tl).
-            // The charge/dispute object carries only a payment_intent, so resolve
-            // the buyer + amount from the PI metadata we stamped at checkout.
+            // The charge/dispute object carries only a payment_intent, so the
+            // buyer + amount come from the PI metadata stamped at checkout.
             const reversal = parseChargeReversal(event);
             if (reversal) {
                 const apiKey = deps.config.stripeSecretKey;
@@ -160,8 +160,8 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     ? await fetchPurchaseMetadata(reversal.paymentIntentId, apiKey)
                     : undefined;
                 if (meta && meta.isGift) {
-                    // A gift purchase credited a gift record, not the buyer — auto
-                    // clawback would wrongly debit them. Flag for manual handling.
+                    // A gift purchase credited a gift record, not the buyer, so
+                    // auto clawback would wrongly debit them. Flag for a human.
                     log.error('reversal on a GIFT purchase — manual review needed', {
                         kind: reversal.kind,
                         ref: reversal.ref,
@@ -172,8 +172,8 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     if (claw > 0) {
                         await deps.ledger.refund(meta.accountId, claw, reversal.ref);
                     }
-                    // error-level: a refund/chargeback is money out + (for disputes)
-                    // needs a human response, so it should page, not just log.
+                    // error-level: a refund/chargeback is money out and (for
+                    // disputes) needs a human response, so it should page.
                     log.error('credits clawed back on reversal', {
                         kind: reversal.kind,
                         accountId: meta.accountId,
@@ -194,7 +194,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     // x402 channel (meditation-pal-du9): USDC-on-Base credit purchases. Mounted
     // only when configured; otherwise the buy path reports not-configured so the
-    // surface is discoverable (mirrors /checkout's behavior without a Stripe key).
+    // surface stays discoverable (as /checkout does without a Stripe key).
     const x402 = x402Configured(deps);
     if (x402) {
         app.route('/x402', x402Routes(deps, x402));

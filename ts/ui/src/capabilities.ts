@@ -1,20 +1,16 @@
 /**
- * Runtime capability detection — what can the current environment actually
- * reach? Menus key off this so they only offer sources that work here
- * ("show what's available"): on the website there's no local app backend or
- * Ollama, in a pure local app aloud cloud may be unreachable, etc.
+ * Runtime capability detection: what can this environment actually reach?
+ * Menus key off it so they only offer sources that work here.
  *
- * Three independent axes (NOT one "desktop" binary):
+ * Three independent axes, NOT one "desktop" binary:
  *   - flask:  the local app backend (Piper/macOS voices, claude_proxy,
  *             Ollama proxy, config-folder + voice-management tools).
- *   - cloud:  aloud cloud — the @aloud/server proxy (LLM/STT/TTS, credits).
+ *   - cloud:  aloud cloud, the @aloud/server proxy (LLM/STT/TTS, credits).
  *   - ollama: a local Ollama daemon (reachable via the dev proxy).
  *
- * Probes run once at boot, are cached, and can be re-run (invalidate +
- * detect) when the environment may have changed — mirroring the
- * invalidateSttBackendCache pattern. The `flask` axis delegates to
- * is-desktop.ts so the existing isDesktop()/isDesktopSync() callers and this
- * share one probe.
+ * Probes run once at boot, cached, re-runnable via invalidate + detect. The
+ * `flask` axis delegates to is-desktop.ts so isDesktop()/isDesktopSync()
+ * callers and this share one probe.
  */
 
 import { detectIsDesktop, isDesktopSync } from './is-desktop.js';
@@ -45,10 +41,9 @@ async function reachable(url: string): Promise<boolean> {
     }
 }
 
-/** Probe aloud cloud via its public `/config` route: proves reachability (the
- *  `cloud` axis) AND learns the Google client id in one round-trip, so any
- *  install can show real sign-in for whatever server it's pointed at. A failure
- *  (no server / offline) reads as unreachable + no id. (meditation-pal-rfb) */
+/** The public `/config` route proves reachability AND carries the sign-in
+ *  client ids in one round-trip, so any install shows real sign-in for whatever
+ *  server it points at. Failure reads as unreachable + no ids. (meditation-pal-rfb) */
 interface CloudConfig {
     reachable: boolean;
     googleClientId: string;
@@ -83,9 +78,9 @@ async function probeCloud(): Promise<CloudConfig> {
     }
 }
 
-/** Probe cloud a few times with short backoff before concluding it's down, so a
- *  transient blip at boot — a Fly cold start, or the dev server mid-`tsx watch`
- *  restart — isn't frozen into a session-long false negative. */
+/** Short backoff before concluding cloud is down, so a boot blip (Fly cold
+ *  start, dev server mid-`tsx watch` restart) isn't frozen into a session-long
+ *  false negative. */
 async function probeCloudWithRetry(): Promise<CloudConfig> {
     const backoffMs = [300, 900];
     let result = await probeCloud();
@@ -98,16 +93,15 @@ async function probeCloudWithRetry(): Promise<CloudConfig> {
 }
 
 export async function detectCapabilities(): Promise<Capabilities> {
-    // A positive cache holds for the session. A negative `cloud`, though, is the
-    // fragile axis — usually a transient blip — so we don't freeze it: re-probe
-    // cloud (only) on the next call so sign-in/credits self-heal as the user
-    // navigates, without re-hammering the structural flask/ollama probes (which
-    // are legitimately absent on the website and stable for the session).
+    // A positive cache holds for the session. A negative `cloud` is usually a
+    // transient blip, so don't freeze it: re-probe cloud only on the next call
+    // so sign-in/credits self-heal as the user navigates. flask/ollama are
+    // structural and stable for the session, so they aren't re-hammered.
     if (cached?.cloud) return cached;
     if (inflight) return inflight;
     inflight = (async () => {
-        // Re-probe path: cloud was previously unreachable. Recheck just that
-        // axis (single attempt — the next navigation retries) and keep the rest.
+        // Cloud was previously unreachable: recheck just that axis, single
+        // attempt, since the next navigation retries.
         const base = cached;
         if (base) {
             const cloud = await probeCloud();
@@ -119,16 +113,12 @@ export async function detectCapabilities(): Promise<Capabilities> {
             return cached;
         }
         // First detect: retry the cloud probe to ride out cold-start/restart.
-        // /cloud/v1/* is aloud cloud (proxied in dev; absolute in prod); its
-        // public /config route proves reachability and carries the Google client
-        // id (→ runtime sign-in, build-agnostic).
         //
         // The ollama axis rides the Vite dev proxy (/ollama → :11434), the ONLY
-        // place that raw path resolves. A production build — hosted web, desktop,
-        // self-host — has no such route, so the probe could only 404 (the
-        // console noise users were seeing on aloud.rest); skip it there and
-        // report unreachable. Desktop Ollama availability comes from
-        // /app/v1/providers (see provider-markers.ts), not this axis.
+        // place that raw path resolves. No production build (hosted web,
+        // desktop, self-host) has that route, so the probe could only 404 (the
+        // console noise on aloud.rest); skip it there. Desktop Ollama
+        // availability comes from /app/v1/providers (provider-markers.ts).
         const [flask, cloud, ollama] = await Promise.all([
             detectIsDesktop(), // GET /app/v1/system-info
             probeCloudWithRetry(),
@@ -156,14 +146,12 @@ export function invalidateCapabilities(): void {
 
 // --- Cloud wake watch --------------------------------------------------------
 //
-// aloud cloud scales to zero when idle (cost control), so a cold visit can find
-// it unreachable for the first few seconds while Fly boots the machine on the
-// first request. The boot probe (probeCloudWithRetry) uses only a short retry so
-// first paint stays fast; this watcher is the longer tail — a shared,
-// exponential-backoff re-probe that fires once the machine answers, so any
-// surface gated on cloud reachability (the account page, the sign-in nav, the
-// setup provider/model pickers) heals itself without a reload. Platform-agnostic:
-// desktop, mobile, and web all hit the same cold-starting hosted service.
+// aloud cloud scales to zero when idle, so a cold visit finds it unreachable
+// for a few seconds while Fly boots the machine. probeCloudWithRetry keeps
+// first paint fast with a short retry; this is the longer tail: a shared
+// exponential-backoff re-probe that fires once the machine answers, so surfaces
+// gated on cloud reachability (account page, sign-in nav, setup pickers) heal
+// without a reload. Desktop, mobile, and web all hit the same cold start.
 
 type CloudUpListener = () => void;
 const cloudUpListeners = new Set<CloudUpListener>();
@@ -175,9 +163,8 @@ function runCloudWatch(): void {
     const tick = async (): Promise<void> => {
         cloudWatchTimer = null;
         if (cloudUpListeners.size === 0) return; // nobody waiting → stop polling
-        // detectCapabilities re-probes the cloud axis whenever it's currently
-        // down (a positive result is cached for the session), so this rides its
-        // inflight de-dup rather than hammering a parallel probe.
+        // detectCapabilities re-probes cloud whenever it's down, so this rides
+        // its inflight de-dup rather than running a parallel probe.
         const caps = await detectCapabilities();
         if (caps.cloud) {
             const listeners = [...cloudUpListeners];
@@ -192,11 +179,10 @@ function runCloudWatch(): void {
 }
 
 /**
- * Call `onUp` once aloud cloud is reachable — synchronously if it already is,
- * otherwise when a shared background backoff re-probe first reaches it. Returns
- * an unsubscribe fn; call it on teardown so a still-pending wait can't fire into
- * a view that's gone. Fires at most once (a positive cloud result sticks for the
- * session), so there's nothing to clean up after it resolves.
+ * Call `onUp` once aloud cloud is reachable: synchronously if it already is,
+ * otherwise when a shared background backoff re-probe reaches it. Unsubscribe
+ * on teardown so a pending wait can't fire into a view that's gone. Fires at
+ * most once, since a positive cloud result sticks for the session.
  */
 export function watchCloudReachable(onUp: CloudUpListener): () => void {
     if (capabilitiesSync().cloud) {

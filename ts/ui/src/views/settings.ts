@@ -1,26 +1,11 @@
 /**
- * Settings view.
+ * Settings view: LLM provider + BYOK keys, language & speech recognition,
+ * text-to-speech, display, pacing, session history, updates, and a
+ * dev-mode-only Developer section.
  *
- * Sections:
- *   1. LLM Provider     — default provider, model, per-provider API keys
- *   2. Language & STT   — language, Whisper model size (stub)
- *   3. Text-to-Speech   — engine selector, voice picker, ElevenLabs key
- *   4. Display          — text scale, theme mode, window mode (stub)
- *   5. Pacing           — silence base/max, subscription pause, check-in, hold
- *   6. Network          — host (stub)
- *   7. Updates          — a button that opens the About box (the single update
- *                         surface, desktop self-update); no check/update here
- *
- * "Stub" rows render the full layout but their controls
- * either no-op or display a small "desktop only" hint. The user's call:
- * "if there are settings page elements that we can't hook up yet
- *  because of what needs to be decided still that's fine. But we could
- *  at least have the page there with most of the elements functional."
- *
- * The chrome-level settings (theme, text scale) and the pacing knobs
- * are live and persist. Provider/key entry persists into the same
- * api-keys backend the setup view uses, so settings → setup flow works
- * end-to-end.
+ * Every control auto-applies and persists (Display is the exception - see
+ * wireDisplaySection). Keys persist into the same api-keys store the setup
+ * view reads.
  */
 
 import {
@@ -84,44 +69,39 @@ export interface SettingsViewHandle {
 
 export async function mountSettingsView(root: HTMLElement): Promise<SettingsViewHandle> {
     const settings = await loadAppSettings();
-    // Resolve environment capabilities before the first render so the provider
-    // menu shows exactly what's reachable (also populates the is-desktop cache
-    // the env-var hints + config-folder link read).
+    // Before first render so the provider menu shows only what's reachable
+    // (also populates the is-desktop cache the env-var hints + config-folder
+    // link read).
     await detectCapabilities();
     let scoredVoices: ScoredVoice[] = [];
 
-    // Every control auto-applies on change (provider, voice, language, pacing…)
-    // — there's no global Save. The one exception is Display (text scale +
-    // theme): live-resizing the whole UI while you drag the slider is
-    // disorienting, so those apply only to the preview pane until you click the
-    // Display section's own "Apply" button. The bottom-bar button is "Undo",
-    // which reverts the whole settings object to how it was when this view was
-    // opened. (meditation-pal-odw)
+    // There's no global Save; controls auto-apply. Display (text scale, theme,
+    // balance pill) is the exception - live-resizing the UI mid-drag is
+    // disorienting, so those stay in the preview pane until "Apply". The
+    // bottom-bar button is Undo, reverting to the state at view open.
+    // (meditation-pal-odw)
     const pendingChrome = {
         textScale: settings.textScale,
         themeMode: settings.themeMode,
         showSessionBalance: settings.showSessionBalance,
     };
 
-    // Provider availability for the ✘/✱ markers on the Default Provider menu
-    // and the selected-provider status hint. Unlike setup, settings only
-    // annotates — it never reorders or auto-switches the saved default.
-    // Populated from /app/v1/providers (providerStatus) + the BYOK key store
-    // (keyPresent); see provider-markers.ts.
+    // Backs the ✘/✱ markers and the status hint, from /app/v1/providers plus
+    // the BYOK key store (see provider-markers.ts). Unlike setup, settings only
+    // annotates: it never reorders or auto-switches the saved default.
     let providerStatus: ProviderStatusMap | null = null;
     let keyPresent: Record<string, boolean> = {};
 
     const ELEVENLABS_KEY_STORE = 'apikey:elevenlabs';
 
     /**
-     * Serialized view of everything Undo reverts: the AppSettings object
-     * EXCEPT ttsEngine, plus the ElevenLabs API key.
+     * Serialized view of everything Undo reverts: AppSettings except ttsEngine,
+     * plus the ElevenLabs API key.
      *
-     * ttsEngine is excluded on purpose — the "Manage TTS Engines" dropdown is a
-     * which-engine-am-I-configuring selector, not a change worth undoing, so
-     * switching it doesn't dirty the page. Entering an ElevenLabs key, though,
-     * is a real change; it lives in a separate key store, so we fold it in here
-     * explicitly. (meditation-pal-odw, dev follow-up.)
+     * ttsEngine is excluded because "Manage TTS Engines" is a
+     * which-engine-am-I-configuring selector, not a change worth undoing.
+     * The ElevenLabs key IS a real change but lives in a separate store, so
+     * it's folded in explicitly. (meditation-pal-odw)
      */
     function undoSnapshot(): string {
         const comparable: Partial<AppSettings> = { ...settings };
@@ -132,8 +112,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
     }
 
-    // Entry snapshot for Undo, taken after loadAppSettings (settings' own
-    // loadVoiceCatalog doesn't mutate settings, unlike setup's).
+    // Entry snapshot for Undo. Safe to take here: unlike setup's, this
+    // loadVoiceCatalog doesn't mutate settings.
     const baseline = undoSnapshot();
 
     function persist(): void {
@@ -194,11 +174,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     function wireProviderSection(): void {
         const providerSel = root.querySelector<HTMLSelectElement>('#s-provider')!;
         providerSel.value = settings.defaultProvider;
-        // The saved default may not be available in this mode — e.g. a fresh web
-        // build defaults to 'ollama', which is filtered out of the web menu.
-        // Setting .value to a missing option leaves the <select> blank; fall
-        // back to the first available provider (the hosted 'aloud' option on
-        // web) and persist so the menu never renders empty.
+        // The saved default may not exist in this mode (a fresh web build
+        // defaults to 'ollama', filtered out of the web menu), and setting
+        // .value to a missing option leaves the <select> blank. Fall back to
+        // the first available provider and persist.
         if (providerSel.value !== settings.defaultProvider) {
             settings.defaultProvider = (providerSel.options[0]?.value ??
                 settings.defaultProvider) as Provider;
@@ -216,8 +195,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             updateProviderStatusHint();
         });
 
-        // Model picker — same /app/v1/models/<provider> backing as the
-        // setup view. Falls back to text input when the app backend isn't there.
+        // Same /app/v1/models/<provider> backing as setup; falls back to a text
+        // input when the app backend isn't there.
         const modelContainer = root.querySelector<HTMLElement>('#s-model-slot')!;
         const modelPicker = mountModelPicker(
             modelContainer,
@@ -229,18 +208,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             }
         );
 
-        // Ollama recommendation + installed-model management. Hooked once
-        // here; we only show + refresh it when the selected provider is
-        // Ollama, so users on other providers don't see the tier card stack.
-        // Ollama is a local-daemon provider — it's filtered out of the menu on
-        // the web build, so its install/recommendation card must never mount
-        // there either (a harder guarantee than just hiding it when a non-Ollama
-        // provider is selected).
+        // Ollama recommendation + installed-model management, mounted once and
+        // shown only while Ollama is selected. On web it must never mount at
+        // all (a harder guarantee than hiding it): Ollama is a local daemon and
+        // is filtered out of the web menu entirely.
         const recEl = isWebMode() ? null : root.querySelector<HTMLElement>('#s-ollama-recommendation');
         const ollamaHandle = recEl
             ? mountOllamaSettings(recEl, {
-                  // After a pull/remove the standard model dropdown is stale;
-                  // re-fetch so the new option shows up (or removed one disappears).
+                  // A pull/remove leaves the model dropdown stale.
                   onModelsChanged: () => modelPicker.refresh(settings.defaultProvider),
               })
             : null;
@@ -251,8 +226,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         };
         syncOllamaSection();
 
-        // Per-provider API key inputs. Each row carries the input, a
-        // "Get a key ↗" link to the provider's console, and a Paste
+        // Per-provider API key rows: input, "Get a key" link, and a Paste
         // button when the browser exposes the clipboard API.
         for (const p of ALL_PROVIDERS) {
             if (!p.needsKey) continue;
@@ -267,8 +241,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             infoPanel?.classList.toggle('hidden');
         });
 
-        // BYOK opt-in (hosted build only). Rebuild the provider menu live so the
-        // key-based providers appear/disappear without a reload.
+        // BYOK opt-in (hosted build only): rebuild the menu live so key-based
+        // providers appear/disappear without a reload.
         const byokToggle = root.querySelector<HTMLInputElement>('#s-enable-byok');
         byokToggle?.addEventListener('change', () => {
             settings.enableByok = byokToggle.checked;
@@ -290,17 +264,15 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 void refreshApiKeyRows();
                 void modelPicker.refresh(settings.defaultProvider);
             }
-            // Re-annotate the freshly rebuilt menu (newly-shown BYOK providers
-            // get ✘ until a key is entered).
+            // Newly-shown BYOK providers get ✘ until a key is entered.
             applyProviderMarkers();
         });
     }
 
     /**
-     * Fetch provider availability + BYOK key presence, then annotate the
-     * Default Provider menu and the status hint. Called on mount and after any
-     * change that can flip availability (provider switch, key save/remove,
-     * BYOK toggle). Network failures leave the menu unmarked — never blocked.
+     * Fetch provider availability + BYOK key presence, then annotate the menu
+     * and status hint. Called on mount and after anything that can flip
+     * availability. Network failures leave the menu unmarked, never blocked.
      */
     async function refreshProviderMarkers(): Promise<void> {
         const [statusResult] = await Promise.all([
@@ -323,11 +295,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Annotate the Default Provider <option>s with ✘/✱ from the cached
-     * provider status, and refresh the selected-provider status hint. Pure DOM
-     * + cached state, so it's safe to call after a menu rebuild. Unlike setup's
-     * applyProviderIndicators, it does NOT reorder or auto-select — a settings
-     * default shouldn't silently change out from under the user.
+     * Annotate the <option>s with ✘/✱ from cached status and refresh the hint.
+     * Pure DOM + cached state, so it's safe after a menu rebuild. Unlike
+     * setup's applyProviderIndicators it does NOT reorder or auto-select: a
+     * settings default shouldn't change out from under the user.
      */
     function applyProviderMarkers(): void {
         const sel = root.querySelector<HTMLSelectElement>('#s-provider');
@@ -346,11 +317,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Surface why the selected default provider can't run right now: a missing
-     * BYOK key, the desktop claude_proxy without the `claude` CLI logged in, or
-     * a stopped Ollama. Reuses each provider's backend hint (the claude_proxy
-     * "install Claude Code, run `claude` to log in" line comes straight from
-     * the Rust /providers handler). Hidden when the provider is usable.
+     * Surface why the selected default provider can't run: missing BYOK key,
+     * claude_proxy without the `claude` CLI logged in, stopped Ollama. Reuses
+     * each provider's backend hint (claude_proxy's comes from the Rust
+     * /providers handler). Hidden when the provider is usable.
      */
     function updateProviderStatusHint(): void {
         const statusEl = root.querySelector<HTMLElement>('#s-provider-status');
@@ -370,9 +340,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Show only the active provider's API key row — each provider has its
-     * own .api-key-group and only the matching one is unhidden when the
-     * provider select changes. Updates the saved/empty status text per row.
+     * Unhide only the active provider's .api-key-group row and refresh its
+     * saved/empty status text.
      */
     async function refreshApiKeyRows(): Promise<void> {
         const active = settings.defaultProvider;
@@ -384,15 +353,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             if (!isActiveBYOK) continue;
             const status = row.querySelector<HTMLElement>('.api-key-status');
             const existing = await getApiKey(p.value);
-            // Show a masked confirmation (key saved (sk-a…wxyz)) rather than a
-            // bare "Saved", so the user can tell a key is stored without
-            // exposing it.
+            // Masked rather than a bare "Saved", so the user can recognize
+            // which key is stored without exposing it.
             if (status) status.textContent = existing ? `key saved (${maskKey(existing)})` : '';
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
         }
-        // A key just added/removed flips a provider's ✘ marker and the status
-        // hint. (Cheap: re-reads the local key store, no network.)
+        // An added/removed key flips a provider's ✘ marker and the hint. Cheap:
+        // re-reads the local key store, no network.
         await refreshKeyPresence();
         applyProviderMarkers();
     }
@@ -400,26 +368,23 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // ---- API key helpers (Get a key + Paste) ---------------------------
 
     /**
-     * For each provider's API key input, attach a "Get a key ↗" link
-     * pointing at the provider's key page and (when the browser exposes
-     * Web Clipboard) a Paste button that fills the input and saves.
+     * Attach a "Get a key" link and (when the browser exposes Web Clipboard) a
+     * Paste button that fills and saves the provider's key input.
      */
     function attachApiKeyHelpers(provider: Provider, url: string, prefix: string): void {
         const inputEl = root.querySelector<HTMLInputElement>(`#s-key-${provider}`);
         if (!inputEl) return;
         const row = inputEl.parentElement;
         if (!row) return;
-        // Capture into a non-null binding so nested closures (the Paste
-        // handler) keep the narrowed type — TS doesn't propagate the
-        // `if (!input) return` narrowing into nested function decls.
+        // A non-null binding so nested function decls keep the narrowed type;
+        // TS doesn't propagate the early return's narrowing into them.
         const input: HTMLInputElement = inputEl;
         row.classList.add('has-key-helper');
 
         const actions = document.createElement('div');
         actions.className = 'api-key-actions';
 
-        // "Get a key" anchor — opens in a new tab. Lives as an <a>
-        // rather than a button so the desktop webview routes it to the
+        // An <a> rather than a button so the desktop webview routes it to the
         // system browser.
         const getBtn = document.createElement('a');
         getBtn.href = url;
@@ -433,10 +398,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const status = document.createElement('span');
         status.className = 'api-key-paste-status';
 
-        // Paste button — only rendered when the clipboard API exists.
-        // If clipboard reads fail at runtime (some Safari, the desktop
-        // WKWebView), mark the button unavailable and fold a manual
-        // ⌘V/Ctrl+V hint into the input placeholder.
+        // Paste is rendered only when the clipboard API exists. Reads can still
+        // fail at runtime (some Safari, the desktop WKWebView), in which case
+        // we fall back to a manual ⌘V/Ctrl+V placeholder hint.
         const hasClipboard =
             typeof navigator !== 'undefined' &&
             !!navigator.clipboard &&
@@ -463,8 +427,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 showManualPasteHint(input, shortcut);
             }
 
-            // If the Permissions API exposes clipboard-read (Chromium),
-            // mark unavailable up front when denied.
+            // Chromium exposes clipboard-read via the Permissions API; when
+            // it's denied we can mark the button dead up front.
             if (navigator.permissions && 'query' in navigator.permissions) {
                 navigator.permissions
                     .query({ name: 'clipboard-read' as PermissionName })
@@ -505,10 +469,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             showManualPasteHint(input, /Mac/.test(navigator.platform || '') ? '⌘V' : 'Ctrl+V');
         }
 
-        // Remove button — deletes the stored key. Necessary because clearing
-        // the field alone doesn't delete (the change handler below only saves
-        // non-empty values). Hidden when no key is stored; refreshApiKeyRows()
-        // and the initial probe below keep its visibility honest.
+        // Needed because clearing the field alone doesn't delete: the change
+        // handler below only saves non-empty values. Hidden when no key is
+        // stored.
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'btn btn-small btn-secondary api-key-remove-btn';
@@ -530,10 +493,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         row.appendChild(actions);
         row.appendChild(status);
 
-        // Manual-typing save handler — matches the original 'change'
-        // behavior. We keep the input contents instead of clearing so
-        // the user sees their pasted/typed key (the existing-key check
-        // covers the "Saved" badge update on the next refresh).
+        // Manual-typing save. Keeps the input contents rather than clearing, so
+        // the user still sees the key they typed.
         input.addEventListener('change', async () => {
             const raw = input.value.trim();
             if (raw) await setApiKey(provider, raw);
@@ -564,14 +525,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
     }
 
-    /** The Whisper model size only matters for the on-device Whisper backend —
-     *  hide it for browser/hosted STT. */
+    /** Model size only matters for on-device Whisper; hide it for
+     *  browser/hosted STT. */
     function updateWhisperVisibility(): void {
         const group = root.querySelector<HTMLElement>('#s-whisper-model-group');
         // `.whisper-slot-hidden` (style.css) keeps the column's slot at wide
-        // widths so Language/Recognition stay at a third each instead of
-        // stretching to halves as you toggle STT; it collapses to display:none
-        // once the row stacks, so narrow widths show no dead space.
+        // widths so Language/Recognition stay at a third each rather than
+        // stretching to halves as you toggle STT, and collapses to display:none
+        // once the row stacks, leaving no dead space when narrow.
         group?.classList.toggle(
             'whisper-slot-hidden',
             resolveSttChoice(settings.sttEngine, isWebMode()) !== 'whisper'
@@ -588,7 +549,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
         const sttSel = root.querySelector<HTMLSelectElement>('#s-stt-engine');
         if (sttSel) {
-            // Show the resolved choice (stored pick or the mode's flow default);
             // resolveSttChoice handles a null or stale-for-this-mode value.
             sttSel.value = resolveSttChoice(settings.sttEngine, isWebMode());
             updateSttHint();
@@ -632,17 +592,16 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             infoPanel?.classList.toggle('hidden');
         });
 
-        // ElevenLabs key row — same Get-a-key / Paste affordances as
-        // the LLM provider rows. Only visible when TTS = elevenlabs.
+        // Same Get-a-key / Paste affordances as the LLM provider rows; visible
+        // only when TTS = elevenlabs.
         attachElevenLabsKeyHelpers();
         refreshElevenLabsRow();
     }
 
     /**
-     * Engine-specific hint text below the TTS engine dropdown, including the
-     * "Download Premium voices" call-to-action when the user is on a
-     * Mac with macOS TTS — that's the key surface for getting good
-     * voices on Apple Silicon.
+     * Engine-specific hint below the TTS dropdown. On a Mac with macOS TTS it
+     * carries the "Download Premium voices" CTA, the main route to good voices
+     * on Apple Silicon.
      */
     function updateTtsEngineHint(): void {
         const hintEl = root.querySelector<HTMLElement>('#s-tts-engine-hint');
@@ -665,9 +624,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 'Fast local neural TTS. Download voice models (~60–100 MB each) from the voice picker. <a href="https://rhasspy.github.io/piper-samples/" target="_blank" rel="noopener">Listen to samples</a>',
         };
         hintEl.innerHTML = hints[settings.ttsEngine];
-        // Wire the "Download Premium voices" link to the app backend's
-        // /app/v1/open-voice-settings route — opens macOS System Settings
-        // straight to Accessibility → Spoken Content.
+        // /app/v1/open-voice-settings opens macOS System Settings straight to
+        // Accessibility → Spoken Content.
         const link = hintEl.querySelector<HTMLAnchorElement>('[data-open-voice-settings]');
         if (link) {
             link.addEventListener('click', (e) => {
@@ -684,10 +642,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Wire the ElevenLabs API key input. Uses a separate keyId
-     * ("elevenlabs") in the same api-keys backing store the LLM keys
-     * use — the keys live in separate slots (s-elevenlabs-key vs
-     * s-anthropic-key etc.) but the storage is conceptually one map.
+     * Wire the ElevenLabs API key input. Its own slot in the same api-keys
+     * store the LLM keys use.
      */
     function attachElevenLabsKeyHelpers(): void {
         const input = root.querySelector<HTMLInputElement>('#s-elevenlabs-key');
@@ -696,10 +652,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (!row) return;
         row.classList.add('has-key-helper');
 
-        // Re-use the same UI as the LLM key rows via a thin shim — we
-        // can't call attachApiKeyHelpers() directly because its keyId
-        // is typed Provider and 'elevenlabs' isn't one. Inline the
-        // same structure with the elevenlabs URL + prefix.
+        // Same structure as the LLM key rows, inlined: attachApiKeyHelpers()
+        // types its keyId as Provider, and 'elevenlabs' isn't one.
         const actions = document.createElement('div');
         actions.className = 'api-key-actions';
 
@@ -767,7 +721,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             updateUndoState();
         });
 
-        // Pre-populate placeholder if a key is already stored.
         const existing = localStorage.getItem('apikey:elevenlabs');
         if (existing) input.placeholder = 'Saved, type to replace';
 
@@ -776,9 +729,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Uninstall a downloaded Piper voice via the app backend's
-     * /app/v1/tts/uninstall-model endpoint — confirmation, POST, then
-     * re-fetch voices so the row flips to "Download" state.
+     * Uninstall a downloaded Piper voice, then re-fetch so the row flips back
+     * to "Download".
      */
     async function uninstallVoice(
         btn: HTMLButtonElement,
@@ -798,16 +750,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             void alertDialog(`Could not uninstall: ${(err as Error).message}`);
             return;
         }
-        // Drop the cached /app/v1/voices response so the re-fetch sees
-        // the Piper model as un-downloaded again.
         await refreshVoiceList();
     }
 
     /**
-     * Download a Piper voice model, showing live percent on the button. On
-     * success the voices cache is dropped and the list re-rendered, so the
-     * voice (and any speakers sharing its model) flip to a selectable,
-     * uninstallable state.
+     * Download a Piper voice model with live percent on the button. On success
+     * the list re-renders, so the voice and any speakers sharing its model flip
+     * to a selectable, uninstallable state.
      */
     async function downloadVoice(
         btn: HTMLButtonElement,
@@ -819,7 +768,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const original = btn.textContent;
         btn.disabled = true;
         btn.textContent = '0%';
-        // Lock sibling speakers (same shared .onnx) for the duration.
+        // Lock sibling speakers (same shared .onnx) while downloading.
         if (listEl) setModelDownloadsDisabled(listEl, model, true, btn);
         try {
             await downloadVoiceModel(name, engine, (p) => {
@@ -883,8 +832,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (!modal || !listEl || !closeBtn || !speedSlider || !speedLabel) return;
 
         const currentName = stripVoicePrefix(settings.defaultVoice);
-        // Settings is the "manage voices" surface — show Uninstall on
-        // downloaded Piper voices so users can free up space.
+        // Settings is the manage-voices surface, so downloaded Piper voices get
+        // an Uninstall action here (setup's picker doesn't).
         renderVoiceList(listEl, scoredVoices, currentName, {
             showEngine: true,
             showUninstall: true,
@@ -907,17 +856,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 });
                 return;
             }
-            // Download button — stream the model down (live percent on the
-            // button), then re-render so the voice unlocks.
             const downloadBtn = target.closest<HTMLButtonElement>('.voice-row-download');
             if (downloadBtn) {
                 e.preventDefault();
                 void downloadVoice(downloadBtn, name, entry?.engine);
                 return;
             }
-            // Uninstall button — remove the model and re-render the list so the
-            // voice flips back to a downloadable state (or disappears entirely
-            // if it was a multi-speaker model whose shared .onnx got removed).
+            // The voice flips back to downloadable after this, or disappears if
+            // it was a multi-speaker model whose shared .onnx got removed.
             const uninstallBtn = target.closest<HTMLButtonElement>('.voice-row-uninstall');
             if (uninstallBtn) {
                 e.preventDefault();
@@ -957,12 +903,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // ---- Display -------------------------------------------------------
 
     function wireDisplaySection(): void {
-        // Text scale + theme are preview-only: dragging the slider or changing
-        // the theme select updates the preview pane and the pending state, but
-        // the live page only changes when the user clicks this section's
-        // "Apply" button (#s-apply-display). Applying the size change mid-drag
-        // would yank the whole UI around, so unlike every other setting these
-        // don't auto-apply.
+        // Preview-only: the slider and theme select update the preview pane and
+        // pendingChrome, and only #s-apply-display touches the live page.
+        // Applying a size change mid-drag would yank the whole UI around, so
+        // unlike every other setting these don't auto-apply.
         const textScale = root.querySelector<HTMLInputElement>('#s-text-scale')!;
         const textScaleLabel = root.querySelector<HTMLElement>('#s-text-scale-label')!;
         const previewInner = root.querySelector<HTMLElement>('#text-scale-preview-inner');
@@ -999,10 +943,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             updateApplyDisplayState();
         });
 
-        // Apply commits the pending text-scale/theme to the live document and
-        // persists. After applying, there's nothing pending (button disables)
-        // but the settings now differ from the entry snapshot, so Undo lights
-        // up via persist() → updateUndoState().
+        // After applying there's nothing pending (this button disables), but the
+        // settings now differ from the entry snapshot, so Undo lights up via
+        // persist() → updateUndoState().
         applyBtn?.addEventListener('click', () => {
             settings.textScale = pendingChrome.textScale;
             settings.themeMode = pendingChrome.themeMode;
@@ -1017,10 +960,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
         updateApplyDisplayState();
 
-        // In-session balance — a display preference, so it rides the same
-        // preview-then-Apply flow as text scale/theme (meditation-pal-14s): the
-        // checkbox updates the pending state + the preview pill live, and Apply
-        // commits it. Only meaningful signed in.
+        // A display preference, so it rides the same preview-then-Apply flow as
+        // text scale/theme (meditation-pal-14s). Only meaningful signed in.
         const balanceToggle = root.querySelector<HTMLInputElement>('#s-show-session-balance');
         const balancePreview = root.querySelector<HTMLElement>('#preview-balance-field');
         if (balanceToggle) {
@@ -1036,7 +977,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     function resolvePreviewTheme(mode: ThemeMode): 'dark' | 'light' {
         if (mode === 'dark' || mode === 'light') return mode;
-        // Auto — match the same FOUC logic the index.html script uses.
+        // Auto: match the FOUC logic the index.html script uses.
         if (window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light';
         if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
         const hour = new Date().getHours();
@@ -1067,8 +1008,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             persist();
         });
 
-        // Check-in timing radios. The interval stepper only means anything for
-        // 'simple' timing, so it greys out (.is-disabled) on the other picks.
+        // The interval stepper only means anything for 'simple' timing, so it
+        // greys out on the other picks.
         const timingRadios = Array.from(
             root.querySelectorAll<HTMLInputElement>('input[name="s-checkin-timing"]')
         );
@@ -1173,16 +1114,16 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     // ---- Updates -------------------------------------------------------
 
-    // The check + version + (desktop) one-click update all live in the About box
-    // now — the single update surface. This button just opens it.
+    // The About box is the single update surface (check, version, desktop
+    // one-click update); this button just opens it.
     function wireUpdatesSection(): void {
         const btn = root.querySelector<HTMLButtonElement>('#s-check-update');
         btn?.addEventListener('click', () => openAbout());
     }
 
     // ---- Developer (hidden unless dev mode; see dev-mode.ts) -----------
-    // These write straight to their storage keys, outside the settings
-    // object / undo machinery — they're debug switches, not user settings.
+    // Debug switches, not user settings: they write straight to their storage
+    // keys, outside the settings object and undo machinery.
     function wireDeveloperSection(): void {
         const hud = root.querySelector<HTMLInputElement>('#s-dev-checkin-hud');
         hud?.addEventListener('change', () => setCheckinDebug(hud.checked));
@@ -1196,8 +1137,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 /* ignore */
             }
         });
-        // Dev-build-only rows — guard the wiring with the same compile-time
-        // flag as the markup so release bundles carry none of it.
+        // Same compile-time flag as the markup, so release bundles carry none
+        // of this.
         if (import.meta.env.DEV) {
             const modeSel = root.querySelector<HTMLSelectElement>('#s-dev-mode-override');
             modeSel?.addEventListener('change', () => {
@@ -1224,11 +1165,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // ---- Footer --------------------------------------------------------
 
     function wireFooter(): void {
-        // Everything auto-applies, so the bottom button is Undo: it reverts the
-        // whole settings object to the entry snapshot. Disabled when nothing
-        // has changed. (Display changes you've Applied are part of the snapshot
-        // diff and get reverted too; un-applied preview tweaks are reset as the
-        // view re-renders.)
+        // Everything auto-applies, so the bottom button is Undo: revert the
+        // whole settings object to the entry snapshot. Applied Display changes
+        // are part of that diff and revert too; un-applied preview tweaks reset
+        // as the view re-renders.
         const undoBtn = root.querySelector<HTMLButtonElement>('#s-undo');
         const revertedEl = root.querySelector<HTMLElement>('#settings-saved');
         undoBtn?.addEventListener('click', (e) => {
@@ -1252,8 +1192,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 revertedEl.classList.remove('hidden');
                 setTimeout(() => revertedEl.classList.add('hidden'), 1200);
             }
-            // Re-render from the restored settings so every control snaps back,
-            // then refresh the Undo/Apply states (now clean).
+            // Re-render from the restored settings so every control snaps back.
             void refresh().then(() => {
                 updateUndoState();
                 updateApplyDisplayState();
@@ -1261,20 +1200,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
         updateUndoState();
 
-        // "Setup guide" — relaunches the onboarding tour: reset the dismiss
-        // flags and walk through the wizard from the welcome step.
+        // Relaunch the onboarding tour: reset the dismiss flags and walk the
+        // wizard from the welcome step.
         const tourBtn = root.querySelector<HTMLButtonElement>('#btn-show-tour');
         if (tourBtn) {
             tourBtn.addEventListener('click', () => {
                 const isMac = /Mac/.test(
                     typeof navigator !== 'undefined' ? navigator.platform || '' : ''
                 );
-                // Piper is a local neural TTS engine the desktop (Rust) shell
-                // provides; the hosted web app has no local TTS, so it's never
-                // available there. Gate the tour's Piper recommendation on
-                // desktop rather than the old hardcoded `true` (which offered
-                // Piper even on the web app, where it can't run). isDesktopSync
-                // is populated by the detectCapabilities() await above.
+                // Piper is provided by the desktop (Rust) shell; the hosted web
+                // app has no local TTS, so the tour must not recommend it
+                // there. isDesktopSync is populated by the detectCapabilities()
+                // await above.
                 void resetSettingsTour({
                     piperAvailable: isDesktopSync(),
                     isMac,
@@ -1282,10 +1219,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
         }
 
-        // "Open config folder" — opens the user's config dir
-        // via /app/v1/open-config-folder. Browser preview reaches the app
-        // backend; standalone shells don't. Show the button only when the
-        // app backend responds.
+        // Only shown when the app backend actually answers: the browser preview
+        // reaches it, a standalone hosted tab doesn't.
         const openConfigBtn = root.querySelector<HTMLButtonElement>('#btn-open-config-folder');
         if (openConfigBtn) {
             void (async () => {
@@ -1296,7 +1231,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         openConfigBtn.classList.remove('hidden');
                     }
                 } catch {
-                    /* app backend down → leave hidden */
+                    /* app backend down: leave hidden */
                 }
             })();
             openConfigBtn.addEventListener('click', () => {
@@ -1307,8 +1242,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     await refresh();
     applyChromeSettings(settings);
-    // The selected-provider status hint (missing key / claude_proxy CLI /
-    // stopped Ollama) is set by refreshProviderMarkers() inside refresh().
 
     return {
         async show() {
@@ -1343,8 +1276,7 @@ const API_KEY_INFO: Record<Provider, { url: string; prefix: string } | undefined
         prefix: '',
     },
     ollama: undefined,
-    // claude_proxy uses the local `claude` CLI's existing login —
-    // no API key entered through this page.
+    // claude_proxy uses the local `claude` CLI's existing login.
     claude_proxy: undefined,
     // aloud cloud holds keys server-side; the user signs in, never pastes a key.
     aloud: undefined,
@@ -1372,13 +1304,11 @@ function renderHTML(s: AppSettings): string {
             ${renderPacingSection(s)}
             ${renderSessionLogsSection(s)}
             ${
-                // Updates (desktop auto-updater) is meaningless in a hosted
-                // browser tab — it only applies to the desktop / self-host builds.
+                // The auto-updater only applies to desktop / self-host builds.
                 isWebMode() ? '' : renderUpdatesSection(s)
             }
             ${
-                // Hidden unless developer mode is on (tap the About-box
-                // version line 7 times — see dev-mode.ts).
+                // Dev mode = tap the About-box version line 7 times (dev-mode.ts).
                 isDevMode() ? renderDeveloperSection() : ''
             }
         </form>
@@ -1410,10 +1340,9 @@ function renderHTML(s: AppSettings): string {
 }
 
 function renderProviderSection(s: AppSettings): string {
-    // Show only providers the environment can reach (hosted needs the server,
-    // Ollama a local daemon, claude_proxy the app backend). Capabilities are cached at app
-    // boot; if unresolved they read false, so an unreachable source is hidden
-    // until the next render — in practice the probe finishes before first paint.
+    // Show only providers the environment can reach. Capabilities are cached at
+    // app boot and read false while unresolved, so a source stays hidden until
+    // the next render; in practice the probe finishes before first paint.
     const caps = capabilitiesSync();
     const byokOpts = { webMode: isWebMode(), allowByok: s.enableByok };
     const providerOptions = ALL_PROVIDERS.filter((p) => isProviderAvailable(p, caps, byokOpts))
@@ -1457,12 +1386,10 @@ function renderProviderSection(s: AppSettings): string {
                 <div id="s-model-slot"></div>
             </div>
             ${
-                // Web build only: the BYOK opt-in lives behind this inline
-                // toggle instead of its own titled section, to save space. Its
-                // own column with a label-height spacer lines the button up with
-                // the dropdown controls (top-packed, so the model column's
-                // caption below can't drag it down); matching the select padding
-                // gives it the same height. meditation-pal-8jc.
+                // Web only. A label-height spacer lines the button up with the
+                // dropdowns (top-packed, so the model column's caption can't
+                // drag it down); matching the select padding gives it the same
+                // height. meditation-pal-8jc.
                 isWebMode()
                     ? `<div class="form-group provider-advanced-col">
                 <label class="form-label-spacer" aria-hidden="true">&nbsp;</label>
@@ -1479,18 +1406,17 @@ function renderProviderSection(s: AppSettings): string {
 
         <div id="s-provider-status" class="provider-hint hidden"></div>
 
-        <!-- Ollama-specific: per-machine recommendation + installed-model
-             management. Visible only when provider == "ollama"; populated by
-             settings-ollama.ts from /app/v1/providers's ollama.recommendation. -->
+        <!-- Per-machine recommendation + installed-model management. Visible
+             only when provider == "ollama"; populated by settings-ollama.ts
+             from /app/v1/providers's ollama.recommendation. -->
         <div id="s-ollama-recommendation" class="ollama-rec-section hidden"></div>
     </section>`;
 }
 
-// Collapsed BYOK opt-in body (web build only) — revealed by the inline "Show
-// advanced settings" toggle on the provider/model row, rather than its own
-// titled section, to save space. Device-scoped keys + a footgun, so it stays
-// tucked away by default. The checkbox is wired in wireProviderSection (by id;
-// flipping it rebuilds the provider menu live). meditation-pal-8jc.
+// Collapsed BYOK opt-in body (web build only), revealed by the inline "Show
+// advanced settings" toggle. Device-scoped keys and a footgun, so it stays
+// tucked away by default. The checkbox is wired in wireProviderSection by id.
+// meditation-pal-8jc.
 function renderAdvancedBody(s: AppSettings): string {
     return `
         <div class="settings-advanced-body hidden" id="advanced-body">
@@ -1509,10 +1435,9 @@ function renderLanguageSection(s: AppSettings): string {
         ([v, label]) =>
             `<option value="${v}"${v === s.language ? ' selected' : ''}>${escape(label)}</option>`
     ).join('');
-    // Mode-aware STT sources: Whisper is local-only, browser speech appears when
-    // the API exists, the hosted option is always offered (and labeled as
-    // credit-using). The selected value is the resolved choice (stored pick or
-    // the mode's flow default) — there's no "automatic" entry.
+    // Mode-aware sources: Whisper is local-only, browser speech appears when
+    // the API exists, hosted is always offered. The value is the resolved
+    // choice; there's no "automatic" entry.
     const sttSelected = resolveSttChoice(s.sttEngine, isWebMode());
     const sttOptions = sttEngineOptions(isWebMode())
         .map(
@@ -1580,13 +1505,10 @@ function renderTtsSection(s: AppSettings): string {
                 <select id="s-tts-engine" name="tts_engine">${opts}</select>
                 <span class="form-hint" id="s-tts-engine-hint"></span>
             </div>
-            <!-- The ElevenLabs key row is full-width (.form-row-tts wraps). A CSS
-                 "order" rule places it differently per width (see style.css): wide —
-                 engine + voices share the top row and the key drops full-width
-                 below; narrow (stacked) — the key sits between engine and voices,
-                 since you need a key before the voice picker is useful. The two
-                 half-width inputs don't sequence cleanly the same way at both
-                 widths, hence the order swap. -->
+            <!-- Full-width row; a CSS "order" rule (style.css) places it per
+                 width. Wide: engine + voices share the top row, key drops
+                 below. Narrow: the key sits between them, since you need a key
+                 before the voice picker is useful. -->
             <div class="form-group api-key-group form-group-fullrow hidden" id="s-elevenlabs-key-row">
                 <label for="s-elevenlabs-key">ElevenLabs API Key
                     <span class="optional api-key-status"></span>
@@ -1800,12 +1722,11 @@ function renderSessionLogsSection(s: AppSettings): string {
 }
 
 /**
- * Developer section — rendered only in developer mode (dev-mode.ts). Homes
- * for the debug switches that otherwise need query params, which the desktop
- * webview has no URL bar for. The mode-override and cloud-bypass rows exist
- * only in dev builds (import.meta.env.DEV — same compile-time gate as their
- * readers in app-mode.ts), so a release build's section carries only the
- * harmless conveniences.
+ * Rendered only in developer mode (dev-mode.ts). Homes the debug switches that
+ * otherwise need query params, which the desktop webview has no URL bar for.
+ * The mode-override and cloud-bypass rows are dev-build only (import.meta.env
+ * .DEV, the same gate as their readers in app-mode.ts), so a release build's
+ * section carries only the harmless conveniences.
  */
 function renderDeveloperSection(): string {
     const preview = (() => {
@@ -1886,7 +1807,7 @@ function escape(s: string): string {
     );
 }
 
-/** Mask a stored API key for display: first few + … + last 4, e.g. sk-a…wxyz. */
+/** Mask a stored key for display: first 4 + … + last 4, e.g. sk-a…wxyz. */
 function maskKey(key: string): string {
     const k = key.trim();
     if (k.length <= 8) return '••••';

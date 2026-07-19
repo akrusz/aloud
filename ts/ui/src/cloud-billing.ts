@@ -1,9 +1,9 @@
 /**
- * Buy-credits flow — the browser half of billing (meditation-pal-8sj). The
- * server owns the money: this fetches the published packs, starts a Stripe
- * Checkout session (authed), and redirects the tab to Stripe. Fulfilment is the
+ * Buy-credits flow, the browser half of billing (meditation-pal-8sj). The server
+ * owns the money: this fetches the published packs, starts an authed Stripe
+ * Checkout session, and redirects the tab to Stripe. Fulfilment is the
  * signature-verified webhook server-side; the client only learns the outcome
- * from the `?purchase=` param Stripe appends on return (consumePurchaseReturn).
+ * from the `?purchase=` param Stripe appends on return.
  */
 
 import { cloudUrl } from './cloud-base.js';
@@ -23,8 +23,8 @@ export interface X402Capability {
     network?: 'base' | 'base-sepolia';
 }
 
-/** Custom "type your own amount" pricing — the shared volume curve so the client
- *  can preview the price (card checkout only; server re-prices authoritatively).
+/** Custom "type your own amount" pricing: the shared volume curve so the client
+ *  can preview a price (card only; the server re-prices authoritatively).
  *  Mirrors the server's /me/packs `custom`. `curve` is the quadratic in dollars
  *  (credits = a·d² + b·d + c) with a flat rate beyond capSpendCents. */
 export interface CustomCredits {
@@ -48,8 +48,8 @@ export interface BillingPacks {
     custom?: CustomCredits;
 }
 
-/** GET /cloud/v1/me/packs — the packs for sale + channel availability (public).
- *  Throws on a non-OK response so the caller can surface "couldn't load packs". */
+/** GET /cloud/v1/me/packs: packs for sale + channel availability (public).
+ *  Throws on non-OK so the caller can surface "couldn't load packs". */
 export async function fetchPacks(): Promise<BillingPacks> {
     const res = await fetch(cloudUrl('/me/packs'));
     if (!res.ok) throw new Error(`Couldn't load credit packs (${res.status}).`);
@@ -66,13 +66,11 @@ export async function fetchPacks(): Promise<BillingPacks> {
 }
 
 /**
- * Start a purchase: POST /cloud/v1/billing/checkout with the session token and
- * return the Stripe Checkout URL for the caller to navigate to. `returnPath` is
- * this build's app base (import.meta.env.BASE_URL — '/app/' on the hosted
- * subpath, '/' in dev/desktop) so Stripe bounces the user back into the app.
- * Throws if not signed in or the server declines (e.g. billing not configured);
- * the caller shows the message. Side-effect-free (no redirect) so it's testable
- * and the redirect stays at the call site.
+ * POST /cloud/v1/billing/checkout and return the Stripe Checkout URL for the
+ * caller to navigate to. `returnPath` is this build's app base ('/app/' hosted,
+ * '/' in dev/desktop) so Stripe bounces the user back into the app. Throws if
+ * not signed in or the server declines (e.g. billing unconfigured). Performs no
+ * redirect itself, so it stays testable and the redirect lives at the call site.
  */
 export async function startCheckout(
     selection: { packId: string } | { credits: number },
@@ -84,12 +82,12 @@ export async function startCheckout(
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
         body: JSON.stringify({
-            // Either a preset pack id or a custom credit amount (server-priced).
+            // A preset pack id or a custom credit amount (server-priced).
             ...selection,
             channel: 'web_stripe',
             returnPath: import.meta.env.BASE_URL ?? '/',
-            // When gifting, the payment still clears now but the clouds become a
-            // pending gift the recipient accepts on next sign-in.
+            // Gifting: the payment clears now, but the clouds become a pending
+            // gift the recipient accepts on next sign-in.
             ...(giftToEmail ? { giftToEmail } : {}),
         }),
     });
@@ -106,9 +104,8 @@ export async function startCheckout(
 }
 
 /**
- * Read and clear the `?purchase=` param Stripe appended on return. Returns
- * 'success' | 'cancel' | null, and strips the param from the URL (replaceState)
- * so a refresh doesn't re-trigger the toast. Call once at boot.
+ * Read the `?purchase=` param Stripe appended on return, stripping it via
+ * replaceState so a refresh doesn't re-trigger the toast. Call once at boot.
  */
 export function consumePurchaseReturn(): 'success' | 'cancel' | null {
     if (typeof window === 'undefined') return null;
@@ -139,8 +136,7 @@ async function authed(path: string, init?: RequestInit): Promise<Response> {
     });
 }
 
-/** GET /cloud/v1/gifts — pending gifts waiting for the signed-in account. Returns
- *  [] on any error so a transient hiccup never blocks the app. */
+/** GET /cloud/v1/gifts. Returns [] on any error so a hiccup never blocks the app. */
 export async function fetchGifts(): Promise<GiftView[]> {
     try {
         const res = await authed('/gifts');
@@ -151,20 +147,20 @@ export async function fetchGifts(): Promise<GiftView[]> {
     }
 }
 
-/** Accept a gift → its clouds land in the signed-in account. */
+/** Accept a gift; its clouds land in the signed-in account. */
 export async function acceptGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/accept`, { method: 'POST' });
     if (!res.ok) throw new Error('This gift is no longer available.');
 }
 
-/** Decline a gift → it bounces back to the buyer as a returned gift. */
+/** Decline a gift; it bounces back to the buyer as a returned gift. */
 export async function declineGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/decline`, { method: 'POST' });
     if (!res.ok) throw new Error('This gift is no longer available.');
 }
 
-/** A returned (bounced) gift the signed-in BUYER can re-gift or claim. Mirrors
- *  server ReturnedGiftView (meditation-pal-bd5). */
+/** A bounced gift the signed-in BUYER can re-gift or claim. Mirrors the server's
+ *  ReturnedGiftView (meditation-pal-bd5). */
 export interface ReturnedGiftView {
     id: string;
     credits: number;
@@ -172,8 +168,7 @@ export interface ReturnedGiftView {
     createdAt: number;
 }
 
-/** GET /cloud/v1/gifts/returned — gifts that bounced back to the signed-in buyer.
- *  Returns [] on any error so a hiccup never blocks the app. */
+/** GET /cloud/v1/gifts/returned. Returns [] on any error, like fetchGifts. */
 export async function fetchReturnedGifts(): Promise<ReturnedGiftView[]> {
     try {
         const res = await authed('/gifts/returned');
@@ -184,8 +179,8 @@ export async function fetchReturnedGifts(): Promise<ReturnedGiftView[]> {
     }
 }
 
-/** Re-gift a returned gift to a new recipient (no new charge). Surfaces the
- *  server's message (e.g. bad email) when present. */
+/** Re-gift a returned gift to a new recipient (no new charge). Prefers the
+ *  server's message (e.g. bad email). */
 export async function regiftReturned(id: string, email: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/regift`, {
         method: 'POST',

@@ -1,21 +1,19 @@
 /**
- * End-of-turn heuristics — is a transcript a finished thought, or a dangling
- * clause the speaker is still completing? (meditation-pal-fxo1)
+ * End-of-turn heuristics: finished thought, or a dangling clause the speaker is
+ * still completing? (meditation-pal-fxo1) The STT layer uses this to extend its
+ * silence window rather than submit mid-sentence.
  *
- * Used by the STT layer to extend its silence window instead of submitting
- * mid-sentence. This matters beyond ordinary slow speech: macOS's
- * voice-processing noise gate can hard-zero soft trailing speech, so the
- * energy/VAD layer sees a perfect pause while the user is still talking — but
- * the speculative transcript still ends in an unfinished clause, and that
- * signal survives the gate.
+ * Beyond ordinary slow speech: macOS's voice-processing noise gate can hard-zero
+ * soft trailing speech, so the energy/VAD layer sees a perfect pause while the
+ * user is still talking. The unfinished clause in the speculative transcript
+ * survives that gate.
  *
- * Whisper punctuates its output, so "no terminal punctuation" is a strong
- * incompleteness signal on its transcripts; a trailing conjunction, article,
- * or preposition catches dangling clauses Whisper closed with a period anyway.
+ * Whisper punctuates, so missing terminal punctuation is a strong incompleteness
+ * signal; the trailing-word list catches clauses Whisper closed anyway.
  */
 
-/** Words that almost never end a finished thought, even when the transcriber
- *  appended terminal punctuation after them. */
+/** Words that almost never end a finished thought, even with terminal
+ *  punctuation after them. */
 const DANGLING_TAIL_WORDS = new Set([
     // Conjunctions / connectives.
     'and',
@@ -83,10 +81,9 @@ const DANGLING_TAIL_WORDS = new Set([
 ]);
 
 /**
- * True when `text` reads as an unfinished thought the speaker is likely still
- * completing. Empty/whitespace input is NOT incomplete (there is no clause to
- * dangle). Conservative on purpose: a false "incomplete" merely waits a few
- * extra seconds; a false "complete" cuts the speaker off.
+ * True when `text` reads as an unfinished thought. Empty input is NOT
+ * incomplete (no clause to dangle). Conservative: a false "incomplete" waits a
+ * few extra seconds, a false "complete" cuts the speaker off.
  */
 export function transcriptLooksIncomplete(text: string): boolean {
     const trimmed = text.trim();
@@ -105,7 +102,7 @@ export function transcriptLooksIncomplete(text: string): boolean {
             .replace(/[^a-z'’-]/gu, '') ?? '';
     if (DANGLING_TAIL_WORDS.has(lastWord)) return true;
 
-    // Ends mid-clause: a comma, or no punctuation at all (Whisper punctuates
-    // what it considers finished sentences).
+    // Whisper punctuates what it considers finished, so a comma or bare tail
+    // means mid-clause.
     return !endsTerminated;
 }

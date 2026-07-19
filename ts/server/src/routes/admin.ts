@@ -1,20 +1,20 @@
 /**
- * Admin operator endpoints (dev ask). Gated by ALOUD_ADMIN_TOKEN and/or
- * ALOUD_ADMIN_EMAILS — when both are unset every route here is DISABLED (404),
+ * Admin operator endpoints. Gated by ALOUD_ADMIN_TOKEN and/or
+ * ALOUD_ADMIN_EMAILS: when both are unset every route here is DISABLED (404),
  * never open. Two ways in: the static operator token (scripts, curl), or a
- * normal signed-in session whose verified account email is on the admin list —
- * that's how the operator reaches the panel from a phone without carrying the
- * token (the device only ever holds a 7-day session JWT).
+ * signed-in session whose verified account email is on the admin list, which is
+ * how the operator reaches the panel from a phone without carrying the token
+ * (the device only ever holds a 7-day session JWT).
  *
- *   GET  /cloud/v1/admin            — the control panel HTML (panel.ts)
- *   GET  /cloud/v1/admin/metrics    — ledger aggregates + abuse velocity signals
- *   GET  /cloud/v1/admin/accounts   — every account with derived balance/spend
- *   GET  /cloud/v1/admin/accounts/:id — one account + its full ledger (audit)
- *   POST /cloud/v1/admin/grant      — { email, credits } → ledger.grant()
+ *   GET  /cloud/v1/admin              control panel HTML (panel.ts)
+ *   GET  /cloud/v1/admin/metrics      ledger aggregates + abuse velocity signals
+ *   GET  /cloud/v1/admin/accounts     every account with derived balance/spend
+ *   GET  /cloud/v1/admin/accounts/:id one account + its full ledger (audit)
+ *   POST /cloud/v1/admin/grant        { email, credits } → ledger.grant()
  *
- * The panel page itself is served unauthenticated (you can't set an auth header
- * by navigating to a URL) but still only when a token is configured; it carries
- * no data and every action it triggers hits a token-gated endpoint below.
+ * The panel page is served unauthenticated (you can't set an auth header by
+ * navigating to a URL) but still only when a credential is configured; it
+ * carries no data and every action it triggers hits a gated endpoint below.
  */
 
 import { Hono } from 'hono';
@@ -43,11 +43,11 @@ function adminEnabled(deps: Deps): boolean {
     return Boolean(deps.config.adminToken) || deps.config.adminEmails.length > 0;
 }
 
-/** Returns null when the request is authorized; otherwise the Response to send
- *  (404 when the feature is off, 401 when the credential is wrong/missing).
- *  Keeping the disabled case as 404 means the endpoints aren't advertised.
+/** Returns null when the request is authorized, else the Response to send: 404
+ *  when the feature is off (so the endpoints aren't advertised), 401 when the
+ *  credential is wrong/missing.
  *
- *  The bearer value is either the static admin token or a session JWT for an
+ *  The bearer is either the static admin token or a session JWT for an
  *  allowlisted account. emailVerified is required on the session path: an
  *  email/password signup squatting on an admin address must not pass. */
 async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
@@ -81,11 +81,11 @@ function balancesByAccount(entries: LedgerEntry[]): Map<string, number> {
 export function adminRoutes(deps: Deps): Hono {
     const app = new Hono();
 
-    // The control panel. Served when admin access is configured (else 404, so
-    // the page isn't discoverable on a server with admin disabled). No auth on
-    // the HTML itself — the operator pastes the token or signs in on the page.
-    // The Google sign-in button needs the web OAuth client id; by convention
-    // that's the FIRST entry of GOOGLE_CLIENT_IDS (see .env.example).
+    // The control panel. Served only when admin access is configured, else 404,
+    // so the page isn't discoverable on a server with admin disabled. No auth on
+    // the HTML itself: the operator pastes the token or signs in on the page.
+    // The Google button needs the web OAuth client id, by convention the FIRST
+    // entry of GOOGLE_CLIENT_IDS (see .env.example).
     app.get('/', (c) => {
         if (!adminEnabled(deps)) return c.notFound();
         const googleClientId = deps.config.adminEmails.length > 0 ? deps.config.googleClientIds[0] : undefined;
@@ -107,17 +107,17 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(buildMetrics(accounts, entries, now, windowSinceTs));
     });
 
-    // Cost attribution (meditation-pal-rvy): the per-service split, cache-hit
-    // ratio, per-model cost, and reconstructed per-session economics the ledger
-    // can't show. This is the dataset for calibrating USD_PER_CREDIT and pack
-    // sizing against what real sessions actually cost.
+    // Cost attribution (meditation-pal-rvy): per-service split, cache-hit ratio,
+    // per-model cost, and reconstructed per-session economics the ledger can't
+    // show. The dataset for calibrating USD_PER_CREDIT and pack sizing against
+    // what real sessions cost.
     app.get('/usage', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const sinceHours = Number(c.req.query('sinceHours') ?? 24);
-        // Sessions with fewer LLM turns than this are dropped from the
-        // per-session distributions (drive-by sessions skew the medians).
+        // Sessions with fewer LLM turns than this drop out of the per-session
+        // distributions; drive-by sessions skew the medians.
         const minSessionTurns = Math.max(0, Number(c.req.query('minTurns') ?? 0) || 0);
         const now = Date.now() / 1000;
         const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
@@ -126,10 +126,10 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(buildUsageReport(events, now, windowSinceTs, { minSessionTurns }));
     });
 
-    // Daily usage history for the trend charts — sessions, turns, spend, and
-    // duration per day over the last `days` days. Computed live from the
-    // retained usage_events (no rollup table needed at this scale), so it's real
-    // history bounded only by how far back the telemetry goes.
+    // Daily usage history for the trend charts: sessions, turns, spend, duration
+    // per day over the last `days` days. Computed live from retained
+    // usage_events (no rollup table at this scale), so it's real history bounded
+    // only by how far back the telemetry goes.
     app.get('/usage/history', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -140,8 +140,8 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json({ generatedAt: now, days, buckets: buildUsageHistory(events, now, days) });
     });
 
-    // Per-provider, per-UTC-day computed spend — the "our side" of reconciling
-    // against the provider cost reports (scripts/reconcile-cloud-spend.mjs,
+    // Per-provider, per-UTC-day computed spend: our side of reconciling against
+    // the provider cost reports (scripts/reconcile-cloud-spend.mjs,
     // meditation-pal-xejm). Buckets by event time, not session start, so rows
     // line up with the providers' own daily billing buckets.
     app.get('/usage/provider-daily', async (c) => {
@@ -154,9 +154,9 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json({ generatedAt: now, days, rows: buildProviderDailyCosts(events, now, days) });
     });
 
-    // Every account with derived balance, lifetime granted/spent, and whether
-    // it has ever purchased (so the operator can find an email to grant to and
-    // eyeball free-vs-paid at a glance).
+    // Every account with derived balance, lifetime granted/spent, and whether it
+    // has ever purchased, so the operator can find an email to grant to and
+    // eyeball free-vs-paid at a glance.
     app.get('/accounts', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -174,8 +174,8 @@ export function adminRoutes(deps: Deps): Hono {
             else if (e.kind === 'purchase') purchased.add(e.accountId);
             else if (e.kind === 'debit') debited.set(e.accountId, (debited.get(e.accountId) ?? 0) - e.amount);
         }
-        // Sign-in methods per account (google/apple/email), so the operator can
-        // eyeball how someone signed up and spot a would-be duplicate at a glance.
+        // Sign-in methods per account (google/apple/email): how someone signed
+        // up, and a would-be duplicate at a glance.
         const providersByAccount = new Map<string, string[]>();
         await Promise.all(
             accounts.map(async (a) => {
@@ -199,8 +199,8 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(rows);
     });
 
-    // One account plus its full ledger — the audit trail behind a balance,
-    // which is exactly what a billing question needs.
+    // One account plus its full ledger: the audit trail behind a balance, which
+    // is what a billing question needs.
     app.get('/accounts/:id', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -213,11 +213,11 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json({ account: { ...account, providers: identities.map((i) => i.provider) }, balance, entries });
     });
 
-    // Operator account deletion — same soft-delete as the user's own "delete my
-    // account" (auth/identity.deleteAccount): zero the balance, free the
-    // identities so each login can sign in fresh, and anonymize + tombstone the
-    // row (its ledger FKs survive). The use case is clearing a duplicate-mailbox
-    // account; once the dup is gone, the canonical_email unique index can build.
+    // Operator account deletion: the same soft-delete as the user's own "delete
+    // my account" (auth/identity.deleteAccount). Zero the balance, free the
+    // identities so each login can sign in fresh, anonymize + tombstone the row
+    // (its ledger FKs survive). Used to clear a duplicate-mailbox account; once
+    // the dup is gone, the canonical_email unique index can build.
     app.post('/accounts/:id/delete', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -232,8 +232,8 @@ export function adminRoutes(deps: Deps): Hono {
     });
 
     // Operator-tunable runtime config (free-credit knobs). GET reads the live
-    // effective values; PUT patches them (live + persisted). Lets the operator
-    // stop handing out free credits while testing without a redeploy.
+    // effective values; PUT patches them, live and persisted, so the operator can
+    // stop handing out free credits without a redeploy.
     app.get('/config', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -260,7 +260,7 @@ export function adminRoutes(deps: Deps): Hono {
         for (const key of ['freeSignupCredits', 'freeGrantBudgetPerHour'] as const) {
             if (body[key] === undefined) continue;
             const n = Number(body[key]);
-            // Non-negative integers only — these are whole-credit knobs, and a
+            // Non-negative integers only: these are whole-credit knobs, and a
             // stray float/negative shouldn't silently corrupt the grant budget.
             if (!Number.isInteger(n) || n < 0) {
                 return c.json(
@@ -287,9 +287,9 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(updated);
     });
 
-    // Grant credits to an account by email. Looks the account up (trial-scale
-    // scan), then appends a signup_grant entry tagged reason 'admin_grant' so
-    // the audit trail says who/why without inventing a new ledger kind.
+    // Grant credits to an account by email. Appends a signup_grant entry tagged
+    // reason 'admin_grant', so the audit trail says who/why without inventing a
+    // new ledger kind.
     app.post('/grant', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -307,8 +307,8 @@ export function adminRoutes(deps: Deps): Hono {
             return c.json(apiError('bad_request', 'credits must be a positive number'), ERROR_STATUS.bad_request);
         }
 
-        // Canonicalizing lookup (case, +tag, Gmail dots) — the operator pastes
-        // whatever spelling the user wrote in, which may not match the stored one.
+        // Canonicalizing lookup (case, +tag, Gmail dots): the operator pastes
+        // whatever spelling the user wrote, which may not match the stored one.
         const account = await deps.store.findLiveAccountByEmail(email);
         if (!account) {
             return c.json(apiError('bad_request', `no account with email ${email}`), ERROR_STATUS.bad_request);
@@ -320,14 +320,14 @@ export function adminRoutes(deps: Deps): Hono {
     });
 
     // ---- Retreat passes (meditation-pal-414) -------------------------------
-    // Operator-created, time-boxed unlimited access for retreat attendees. The
-    // operator creates a pass, then adds attendees by email; a member's metered
-    // calls bypass billing while the pass is active and in-window. Admin-only —
-    // there's no attendee-facing UI or shareable code.
+    // Time-boxed unlimited access for retreat attendees. The operator creates a
+    // pass, then adds attendees by email; a member's metered calls bypass billing
+    // while the pass is active and in-window. Admin-only: no attendee-facing UI
+    // or shareable code.
 
-    // List passes, each with its attendee roster and the real provider spend so
-    // far (summed from the usage telemetry tagged with this pass). The spend
-    // column is what tells the operator what a retreat actually cost.
+    // List passes with their rosters and real provider spend so far (summed from
+    // usage telemetry tagged with this pass). The spend column is what tells the
+    // operator what a retreat cost.
     app.get('/retreats', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -346,8 +346,8 @@ export function adminRoutes(deps: Deps): Hono {
             s.credits += u.credits;
             s.events += 1;
         };
-        // byAccount keyed by `${passId}\0${accountId}` so we can attribute each
-        // attendee's share for per-head billing.
+        // byAccount is keyed by pass + account so each attendee's share can be
+        // attributed for per-head billing.
         const byPass = new Map<string, Spend>();
         const byAccount = new Map<string, Spend>();
         for (const u of usage) {
@@ -360,7 +360,7 @@ export function adminRoutes(deps: Deps): Hono {
             add(a, u);
             byAccount.set(key, a);
         }
-        // Suggested bill = provider cost x the same markup credits are sold at,
+        // Suggested bill: provider cost x the same markup credits are sold at,
         // so a retreat is priced like everything else.
         const billable = (s: Spend): number => s.providerCostUsd * PACK_MARKUP;
         const rows = await Promise.all(
@@ -436,10 +436,10 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(pass);
     });
 
-    // Add an attendee to a pass by email. If they already have an account it's a
-    // membership right away; if not, it's recorded as a pending invite that binds
-    // to their account on first sign-in (meditation-pal-n9kd) — so no sign-in-
-    // first ordering. Same canonicalizing email lookup as grant.
+    // Add an attendee by email. An existing account becomes a membership right
+    // away; otherwise it's a pending invite that binds on first sign-in
+    // (meditation-pal-n9kd), so there's no sign-in-first ordering. Same
+    // canonicalizing email lookup as grant.
     app.post('/retreats/:id/members', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -462,12 +462,12 @@ export function adminRoutes(deps: Deps): Hono {
             await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: now });
             return c.json({ status: 'member', email: account.email });
         }
-        // No account yet → pending invite, claimed when they first sign in.
+        // No account yet: pending invite, claimed when they first sign in.
         await deps.store.addRetreatInvite({ passId: pass.id, email: email.toLowerCase(), invitedAt: now });
         return c.json({ status: 'invited', email: email.toLowerCase() });
     });
 
-    // Revoke a pass — coverage stops immediately for every member.
+    // Revoke a pass: coverage stops immediately for every member.
     app.post('/retreats/:id/revoke', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -480,8 +480,8 @@ export function adminRoutes(deps: Deps): Hono {
 
     // Permanently delete a pass and its roster. Revoke stops coverage but leaves
     // the card in the list; this clears it out (spent retreats, durability-probe
-    // test markers). Only allowed once the pass is inert — revoked or ended — so
-    // a live retreat can't be nuked out from under its attendees by one click.
+    // test markers). Allowed only once the pass is inert, revoked or ended, so a
+    // live retreat can't be nuked out from under its attendees by one click.
     app.delete('/retreats/:id', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
@@ -502,8 +502,8 @@ export function adminRoutes(deps: Deps): Hono {
     return app;
 }
 
-/** Parse a timestamp input: a Unix-seconds number, or a Date-parseable string
- *  (e.g. a date-input value). Returns seconds since epoch, or null if invalid. */
+/** Parse a Unix-seconds number or a Date-parseable string (e.g. a date-input
+ *  value) to seconds since epoch; null if invalid. */
 function parseTs(v: unknown): number | null {
     if (typeof v === 'number' && Number.isFinite(v)) return v;
     if (typeof v === 'string' && v.trim()) {

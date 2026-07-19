@@ -1,22 +1,17 @@
 /**
- * Server-side TTS adapter — fetches a WAV from the app backend's
- * /app/v1/voices/preview and plays it via an HTMLAudioElement.
- *
- * Previous iterations used Web Audio (AudioContext + BufferSource), which
- * Firefox keeps re-suspending during the decode step. HTMLAudioElement is
- * a regular media element with browser-managed lifecycle — no manual
- * resume() dance, no suspension races. We swap to it here for stability.
+ * Server-side TTS - fetches a WAV from the app backend's /app/v1/voices/preview
+ * and plays it via an HTMLAudioElement, whose browser-managed lifecycle avoids
+ * the suspension races Firefox causes with Web Audio decode.
  *
  * Desktop (Tauri) is the exception: a macOS WKWebView registers a playing
- * HTMLAudioElement with the system Now Playing / MediaPlayer center, which
- * makes the OS pop an unexpected "access Apple Music and your media library"
- * consent dialog at first playback. A Web Audio AudioContext doesn't touch
- * that machinery, so on desktop we play through it instead (isTauri()). The
- * Firefox-suspension reason for HTMLAudioElement never applies there — a Tauri
- * webview is WebKit/WebView2/WebKitGTK, never Firefox.
+ * HTMLAudioElement with the system Now Playing center, which pops an
+ * unexpected "access Apple Music and your media library" consent dialog on
+ * first playback. Web Audio doesn't touch that machinery, so isTauri() plays
+ * through it instead - and the Firefox reason never applies there (a Tauri
+ * webview is WebKit/WebView2/WebKitGTK).
  *
- * The server's `rate` query param already renders the WAV at the
- * requested wpm, so we don't need to mess with playbackRate.
+ * The server's `rate` query param renders the WAV at the requested wpm, so
+ * playbackRate stays untouched.
  */
 
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.js';
@@ -25,40 +20,34 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { isTauri } from '../is-desktop.js';
 import { withTimeout } from '../net-timeout.js';
 
-// Stall guard: a synthesis request that never comes back (server accepted then
-// hung) would leave speak()'s `await` pending forever, freezing the turn in the
-// "Speaking…" state. One sentence's WAV renders in a second or two; this is the
-// dead-server ceiling, not a normal-latency budget.
+// Dead-server ceiling, not a latency budget: a synthesis request that hangs
+// would leave speak() awaiting forever, freezing the turn in "Speaking…". A
+// sentence's WAV renders in a second or two.
 const TTS_REQUEST_TIMEOUT_MS = 45_000;
 
 /**
- * The UI carries TTS rate as words-per-minute (≈160 neutral; see
- * SessionSetup.ttsRate). The aloud cloud contract (and Google Cloud TTS)
- * wants a multiplier (1.0 = neutral). Mirror BrowserTtsEngine's normalization
- * so all engines agree on "normal": treat a value >5 as WPM (÷160), else as an
- * already-relative multiplier. (The app backend's GET path takes WPM directly,
- * so this only applies to the hosted POST body.)
+ * The UI carries TTS rate as WPM (≈160 neutral; see SessionSetup.ttsRate); the
+ * aloud cloud contract (and Google Cloud TTS) wants a multiplier (1.0 neutral).
+ * Mirrors BrowserTtsEngine so all engines agree on "normal": >5 is WPM (÷160),
+ * otherwise already relative. Only the hosted POST body needs this - the app
+ * backend's GET path takes WPM directly.
  */
 function wpmToMultiplier(rate: number): number {
     return rate > 5 ? rate / 160 : rate;
 }
 
 /**
- * Module-level synthesis cache: a request signature → its rendered audio blob.
- * Auditioning hosted voices replays the same short preview phrase over and over;
- * without this, every click re-hits the server, which re-synthesizes and (for
- * hosted voices) re-debits the signed-in user's credits. Caching the blob means
- * a repeat plays locally with no network call and no charge. Bounded FIFO so it
- * can't grow without limit; a Blob is immutable so one cached blob serves many
- * object-URL playbacks.
+ * Request signature → rendered audio blob. Auditioning voices replays the same
+ * preview phrase repeatedly; without this every click re-synthesizes server-side
+ * and re-debits credits. Bounded FIFO; a Blob is immutable, so one cached blob
+ * serves many object-URL playbacks.
  */
 const SYNTH_CACHE = new Map<string, Blob>();
 const SYNTH_CACHE_MAX = 48;
 
 /**
- * In-flight synthesis requests, keyed like SYNTH_CACHE. prefetch() and the
- * eventual speak() of the same sentence share one network call (and one
- * credit charge) instead of racing two synthesis requests for it.
+ * In-flight requests, keyed like SYNTH_CACHE, so prefetch() and the eventual
+ * speak() of the same sentence share one network call (and one credit charge).
  */
 const SYNTH_INFLIGHT = new Map<string, Promise<Blob>>();
 
@@ -87,27 +76,25 @@ export interface CloudTtsEngineOptions {
     endpointUrl?: string;
     fetchImpl?: typeof fetch;
     /**
-     * Reports characters synthesized server-side, for session usage
-     * tracking. Fires once per successful synthesis with the text length.
-     * Browser-side TTS has no equivalent (no server compute, not counted).
+     * Characters synthesized server-side, for session usage tracking. Fires once
+     * per successful synthesis. Browser TTS has no equivalent (no server
+     * compute, not counted).
      */
     onSynthesize?: (chars: number) => void;
     /**
-     * POST a JSON body ({text, voice, rate}) instead of a GET with query
-     * params, and attach a bearer token. Used to target the aloud cloud's
-     * authed /v1/tts (vs the app backend's open GET /app/v1/voices/preview),
-     * and to keep the meditation text out of URL query strings that
+     * POST a JSON body ({text, voice, rate}) with a bearer token instead of a
+     * GET with query params - targets the cloud's authed /v1/tts (vs the app
+     * backend's open GET), and keeps meditation text out of URLs that
      * intermediaries log.
      */
     usePost?: boolean;
     /** Supplies the bearer token when usePost is set. */
     authProvider?: () => Promise<string | null>;
     /**
-     * Called once on a 401 to invalidate a stale token before a single retry
-     * (the next authProvider() then re-signs-in). Without this, a cached token
-     * that the server no longer accepts — expired, or minted under a previous
-     * session secret — fails every hosted synthesis even though the LLM path
-     * self-heals. Wire to clearCloudToken for the hosted engine.
+     * Called once on a 401 to invalidate a stale token before a single retry.
+     * Without it a token the server no longer accepts (expired, or minted under
+     * a previous session secret) fails every hosted synthesis, even though the
+     * LLM path self-heals. Wire to clearCloudToken for the hosted engine.
      */
     onAuthError?: () => Promise<void>;
 }
@@ -156,8 +143,8 @@ export class CloudTtsEngine implements TtsEngine {
             const body: Record<string, unknown> = { text };
             if (this.voiceId) body['voice'] = this.voiceId;
             if (options?.rate !== undefined) body['rate'] = wpmToMultiplier(options.rate);
-            // Group in-session synthesis with the rest of the session for the cost
-            // report; null outside a session (e.g. a Settings voice preview).
+            // Group with the rest of the session for the cost report; null
+            // outside one (e.g. a Settings voice preview).
             const sessionId = getCloudSessionId();
             if (sessionId) body['sessionId'] = sessionId;
             return { url: this.endpointUrl, init: { method: 'POST', headers, body: JSON.stringify(body) } };
@@ -170,16 +157,15 @@ export class CloudTtsEngine implements TtsEngine {
 
     /**
      * Resolve audio for `text`: cached blob, shared in-flight request, or a
-     * fresh fetch. The fetch is deliberately NOT tied to a speak()'s abort —
-     * a short clip completing into the cache is more useful than a cancelled
-     * request, and a prefetched sentence mustn't be killed by an unrelated
-     * cancel(); speak() checks its own abort flag after awaiting instead.
+     * fresh fetch. Deliberately NOT tied to a speak()'s abort - a short clip
+     * completing into the cache beats a cancelled request, and a prefetched
+     * sentence mustn't die on an unrelated cancel(). speak() checks its own
+     * abort flag after awaiting instead.
      */
     private synthesize(text: string, options: TtsOptions | undefined, cacheKey: string): Promise<Blob> {
         const cached = SYNTH_CACHE.get(cacheKey);
-        // Cache hit: replay locally. No network call, no re-synthesis, and
-        // (deliberately) no onSynthesize — nothing was rendered server-side,
-        // so it isn't billable and mustn't be counted.
+        // Cache hit: replay locally, and deliberately no onSynthesize - nothing
+        // was rendered server-side, so it isn't billable.
         if (cached) return Promise.resolve(cached);
         const inflight = SYNTH_INFLIGHT.get(cacheKey);
         if (inflight) return inflight;
@@ -190,9 +176,8 @@ export class CloudTtsEngine implements TtsEngine {
                 TTS_REQUEST_TIMEOUT_MS,
                 'aloud cloud TTS timed out.'
             );
-            // Self-heal a stale token: clear it and re-sign-in once on a 401,
-            // matching the LLM proxy. Otherwise hosted preview/playback fails
-            // whenever the cached token is expired or server-secret-rotated.
+            // Self-heal a stale token: clear and re-sign-in once on a 401,
+            // matching the LLM proxy.
             if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
                 await this.onAuthError();
                 ({ url, init } = await this.buildRequest(text, options));
@@ -203,11 +188,9 @@ export class CloudTtsEngine implements TtsEngine {
                 );
             }
             if (!response.ok) {
-                // Phrase as "endpoint <status>" (mirrors the Whisper
-                // adapter's "Whisper endpoint 402: …") so the session
-                // views' describeCloudError recognizes hosted billing/auth
-                // failures and shows the apology / buy prompt instead of
-                // swallowing them.
+                // Phrase as "endpoint <status>", mirroring the Whisper adapter,
+                // so the session views' describeCloudError recognizes hosted
+                // billing/auth failures and shows the apology / buy prompt.
                 const detail = await response.text().catch(() => '');
                 throw new Error(
                     `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
@@ -218,8 +201,8 @@ export class CloudTtsEngine implements TtsEngine {
                 TTS_REQUEST_TIMEOUT_MS,
                 'aloud cloud TTS timed out.'
             );
-            // Successful server synthesis — count the characters rendered.
-            // (Fires for prefetches too: the server did render, so it bills.)
+            // Count the characters rendered. Fires for prefetches too: the
+            // server did render, so it bills.
             this.onSynthesize?.(text.length);
             synthCachePut(cacheKey, blob);
             return blob;
@@ -231,12 +214,11 @@ export class CloudTtsEngine implements TtsEngine {
     }
 
     /**
-     * Start synthesizing `text` without playing it. The sentence-chunked TTS
-     * bridge calls this the moment a sentence lands from the LLM, so its
-     * network round-trip + server synthesis runs concurrently with earlier
-     * sentences' playback instead of starting only when its turn comes.
-     * Errors are swallowed here: the eventual speak() of the same text joins
-     * the in-flight request (or retries) and surfaces them.
+     * Start synthesizing `text` without playing it. The sentence-chunked bridge
+     * calls this the moment a sentence lands from the LLM, so its round-trip
+     * overlaps earlier sentences' playback instead of starting at its turn.
+     * Errors are swallowed: the eventual speak() joins the in-flight request
+     * (or retries) and surfaces them.
      */
     prefetch(text: string, options?: TtsOptions): void {
         if (!text.trim()) return;
@@ -267,11 +249,10 @@ export class CloudTtsEngine implements TtsEngine {
 
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
-        // preload=auto so Firefox starts buffering before play(); reduces
-        // any small lead-in gap and keeps playback stable end-to-end.
+        // preload=auto so Firefox buffers before play(), trimming the lead-in gap.
         audio.preload = 'auto';
-        // Report the moment audible playback begins (not when the blob
-        // arrived), so callers can reveal text in step with the voice.
+        // Report when audible playback begins (not when the blob arrived), so
+        // callers can reveal text in step with the voice.
         const onStart = options?.onStart;
         if (onStart) {
             audio.onplaying = () => {
@@ -296,7 +277,7 @@ export class CloudTtsEngine implements TtsEngine {
             audio.onended = cleanup;
             audio.onerror = cleanup;
             audio.onpause = () => {
-                // Pause without ending means we were cancelled — finalize.
+                // Pause without ending means we were cancelled - finalize.
                 if (audio.ended) return;
                 cleanup();
             };
@@ -304,12 +285,10 @@ export class CloudTtsEngine implements TtsEngine {
             this.currentUrl = url;
             this.currentResolve = resolve;
             audio.play().catch((err: unknown) => {
-                // A cancel() mid-play rejects with AbortError — that's expected,
-                // so finalize quietly. Any other rejection (notably the mobile
-                // /iOS autoplay gate's NotAllowedError) means the audio never
-                // actually played: reject instead of resolving as if it had, so
-                // the voice preview can say why and in-session callers (which
-                // already try/catch speak) aren't told a silent failure spoke.
+                // A cancel() mid-play rejects with AbortError - expected,
+                // finalize quietly. Anything else (notably the iOS autoplay
+                // gate's NotAllowedError) means no audio played: reject rather
+                // than resolve as if it had, so the preview can say why.
                 if ((err as { name?: string })?.name === 'AbortError') {
                     cleanup();
                     return;
@@ -340,11 +319,10 @@ export class CloudTtsEngine implements TtsEngine {
     }
 
     /**
-     * Desktop playback path: decode the WAV and play it through a Web Audio
-     * BufferSource. Mirrors the HTMLAudioElement path's contract — fires onStart
-     * at audible start, resolves on natural end OR cancel (stop() → onended),
-     * and shares currentResolve/currentAbort with cancelSync so a barge-in stops
-     * it cleanly. No object URL is created, so there's nothing to revoke.
+     * Desktop playback: decode the WAV through a Web Audio BufferSource. Same
+     * contract as the HTMLAudioElement path - onStart at audible start, resolves
+     * on natural end OR cancel, shares currentResolve/currentAbort with
+     * cancelSync so a barge-in stops it cleanly. No object URL to revoke.
      */
     private playViaWebAudio(
         blob: Blob,
@@ -365,9 +343,9 @@ export class CloudTtsEngine implements TtsEngine {
                     source.buffer = buffer;
                     source.connect(ctx.destination);
                     source.onended = () => {
-                        // Fires on natural end and on stop() (cancel). Finalize
-                        // once; cancelSync detaches this handler so a barge-in
-                        // resolves through its own currentResolve tail instead.
+                        // Fires on natural end and on stop(). cancelSync detaches
+                        // this handler so a barge-in resolves through its own
+                        // currentResolve tail instead.
                         if (this.currentSource === source) {
                             this.currentSource = null;
                             this.currentAbort = null;
@@ -380,7 +358,7 @@ export class CloudTtsEngine implements TtsEngine {
                     this.currentSource = source;
                     this.currentResolve = resolve;
                     source.start();
-                    // BufferSource has no "playing" event; start latency is
+                    // BufferSource has no "playing" event, and start latency is
                     // sub-frame, so report audible start right after start().
                     onStart?.();
                 } catch (err) {
@@ -417,7 +395,7 @@ export class CloudTtsEngine implements TtsEngine {
             this.currentAudio = null;
         }
         if (this.currentSource) {
-            // Detach onended first so it doesn't double-finalize — the
+            // Detach onended first so it can't double-finalize - the
             // currentResolve tail below resolves the pending speak() once.
             this.currentSource.onended = null;
             try {

@@ -1,17 +1,17 @@
 /**
- * Self-contained operator control panel, served as one HTML string from the
- * admin routes (GET /cloud/v1/admin) when admin access is configured.
+ * Self-contained operator control panel, served as one HTML string from GET
+ * /cloud/v1/admin when admin access is configured. A single inline page, no
+ * build step, no framework: an internal tool that must keep working with zero
+ * deploy ceremony.
  *
- * Deliberately a single inline page with no build step and no framework: it's
- * an internal tool that must keep working with zero deploy ceremony. The admin
- * token is NEVER baked in — the operator either pastes it once or signs in
- * with Google (when ALOUD_ADMIN_EMAILS is set, the on-the-go path: the device
- * then holds a 7-day session JWT instead of the root token). Either way the
- * credential lives in localStorage for this origin and every call sends it as
- * a Bearer header. Same-origin with the API, so no CORS in play.
+ * The admin token is NEVER baked in. The operator pastes it once, or signs in
+ * with Google when ALOUD_ADMIN_EMAILS is set (the on-the-go path: the device
+ * then holds a 7-day session JWT, not the root token). Either way the credential
+ * lives in localStorage for this origin and rides every call as a Bearer header.
+ * Same-origin with the API, so no CORS in play.
  *
  * Everything the page can do maps to a gated endpoint in routes/admin.ts;
- * unauthorized, those return 401/404 and the page is just an inert form.
+ * unauthorized, those return 401/404 and the page is an inert form.
  *
  * The Google button needs the web OAuth client id (injected by the route, ''
  * disables it) AND this server's origin listed under "Authorized JavaScript

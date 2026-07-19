@@ -1,6 +1,6 @@
 /**
- * POST /v1/llm/complete — the metered proxy. The hot path and the only route
- * that sees meditation content (forwarded, never stored — see logger.ts).
+ * POST /v1/llm/complete, the metered proxy. Hot path, and the only route that
+ * sees meditation content (forwarded, never stored; logger.ts).
  *
  * Per turn:
  *   1. rate-guard the account (meditation-pal-2yb)
@@ -9,9 +9,9 @@
  *   4. forward to the provider, reusing core's usage parsing
  *   5. settle the hold to the ACTUAL metered cost, releasing the remainder
  *
- * Supports streaming (SSE) and non-streaming. Either way the response carries
- * creditsCharged + creditsRemaining so the client's cost meter (meditation-pal-14s)
- * updates without a second round-trip.
+ * Streaming (SSE) and non-streaming both return creditsCharged +
+ * creditsRemaining so the client's cost meter (meditation-pal-14s) updates
+ * without a second round-trip.
  */
 
 import { Hono } from 'hono';
@@ -37,7 +37,7 @@ import type { LlmUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
 import { log } from '../logger.js';
 
-/** Best-effort cost-attribution write for one settled LLM turn (usage.ts). */
+/** Best-effort cost attribution for one settled LLM turn (usage.ts). */
 function recordLlmUsage(
     deps: Deps,
     accountId: string,
@@ -63,15 +63,15 @@ function recordLlmUsage(
         chars: 0,
         providerCostUsd: cost.providerCostUsd,
         // Always the metered (would-be) credits, even when a pass covers the
-        // turn — so per-retreat spend and the daily-cap sum both stay honest.
+        // turn, so per-retreat spend and the daily-cap sum stay honest.
         credits: cost.credits,
         passId,
     });
 }
 
-// Derived from the pricing allowlist so it can't drift from it: a provider is
-// billable exactly when some model of its is. (A hand-kept copy of this set
-// once silently dropped 'openai', bouncing every gpt-5.x turn as bad_request.)
+// Derived from the pricing allowlist so it can't drift: a provider is billable
+// exactly when some model of its is. (A hand-kept copy once silently dropped
+// 'openai', bouncing every gpt-5.x turn as bad_request.)
 const VALID_PROVIDERS = new Set<string>(allowedModels().map((m) => m.provider));
 
 export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
@@ -96,11 +96,10 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
 
         // Soft-launch pause: a non-tester account can't spend on conversation
-        // yet. Rather than erroring (which would break a session mid-flow), the
-        // facilitator returns a graceful canned turn — TTS speaks it, the
-        // transcript keeps it, and the session saves cleanly. No hold, no charge.
-        // (Testers bypass; see isMeteredBlocked.) STT/TTS stay open so the
-        // message can be heard. A live in-session reload is a follow-up bead.
+        // yet. Erroring would break a session mid-flow, so return a graceful
+        // canned turn instead: TTS speaks it, the transcript keeps it, the
+        // session saves cleanly. No hold, no charge. (Testers bypass; see
+        // isMeteredBlocked.) STT/TTS stay open so it can be heard.
         if (isMeteredBlocked(deps, account.email)) {
             const paused: CompleteResponse = {
                 text: FREE_LIMIT_MESSAGE,
@@ -124,8 +123,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
 
         // A retreat pass (meditation-pal-414) covers this turn: forward with no
-        // hold and no charge, but still record usage (tagged with the pass). When
-        // there's no pass, holdId stays null and we take the normal metered path.
+        // hold and no charge, but still record usage tagged with the pass.
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
 
         // Hold up to the per-turn cap, bounded by what the user actually has.
@@ -149,8 +147,8 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const fwd = {
             provider: body.provider,
             model: body.model,
-            // Clamp output length server-side — the client can't request a
-            // turn pricier than the pre-auth hold was sized for (meditation-pal-aa8).
+            // Clamp output length server-side so the client can't request a turn
+            // pricier than the pre-auth hold was sized for (meditation-pal-aa8).
             maxTokens: Math.min(body.maxTokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
             ...(body.system ? { system: body.system } : {}),
         };
@@ -186,7 +184,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     await sse.writeSSE({ data: JSON.stringify(terminal) });
                 } catch (err) {
                     log.error('stream forward failed', { err: String(err), provider: body.provider });
-                    // Best-effort — the failure may be the client going away.
+                    // Best-effort: the failure may be the client going away.
                     await sse
                         .writeSSE({ event: 'error', data: JSON.stringify(apiError('provider_error', 'upstream provider error')) })
                         .catch(() => {});
@@ -195,9 +193,8 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     // before any failable write back to the client. Reaching here
                     // unsettled means no usage ever arrived (client disconnect,
                     // upstream error, or a generator that ended without a done
-                    // chunk) — nothing to bill, so give the held credits back.
-                    // The placeHold-side stale-hold sweep is the backstop if even
-                    // this is skipped (process crash).
+                    // chunk): nothing to bill, so return the held credits. The
+                    // placeHold-side stale-hold sweep backstops a process crash.
                     if (!settled && holdId) await deps.ledger.releaseHold(account.id, holdId);
                 }
             });

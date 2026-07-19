@@ -1,17 +1,16 @@
 /**
- * Operator-tunable runtime config (dev ask). A small set of knobs the operator
- * can change live from the admin panel — without a redeploy — so they can, e.g.,
+ * Knobs the operator can change live from the admin panel, no redeploy: e.g.
  * stop handing out free credits while still testing the live service.
  *
  * Source of truth at runtime:
  *   - freeSignupCredits  → deps.config.freeSignupCredits (auth.ts reads it per
- *                          sign-in, so a mutation takes effect immediately)
+ *                          sign-in, so a mutation applies immediately)
  *   - freeGrantBudget/hr → deps.grantBreaker (the live circuit-breaker budget)
  *
- * Overrides are persisted in the store's settings KV so they survive a restart
- * (a redeploy won't snap the knob back to the env default). The env vars
- * (ALOUD_FREE_SIGNUP_CREDITS, ALOUD_FREE_GRANT_BUDGET_PER_HOUR) still seed the
- * initial value; a persisted panel override then wins on subsequent boots.
+ * Overrides persist in the store's settings KV so a redeploy won't snap the knob
+ * back to the env default. ALOUD_FREE_SIGNUP_CREDITS and
+ * ALOUD_FREE_GRANT_BUDGET_PER_HOUR seed the initial value; a persisted panel
+ * override wins on subsequent boots.
  */
 
 import type { Deps } from '../deps.js';
@@ -42,8 +41,8 @@ export interface ConfigPatch {
     testerEmails?: string[];
 }
 
-/** Snapshot the current effective values (config for the grant, breaker for the
- *  budget — each the live source the request path actually reads). */
+/** Snapshot the effective values: config for the grant, breaker for the budget,
+ *  each the live source the request path actually reads. */
 export function effectiveConfig(deps: Deps): EffectiveConfig {
     return {
         freeSignupCredits: deps.config.freeSignupCredits,
@@ -55,30 +54,29 @@ export function effectiveConfig(deps: Deps): EffectiveConfig {
     };
 }
 
-/** The in-character turn the facilitator returns (instead of a real, billed LLM
- *  response) when a blocked account makes a conversation call — graceful enough
- *  that the session winds down. The client renders it transiently but does NOT
- *  retain it (see BILLING_PAUSED_FINISH), so the saved transcript resumes from
- *  the last real turn. */
+/** The in-character turn returned instead of a real, billed LLM response when a
+ *  blocked account makes a conversation call. The client renders it transiently
+ *  but does NOT retain it (see BILLING_PAUSED_FINISH), so the saved transcript
+ *  resumes from the last real turn. */
 export const FREE_LIMIT_MESSAGE =
     "Apologies, but we've reached the limit of free credit usage. Please try back later, or buy credits to continue.";
 
-/** The gentle turn shown when an account has simply run out of credits mid-
- *  session (balance <= 0). Distinct from the soft-launch pause: here a top-up
- *  DOES unblock them, so the client pairs this with an inline buy affordance.
- *  Kept here (server-owned) because the free /tts/canned endpoint voices this
- *  exact text; the client mirrors the string for the on-screen bubble. */
+/** Shown when an account runs out of credits mid-session (balance <= 0).
+ *  Distinct from the soft-launch pause: a top-up DOES unblock them, so the
+ *  client pairs this with an inline buy affordance. Server-owned because the
+ *  free /tts/canned endpoint voices this exact text; the client mirrors the
+ *  string for the on-screen bubble. */
 export const OUT_OF_CREDITS_MESSAGE =
     "We've used up the clouds for this session. Add more to keep going, or switch to a local or bring-your-own-key provider in settings.";
 
 /** finishReason sentinel on a paused canned turn. The web client keys off it to
- *  (a) keep the apology out of session history/logs and (b) skip a buy prompt
- *  (a top-up can't lift the pause). Out-of-credits uses the 402 path instead. */
+ *  keep the apology out of session history/logs and to skip a buy prompt (a
+ *  top-up can't lift the pause). Out-of-credits uses the 402 path instead. */
 export const BILLING_PAUSED_FINISH = 'billing_paused';
 
-/** The fixed canned text the free /tts/canned endpoint will synthesize, by
- *  reason. Server-controlled strings only — that's what makes voicing them
- *  without a balance check safe (a user can't coax arbitrary free TTS). */
+/** The fixed text the free /tts/canned endpoint will synthesize, by reason.
+ *  Server-controlled strings only: that's what makes voicing them without a
+ *  balance check safe, since a user can't coax arbitrary free TTS. */
 export const CANNED_MESSAGES = {
     paused: FREE_LIMIT_MESSAGE,
     insufficient_credits: OUT_OF_CREDITS_MESSAGE,
@@ -88,7 +86,7 @@ export type CannedReason = keyof typeof CANNED_MESSAGES;
 
 /** True when this account may NOT spend on conversation right now: the
  *  soft-launch pause is on and the account isn't on the tester allowlist. The
- *  LLM route uses this to return FREE_LIMIT_MESSAGE before placing any hold. */
+ *  LLM route returns FREE_LIMIT_MESSAGE before placing any hold. */
 export function isMeteredBlocked(deps: Deps, email: string): boolean {
     if (!deps.config.meteredPaused) return false;
     return !deps.config.testerEmails.includes(email.toLowerCase());
@@ -103,8 +101,8 @@ export async function applyRuntimeConfig(deps: Deps, patch: ConfigPatch): Promis
     }
     if (patch.freeGrantBudgetPerHour !== undefined) {
         deps.grantBreaker.setBudget(patch.freeGrantBudgetPerHour);
-        // Keep config's copy in sync so any future reader/log agrees with the
-        // breaker (the breaker stays the source of truth for the live budget).
+        // Keep config's copy in sync so readers/logs agree with the breaker,
+        // which stays the source of truth for the live budget.
         deps.config.freeGrantBudgetPerHour = patch.freeGrantBudgetPerHour;
         await deps.store.setSetting(KEY_BUDGET, String(patch.freeGrantBudgetPerHour));
     }
@@ -120,8 +118,8 @@ export async function applyRuntimeConfig(deps: Deps, patch: ConfigPatch): Promis
     return effectiveConfig(deps);
 }
 
-/** Boot-time: fold any persisted overrides over the env-seeded defaults. Call
- *  once after buildDeps, before serving. Tolerates absent/garbage values. */
+/** Boot-time: fold persisted overrides over the env-seeded defaults. Call once
+ *  after buildDeps, before serving. Tolerates absent/garbage values. */
 export async function loadRuntimeOverrides(deps: Deps): Promise<void> {
     const signup = await deps.store.getSetting(KEY_SIGNUP);
     if (signup !== undefined) {
@@ -148,7 +146,7 @@ export async function loadRuntimeOverrides(deps: Deps): Promise<void> {
                     .map((e) => e.toLowerCase());
             }
         } catch {
-            /* malformed persisted value — keep the env-seeded default */
+            /* malformed persisted value: keep the env-seeded default */
         }
     }
 }

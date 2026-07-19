@@ -1,15 +1,12 @@
 /**
- * Claude provider using the local `claude` CLI for subscription routing.
+ * Claude provider routing through the local `claude` CLI, so the user's Pro/Max
+ * subscription quota is billed instead of API credits. Each completion spawns a
+ * fresh `claude -p` (headless) subprocess, passes the system prompt via
+ * --system-prompt (which fully replaces Claude Code's default), and parses the
+ * JSON response.
  *
- * Shells out to `claude -p` (headless mode) so the user's Pro/Max
- * subscription quota is used instead of API credits. Each completion
- * spawns a fresh subprocess, passes the system prompt via
- * --system-prompt (which fully replaces Claude Code's default), and
- * parses the JSON response.
- *
- * Node-only — uses node:child_process to spawn the binary. Not usable in
- * the browser or Capacitor WebView; callers that target multiple runtimes
- * should feature-check before constructing.
+ * Node-only (node:child_process). Callers targeting multiple runtimes must
+ * feature-check before constructing.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -29,16 +26,13 @@ const DEFAULT_MAX_TOKENS = 300;
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 export interface ClaudeProxyProviderOptions {
-    /** Model alias the `claude` CLI understands — sonnet/haiku/opus or a full ID. */
+    /** Model alias the `claude` CLI understands: sonnet/haiku/opus or a full ID. */
     model?: string;
     /** Hard cap on per-completion run time (default 90s). */
     timeoutMs?: number;
-    /**
-     * Override the binary path. Default: auto-discovered via PATH and a
-     * few common install locations.
-     */
+    /** Binary path. Default: auto-discovered via PATH and common install dirs. */
     binaryPath?: string;
-    /** maxTokens — accepted for API parity, but the `claude` CLI ignores it. */
+    /** Accepted for API parity; the `claude` CLI ignores it. */
     maxTokens?: number;
 }
 
@@ -105,8 +99,8 @@ export class ClaudeProxyProvider implements LLMProvider {
         );
 
         if (options.signal?.aborted) {
-            // Killed via CompletionOptions.signal (barge-in cancellation) —
-            // surface the same AbortError shape fetch-based providers throw.
+            // Killed via CompletionOptions.signal (barge-in): surface the
+            // AbortError shape fetch-based providers throw.
             throw new DOMException('claude CLI call aborted', 'AbortError');
         }
         if (timedOut) {
@@ -154,15 +148,12 @@ export class ClaudeProxyProvider implements LLMProvider {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
- * Encode multi-turn history as a single prompt string. The `claude` CLI
- * takes one prompt argument, so prior turns are passed inline as a
- * "User: ... / Assistant: ..." transcript. System messages are dropped;
- * the system prompt is set via --system-prompt instead.
+ * Encode multi-turn history as one prompt string: the CLI takes a single prompt
+ * argument, so prior turns go inline as a "User: ... / Assistant: ..."
+ * transcript. System messages are dropped; --system-prompt carries that.
  */
 function formatHistory(messages: readonly Message[]): string {
     const convo = messages.filter((m) => m.role !== 'system');
@@ -176,10 +167,10 @@ function formatHistory(messages: readonly Message[]): string {
 }
 
 /**
- * Search the user's PATH and common install locations for the `claude`
- * binary. The macOS app bundle's limited PATH often misses ~/.local/bin,
- * so that location is checked explicitly. On Windows the npm install
- * lands as a `claude.cmd` shim, so both `.exe` and `.cmd` are probed.
+ * Find the `claude` binary on PATH or in common install locations. The macOS
+ * app bundle's limited PATH often misses ~/.local/bin, so that is checked
+ * explicitly; on Windows the npm install lands as a `.cmd` shim, so both
+ * `.exe` and `.cmd` are probed.
  */
 async function findClaudeCli(): Promise<string | null> {
     const path = process.env['PATH'] ?? '';
@@ -220,8 +211,8 @@ function stderrTail(stderr: string, maxChars = 300): string {
     return `…${trimmed.slice(-maxChars)}`;
 }
 
-/** Quote an argument for cmd.exe (`""` escapes a literal `"`). Only used
- *  when spawning a `.cmd` shim, which requires `shell: true` on Node 18+. */
+/** Quote an argument for cmd.exe (`""` escapes a literal `"`). Needed only for
+ *  `.cmd` shims, which require `shell: true` on Node 18+. */
 function cmdQuote(arg: string): string {
     return `"${arg.replace(/"/g, '""')}"`;
 }
@@ -243,9 +234,8 @@ function runProcess(
 ): Promise<ProcessResult> {
     return new Promise((resolve, reject) => {
         let proc: ChildProcess;
-        // Node refuses to spawn .cmd/.bat shims directly (EINVAL since the
-        // 18.x security fix) — route those through the shell, quoting args
-        // for cmd.exe.
+        // Node refuses to spawn .cmd/.bat shims directly (EINVAL since the 18.x
+        // security fix), so route those through the shell with cmd.exe quoting.
         const useShell = /\.(cmd|bat)$/i.test(binary);
         try {
             proc = useShell

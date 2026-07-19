@@ -1,6 +1,6 @@
 /**
- * Pure x402 "exact" EVM signing helpers (meditation-pal-du9 Phase 2) — no DOM,
- * no wallet, no network, so they're verifiable in isolation. Mirrors x402's
+ * Pure x402 "exact" EVM signing helpers (meditation-pal-du9 Phase 2): no DOM, no
+ * wallet, no network, so they're verifiable in isolation. Mirrors x402's
  * reference scheme (EIP-3009 TransferWithAuthorization) field-for-field so the
  * facilitator accepts the signature the wallet produces over this typed data.
  * The wallet/HTTP flow lives in x402-pay.ts.
@@ -40,10 +40,9 @@ export function randomNonce(): string {
 }
 
 /**
- * Build the EIP-3009 transfer authorization for a pack purchase. `nowSec` /
- * `nonce` are injectable for tests. Matches x402's preparePaymentHeader:
- * validAfter is backdated 10 min for clock skew; validBefore is now + the
- * server-specified timeout.
+ * The EIP-3009 transfer authorization for a pack purchase. `nowSec` / `nonce`
+ * are injectable for tests. Matches x402's preparePaymentHeader: validAfter is
+ * backdated 10 min for clock skew, validBefore is now + the server's timeout.
  */
 export function buildAuthorization(
     req: X402Requirements,
@@ -61,8 +60,8 @@ export function buildAuthorization(
     };
 }
 
-/** EIP-712 typed data for eth_signTypedData_v4. Includes EIP712Domain
- *  explicitly — the raw JSON-RPC needs it (viem would add it for you). */
+/** EIP-712 typed data for eth_signTypedData_v4. Declares EIP712Domain
+ *  explicitly: raw JSON-RPC needs it, where viem would add it for you. */
 export function buildTypedData(req: X402Requirements, authorization: X402Authorization) {
     return {
         types: {

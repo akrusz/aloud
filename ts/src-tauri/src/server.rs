@@ -1,19 +1,15 @@
 //! Embedded local HTTP backend for the desktop shell.
 //!
-//! Serves the app's own backend surface (`/app/v1/*`) — the endpoints the TS UI
-//! reaches via `fetch('/app/v1/...')`, which in a Tauri build hit this server
-//! through an injected base URL (see `ui/src/app-base.ts` and the
-//! `initialization_script` in `lib.rs`). Bound to
-//! an ephemeral `127.0.0.1` port so nothing is exposed off-box, and guarded by
-//! a per-launch token + Host check (see `AuthConfig`) so other local processes
-//! and rebinding/localhost-fetching websites can't drive it either.
+//! Serves `/app/v1/*`, the endpoints the TS UI reaches via
+//! `fetch('/app/v1/...')` against an injected base URL (`ui/src/app-base.ts`
+//! plus the `initialization_script` in `lib.rs`). Bound to an ephemeral
+//! `127.0.0.1` port so nothing is exposed off-box, and guarded by a per-launch
+//! token + Host check (`AuthConfig`) so other local processes and
+//! rebinding/localhost-fetching websites can't drive it either.
 //!
-//! Endpoints:
-//! - `GET  /app/v1/system-info` — platform + tool availability.
-//! - `POST /app/v1/stt/whisper` — local Whisper STT via whisper.cpp (whisper-rs).
-//!   Takes raw little-endian f32 mono PCM in the body, a `?sample_rate=` query,
-//!   returns `{text,language,duration}`, and 503 while the model is still
-//!   loading (the UI already handles that).
+//! Whisper STT (`POST /app/v1/stt/whisper`) runs on whisper.cpp via whisper-rs:
+//! raw little-endian f32 mono PCM in the body plus a `?sample_rate=` query,
+//! returning `{text,language,duration}`, or 503 while the model is loading.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,64 +29,62 @@ use serde_json::{json, Value};
 use tower_http::cors::CorsLayer;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-// Default STT model: base.en GGML (~142 MB). Good accuracy/size balance for a
-// turn-based meditation app; the meditation-pal-nn1 research calls for a
-// capability-tiered choice (tiny/base/small) later. Downloaded on first run.
+// base.en GGML (~142 MB), downloaded on first run: a good accuracy/size balance
+// for a turn-based app. meditation-pal-nn1 calls for a capability-tiered choice
+// (tiny/base/small) later.
 const WHISPER_MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
 const WHISPER_MODEL_FILE: &str = "ggml-base.en.bin";
 const TARGET_SAMPLE_RATE: u32 = 16_000;
-// 30 s of 16 kHz f32 mono ≈ 1.9 MB; with onset pre-buffering an utterance can
-// run longer, so cap generously.
+// 30 s of 16 kHz f32 mono ≈ 1.9 MB, and onset pre-buffering can stretch an
+// utterance past that, so cap generously.
 const MAX_AUDIO_BYTES: usize = 8 * 1024 * 1024;
 
 pub struct AppState {
     whisper: Mutex<Option<Arc<WhisperContext>>>,
     whisper_ready: AtomicBool,
     model_dir: PathBuf,
-    // Piper voice models (.onnx/.onnx.json) live here, downloaded on demand.
+    // Piper voice models (.onnx/.onnx.json).
     piper_dir: PathBuf,
-    // LRU-of-1 cache of the last-loaded Piper model (see tts::PiperCache).
+    // See tts::PiperCache.
     piper: crate::tts::PiperCache,
-    // On-disk session logs — one JSON file per session, served by the
-    // /app/v1/sessions routes and revealed by /app/v1/open-sessions-folder. In
-    // a desktop build the TS UI persists here (BackendSessionStore) instead of
-    // webview localStorage, so saved sessions are durable, openable files.
+    // One JSON file per session, served by /app/v1/sessions and revealed by
+    // /app/v1/open-sessions-folder. On desktop the TS UI persists here
+    // (BackendSessionStore) rather than in webview localStorage, so saved
+    // sessions are durable, openable files.
     sessions_dir: PathBuf,
-    // Root app-data dir — surfaced by /app/v1/open-config-folder for "show me
-    // where my data lives" buttons in the TS UI.
+    // Root app-data dir, surfaced by /app/v1/open-config-folder.
     data_dir: PathBuf,
 }
 
 type Shared = Arc<AppState>;
 
-/// Per-launch auth for the loopback server. Loopback-bound is not enough on its
-/// own: any local process — or any website, via `fetch('http://127.0.0.1:…')`
-/// or DNS rebinding — can reach this port, and it proxies the claude CLI,
-/// reads/writes session files, and runs installers. So every request must
-/// present a random per-launch bearer token that only the webview knows (it's
-/// injected as `window.__ALOUD_API_TOKEN__` next to the base URL; see `lib.rs`
-/// and `ui/src/app-base.ts`), and must carry a loopback `Host` header (a DNS
-/// rebinding request reaches the socket fine but carries the attacker's
-/// hostname, so this check kills it even before the token does).
+/// Per-launch auth for the loopback server. Loopback binding alone is not
+/// enough: any local process, or any website via `fetch('http://127.0.0.1:…')`
+/// or DNS rebinding, can reach this port, which proxies the claude CLI,
+/// reads/writes session files, and runs installers. So every request must carry
+/// a random per-launch bearer token only the webview knows (injected as
+/// `window.__ALOUD_API_TOKEN__`; see `lib.rs` and `ui/src/app-base.ts`) plus a
+/// loopback `Host` header - a rebinding request reaches the socket fine but
+/// carries the attacker's hostname, so that check kills it before the token does.
 struct AuthConfig {
     token: String,
     allowed_hosts: [String; 2],
 }
 
-/// Custom request header carrying the per-launch token (`Authorization:
-/// Bearer <token>` is accepted too, for hand-rolled callers/debugging).
+/// Carries the per-launch token. `Authorization: Bearer <token>` is accepted
+/// too, for hand-rolled callers and debugging.
 const TOKEN_HEADER: HeaderName = HeaderName::from_static("x-aloud-token");
 
-/// Constant-time byte-string equality — token comparison must not leak how many
-/// leading bytes matched through response timing.
+/// Constant-time equality: token comparison must not leak how many leading
+/// bytes matched through response timing.
 fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// Reject any request that isn't provably from our webview: wrong/missing
-/// `Host` → 403, wrong/missing token → 401. Runs inside the CORS layer, so
-/// browser preflights (which never carry custom headers) are still answered.
+/// Reject anything not provably from our webview: bad `Host` → 403, bad token
+/// → 401. Runs inside the CORS layer, so browser preflights (which never carry
+/// custom headers) are still answered.
 async fn require_token(State(auth): State<Arc<AuthConfig>>, req: Request, next: Next) -> Response {
     let host_ok = req
         .headers()
@@ -120,7 +114,7 @@ async fn require_token(State(auth): State<Arc<AuthConfig>>, req: Request, next: 
     next.run(req).await
 }
 
-/// 32 random bytes as lowercase hex — the per-launch API token.
+/// The per-launch API token: 32 random bytes as lowercase hex.
 fn random_token() -> String {
     use rand::RngCore;
     let mut buf = [0u8; 32];
@@ -129,9 +123,8 @@ fn random_token() -> String {
 }
 
 fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
-    // The app's own backend surface, mounted under /app/v1. The role-versioned
-    // prefix lives here in one place; the hosted, signed-in service lives at
-    // /cloud/v1 on the remote Hono server.
+    // The role-versioned prefix lives here in one place. The hosted, signed-in
+    // service is /cloud/v1 on the remote Hono server.
     let app_v1 = Router::new()
         .route("/system-info", get(system_info))
         .route("/stt/whisper", post(stt_whisper))
@@ -161,8 +154,8 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/open-voice-settings", post(open_voice_settings));
     // The webview origin (tauri://localhost in prod, http://localhost:4649 in
     // dev) differs from this server's 127.0.0.1:<port>, so every request is
-    // cross-origin. Allow exactly the origins our webview can have — anything
-    // else (a random website fetching the loopback) gets no CORS headers.
+    // cross-origin. Allow exactly the origins the webview can have; anything
+    // else (a website fetching the loopback) gets no CORS headers.
     let cors = CorsLayer::new()
         .allow_origin([
             HeaderValue::from_static("tauri://localhost"), // macOS/Linux prod
@@ -186,8 +179,8 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         ]);
     Router::new()
         .nest("/app/v1", app_v1)
-        // Layer order matters: later .layer() calls are outermost, so requests
-        // hit CORS (answering preflights tokenlessly) before the token check.
+        // Later .layer() calls are outermost, so requests hit CORS (answering
+        // preflights tokenlessly) before the token check.
         .layer(middleware::from_fn_with_state(auth, require_token))
         .layer(cors)
         .layer(DefaultBodyLimit::max(MAX_AUDIO_BYTES))
@@ -198,12 +191,11 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
 /// spawn the server on Tauri's async runtime, and return the chosen port plus
 /// the per-launch API token (both injected into the webview by `lib.rs`).
 pub fn start(data_dir: PathBuf) -> (u16, String) {
-    // Silence whisper.cpp/GGML's chatty model-load dump (n_vocab, n_audio_ctx,
-    // …). It redirects their stderr into whisper-rs's logging hook, which is a
-    // no-op here because we don't enable its `log_backend`/`tracing_backend`
-    // feature — so the lines vanish, while our own log:: lines stay. To inspect
-    // those internals when debugging, enable whisper-rs's `log_backend` feature.
-    // Must run before the whisper context loads below.
+    // Silences whisper.cpp/GGML's model-load dump by redirecting their stderr
+    // into whisper-rs's logging hook, which is a no-op here because we don't
+    // enable its `log_backend`/`tracing_backend` feature. Our own log:: lines
+    // are unaffected; enable `log_backend` to see those internals when
+    // debugging. Must run before the whisper context loads below.
     whisper_rs::install_logging_hooks();
 
     let state: Shared = Arc::new(AppState {
@@ -216,9 +208,9 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
         data_dir,
     });
 
-    // Model download + load is slow (and the download is large) — do it off the
-    // server path. Until it finishes, /app/v1/stt/whisper returns 503, which the UI
-    // surfaces as "model still loading".
+    // The download is large and the load slow, so keep both off the server path.
+    // Until it finishes /app/v1/stt/whisper returns 503, which the UI surfaces
+    // as "model still loading".
     {
         let state = state.clone();
         std::thread::spawn(move || {
@@ -269,7 +261,7 @@ fn load_whisper(state: &AppState) -> Result<(), String> {
     Ok(())
 }
 
-/// Stream a URL to a file, downloading to a `.part` sibling then renaming so a
+/// Stream a URL to a file via a `.part` sibling, renamed on success so a
 /// half-finished download can't be mistaken for a complete model.
 fn download(url: &str, dest: &Path) -> Result<(), String> {
     let tmp = dest.with_extension("part");
@@ -281,9 +273,8 @@ fn download(url: &str, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// `GET /app/v1/system-info` — platform + tool availability. The UI keys
-/// desktop-only features off this (and uses a successful response as its "is
-/// desktop" signal).
+/// `GET /app/v1/system-info` - platform + tool availability. A successful
+/// response is also the UI's "is desktop" signal.
 async fn system_info() -> Json<Value> {
     let claude = which::which("claude").ok();
     let ollama = which::which("ollama").ok();
@@ -293,18 +284,17 @@ async fn system_info() -> Json<Value> {
             None => Value::Null,
         }
     };
-    // Map Rust's "macos" to "darwin" so platform-string consumers in the UI
-    // get the value they expect.
+    // The UI's platform-string consumers expect "darwin", not Rust's "macos".
     let platform = match std::env::consts::OS {
         "macos" => "darwin",
         other => other,
     };
     Json(json!({
         "platform": platform,
-        // This is the local desktop backend; the UI's is-desktop probe keys off
-        // this to enable desktop-only features (the web Hono answers false).
+        // The UI's is-desktop probe keys off this to enable desktop-only
+        // features. The web Hono answers false.
         "desktop": true,
-        // Total system RAM; the UI sizes the Ollama context window from it
+        // The UI sizes the Ollama context window from this
         // (contextLengthForRam). null when detection fails.
         "ram_gb": crate::providers::system_ram_gb(),
         "has_homebrew": which::which("brew").is_ok(),
@@ -320,8 +310,8 @@ struct SttQuery {
     sample_rate: Option<u32>,
 }
 
-/// Transcribe raw f32 mono PCM. Body and response match what the
-/// CloudWhisperSttEngine adapter expects.
+/// Transcribe raw f32 mono PCM. Body and response match the
+/// CloudWhisperSttEngine adapter.
 async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
@@ -362,8 +352,8 @@ async fn stt_whisper(
         }
     };
 
-    // Whisper inference is CPU-heavy and blocking — keep it off the async
-    // reactor so concurrent requests / the server stay responsive.
+    // Whisper inference is CPU-heavy and blocking; keep it off the async
+    // reactor so the server stays responsive.
     match tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate)).await {
         Ok(Ok((text, duration))) => (
             StatusCode::OK,
@@ -386,9 +376,8 @@ fn err(code: StatusCode, msg: &str) -> (StatusCode, Json<Value>) {
 
 // --- TTS: /app/v1/voices + /app/v1/voices/preview --------------------------------
 
-/// Fallback preview phrase when the client doesn't supply `?text=`. The UI
-/// always sends text (preview line or a session sentence), so this is rarely
-/// hit; kept short.
+/// Fallback when the client sends no `?text=`. The UI always sends text, so
+/// this is rarely hit.
 const DEFAULT_PREVIEW_TEXT: &str = "Take a slow breath, and let your shoulders soften.";
 
 #[derive(Deserialize)]
@@ -397,9 +386,9 @@ struct VoicesQuery {
     lang: Option<String>,
 }
 
-/// `GET /app/v1/voices` — aggregated Piper + macOS voice catalogue (or one engine
-/// when `?engine=` is set), optionally filtered by `?lang=`. Runs off the async
-/// reactor because it shells out to `say -v ?` and stats the model dir.
+/// `GET /app/v1/voices` - aggregated Piper + macOS catalogue (or one engine via
+/// `?engine=`), optionally filtered by `?lang=`. Off the async reactor because
+/// it shells out to `say -v ?` and stats the model dir.
 async fn voices(State(state): State<Shared>, Query(q): Query<VoicesQuery>) -> Json<Value> {
     let dir = state.piper_dir.clone();
     let voices = tokio::task::spawn_blocking(move || {
@@ -418,9 +407,9 @@ struct PreviewQuery {
     rate: Option<u32>,
 }
 
-/// `GET /app/v1/voices/preview` — synthesize one utterance to a WAV. This is also
-/// the session TTS path the UI streams sentences through, so the model cache in
-/// AppState matters here, not just for previews.
+/// `GET /app/v1/voices/preview` - synthesize one utterance to a WAV. Also the
+/// session TTS path the UI streams sentences through, so the AppState model
+/// cache matters here, not just for previews.
 async fn voices_preview(State(state): State<Shared>, Query(q): Query<PreviewQuery>) -> Response {
     let voice = match q.voice {
         Some(v) if !v.is_empty() => v,
@@ -428,7 +417,7 @@ async fn voices_preview(State(state): State<Shared>, Query(q): Query<PreviewQuer
     };
     let text = q.text.unwrap_or_else(|| DEFAULT_PREVIEW_TEXT.to_string());
 
-    // Synthesis (and any first-run model download) is blocking and CPU-heavy.
+    // Synthesis is blocking and CPU-heavy.
     let result = tokio::task::spawn_blocking(move || {
         crate::tts::synth_preview(
             &state.piper_dir,
@@ -462,10 +451,10 @@ struct ModelReq {
     voice: String,
 }
 
-/// `POST /app/v1/tts/download-model` — stream a Piper model download as NDJSON
-/// progress lines. The download runs on a blocking thread and pushes each
-/// progress event through a channel that backs the response body, so the UI
-/// gets live progress for a 60–105 MB fetch.
+/// `POST /app/v1/tts/download-model` - stream a Piper model download as NDJSON
+/// progress lines. The download runs on a blocking thread and pushes events
+/// through a channel backing the response body, so the UI gets live progress
+/// for a 60-105 MB fetch.
 async fn tts_download_model(State(state): State<Shared>, Json(req): Json<ModelReq>) -> Response {
     if req.engine.is_empty() || req.voice.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "engine and voice are required" })))
@@ -476,8 +465,8 @@ async fn tts_download_model(State(state): State<Shared>, Json(req): Json<ModelRe
     let dir = state.piper_dir.clone();
     tokio::task::spawn_blocking(move || {
         let mut send = move |v: Value| {
-            // Best-effort: if the client hangs up, the receiver drops and sends
-            // fail — that's fine, we just stop reporting.
+            // If the client hangs up the receiver drops and sends fail; that's
+            // fine, we just stop reporting.
             let _ = tx.blocking_send(Ok(format!("{v}\n")));
         };
         if let Err(e) = crate::tts::download_model(&dir, &req.engine, &req.voice, &mut send) {
@@ -507,14 +496,11 @@ async fn tts_uninstall_model(
     }
 }
 
-// --- /app/v1/llm/claude_proxy/complete ----------------------------------------
-
 // --- /app/v1/providers + /app/v1/models/<provider> -------------------------------
 
-/// `GET /app/v1/providers` — claude / ollama probes + env-var checks for the
-/// API-key providers. The TS UI uses only `{available, installed?, hint?}` per
-/// provider plus `ollama.models`, so the elaborate Ollama tier/recommendation
-/// system is intentionally omitted (see `crate::providers`).
+/// `GET /app/v1/providers` - claude / ollama probes plus env-var checks for the
+/// API-key providers, including the Ollama tier/recommendation block. See
+/// `crate::providers`.
 async fn providers() -> Json<Value> {
     let v = tokio::task::spawn_blocking(crate::providers::providers)
         .await
@@ -522,9 +508,10 @@ async fn providers() -> Json<Value> {
     Json(v)
 }
 
-/// `GET /app/v1/models/{provider}` — the provider's live model list. The UI
-/// forwards the user's BYOK key as `x-provider-key` (it never leaves loopback);
-/// OpenRouter needs none and claude_proxy is static. See `providers::models`.
+/// `GET /app/v1/models/{provider}` - the provider's live model list. The UI
+/// forwards the user's BYOK key as `x-provider-key`, which never leaves
+/// loopback; OpenRouter needs none, claude_proxy is static. See
+/// `providers::models`.
 async fn models(
     axum::extract::Path(provider): axum::extract::Path<String>,
     headers: axum::http::HeaderMap,
@@ -533,20 +520,18 @@ async fn models(
         .get("x-provider-key")
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
-    // The upstream list fetches are synchronous (ureq) — keep them off the
-    // async reactor, same as providers().
+    // The upstream fetches are synchronous (ureq), same as providers().
     let v = tokio::task::spawn_blocking(move || crate::providers::models(&provider, key.as_deref()))
         .await
         .unwrap_or_else(|_| json!([]));
     Json(v)
 }
 
-/// `POST /app/v1/google-oauth` — desktop Google sign-in via the loopback PKCE
-/// flow (meditation-pal-fae). Opens the system browser, catches the redirect on
-/// an ephemeral 127.0.0.1 port, and returns `{code, codeVerifier, redirectUri}`
-/// for the UI to finish at the hosted `/cloud/v1/auth/google/desktop` (which
-/// holds the client secret). The (public) client id comes from the UI's cloud
-/// `/config`. Long-lived: it waits for the user to finish in the browser.
+/// `POST /app/v1/google-oauth` - desktop Google sign-in via the loopback PKCE
+/// flow (meditation-pal-fae). Returns `{code, codeVerifier, redirectUri}` for
+/// the UI to finish at the hosted `/cloud/v1/auth/google/desktop`, which holds
+/// the client secret. Long-lived: it waits for the user to finish in the
+/// browser. See `crate::oauth`.
 async fn google_oauth(Json(body): Json<crate::oauth::OauthStart>) -> Response {
     if body.client_id.trim().is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "client_id required" })))
@@ -566,8 +551,7 @@ async fn google_oauth(Json(body): Json<crate::oauth::OauthStart>) -> Response {
     }
 }
 
-/// `POST /app/v1/ollama/pull` — stream a model pull as NDJSON progress lines,
-/// shaped the way the settings UI expects.
+/// `POST /app/v1/ollama/pull` - stream a model pull as NDJSON progress lines.
 async fn ollama_pull(Json(req): Json<crate::ollama::ModelReq>) -> Response {
     if req.model.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model is required" })))
@@ -590,8 +574,8 @@ async fn ollama_pull(Json(req): Json<crate::ollama::ModelReq>) -> Response {
         .expect("build ndjson response")
 }
 
-/// `POST /app/v1/ollama/delete` — remove a pulled model. Returns `{ ok: true }`
-/// on success or `{ error: "…" }` with a 502 on failure.
+/// `POST /app/v1/ollama/delete` - remove a pulled model. `{ ok: true }`, or
+/// `{ error }` with a 502 on failure.
 async fn ollama_delete(Json(req): Json<crate::ollama::ModelReq>) -> (StatusCode, Json<Value>) {
     if req.model.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model is required" })));
@@ -607,9 +591,9 @@ async fn ollama_delete(Json(req): Json<crate::ollama::ModelReq>) -> (StatusCode,
 }
 
 /// Run a blocking, progress-emitting job on a worker thread and stream its
-/// events back as NDJSON (one JSON object per line). `f` receives a `send`
-/// closure to emit `{status: ...}` events; the stream ends when `f` returns.
-/// Shared by the Ollama restart/upgrade/install handlers.
+/// events back as NDJSON. `f` gets a `send` closure for `{status: ...}` events;
+/// the stream ends when `f` returns. Shared by the Ollama
+/// restart/upgrade/install handlers.
 fn ndjson_stream<F>(f: F) -> Response
 where
     F: FnOnce(&mut dyn FnMut(Value)) + Send + 'static,
@@ -629,15 +613,15 @@ where
         .expect("build ndjson response")
 }
 
-/// `POST /app/v1/ollama/restart` — stop and restart the local Ollama daemon,
-/// streaming progress until the version endpoint answers again.
+/// `POST /app/v1/ollama/restart` - restart the local daemon, streaming progress
+/// until the version endpoint answers again.
 async fn ollama_restart() -> Response {
     ndjson_stream(|send| crate::ollama_tools::restart_stream(send))
 }
 
-/// `POST /app/v1/ollama/upgrade` — upgrade an existing Ollama install (brew on
-/// macOS, install.sh on Linux). Returns 400 + a download URL where there's no
-/// automatic path (Windows, or macOS without Homebrew); otherwise streams.
+/// `POST /app/v1/ollama/upgrade` - upgrade an existing install (brew on macOS,
+/// install.sh on Linux). 400 + a download URL where there's no automatic path
+/// (Windows, or macOS without Homebrew); otherwise streams.
 async fn ollama_upgrade() -> Response {
     if let Some((error, download_url)) = crate::ollama_tools::upgrade_precheck() {
         return (
@@ -649,9 +633,9 @@ async fn ollama_upgrade() -> Response {
     ndjson_stream(|send| crate::ollama_tools::upgrade_stream(send))
 }
 
-/// `POST /app/v1/install/{tool}` — install an external tool (only `ollama` in
-/// the desktop build; Piper is compiled in). Streams progress; 400 + download
-/// URL when there's no automatic path.
+/// `POST /app/v1/install/{tool}` - install an external tool (only `ollama`;
+/// Piper is compiled in). Streams progress; 400 + download URL when there's no
+/// automatic path.
 async fn install_tool(axum::extract::Path(tool): axum::extract::Path<String>) -> Response {
     if let Err((status, error, download_url)) = crate::ollama_tools::install_precheck(&tool) {
         let code = StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_REQUEST);
@@ -666,11 +650,11 @@ async fn install_tool(axum::extract::Path(tool): axum::extract::Path<String>) ->
 
 // --- /app/v1/open-* shell escapes ---------------------------------------------
 
-/// Reveal a filesystem path in the platform file browser (Finder / Explorer /
-/// xdg). Detached spawn — the user just wants the window to appear.
+/// Reveal a path in the platform file browser (Finder / Explorer / xdg).
+/// Detached spawn: the user just wants the window to appear.
 fn reveal_path(path: &Path) -> std::io::Result<()> {
     use std::process::Command;
-    let _ = std::fs::create_dir_all(path); // best-effort — the dir may not exist yet
+    let _ = std::fs::create_dir_all(path); // best-effort; the dir may not exist yet
     #[cfg(target_os = "macos")]
     let mut cmd = {
         let mut c = Command::new("open");
@@ -692,9 +676,9 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
     cmd.spawn().map(|_| ())
 }
 
-/// Reveal a single file in the platform file browser, *selecting* it (not just
-/// opening its folder). macOS `open -R` / Windows `explorer /select,` highlight
-/// the file; Linux has no portable "select" flag, so we open the parent dir.
+/// Reveal a file, *selecting* it rather than just opening its folder. macOS
+/// `open -R` and Windows `explorer /select,` highlight the file; Linux has no
+/// portable "select" flag, so open the parent dir.
 fn reveal_file(path: &Path) -> std::io::Result<()> {
     use std::process::Command;
     #[cfg(target_os = "macos")]
@@ -718,9 +702,9 @@ fn reveal_file(path: &Path) -> std::io::Result<()> {
     cmd.spawn().map(|_| ())
 }
 
-/// `POST /app/v1/open-session-file/{id}` — reveal one saved session's JSON file
-/// on disk, highlighting it in the file browser. 404 if it hasn't been written
-/// yet (or the id is bad), so the UI can fail-soft.
+/// `POST /app/v1/open-session-file/{id}` - highlight one saved session's JSON
+/// file in the file browser. 404 if it hasn't been written yet, so the UI can
+/// fail-soft.
 async fn open_session_file(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -740,18 +724,16 @@ async fn open_session_file(
     }
 }
 
-/// `POST /app/v1/open-config-folder` — reveal the app's data directory (where
-/// models and any future on-disk state live). The TS UI also pings this route
-/// with `OPTIONS` to decide whether the "Open config folder" button is
-/// available; axum returns 405 for a method-not-allowed, which the detector
-/// counts as "route exists" — so registering the POST is enough.
+/// `POST /app/v1/open-config-folder` - reveal the app's data directory. The TS
+/// UI also pings this route with `OPTIONS` to decide whether to show the "Open
+/// config folder" button; axum answers 405, which the detector counts as "route
+/// exists", so registering the POST is enough.
 async fn open_config_folder(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
     open_dir_response(&state.data_dir)
 }
 
-/// `POST /app/v1/open-sessions-folder` — reveal the on-disk session-logs dir
-/// (created on first save). In a desktop build the TS UI persists each session
-/// as a JSON file here, so this opens the folder the user actually wants.
+/// `POST /app/v1/open-sessions-folder` - reveal the session-logs dir, created
+/// on first save.
 async fn open_sessions_folder(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
     open_dir_response(&state.sessions_dir)
 }
@@ -759,8 +741,8 @@ async fn open_sessions_folder(State(state): State<Shared>) -> (StatusCode, Json<
 // --- /app/v1/sessions — on-disk session logs (desktop persistence) ------------
 
 /// Session ids are `YYYY-MM-DD-HHMMSS`, but the client is untrusted, so allow
-/// only a safe filename charset — this is what keeps `{id}` from escaping the
-/// sessions dir (`..`, `/`, NUL, etc. are all rejected).
+/// only a safe filename charset. This is what keeps `{id}` from escaping the
+/// sessions dir: `..`, `/`, NUL and friends are all rejected.
 fn safe_session_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
@@ -777,7 +759,7 @@ fn session_path(state: &AppState, id: &str) -> Option<PathBuf> {
     }
 }
 
-/// `GET /app/v1/sessions` — list saved session ids (filenames sans `.json`).
+/// `GET /app/v1/sessions` - saved session ids (filenames sans `.json`).
 async fn sessions_list(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
     let mut ids: Vec<String> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&state.sessions_dir) {
@@ -791,7 +773,7 @@ async fn sessions_list(State(state): State<Shared>) -> (StatusCode, Json<Value>)
     (StatusCode::OK, Json(json!({ "ids": ids })))
 }
 
-/// `GET /app/v1/sessions/{id}` — read one session's JSON (404 if absent).
+/// `GET /app/v1/sessions/{id}` - read one session's JSON (404 if absent).
 async fn sessions_get(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -805,7 +787,7 @@ async fn sessions_get(
     }
 }
 
-/// `PUT /app/v1/sessions/{id}` — write one session's JSON (body is the state).
+/// `PUT /app/v1/sessions/{id}` - write one session's JSON (body is the state).
 async fn sessions_put(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -824,7 +806,7 @@ async fn sessions_put(
     }
 }
 
-/// `DELETE /app/v1/sessions/{id}` — remove one session's JSON (idempotent).
+/// `DELETE /app/v1/sessions/{id}` - remove one session's JSON (idempotent).
 async fn sessions_delete(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -854,9 +836,9 @@ fn open_dir_response(path: &Path) -> (StatusCode, Json<Value>) {
     }
 }
 
-/// `POST /app/v1/open-voice-settings` — open macOS System Settings to the Spoken
-/// Content pane (where Premium voices are installed). macOS-only; other OSes
-/// get a 400 so the UI can hide or fail-soft.
+/// `POST /app/v1/open-voice-settings` - open macOS System Settings to the Spoken
+/// Content pane, where Premium voices are installed. Other OSes get a 400 so
+/// the UI can hide the button or fail-soft.
 async fn open_voice_settings() -> (StatusCode, Json<Value>) {
     #[cfg(target_os = "macos")]
     {
@@ -878,13 +860,10 @@ async fn open_voice_settings() -> (StatusCode, Json<Value>) {
     }
 }
 
-/// `POST /app/v1/llm/claude_proxy/complete` — run one `claude` CLI completion for
-/// the "Anthropic (Subscription)" provider. Desktop-only by nature (needs the
-/// authenticated CLI). See `crate::llm`.
-/// `POST /app/v1/llm/anthropic/messages` — relay an Anthropic Messages request
-/// upstream (the webview can't reach Anthropic directly — no CORS). The user's
-/// key arrives as `x-api-key` (the UI forwards its bring-your-own key over
-/// loopback); a server-side `ANTHROPIC_API_KEY` is the dev/parity fallback.
+/// `POST /app/v1/llm/anthropic/messages` - relay an Anthropic Messages request
+/// upstream, since the webview can't reach Anthropic directly (no CORS). The
+/// user's BYOK key arrives as `x-api-key` over loopback; a server-side
+/// `ANTHROPIC_API_KEY` is the dev/parity fallback.
 async fn llm_anthropic_messages(headers: axum::http::HeaderMap, body: Bytes) -> Response {
     if body.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Empty request body." })))
@@ -939,12 +918,11 @@ struct ProbeQuery {
     model: Option<String>,
 }
 
-/// `GET /app/v1/llm/claude_proxy/probe?model=<id>` — is the local Claude
-/// subscription actually able to serve `<id>` right now? Runs a tiny cached
-/// probe against the `claude` CLI (see `crate::llm::claude_probe`) so the UI can
-/// grey out a model Anthropic has pulled from the subscription (e.g. Fable)
-/// before offering it. Returns `{model, status}` with status one of
-/// available/unavailable/cli_missing/unknown.
+/// `GET /app/v1/llm/claude_proxy/probe?model=<id>` - can the local Claude
+/// subscription serve `<id>` right now? Runs a cached probe against the `claude`
+/// CLI (`crate::llm::claude_probe`) so the UI can grey out a model Anthropic has
+/// pulled from subscriptions before offering it. Returns `{model, status}`,
+/// status one of available/unavailable/cli_missing/unknown.
 async fn llm_claude_proxy_probe(
     State(state): State<Shared>,
     Query(q): Query<ProbeQuery>,
@@ -954,22 +932,24 @@ async fn llm_claude_proxy_probe(
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model required" })))
             .into_response();
     }
-    // Same app-owned scratch cwd as the completion path, for the same reasons
-    // (no untrusted CLAUDE.md pickup, no macOS file prompt).
+    // Same app-owned scratch cwd as the completion path, same reasons.
     let cwd = state.data_dir.join("claude-cwd");
     let _ = std::fs::create_dir_all(&cwd);
     let body = crate::llm::claude_probe(&model, &cwd).await;
     (StatusCode::OK, Json(body)).into_response()
 }
 
+/// `POST /app/v1/llm/claude_proxy/complete` - run one `claude` CLI completion
+/// for the "Anthropic (Subscription)" provider. Desktop-only by nature, since
+/// it needs the authenticated CLI. See `crate::llm`.
 async fn llm_claude_proxy_complete(
     State(state): State<Shared>,
     Json(req): Json<crate::llm::CompleteRequest>,
 ) -> Response {
-    // A dedicated empty scratch dir for the CLI's cwd: app-owned + per-user
-    // (under the app data dir), so no untrusted CLAUDE.md/.claude can be planted
-    // the way a shared world-writable temp dir would allow, and not under
-    // Documents/home so the CLI's project scan doesn't trip a macOS file prompt.
+    // An empty scratch dir for the CLI's cwd: app-owned + per-user (under the
+    // app data dir), so no untrusted CLAUDE.md/.claude can be planted the way a
+    // world-writable temp dir would allow, and outside Documents/home so the
+    // CLI's project scan doesn't trip a macOS file prompt.
     let cwd = state.data_dir.join("claude-cwd");
     let _ = std::fs::create_dir_all(&cwd);
     match crate::llm::claude_complete(req, &cwd).await {
@@ -986,8 +966,8 @@ fn transcribe(
     samples: &[f32],
     sample_rate: u32,
 ) -> Result<(String, f64), String> {
-    // The TS client always sends 16 kHz mono f32 (it downsamples before POST),
-    // which is what whisper.cpp wants; guard the assumption rather than resample.
+    // The TS client downsamples to the 16 kHz mono f32 whisper.cpp wants before
+    // POSTing, so guard the assumption rather than resample here.
     if sample_rate != TARGET_SAMPLE_RATE {
         return Err(format!(
             "expected {TARGET_SAMPLE_RATE} Hz audio, got {sample_rate} Hz"

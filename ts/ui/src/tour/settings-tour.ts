@@ -1,12 +1,8 @@
 /**
- * Interactive onboarding wizard for the settings page.
- *
- * Walks first-time users through choosing an LLM provider and voice,
- * actually setting the form values for them based on their choices.
- *
- * DOM selectors are wired to the settings view's ids (e.g. a per-provider
- * `#s-key-anthropic`, and the model dropdown inside `#s-model-slot` as
- * `#model-select`).
+ * Interactive onboarding wizard for the settings page. Walks first-time users
+ * through choosing an LLM provider and voice, setting the form values for them.
+ * Selectors are wired to the settings view's ids (per-provider
+ * `#s-key-anthropic`, the model dropdown at `#s-model-slot #model-select`).
  */
 
 import { sharedKv } from '../state.js';
@@ -72,7 +68,6 @@ function hideTour(): void {
 }
 
 function showTour(): void {
-    // Re-attach elements to DOM
     if (overlayEl && !overlayEl.parentNode) document.body.appendChild(overlayEl);
     if (spotlightEl && !spotlightEl.parentNode) document.body.appendChild(spotlightEl);
 }
@@ -89,7 +84,7 @@ function showCard(html: string, className?: string): void {
 
 function wireActions(): void {
     if (!cardEl) return;
-    // Let links inside tour cards open normally without triggering the button action
+    // Links inside cards open normally, without firing the button action.
     cardEl.querySelectorAll<HTMLAnchorElement>('a[href]').forEach(function (link) {
         link.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -182,7 +177,7 @@ function positionTooltip(el: HTMLElement): void {
     if (spaceBelow > tipRect.height + 16) {
         cardEl.style.top = rect.bottom + 12 + 'px';
     } else {
-        // Place above, clamped below the nav
+        // Above, clamped below the nav.
         cardEl.style.top = Math.max(getNavHeight() + 4, rect.top - tipRect.height - 12) + 'px';
     }
 
@@ -190,7 +185,7 @@ function positionTooltip(el: HTMLElement): void {
     left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
     cardEl.style.left = left + 'px';
 
-    // Final clamp: don't let tooltip extend below footer
+    // Keep the tooltip clear of the footer.
     const finalRect = cardEl.getBoundingClientRect();
     if (finalRect.bottom > maxBottom) {
         cardEl.style.top = maxBottom - finalRect.height + 'px';
@@ -251,7 +246,6 @@ function showLLMStep(): void {
         html += '<p>An LLM is the AI that guides your meditation. Pick what works for you:</p>';
         html += '<div class="tour-choices">';
 
-        // Ollama
         let ollamaDesc = 'Free &amp; private. Runs AI entirely on your computer.';
         if (tourOptions.ollamaRec) {
             ollamaDesc += ' Recommended model: <strong>' + tourOptions.ollamaRec + '</strong>';
@@ -261,13 +255,11 @@ function showLLMStep(): void {
         html += '<small>' + ollamaDesc + '</small>';
         html += '</button>';
 
-        // Claude subscription
         html += '<button class="tour-choice" data-action="provider" data-value="claude_proxy">';
         html += '<strong>I have a Claude subscription</strong>';
         html += '<small>Uses your Pro or Max plan via the locally-installed <code>claude</code> command-line tool — install Claude Code with <code>npm install -g @anthropic-ai/claude-code</code> (the CLI, not the Claude desktop app).</small>';
         html += '</button>';
 
-        // API key
         html += '<button class="tour-choice" data-action="show-api-keys">';
         html += '<strong>I have an API key</strong>';
         html += '<small>Anthropic, OpenAI, Groq, OpenRouter, or Venice</small>';
@@ -300,11 +292,8 @@ function showApiKeyChoices(): void {
     positionTooltip(section);
 }
 
-/**
- * Locate the model picker element. The picker mounts inside
- * `#s-model-slot` and renders either a `#model-select` dropdown or, when no
- * models are available, a `#model-none` reason paragraph (not interactive).
- */
+/** The model picker's dropdown. It mounts in `#s-model-slot` and renders either
+ *  `#model-select` or, with no models, a non-interactive `#model-none` reason. */
 function findModelElement(): HTMLSelectElement | null {
     return document.querySelector<HTMLSelectElement>('#s-model-slot #model-select');
 }
@@ -315,7 +304,7 @@ function chooseProvider(value: string): void {
     sel.value = value;
     sel.dispatchEvent(new Event('change'));
 
-    // Hide tour so user can interact with the section freely
+    // Hide the tour so the user can interact with the section freely.
     hideTour();
 
     const resumeToVoice = function (): void {
@@ -324,7 +313,7 @@ function chooseProvider(value: string): void {
     };
 
     if (value === 'ollama') {
-        // Wait for a model to be available (downloaded) before advancing
+        // Wait for a downloaded model before advancing.
         waitForCondition(function () {
             const m = findModelElement();
             if (!m || m.options.length === 0) return false;
@@ -332,7 +321,7 @@ function chooseProvider(value: string): void {
             return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
         }, resumeToVoice);
     } else if (value === 'claude_proxy') {
-        // Wait for the model dropdown to populate (claude CLI detected, models loaded)
+        // Wait for the dropdown to populate (claude CLI detected, models loaded).
         waitForCondition(function () {
             const m = findModelElement();
             if (!m || m.options.length === 0) return false;
@@ -340,8 +329,8 @@ function chooseProvider(value: string): void {
             return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
         }, resumeToVoice);
     } else {
-        // API key provider — wait for key field to be filled. The UI uses
-        // `#s-key-${provider}` per the render in views/settings.ts.
+        // BYOK provider - wait for the key field. Ids are `#s-key-${provider}`
+        // (views/settings.ts).
         const keyMap: Record<string, string> = {
             anthropic: 's-key-anthropic',
             openai: 's-key-openai',
@@ -360,7 +349,6 @@ function chooseProvider(value: string): void {
 }
 
 function waitForCondition(test: () => boolean, cb: () => void): void {
-    // Check immediately in case condition is already met
     if (test()) {
         cb();
         return;
@@ -371,7 +359,7 @@ function waitForCondition(test: () => boolean, cb: () => void): void {
             cb();
         }
     }, 500);
-    // Safety: don't block forever — after 5 minutes give up and advance
+    // Never block forever: give up and advance after 5 minutes.
     setTimeout(function () {
         clearInterval(timer);
         cb();
@@ -440,14 +428,12 @@ function chooseVoice(value: string): void {
     }
 
     if (value === 'piper') {
-        // Hide the tour so the voice picker modal is fully usable
+        // Hide the tour so the voice picker modal is fully usable.
         hideTour();
 
-        // Open picker (all voices are already loaded)
         setTimeout(function () {
             const btn = document.getElementById('s-voice-btn');
             if (btn) btn.click();
-            // Watch for the voice picker to close, then show done step
             waitForPickerClose(function () {
                 showTour();
                 showDoneStep();
@@ -457,8 +443,8 @@ function chooseVoice(value: string): void {
 }
 
 function waitForPickerClose(cb: () => void): void {
-    // The settings voice modal mounts with id 'settings-voice-modal'.
-    // Toggling the 'hidden' class is how the modal opens/closes.
+    // The settings voice modal is 'settings-voice-modal'; it opens/closes by
+    // toggling the 'hidden' class.
     const modal = document.getElementById('settings-voice-modal');
     if (!modal) {
         cb();
@@ -473,7 +459,7 @@ function waitForPickerClose(cb: () => void): void {
     });
     observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
 
-    // Safety timeout: if modal never gets hidden class, resume after 60s
+    // Resume after 60s if the modal never gets the hidden class.
     setTimeout(function () {
         observer.disconnect();
         cb();
@@ -490,7 +476,7 @@ function showDoneStep(): void {
         return;
     }
 
-    // Footer is position:fixed, so spotlight must be fixed too
+    // The footer is position:fixed, so the spotlight must be too.
     positionSpotlight(footer, true);
 
     let html = '<h3>You’re All Set</h3>';
@@ -500,7 +486,7 @@ function showDoneStep(): void {
     showCard(html, 'tour-tooltip');
     if (!cardEl) return;
 
-    // Position tooltip above the footer, clamped in viewport
+    // Above the footer, clamped into the viewport.
     const footerRect = footer.getBoundingClientRect();
     const tipRect = cardEl.getBoundingClientRect();
     cardEl.style.top = footerRect.top - tipRect.height - 12 + 'px';
@@ -539,8 +525,7 @@ function completeTour(): void {
 }
 
 function dismissRemindLater(): void {
-    // Session-scoped — sessionStorage so a "skip" doesn't survive across
-    // browser sessions.
+    // sessionStorage, so a skip doesn't survive across browser sessions.
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(TOUR_REMIND_KEY, '1');
     }
@@ -588,7 +573,6 @@ export async function startTour(options: TourOptions): Promise<void> {
     if (options.piperAvailable !== undefined) tourOptions.piperAvailable = options.piperAvailable;
     if (options.isMac !== undefined) tourOptions.isMac = options.isMac;
 
-    // Fetch Ollama recommendation, then start
     try {
         const r = await fetch(appUrl('/providers'));
         const data = (await r.json()) as {
@@ -597,7 +581,7 @@ export async function startTour(options: TourOptions): Promise<void> {
         const rec = data.ollama && data.ollama.recommendation;
         tourOptions.ollamaRec = rec ? rec.recommended_model ?? null : null;
     } catch {
-        // App backend not reachable — proceed without an Ollama recommendation.
+        // App backend not reachable - proceed without an Ollama recommendation.
     }
     initTour();
 }

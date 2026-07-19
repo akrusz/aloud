@@ -1,8 +1,7 @@
 /**
- * Curated session presets mirroring the existing app's "Suggested Presets".
- * When the user picks a preset card, focuses, qualities, and dirStep snap to
- * the preset's recipe — but they can still tweak afterward and the preset
- * stays selected for clarity.
+ * Curated session presets. Picking a card snaps focuses, qualities, and dirStep
+ * to its recipe; the user can still tweak afterward, and the preset stays
+ * selected for clarity.
  */
 
 import type { Focus, Quality } from '../../src/facilitation/index.js';

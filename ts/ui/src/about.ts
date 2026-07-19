@@ -1,24 +1,17 @@
 /**
- * About modal wiring.
+ * About modal wiring: version line, crypto donation panel, and the desktop
+ * update flow.
  *
- * Brand link toggles open/close, × closes, click outside closes. The
- * krusz.eth span reveals a small crypto panel (QR + copyable address +
- * accepted chains); the address button copies the full 0x address. We copy
- * the raw address rather than the ENS name on purpose — krusz.eth only
- * resolves on Ethereum mainnet, so the name would fail in a Base wallet,
- * whereas the bare address works on any chain the sender picks.
+ * The address button copies the raw 0x address, not the ENS name: krusz.eth
+ * only resolves on Ethereum mainnet, so the name would fail in a Base wallet
+ * while the bare address works on any chain the sender picks.
  *
- * The version line and (desktop only) the one-click "Update" button live here,
- * mirroring the old app's About box: on first open in the Tauri shell we
- * check for a newer release and, if there is one, reveal an Update button that
- * downloads + installs it and relaunches (see desktop-updater.ts). In a browser
- * there's nothing to install, so the button never appears.
- *
- * Update checks also run a background nudge (runUpdateNudge) on boot and on each
- * in-app nav, throttled to at most once an hour, that flags the brand when a
- * release is waiting. Set `?previewUpdate` (or localStorage aloud:previewUpdate)
- * to force the whole "update available" flow without a real release — see
- * previewUpdateVersion.
+ * In the Tauri shell, opening the box checks for a newer release and reveals an
+ * Update button that installs and relaunches (desktop-updater.ts); a browser
+ * has nothing to install, so it never appears. A background nudge
+ * (runUpdateNudge) also flags the brand on boot and each nav, at most hourly.
+ * `?previewUpdate` (or localStorage aloud:previewUpdate) forces the whole
+ * "update available" flow without a real release - see previewUpdateVersion.
  */
 
 import { isTauri, isCapacitor } from './is-desktop.js';
@@ -27,8 +20,8 @@ import { isDevMode, setDevMode, DEV_MODE_TAPS } from './dev-mode.js';
 import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
 import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
 
-// krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this
-// same bare address, so a scan and a copy land in the same place.
+// krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this same
+// bare address, so a scan and a copy land in the same place.
 const DONATE_ADDRESS = '0x7895267268918407d14a7F37f2C4035BA985E2Ca';
 
 export function initAbout(): void {
@@ -48,8 +41,8 @@ export function initAbout(): void {
     };
     syncVersionLine();
     // Hidden developer-mode toggle: tap the version line DEV_MODE_TAPS times.
-    // Gates the Developer section in Settings (see dev-mode.ts) — deliberately
-    // undiscoverable for someone who just installed the app.
+    // Gates the Developer section in Settings (dev-mode.ts); undiscoverable for
+    // someone who just installed the app.
     let devTaps = 0;
     versionEl?.addEventListener('click', () => {
         if (++devTaps < DEV_MODE_TAPS) return;
@@ -59,9 +52,8 @@ export function initAbout(): void {
     });
     const updateEl = document.getElementById('aboutUpdate');
 
-    // The nav "Update" pill and its mobile More-sheet twin are revealed by CSS
-    // when the brand carries has-update (see runUpdateNudge); clicking either
-    // just opens the About box, where the install button lives.
+    // CSS reveals the nav "Update" pill (and its More-sheet twin) when the brand
+    // carries has-update; clicking opens the About box, where installing lives.
     const updateBtn = document.getElementById('updateBtn');
     updateBtn?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -106,10 +98,9 @@ export function initAbout(): void {
 }
 
 // At most one background update check per hour, across boot + every nav. The
-// timestamp is persisted so reloads and SPA navigation share one budget — the
-// old app checked once per page load; an SPA never reloads, so we throttle by
-// wall-clock instead. The brand's has-update class is the other guard: once a
-// release is flagged we stop checking entirely (nothing left to discover).
+// timestamp is persisted so reloads and SPA navigation share one budget (an SPA
+// never reloads, so per-page-load throttling wouldn't fire). The brand's
+// has-update class is the other guard: once flagged, stop checking.
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const LAST_CHECK_KEY = 'aloud:lastUpdateCheck';
 
@@ -123,30 +114,24 @@ function dueForCheck(): boolean {
 }
 
 /**
- * Background update nudge — mirrors the old app's page-load check, run on
- * boot and on each in-app nav (setActiveNav), throttled to once an hour.
+ * Background update nudge, run on boot and each in-app nav (setActiveNav),
+ * throttled to once an hour.
  *
  * On a desktop/local build (web auto-updates on reload), quietly look for a
- * newer release. If one's waiting, flag the brand with `has-update`, which
- * reveals the nav "Update" pill and the mobile More-sheet entry via CSS
- * (:has(.nav-brand.has-update) .update-btn). It pulses for 10s, then settles to
- * the steady `has-update-static` state — same timing as the old app. Clicking
- * either opens the About box, where the actual download/install button lives.
+ * newer release and flag the brand with `has-update`, which reveals the nav
+ * "Update" pill and More-sheet entry via CSS. It pulses for 10s then settles to
+ * `has-update-static`.
  *
- * The check is read-only and silent on failure, so a flaky network just means no
- * nudge. The About box re-checks on open to render the details, so this only
- * needs the yes/no. `?previewUpdate` forces the flagged state regardless of
- * platform or throttle so the flow can be eyeballed without a real release.
+ * Read-only and silent on failure, so a flaky network just means no nudge. The
+ * About box re-checks on open for the details, so this only needs the yes/no.
+ * `?previewUpdate` forces the flagged state regardless of platform or throttle.
  */
 export function runUpdateNudge(): void {
     const brand = document.getElementById('aboutLink');
     if (!brand) return;
-    // Native mobile (Capacitor) updates through the App Store / Play Store, not
-    // GitHub releases or the Tauri updater — so it must NEVER flag an update
-    // (not even the preview path, which has no native updater to preview).
-    // Gate here explicitly rather than leaning on isWebMode(): mobile IS web
-    // mode, but that's incidental, and a desktop-style update pill on the phone
-    // is exactly the confusing state we don't want.
+    // Native mobile (Capacitor) updates through the App Store / Play Store, so
+    // it must NEVER flag an update, preview path included. Gated explicitly
+    // rather than via isWebMode(): mobile is web mode only incidentally.
     if (isCapacitor()) return;
     // Already flagged, or forced via preview — nothing more to check.
     if (brand.classList.contains('has-update') || brand.classList.contains('has-update-static')) {
@@ -162,11 +147,10 @@ export function runUpdateNudge(): void {
     } catch {
         // Private mode / disabled storage: proceed unthrottled rather than skip.
     }
-    // Flag whenever a newer stable release exists, so the browser (local build)
-    // and the desktop shell agree instead of diverging: the Tauri updater is
-    // authoritative on desktop; a local/browser build falls back to the GitHub
-    // releases check, which asks the same "is there a newer version?" question.
-    // (Hosted web mode already returned above — it auto-updates on reload.)
+    // Both paths answer the same "is there a newer version?" question so a local
+    // browser build and the desktop shell agree: Tauri's updater is
+    // authoritative on desktop, GitHub releases otherwise. (Hosted web mode
+    // already returned above; it auto-updates on reload.)
     const available = isTauri()
         ? checkDesktopUpdate().then(Boolean)
         : checkForUpdate().then((res) => res.state === 'available');
@@ -175,9 +159,8 @@ export function runUpdateNudge(): void {
     });
 }
 
-// Flag the brand: pulse for 10s, then settle to the steady state. Idempotent —
-// an hourly re-check won't re-pulse — so it's safe to call from the nudge and
-// from the preview path alike.
+// Flag the brand: pulse for 10s, then settle to the steady state. Idempotent,
+// so an hourly re-check won't re-pulse.
 function markUpdateAvailable(brand: HTMLElement): void {
     if (brand.classList.contains('has-update') || brand.classList.contains('has-update-static')) {
         return;
@@ -189,9 +172,9 @@ function markUpdateAvailable(brand: HTMLElement): void {
     }, 10000);
 }
 
-/** Open the About modal and refresh its update status. Exported so the Settings
- *  "Check for updates" button routes here — the About box is the single place
- *  that reports version + whether an update is waiting. */
+/** Open the About modal and refresh its update status. Exported so Settings'
+ *  "Check for updates" routes here: the About box is the one place that reports
+ *  version + whether an update is waiting. */
 export function openAbout(): void {
     const modal = document.getElementById('aboutModal');
     if (!modal) return;
@@ -200,21 +183,20 @@ export function openAbout(): void {
 }
 
 // Refresh the update line every time the box opens. Web mode auto-updates on
-// reload (and the section is hidden there), so we only check in local/desktop
-// builds: the Tauri shell drives the real self-updater; a local dev browser
-// falls back to an informational GitHub-releases check.
+// reload (and hides the section), so only local/desktop builds check: Tauri
+// drives the real self-updater, a local dev browser falls back to an
+// informational GitHub-releases check.
 let checking = false;
-// Floor between About-box network checks: reopening within 2 min just keeps the
-// result already rendered into #aboutUpdate (it survives the modal hide/show).
-// In-memory on purpose — a reload clears the rendered result, so re-checking
-// then is correct. Distinct from the nudge's hourly, cross-reload budget.
+// Floor between About-box network checks: reopening within 2 min keeps the
+// result already rendered into #aboutUpdate (it survives modal hide/show).
+// In-memory on purpose - a reload clears that result, so re-checking is then
+// correct. Distinct from the nudge's hourly, cross-reload budget.
 const ABOUT_CHECK_INTERVAL_MS = 2 * 60 * 1000;
 let lastAboutCheck = 0;
 function runUpdateCheck(updateEl: HTMLElement | null): void {
     const preview = previewUpdateVersion();
-    // Native mobile never shows the update line (store-updated, no in-app
-    // updater) — even under preview. Web mode hides it too (auto-updates on
-    // reload) unless previewing, where the point is to see the flow.
+    // Native mobile never shows the update line (store-updated), preview
+    // included. Web mode hides it too, unless previewing.
     if (isCapacitor()) return;
     if (!updateEl || checking || (isWebMode() && !preview)) return;
     // Preview always re-renders; a real check is throttled to once / 2 min.
@@ -229,9 +211,8 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
         checking = false;
     };
     if (preview) {
-        // Render the "available" branch for the current platform without a real
-        // release: a fake desktop update (simulated download, no relaunch) in the
-        // Tauri shell, the informational link otherwise.
+        // The "available" branch without a real release: a fake desktop update
+        // (simulated download, no relaunch) in Tauri, the link otherwise.
         settle((el) =>
             isTauri() ? renderUpdateAvailable(el, fakeDesktopUpdate(preview)) : renderWebUpdate(el, preview)
         );
@@ -257,15 +238,14 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
     }
 }
 
-// Local dev browser: there's no installer to run, so link to the release. (The
-// real desktop shell shows an install button instead — renderUpdateAvailable.)
+// Local dev browser: no installer to run, so link to the release. (The desktop
+// shell shows an install button instead - renderUpdateAvailable.)
 function renderWebUpdate(el: HTMLElement, latest: string): void {
     el.textContent = `Update available: ${latest}`;
     const link = document.createElement('a');
     link.href = RELEASES_PAGE;
     link.target = '_blank';
     link.rel = 'noopener';
-    // Block-level so it sits on its own line under the version.
     link.className = 'about-update-link';
     link.textContent = 'Get the latest release →';
     el.appendChild(link);
@@ -304,17 +284,13 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
 }
 
 /**
- * Dev preview switch for the "update available" flow.
- *
- * Returns the version to pretend is available, or null when off. Enabled by
- * `?previewUpdate` in the URL or an `aloud:previewUpdate` localStorage key
- * (handy inside the Tauri webview, where editing the URL is awkward):
- *   - bare flag ("1" / "true" / empty) → one patch above the running build
- *   - any other value → used verbatim as the version, e.g. ?previewUpdate=2.0.0
- * When set, the brand flags itself on boot/nav and the About box renders the
- * available UI (a simulated, non-installing download on desktop) — no real
- * release required. To clear: drop the query param, or
- * `localStorage.removeItem('aloud:previewUpdate')`.
+ * Dev preview switch for the "update available" flow. Returns the version to
+ * pretend is available, or null when off. Set via `?previewUpdate` or the
+ * `aloud:previewUpdate` localStorage key (handy inside the Tauri webview, where
+ * editing the URL is awkward):
+ *   - bare flag ("1" / "true" / empty) -> one patch above the running build
+ *   - any other value -> used verbatim, e.g. ?previewUpdate=2.0.0
+ * Clear by dropping the param or removing the localStorage key.
  */
 export const PREVIEW_UPDATE_KEY = 'aloud:previewUpdate';
 
@@ -324,8 +300,8 @@ function previewUpdateVersion(): string | null {
         const fromUrl = new URLSearchParams(location.search).get('previewUpdate');
         if (fromUrl !== null) {
             // Persist so preview survives the router normalizing the query
-            // string away (same reason ?mode= is stored) — the nudge fires on
-            // boot but the About box opens later, after the param is gone.
+            // string away: the nudge fires on boot, but the About box opens
+            // later, after the param is gone.
             localStorage.setItem(PREVIEW_UPDATE_KEY, fromUrl);
             raw = fromUrl;
         } else {
@@ -345,9 +321,8 @@ function bumpPatch(version: string): string {
     return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
 }
 
-/** Stand-in for a real Tauri update in preview: animates a ~2s download to 100%,
- *  then resolves without relaunching, so the desktop button + progress UI can be
- *  seen end-to-end. */
+/** Stand-in for a real Tauri update in preview: animates a ~2s download, then
+ *  resolves without relaunching, so the button + progress UI can be seen. */
 function fakeDesktopUpdate(version: string): DesktopUpdate {
     return {
         version,

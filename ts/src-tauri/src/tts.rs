@@ -1,15 +1,13 @@
 //! TTS catalog + synthesis for the desktop backend.
 //!
-//! Serves `/app/v1/voices` and `/app/v1/voices/preview` in native Rust:
-//! Piper (neural, ONNX via `piper-rs`) cross-platform, plus macOS `say` as a
-//! zero-setup local engine on Darwin. The voice catalogue and preview WAV
-//! contract match what the TS adapters (`voices.ts`, `cloud-tts.ts`) expect.
+//! Serves `/app/v1/voices` and `/app/v1/voices/preview` natively: Piper
+//! (neural, ONNX via `piper-rs`) cross-platform, plus macOS `say` on Darwin.
+//! The catalogue and preview WAV contract match what the TS adapters
+//! (`voices.ts`, `cloud-tts.ts`) expect.
 //!
-//! Piper models are downloaded on demand: the first preview/synthesis of a
-//! voice pulls its `.onnx`/`.onnx.json` from Hugging Face into `piper_dir`,
-//! mirroring how the Whisper model loads on first run. (The TS voice picker
-//! has no working Download button yet — same as the web build — so
-//! download-on-demand is what actually makes Piper usable on desktop.)
+//! Piper models are fetched from Hugging Face into `piper_dir` only by an
+//! explicit `/app/v1/tts/download-model` call (the picker's Download button),
+//! never mid-synthesis - a session must not stall on a 100 MB download.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -19,9 +17,8 @@ use piper_rs::Piper;
 use serde_json::{json, Value};
 
 /// One entry in the Piper voice catalogue. `model` is the shared `.onnx`
-/// basename (== `name` for single-speaker voices); `speaker` is the speaker
-/// key for multi-speaker
-/// models, resolved to a numeric id via the model's `speaker_id_map`.
+/// basename (== `name` for single-speaker voices); `speaker` is the key for
+/// multi-speaker models, resolved to a numeric id via `speaker_id_map`.
 struct PiperVoice {
     name: &'static str,
     lang: &'static str,
@@ -32,7 +29,7 @@ struct PiperVoice {
 }
 
 const PIPER_VOICES: &[PiperVoice] = &[
-    // Recommended — curated libritts-high speakers (one 105 MB download for all).
+    // Curated libritts-high speakers (one 105 MB download covers all four).
     PiperVoice { name: "Libritts p3922 (F)", lang: "en_US", size_mb: 105, recommended: true,
                  model: "en_US-libritts-high", speaker: Some("p3922") },
     PiperVoice { name: "Libritts p4356 (F)", lang: "en_US", size_mb: 105, recommended: true,
@@ -56,17 +53,16 @@ const PIPER_VOICES: &[PiperVoice] = &[
     PiperVoice { name: "en_GB-jenny_dioco-medium", lang: "en_GB", size_mb: 63, recommended: false, model: "en_GB-jenny_dioco-medium", speaker: None },
 ];
 
-/// Caches the last-loaded Piper model (model name → loaded `Piper`), an
-/// LRU-of-1: streaming a session's sentences through `/app/v1/voices/preview`
-/// must not reload the ONNX model on every call.
+/// Last-loaded Piper model (name → `Piper`), an LRU-of-1: streaming a session's
+/// sentences through `/app/v1/voices/preview` must not reload the ONNX model on
+/// every call.
 pub type PiperCache = Mutex<Option<(String, Piper)>>;
 
 fn find_piper(name: &str) -> Option<&'static PiperVoice> {
     PIPER_VOICES.iter().find(|v| v.name == name)
 }
 
-/// Which engine should synthesize a given voice when the caller didn't say.
-/// Piper catalogue first, then macOS on Darwin.
+/// Engine to use when the caller didn't say: Piper catalogue first, then macOS.
 pub fn engine_for_voice(name: &str) -> Option<&'static str> {
     if find_piper(name).is_some() {
         return Some("piper");
@@ -81,8 +77,7 @@ fn piper_model_path(piper_dir: &Path, model: &str) -> PathBuf {
     piper_dir.join(format!("{model}.onnx"))
 }
 
-/// `[(url, filename), ...]` for a Piper model's files. `model` is the resolved
-/// model basename, e.g. `en_US-lessac-medium`.
+/// `[(url, filename), ...]` for a model basename like `en_US-lessac-medium`.
 fn piper_hf_urls(model: &str) -> Vec<(String, String)> {
     let parts: Vec<&str> = model.split('-').collect();
     let locale = parts[0]; // en_US
@@ -100,9 +95,9 @@ fn piper_hf_urls(model: &str) -> Vec<(String, String)> {
 
 // --- /app/v1/voices -----------------------------------------------------------
 
-/// Build the `/app/v1/voices` JSON array. `engine` (Some) restricts to one engine
-/// (the Settings page does this); `lang` filters by language prefix. With no
-/// engine override the list aggregates Piper then macOS, deduped by name.
+/// Build the `/app/v1/voices` JSON array. `engine` restricts to one engine (the
+/// Settings page does this); `lang` filters by language prefix. Without an
+/// engine the list aggregates Piper then macOS, deduped by name.
 pub fn list_voices(engine: Option<&str>, lang: Option<&str>, piper_dir: &Path) -> Value {
     let mut voices: Vec<Value> = Vec::new();
 
@@ -111,7 +106,6 @@ pub fn list_voices(engine: Option<&str>, lang: Option<&str>, piper_dir: &Path) -
         Some("macos") => voices.extend(macos_voices()),
         Some(_) => {} // elevenlabs/unknown: no local catalogue
         None => {
-            // Aggregate: Piper first, then macOS voices not already present.
             voices.extend(piper_voices(piper_dir));
             let seen: std::collections::HashSet<String> = voices
                 .iter()
@@ -150,8 +144,8 @@ fn piper_voices(piper_dir: &Path) -> Vec<Value> {
                 "downloaded": downloaded,
                 "size_display": format!("{} MB", v.size_mb),
                 "needs_download": true,
-                // The shared .onnx basename. Multi-speaker voices repeat it, so
-                // the UI can group speakers that download/uninstall together.
+                // Multi-speaker voices repeat this basename, so the UI can group
+                // speakers that download/uninstall together.
                 "model": v.model,
             });
             if v.recommended {
@@ -172,11 +166,11 @@ fn macos_voices() -> Vec<Value> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut voices = Vec::new();
     for line in stdout.lines() {
-        // Format: "Voice Name    xx_XX    # description". Names can contain
-        // spaces/parentheses; split on 2+ spaces before the lang code.
+        // "Voice Name    xx_XX    # description". Names can contain
+        // spaces/parentheses, so split on 2+ spaces before the lang code.
         if let Some((name, rest)) = split_macos_voice_line(line) {
             let mut entry = json!({ "name": name, "lang": rest, "engine": "macos" });
-            // Mark Premium voices recommended so they sort into the top tier.
+            // Premium voices sort into the top tier.
             if name.to_lowercase().contains("premium") {
                 entry["recommended"] = json!(true);
             }
@@ -191,16 +185,16 @@ fn macos_voices() -> Vec<Value> {
     Vec::new()
 }
 
-/// Parse one `say -v ?` line into (name, lang). Returns None for blank lines or
-/// lines without a `xx_XX` locale code. Splits the name off at the first run of
-/// 2+ spaces that is followed by a locale code.
+/// Parse one `say -v ?` line into (name, lang), splitting at the first run of
+/// 2+ spaces followed by a locale code. None for blank lines or lines with no
+/// `xx_XX` code.
 #[cfg(target_os = "macos")]
 fn split_macos_voice_line(line: &str) -> Option<(String, String)> {
     let line = line.trim_end();
     if line.is_empty() {
         return None;
     }
-    // Find the locale token: 2 letters, underscore, 2 letters (e.g. en_US).
+    // Locale token: 2 letters, underscore, 2 letters (e.g. en_US).
     for (idx, _) in line.match_indices("  ") {
         let rest = line[idx..].trim_start();
         let lang: String = rest.chars().take(5).collect();
@@ -221,10 +215,9 @@ fn split_macos_voice_line(line: &str) -> Option<(String, String)> {
 
 // --- /app/v1/voices/preview ---------------------------------------------------
 
-/// Synthesize `text` for `voice` into WAV bytes. `engine` forces a backend;
-/// when None it's inferred (`engine_for_voice`). `rate` is words-per-minute
-/// (the GET contract); Piper maps it to a length_scale, macOS passes it to
-/// `say -r`. Returns the WAV bytes or a human-readable error.
+/// Synthesize `text` for `voice` into WAV bytes. `engine` forces a backend, or
+/// is inferred (`engine_for_voice`) when None. `rate` is words-per-minute (the
+/// GET contract); Piper maps it to a length_scale, macOS to `say -r`.
 pub fn synth_preview(
     piper_dir: &Path,
     cache: &PiperCache,
@@ -256,9 +249,8 @@ fn synth_piper(
 
     let onnx = piper_model_path(piper_dir, v.model);
     let config = piper_dir.join(format!("{}.onnx.json", v.model));
-    // Models are downloaded explicitly via /app/v1/tts/download-model (the picker's
-    // Download button), never on demand — a session must not stall on a 100 MB
-    // fetch mid-synthesis, so the model must already be present.
+    // Never download here: a session must not stall on a 100 MB fetch
+    // mid-synthesis, so the model has to be present already.
     if !onnx.exists() || !config.exists() {
         return Err(format!("Piper voice '{voice}' not downloaded"));
     }
@@ -266,10 +258,9 @@ fn synth_piper(
     // Piper's native pace at length_scale 1.0 is ~220 WPM.
     let length_scale = rate.map(|r| 220.0 / r.max(1) as f32);
 
-    // Synthesis runs while holding this lock, so a panic inside piper-rs/ort
-    // poisons it. Recover instead of unwrapping — and drop whatever model was
-    // cached when it happened, since its internal state is suspect — so one bad
-    // synthesis can't brick TTS until app restart.
+    // Synthesis holds this lock, so a panic inside piper-rs/ort poisons it.
+    // Recover rather than unwrap, and drop the cached model (its internal state
+    // is suspect), so one bad synthesis can't brick TTS until restart.
     let mut guard = cache.lock().unwrap_or_else(|poisoned| {
         let mut guard = poisoned.into_inner();
         *guard = None;
@@ -297,8 +288,8 @@ fn synth_piper(
     Ok(encode_wav_pcm16(&samples, sample_rate))
 }
 
-/// Map a speaker key (e.g. "p3922") to the model's numeric speaker id via the
-/// `speaker_id_map` loaded from the model JSON (exposed by `piper.voices()`).
+/// Map a speaker key (e.g. "p3922") to its numeric id via the `speaker_id_map`
+/// from the model JSON (exposed as `piper.voices()`).
 fn resolve_speaker_id(piper: &Piper, key: &str) -> Result<i64, String> {
     let map: Option<&HashMap<String, i64>> = piper.voices();
     map.and_then(|m| m.get(key))
@@ -308,15 +299,14 @@ fn resolve_speaker_id(piper: &Piper, key: &str) -> Result<i64, String> {
 
 // --- /app/v1/tts/download-model + /app/v1/tts/uninstall-model --------------------
 
-/// Download a Piper voice's model files, reporting progress through
-/// `on_progress` as the NDJSON-shaped values `/app/v1/tts/download-model`
-/// emits: a stream of `{status:"downloading", total, completed, file}` then a
-/// terminal `{status:"done"}` (or, if the shared model is already present,
-/// just `{status:"already_downloaded"}`).
+/// Download a Piper voice's model files, reporting the NDJSON-shaped values
+/// `/app/v1/tts/download-model` emits through `on_progress`:
+/// `{status:"downloading", total, completed, file}` lines then `{status:"done"}`
+/// (or just `{status:"already_downloaded"}`).
 ///
 /// Multi-speaker voices share one `.onnx`, so downloading any speaker brings
-/// the whole family on disk — the caller re-reads `/app/v1/voices` afterward and
-/// every speaker for that model unlocks (its `downloaded` flag is per file).
+/// the whole family on disk: the caller re-reads `/app/v1/voices` and every
+/// speaker for that model unlocks (the `downloaded` flag is per file).
 pub fn download_model<F: FnMut(Value)>(
     piper_dir: &Path,
     engine: &str,
@@ -339,8 +329,8 @@ pub fn download_model<F: FnMut(Value)>(
         if dest.exists() {
             continue;
         }
-        // Download to a .part sibling and rename on success, so an interrupted
-        // download can't masquerade as a complete model.
+        // .part sibling renamed on success, so an interrupted download can't
+        // masquerade as a complete model.
         let tmp = dest.with_extension("part");
         let res = download_file_with_progress(
             &url,
@@ -395,10 +385,10 @@ fn download_file_with_progress<F: FnMut(Value)>(
     Ok(())
 }
 
-/// Remove a downloaded Piper voice's model files. Resolves multi-speaker
-/// display names to the shared model basename first (so uninstalling e.g.
-/// "Libritts p3922 (F)" removes `en_US-libritts-high.onnx`, freeing the whole
-/// family). Returns "removed" or "not_found".
+/// Remove a downloaded Piper voice's model files, resolving multi-speaker
+/// display names to the shared basename first (uninstalling "Libritts p3922
+/// (F)" removes `en_US-libritts-high.onnx`, freeing the whole family). Returns
+/// "removed" or "not_found".
 pub fn uninstall_model(piper_dir: &Path, engine: &str, voice: &str) -> Result<&'static str, String> {
     if engine != "piper" {
         return Err("uninstall not supported for this engine".to_string());
@@ -418,7 +408,7 @@ pub fn uninstall_model(piper_dir: &Path, engine: &str, voice: &str) -> Result<&'
 #[cfg(target_os = "macos")]
 fn synth_macos(voice: &str, text: &str, rate: Option<u32>) -> Result<Vec<u8>, String> {
     use std::process::Command;
-    // Unique temp path; `say` writes the WAV here and we read it back.
+    // `say` has no stdout mode, so it writes the WAV to a unique temp path.
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -451,9 +441,9 @@ fn synth_macos(_voice: &str, _text: &str, _rate: Option<u32>) -> Result<Vec<u8>,
     Err("macOS 'say' engine is only available on macOS".to_string())
 }
 
-/// Encode mono f32 samples (range ~[-1, 1]) as a 16-bit PCM WAV. Piper returns
-/// raw samples; the TS adapter plays the bytes through an HTMLAudioElement, so
-/// a standard WAV container is all it needs.
+/// Encode mono f32 samples (~[-1, 1]) as a 16-bit PCM WAV. Piper returns raw
+/// samples; the TS adapter plays the bytes through an HTMLAudioElement, so a
+/// standard WAV container is all it needs.
 fn encode_wav_pcm16(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     let num_samples = samples.len();
     let bytes_per_sample = 2u32;
@@ -542,16 +532,15 @@ mod tests {
             split_macos_voice_line("Grandma (German)    de_DE    # Hallo"),
             Some(("Grandma (German)".to_string(), "de_DE".to_string()))
         );
-        // Long names that overflow the column have only ONE space before the
-        // locale (e.g. "Eddy (English (UK)) en_GB"). The 2-space requirement
-        // skips them, dropping these duplicate-named regional variants.
+        // Names that overflow the column leave only ONE space before the locale.
+        // The 2-space rule skips them, dropping these duplicate-named variants.
         assert_eq!(split_macos_voice_line("Eddy (English (UK)) en_GB    # Hi"), None);
         assert_eq!(split_macos_voice_line(""), None);
     }
 
-    /// Real end-to-end Piper synthesis: downloads a model and runs ONNX
-    /// inference. Network + ~63 MB + slow, so it's ignored by default; run
-    /// explicitly with `cargo test piper_synthesizes_audio -- --ignored`.
+    /// Real end-to-end synthesis: downloads a model and runs ONNX inference.
+    /// Network + ~63 MB + slow, so ignored by default; run with
+    /// `cargo test piper_synthesizes_audio -- --ignored`.
     #[test]
     #[ignore]
     fn piper_synthesizes_audio() {

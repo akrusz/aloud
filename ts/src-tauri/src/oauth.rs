@@ -1,13 +1,13 @@
-//! Desktop Google sign-in — the loopback half of the PKCE flow (meditation-pal-fae).
+//! Desktop Google sign-in: the loopback half of the PKCE flow
+//! (meditation-pal-fae).
 //!
 //! Google's in-webview popup (GIS) can't run in Tauri's custom-scheme origin, so
-//! the desktop app signs in the way Claude Code and most native apps do: open the
-//! system browser, let the user authenticate there, and catch the redirect on an
-//! ephemeral `127.0.0.1` port. We hand the resulting authorization code + PKCE
-//! verifier back to the UI, which posts them to the hosted server's
-//! `POST /cloud/v1/auth/google/desktop`. The server holds the client secret and
-//! redeems the code — so no secret ever ships in this binary. The (public)
-//! client id comes from the server's `/cloud/v1/config`.
+//! we do what most native apps do: open the system browser and catch the
+//! redirect on an ephemeral `127.0.0.1` port. The resulting code + PKCE verifier
+//! go back to the UI, which posts them to the hosted
+//! `POST /cloud/v1/auth/google/desktop`. That server holds the client secret and
+//! redeems the code, so no secret ships in this binary. The public client id
+//! comes from the server's `/cloud/v1/config`.
 
 use std::time::Duration;
 
@@ -19,7 +19,7 @@ use tokio::net::TcpListener;
 
 const GOOGLE_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const SCOPE: &str = "openid email profile";
-/// How long to wait for the user to finish in the browser before giving up.
+/// How long to wait for the user to finish in the browser.
 const WAIT: Duration = Duration::from_secs(300);
 
 /// Request body for `POST /app/v1/google-oauth`.
@@ -101,14 +101,13 @@ fn pct_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Open `url` in the user's default browser (the system handler, not the webview).
+/// Open `url` in the system browser, not the webview.
 ///
 /// Routed through the opener plugin (ShellExecuteW on Windows, `open`/`xdg-open`
-/// on macOS/Linux). A hand-rolled `cmd /C start "" <url>` on Windows mangles the
-/// auth URL: cmd treats the `&` query-param separators as command delimiters, so
-/// only `?response_type=code` survives and everything after it (client_id,
-/// redirect_uri, …) is dropped — sign-in then fails. ShellExecuteW takes the URL
-/// whole, sidestepping that.
+/// elsewhere). A hand-rolled `cmd /C start "" <url>` mangles the auth URL on
+/// Windows: cmd treats the `&` query separators as command delimiters, so only
+/// `?response_type=code` survives and sign-in fails. ShellExecuteW takes the
+/// URL whole.
 fn open_browser(url: &str) -> Result<(), String> {
     tauri_plugin_opener::open_url(url, None::<&str>)
         .map_err(|e| format!("could not open the browser: {e}"))
@@ -120,8 +119,8 @@ pub async fn google_loopback(client_id: &str) -> Result<OauthResult, String> {
     let challenge = b64url(Sha256::digest(verifier.as_bytes()).as_slice());
     let state = random_b64url(24);
 
-    // Google allows any loopback PORT for "Desktop app" clients, so an ephemeral
-    // port is fine — and the token endpoint only needs the same redirect_uri back.
+    // Google allows any loopback port for "Desktop app" clients, and the token
+    // endpoint only needs the same redirect_uri echoed back.
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| format!("could not bind a loopback port: {e}"))?;
@@ -154,12 +153,11 @@ pub async fn google_loopback(client_id: &str) -> Result<OauthResult, String> {
 }
 
 /// Serve loopback connections until one carries the OAuth redirect (a `code` or
-/// `error` query param), parse it, and reply with a small "you can close this
-/// tab" page. Browsers open extra connections to a fresh local origin (favicon
-/// probes, speculative preconnects) — consuming the first connection blindly
-/// would eat one of those and miss the real redirect, so anything without
-/// `code`/`error` gets a 404 and we keep listening. The caller's overall
-/// timeout (`WAIT`) still bounds the loop.
+/// `error` param), parse it, and reply with a "you can close this tab" page.
+/// Browsers open extra connections to a fresh local origin (favicon probes,
+/// speculative preconnects), so taking the first connection blindly would eat
+/// one of those and miss the real redirect: anything without `code`/`error`
+/// gets a 404 and we keep listening. The caller's `WAIT` bounds the loop.
 async fn accept_redirect(listener: TcpListener) -> Result<(String, String), String> {
     loop {
         let (mut sock, _) =
@@ -212,9 +210,8 @@ async fn finish_redirect(
     } else {
         ("400 Bad Request", "Sign-in didn't complete. You can close this tab and try again in aloud.")
     };
-    // On-brand closing page (matches the app's dark theme — ui/app-base.css:
-    // --bg-primary/--text-primary/--accent). Color/size/weight for hierarchy,
-    // never opacity.
+    // Matches the app's dark theme (ui/app-base.css --bg-primary /
+    // --text-primary / --accent). Color/size/weight for hierarchy, never opacity.
     let html = format!(
         "<!doctype html><meta charset=utf-8>\
          <meta name=viewport content=\"width=device-width,initial-scale=1\">\

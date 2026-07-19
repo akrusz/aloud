@@ -16,15 +16,12 @@ const GEOMETRY_FLAGS: StateFlags = StateFlags::POSITION
   .union(StateFlags::SIZE)
   .union(StateFlags::MAXIMIZED);
 
-// Throttle geometry writes so a resize/move drag (events fire per frame) doesn't
-// hammer the disk. The final position lands either on the next event past the
-// window or on the plugin's clean-close save.
+// Resize/move events fire per frame; throttle so a drag doesn't hammer the disk.
 static LAST_GEOMETRY_SAVE: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// Persist the window's current bounds, at most every 500ms. The window-state
-/// plugin already saves on a clean close (red button / Cmd+Q), but an ungraceful
-/// kill (Ctrl+C in dev) never fires that path — so we also save as geometry
-/// changes, keeping the last-known bounds on disk however the process dies.
+/// Persist the window's bounds, at most every 500ms. The plugin saves on a clean
+/// close (red button / Cmd+Q), but an ungraceful kill (Ctrl+C in dev) never
+/// fires that path, so we also save as geometry changes.
 fn save_geometry_throttled(app: &tauri::AppHandle) {
   {
     let now = Instant::now();
@@ -38,15 +35,13 @@ fn save_geometry_throttled(app: &tauri::AppHandle) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// macOS apps launched from Finder/Launchpad/Dock inherit a minimal PATH
-/// (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits Homebrew, `~/.local/bin`,
-/// npm-global, and version-manager shims — so `which::which("claude")` (and
-/// ollama/brew) fail even when the tool is installed, and a spawned `claude`
-/// can't find `node`. Repair PATH once at startup: merge in the user's
-/// login+interactive shell PATH (catches nvm/fnm/asdf/volta wherever they put
-/// their shims), then append common static bin dirs as a backstop. Best-effort
-/// and idempotent; failures leave PATH untouched. No-op off macOS, where GUI
-/// launches already carry the user's PATH.
+/// macOS Finder/Launchpad/Dock launches inherit a minimal PATH
+/// (`/usr/bin:/bin:/usr/sbin:/sbin`) with no Homebrew, `~/.local/bin`,
+/// npm-global, or version-manager shims, so `which::which("claude")` (and
+/// ollama/brew) fail even when installed, and a spawned `claude` can't find
+/// `node`. Merge in the user's login+interactive shell PATH (catches
+/// nvm/fnm/asdf/volta), then static bin dirs as a backstop. Best-effort and
+/// idempotent. No-op off macOS, where GUI launches carry the user's PATH.
 #[cfg(target_os = "macos")]
 fn repair_path() {
   use std::collections::HashSet;
@@ -59,9 +54,9 @@ fn repair_path() {
     .collect();
   let mut seen: HashSet<String> = dirs.iter().cloned().collect();
 
-  // 1) The user's real PATH from a login+interactive shell. stdin is not a TTY
-  //    here, so an rc file that reads input gets EOF rather than hanging; a
-  //    sentinel isolates the value from any rc-file stdout chatter.
+  // 1) The user's real PATH from a login+interactive shell. stdin isn't a TTY,
+  //    so an rc file that reads input gets EOF rather than hanging; the
+  //    sentinel isolates the value from rc-file stdout chatter.
   if let Ok(shell) = std::env::var("SHELL") {
     if let Ok(out) = std::process::Command::new(&shell)
       .args(["-lic", "printf '__ALOUD_PATH__%s__ALOUD_END__' \"$PATH\""])
@@ -78,8 +73,8 @@ fn repair_path() {
     }
   }
 
-  // 2) Static backstop: Homebrew (arm64 + Intel), /usr/local, the Claude Code
-  //    native install dir (~/.local/bin), and npm-global.
+  // 2) Backstop: Homebrew (arm64 + Intel), /usr/local, the Claude Code native
+  //    install dir (~/.local/bin), npm-global.
   let mut backstop: Vec<String> = vec![
     "/opt/homebrew/bin".into(),
     "/opt/homebrew/sbin".into(),
@@ -110,12 +105,12 @@ pub fn run() {
   #[allow(unused_mut)]
   let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_opener::init())
-    // Persist window geometry across launches (auto-saves on exit; we restore
-    // explicitly below since the window is built at runtime, not from config).
+    // Persists geometry across launches. We restore explicitly below, since the
+    // window is built at runtime rather than from config.
     .plugin(tauri_plugin_window_state::Builder::default().build());
 
-  // Self-updater + process control (for relaunch after an update). Desktop-only
-  // plugins; the in-app "Update" button (ui/src/desktop-updater.ts) drives them.
+  // Self-updater + process control (relaunch after an update), driven by the
+  // in-app "Update" button (ui/src/desktop-updater.ts).
   #[cfg(desktop)]
   {
     builder = builder
@@ -134,26 +129,23 @@ pub fn run() {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
             .level(log::LevelFilter::Info)
-            // ONNX Runtime (pulled in by piper-rs) logs a wall of INFO lines
-            // ("Reserving memory in BFCArena…", "Done saving initialized
-            // tensors", …) on every Piper synth. Quiet it to warnings+ while
-            // keeping our own Info logs.
+            // ONNX Runtime (via piper-rs) logs a wall of INFO lines on every
+            // Piper synth. Quiet it without losing our own Info logs.
             .level_for("ort", log::LevelFilter::Warn)
             .build(),
         )?;
       }
 
-      // Start the embedded local backend and inject its base URL into the
-      // webview before any page script runs, so ui/src/app-base.ts can resolve
-      // /app/v1/* against it. The window is built here (not in tauri.conf.json)
-      // because an initialization_script can only be attached at build time.
-      // Models (Whisper, Piper) are cached under the app data dir; the server
-      // derives per-engine subdirs from it.
+      // Start the embedded backend and inject its base URL before any page
+      // script runs, so ui/src/app-base.ts can resolve /app/v1/* against it.
+      // The window is built here, not in tauri.conf.json, because an
+      // initialization_script can only be attached at build time. Models
+      // (Whisper, Piper) cache under the app data dir; the server derives
+      // per-engine subdirs from it.
       let data_dir = app.path().app_data_dir().expect("resolve app data dir");
       let (port, token) = server::start(data_dir);
-      // The per-launch token gates every /app/v1 request (see server.rs
-      // require_token); app-base.ts attaches it to loopback fetches. Hex-only,
-      // so it's safe to splice into the script literal.
+      // The per-launch token gates every /app/v1 request (server.rs
+      // require_token). Hex-only, so splicing it into the literal is safe.
       let init = format!(
         "window.__ALOUD_API_BASE__ = 'http://127.0.0.1:{port}';\n\
          window.__ALOUD_API_TOKEN__ = '{token}';"
@@ -166,15 +158,15 @@ pub fn run() {
         .resizable(true)
         .initialization_script(init.as_str());
 
-      // macOS: frameless-feeling window that keeps the native traffic-light
-      // controls. The .nav doubles as the draggable title bar (see the TS UI).
+      // macOS: frameless-feeling window that keeps the native traffic lights.
+      // The .nav doubles as the draggable title bar (see the TS UI).
       #[cfg(target_os = "macos")]
       let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
 
       let window = builder.build()?;
-      // Apply the saved position/size/maximized state (no-op on first run).
+      // No-op on first run.
       let _ = window.restore_state(GEOMETRY_FLAGS);
       Ok(())
     })

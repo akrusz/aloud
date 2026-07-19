@@ -1,14 +1,13 @@
 /**
  * Text-to-speech engine interface.
  *
- * `speak()` returns a promise that resolves when playback finishes. The
- * native impls (AVSpeechSynthesizer, Android TextToSpeech, browser
- * speechSynthesis) all support cancel-mid-utterance — `cancel()` makes
- * any in-flight `speak()` resolve early (not reject).
+ * `speak()` resolves when playback finishes. All impls (AVSpeechSynthesizer,
+ * Android TextToSpeech, browser speechSynthesis) support cancel-mid-utterance:
+ * `cancel()` makes an in-flight `speak()` resolve early, not reject.
  */
 
 export interface TtsVoice {
-    /** Stable engine-specific identifier (e.g. "com.apple.voice.compact.en-US.Samantha"). */
+    /** Stable engine-specific id, e.g. "com.apple.voice.compact.en-US.Samantha". */
     id: string;
     /** Human-readable name for pickers. */
     name: string;
@@ -19,15 +18,14 @@ export interface TtsVoice {
 export interface TtsOptions {
     /** Voice id (from listVoices()); falls back to the engine default. */
     voice?: string;
-    /** Words per minute, when meaningful. Concrete engines normalize as needed. */
+    /** Words per minute, when meaningful. Engines normalize as needed. */
     rate?: number;
     /** 0.5–2.0, 1.0 = neutral. */
     pitch?: number;
     /**
-     * Called when audible playback actually begins — after any synthesis
-     * fetch, not when speak() is invoked. Lets the UI reveal text in step
-     * with the voice. Best-effort: engines that can't observe playback
-     * start never call it, so callers need their own fallback.
+     * Fires when audible playback begins (after any synthesis fetch), so the UI
+     * can reveal text in step with the voice. Best-effort: engines that can't
+     * observe playback start never call it, so callers need a fallback.
      */
     onStart?: () => void;
 }
@@ -35,10 +33,9 @@ export interface TtsOptions {
 export interface TtsEngine {
     speak(text: string, options?: TtsOptions): Promise<void>;
     /**
-     * Start synthesizing `text` without playing it, so a later speak() of
-     * the same text starts instantly. Fire-and-forget: errors surface on
-     * the speak() instead. Optional — only meaningful for engines with a
-     * synthesis round-trip (network/server); local engines omit it.
+     * Synthesize `text` without playing it, so a later speak() of the same text
+     * starts instantly. Fire-and-forget; errors surface on the speak(). Only
+     * meaningful for engines with a synthesis round-trip; local engines omit it.
      */
     prefetch?(text: string, options?: TtsOptions): void;
     /** Cancel any in-progress utterance. No-op when nothing is speaking. */
@@ -47,17 +44,13 @@ export interface TtsEngine {
     listVoices(): Promise<TtsVoice[]>;
 }
 
-// ---------------------------------------------------------------------------
-// In-memory implementation for tests / dry-run CLI usage
-// ---------------------------------------------------------------------------
+// In-memory implementation for tests / dry-run CLI usage.
 
 export interface InMemoryTtsEngineOptions {
-    /**
-     * Voices to advertise from `listVoices()`. Defaults to one English voice.
-     */
+    /** Voices to advertise from `listVoices()`. Defaults to one English voice. */
     voices?: TtsVoice[];
     /**
-     * Synthetic speech duration in ms. Useful when a test wants to observe
+     * Synthetic speech duration in ms, for tests that observe
      * cancel-mid-utterance. Defaults to 0 (resolve on the next tick).
      */
     durationMs?: number;
@@ -72,7 +65,7 @@ interface SpokenRecord {
 export class InMemoryTtsEngine implements TtsEngine {
     private readonly voices: TtsVoice[];
     private readonly durationMs: number;
-    /** History of `speak()` calls in order, with their resolution state. */
+    /** `speak()` calls in order, with their resolution state. */
     readonly spoken: SpokenRecord[] = [];
 
     private pendingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -87,12 +80,11 @@ export class InMemoryTtsEngine implements TtsEngine {
     }
 
     speak(text: string, options?: TtsOptions): Promise<void> {
-        // Cancel synchronously — if we awaited here, a concurrent cancel()
-        // could observe a stale state where the new record isn't registered yet.
+        // Synchronous: awaiting here would let a concurrent cancel() see a state
+        // where the new record isn't registered yet.
         this.cancelSync();
         const record: SpokenRecord = { text, options, cancelled: false };
         this.spoken.push(record);
-        // Synthetic playback "starts" immediately.
         options?.onStart?.();
         this.pendingRecord = record;
         return new Promise<void>((resolve) => {

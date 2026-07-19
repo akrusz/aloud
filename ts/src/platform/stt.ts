@@ -1,16 +1,10 @@
 /**
- * Speech-to-text engine interface.
+ * Speech-to-text engine interface, shaped after the native engines (iOS
+ * SFSpeechRecognizer, Android SpeechRecognizer, Web Speech): `start()` yields
+ * partials then a final and completes; the engine does its own silence
+ * detection. `stop()` requests early termination.
  *
- * Native iOS (SFSpeechRecognizer), Android (SpeechRecognizer), and the
- * Web Speech API all produce a stream of partial → final transcripts and
- * handle their own silence detection. The interface mirrors that shape:
- * `start()` returns an async iterable of events; the engine yields one
- * or more `partial` events followed by a `final`, then the iteration ends
- * (until the next `start()`). `stop()` requests early termination.
- *
- * Concrete native implementations land alongside the Capacitor wrapper
- * — keep this file dependency-free so the core remains importable in any
- * runtime.
+ * Keep this file dependency-free so core stays importable in any runtime.
  */
 
 export type SttEvent =
@@ -25,18 +19,16 @@ export type SttEvent =
           text: string;
           /**
            * Seconds of audio transcribed, when the engine ran billable
-           * server-side STT compute (e.g. Whisper). Omitted for on-device
-           * engines (Web Speech, native), which consume no metered compute —
-           * the caller folds this into session STT-seconds usage.
+           * server-side STT (Whisper); the caller folds it into session usage.
+           * Omitted for on-device engines, which consume no metered compute.
            */
           seconds?: number;
           /**
-           * True when this utterance's speech STARTED while the facilitator's
-           * TTS was audibly playing (continuous-capture engines only; absent
-           * on engines that pause during playback). The transcript echo guard
-           * keys off this rather than arrival time: VAD trailing silence +
-           * transcription latency mean an echo's text can land many seconds
-           * after playback ended, long past any arrival-time window.
+           * True when this utterance's speech STARTED while TTS was audibly
+           * playing (continuous-capture engines only). The echo guard keys off
+           * this rather than arrival time: VAD trailing silence plus
+           * transcription latency can land an echo many seconds after playback
+           * ended, past any arrival-time window.
            */
           startedDuringTts?: boolean;
       }
@@ -44,9 +36,9 @@ export type SttEvent =
 
 export interface SttEngine {
     /**
-     * Begin a recognition session. Yields events until end-of-speech, an
-     * error, or `stop()` is called. The async iterator completes on its
-     * own when the engine considers the utterance finished.
+     * Begin a recognition session. Yields events until end-of-speech, an error,
+     * or `stop()`; the iterator completes on its own when the engine considers
+     * the utterance finished.
      */
     start(): AsyncIterable<SttEvent>;
 
@@ -54,24 +46,21 @@ export interface SttEngine {
     stop(): Promise<void>;
 
     /**
-     * Optional: open the mic stream + audio graph WITHOUT beginning an
-     * utterance. Engines that keep an onset pre-buffer (server-Whisper) use
-     * this to start filling it immediately — e.g. during the opening greeting —
-     * so a barge-in on the very first facilitator turn isn't clipped (otherwise
-     * the graph is created lazily on the first start() and there's no buffered
-     * onset yet). No-op / absent on engines that don't need it.
+     * Optional: open the mic stream and audio graph WITHOUT beginning an
+     * utterance. Engines with an onset pre-buffer (server-Whisper) call this
+     * during the opening greeting so a barge-in on the first facilitator turn
+     * isn't clipped; otherwise the graph is built lazily on first start() and
+     * no onset is buffered yet. Absent on engines that don't need it.
      */
     prime?(): Promise<void>;
 }
 
-// ---------------------------------------------------------------------------
-// In-memory implementation for tests / dry-run CLI usage
-// ---------------------------------------------------------------------------
+// In-memory implementation for tests / dry-run CLI usage.
 
 export interface InMemorySttEngineOptions {
-    /** Sequence of events to yield on each `start()` call. */
+    /** Events to yield on each `start()` call. */
     script: readonly SttEvent[];
-    /** Optional delay between events, useful when timing matters. */
+    /** Delay between events, for tests where timing matters. */
     delayMs?: number;
 }
 
@@ -102,20 +91,16 @@ export class InMemorySttEngine implements SttEngine {
 }
 
 /**
- * True when a transcript carries no actual speech — only non-speech markers
- * or punctuation — so it shouldn't take the user's turn.
+ * True when a transcript is only non-speech markers or punctuation, so it
+ * shouldn't take the user's turn.
  *
- * STT engines annotate non-verbal audio with parentheses, brackets, or
- * asterisks: whisper.cpp and cloud Whisper emit things like "[BLANK_AUDIO]",
- * "[inaudible]", "(coughing)", "(wind blowing)"; some outputs add "*sighs*".
- * We strip those markered spans and, if no Unicode letter remains, treat the
- * whole utterance as silence — a cough, breath, or background noise shouldn't
- * trigger an LLM turn. (Browser Web Speech rarely emits markers — it yields
- * words or nothing — so this is effectively a no-op there.)
+ * STT engines annotate non-verbal audio in parens, brackets, or asterisks:
+ * "[BLANK_AUDIO]", "[inaudible]", "(coughing)", "*sighs*". Strip those spans;
+ * if no Unicode letter remains it was a cough, breath, or noise, not a turn.
+ * (Web Speech yields words or nothing, so this is a no-op there.)
  *
- * Note: this only catches utterances that are *entirely* markers/punctuation.
- * A bare hallucinated word (Whisper's "you"/"Thank you" on silence) still has
- * letters and is intentionally left alone, matching the original behavior.
+ * Only catches utterances that are ENTIRELY markers. A bare hallucinated word
+ * (Whisper's "you"/"Thank you" on silence) has letters and is left alone.
  */
 export function isNonSpeechOnly(text: string): boolean {
     if (!text) return true;
@@ -127,8 +112,8 @@ export function isNonSpeechOnly(text: string): boolean {
 }
 
 /**
- * Helper: drain an STT iterator down to its final transcript, ignoring
- * partials. Returns null if the stream ends with an error or no final.
+ * Drain an STT iterator to its final transcript, ignoring partials. Null if
+ * the stream ends with an error or no final.
  */
 export async function collectFinal(stt: SttEngine): Promise<string | null> {
     for await (const event of stt.start()) {

@@ -1,24 +1,19 @@
 /**
  * Durable CreditsStore over SQLite (Node's built-in `node:sqlite`). Same
- * contract as MemoryCreditsStore (store.ts) — the ledger logic above it
- * (ledger.ts) is agnostic to which store is injected. This is the production
- * swap the store.ts header calls for: own-your-data, on-brand, zero extra
- * dependencies (SQLite ships with Node 22).
+ * contract as MemoryCreditsStore; ledger.ts doesn't know which store is injected.
  *
- * Why SQLite and not Postgres at this stage: the deploy is a single small
- * always-on box (meditation-pal-a3u) at trial scale. A file on a persistent
- * volume is durable across restarts (the one thing MemoryCreditsStore can't
- * do), gives us the append-only audit trail billing disputes need, and answers
- * the metrics aggregates with indexed queries. If we outgrow one box, the same
- * interface ports to Postgres without touching anything above this file.
+ * SQLite not Postgres at this stage: the deploy is one small always-on box
+ * (meditation-pal-a3u) at trial scale. A file on a persistent volume is durable
+ * across restarts (the one thing MemoryCreditsStore can't do), gives the
+ * append-only audit trail billing disputes need, and answers the metrics
+ * aggregates with indexed queries. The same interface ports to Postgres if we
+ * outgrow one box, with no change above this file.
  *
- * The ledger is append-only (see store.ts): we only ever INSERT, never UPDATE
- * or DELETE a ledger row. Balance is summed from entries, so the table IS the
- * audit log.
+ * The ledger is append-only: only INSERT, never UPDATE or DELETE a ledger row.
+ * Balance is summed from entries, so the table IS the audit log.
  *
- * `node:sqlite` is still flagged "experimental" by Node (it prints one warning
- * at first use) but the synchronous API is stable enough for this trial-scale,
- * single-process use; revisit if Node changes the surface.
+ * `node:sqlite` is still flagged experimental by Node (one warning at first use),
+ * but the synchronous API is stable enough for trial-scale single-process use.
  */
 
 import { DatabaseSync } from 'node:sqlite';
@@ -40,7 +35,7 @@ import type { UsageEvent, UsageKind } from './usage.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
-/** SQL DDL — created on open if absent. Idempotent (IF NOT EXISTS). */
+/** SQL DDL, created on open if absent. Idempotent (IF NOT EXISTS). */
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
     id            TEXT PRIMARY KEY,
@@ -190,7 +185,7 @@ function rowToAccount(r: Row): Account {
         emailVerified: Number(r['email_verified']) !== 0,
         createdAt: Number(r['created_at']),
     };
-    // exactOptionalPropertyTypes: only attach signupIp when actually present.
+    // exactOptionalPropertyTypes: attach only when actually present.
     if (r['signup_ip'] != null) account.signupIp = String(r['signup_ip']);
     if (r['deleted_at'] != null) account.deletedAt = Number(r['deleted_at']);
     return account;
@@ -282,20 +277,20 @@ function rowToInvite(r: Row): RetreatInvite {
 export class SqliteCreditsStore implements CreditsStore {
     private readonly db: DatabaseSync;
 
-    /** @param path file path for the DB, or ':memory:' for an ephemeral one
-     *  (used by the store-parity tests so they exercise the real SQL). */
+    /** @param path DB file path, or ':memory:' for an ephemeral one (the
+     *  store-parity tests use it to exercise the real SQL). */
     constructor(path: string) {
         this.db = new DatabaseSync(path);
-        // WAL: better read/write concurrency and a durable, crash-safe journal —
+        // WAL: better read/write concurrency and a durable, crash-safe journal,
         // the right default for an always-on server holding a credit ledger.
-        // No-op (harmless) for an in-memory database.
+        // Harmless no-op for an in-memory database.
         this.db.exec('PRAGMA journal_mode = WAL');
-        // FULL (not the perf-oriented NORMAL litestream suggests): this is a
-        // money ledger, so fsync the WAL on every commit — a purchase that the
-        // webhook acknowledged must be durable on the volume immediately, not
-        // only at the next checkpoint. Otherwise a commit that lives in the WAL
-        // page-cache can be lost if the VM goes away before a checkpoint (the
-        // meditation-pal-5iv4 failure mode). Cheap at trial write volume.
+        // FULL, not the perf-oriented NORMAL litestream suggests: this is a money
+        // ledger, so fsync the WAL on every commit. A purchase the webhook
+        // acknowledged must be durable on the volume immediately, not only at the
+        // next checkpoint; otherwise a commit sitting in the WAL page-cache is
+        // lost if the VM goes away first (the meditation-pal-5iv4 failure mode).
+        // Cheap at trial write volume.
         this.db.exec('PRAGMA synchronous = FULL');
         this.db.exec('PRAGMA foreign_keys = ON');
         this.db.exec(SCHEMA);
@@ -304,24 +299,24 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddCanonicalEmail();
         this.migrateAddUsagePassId();
         this.migrateAddUsageCacheCreation1h();
-        // Index on pass_id AFTER the column migration above — on a pre-retreat
+        // Index on pass_id AFTER the column migration above: on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
-        // so this can't live in SCHEMA (which runs first). See idx note there.
+        // so this can't live in SCHEMA (which runs first).
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_usage_pass ON usage_events(pass_id)');
     }
 
-    /** Add usage_events.cache_creation_1h to a DB created before the 1h cache
-     *  anchor existed. The CREATE in SCHEMA only covers fresh DBs; existing rows
-     *  default to 0 (no 1h writes were billed before the anchor shipped). */
+    /** Add usage_events.cache_creation_1h to a DB predating the 1h cache anchor
+     *  (SCHEMA's CREATE only covers fresh DBs). Existing rows default to 0: no 1h
+     *  writes were billed before the anchor shipped. */
     private migrateAddUsageCacheCreation1h(): void {
         const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
         if (cols.some((c) => String(c['name']) === 'cache_creation_1h')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN cache_creation_1h INTEGER NOT NULL DEFAULT 0');
     }
 
-    /** Add usage_events.pass_id to a DB created before retreat passes existed
-     *  (meditation-pal-414). The CREATE in SCHEMA only covers fresh DBs. No-op
-     *  once the column is there. */
+    /** Add usage_events.pass_id to a DB predating retreat passes
+     *  (meditation-pal-414). SCHEMA's CREATE only covers fresh DBs; no-op once
+     *  the column is there. */
     private migrateAddUsagePassId(): void {
         const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
         if (cols.some((c) => String(c['name']) === 'pass_id')) return;
@@ -331,18 +326,18 @@ export class SqliteCreditsStore implements CreditsStore {
     /** Add accounts.canonical_email + its live-only unique index (meditation-pal
      *  duplicate-account guard). Canonicalization (Gmail dots, +tag, case) is JS,
      *  not SQL, so the backfill runs row by row. The UNIQUE index is partial
-     *  (WHERE deleted_at IS NULL) so tombstoned rows don't collide and a deleted
-     *  mailbox can sign up fresh. Creating that index THROWS if duplicate live
-     *  accounts already share a mailbox (exactly the bug we're fixing); we catch
-     *  it, warn, and carry on — the app-level guard still prevents new dupes, and
-     *  the index is created automatically on the next boot once the operator
-     *  resolves the duplicate via the admin panel. Self-healing. */
+     *  (WHERE deleted_at IS NULL) so tombstones don't collide and a deleted
+     *  mailbox can sign up fresh. Creating it THROWS if duplicate live accounts
+     *  already share a mailbox (exactly the bug being fixed); we catch, warn, and
+     *  carry on. The app-level guard still blocks new dupes, and the index is
+     *  created on the next boot once the operator resolves the duplicate in the
+     *  admin panel. Self-healing. */
     private migrateAddCanonicalEmail(): void {
         const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
         if (!cols.some((c) => String(c['name']) === 'canonical_email')) {
             this.db.exec('ALTER TABLE accounts ADD COLUMN canonical_email TEXT');
         }
-        // Backfill any rows missing it (fresh DBs have none; existing DBs get all).
+        // Backfill rows missing it (none on a fresh DB, all on an existing one).
         const stale = this.db
             .prepare('SELECT id, email FROM accounts WHERE canonical_email IS NULL')
             .all() as Row[];
@@ -355,18 +350,18 @@ export class SqliteCreditsStore implements CreditsStore {
                  ON accounts(canonical_email) WHERE deleted_at IS NULL`
             );
         } catch (err) {
-            // Duplicate live mailboxes block the unique index. Don't fail startup:
-            // log loudly so the operator deletes a dup in the admin panel, after
-            // which the next restart creates the index.
+            // Duplicate live mailboxes block the index. Don't fail startup; log
+            // loudly so the operator deletes a dup in the admin panel, after
+            // which the next restart creates it.
             log.warn('canonical_email unique index deferred — duplicate live accounts share a mailbox', {
                 err: String(err),
             });
         }
     }
 
-    /** Add accounts.deleted_at to a DB created before soft-delete existed
-     *  (meditation-pal-8jc). The CREATE in SCHEMA only covers fresh DBs; an
-     *  already-deployed prod DB needs this ALTER. No-op once the column is there. */
+    /** Add accounts.deleted_at to a DB predating soft-delete
+     *  (meditation-pal-8jc). SCHEMA's CREATE only covers fresh DBs, so a deployed
+     *  prod DB needs this ALTER. No-op once the column is there. */
     private migrateAddDeletedAt(): void {
         const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
         if (cols.some((c) => String(c['name']) === 'deleted_at')) return;
@@ -375,12 +370,12 @@ export class SqliteCreditsStore implements CreditsStore {
 
     /**
      * One-time migration from the original 1:1 accounts.google_sub schema to the
-     * accounts ↔ identities model (meditation-pal-116). Detects the legacy
-     * `google_sub` column; if present, backfills a 'google' identity per account
-     * (granted_credits set from whether the account already has a signup_grant in
-     * the ledger, so we never re-grant nor wrongly block a never-granted account),
-     * then rebuilds `accounts` without the column. No-op on a fresh DB (the new
-     * SCHEMA has no google_sub) and on an already-migrated one.
+     * accounts ↔ identities model (meditation-pal-116). If the legacy
+     * `google_sub` column is present, backfill a 'google' identity per account,
+     * setting granted_credits from whether the account already has a signup_grant
+     * in the ledger (so we neither re-grant nor wrongly block a never-granted
+     * account), then rebuild `accounts` without the column. No-op on a fresh or
+     * already-migrated DB.
      */
     private migrateLegacyGoogleSub(): void {
         const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
@@ -402,7 +397,7 @@ export class SqliteCreditsStore implements CreditsStore {
         `);
 
         // Rebuild accounts without google_sub. FK off + a transaction so the
-        // ledger/usage/identities rows that reference accounts(id) survive the
+        // ledger/usage/identities rows referencing accounts(id) survive the
         // DROP/RENAME (ids are preserved, so the by-name FK re-resolves).
         this.db.exec('PRAGMA foreign_keys = OFF');
         this.db.exec('BEGIN');
@@ -429,7 +424,7 @@ export class SqliteCreditsStore implements CreditsStore {
         }
     }
 
-    /** Release the file handle. Optional — handy for tests and graceful shutdown. */
+    /** Release the file handle (tests and graceful shutdown). */
     close(): void {
         this.db.close();
     }
@@ -456,8 +451,8 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async findLiveAccountByEmail(email: string): Promise<Account | undefined> {
-        // Oldest live row wins if duplicates somehow coexist (index temporarily
-        // absent). rowid is monotonic with INSERT, so it stands in for created_at.
+        // Oldest live row wins if duplicates coexist (index temporarily absent).
+        // rowid is monotonic with INSERT, so it stands in for created_at.
         const row = this.db
             .prepare(
                 `SELECT * FROM accounts
@@ -626,8 +621,8 @@ export class SqliteCreditsStore implements CreditsStore {
         status: Exclude<GiftStatus, 'pending'>,
         resolvedAt: number
     ): Promise<boolean> {
-        // Conditional on still-pending so concurrent accept/decline/expire can't
-        // double-resolve (and thus can't double-grant). changes() = rows updated.
+        // Conditional on still-pending, so concurrent accept/decline/expire can't
+        // double-resolve and thus can't double-grant. changes() = rows updated.
         this.db
             .prepare("UPDATE gifts SET status = ?, resolved_at = ? WHERE id = ? AND status = 'pending'")
             .run(status, resolvedAt, id);
@@ -668,10 +663,10 @@ export class SqliteCreditsStore implements CreditsStore {
         } catch (err) {
             // Idempotent purchases (idx_ledger_purchase_ref) and clawbacks
             // (idx_ledger_refund_ref): a duplicate (kind, reason) is a replayed
-            // payment proof — a Stripe webhook retry, a resubmitted x402
+            // payment proof - a Stripe webhook retry, a resubmitted x402
             // settlement, or a re-delivered refund/dispute. Swallow it so the
-            // account is credited/debited exactly once. Any other constraint
-            // failure is a real bug, so only these external-ref kinds are forgiven.
+            // account moves exactly once. Any other constraint failure is a real
+            // bug, so only these external-ref kinds are forgiven.
             if (
                 (entry.kind === 'purchase' || entry.kind === 'refund') &&
                 (String(err).includes('UNIQUE') || String(err).includes('constraint'))
@@ -684,8 +679,8 @@ export class SqliteCreditsStore implements CreditsStore {
 
     async listEntries(accountId: string): Promise<LedgerEntry[]> {
         // ORDER BY rowid = insertion order (oldest first), per the store
-        // contract. The UUID `id` is random, so we can't order by it; SQLite's
-        // implicit rowid is monotonic with INSERT.
+        // contract. The UUID `id` is random, so it can't order; SQLite's implicit
+        // rowid is monotonic with INSERT.
         const rows = this.db
             .prepare('SELECT * FROM ledger WHERE account_id = ? ORDER BY rowid')
             .all(accountId) as Row[];
@@ -791,10 +786,10 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async deleteRetreatPass(id: string): Promise<void> {
-        // Children first — the FKs into retreat_passes have no ON DELETE CASCADE,
+        // Children first: the FKs into retreat_passes have no ON DELETE CASCADE
         // and foreign_keys is ON, so the pass row can't go while a membership or
-        // invite still references it. One transaction so the roster and pass
-        // never end up half-deleted. usage_events keep their pass_id (telemetry).
+        // invite references it. One transaction so roster and pass never end up
+        // half-deleted. usage_events keep their pass_id (telemetry).
         this.db.exec('BEGIN');
         try {
             this.db.prepare('DELETE FROM retreat_invites WHERE pass_id = ?').run(id);

@@ -1,11 +1,8 @@
 /**
- * Login view — password gate for hosted/multi-user deploys.
- *
- * The form posts to `/login`. When the TS UI is served behind a backend
- * that handles that route this view's form submits through it. When
- * served standalone (Vite dev, Capacitor, etc.) auth is a no-op and
- * this view shouldn't get mounted in the first place — that gating
- * decision is for whoever wires the router.
+ * Login view - password gate for hosted/multi-user deploys. The form posts to
+ * `/login`, handled by the backing server. Served standalone (Vite dev,
+ * Capacitor) there is no such route; the router is responsible for not
+ * mounting this view.
  */
 
 export interface LoginViewHandle {

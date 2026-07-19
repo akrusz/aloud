@@ -9,9 +9,8 @@ export {
     type PacingControllerOptions,
 } from './pacing.js';
 
-// `Role` is also exported from ./llm — kept off the facilitation barrel
-// so `export * from` at the root doesn't collide. Import via `./llm` for
-// LLM message shapes; the session module narrows it internally.
+// `Role` stays off this barrel: ./llm exports it too, and the root
+// `export * from` would collide. Import message shapes from `./llm`.
 export {
     SessionManager,
     emptyUsage,

@@ -1,11 +1,8 @@
 /**
- * Shared modal focus management for the overlay dialogs (sign-in, buy-credits,
- * gift). On open: move focus into the dialog (the first meaningful control,
- * preferring something other than the close button). While open: trap Tab so
- * keyboard focus cycles inside the dialog instead of escaping into the dimmed
- * page behind it. On close (the returned release fn): restore focus to
- * whatever had it before the modal opened, so a keyboard user lands back where
- * they were. Escape handling stays with each modal (they already wire it).
+ * Focus management for the overlay dialogs (sign-in, buy-credits, gift): focus
+ * the first meaningful control on open, trap Tab inside the dialog, and restore
+ * the previously focused element via the returned release fn. Escape handling
+ * stays with each modal.
  */
 
 const FOCUSABLE =
@@ -16,22 +13,18 @@ function focusables(overlay: HTMLElement): HTMLElement[] {
         (el) =>
             !el.hasAttribute('disabled') &&
             // Skip hidden controls (e.g. the gift-email field before "Gift to
-            // someone" is picked) — getClientRects is empty under display:none.
+            // someone" is picked): getClientRects is empty under display:none.
             el.getClientRects().length > 0
     );
 }
 
-/**
- * Activate focus management for a modal overlay. Call after the overlay is in
- * the DOM; call the returned function when the modal closes.
- */
+/** Call after the overlay is in the DOM; call the returned fn on close. */
 export function manageModalFocus(overlay: HTMLElement): () => void {
     const previouslyFocused =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
-    // Initial focus: the first control that isn't the close button, so a
-    // keyboard user starts on the dialog's actual content (close still
-    // reachable by Shift+Tab). Fall back to whatever is first.
+    // Prefer the first control that isn't the close button, so a keyboard user
+    // starts on the dialog's content; close stays reachable by Shift+Tab.
     const initial = focusables(overlay);
     (initial.find((el) => !el.classList.contains('voice-modal-close')) ?? initial[0])?.focus();
 

@@ -1,14 +1,14 @@
 /**
  * Facilitation prompt templates and builders.
  *
- * System prompts are assembled from orthogonal dimensions — focuses,
- * qualities, directiveness, verbosity — rather than maintained as monolithic
- * variants. These strings shape the entire meditation experience; edit them
- * deliberately and keep the dimensions independent.
+ * System prompts are assembled from orthogonal dimensions (focuses, qualities,
+ * directiveness, verbosity) rather than kept as monolithic variants. These
+ * strings shape the whole meditation experience; edit them with care and keep
+ * the dimensions independent.
  */
 
-// Type-only import: the registry (modes.ts) imports prompt constants from
-// this module at runtime, so a value import here would be a cycle.
+// Type-only import: modes.ts imports prompt constants from here at runtime, so
+// a value import would be a cycle.
 import type { ModeSpec } from './modes.js';
 
 export type Verbosity = 'low' | 'medium' | 'high';
@@ -46,11 +46,9 @@ export const defaultPromptConfig: PromptConfig = {
 export type Random = () => number;
 export const realRandom: Random = () => Math.random();
 
-// ---------------------------------------------------------------------------
-// Shared voice fragments — reused by every conversational mode's base prompt
+// Shared voice fragments, reused by every conversational mode's base prompt
 // (exploration below, felt sense in felt-sense.ts) so the facilitator sounds
 // like the same presence across modes.
-// ---------------------------------------------------------------------------
 
 export const VOICE_STYLE_FRAGMENT = `Response style:
 - Warm and conversational. Like a friend with an easy and welcoming presence, not a formal instructor.
@@ -66,38 +64,36 @@ When the silence ends, you'll receive everything they said while you were quiet.
 
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
 
-/** Appended to the system prompt only when smart check-in timing is on
- *  (PromptConfig.waitSignal) — no point asking every model for [WAIT]
- *  tokens the app would ignore. Followed by waitBiasFragment, which folds
- *  the guidance-level slider into the default wait. */
+/** Appended only when smart check-in timing is on (PromptConfig.waitSignal):
+ *  no point asking every model for [WAIT] tokens the app would ignore.
+ *  Followed by waitBiasFragment, which folds the guidance slider into the
+ *  default wait. */
 export const WAIT_SIGNAL_FRAGMENT = `Check-in timing — [WAIT:Nm] signal:
 If the meditator goes quiet after your reply, the app waits before gently checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Let it unfold."; seconds also work, like [WAIT:90s]). Match it to the moment — someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by a short one. Use 30 seconds to 60 minutes. If you omit the signal, your previous timing stays in effect.`;
 
 /**
- * Default smart check-in wait, in seconds, per guidance level — the
- * slider's five stops (directiveness 0/3/5/7/10) map to 20m/8m/5m/90s/30s.
- * Used for the [WAIT] bias fragment and to seed the pacing interval before
- * the model's first [WAIT].
+ * Default smart check-in wait per guidance level: the slider's five stops
+ * (directiveness 0/3/5/7/10) map to 20m/8m/5m/90s/30s. Feeds the [WAIT] bias
+ * fragment and seeds the pacing interval before the model's first [WAIT].
  */
 export function defaultWaitSeconds(directiveness: number): number {
     const byKey: Record<number, number> = { 0: 1200, 3: 480, 5: 300, 7: 90, 10: 30 };
     return byKey[nearestDirectivenessKey(directiveness)] ?? 300;
 }
 
-/** Render a wait in the token form the model should echo: whole minutes when
- *  even ("5m"), seconds otherwise ("90s") — both parse (matchWaitToken). */
+/** Render a wait as the model should echo it: whole minutes when even ("5m"),
+ *  else seconds ("90s"). Both parse (matchWaitToken). */
 function waitTokenUnit(seconds: number): string {
     return seconds % 60 === 0 ? `${seconds / 60}m` : `${seconds}s`;
 }
 
 /**
- * Bias fragment for the [WAIT] default, from a default wait in seconds —
- * usually defaultWaitSeconds(directiveness), the proactivity half of the
- * guidance slider; modes that hide the slider pass their own default
- * (ModeSpec.defaultWaitSec). High guidance = an actively-present
- * facilitator: short waits, timing re-set on most replies. Low = long
- * protected silences. The moment always wins over the default (a stated
- * intention to sit still earns its long wait at any guidance level).
+ * Bias fragment for the [WAIT] default, from a wait in seconds - usually
+ * defaultWaitSeconds(directiveness), the proactivity half of the guidance
+ * slider. High guidance = an actively-present facilitator: short waits, timing
+ * re-set on most replies. Low = long protected silences. The moment always wins
+ * over the default; a stated intention to sit still earns its long wait at any
+ * guidance level.
  */
 export function waitBiasFragment(defaultSec: number): string {
     const def = defaultSec;
@@ -111,9 +107,7 @@ export function waitBiasFragment(defaultSec: number): string {
     return `Default to moderate waits around [WAIT:${token}], adjusting as the moment suggests.`;
 }
 
-// ---------------------------------------------------------------------------
-// Base system prompt — universal, not somatic-specific
-// ---------------------------------------------------------------------------
+// Base system prompt: universal, not somatic-specific.
 
 export const BASE_SYSTEM_PROMPT = `You're a meditation facilitator supporting present-moment exploration practice.
 
@@ -162,15 +156,12 @@ User: "I don't think I'm doing this right, I can't focus"
 Assistant: "What does that 'can't focus' feel like right now, in your body?"
 `;
 
-// ---------------------------------------------------------------------------
-// Dimensions preamble — how the composed sections relate
-// ---------------------------------------------------------------------------
+// Dimensions preamble: how the composed sections relate.
 
 /** Placed before the focus/vibe/guidance/length sections whenever a mode
- *  composes them (exploration). Gives each dimension a lane so their
- *  instructions read as one policy instead of competing imperatives — the
- *  difference matters most to small models, which otherwise checklist
- *  through every section or obey whichever came last. */
+ *  composes them (exploration). Giving each dimension a lane makes them read as
+ *  one policy instead of competing imperatives, which matters most to small
+ *  models: they otherwise checklist every section or obey whichever came last. */
 export const DIMENSIONS_PREAMBLE = `How this session is tuned:
 The sections below carry the meditator's setup choices. They fit together like this:
 - The guidance level decides HOW MUCH you direct.
@@ -181,9 +172,7 @@ Blend, don't checklist: when several focuses or vibes are listed, reach for one 
 The meditator's live process always outranks these settings.
 `;
 
-// ---------------------------------------------------------------------------
-// Focus prompts — where to direct attention
-// ---------------------------------------------------------------------------
+// Focus prompts: where to direct attention.
 
 export const FOCUS_PROMPTS: Record<Focus, string> = {
     body_sensations: `Attention focus — Body & sensations:
@@ -241,9 +230,7 @@ Meet whatever is present, with no preferred direction:
 `,
 };
 
-// ---------------------------------------------------------------------------
-// Vibe prompts — facilitator tone / style overlays
-// ---------------------------------------------------------------------------
+// Vibe prompts: facilitator tone / style overlays.
 
 export const QUALITY_PROMPTS: Record<Quality, string> = {
     playful: `Facilitator vibe — Playful & light:
@@ -311,14 +298,12 @@ Don't apologize for pleasure or treat it as a stepping stone to something 'deepe
 `,
 };
 
-// ---------------------------------------------------------------------------
-// Directiveness additions — always active
-// ---------------------------------------------------------------------------
-
-// Naming convention: in code this dimension is always "directiveness"; every
-// user-facing surface (and the prompt text the model sees) calls it the
-// guidance level. Bare "guidance" in code/comments means facilitation content
-// (phase guidance, custom instructions), not this dimension.
+// Directiveness additions: always active.
+//
+// Naming: in code this dimension is always "directiveness"; every user-facing
+// surface (and the prompt text the model sees) calls it the guidance level.
+// Bare "guidance" in code/comments means facilitation content (phase guidance,
+// custom instructions), not this dimension.
 export const DIRECTIVENESS_ADDITIONS: Record<number, string> = {
     0: `Guidance level — Following:
 Be extremely non-directive. Only reflect back what is shared.
@@ -359,9 +344,7 @@ but still prioritize brevity over elaboration.
 `,
 };
 
-// ---------------------------------------------------------------------------
 // Check-in prompts (for extended silence)
-// ---------------------------------------------------------------------------
 
 export const CHECK_IN_PROMPTS: readonly string[] = [
     'Still here with you.',
@@ -382,9 +365,7 @@ export const CHECK_IN_PROMPTS: readonly string[] = [
     'Plenty of time.',
 ];
 
-// ---------------------------------------------------------------------------
-// Session openers — pool-based
-// ---------------------------------------------------------------------------
+// Session openers, pool-based.
 
 const COMMON_OPENERS: readonly string[] = [
     'What do you notice right now?',
@@ -445,14 +426,12 @@ const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
     ],
 };
 
-// ---------------------------------------------------------------------------
 // Resume intent classification prompt
-// ---------------------------------------------------------------------------
 
-// Few-shot examples on both classifiers: small local models drift into
-// "The answer is YES"-style replies, which the startsWith parse reads as NO —
-// and for resume intent a false NO is the trapping direction. Examples plus
-// "exactly one word" keep the weakest models on format.
+// Few-shot examples on both classifiers: small local models drift into "The
+// answer is YES"-style replies, which the startsWith parse reads as NO, and for
+// resume intent a false NO is the trapping direction. Examples plus "exactly one
+// word" keep the weakest models on format.
 export const RESUME_INTENT_SYSTEM_PROMPT =
     'A meditator is in a period of held silence during a meditation session. ' +
     'Evaluate whether their statement indicates they want to end the silence ' +
@@ -463,10 +442,9 @@ export const RESUME_INTENT_SYSTEM_PROMPT =
     '"There\'s a warmth in my chest." -> NO\n' +
     '"Hm. Interesting." -> NO';
 
-/** The facilitator has just asked the meditator whether they'd like it to go
- *  quiet; this judges their reply so the client — not the model — decides
- *  whether to actually enter silence (rlgm). Mirrors the resume-intent
- *  classifier on the way in. */
+/** Judges the reply to the facilitator's "shall I go quiet?", so the client,
+ *  not the model, decides whether to enter silence (rlgm). Mirrors the
+ *  resume-intent classifier on the way in. */
 export const HOLD_CONFIRM_SYSTEM_PROMPT =
     'A meditation facilitator just asked the meditator whether they would like ' +
     'it to be quiet for a while. Evaluate whether the meditator is agreeing to ' +
@@ -478,9 +456,7 @@ export const HOLD_CONFIRM_SYSTEM_PROMPT =
     '"No, keep talking to me." -> NO\n' +
     '"What? No, I was just thinking out loud." -> NO';
 
-// ---------------------------------------------------------------------------
 // [HOLD] parser
-// ---------------------------------------------------------------------------
 
 export type HoldSignal = 'hold' | 'none';
 
@@ -493,9 +469,9 @@ export function startsWithHold(text: string): boolean {
 }
 
 /**
- * Remove a leading [HOLD] token (and the whitespace after it), leaving the
- * warm acknowledgment that follows — which IS meant to be spoken, then silence.
- * Returns the text unchanged when there's no prefix.
+ * Remove a leading [HOLD] token and the whitespace after it, leaving the warm
+ * acknowledgment, which IS meant to be spoken before the silence. Returns the
+ * text unchanged when there's no prefix.
  */
 export function stripHoldPrefix(text: string): string {
     const leading = text.trimStart();
@@ -503,12 +479,9 @@ export function stripHoldPrefix(text: string): string {
 }
 
 /**
- * Parse a [HOLD] prefix from an LLM response.
- *
- * Returns { signal, cleanText }:
- *   - "hold" → activate silence mode immediately
- *   - "none" → normal response
- * cleanText has the prefix stripped (but keeps the acknowledgment to speak).
+ * Parse a [HOLD] prefix from an LLM response. `signal` is "hold" to activate
+ * silence mode immediately, else "none"; `cleanText` has the prefix stripped but
+ * keeps the acknowledgment to speak.
  */
 export function parseHoldSignal(response: string): { signal: HoldSignal; cleanText: string } {
     const stripped = response.trim();
@@ -518,14 +491,12 @@ export function parseHoldSignal(response: string): { signal: HoldSignal; cleanTe
     return { signal: 'none', cleanText: stripped };
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function choice<T>(pool: readonly T[], rng: Random): T {
     if (pool.length === 0) throw new Error('choice() called on empty pool');
     const idx = Math.floor(rng() * pool.length);
-    // Clamp in case rng() returns exactly 1 (unlikely but spec-allowed for some PRNGs)
+    // Clamp: some PRNGs may return exactly 1.
     return pool[Math.min(idx, pool.length - 1)] as T;
 }
 
@@ -534,17 +505,14 @@ function nearestDirectivenessKey(target: number): number {
     return keys.reduce((best, k) => (Math.abs(k - target) < Math.abs(best - target) ? k : best));
 }
 
-// ---------------------------------------------------------------------------
 // Prompt builder
-// ---------------------------------------------------------------------------
 
 export interface PromptBuilderOptions {
     config?: Partial<PromptConfig>;
     random?: Random;
     /**
-     * Which meditation mode's base prompt + composition rules to use.
-     * Omitted = classic exploration behavior (BASE_SYSTEM_PROMPT, all
-     * user-tunable dimensions composing). See modes.ts.
+     * Which mode's base prompt + composition rules to use (modes.ts). Omitted =
+     * classic exploration: BASE_SYSTEM_PROMPT, all dimensions composing.
      */
     mode?: ModeSpec;
 }
@@ -563,10 +531,10 @@ export class PromptBuilder {
     /**
      * Build the complete system prompt from composable pieces.
      *
-     * @param stageSection For staged modes: the active phase's rendered
-     *   section (StagedModeController.promptSection()), placed right after
-     *   the base prompt. Rebuilding on a phase shift invalidates the prompt
-     *   cache prefix once per shift, which is acceptable.
+     * @param stageSection For staged modes: the active phase's rendered section
+     *   (StagedModeController.promptSection()), placed right after the base
+     *   prompt. A phase shift invalidates the prompt-cache prefix once, which
+     *   is acceptable.
      */
     buildSystemPrompt(stageSection?: string): string {
         const composes = this.mode?.composes;
@@ -574,9 +542,9 @@ export class PromptBuilder {
 
         if (stageSection) parts.push(stageSection);
 
-        // The preamble only makes sense when the tuned sections it describes
-        // follow it; modes that define attention/tone/guidance themselves
-        // (felt sense) skip it along with the sections.
+        // The preamble only makes sense when the sections it describes follow;
+        // modes defining attention/tone/guidance themselves (felt sense) skip
+        // both.
         const anyDimensionComposes =
             composes?.focuses !== false ||
             composes?.qualities !== false ||
@@ -609,9 +577,8 @@ export class PromptBuilder {
         }
 
         if (this.config.waitSignal) {
-            // In checkinPaceSlider modes (felt sense) the session view feeds
-            // the pace value through config.directiveness, so this mapping
-            // serves both sliders.
+            // checkinPaceSlider modes (felt sense) feed their pace value through
+            // config.directiveness, so this mapping serves both sliders.
             parts.push(
                 `${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(defaultWaitSeconds(this.config.directiveness))}`
             );
@@ -646,7 +613,7 @@ export class PromptBuilder {
     }
 
     /**
-     * Build a user-message prompt for the LLM to generate a session opening.
+     * Build a user-message prompt asking the LLM for a session opening.
      *
      * @param intention The meditator's stated intention, if any.
      */

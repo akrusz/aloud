@@ -1,16 +1,14 @@
 /**
  * Update check against the public GitHub releases API.
  *
- * The Updates settings section is desktop-oriented — it's hidden in web mode
- * (isWebMode), where the app auto-updates on reload, and only shows in the
- * local/desktop build. The desktop app ships as DMG/MSI/AppImage off GitHub
- * releases, so "is there a newer build?" is answered by the repo's releases
- * list: we fetch it, pick the highest semver tag, and compare to the running
- * version (baked in at build time via __APP_VERSION__, from ui/package.json).
+ * Desktop-oriented: the Updates settings section is hidden in web mode
+ * (isWebMode), where the app auto-updates on reload. Desktop ships as
+ * DMG/MSI/AppImage off GitHub releases, so we fetch the releases list, pick the
+ * highest semver tag, and compare to __APP_VERSION__ (baked in from
+ * ui/package.json).
  *
- * api.github.com is CORS-enabled (so the fetch works straight from the webview)
- * and is whitelisted in the Tauri CSP connect-src. Public repos need no token;
- * the unauthenticated rate limit (60/hr/IP) is ample for a manual button.
+ * api.github.com is CORS-enabled and whitelisted in the Tauri CSP connect-src.
+ * Public repos need no token; the 60/hr/IP anon limit is ample for a button.
  */
 
 const RELEASES_API = 'https://api.github.com/repos/akrusz/aloud/releases?per_page=20';
@@ -30,9 +28,8 @@ export interface UpdateResult {
 
 type Triple = [number, number, number];
 
-/** Parse "v1.2.3" / "1.2.3-rc.1" into a comparable [major, minor, patch]. The
- *  pre-release suffix is dropped for ordering — a good-enough approximation for
- *  a release nudge; we don't need full SemVer precedence rules here. */
+/** "v1.2.3" / "1.2.3-rc.1" → [major, minor, patch]. The pre-release suffix is
+ *  dropped: full SemVer precedence isn't needed for a release nudge. */
 function parseVersion(tag: string): Triple | null {
     const m = /(\d+)\.(\d+)\.(\d+)/.exec(tag);
     if (!m) return null;
@@ -60,11 +57,9 @@ export async function checkForUpdate(): Promise<UpdateResult> {
             draft?: boolean;
             prerelease?: boolean;
         }>;
-        // Highest semver among *stable* published releases — drafts and
-        // pre-releases are excluded, so we never count or recommend a beta/RC as
-        // an update. A user already on a pre-release ahead of the latest stable
-        // therefore reads as up to date (current >= latest stable below), which
-        // is what we want: we only nudge toward stable, never sideways/back.
+        // Highest semver among stable releases only, so we never recommend a
+        // beta/RC. A user on a pre-release ahead of latest stable reads as up
+        // to date: we nudge toward stable, never sideways or back.
         let best: Triple | null = null;
         let bestTag: string | undefined;
         for (const r of releases) {
@@ -76,8 +71,8 @@ export async function checkForUpdate(): Promise<UpdateResult> {
                 bestTag = r.tag_name.replace(/^v/, '');
             }
         }
-        // No stable release at all (or we couldn't parse our own version): there
-        // is nothing to recommend, so report up to date rather than an error.
+        // No stable release, or our own version won't parse: nothing to
+        // recommend, so report up to date rather than an error.
         if (!best || !cur) return { state: 'current', current, latest: bestTag };
         return { state: isNewer(best, cur) ? 'available' : 'current', current, latest: bestTag };
     } catch {

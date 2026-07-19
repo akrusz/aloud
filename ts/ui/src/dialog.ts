@@ -1,18 +1,17 @@
 /**
  * Promise-based in-app confirm / alert dialogs.
  *
- * window.confirm()/alert()/prompt() are unreliable inside the Tauri webview —
- * they can return immediately without ever showing a dialog, which made any
- * action gated on a confirm (voice Uninstall, history Delete, Ollama model
- * removal) silently do nothing. These render a small themed overlay and behave
- * identically in the browser and the desktop shell. Styling lives in
- * ui/src/style.css (.app-dialog*).
+ * window.confirm()/alert()/prompt() are unreliable inside the Tauri webview:
+ * they can return immediately without showing a dialog, making confirm-gated
+ * actions (voice Uninstall, history Delete, Ollama model removal) silently do
+ * nothing. These render a themed overlay that behaves the same in browser and
+ * desktop shell. Styling in ui/src/style.css (.app-dialog*).
  */
 
 interface ButtonSpec {
     label: string;
     value: boolean;
-    /** The affirmative action — focused on open and triggered by Enter. */
+    /** The affirmative action: focused on open, triggered by Enter. */
     action?: boolean;
     danger?: boolean;
 }
@@ -112,11 +111,9 @@ export interface ConfirmTypedOptions {
 }
 
 /**
- * A confirm whose affirmative button stays disabled until the user types
- * `requiredText` — the extra friction irreversible actions (account deletion)
- * deserve. Resolves true only if they type the phrase and confirm; false on
- * cancel / backdrop / Escape. Separate from showDialog because it carries an
- * input.
+ * Affirmative button stays disabled until the user types `requiredText`: extra
+ * friction for irreversible actions (account deletion). Separate from
+ * showDialog because it carries an input.
  */
 export function confirmTypedDialog(message: string, opts: ConfirmTypedOptions): Promise<boolean> {
     return new Promise((resolve) => {

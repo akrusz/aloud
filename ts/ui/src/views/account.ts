@@ -1,12 +1,8 @@
 /**
- * Account page (meditation-pal-bd5 / -8jc) — the signed-in user's identity +
- * money home, split out from Settings (which is now app-behavior only). Shows:
- *   - email + connected sign-ins (+ a "connect for free credits" nudge),
- *   - balance + Buy,
- *   - a "show live balance during sessions" toggle,
- *   - Giftable clouds: gifts that bounced back, to re-gift or claim, and
- *   - a Danger zone (collapsed) with account deletion.
- * Only reachable when aloud cloud is up; the nav entry is hidden otherwise.
+ * Account page (meditation-pal-bd5 / -8jc) - the signed-in user's identity +
+ * money home, split out from Settings (app-behavior only). Email + connected
+ * sign-ins, balance + Buy, returned gifts to re-gift or claim, and a collapsed
+ * Danger zone with account deletion.
  */
 
 import { detectCapabilities, watchCloudReachable } from '../capabilities.js';
@@ -40,11 +36,9 @@ async function render(root: HTMLElement): Promise<void> {
 
     const caps = await detectCapabilities();
     if (!caps.cloud) {
-        // Account = the cloud account, and nothing else. If the cloud's down,
-        // say so plainly and stay in that lane — your own API keys are a Settings
-        // concern (device-scoped), so we don't muddy this page with them.
-        // It's almost always a cold start (the service scales to zero when idle),
-        // so watch for it to come up and re-render in place — no reload needed.
+        // Unreachable is almost always a cold start (the service scales to zero
+        // when idle), so watch for it and re-render in place. BYOK keys stay a
+        // Settings concern (device-scoped); this page is cloud-account only.
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
             <p class="provider-hint">aloud cloud is waking up… Your account, balance, and gifts will appear as soon as it's reachable. This can take a few seconds.</p>
             </section>`;
@@ -68,9 +62,8 @@ async function render(root: HTMLElement): Promise<void> {
 
     const providers = account.providers ?? [];
     const hasPassword = providers.includes('email');
-    // Name the federated method the account already has, for the "add a
-    // password" copy. Falls back to a neutral phrase for the (rare) case with
-    // neither — the branch only renders when hasPassword is false anyway.
+    // Names the federated method in the "add a password" copy; only rendered
+    // when hasPassword is false.
     const federated = providers.includes('google')
         ? 'Google'
         : providers.includes('apple')

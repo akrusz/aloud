@@ -1,8 +1,8 @@
 /**
- * Gift-clouds routes (meditation-pal-bd5). A recipient lists the gifts waiting
- * for their email and accepts (clouds → them) or declines (clouds → back to the
- * buyer). All authed: the account's own email is the address we match on, so one
- * user can't accept another's gift.
+ * Gift-clouds routes (meditation-pal-bd5). A recipient lists gifts waiting for
+ * their email and accepts or declines; a buyer re-gifts or claims returned ones.
+ * All authed, and matched on the signed-in account's own email, so one user
+ * can't accept another's gift.
  */
 
 import { Hono } from 'hono';
@@ -45,8 +45,8 @@ export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const account = c.get('account');
         const result = await acceptGift(deps, account, c.req.param('id'), Date.now() / 1000);
         if (!result.ok) {
-            // Already-resolved or not-yours → 404 (don't leak which); the client
-            // just refreshes its gift list.
+            // Already-resolved or not-yours get the same error, so neither leaks
+            // which; the client just refreshes its gift list.
             return c.json(apiError('bad_request', 'gift is no longer available'), ERROR_STATUS.bad_request);
         }
         log.info('gift accepted', { accountId: account.id, credits: result.credits });

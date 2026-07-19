@@ -1,27 +1,22 @@
 /**
- * Per-call usage telemetry — the RAW cost record the ledger can't give us
- * (meditation-pal-rvy). The ledger is the money trail: append-only credit
- * deltas with a freeform reason. It deliberately does NOT carry the LLM token
- * split, the cache breakdown, or a per-service tag — so from the ledger alone
- * you cannot tell what drove a debit (was it TTS chars? a cold cache? output
- * tokens?). This table fills that gap.
+ * Per-call usage telemetry: the RAW cost record the ledger can't give us
+ * (meditation-pal-rvy). The ledger is the money trail (credit deltas + a
+ * freeform reason) and carries no token split, cache breakdown, or per-service
+ * tag, so from it alone you can't tell what drove a debit. This fills that gap:
+ * one row per metered provider call (LLM turn, STT pass, TTS synth) with raw
+ * counts AND the full-precision provider cost, not the rounded credit.
  *
- * One row per metered provider call (LLM turn, STT pass, TTS synth), recording
- * the raw counts AND the full-precision provider cost (not the ceiled/rounded
- * credit). It's kept SEPARATE from the ledger on purpose:
- *   - the ledger stays a clean financial audit log (don't pollute it with
- *     analytics columns),
- *   - this carries full-precision USD (the ledger only has credits), and
- *   - it can be pruned/rebuilt without touching balances.
+ * Kept SEPARATE from the ledger so the ledger stays a clean financial audit log,
+ * this can carry full-precision USD, and it can be pruned/rebuilt without
+ * touching balances.
  *
  * Writes are best-effort: a telemetry failure must NEVER break a paid request
  * (recordUsage swallows + logs). Reads power the admin cost dashboard.
  *
- * Sessions: the server has no per-meditation-session id today (the LLM hold is
+ * Sessions: there's no per-meditation-session id today (the LLM hold is
  * per-turn, STT/TTS aren't held), so buildUsageReport reconstructs sessions by
  * clustering an account's events with gaps under SESSION_GAP_SEC. sessionId is
- * carried for when the client starts sending a real one — then clustering can
- * defer to it.
+ * carried for when the client starts sending a real one.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -37,8 +32,8 @@ export interface UsageEvent {
     accountId: string;
     /** Client-supplied meditation-session id, when available. Null today. */
     sessionId: string | null;
-    /** Retreat pass that covered this call (meditation-pal-414), or null when the
-     *  call was metered normally. Lets the admin attribute per-retreat spend. */
+    /** Retreat pass that covered this call (meditation-pal-414), or null if
+     *  metered normally. Lets the admin attribute per-retreat spend. */
     passId: string | null;
     /** Seconds since epoch. */
     ts: number;
@@ -54,7 +49,7 @@ export interface UsageEvent {
     cacheCreation: number;
     /** Subset of cacheCreation written at the 1h TTL (the anchor breakpoint),
      *  billed at 2x input vs the 5m default's 1.25x. Zero for non-LLM legs and
-     *  for providers without a TTL breakdown. */
+     *  providers without a TTL breakdown. */
     cacheCreation1h: number;
     seconds: number; // STT audio seconds
     chars: number; // TTS characters
@@ -72,8 +67,8 @@ export type UsageInput = Omit<
 > &
     Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId' | 'cacheCreation1h'>>;
 
-/** Record one metered call. Best-effort: never throws into the request path —
- *  a telemetry write must not cost a user their (already-charged) turn. */
+/** Record one metered call. Best-effort: never throws into the request path, so
+ *  a telemetry write can't cost a user their (already-charged) turn. */
 export async function recordUsage(
     store: Pick<CreditsStore, 'appendUsage'>,
     input: UsageInput
@@ -106,9 +101,9 @@ export async function recordUsage(
 
 // ---- aggregation (pure; mirrors metrics.ts) --------------------------------
 
-/** Gap above which two consecutive events for one account are treated as
- *  separate sessions. A meditation turn cycle (speak → think → speak) is tens
- *  of seconds; 8 minutes of total quiet is a comfortable session boundary. */
+/** Gap above which two consecutive events for one account count as separate
+ *  sessions. A turn cycle (speak → think → speak) is tens of seconds, so 8
+ *  minutes of quiet is a comfortable boundary. */
 export const SESSION_GAP_SEC = 8 * 60;
 
 export interface ServiceAgg {
@@ -129,10 +124,9 @@ export interface ModelAgg {
     credits: number;
 }
 
-/** Prompt-cache breakdown for the LLM leg — the read/write/fresh token split,
- *  the hit ratio, and the dollars caching actually saved vs a no-cache baseline
- *  (everything cached re-priced at full input). The decision input for tuning
- *  cache strategy and TTL. */
+/** Prompt-cache breakdown for the LLM leg: read/write/fresh token split, hit
+ *  ratio, and dollars saved vs a no-cache baseline (everything cached re-priced
+ *  at full input). The decision input for tuning cache strategy and TTL. */
 export interface CacheAgg {
     /** Uncached input tokens billed at full rate. */
     freshInputTokens: number;
@@ -142,25 +136,24 @@ export interface CacheAgg {
      *  OpenAI/Google auto-cache shapes, which don't surface a write count). */
     cacheCreationTokens: number;
     /** Subset of cacheCreationTokens written at the 1h TTL (the anchor, billed
-     *  at 2x). A rising number here means holds are forcing 1h re-anchors —
-     *  the signal for whether the anchor strategy is earning its 2x premium. */
+     *  at 2x). Rising means holds are forcing 1h re-anchors: the signal for
+     *  whether the anchor strategy earns its 2x premium. */
     cacheCreation1hTokens: number;
     /** cacheRead / (fresh + read + creation), 0..1. */
     hitRatio: number;
     /** Actual provider $ for these LLM calls (what we paid). */
     costUsd: number;
     /** Provider $ the same calls would cost with NO caching (reads + writes
-     *  re-priced at full input). Only counts models with a known price table;
-     *  unknown models contribute their actual cost so savings isn't inflated. */
+     *  re-priced at full input). Models with no price table contribute their
+     *  actual cost, so savings is never inflated. */
     costNoCacheUsd: number;
     /** costNoCacheUsd - costUsd: dollars caching saved in the window. */
     savedUsd: number;
 }
 
-/** Per-provider LLM cache breakdown (anthropic vs google vs openai). Caching
- *  works differently per provider — Anthropic needs explicit breakpoints;
- *  OpenAI/Google cache automatically on a stable prefix — so the per-provider
- *  hit rate is how you tell whether each path is actually caching. */
+/** Per-provider LLM cache breakdown. Caching differs by provider (Anthropic
+ *  needs explicit breakpoints; OpenAI/Google cache automatically on a stable
+ *  prefix), so the per-provider hit rate is how you tell each path is caching. */
 export interface ProviderCacheAgg extends CacheAgg {
     provider: string;
     events: number;
@@ -179,25 +172,24 @@ export interface UsageReport {
     windowSinceTs: number;
     events: number;
     totals: { providerCostUsd: number; credits: number };
-    /** Cost split by service — the "what drove the bill" answer. */
+    /** Cost split by service: the "what drove the bill" answer. */
     byService: ServiceAgg[];
-    /** LLM cache-hit ratio = cacheRead / (input + cacheRead + cacheCreation),
-     *  across all LLM events in the window. The single most useful number for
-     *  predicting real session cost (a warm cache is ~10x cheaper than cold). */
+    /** cacheRead / (input + cacheRead + cacheCreation) across all LLM events in
+     *  the window. The most useful single number for predicting real session
+     *  cost (a warm cache is ~10x cheaper than cold). */
     llmCacheHitRatio: number;
     /** Full prompt-cache economics for the LLM leg (token split + $ saved). */
     llmCache: CacheAgg;
-    /** Same breakdown split by provider — anthropic / google / openai cache
-     *  differently, so this shows whether each path is actually hitting. */
+    /** The same breakdown per provider, showing whether each path is hitting. */
     llmCacheByProvider: ProviderCacheAgg[];
     /** Per-model / per-voice cost, biggest first. */
     byModel: ModelAgg[];
-    /** Reconstructed-session economics — what a real session actually costs. */
+    /** Reconstructed-session economics: what a real session actually costs. */
     sessions: {
         count: number;
         costUsd: Distribution;
         credits: Distribution;
-        /** Facilitator turns per session — one per LLM call (STT/TTS legs don't
+        /** Facilitator turns per session, one per LLM call (STT/TTS legs don't
          *  count). The conversational length of a real session. */
         turns: Distribution;
         /** Mean wall-clock minutes per session (first→last event). */
@@ -208,17 +200,17 @@ export interface UsageReport {
 }
 
 export interface UsageReportOptions {
-    /** Exclude reconstructed sessions with fewer than this many LLM turns from
-     *  the per-session distributions — a drive-by "opened the app, said one
-     *  thing" session drags the medians down and isn't what estimates should
-     *  calibrate against. Totals and the service/model/cache aggregates always
-     *  cover every event; only the `sessions` block is filtered. */
+    /** Drop sessions with fewer than this many LLM turns from the per-session
+     *  distributions: a drive-by "opened the app, said one thing" session drags
+     *  the medians down and isn't what estimates should calibrate against.
+     *  Totals and the service/model/cache aggregates still cover every event;
+     *  only the `sessions` block is filtered. */
     minSessionTurns?: number;
 }
 
 /** One day of aggregated usage for the admin trend charts. */
 export interface UsageHistoryBucket {
-    /** UTC start-of-day, seconds since epoch — the bucket's x-axis key. */
+    /** UTC start-of-day, seconds since epoch. The bucket's x-axis key. */
     dayStartTs: number;
     sessions: number;
     /** Facilitator turns (LLM calls) across the day's sessions. */
@@ -287,8 +279,8 @@ function clusterSessions(events: UsageEvent[]): UsageEvent[][] {
     return sessions;
 }
 
-/** Aggregate raw usage events into the admin cost report. Pure — pass the
- *  windowed events in; mirrors buildMetrics so it's trivially testable. */
+/** Aggregate raw usage events into the admin cost report. Pure: pass the
+ *  windowed events in. Mirrors buildMetrics, so it's trivially testable. */
 export function buildUsageReport(
     events: UsageEvent[],
     now: number,
@@ -342,9 +334,9 @@ export function buildUsageReport(
             cacheReadTokens += e.cacheRead;
             cacheableTokens += e.tokensIn + e.cacheRead + e.cacheCreation;
 
-            // What this turn would cost with NO caching: every cached token
-            // (read + write) re-priced at full input. Unknown models contribute
-            // their actual cost so savings is never inflated by a missing rate.
+            // Cost with NO caching: every cached token (read + write) re-priced
+            // at full input. Unknown models contribute their actual cost, so a
+            // missing rate can't inflate savings.
             const p = pricingFor(e.provider as ProviderId, e.model);
             const noCache = p
                 ? e.tokensIn * p.input +
@@ -452,14 +444,14 @@ export function buildUsageReport(
     };
 }
 
-/** Seconds in a UTC day — the history bucket width. */
+/** Seconds in a UTC day: the history bucket width. */
 const DAY_SEC = 24 * 60 * 60;
 
 /** Daily time-series for the admin trend charts. Reconstructs sessions over the
- *  whole window, then attributes each to the UTC day of its FIRST event — so a
+ *  whole window, then attributes each to the UTC day of its FIRST event, so a
  *  session is counted once, on the day it began, and never splits at midnight.
- *  Emits one row per day for the last `days` days ending at `now`, zero-filled
- *  so the chart has no gaps, oldest→newest. Pure (mirrors buildUsageReport).
+ *  One row per day for the last `days` days ending at `now`, zero-filled so the
+ *  chart has no gaps, oldest→newest. Pure.
  *
  *  History depth is bounded only by usage_events retention: the raw rows persist
  *  (nothing prunes them today), so this is real history, not a rolling snapshot. */
@@ -489,7 +481,7 @@ export function buildUsageHistory(
     for (const s of sessions) {
         const day = Math.floor(s[0]!.ts / DAY_SEC) * DAY_SEC;
         const b = buckets.get(day);
-        if (!b) continue; // first event sits in the trimmed window edge — skip
+        if (!b) continue; // first event sits past the trimmed window edge
         b.sessions += 1;
         b.events += s.length;
         for (const e of s) {
@@ -503,11 +495,11 @@ export function buildUsageHistory(
     return [...buckets.values()].sort((a, b) => a.dayStartTs - b.dayStartTs);
 }
 
-/** One provider+service leg's computed spend for one UTC day — the "our side"
- *  row of the provider-bill reconciliation (meditation-pal-xejm). Split by kind
- *  and carrying the raw units (seconds, chars) so the reconciler can derive the
- *  EFFECTIVE billed rate per leg ($/hr STT, $/1M-chars TTS) from the provider's
- *  line-item costs, not just flag aggregate drift. */
+/** One provider+service leg's computed spend for one UTC day: the "our side" row
+ *  of the provider-bill reconciliation (meditation-pal-xejm). Split by kind and
+ *  carrying raw units (seconds, chars) so the reconciler can derive the EFFECTIVE
+ *  billed rate per leg ($/hr STT, $/1M-chars TTS) from the provider's line items,
+ *  not just flag aggregate drift. */
 export interface ProviderDailyCost {
     /** UTC start-of-day, seconds since epoch. */
     dayStartTs: number;
@@ -522,10 +514,10 @@ export interface ProviderDailyCost {
 }
 
 /** Per-provider, per-UTC-day computed spend over the last `days` days. Unlike
- *  buildUsageHistory this buckets each EVENT by its own timestamp — provider
- *  invoices bill by when the call happened, not by when our reconstructed
- *  session started — so these rows line up with the Anthropic/OpenAI daily
- *  cost-report buckets. Days with no usage for a provider emit no row. */
+ *  buildUsageHistory this buckets each EVENT by its own timestamp, because
+ *  provider invoices bill by when the call happened, not by when our
+ *  reconstructed session started; the rows then line up with the Anthropic/OpenAI
+ *  daily cost reports. Days with no usage for a provider emit no row. */
 export function buildProviderDailyCosts(
     events: UsageEvent[],
     now: number,

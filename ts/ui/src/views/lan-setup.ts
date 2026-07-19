@@ -1,9 +1,7 @@
 /**
- * LAN-setup view — HTTPS upgrade instructions shown when the user hits
- * the HTTP origin from a mobile device that needs a secure context for
- * microphone access.
- *
- * The caller passes the target HTTPS URL to show().
+ * LAN-setup view - HTTPS upgrade instructions, shown when a mobile device hits
+ * the HTTP origin and needs a secure context for microphone access. The caller
+ * passes the target HTTPS URL to show().
  */
 
 export interface LanSetupViewHandle {

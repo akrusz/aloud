@@ -1,19 +1,13 @@
 /**
- * Shared end-session confirmation overlay.
+ * Shared end-session confirmation overlay, used by session.ts and
+ * noting-session.ts (both render an identical `#session-confirm`). The primary
+ * button follows the user's Save-session-logs preference:
  *
- * Both the exploration session (session.ts) and the noting circle
- * (noting-session.ts) render an identical `#session-confirm` overlay with a
- * primary button, a Cancel button, and a text link. This helper wires those
- * three controls so the "obvious" primary action follows the user's
- * Save-session-logs preference:
+ * - saveByDefault=true  -> primary saves; the text link discards.
+ * - saveByDefault=false -> primary discards; the text link saves.
  *
- * - saveByDefault=true  → primary "End Session" saves; the text link "End
- *   Without Saving" discards.
- * - saveByDefault=false → primary "End Session" discards; the text link "Save
- *   & End" persists. Saving is opt-in per session.
- *
- * Cancel always just closes. Handlers are wired fresh each call and removed on
- * any choice, so re-opening never carries a stale destination.
+ * Handlers are wired fresh each call and removed on any choice, so re-opening
+ * never carries a stale destination.
  */
 
 export interface EndConfirmConfig {
@@ -21,8 +15,8 @@ export interface EndConfirmConfig {
     saveByDefault: boolean;
     /** End the session. `skipSave=true` discards without persisting. */
     end: (skipSave: boolean) => void;
-    /** Invoked just before a save (non-skip) end — e.g. to show a "Saving…"
-     *  overlay. Not called when the chosen action discards. */
+    /** Invoked just before a saving end (e.g. to show a "Saving…" overlay).
+     *  Not called when the chosen action discards. */
     onBeforeSave?: () => void;
 }
 
@@ -39,10 +33,8 @@ export function showEndConfirm(
     if (!overlay || !text || !yes || !no || !skip) return;
 
     text.textContent = message;
-    // Primary button is the recommended action; the text link is the
-    // alternative. The primary label stays "End Session" either way — the
-    // Save-logs setting decides what that does — and the link spells out the
-    // opposite choice.
+    // The primary label stays "End Session" either way (the Save-logs setting
+    // decides what that does); the link spells out the opposite choice.
     yes.textContent = 'End Session';
     skip.textContent = config.saveByDefault ? 'End Without Saving' : 'Save & End';
     skip.classList.remove('hidden');

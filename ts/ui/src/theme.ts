@@ -1,8 +1,6 @@
 /**
- * Theme management — light / dark / system preference, with manual
- * overrides that decay after a few hours so the app trends back toward
- * the system preference. Same logic the existing bootstrap uses, so the
- * TS preview feels consistent.
+ * Theme management: light / dark / system preference. Manual overrides decay
+ * after a few hours so the app trends back toward the system preference.
  *
  * Priority:
  *   1. localStorage 'themeMode' = 'dark' | 'light'         (sticky, no expiry)
@@ -73,14 +71,12 @@ export function toggleTheme(): Theme {
 }
 
 /**
- * Wire a one-time listener for OS-level color-scheme changes. Re-applies
- * theme when macOS / GNOME / Windows flips light↔dark — including the macOS
- * "Auto" appearance flipping at sunset — unless the user has a sticky
- * Settings choice or a fresh (≤4h) manual toggle, in which case we leave
- * their choice alone. Safe to call multiple times.
+ * One-time listener for OS color-scheme flips (including macOS "Auto" at
+ * sunset). Leaves a sticky Settings choice or a fresh (≤4h) manual toggle
+ * alone. Idempotent.
  *
- * Boot-time theme application is handled in main.ts (pre-DOM, to dodge
- * FOUC); this only sets up the live-update path.
+ * Boot-time application lives in main.ts, pre-DOM to dodge FOUC; this is only
+ * the live-update path.
  */
 let systemThemeWatcherWired = false;
 export function watchSystemTheme(onChange?: (theme: Theme) => void): void {
@@ -120,16 +116,12 @@ const MOON_SVG =
 
 export function updateThemeIcon(btn: HTMLElement): void {
     const theme = document.documentElement.getAttribute('data-theme');
-    // Show the icon for what you'd switch TO: dark mode shows sun (switch to light), light shows moon.
+    // The icon shows what you'd switch TO: sun in dark mode, moon in light.
     btn.innerHTML = theme === 'dark' ? SUN_SVG : MOON_SVG;
 }
 
-/**
- * Wire the theme toggle button: click to flip + 8-clicks-in-4s easter
- * egg (speaks "the system... is down..." via speechSynthesis using the
- * user's saved voice/speed if set). Idempotent — safe to call after
- * each render.
- */
+/** Click to flip, plus an 8-clicks-in-4s easter egg. Idempotent, so it's safe
+ *  to call after each render. */
 export function initThemeToggle(btn: HTMLElement): void {
     if ((btn as HTMLElement & { _aloudThemeWired?: boolean })._aloudThemeWired) return;
     (btn as HTMLElement & { _aloudThemeWired?: boolean })._aloudThemeWired = true;

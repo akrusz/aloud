@@ -1,17 +1,13 @@
 /**
- * Noting circle orchestrator.
- *
- * Round-robin noting circle, client-side: instead of socket round-trips, we
- * call the LLM provider (generateNotingLabel), per-participant TTS, and the
- * STT engine directly.
+ * Noting circle orchestrator. Fully client-side: calls generateNotingLabel,
+ * per-participant TTS, and the STT engine directly.
  *
  * Flow: opener → User → P1 → P2 → … → User → … Each LLM participant notes a
- * 1–2 word label in its own voice; the user notes by speaking on their turn.
- * Empty participant list = solo noting (opener + your turns). Muting the mic
- * pauses the circle; unmuting resumes.
+ * 1-2 word label in its own voice; the user notes by speaking on their turn.
+ * Empty participant list = solo noting. Muting the mic pauses the circle.
  *
- * NOTE: like the exploration session, the audio path (STT capture, TTS, chime)
- * can't be exercised headlessly — this needs hands-on testing.
+ * NOTE: the audio path (STT capture, TTS, chime) can't be exercised headlessly
+ * and needs hands-on testing.
  */
 
 import {
@@ -60,9 +56,9 @@ export interface NotingSessionViewHandle {
      *  session's SessionViewHandle.showInfo. */
     showInfo(): void;
     /**
-     * Open the standard leave-confirmation overlay for an external nav
-     * request (browser/hardware Back). On confirm, the circle ends and
-     * onEnd is called with `destination`.
+     * Open the leave-confirmation overlay for an external nav request
+     * (browser/hardware Back). On confirm the circle ends and onEnd fires with
+     * `destination`.
      */
     requestLeave(destination?: SessionEndDestination): void;
 }
@@ -90,10 +86,9 @@ export async function mountNotingSessionView(
     } catch (err) {
         return mountError(root, (err as Error).message, onEnd);
     }
-    // The auxiliary calls — one-word noting labels and the session recap — run
-    // on a cheap, fast, non-reasoning model (Haiku; see buildUtilityProvider),
-    // not the (possibly slow/always-thinking) facilitation model. Falls back to
-    // `provider`.
+    // Noting labels and the session recap run on a cheap, fast, non-reasoning
+    // model (see buildUtilityProvider), not the possibly slow/always-thinking
+    // facilitation model. Falls back to `provider`.
     let utilityProvider = provider;
     try {
         utilityProvider = await buildUtilityProvider(setup, provider);
@@ -114,9 +109,9 @@ export async function mountNotingSessionView(
                 </button>
             </div>`;
     }
-    // Flags the session chrome the same way exploration does: hides the mobile
-    // bottom-nav, reveals the session-only More-sheet items (End/History), and
-    // keeps the wakelock/footer rules active. Cleared in endSession.
+    // Flags the session chrome as exploration does: hides the mobile bottom-nav,
+    // reveals the session-only More-sheet items (End/History), keeps the
+    // wakelock/footer rules active. Cleared in endSession.
     document.body.dataset['sessionActive'] = 'true';
     if (navLinks) {
         navLinks.innerHTML = `
@@ -221,16 +216,16 @@ export async function mountNotingSessionView(
     const kasinaToggle = root.querySelector<HTMLInputElement>('#kasina-toggle')!;
     const orbEl = document.getElementById('orb');
 
-    // Whether notes are read aloud. Starts on (button has .active); the
-    // TTS-toggle gates speakVia so the user can silence the circle's voices
-    // without muting their own mic. Mirrors exploration's tts-toggle.
+    // Whether notes are read aloud (starts on; the button has .active). Gates
+    // speakVia so the user can silence the circle's voices without muting their
+    // own mic.
     let ttsEnabled = true;
 
-    // Hosted (aloud cloud) billing/auth failures must be visible even though
-    // TTS/STT errors are non-fatal to the circle — speakVia/listenOnce used to
-    // swallow everything, so an out-of-credits voice just went silent with no
-    // explanation. Toast each distinct cloud condition once (the circle loops
-    // every few seconds; repeating the same toast forever is noise).
+    // TTS/STT errors are non-fatal to the circle, but hosted billing/auth
+    // failures must still be visible: swallowing them meant an out-of-credits
+    // voice just went silent with no explanation. Toast each distinct cloud
+    // condition once - the circle loops every few seconds, so repeating the
+    // same toast forever is noise.
     let lastCloudErrorToast: string | null = null;
     function surfaceCloudError(err: unknown): void {
         if (torn) return;
@@ -242,8 +237,7 @@ export async function mountNotingSessionView(
         }
     }
 
-    // Session timer — counts since mount, formatted m:ss or h:mm:ss. Same as
-    // exploration's updateTimer.
+    // Session timer, counting since mount as m:ss or h:mm:ss.
     const sessionStartMs = Date.now();
     function updateTimer(): void {
         const elapsed = Math.floor((Date.now() - sessionStartMs) / 1000);
@@ -256,9 +250,9 @@ export async function mountNotingSessionView(
     updateTimer();
     const timerInterval = setInterval(updateTimer, 1000);
 
-    // Floating embers + kasina gazing, both shared with exploration. The
-    // document-level kasina listeners (drag, outside-click) and the
-    // beforeunload guard are tied to viewCleanup so they detach on teardown.
+    // Floating embers + kasina gazing, shared with exploration. The
+    // document-level kasina listeners (drag, outside-click) and the beforeunload
+    // guard are tied to viewCleanup so they detach on teardown.
     const viewCleanup = new AbortController();
     viewCleanup.signal.addEventListener('abort', () => infoPanel.dispose());
     window.addEventListener(
@@ -304,9 +298,9 @@ export async function mountNotingSessionView(
         silenceBaseMs: 1200,
         silenceMaxMs: 6000,
         silenceRampRate: 1,
-        // Noting notes are SHORT ("warmth", "tension") — keep the min-speech
-        // gate low so a quick word isn't discarded by the server-Whisper VAD
-        // (which would leave the turn stuck re-listening).
+        // Notes are SHORT ("warmth", "tension"), so keep the min-speech gate low
+        // or the server-Whisper VAD discards a quick word and the turn sticks
+        // re-listening.
         minSpeechDurationMs: 150,
     });
 
@@ -424,7 +418,7 @@ export async function mountNotingSessionView(
                     break;
                 } else if (event.type === 'error') {
                     // The Whisper engine yields errors as events rather than
-                    // throwing — same surfacing as the catch below.
+                    // throwing; same surfacing as the catch below.
                     surfaceCloudError(event.error);
                 }
             }
@@ -455,21 +449,21 @@ export async function mountNotingSessionView(
         userTurnStart = Date.now();
 
         if (!stt) {
-            // No mic backend — can't take a user turn; move on after a beat.
+            // No mic backend, so no user turn; move on after a beat.
             scheduleNextTurn(DEFAULT_CADENCE_MS);
             return;
         }
 
-        // Listen until we get a real note. Silence/echo just re-listens (no cue
-        // replay). The echo guard only rejects audio right at turn start (TTS
-        // tail from the previous participant).
+        // Listen until a real note lands; silence/echo re-listens without
+        // replaying the cue. The echo guard only rejects audio right at turn
+        // start (TTS tail from the previous participant).
         while (!torn && !paused) {
             const note = (await listenOnce()).trim();
             if (torn || paused) return;
             const tooSoon = Date.now() - userTurnStart < ECHO_REJECT_MS;
-            // A cough/breath that transcribes to only non-speech markers
-            // (e.g. "[cough]", "(sigh)") shouldn't become a noting label —
-            // fall through and re-listen, same as silence/echo.
+            // A cough/breath transcribing to only non-speech markers ("[cough]",
+            // "(sigh)") shouldn't become a noting label: re-listen, as for
+            // silence/echo.
             if (note && !tooSoon && !isNonSpeechOnly(note)) {
                 const cadence = Date.now() - userTurnStart;
                 userCadences.push(cadence);
@@ -478,9 +472,9 @@ export async function mountNotingSessionView(
                 session.addUserMessage(note, 'You');
                 appendMessage('user', note, 'You');
                 void autosaveSession();
-                // Clear the "Your turn" prompt immediately — otherwise it
-                // lingers through the next participant's breathing delay,
-                // reading as "still my turn" after the note is already shown.
+                // Clear the "Your turn" prompt now, or it lingers through the
+                // next participant's breathing delay and reads as "still my
+                // turn" after the note is already shown.
                 setStatus('');
                 scheduleNextTurn(500);
                 return;
@@ -490,14 +484,14 @@ export async function mountNotingSessionView(
     }
 
     async function speakVia(voiceId: string | null, text: string): Promise<void> {
-        // Honor the TTS toggle — when off, the circle runs silently (labels
-        // still appear in the transcript and turns still advance).
+        // TTS off: the circle runs silently, labels still appear and turns
+        // still advance.
         if (!ttsEnabled) return;
         try {
             const tts = await ttsFor(voiceId);
             await tts.speak(text, { rate: setup.ttsRate });
         } catch (err) {
-            // TTS stays optional (the circle continues text-only), but hosted
+            // TTS is optional (the circle continues text-only), but hosted
             // billing/auth failures get a toast instead of vanishing.
             surfaceCloudError(err);
         }
@@ -510,8 +504,8 @@ export async function mountNotingSessionView(
             scheduleNextTurn(1000);
             return;
         }
-        // Wait before noting: a fixed number of seconds, or adapt to the user's
-        // cadence (the per-participant timing option).
+        // Wait before noting: fixed seconds, or adapted to the user's cadence
+        // (the per-participant timing option).
         const delayMs = p.timing === 'fixed' ? (p.fixedDelaySec || 4) * 1000 : adaptiveDelay();
         await sleep(delayMs);
         if (torn || paused) return;
@@ -539,7 +533,7 @@ export async function mountNotingSessionView(
             appendMessage('facilitator', phrase, name);
             await speakVia(p.voice, phrase);
         } else {
-            // Sound effect — show a bracketed marker, play the clip.
+            // Sound effect: bracketed marker, then the clip.
             session.addAssistantMessage(`〈${name}〉`, name);
             appendMessage('facilitator', `〈${name}〉`, name);
             if (p.sound === 'chime') {
@@ -550,8 +544,8 @@ export async function mountNotingSessionView(
             }
         }
         if (torn || paused) return;
-        // Persist the labels accumulated this round so a crash mid-circle keeps
-        // them. No-op unless logging is on.
+        // Persist this round's labels so a crash mid-circle keeps them. No-op
+        // unless logging is on.
         void autosaveSession();
         scheduleNextTurn(300);
     }
@@ -559,8 +553,7 @@ export async function mountNotingSessionView(
     function playSoundFile(sound: string): Promise<void> {
         return new Promise((resolve) => {
             try {
-                // assetPath: the hosted build serves under /app/, so a bare
-                // /audio/... 404s there.
+                // The hosted build serves under /app/, so a bare /audio/... 404s.
                 const audio = new Audio(assetPath(`/audio/${encodeURIComponent(sound)}.mp3`));
                 audio.onended = () => resolve();
                 audio.onerror = () => resolve();
@@ -572,9 +565,8 @@ export async function mountNotingSessionView(
     }
 
     // ---- opener ----
-    // Use the static noting opener (deterministic). An LLM opener here tended
-    // to return meta-commentary ("Here are a few ways to say this…") from some
-    // models, so we keep it fixed and clean.
+    // Static, not LLM: some models returned meta-commentary here ("Here are a
+    // few ways to say this…").
     async function speakOpener(): Promise<void> {
         if (torn) return;
         const text = NOTING_STATIC_OPENER;
@@ -609,9 +601,9 @@ export async function mountNotingSessionView(
     });
 
     // ---- end / teardown ----
-    // End button + History link both live in the global nav (injected on
-    // mount). Both route through showEndConfirm so a stray tap can't drop a
-    // noting circle — mirrors the live-session guard in session.ts.
+    // End button + History link live in the global nav (injected on mount).
+    // Both route through showEndConfirm so a stray tap can't drop a circle,
+    // mirroring the live-session guard in session.ts.
     const endBtn = document.getElementById('end-btn') as HTMLAnchorElement | null;
     endBtn?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -620,8 +612,8 @@ export async function mountNotingSessionView(
     const historyLink = navLinks?.querySelector<HTMLAnchorElement>('[data-nav="history"]');
     historyLink?.addEventListener('click', (e) => {
         e.preventDefault();
-        // Stop the global app-level data-nav handler so it doesn't also fire —
-        // we want this confirm to be the only path out of a live circle.
+        // Stop the global data-nav handler so this confirm is the only path out
+        // of a live circle.
         e.stopImmediatePropagation();
         showEndConfirm(
             'Leave session to view history? This will end your current session.',
@@ -631,8 +623,8 @@ export async function mountNotingSessionView(
 
     /**
      * Show the leave/end confirmation overlay. On confirm, ends the circle and
-     * routes to `destination` (or back to setup). Wires fresh handlers each
-     * call so a re-open doesn't carry the previous click's destination.
+     * routes to `destination` (or back to setup). Wires fresh handlers each call
+     * so a re-open doesn't carry the previous click's destination.
      */
     function showEndConfirm(message: string, destination: SessionEndDestination | undefined): void {
         wireEndConfirm(root, message, {
@@ -645,7 +637,7 @@ export async function mountNotingSessionView(
      * Persist the in-progress circle to local storage without an LLM summary,
      * so a crash or going offline still leaves a recoverable transcript. No-op
      * when "Save session logs" is off, or before any user turn exists. The
-     * detailed summary is generated only on a clean end (see endSession).
+     * detailed summary is generated only on a clean end (endSession).
      */
     async function autosaveSession(): Promise<void> {
         if (!appSettings.saveSessionLogs) return;
@@ -671,11 +663,11 @@ export async function mountNotingSessionView(
         void stt?.stop();
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();
         if (audioCtx && audioCtx.state !== 'closed') void audioCtx.close().catch(() => {});
-        // Drop the ember container — embers are session-only.
+        // Embers are session-only.
         unmountEmberContainer();
-        // Exit kasina if active so the toggle's exit branch restores the theme
-        // and returns the orb to the nav before we clear it (rather than
-        // orphaning it in <body>).
+        // Exit kasina if active: the toggle's exit branch restores the theme and
+        // returns the orb to the nav before we clear it, rather than orphaning
+        // it in <body>.
         if (kasinaToggle.checked) {
             kasinaToggle.checked = false;
             kasinaToggle.dispatchEvent(new Event('change'));
@@ -683,12 +675,11 @@ export async function mountNotingSessionView(
         // Remove the window/document-level listeners (kasina drag, beforeunload).
         viewCleanup.abort();
         const finalState = session.endSession();
-        // Save if there's at least one user turn (skip empty/abandoned circles).
+        // Save only if there's a user turn (skip empty/abandoned circles).
         if (!skipSave && finalState && finalState.exchanges.some((ex) => ex.role === 'user')) {
-            // Generate a real history summary like exploration sessions do
-            // (never throws — returns '' on failure). The circle's exchanges
-            // are short notes ("warmth", "tension"); the summarizer distils
-            // them into a one-line recap. Falls back to the intention.
+            // History summary, as exploration sessions do (never throws;
+            // returns '' on failure). The exchanges are short notes ("warmth",
+            // "tension") distilled into a one-line recap.
             setStatus('Saving session…');
             const summary = await generateSessionSummary(utilityProvider, finalState.exchanges, {
                 onUsage: (u) => session.recordLlmUsage(u),
@@ -717,8 +708,8 @@ export async function mountNotingSessionView(
     }
     void (async () => {
         // Prime the STT capture graph before the opener so its onset pre-buffer
-        // fills during the opening line — otherwise a barge-in on the first
-        // turn has an empty buffer and clips the opening word(s). (d35)
+        // fills during the opening line; otherwise a barge-in on the first turn
+        // has an empty buffer and clips the opening word (d35).
         await stt?.prime?.();
         await speakOpener();
         if (!torn) void advanceTurn();
@@ -737,8 +728,8 @@ export async function mountNotingSessionView(
     };
 }
 
-/** Confirm-overlay copy for an external nav request. Kept in sync with the
- *  matching helper in session.ts so the wording is identical across modes. */
+/** Confirm-overlay copy for an external nav request. Keep in sync with the
+ *  matching helper in session.ts so the wording matches across modes. */
 function leaveMessage(destination?: SessionEndDestination): string {
     if (destination === 'history') {
         return 'Leave session to view history? This will end your current session.';

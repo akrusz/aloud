@@ -17,6 +17,6 @@ export {
     GoogleProvider,
     type OpenAIProviderOptions,
 } from './openai.js';
-// ClaudeProxyProvider is Node-only (uses node:child_process). Import
-// directly from './claude-proxy.js' from Node entrypoints — keeping it
-// off this barrel avoids dragging node:* into browser bundles.
+// ClaudeProxyProvider is Node-only (node:child_process); import it directly
+// from './claude-proxy.js'. Keeping it off this barrel keeps node:* out of
+// browser bundles.

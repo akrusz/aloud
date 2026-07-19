@@ -1,11 +1,10 @@
 /**
  * Resume-intent classification for silence ("Just Listen") mode.
  *
- * While the facilitator is holding silence the meditator can think out loud
- * without the facilitator jumping in on every utterance; this lightweight LLM
- * call (just the utterance, no conversation history) judges whether what they
- * said means "I'm ready to continue" — catching natural phrases like
- * "alright, let's keep going" that a keyword match would miss.
+ * While holding silence the meditator can think out loud without the
+ * facilitator jumping in. This lightweight call (utterance only, no history)
+ * judges whether they meant "I'm ready to continue", catching natural phrasing
+ * like "alright, let's keep going" that keyword matching would miss.
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
@@ -13,7 +12,7 @@ import { RESUME_INTENT_SYSTEM_PROMPT, HOLD_CONFIRM_SYSTEM_PROMPT } from './promp
 import type { LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
-/** Extract the usage split from a CompletionResult into LlmUsage shape. */
+/** CompletionResult usage split, in LlmUsage shape. */
 function resultUsage(r: {
     inputTokens?: number | null;
     outputTokens?: number | null;
@@ -30,30 +29,28 @@ function resultUsage(r: {
 
 export interface ClassifyResumeIntentOptions {
     /**
-     * Reports the off-transcript LLM usage for this call so the caller can
-     * fold it into session usage tracking. Fired only on a successful call.
+     * Reports this call's off-transcript usage for session usage tracking.
+     * Fired only on success.
      */
     onUsage?: (usage: LlmUsage) => void;
 }
 
 /**
- * The classifier's verdict for one utterance spoken during a held silence:
- * - `resume` — the LLM judged it a "continue" intent; leave the hold.
- * - `stay`   — the LLM judged it think-out-loud; stay held.
- * - `error`  — the classifier call itself failed (provider 429/5xx/network).
+ * Verdict for one utterance spoken during a held silence:
+ * - `resume` - a "continue" intent; leave the hold.
+ * - `stay`   - think-out-loud; stay held.
+ * - `error`  - the classifier call failed (provider 429/5xx/network).
  *
- * The `error` case is kept DISTINCT from `stay` on purpose: collapsing them
- * (the old `return false` on catch) trapped the meditator in silence with no
- * voice escape whenever the provider was down — a 429-quota'd session could
- * never be resumed by speech at all (ff1y). The caller decides how to fail.
+ * `error` is DISTINCT from `stay` on purpose: collapsing them trapped the
+ * meditator in silence with no voice escape whenever the provider was down, so
+ * a 429-quota'd session could never be resumed by speech (ff1y). The caller
+ * decides how to fail.
  */
 export type ResumeVerdict = 'resume' | 'stay' | 'error';
 
 /**
- * Shared yes/no intent classifier: one utterance, the given system prompt, no
- * history, a tiny token budget. Returns 'yes'/'no' on a successful call, or
- * 'error' if the provider call itself failed (429/5xx/network). Never throws —
- * callers decide how to treat 'error'.
+ * Shared yes/no classifier: one utterance, no history, tiny token budget.
+ * Never throws; a provider failure returns 'error' for the caller to handle.
  */
 async function classifyYesNo(
     provider: LLMProvider,
@@ -72,10 +69,9 @@ async function classifyYesNo(
 }
 
 /**
- * Classify whether `text` (a single utterance spoken during held silence)
- * signals the meditator wants to end the silence and resume. A provider
- * failure surfaces as `error` (not a silent `stay`) so the caller can avoid
- * trapping the user in a hold they can't leave.
+ * Does `text` (one utterance spoken during held silence) signal a wish to
+ * resume? Provider failure surfaces as `error`, not a silent `stay`, so the
+ * caller can avoid trapping the user in a hold they can't leave.
  */
 export async function classifyResumeIntent(
     provider: LLMProvider,
@@ -87,11 +83,10 @@ export async function classifyResumeIntent(
 }
 
 /**
- * Classify the meditator's reply to "would you like me to be quiet?" — the
- * client uses this, not a second [HOLD] from the model, to decide whether to
- * enter silence (rlgm). Returns true ONLY on a clear yes: a 'no' and a provider
- * 'error' both stay OUT of the hold, which is the safe, non-trapping default
- * (a missed hold just keeps facilitating; a wrong hold is the bug we're fixing).
+ * Classify the reply to "would you like me to be quiet?". The client uses this,
+ * not a second [HOLD] from the model, to decide whether to enter silence (rlgm).
+ * True only on a clear yes: 'no' and 'error' both stay OUT of the hold, since a
+ * missed hold just keeps facilitating while a wrong hold is the bug being fixed.
  */
 export async function classifyHoldConfirm(
     provider: LLMProvider,

@@ -1,18 +1,17 @@
 /**
- * Underlying provider cost tables — what aloud PAYS, in USD. The retail price
- * a user sees is this times the margin multiplier (meter.ts).
+ * Underlying provider cost tables: what aloud PAYS, in USD. Retail is this times
+ * the margin multiplier (meter.ts).
  *
- * Token rates are USD per token (list price / 1e6). Input, output, and
- * cache-read are priced separately and never summed — output runs ~4-5x input
- * and a cache read ~10x cheaper than fresh input, so collapsing them would
- * misprice long facilitation sessions badly. This mirrors the split the core
- * usage tracker already carries (ts/src/llm/base.ts CompletionResult).
+ * Token rates are USD per token (list price / 1e6). Input, output, and cache
+ * read are priced separately and never summed - output runs ~4-5x input and a
+ * cache read ~10x cheaper than fresh input, so collapsing them would misprice
+ * long sessions badly. Mirrors the split the core usage tracker already carries
+ * (ts/src/llm/base.ts CompletionResult).
  *
- * These are LIST prices as of early 2026 and WILL drift — they live here, in
- * the open, precisely so a price change is a one-line diff, not a mystery.
- * The model allowlist here also gates which models a client may bill against
- * (meditation-pal-8sj: a client must not be able to invoke an arbitrary
- * expensive model on a user's credits).
+ * LIST prices as of early 2026, and they WILL drift; they live here in the open
+ * so a price change is a one-line diff. This table's model allowlist also gates
+ * which models a client may bill against (meditation-pal-8sj: a client must not
+ * be able to invoke an arbitrary expensive model on a user's credits).
  */
 
 import type { ProviderId } from '../contract.js';
@@ -29,9 +28,9 @@ export interface TokenRates {
      *  (Anthropic ~1.25x input). */
     cacheCreation: number;
     /** USD per cache-write at the 1-hour TTL (Anthropic 2x input). Used by the
-     *  "anchor" breakpoint that survives long [HOLD] silences. For providers
-     *  with automatic caching (OpenAI/Google) there's no 1h write and none is
-     *  reported, so this is set to the input rate and never actually accrues. */
+     *  "anchor" breakpoint that survives long [HOLD] silences. Providers with
+     *  automatic caching (OpenAI/Google) have no 1h write and report none, so
+     *  this sits at the input rate and never accrues. */
     cacheCreation1h: number;
 }
 
@@ -39,60 +38,57 @@ export interface ModelPricing extends TokenRates {
     provider: ProviderId;
     model: string;
     /** The model the picker pre-selects when the user hasn't chosen one. Exactly
-     *  one entry should carry this; the client falls back to the first model if
-     *  none does. Independent of list order, so the dropdown can present models
-     *  in a different order than which one is the default. */
+     *  one entry should carry it; the client falls back to the first model if
+     *  none does. Independent of list order, so the dropdown can order models
+     *  however it likes. */
     default?: boolean;
 }
 
 const M = 1_000_000;
 
 /**
- * ADDING A MODEL — checklist (each item has bitten us at least once):
+ * ADDING A MODEL - checklist (each item has bitten us at least once):
  *
  * 1. CACHING POLICY, before list price. The session shape is ~45:1 input-heavy
  *    and most input is re-sent prefix (estimate.ts TYPICAL_SESSION), so the
- *    cacheRead rate — not input/output — drives $/hr. Check: (a) does the
- *    endpoint cache at all; (b) the cached-read multiplier (~0.1x on
+ *    cacheRead rate, not input/output, drives $/hr. Check: (a) does the endpoint
+ *    cache at all; (b) the cached-read multiplier (~0.1x on
  *    OpenAI/Google/Anthropic, only 0.5x on Groq, none on Novita); (c) whether
  *    cached tokens are actually REPORTED on the wire
- *    (prompt_tokens_details.cached_tokens / Anthropic's cache fields) — a
- *    proxy hop like OpenRouter can drop the field. If caching is absent or
- *    unreported, pin all cache fields at the input rate: estimates then match
- *    real billing, and if tokens ever do appear we over-charge, never
- *    under-bill.
- * 2. Run the math through estimate.ts before calling a model "cheap" — a
- *    no-cache $0.57 model and a 50%-cached $1 model land within a cent/hr.
+ *    (prompt_tokens_details.cached_tokens / Anthropic's cache fields) - a proxy
+ *    hop like OpenRouter can drop the field. If caching is absent or unreported,
+ *    pin all cache fields at the input rate: estimates then match real billing,
+ *    and if tokens ever do appear we over-charge, never under-bill.
+ * 2. Run the math through estimate.ts before calling a model "cheap": a no-cache
+ *    $0.57 model and a 50%-cached $1 model land within a cent/hr.
  * 3. OpenRouter slugs: list the real endpoints
- *    (GET /api/v1/models/<slug>/endpoints) — host, jurisdiction, quantization.
+ *    (GET /api/v1/models/<slug>/endpoints) for host, jurisdiction, quantization.
  *    Pin routing (extraBody provider.only) if the host matters, and update the
  *    privacy policy's provider list (docs/privacy/index.html) to name where
- *    session content actually goes. Single-host slugs: consider a fallback
+ *    session content actually goes. For single-host slugs, consider a fallback
  *    chain (forward.ts OPENROUTER_FALLBACKS) so the turn survives the host
  *    dropping the model.
- * 4. Reasoning: voice needs ~1s to first token; mandatory reasoning is
+ * 4. Reasoning: voice needs ~1s to first token, so mandatory reasoning is
  *    disqualifying (Kimi K3, 7-12s). Update OPENROUTER_MANDATORY_REASONING /
- *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the
- *    "slower" note list in ui/src/model-picker.ts.
+ *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the "slower"
+ *    note list in ui/src/model-picker.ts.
  * 5. Ear-test the control tokens ([HOLD]/[WAIT:Nm]/[PASS]/[NEXT]) in a real
- *    session — small/open models mishandle them; a bare completion won't
- *    show it.
+ *    session; small/open models mishandle them and a bare completion won't show
+ *    it.
  * 6. Housekeeping: pretty name in ui/src/model-picker.ts CLOUD_MODEL_NAMES;
  *    allowlist + rate assertions in server/tests/model-additions.test.ts.
  */
 
 /** Keyed by `${provider}:${model}`. */
 const MODELS: Record<string, ModelPricing> = {
-    // Fable 5 — Anthropic's most capable model, a premium tier ABOVE Opus 4.8
+    // Fable 5: Anthropic's most capable model, a premium tier ABOVE Opus 4.8
     // ($10/$50 per 1M, ~2x Opus). Same 5m/1h prompt caching as the Opus family
     // (verified live on the metered request shape), so the 1h "anchor" bills
-    // through cacheCreation1h exactly like the others. The "give me the best"
-    // option — offered, but NOT the default: it's slow (always reasons) and the
-    // priciest tier, so Opus 4.8 is the pre-selected default (see `default`
-    // below) and Fable is opt-in for those who know they want it. Uses the newer
-    // tokenizer (~30% more tokens for the same text) — that inflates token COUNTS
-    // but the per-token rates below already account for what Anthropic charges,
-    // so no adjustment is needed here.
+    // through cacheCreation1h like the others. Offered but NOT the default: it's
+    // slow (always reasons) and the priciest tier, so Opus 4.8 is pre-selected
+    // (see `default` below) and Fable is opt-in. Uses the newer tokenizer (~30%
+    // more tokens for the same text), which inflates token COUNTS, not the
+    // per-token rates below, so no adjustment here.
     'anthropic:claude-fable-5': {
         provider: 'anthropic',
         model: 'claude-fable-5',
@@ -112,16 +108,15 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
-    // Sonnet 5 (replaced Sonnet 4.6 here, July 2026) - same $3/$15 sticker and
-    // cache multipliers as 4.6, near-Opus quality. Two Sonnet-5-specific notes:
-    // (1) it uses the newer tokenizer (~30% more tokens for the same text than
-    // 4.6) - that inflates token COUNTS, not these per-token rates, so no
-    // adjustment here (same stance as the Fable comment above); (2) Anthropic
-    // runs intro pricing ($2/$10) through 2026-08-31 - we bill at LIST rates
-    // below and simply pay less until then, so nothing to revisit on Sept 1.
-    // The core AnthropicProvider sends an explicit thinking-disabled for this
-    // model (adaptive thinking is otherwise ON by default), so no thinking
-    // tokens ever accrue on the metered path.
+    // Sonnet 5 (replaced Sonnet 4.6 here, July 2026): same $3/$15 sticker and
+    // cache multipliers as 4.6, near-Opus quality. Two notes: (1) newer tokenizer
+    // (~30% more tokens for the same text than 4.6), which inflates token COUNTS,
+    // not these per-token rates, so no adjustment here (same stance as Fable
+    // above); (2) Anthropic runs intro pricing ($2/$10) through 2026-08-31 - we
+    // bill at the LIST rates below and simply pay less until then, so nothing to
+    // revisit on Sept 1. The core AnthropicProvider sends an explicit
+    // thinking-disabled for this model (adaptive thinking is otherwise ON by
+    // default), so no thinking tokens accrue on the metered path.
     'anthropic:claude-sonnet-5': {
         provider: 'anthropic',
         model: 'claude-sonnet-5',
@@ -140,14 +135,14 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 1.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 2 / M, // 1h write, 2x input
     },
-    // Opus 3 (claude-3-opus-20240229) — the original Claude 3 flagship, still
-    // served on the API though it's dropped off Anthropic's current price sheet.
-    // A deliberate niche draw: some people specifically prefer its warmer, more
-    // distinctive prose, and the meditation voice is exactly where that lands.
-    // Legacy Opus rate, $15/$75 per 1M (the same tier Opus 4/4.1 legacy still
-    // sit at). 200K context, 4096 max output — well above our 512-token cap.
-    // 5m + 1h caching both verified working on the metered path, so the anchor
-    // breakpoint is fine. Pinned to the dated id — the only form the API exposes.
+    // Opus 3 (claude-3-opus-20240229): the original Claude 3 flagship, still
+    // served on the API though dropped from Anthropic's current price sheet. A
+    // niche draw - some people prefer its warmer, more distinctive prose, which
+    // is exactly what the meditation voice wants. Legacy Opus rate, $15/$75 per
+    // 1M (the tier Opus 4/4.1 legacy also sit at). 200K context, 4096 max output,
+    // well above our 512-token cap. 5m + 1h caching both verified on the metered
+    // path, so the anchor breakpoint is fine. Pinned to the dated id, the only
+    // form the API exposes.
     'anthropic:claude-3-opus-20240229': {
         provider: 'anthropic',
         model: 'claude-3-opus-20240229',
@@ -157,19 +152,18 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 18.75 / M, // 5m write, 1.25x input
         cacheCreation1h: 30 / M, // 1h write, 2x input
     },
-    // (Groq llama-3.3-70b was removed as a hosted option: it has NO prompt
-    // caching, so on this ~98%-re-sent-history workload the whole transcript
-    // bills at full input every turn — pricier than cached Haiku/Gemini despite
-    // a lower sticker price. 'groq' stays a valid provider for STT/Whisper.)
+    // (Groq llama-3.3-70b was removed as a hosted option: NO prompt caching, so
+    // on this ~98%-re-sent-history workload the whole transcript bills at full
+    // input every turn, pricier than cached Haiku/Gemini despite a lower sticker
+    // price. 'groq' stays a valid provider for STT/Whisper.)
     //
-    // The genuine VALUE tier: cheap per-token AND cache-capable. On this
-    // ~98%-re-sent-history workload, the combination crushes Haiku. Accessed
-    // DIRECT via Google's OpenAI-compatible endpoint (no
-    // OpenRouter middleman fee — these are Google's own list prices). Gemini
-    // implicit caching is ~75% off input; the OpenAI provider parses
-    // prompt_tokens_details.cached_tokens, so cache reads bill at the
-    // discounted rate. (cacheCreation isn't surfaced by the OpenAI usage shape,
-    // so it never accrues for this provider — left at input rate harmlessly.)
+    // The genuine VALUE tier: cheap per-token AND cache-capable, which on this
+    // ~98%-re-sent-history workload crushes Haiku. Accessed DIRECT via Google's
+    // OpenAI-compatible endpoint (no OpenRouter middleman fee, these are Google's
+    // own list prices). Gemini implicit caching is ~75% off input and the OpenAI
+    // provider parses prompt_tokens_details.cached_tokens, so cache reads bill at
+    // the discounted rate. (cacheCreation isn't surfaced by the OpenAI usage
+    // shape, so it never accrues here; left at input rate harmlessly.)
     'google:gemini-2.5-flash-lite': {
         provider: 'google',
         model: 'gemini-2.5-flash-lite',
@@ -179,27 +173,22 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 0.1 / M,
         cacheCreation1h: 0.1 / M, // no 1h write on automatic caching; never accrues
     },
-    // OpenAI flagship, the GPT counterpart to Opus in the premium tier. PINNED to
-    // an exact version (like claude-opus-4-8), NOT the moving chatgpt-latest
-    // alias: the debit math bills against THIS price table, so the model must be
-    // a known quantity (a new flagship at a different price can't bill at a stale
-    // rate). Cache-capable — essential on this ~98%-re-sent-history workload —
-    // via OpenAI automatic prompt caching: cached input ~90% off, surfaced as
+    // OpenAI's current flagship (GA July 2026), the GPT counterpart to Opus: the
+    // top "Sol" tier of the 5.6 family (Terra/Luna are the mid/value tiers we
+    // don't list - Terra ≈ 5.4's price, Luna loses to Gemini on this workload).
+    // PINNED to the exact tier id, NOT the moving chatgpt-latest alias: the debit
+    // math bills against THIS table, so the model must be a known quantity (a new
+    // flagship at a different price can't bill at a stale rate). Cache-capable,
+    // essential on this ~98%-re-sent-history workload, via OpenAI automatic
+    // prompt caching: cached input ~90% off, surfaced as
     // prompt_tokens_details.cached_tokens (OpenAIProvider parses it into
-    // cacheRead). Automatic caching has no write surcharge and cacheCreation
-    // never accrues for the OpenAI usage shape, so it's left at input rate
-    // harmlessly (mirrors gemini above). $5/$30 per 1M, $0.50 cached (Apr 2026).
-    // OpenAI's current flagship (GA July 2026): the top "Sol" tier of the 5.6
-    // family (Terra/Luna are the mid/value tiers we don't list — Terra ≈ 5.4's
-    // price, Luna loses to Gemini on this workload). Same $5/$30 sticker and
-    // ~90%-off cached input as 5.5, and pinned to the exact tier id for the
-    // same reason 5.5 is. ONE pricing difference from every earlier OpenAI
-    // model: the 5.6 family bills cache WRITES at 1.25x input and reports them
-    // (prompt_tokens_details.cache_write_tokens, parsed into cacheCreation by
-    // OpenAIProvider) — so cacheCreation here is a real accruing rate, not the
-    // never-accrues placeholder the older entries carry. No 1h write tier
-    // exists (automatic caching), so cacheCreation1h mirrors the 5m rate and
-    // never actually accrues. $5/$30 per 1M, $0.50 cached, $6.25 write (Jul 2026).
+    // cacheRead). ONE pricing difference from every earlier OpenAI model: the 5.6
+    // family bills cache WRITES at 1.25x input and reports them
+    // (prompt_tokens_details.cache_write_tokens, parsed into cacheCreation), so
+    // cacheCreation here is a real accruing rate, not the never-accrues
+    // placeholder older entries carry. Automatic caching has no 1h write tier, so
+    // cacheCreation1h mirrors the 5m rate and never accrues. $5/$30 per 1M, $0.50
+    // cached, $6.25 write (Jul 2026).
     'openai:gpt-5.6-sol': {
         provider: 'openai',
         model: 'gpt-5.6-sol',
@@ -218,7 +207,7 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 5 / M,
         cacheCreation1h: 5 / M, // no 1h write on automatic caching; never accrues
     },
-    // OpenAI midrange — the prior flagship, ~half the price of 5.5 and roughly the
+    // OpenAI midrange: a prior flagship, ~half the price of 5.5 and roughly the
     // Sonnet cost tier. Same family caching (cached input ~90% off) and the same
     // pinned-version / cacheCreation-at-input-rate treatment as 5.5 above.
     // $2.50/$15 per 1M, $0.25 cached (Mar 2026).
@@ -231,22 +220,24 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 2.5 / M,
         cacheCreation1h: 2.5 / M, // no 1h write on automatic caching; never accrues
     },
-    // Moonshot's Kimi K2 0711 — the ORIGINAL K2 (July 2025), served via
-    // OpenRouter (the one openrouter entry in this table; the server's
-    // OPENROUTER_API_KEY must be set for it to forward). Replaced Kimi K3 here
-    // (July 2026): K3's reasoning is mandatory (can't be disabled), which
-    // measured 7-12s to first spoken token and could blank a turn outright
-    // when the thinking preamble hit max_tokens — unusable pacing for voice.
-    // K2 0711 has no reasoning at all (~1s to first token) and is the release
-    // the Kimi personality lore is actually about ("genuine literary
-    // intelligence"; later K2.5 was widely called a personality regression
-    // from it) — the same niche-draw logic as Opus 3 above, at 1/5 the K3
-    // price: $0.57/$2.30 per 1M. OpenRouter lists NO cache pricing for this
-    // endpoint, so all cache fields sit at the input rate: cached_tokens never
-    // appear and everything bills as fresh input (and if a host ever does
-    // report them, input-rate is an over-charge, never an under-bill). Full
-    // fresh-input billing is what disqualified Groq llama above, but at $0.57
-    // it stays cheaper per turn than cached mid-tier models.
+    // Kimi K2 0711: the ORIGINAL K2 (July 2025), Moonshot's open model but hosted
+    // on Novita (Groq as fallback host), reached via OpenRouter - the one
+    // openrouter entry in this table, and the server's OPENROUTER_API_KEY must be
+    // set for it to forward. Replaced Kimi K3 here (July 2026): K3's reasoning is
+    // mandatory, which measured 7-12s to first spoken token and could blank a
+    // turn when the thinking preamble hit max_tokens, unusable pacing for voice.
+    // K2 0711 has no reasoning (~1s to first token) and is the release the Kimi
+    // personality lore is about ("genuine literary intelligence"; later K2.5 was
+    // widely called a personality regression from it) - the same niche-draw logic
+    // as Opus 3 above, at 1/5 the K3 price: $0.57/$2.30 per 1M. Single-host slug,
+    // so it degrades to kimi-k2-0905 (forward.ts OPENROUTER_FALLBACKS), which
+    // bills at these rates while OpenRouter charges 0905's, a ~4% under-recovery.
+    // OpenRouter lists NO cache pricing for this endpoint, so all cache fields
+    // sit at the input rate: cached_tokens never appear and everything bills as
+    // fresh input (and if a host ever does report them, input-rate is an
+    // over-charge, never an under-bill). Full fresh-input billing is what
+    // disqualified Groq llama above, but at $0.57 it stays cheaper per turn than
+    // cached mid-tier models.
     'openrouter:moonshotai/kimi-k2': {
         provider: 'openrouter',
         model: 'moonshotai/kimi-k2',
@@ -259,24 +250,24 @@ const MODELS: Record<string, ModelPricing> = {
 };
 
 /** Per-second cost of cloud STT (OpenAI gpt-4o-transcribe, the default backend).
- *  The free/browser engine bills zero — only the server-side engine feeds this.
- *  If you switch the STT backend via env (config.ts resolveSttConfig), revisit:
+ *  The free/browser engine bills zero; only the server-side engine feeds this.
+ *  Revisit if the STT backend is switched via env (config.ts resolveSttConfig):
  *  OpenAI gpt-4o-transcribe ≈ $0.36/hr, gpt-4o-mini-transcribe ≈ $0.18/hr,
  *  Groq ≈ $0.04/hr. Even at the top of that range STT is a small fraction of a
  *  session's TTS + LLM spend. */
 export const STT_USD_PER_SECOND = 0.36 / 3600; // $0.36/hr (OpenAI gpt-4o-transcribe)
 
 /** Google Cloud TTS list price per CHARACTER, by voice tier. The hosted TTS
- *  backend is Google (providers/tts.ts synthesizes en-US-Chirp3-HD-* voices),
- *  so THIS — not a generic "cloud"/ElevenLabs rate — is what actually bills.
- *  Verified vs cloud.google.com/text-to-speech/pricing (June 2026), per 1M
- *  chars: Standard $4 · WaveNet/Neural2/Polyglot $16 · Chirp3-HD $30 · Studio
- *  $160. (Google also gives 1M chars/month free per tier; we don't model that,
- *  so we slightly over-state real cost — conservative, never an under-bill.) */
+ *  backend is Google (providers/tts.ts synthesizes en-US-Chirp3-HD-* voices), so
+ *  THIS, not a generic "cloud"/ElevenLabs rate, is what actually bills. Verified
+ *  vs cloud.google.com/text-to-speech/pricing (June 2026), per 1M chars:
+ *  Standard $4 · WaveNet/Neural2/Polyglot $16 · Chirp3-HD $30 · Studio $160.
+ *  (Google also gives 1M chars/month free per tier; we don't model that, so we
+ *  slightly over-state real cost - conservative, never an under-bill.) */
 const GOOGLE_TTS_TIER_USD_PER_CHAR = {
     standard: 4 / M,
     premium: 16 / M, // WaveNet / Neural2 / Polyglot
-    chirpHd: 30 / M, // Chirp3-HD / Chirp-HD — the tier every curated voice ships on
+    chirpHd: 30 / M, // Chirp3-HD / Chirp-HD, the tier every curated voice ships on
     studio: 160 / M,
 } as const;
 
@@ -287,7 +278,7 @@ export const TTS_USD_PER_CHAR = GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd; // $30/1M 
 
 /** OpenAI gpt-4o-mini-tts list price, expressed per CHARACTER to fit our meter.
  *  OpenAI bills by AUDIO OUTPUT tokens ($12/1M) plus a small text-input leg
- *  ($0.60/1M tokens) — about $0.015 per minute of speech. A slow, pause-heavy
+ *  ($0.60/1M tokens), about $0.015 per minute of speech. A slow, pause-heavy
  *  meditation pace (~120 wpm ≈ 720 chars/min) puts that near $0.015/720 ≈
  *  $21/1M chars; we round UP to $22/1M so a slow delivery can never under-bill
  *  (same conservative stance as the Google tiers above) while staying under the
@@ -295,8 +286,8 @@ export const TTS_USD_PER_CHAR = GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd; // $30/1M 
 export const OPENAI_TTS_USD_PER_CHAR = 22 / M; // ~$22/1M (OpenAI gpt-4o-mini-tts, slow-pace estimate)
 
 /** Per-character cost for a specific Google voice, read from its id. Google
- *  voice ids encode the tier — en-US-Chirp3-HD-Leda, en-US-Neural2-C,
- *  en-US-Standard-B, en-US-Studio-O — so the tier comes straight from the name.
+ *  voice ids encode the tier (en-US-Chirp3-HD-Leda, en-US-Neural2-C,
+ *  en-US-Standard-B, en-US-Studio-O), so the tier comes straight from the name.
  *  Unknown tier → the Chirp3-HD default (what our catalog ships): conservative
  *  for anything cheaper, and only under-bills the Studio tier we don't offer. */
 export function googleTtsRateFor(voiceId: string | undefined): number {
@@ -311,10 +302,10 @@ export function googleTtsRateFor(voiceId: string | undefined): number {
 }
 
 /** Per-character TTS cost for a resolved (provider, voiceId). OpenAI is a flat
- *  per-char rate (the voice doesn't change the price); Google's rate is read
- *  from the voice id's tier. The single rate authority the meter and the
- *  picker's credits/hr estimate both bill through, so a shown rate can never
- *  drift from the real charge. */
+ *  per-char rate (voice doesn't change the price); Google's is read from the
+ *  voice id's tier. The single rate authority both the meter and the picker's
+ *  credits/hr estimate bill through, so a shown rate can't drift from the real
+ *  charge. */
 export function ttsRateFor(provider: TtsProvider, voiceId: string | undefined): number {
     return provider === 'openai' ? OPENAI_TTS_USD_PER_CHAR : googleTtsRateFor(voiceId);
 }

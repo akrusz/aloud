@@ -1,14 +1,9 @@
 /**
- * Shared services — a single SessionStore + KvStorage that all views
- * reach for, so we don't get one-per-view instances and they all see
- * the same persisted data.
- *
- * On desktop (Tauri) sessions persist to disk via the embedded shell
- * (BackendSessionStore → <app-data>/sessions/*.json), so they're durable,
- * openable files. Native mobile (Capacitor) keeps them in durable Preferences
- * via the shared KV; the web build keeps the localStorage-backed store. The
- * shared KV picks its backend per platform (createKv) — settings, small UI
- * state, and (off-desktop) the session history all ride on it.
+ * Shared services - one SessionStore + KvStorage for all views, so they see the
+ * same persisted data. Desktop (Tauri) persists sessions to disk via the
+ * embedded shell (BackendSessionStore -> <app-data>/sessions/*.json); elsewhere
+ * they ride on the shared KV, which picks its backend per platform (createKv:
+ * Capacitor Preferences on native mobile, localStorage on web).
  */
 
 import { SessionStore, type SessionStoreApi } from '../../src/platform/index.js';

@@ -1,8 +1,4 @@
-/**
- * Ollama provider — local inference via the Ollama HTTP API.
- *
- * Direct fetch implementation; no SDK dependency.
- */
+/** Ollama provider: local inference via the Ollama HTTP API, direct fetch. */
 
 import type {
     CompletionOptions,
@@ -16,23 +12,20 @@ const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen3.5:4b';
 const DEFAULT_MAX_TOKENS = 300;
 /**
- * Context window (num_ctx) requested per call. Ollama's own default is small
- * (4096 unless OLLAMA_CONTEXT_LENGTH is set), and overflow truncates the
- * prompt SILENTLY — in a long session the facilitator loses its system
- * prompt and quietly forgets its role (meditation-pal-76qx). 16k covers a
- * multi-hour session (system prompt worst case ~3k tokens + short voice
- * turns) while keeping KV-cache memory reasonable on small local models;
- * current local models are trained far beyond it (qwen3.5/gemma4: 262k),
- * so the cap is ours, not the model's.
+ * Context window (num_ctx) requested per call. Ollama defaults to 4096 unless
+ * OLLAMA_CONTEXT_LENGTH is set, and overflow truncates the prompt SILENTLY, so
+ * a long session loses its system prompt and the facilitator forgets its role
+ * (meditation-pal-76qx). 16k covers a multi-hour session (worst-case ~3k system
+ * prompt plus short voice turns) while keeping KV-cache memory reasonable. The
+ * cap is ours, not the model's: qwen3.5/gemma4 train to 262k.
  */
 const DEFAULT_NUM_CTX = 16384;
 
 /**
- * Pick a context length from total system RAM. Down-only: 16k is already
- * hours of voice-paced conversation, so more RAM never raises it; on an
- * <=8GB machine the KV cache competes with the model weights, so step down
- * to 8k (still a multi-hour session). Unknown RAM (browser, probe pending)
- * keeps the default.
+ * Pick a context length from total system RAM. Down-only: 16k is already hours
+ * of voice-paced conversation, so more RAM never raises it, but at <=8GB the KV
+ * cache competes with model weights, so step down to 8k (still multi-hour).
+ * Unknown RAM (browser, probe pending) keeps the default.
  */
 export function contextLengthForRam(ramGb: number | null): number {
     return ramGb !== null && ramGb <= 8 ? 8192 : DEFAULT_NUM_CTX;
@@ -45,13 +38,13 @@ export interface OllamaProviderOptions {
     /** Enable thinking/reasoning mode (slower, off by default). */
     think?: boolean;
     /**
-     * How long Ollama keeps the model in memory after a request. Default '30m'
-     * so it stays warm across a meditation's long silences; call
-     * relaxKeepAlive() on session end to let it idle out sooner.
+     * How long Ollama keeps the model in memory after a request. Default '30m',
+     * to stay warm across a meditation's long silences; relaxKeepAlive() on
+     * session end lets it idle out sooner.
      */
     keepAlive?: string;
-    /** Context window (num_ctx) to request. Defaults to DEFAULT_NUM_CTX;
-     *  raise for very long sessions at the cost of KV-cache memory. */
+    /** Context window (num_ctx). Raise for very long sessions, at the cost of
+     *  KV-cache memory. */
     contextLength?: number;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
@@ -109,10 +102,9 @@ export class OllamaProvider implements LLMProvider {
     }
 
     /**
-     * On session end, relax the model's keep_alive to Ollama's short default
-     * (5m) so it idles out soon rather than holding memory for the full 30m —
-     * but stays warm long enough that starting another session right away
-     * still reuses it (no full unload). Best-effort; swallows errors.
+     * On session end, relax keep_alive to Ollama's short default (5m): the model
+     * releases memory soon instead of holding it for 30m, but stays warm long
+     * enough that an immediate next session still reuses it. Swallows errors.
      */
     async relaxKeepAlive(idleKeepAlive = '5m'): Promise<void> {
         try {
@@ -172,7 +164,7 @@ export class OllamaProvider implements LLMProvider {
             throw new Error('Ollama streaming response has no body');
         }
 
-        // Ollama streams NDJSON — one JSON object per line, each like:
+        // Ollama streams NDJSON, one JSON object per line:
         //   {"message":{"content":"Hello"},"done":false}
         //   {"message":{"content":""},"done":true,"eval_count":...}
         const reader = response.body.getReader();
@@ -206,9 +198,8 @@ export class OllamaProvider implements LLMProvider {
                 }
             }
         } finally {
-            // Cancel signals "no more data wanted" so the connection is torn
-            // down (and Ollama stops generating) when the consumer abandons
-            // the iterator mid-stream; releaseLock then detaches the reader.
+            // cancel() tears down the connection (and stops generation) when a
+            // consumer abandons the iterator mid-stream; releaseLock detaches.
             await reader.cancel().catch(() => {
                 /* ignore */
             });
@@ -236,15 +227,12 @@ export class OllamaProvider implements LLMProvider {
     }
 
     /**
-     * If the configured model isn't currently loaded in Ollama's memory,
-     * return a user-facing status string explaining the upcoming cold-load
-     * wait. Returns null when the model is already loaded, when Ollama
-     * isn't reachable, or when we can't determine load state — in all of
-     * those cases the caller has nothing useful to show.
+     * User-facing status string warning of a cold-load wait, or null when the
+     * model is loaded, Ollama is unreachable, or load state is unknown (nothing
+     * useful to show in any of those).
      *
-     * Cheap (one HTTP call, 2s timeout); fine to call before every
-     * completion. After first use the model stays loaded so subsequent
-     * checks return null and the status banner clears itself.
+     * One HTTP call, so it's fine before every completion. After first use the
+     * model stays loaded, so later checks return null and the banner clears.
      */
     async coldLoadMessage(): Promise<string | null> {
         try {
@@ -276,9 +264,9 @@ interface OllamaStreamChunk {
 }
 
 /**
- * Map Ollama's eval counts to the CompletionResult split: prompt_eval_count
- * is input, eval_count is output. Local models have no prompt caching, so no
- * cache fields. `tokensUsed` is the sum, null when the model reported nothing.
+ * Map Ollama's eval counts to the CompletionResult split: prompt_eval_count is
+ * input, eval_count is output. No cache fields, since local models have no
+ * prompt caching. `tokensUsed` is the sum, null when nothing was reported.
  */
 function ollamaUsage(data: { prompt_eval_count?: number; eval_count?: number }): {
     tokensUsed: number | null;

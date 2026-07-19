@@ -1,9 +1,8 @@
 /**
- * Gift-accept modal (meditation-pal-bd5). On sign-in we check for clouds gifted
- * to this account's email and, if any, prompt to accept or decline each. Accept
- * adds the clouds here; decline bounces them back to the buyer (who can re-gift
- * or claim them from their Account page — no refund, no risk, the payment already
- * cleared). Reuses the `.voice-modal-*` chrome.
+ * Gift-accept modal (meditation-pal-bd5). On sign-in, prompt to accept or
+ * decline each cloud gifted to this account's email. Decline bounces them back
+ * to the buyer, who can re-gift or claim from their Account page; no refund is
+ * involved, the payment already cleared. Reuses the `.voice-modal-*` chrome.
  */
 
 import { fetchGifts, acceptGift, declineGift, type GiftView } from './cloud-billing.js';
@@ -14,8 +13,7 @@ import { showSuccessToast, showErrorToast } from './toast.js';
 
 const OVERLAY_ID = 'gift-modal-overlay';
 
-/** Fetch pending gifts for the signed-in account and, if any, show the prompt.
- *  Safe to call when signed out / offline — it just no-ops. */
+/** Safe to call when signed out or offline; it no-ops. */
 export async function checkAndShowGifts(): Promise<void> {
     const gifts = await fetchGifts();
     if (gifts.length > 0) showGiftModal(gifts);
@@ -37,8 +35,8 @@ function showGiftModal(gifts: GiftView[]): void {
             <div class="gift-list" id="gift-list"></div>
         </div>`;
     document.body.appendChild(overlay);
-    // Assigned once the gift rows exist (below), so initial focus lands on the
-    // first Accept button rather than the close button.
+    // Assigned once the rows exist (below), so initial focus lands on the first
+    // Accept button rather than the close button.
     let releaseFocus: (() => void) | null = null;
 
     const close = (): void => {
@@ -89,21 +87,19 @@ function showGiftModal(gifts: GiftView[]): void {
         row.querySelector('.gift-accept')?.addEventListener('click', () =>
             resolve(acceptGift, () => {
                 showSuccessToast(`${creditAmount(gift.credits, 0)} added to your balance.`);
-                // The accept endpoint returns no balance — refresh the shared
-                // balance store from /me so live readouts reflect the gift.
+                // The accept endpoint returns no balance, so refresh from /me to
+                // get the gift into live readouts.
                 void fetchMe().catch(() => null);
             })
         );
         row.querySelector('.gift-decline')?.addEventListener('click', () =>
             resolve(declineGift, () => {
-                /* sent back to the sender — no toast needed */
+                /* sent back to the sender; no toast needed */
             })
         );
         list.appendChild(row);
     }
 
-    // Focus into the dialog now that its rows exist; restore on close, Tab
-    // cycles inside.
     releaseFocus = manageModalFocus(overlay);
 }
 

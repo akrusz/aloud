@@ -1,12 +1,11 @@
 /**
- * Sign-in modal — the just-in-time gate (and a Settings affordance) for hosted
+ * Sign-in modal: the just-in-time gate (and a Settings affordance) for hosted
  * sign-in (meditation-pal-rfb / s75). Offers every configured method over a
- * dimmed overlay: Google, Apple, and an email/password form (sign in / create
- * account). Resolves true once a session token is held, false on dismiss.
+ * dimmed overlay: Google, Apple, and an email/password form.
  *
  * Free credits come from a TRUSTED identity (Google/Apple); an email signup gets
- * an account but no credits until it connects one (meditation-pal-116) — the
- * copy says so. Reuses the `.voice-modal-*` classes for visual consistency.
+ * an account but no credits until it connects one (meditation-pal-116), which
+ * the copy says. Reuses the `.voice-modal-*` classes.
  */
 
 import { renderGoogleSignInButton, renderDesktopGoogleSignInButton } from './google-signin.js';
@@ -42,10 +41,9 @@ const DEFAULT_SUBTITLE =
     'Sign up for free. Connect Google or Apple and we\'ll give you free credits to try aloud cloud!';
 
 /**
- * Show the sign-in modal. Resolves true after a successful sign-in (the session
- * token is cached by then), false if the user cancels / dismisses (close button,
- * overlay click, or Escape). A second call while one is already open is a no-op
- * that resolves false.
+ * Resolves true after a successful sign-in, by which point the session token is
+ * cached. Resolves false on dismiss (close, overlay click, Escape) and when a
+ * second call finds one already open.
  */
 export function showSignInModal(options: SignInModalOptions = {}): Promise<boolean> {
     if (document.getElementById(OVERLAY_ID)) return Promise.resolve(false);
@@ -108,7 +106,7 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         const onSignedIn = (auth: AuthResponse): void => {
             options.onSignedIn?.(auth);
             close(true);
-            // A just-signed-in user may have clouds waiting to be accepted.
+            // They may have clouds waiting to be accepted.
             void checkAndShowGifts();
         };
 
@@ -118,17 +116,17 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         });
         document.addEventListener('keydown', onKey);
 
-        // Google/Apple web popups (GIS / Apple JS) can't run in the desktop
-        // (Tauri) webview — its custom-scheme origin isn't a valid OAuth
-        // JavaScript origin. So on desktop we swap Google for a native loopback
-        // PKCE flow (system browser → 127.0.0.1, meditation-pal-fae) and still
-        // hide Apple (its native flow isn't wired yet). On web/local each button
-        // no-ops + removes its host when unconfigured. Email works everywhere.
+        // The GIS / Apple JS popups can't run in the Tauri webview: its
+        // custom-scheme origin isn't a valid OAuth JavaScript origin. So desktop
+        // swaps Google for a loopback PKCE flow (system browser to 127.0.0.1,
+        // meditation-pal-fae) and hides Apple, whose native flow isn't wired
+        // yet. On web each button removes its host when unconfigured. Email
+        // works everywhere.
         const oauth = overlay.querySelector<HTMLElement>('#signin-oauth')!;
         const googleHost = overlay.querySelector<HTMLElement>('#signin-google-button')!;
         const appleHost = overlay.querySelector<HTMLElement>('#signin-apple-button')!;
-        // Drop the whole OAuth block + its "or" divider once we know nothing
-        // rendered — otherwise a lone "or" dangles above the form.
+        // Drop the OAuth block and its "or" divider once we know nothing
+        // rendered, else a lone "or" dangles above the form.
         const dropEmptyOauth = (): void => {
             if (oauth.childElementCount === 0) {
                 oauth.remove();
@@ -136,14 +134,11 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             }
         };
         if (isCapacitor()) {
-            // Native mobile app. The web GIS button and Apple JS both need a
-            // real https OAuth JavaScript origin, which the capacitor:// (or
-            // https://localhost) app origin isn't — so we use the native
-            // account-picker flows via @capgo/capacitor-social-login instead
-            // (native-signin.ts). Each renderer no-ops (returns false) when its
-            // provider isn't configured, so an unconfigured provider drops its
-            // button and email carries the modal. (App Store Guideline 4.8:
-            // configure both Google + Apple for the iOS store build.)
+            // Native mobile: the capacitor:// (or https://localhost) origin
+            // isn't a valid OAuth JavaScript origin, so use the native
+            // account-picker flows (native-signin.ts). Each renderer returns
+            // false when its provider isn't configured, dropping its button and
+            // leaving email to carry the modal.
             void renderNativeGoogleSignInButton(googleHost, {
                 onSignedIn,
                 onError: (e) => showError(e.message),
@@ -166,11 +161,11 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             });
             if (!ok) googleHost.remove();
             dropEmptyOauth();
-            // Apple sign-in works on web but not yet in the desktop app (Apple
-            // forbids the loopback redirect the Google flow uses). Point an
-            // Apple-only user at a path that works here today. Only shown when
-            // Apple is actually configured upstream, so it reads as "coming soon"
-            // rather than a feature that doesn't exist. (meditation-pal-fae)
+            // Apple sign-in works on web but not in the desktop app: Apple
+            // forbids the loopback redirect the Google flow uses. Point an
+            // Apple-only user at a path that works today. Shown only when Apple
+            // is configured upstream, so it reads as "coming soon" rather than a
+            // feature that doesn't exist. (meditation-pal-fae)
             if (isAppleSignInConfigured()) {
                 const note = document.createElement('p');
                 note.className = 'provider-hint signin-apple-soon';
@@ -195,7 +190,6 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             });
         }
 
-        // Email form — toggles between sign-in and create-account.
         wireEmailForm(overlay, { onSignedIn, showError, clearError });
     });
 }

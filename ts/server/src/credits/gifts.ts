@@ -1,7 +1,6 @@
 /**
- * Gift-clouds logic (meditation-pal-bd5). A gift is funded by a CLEARED Stripe
- * payment, so the money is never "cancelled" — the purchased clouds are granted
- * exactly ONCE and never refunded. Lifecycle:
+ * Gift-clouds logic (meditation-pal-bd5). Funded by a CLEARED Stripe payment, so
+ * the clouds are granted exactly ONCE and never refunded. Lifecycle:
  *
  *   pending ──accept──▶ accepted        (clouds → recipient)
  *      │
@@ -11,14 +10,14 @@
  *                         ├─re-gift────▶ regifted  (+ a fresh pending gift to a new email)
  *                         └─claim──────▶ claimed   (clouds → buyer's own balance)
  *
- * A bounced gift does NOT auto-credit the buyer; it's held as 'returned' so they
- * can re-send it (no new charge) or claim it to their balance — value stays in
- * the credit system, never refunded. Returned gifts don't re-expire.
+ * A bounce does NOT auto-credit the buyer: it sits as 'returned' for them to
+ * re-send (no new charge) or claim to their balance, so value stays in the credit
+ * system. Returned gifts don't re-expire.
  *
- * Exactly-once is enforced by atomic compare-and-set on status (store.resolveGift
- * for pending→X, store.transitionGift for returned→X): whoever wins the
- * transition is the one (and only one) that grants / re-gifts, so a recipient
- * accept racing the expiry sweep — or two clicks on Claim — can't double-spend.
+ * Exactly-once comes from atomic compare-and-set on status (store.resolveGift for
+ * pending→X, store.transitionGift for returned→X): only the winner of the
+ * transition grants or re-gifts, so an accept racing the expiry sweep, or two
+ * clicks on Claim, can't double-spend.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -28,15 +27,15 @@ import type { Account, Gift } from './store.js';
 /** Unaccepted gifts bounce back to the buyer (as 'returned') after this long. */
 export const GIFT_EXPIRY_SECONDS = 30 * 24 * 3600; // 30 days
 
-/** Loose email shape check for a re-gift target — enough to reject garbage. */
+/** Loose shape check for a re-gift target, enough to reject garbage. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function norm(email: string): string {
     return email.trim().toLowerCase();
 }
 
-/** Pending, non-expired gifts addressed to this account's email. Expired ones
- *  are bounced to 'returned' in passing, so they never show to a recipient. */
+/** Pending, non-expired gifts for this account's email. Expired ones bounce to
+ *  'returned' in passing, so a recipient never sees them. */
 export async function pendingGiftsForAccount(deps: Deps, account: Account, now: number): Promise<Gift[]> {
     const gifts = await deps.store.getPendingGiftsForEmail(norm(account.email));
     const cutoff = now - GIFT_EXPIRY_SECONDS;
@@ -59,9 +58,8 @@ export type ReturnedGiftResolution =
     | { ok: true; credits: number }
     | { ok: false; reason: 'not_found' | 'not_returned' | 'not_owner' | 'bad_email' };
 
-/** Accept a gift: grant its clouds to `account`. Guards that the gift is pending
- *  and addressed to this account's email; the atomic resolve makes the grant
- *  happen at most once. */
+/** Accept a gift: grant its clouds to `account`. Guards pending + addressed to
+ *  this account's email; the atomic resolve grants at most once. */
 export async function acceptGift(
     deps: Deps,
     account: Account,
@@ -79,8 +77,8 @@ export async function acceptGift(
     return { ok: true, credits: gift.credits };
 }
 
-/** Decline a gift: it bounces to 'returned', held for the BUYER to re-gift or
- *  claim (no credit yet, no refund). Same recipient + pending guards as accept. */
+/** Decline: bounces to 'returned', held for the BUYER to re-gift or claim (no
+ *  credit yet, no refund). Same recipient + pending guards as accept. */
 export async function declineGift(
     deps: Deps,
     account: Account,
@@ -96,17 +94,17 @@ export async function declineGift(
     return returned ? { ok: true, credits: gift.credits } : { ok: false, reason: 'not_pending' };
 }
 
-/** Move a pending gift to 'returned' (decline or expiry). Atomic — only the
- *  winner of the resolve flips it — and deliberately credits NOBODY: the clouds
- *  wait for the buyer to re-gift or claim them. */
+/** Move a pending gift to 'returned' (decline or expiry). Atomic: only the
+ *  winner of the resolve flips it. Credits NOBODY; the clouds wait for the buyer
+ *  to re-gift or claim them. */
 async function markReturned(deps: Deps, gift: Gift, now: number): Promise<boolean> {
     return deps.store.resolveGift(gift.id, 'returned', now);
 }
 
-/** Re-gift a returned gift to a new recipient (meditation-pal-bd5). Only the
- *  buyer can; the original payment already cleared, so no new charge — we spawn a
- *  fresh pending gift (same clouds, new email, expiry clock reset) and mark the
- *  old one 'regifted'. Atomic so two clicks can't fork it into two live gifts. */
+/** Re-gift a returned gift to a new recipient (meditation-pal-bd5). Buyer only.
+ *  The original payment already cleared, so no new charge: spawn a fresh pending
+ *  gift (same clouds, new email, expiry clock reset) and mark the old one
+ *  'regifted'. Atomic, so two clicks can't fork it into two live gifts. */
 export async function regiftReturned(
     deps: Deps,
     account: Account,
@@ -137,8 +135,8 @@ export async function regiftReturned(
     return { ok: true, credits: gift.credits };
 }
 
-/** Claim a returned gift to the buyer's own balance (meditation-pal-bd5). Only
- *  the buyer can; atomic, so a click race can't double-credit. */
+/** Claim a returned gift to the buyer's own balance (meditation-pal-bd5). Buyer
+ *  only; atomic, so a click race can't double-credit. */
 export async function claimReturned(
     deps: Deps,
     account: Account,
@@ -156,8 +154,8 @@ export async function claimReturned(
     return { ok: true, credits: gift.credits };
 }
 
-/** Sweep: bounce every gift left pending past expiry to 'returned'. Runs on a
- *  timer in the server process (index.ts); idempotent and safe to call anytime. */
+/** Sweep every gift left pending past expiry to 'returned'. Runs on a timer in
+ *  index.ts; idempotent and safe to call anytime. */
 export async function reconcileExpiredGifts(deps: Deps, now: number): Promise<number> {
     const cutoff = now - GIFT_EXPIRY_SECONDS;
     const stale = await deps.store.pendingGiftsCreatedBefore(cutoff);

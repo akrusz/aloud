@@ -1,16 +1,14 @@
 /**
  * Structured logger with a HARD privacy invariant: meditation content never
- * touches a log line. This is the operational half of meditation-pal-dn2
- * (no-retention default for the multi-user aloud cloud) — the architecture
- * already keeps sessions client-side, and this guarantees the one place
- * content transits the server (the forwarding proxy) doesn't quietly persist
- * it via logs.
+ * touches a log line. Operational half of meditation-pal-dn2 (no-retention
+ * default for aloud cloud): sessions stay client-side, and this keeps the one
+ * place content transits the server (the forwarding proxy) from persisting it
+ * via logs.
  *
- * The proxy handles `messages[]` and completion `text`. Those are NEVER passed
- * to the logger. To make that auditable rather than aspirational, `log()`
- * runs `assertNoContent()` over the metadata it's handed and throws in dev if
- * a field looks like it carries a message body. We'd rather crash a request in
- * testing than leak a sutra into stdout in production.
+ * The proxy's `messages[]` and completion `text` are NEVER passed to the
+ * logger. To make that auditable, `log()` runs `assertNoContent()` over its
+ * metadata and throws in dev if a field looks like a message body. Better to
+ * crash a request in testing than leak a sutra into stdout in production.
  */
 
 const SECRET_KEYS = /(_key|_secret|token|authorization|password|cookie)$/i;
@@ -20,9 +18,9 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 let strictContentCheck = true;
 
-/** In production we don't want a stray field to crash a paying user's
- *  request, so the content assertion downgrades to "drop the field". In dev
- *  and tests it throws, surfacing the mistake immediately. */
+/** Off in production: the content assertion downgrades to "drop the field" so a
+ *  stray field can't crash a paying user's request. On in dev/tests, where it
+ *  throws and surfaces the mistake immediately. */
 export function setStrictContentCheck(on: boolean): void {
     strictContentCheck = on;
 }

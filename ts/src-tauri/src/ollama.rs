@@ -1,11 +1,8 @@
-//! Ollama model management — `/app/v1/ollama/pull` (streamed progress) and
-//! `/app/v1/ollama/delete`. Both proxy directly to the local Ollama daemon's HTTP
-//! API; the settings UI uses pull progress to render a per-model progress bar
-//! and delete to free disk space.
+//! Ollama model management: `/app/v1/ollama/pull` (streamed progress) and
+//! `/app/v1/ollama/delete`, both proxied to the local daemon's HTTP API.
 //!
-//! Restart / upgrade / install of the Ollama daemon *itself* (as opposed to its
-//! models) live in `ollama_tools.rs` — those flows are platform-specific (brew
-//! on macOS, curl-pipe-sh on Linux, manual on Windows).
+//! Restart / upgrade / install of the daemon *itself* lives in
+//! `ollama_tools.rs`, since those flows are platform-specific.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -18,13 +15,9 @@ pub struct ModelReq {
     pub model: String,
 }
 
-/// Stream a pull from Ollama's daemon, forwarding each progress line as one
-/// NDJSON record `{status, total?, completed?}` — the shape the settings UI's
-/// progress bar code expects.
-///
-/// `on_progress` is called once per NDJSON line we forward. The closure
-/// receives the JSON value already shaped for the UI; the caller serializes
-/// and writes it to the response stream.
+/// Stream a pull from the daemon, calling `on_progress` once per forwarded line
+/// with `{status, total?, completed?}` - the shape the settings UI's progress
+/// bar expects. The caller serializes each value onto the response stream.
 pub fn pull_stream<F: FnMut(Value)>(model: &str, mut on_progress: F) -> Result<(), String> {
     use std::io::{BufRead, BufReader};
 
@@ -48,9 +41,8 @@ pub fn pull_stream<F: FnMut(Value)>(model: &str, mut on_progress: F) -> Result<(
             Ok(v) => v,
             Err(_) => continue, // skip a malformed line; Ollama is the source
         };
-        // Ollama can inline an error in a 200-streamed body (e.g. 412 "requires
-        // newer Ollama" surfaces as a JSON `error` field). Forward it shaped
-        // the way the UI handler already expects.
+        // Ollama inlines errors in a 200-streamed body (e.g. 412 "requires newer
+        // Ollama" arrives as a JSON `error` field). Reshape for the UI handler.
         if let Some(err) = obj.get("error").and_then(Value::as_str) {
             on_progress(json!({ "status": "error", "error": err }));
             continue;
@@ -67,10 +59,9 @@ pub fn pull_stream<F: FnMut(Value)>(model: &str, mut on_progress: F) -> Result<(
     Ok(())
 }
 
-/// Delete a pulled model. Returns Ok(()) on success, Err with a 502-flavored
-/// message otherwise. Ollama's `/api/delete` takes a JSON
-/// body, which ureq's typed `delete()` builder forbids — use the generic
-/// `http::Request` form via `ureq::run` so we can attach one.
+/// Delete a pulled model, Err carrying a 502-flavored message. Ollama's
+/// `/api/delete` takes a JSON body, which ureq's typed `delete()` builder
+/// forbids, hence the generic `http::Request` form via `ureq::run`.
 pub fn delete(model: &str) -> Result<(), String> {
     use ureq::http::Request;
     let url = format!("{OLLAMA_URL}/api/delete");
@@ -95,11 +86,9 @@ mod tests {
 
     #[test]
     fn pull_stream_surfaces_bad_model() {
-        // Two environments to handle: (a) no Ollama running → transport error
-        // surfaces as Err, (b) Ollama running but the model doesn't exist →
-        // Ollama returns an inline error line, we forward it as a "status:
-        // error" event, and the function itself returns Ok. Both are correct
-        // contracts; assert one of them.
+        // Two valid outcomes: no Ollama running → transport Err; Ollama running
+        // but no such model → inline error line forwarded as a "status: error"
+        // event with Ok overall. Assert one of them.
         let mut saw_error_event = false;
         let result = pull_stream("definitely-not-a-real-model:xyz", |v| {
             if v["status"] == "error" {
@@ -112,8 +101,8 @@ mod tests {
         }
     }
 
-    /// Real round-trip — pulls a tiny model from a running Ollama. Ignored by
-    /// default; run when iterating on the pull pipeline.
+    /// Real round-trip against a running Ollama. Ignored by default; run when
+    /// iterating on the pull pipeline.
     #[test]
     #[ignore]
     fn pull_stream_round_trip() {

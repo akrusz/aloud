@@ -1,22 +1,17 @@
 /**
- * Capacitor STT adapter — wraps @capacitor-community/speech-recognition
- * as an SttEngine.
+ * Capacitor STT - wraps @capacitor-community/speech-recognition as an SttEngine.
+ * SFSpeechRecognizer on iOS, SpeechRecognizer on Android: no bundled Whisper and
+ * no network round-trip where on-device recognition is available (varies by OS
+ * version and language). The mobile app's skip-Whisper path.
  *
- * On iOS this calls SFSpeechRecognizer; on Android, SpeechRecognizer.
- * No Whisper bundled, no network round-trip when on-device recognition
- * is available (varies by OS version and language). This is the
- * "elegant skip-Whisper" path for the mobile app.
- *
- * Important caveats:
- *   - The plugin's start() permission flow must be triggered from a
- *     user-gesture handler (mic-button click) the first time. We call
- *     requestPermissions() lazily inside start() so callers don't have
- *     to remember to do it.
- *   - Native APIs auto-stop on end-of-speech. continuous=true keeps the
- *     session open across pauses; default false matches turn-taking.
- *   - This file only loads at runtime when the Capacitor plugin is
- *     present. Importing it inside a plain browser (no Capacitor
- *     runtime) throws at start() — not at import.
+ * Caveats:
+ *   - The first permission prompt must come from a user gesture (mic-button
+ *     click). requestPermissions() runs lazily inside start() so callers don't
+ *     have to remember.
+ *   - Native APIs auto-stop on end-of-speech. continuous=true holds the session
+ *     across pauses; the default false matches turn-taking.
+ *   - In a plain browser (no Capacitor runtime) this throws at start(), not at
+ *     import.
  */
 
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -31,10 +26,8 @@ export interface CapacitorSttEngineOptions {
     continuous?: boolean;
     /** Emit partial-result events. Default true. */
     partialResults?: boolean;
-    /**
-     * Maximum candidates the plugin returns per result. We only use the
-     * top one but the plugin requires the field. Default 1.
-     */
+    /** Candidates per result. We use only the top one, but the plugin requires
+     *  the field. Default 1. */
     maxResults?: number;
 }
 
@@ -53,11 +46,8 @@ export class CapacitorSttEngine implements SttEngine {
         };
     }
 
-    /**
-     * Probe whether the running platform actually has speech recognition
-     * available. Useful at app boot to decide which adapter to wire up
-     * without paying the import cost on the wrong platform.
-     */
+    /** Does this platform actually have speech recognition? Lets app boot pick
+     *  an adapter without paying the import cost on the wrong platform. */
     static async isAvailable(): Promise<boolean> {
         try {
             const result = await SpeechRecognition.available();
@@ -70,7 +60,6 @@ export class CapacitorSttEngine implements SttEngine {
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
 
-        // Permission flow — lazy so callers don't have to remember.
         try {
             const perm = await SpeechRecognition.checkPermissions();
             if (perm.speechRecognition !== 'granted') {
@@ -118,9 +107,8 @@ export class CapacitorSttEngine implements SttEngine {
         });
 
         try {
-            // The plugin's `start()` resolves with the final transcript(s)
-            // when listening ends. We treat that resolution as the final
-            // event in the stream.
+            // The plugin's start() resolves with the final transcript(s) when
+            // listening ends - that resolution is the stream's final event.
             const startPromise = SpeechRecognition.start({
                 language: this.options.language,
                 maxResults: this.options.maxResults,
@@ -161,7 +149,7 @@ export class CapacitorSttEngine implements SttEngine {
         try {
             await SpeechRecognition.stop();
         } catch {
-            // Already stopped — fine.
+            // Already stopped - fine.
         }
     }
 }

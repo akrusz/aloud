@@ -1,10 +1,7 @@
 /**
- * localStorage adapter for the KvStorage interface.
- *
- * Synchronous under the hood — wrapped in async to match the cross-platform
- * contract (Capacitor Preferences and IndexedDB are both async). Uses a
- * prefix so `clear()` doesn't wipe unrelated localStorage entries from
- * other code running on the same origin.
+ * localStorage adapter for KvStorage. Synchronous underneath, wrapped in async
+ * to match the cross-platform contract (Capacitor Preferences and IndexedDB are
+ * both async). Prefixed so clear() can't wipe unrelated same-origin entries.
  */
 
 import type { KvStorage } from '../../../src/platform/storage.js';

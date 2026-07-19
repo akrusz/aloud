@@ -1,9 +1,7 @@
 /**
- * Info panels and guided tour for the setup (index) page.
- *
- * Each section has a ? button that toggles an inline info panel.
- * The guide walks through all panels sequentially with a spotlight overlay,
- * reusing the .tour-* CSS classes from the settings tour.
+ * Info panels and guided tour for the setup (index) page. Each section's ?
+ * button toggles an inline info panel; the guide walks all panels in sequence
+ * with a spotlight overlay, reusing the settings tour's .tour-* CSS.
  */
 
 import { sharedKv } from '../state.js';
@@ -32,14 +30,10 @@ function toggleInfo(id: string): void {
     if (wasHidden) panel.classList.remove('hidden');
 }
 
-// Delegated handler so ? clicks keep working regardless of any DOM
-// manipulation during the tour (the buttons themselves don't get
-// re-rendered, but delegation removes any chance of stale per-element
-// listeners blocking clicks after a partial tour close).
-//
-// Registered once, lazily, when startGuide/autoStart is first called from
-// the setup view — avoids attaching to settings/history pages that don't
-// have info-btn[data-info] elements wired up for this tour.
+// Delegated so ? clicks survive any DOM manipulation during the tour - no
+// chance of stale per-element listeners blocking clicks after a partial close.
+// Registered lazily on the first startGuide/autoStart from the setup view, so
+// it never attaches on pages with no info-btn[data-info] elements.
 let infoBtnHandlerInstalled = false;
 function installInfoBtnHandler(): void {
     if (infoBtnHandlerInstalled) return;
@@ -80,8 +74,8 @@ function setupHeader(): HTMLElement | null {
     return document.querySelector<HTMLElement>('.setup-header');
 }
 
-// The methods panel shows only the active tab's text (see views/setup.ts),
-// so the tour visits each tab in turn to cover all three methods.
+// The methods panel shows only the active tab's text (views/setup.ts), so the
+// tour visits each tab in turn to cover all three methods.
 const SECTIONS: ReadonlyArray<Section> = [
     { id: 'methods-exploration', panel: 'methods', tab: 'exploration', target: setupHeader },
     { id: 'methods-noting', panel: 'methods', tab: 'noting', target: setupHeader },
@@ -197,8 +191,8 @@ function scrollToSection(el: HTMLElement, cb: () => void): void {
     const scrollTarget = window.scrollY + rect.top - getNavHeight();
     window.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
     setTimeout(function () {
-        // Bail if the tour was closed while we were waiting — otherwise
-        // the cb would re-create cardEl after cleanup and leak the tour.
+        // Bail if the tour closed while we waited - otherwise the cb re-creates
+        // cardEl after cleanup and leaks the tour.
         if (!guideActive) return;
         cb();
     }, 300);
@@ -279,21 +273,19 @@ function showSection(index: number): void {
         return;
     }
 
-    // Clean up previous
     if (prevTarget) prevTarget.classList.remove('guide-elevated');
     document.querySelectorAll('.info-panel').forEach(function (p) {
         p.classList.add('hidden');
     });
 
-    // Open this section's info panel
     const panel = document.getElementById('info-' + (section.panel || section.id));
     if (panel) panel.classList.remove('hidden');
 
-    // Elevate target above overlay so info panel is readable
+    // Elevate the target above the overlay so its info panel is readable.
     target.classList.add('guide-elevated');
     prevTarget = target;
 
-    // Wait a frame for layout to settle after opening panel
+    // Let layout settle after opening the panel.
     requestAnimationFrame(function () {
         scrollToSection(target, function () {
             positionSpotlight(target);
@@ -351,8 +343,7 @@ function completeGuide(): void {
 }
 
 function dismissRemindLater(): void {
-    // Session-scoped (sessionStorage) so a tour skip doesn't persist across
-    // browser sessions.
+    // sessionStorage, so a skip doesn't persist across browser sessions.
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(GUIDE_REMIND_KEY, '1');
     }
@@ -371,12 +362,10 @@ function onScroll(): void {
 }
 
 function onResizeDebounced(): void {
-    // Mobile browsers fire `resize` when the URL bar shows/hides during a
-    // scroll — that only changes the viewport *height*. Re-rendering the step
-    // on every such event recreates the card and replays its fade-in, which
-    // reads as a disorienting blink while the user scrolls. Only re-run the
-    // layout math when the *width* actually changes (orientation flip or a
-    // genuine resize), which is the case our positioning depends on.
+    // Mobile browsers fire `resize` when the URL bar shows/hides on scroll,
+    // changing only the viewport HEIGHT. Re-rendering there recreates the card
+    // and replays its fade-in, a disorienting blink mid-scroll. Only width
+    // changes (orientation flip, genuine resize) affect our positioning.
     if (window.innerWidth === lastViewportWidth) return;
     lastViewportWidth = window.innerWidth;
     if (resizeTimer !== null) clearTimeout(resizeTimer);
@@ -408,8 +397,8 @@ export function startGuide(startStep?: number): void {
     }
 }
 
-// "Take the full tour" link — user has explicitly opted in, so skip the
-// welcome screen and jump straight to the first section.
+// "Take the full tour" link - an explicit opt-in, so skip the welcome screen
+// and jump to the first section.
 export async function resetAndStart(): Promise<void> {
     await sharedKv.delete(GUIDE_DONE_KEY);
     if (typeof sessionStorage !== 'undefined') {
@@ -422,9 +411,8 @@ export async function autoStart(): Promise<void> {
     installInfoBtnHandler();
     if (await sharedKv.get(GUIDE_DONE_KEY)) return;
     if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(GUIDE_REMIND_KEY)) return;
-    // If the user has already started at least one session, they know the
-    // app — don't pop up the tour. The marker is set by markSessionStarted()
-    // when a session view mounts (see session.ts / noting-session.ts).
+    // Anyone who has started a session knows the app - no tour. The marker is
+    // set by markSessionStarted() on session-view mount.
     if (await sharedKv.get(CLIENT_ID_KEY)) return;
     setTimeout(function () {
         startGuide();
@@ -432,14 +420,12 @@ export async function autoStart(): Promise<void> {
 }
 
 /**
- * Record that the user has started at least one session, so the setup-page
- * tour won't pop up again on a later boot. Called on session mount.
+ * Record that the user has started a session (the aloud-client-id marker
+ * autoStart() checks), so the setup tour won't pop up on a later boot.
  *
- * Set unconditionally — NOT gated on the "Save session logs" setting the way
- * sessionStore is. The tour is only for genuinely new users; someone who has
- * run a session knows their way around whether or not they keep transcripts
- * (so the session history list isn't a reliable "new user" signal). Sets the
- * aloud-client-id marker on first session start, which autoStart() checks.
+ * Set unconditionally, NOT gated on "Save session logs" the way sessionStore is:
+ * someone who has run a session knows their way around whether or not they keep
+ * transcripts, so session history isn't a reliable "new user" signal.
  */
 export async function markSessionStarted(): Promise<void> {
     if (await sharedKv.get(CLIENT_ID_KEY)) return;

@@ -1,21 +1,19 @@
 /**
- * Stripe integration (meditation-pal-8sj) — credit packs sold via Stripe
- * Checkout, fulfilled on a verified webhook. No `stripe` SDK dependency: we
- * call the REST API with fetch and verify webhook signatures with node:crypto.
- * Fewer deps, and the signature check is right here in the open to audit.
+ * Stripe integration (meditation-pal-8sj): credit packs sold via Checkout,
+ * fulfilled on a verified webhook. No `stripe` SDK - REST via fetch, webhook
+ * signatures via node:crypto, so the signature check is here in the open.
  *
- * Optional: if STRIPE_SECRET_KEY is unset the routes report "billing not
- * configured" rather than crashing, so the server runs end-to-end in dev with
- * just the free-tier grant.
+ * Optional: with STRIPE_SECRET_KEY unset the routes report "billing not
+ * configured" rather than crashing, so dev runs on the free-tier grant alone.
  *
  * Channel/jurisdiction commission (meditation-pal-czr addendum) is applied at
- * the pricing layer, not here — this module only moves money and credits the
+ * the pricing layer, not here; this module only moves money and credits the
  * account on confirmed payment.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-/** A purchasable credit pack. Price embeds the margin (Model B — see meter.ts):
+/** A purchasable credit pack. Price embeds the margin (Model B, see meter.ts):
  *  credits debit at COST, so the price funds the provider cost its credits buy
  *  times the markup. Sales tax/VAT is added on top at checkout (Stripe Tax). */
 export interface CreditPack {
@@ -27,13 +25,12 @@ export interface CreditPack {
 
 // ---- Pricing curve ----------------------------------------------------------
 // One curve drives BOTH the preset packs and the custom "type your own" amount,
-// so a custom amount is never out of line with a pack. Instead of a flat rate
-// with a discount tacked on, credits-per-dollar STEPS UP with spend along a
-// gentle convex curve, so each tier is a clear per-credit win:
+// so a custom amount is never out of line with a pack. Credits-per-dollar steps
+// up with spend along a gentle convex curve, so each tier is a per-credit win:
 //
 //     $5 → 40 (12.5¢/cr) · $10 → 88 (11.4¢/cr) · $20 → 190 (10.5¢/cr)
 //
-// On $5–$20 that's the quadratic credits = A·d² + B·d + C (d = dollars) fit
+// On $5 to $20 that's the quadratic credits = A·d² + B·d + C (d = dollars) fit
 // through those three anchors; beyond $20 the rate is held flat at the $20 value
 // (CAP_CREDITS_PER_DOLLAR) so bigger buys don't run past solvency. Credits round
 // to nearest (fair both ways). Tunable during pre-launch calibration (7xl).
@@ -44,14 +41,14 @@ export const CURVE_C = -6;
 export const MIN_SPEND_CENTS = 500; // $5
 /** Best rate caps here; beyond it credits-per-dollar is held flat. */
 export const CAP_SPEND_CENTS = 2_000; // $20
-/** Credits per dollar at (and beyond) the cap — the $20 tier's rate, held flat. */
+/** Credits per dollar at (and beyond) the cap: the $20 tier's rate, held flat. */
 export const CAP_CREDITS_PER_DOLLAR =
     (CURVE_A * 20 * 20 + CURVE_B * 20 + CURVE_C) / 20; // 190 / 20 = 9.5
 /** The entry (smallest, priciest) per-credit rate, for the UI's discount hint. */
 export const BASE_CENTS_PER_CREDIT = MIN_SPEND_CENTS / (CURVE_A * 25 + CURVE_B * 5 + CURVE_C); // 12.5¢
 
 /** Credits a spend of `cents` buys, on the convex volume curve (flat best rate
- *  beyond $20), rounded to nearest. Canonical — presets are points on it. */
+ *  beyond $20), rounded to nearest. Canonical: presets are points on it. */
 export function creditsForCents(cents: number): number {
     const d = cents / 100;
     const credits =
@@ -63,7 +60,7 @@ export function creditsForCents(cents: number): number {
 
 /** Inverse of the curve for the custom field (buyer types credits, we price
  *  them): the cents that buy `credits`. Closed-form quadratic root within the
- *  curve, flat rate beyond the cap — derived from the same constants so it can't
+ *  curve, flat rate beyond the cap, derived from the same constants so it can't
  *  drift from creditsForCents. Rounds the price to the nearest cent. */
 export function centsForCredits(credits: number): number {
     // Beyond the cap: flat best rate.
@@ -77,8 +74,8 @@ export function centsForCredits(credits: number): number {
     return Math.round(d * 100);
 }
 
-/** The preset packs — points on the curve at $5 / $10 / $20. Regenerated from
- *  the curve so they always match it (and the custom amount). */
+/** The preset packs: points on the curve at $5 / $10 / $20, regenerated from it
+ *  so they always match it (and the custom amount). */
 export const CREDIT_PACKS: CreditPack[] = [
     { id: 'starter', cents: 500 },
     { id: 'plus', cents: 1000 },
@@ -99,10 +96,10 @@ export function packById(id: string): CreditPack | undefined {
 }
 
 // ---- Custom amounts (type-your-own credits) ---------------------------------
-// A buyer can name any whole-credit amount instead of a preset. It's priced on
-// the SAME curve (centsForCredits), so it gets the same volume discount as a
-// pack and is never a premium. Floor is the smallest preset; a high ceiling
-// guards a fat-fingered charge. Server-priced; the client number is a preview.
+// Any whole-credit amount instead of a preset, priced on the SAME curve
+// (centsForCredits), so it gets the same volume discount and is never a
+// premium. Floor is the smallest preset; the ceiling guards a fat-fingered
+// charge. Server-priced; the client number is only a preview.
 
 /** Floor: never below the smallest preset pack (kept in sync with CREDIT_PACKS). */
 export const MIN_CUSTOM_CREDITS = Math.min(...CREDIT_PACKS.map((p) => p.credits));
@@ -118,7 +115,7 @@ export function isValidCustomCredits(credits: number): boolean {
     );
 }
 
-/** Build a synthetic pack for a custom amount so the checkout/webhook path is
+/** Synthetic pack for a custom amount, so the checkout/webhook path is
  *  identical to a preset. Priced on the curve via centsForCredits. */
 export function customPack(credits: number): CreditPack {
     return {
@@ -190,8 +187,8 @@ export async function createCheckoutSession(
         // Also stamp the PaymentIntent so a later charge.refunded / dispute event
         // (whose object is a charge/dispute, NOT the session) can recover the
         // buyer + amount to claw back (meditation-pal-7tl). 'gift' marks a gift
-        // purchase — those credited a gift record, not the buyer, so the reversal
-        // path must NOT debit the buyer; it flags for manual review instead.
+        // purchase: those credited a gift record, not the buyer, so the reversal
+        // path must NOT debit the buyer, it flags for manual review instead.
         'payment_intent_data[metadata][account_id]': params.accountId,
         'payment_intent_data[metadata][credits]': String(params.pack.credits),
         'payment_intent_data[metadata][pack_id]': params.pack.id,
@@ -233,22 +230,21 @@ export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | unde
     };
     if (e.type !== 'checkout.session.completed') return undefined;
     const obj = e.data?.object ?? {};
-    // `checkout.session.completed` also fires for sessions whose payment is
-    // still pending or unpaid (e.g. delayed payment methods) — only a session
-    // Stripe marks `paid` may mint credits. We don't sell via delayed methods
-    // today, so requiring `paid` here is the whole gate.
+    // `checkout.session.completed` also fires for pending/unpaid sessions (e.g.
+    // delayed payment methods); only a session Stripe marks `paid` may mint
+    // credits. We don't sell via delayed methods, so this is the whole gate.
     if (obj['payment_status'] !== 'paid') return undefined;
     const accountId = typeof obj['client_reference_id'] === 'string' ? obj['client_reference_id'] : '';
     const meta = (obj['metadata'] as Record<string, string> | undefined) ?? {};
     const packId = meta['pack_id'] ?? '';
     const stripeSessionId = typeof obj['id'] === 'string' ? obj['id'] : '';
-    // Defense in depth: the metadata is our own write at checkout-creation
-    // time, but re-derive the credit amount from the server-side pack table
-    // anyway so a tampered metadata blob can't inflate the grant. Only the
-    // custom pack has no table row — there the metadata number is the source,
-    // re-run through the same bounds check the checkout route applied. (The
-    // volume discount is already baked into a pack's credits and into the custom
-    // amount the buyer chose, so the grant is simply that credit count.)
+    // Defense in depth: the metadata is our own write at checkout-creation time,
+    // but re-derive the credit amount from the server-side pack table anyway so
+    // a tampered metadata blob can't inflate the grant. Only the custom pack has
+    // no table row; there the metadata number is the source, re-run through the
+    // same bounds check the checkout route applied. (The volume discount is
+    // already baked into a pack's credits and into the custom amount the buyer
+    // chose, so the grant is simply that credit count.)
     let credits: number;
     if (packId === 'custom') {
         credits = Number(meta['credits']);
@@ -265,7 +261,7 @@ export function parseCheckoutCompleted(event: unknown): FulfilledPurchase | unde
 
 /** A refund or chargeback to claw back (meditation-pal-7tl). The triggering
  *  object is a charge (charge.refunded) or a dispute (charge.dispute.created),
- *  neither of which carries our session metadata — only a payment_intent id, so
+ *  neither of which carries our session metadata, only a payment_intent id, so
  *  the caller resolves the buyer/credits via fetchPurchaseMetadata below. */
 export interface ChargeReversal {
     kind: 'refund' | 'dispute';
@@ -287,8 +283,8 @@ export function parseChargeReversal(event: unknown): ChargeReversal | undefined 
         const amount = Number(obj['amount']);
         const amountRefunded = Number(obj['amount_refunded']);
         if (!paymentIntentId || !chargeId || !(amount > 0)) return undefined;
-        // Proportional clawback (a full refund → 1). NOTE: keyed on the charge,
-        // so a sequence of *partial* refunds on one charge only claws the first;
+        // Proportional clawback (full refund → 1). Keyed on the charge, so a
+        // sequence of *partial* refunds on one charge only claws the first;
         // full refunds (the common case) and webhook retries are exact.
         const fraction = Math.min(1, Math.max(0, amountRefunded / amount));
         if (fraction <= 0) return undefined;
@@ -307,9 +303,9 @@ export function parseChargeReversal(event: unknown): ChargeReversal | undefined 
 }
 
 /** Resolve the buyer + granted credits behind a payment_intent, from the
- *  metadata we stamped at checkout (payment_intent_data[metadata]). Returns
- *  undefined on any failure so the caller can flag for manual review rather than
- *  guess. `isGift` purchases credited a gift record, not the buyer. */
+ *  metadata stamped at checkout (payment_intent_data[metadata]). Returns
+ *  undefined on any failure so the caller flags for manual review rather than
+ *  guessing. `isGift` purchases credited a gift record, not the buyer. */
 export async function fetchPurchaseMetadata(
     paymentIntentId: string,
     secretKey: string,

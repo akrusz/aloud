@@ -1,19 +1,15 @@
 /**
  * Grant-eligibility key derived from an email (meditation-pal-8jc). The free
- * signup grant costs real money (currently ~$0.50/account), so a deleted account
- * must not be a way to farm a fresh grant. We can't gate on the account or the
- * identity row — both are removed/freed on delete so the human can genuinely
- * start over — so we gate the GRANT on a stable key derived from the email, and
- * keep a tiny append-only log of keys that have ever been granted (it survives
- * account deletion). A returning person can sign in again and buy credits; they
- * just don't get a second freebie.
+ * signup grant costs real money (~$0.50/account), so deleting an account must not
+ * farm a fresh grant. Account and identity rows are both removed on delete (so
+ * the human can genuinely start over), leaving nothing to gate on - so the GRANT
+ * is gated on a stable email-derived key, with a tiny append-only log of
+ * ever-granted keys that survives deletion. A returning person can sign in and
+ * buy credits, just not get a second freebie.
  *
- * `normalizeEmail` collapses the common "same inbox, different string" tricks so
- * one mailbox maps to one key:
- *   - case and surrounding whitespace,
- *   - +tag sub-addressing (user+anything@ routes to user@ everywhere), and
- *   - Gmail's dot-insensitivity (and the googlemail.com alias).
- * It is NOT a routing normalizer — only a farming-resistant grant key.
+ * `normalizeEmail` collapses "same inbox, different string" tricks to one key:
+ * case/whitespace, +tag sub-addressing, and Gmail dot-insensitivity (plus the
+ * googlemail.com alias). Not a routing normalizer, only a farming-resistant key.
  */
 
 import { createHash } from 'node:crypto';
@@ -24,7 +20,7 @@ const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 export function normalizeEmail(email: string): string {
     const trimmed = email.trim().toLowerCase();
     const at = trimmed.lastIndexOf('@');
-    if (at <= 0 || at === trimmed.length - 1) return trimmed; // not email-shaped — key off the raw string
+    if (at <= 0 || at === trimmed.length - 1) return trimmed; // not email-shaped: key off the raw string
     let local = trimmed.slice(0, at);
     let domain = trimmed.slice(at + 1);
     // Plus-addressing routes to the bare local part on every major provider.
@@ -38,8 +34,7 @@ export function normalizeEmail(email: string): string {
     return `${local}@${domain}`;
 }
 
-/** Stable, privacy-preserving grant key: a hash of the normalized email, so the
- *  grant log never stores the address itself. */
+/** Hash of the normalized email, so the grant log never stores the address. */
 export function emailGrantKey(email: string): string {
     return createHash('sha256').update(normalizeEmail(email)).digest('hex');
 }

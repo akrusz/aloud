@@ -1,15 +1,15 @@
 /**
- * Identity connection — the shared core behind every sign-in route
+ * Identity connection, the shared core behind every sign-in route
  * (meditation-pal-116). A verified identity (Google/Apple token, or an
  * email+password the route already checked) is either:
  *   - already linked → sign in as its account (no grant), or
  *   - new → create a fresh account, OR link it to the caller's existing account
  *     (the "connect to claim credits" flow), then apply the free-grant rules.
  *
- * Free credits come from connecting a TRUSTED, verified identity (decideConnectGrant
- * in quota/freetier.ts): once per account and once per identity, ever. A bare
- * email signup is untrusted, so it gets an account but no credits until it
- * connects Google/Apple.
+ * Free credits come from connecting a TRUSTED, verified identity
+ * (decideConnectGrant in quota/freetier.ts): once per account and once per
+ * identity, ever. A bare email signup is untrusted, so it gets an account but no
+ * credits until it connects Google/Apple.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -21,8 +21,8 @@ import { issueSessionToken } from './session.js';
 import { emailGrantKey, normalizeEmail } from './email-key.js';
 import { log } from '../logger.js';
 
-/** An identity whose proof the route has already validated (OAuth token verified,
- *  or password checked) — ready to link to an account. */
+/** An identity whose proof the route already validated (OAuth token verified or
+ *  password checked), ready to link to an account. */
 export interface VerifiedIdentity {
     provider: IdentityProvider;
     /** Provider's stable id: Google/Apple `sub`, or the lower-cased email. */
@@ -35,10 +35,9 @@ export interface ConnectOptions {
     /** Captured client IP, stored on a newly-created account for abuse signals. */
     signupIp?: string;
     /** When set, link the identity to this EXISTING account (the connect flow)
-     *  instead of creating a new one. From the caller's verified session. */
+     *  instead of creating one. From the caller's verified session. */
     linkToAccountId?: string;
-    /** Credential to persist on the identity (email/password hash). OAuth
-     *  identities omit this. */
+    /** Credential to persist on the identity (password hash). OAuth omits it. */
     secretHash?: string;
 }
 
@@ -51,9 +50,9 @@ export interface ConnectResult {
     breakerTripped: boolean;
 }
 
-/** Raised when an identity is already linked to a DIFFERENT account than the one
- *  the caller is trying to connect it to — re-using one Google/Apple login to
- *  claim a second account's credits is exactly what we forbid. */
+/** Raised when an identity is already linked to a DIFFERENT account than the
+ *  caller is connecting it to. Re-using one Google/Apple login to claim a second
+ *  account's credits is exactly what we forbid. */
 export class IdentityConflictError extends Error {
     constructor() {
         super('That login is already linked to a different aloud account.');
@@ -63,10 +62,9 @@ export class IdentityConflictError extends Error {
 
 /** Raised on a cold sign-in when this mailbox already has a live account we
  *  can't safely auto-link to (a new login can only join an existing account when
- *  BOTH are email-verified). The human should sign in with the method they
- *  already have, then connect this one from settings — which is the
- *  authenticated, safe path. Prevents both duplicate accounts and an unverified
- *  signup grafting onto someone's verified account. */
+ *  BOTH are email-verified). The human signs in with their existing method and
+ *  connects this one from settings, the authenticated path. Prevents duplicate
+ *  accounts and an unverified signup grafting onto a verified account. */
 export class EmailInUseError extends Error {
     constructor() {
         super('An account already exists for this email. Sign in with your original method, then connect this one in settings.');
@@ -82,8 +80,8 @@ export async function connectIdentity(
     const now = Date.now() / 1000;
     const existing = await deps.store.getIdentity(ident.provider, ident.sub);
     if (existing) {
-        // Already linked. If the caller asked to link it to a different account,
-        // that's the farming attempt we block; otherwise just sign in.
+        // Already linked. Linking it to a different account is the farming
+        // attempt we block; otherwise just sign in.
         if (opts.linkToAccountId && opts.linkToAccountId !== existing.accountId) {
             throw new IdentityConflictError();
         }
@@ -92,12 +90,12 @@ export async function connectIdentity(
         return { account, isNewAccount: false, isNewIdentity: false, granted: 0, breakerTripped: false };
     }
 
-    // New identity: link it to the caller's account when they're genuinely
-    // signed in, else mint a fresh one. A linkToAccountId that no longer resolves
-    // — a STALE/expired session token, common after an in-memory dev server
-    // restart wipes accounts while the browser keeps a still-valid-signature
-    // token — is treated as "not signed in" and falls through to a new account,
-    // NOT a 500 (the bug that made sign-in look broken).
+    // New identity: link to the caller's account when they're genuinely signed
+    // in, else mint a fresh one. A linkToAccountId that no longer resolves (a
+    // STALE session token, common after an in-memory dev restart wipes accounts
+    // while the browser keeps a still-valid-signature token) counts as "not
+    // signed in" and falls through to a new account, NOT a 500 (the bug that made
+    // sign-in look broken).
     let account: Account;
     let isNewAccount = false;
     const linked = opts.linkToAccountId
@@ -106,13 +104,13 @@ export async function connectIdentity(
     if (linked) {
         account = linked;
     } else {
-        // Cold sign-in (no caller session). Before minting a fresh account, see if
-        // this mailbox already has one — canonical match, so Gmail dot/+tag
-        // variants of the same inbox count as the same person. If it does, only
-        // attach this identity when BOTH sides are email-verified (Google/Apple
-        // vouch for the address): that safely reunites a split Google+Apple login
-        // into one account. Otherwise refuse, rather than silently fork a
-        // duplicate or let an unverified signup graft onto a verified account.
+        // Cold sign-in (no caller session). Before minting an account, check
+        // whether this mailbox already has one - canonical match, so Gmail
+        // dot/+tag variants count as the same person. If so, attach only when
+        // BOTH sides are email-verified (Google/Apple vouch for the address),
+        // which safely reunites a split Google+Apple login into one account.
+        // Otherwise refuse rather than fork a duplicate or let an unverified
+        // signup graft onto a verified account.
         const sibling = await deps.store.findLiveAccountByEmail(ident.email);
         if (sibling) {
             if (ident.emailVerified && sibling.emailVerified) {
@@ -133,13 +131,13 @@ export async function connectIdentity(
         }
     }
 
-    // Decide the grant BEFORE creating the identity (the account "already
-    // granted?" check must not count the row we're about to add).
+    // Decide the grant BEFORE creating the identity: the account "already
+    // granted?" check must not count the row we're about to add.
     const existingIdentities = await deps.store.getIdentitiesForAccount(account.id);
     const accountAlreadyGranted = existingIdentities.some((i) => i.grantedCredits);
-    // The email-derived grant key survives account deletion, so a deleted-then-
-    // recreated user can't re-farm the freebie (meditation-pal-8jc). Empty email
-    // (Apple omits it on repeat sign-ins) ⇒ no key to check; the identity/account
+    // The email-derived grant key survives account deletion, so delete-then-
+    // recreate can't re-farm the freebie (meditation-pal-8jc). Empty email (Apple
+    // omits it on repeat sign-ins) means no key to check; the identity/account
     // gates still apply.
     const grantKey = ident.email ? emailGrantKey(ident.email) : null;
     const emailKeyAlreadyGranted = grantKey ? await deps.store.hasGrantKey(grantKey) : false;
@@ -165,14 +163,14 @@ export async function connectIdentity(
     let granted = 0;
     let breakerTripped = false;
     if (decision.grantCredits > 0) {
-        // Emergency brake: refuse the grant if the global hourly free-credit
+        // Emergency brake: refuse the grant when the global hourly free-credit
         // budget is exhausted (mass-signup flood). The account/identity still
-        // exist and can buy credits — they just get no freebie right now.
+        // exist and can buy credits, just no freebie right now.
         if (deps.grantBreaker.tryConsume(decision.grantCredits)) {
             await deps.ledger.grant(account.id, decision.grantCredits, decision.reason);
             await deps.store.markIdentityGranted(ident.provider, ident.sub);
             // Burn the email key so this mailbox can't claim the freebie again,
-            // even after deleting and recreating the account (meditation-pal-8jc).
+            // even after delete-and-recreate (meditation-pal-8jc).
             if (grantKey) await deps.store.recordGrantKey(grantKey, now);
             granted = decision.grantCredits;
         } else {
@@ -194,18 +192,16 @@ export async function connectIdentity(
 }
 
 /**
- * Set (or change) the email/password credential on an already-signed-in account
- * (meditation-pal — password for federated accounts). A Google/Apple user who
- * has no password gains one; a user who already has an 'email' identity changes
- * it. The identity is keyed on the account's OWN canonical email — never a
- * client-supplied address — so this can only ever add a password to your own
- * mailbox, and it grants no credits (email identities are untrusted; we bypass
- * connectIdentity's grant path entirely).
+ * Set (or change) the email/password credential on an already-signed-in account.
+ * A Google/Apple user with no password gains one; an existing 'email' identity
+ * changes it. Keyed on the account's OWN canonical email, never a client-supplied
+ * address, so it can only add a password to your own mailbox. Grants no credits
+ * (email identities are untrusted), bypassing connectIdentity's grant path.
  *
- * Guards against the one unsafe case: an 'email' identity for this canonical
- * mailbox that belongs to a DIFFERENT account (would be a cross-account
- * takeover) → IdentityConflictError. The one-account-per-mailbox invariant makes
- * that unreachable in practice, but we fail closed rather than trust it.
+ * Guards the one unsafe case: an 'email' identity for this canonical mailbox
+ * owned by a DIFFERENT account (a cross-account takeover) → IdentityConflictError.
+ * The one-account-per-mailbox invariant makes that unreachable in practice, but
+ * we fail closed rather than trust it.
  */
 export async function setAccountPassword(
     deps: Deps,
@@ -224,8 +220,8 @@ export async function setAccountPassword(
             provider: 'email',
             sub,
             accountId: account.id,
-            // The address is already proven by the federated sign-in that owns
-            // this account, so the password identity inherits that trust.
+            // The federated sign-in that owns this account already proved the
+            // address, so the password identity inherits that trust.
             emailVerified: account.emailVerified,
             grantedCredits: false,
             createdAt: Date.now() / 1000,
@@ -235,11 +231,11 @@ export async function setAccountPassword(
     log.info('account password set', { accountId: account.id, changed: existing != null });
 }
 
-/** The account + live balance + linked sign-in methods (GET /me and every auth
+/** Account + live balance + linked sign-in methods (GET /me and every auth
  *  response). Centralised so both paths report `providers` consistently. */
 export async function buildAccountView(deps: Deps, account: Account): Promise<AccountView> {
     const identities = await deps.store.getIdentitiesForAccount(account.id);
-    // "Covered" tracks an active in-window pass, NOT the daily-cap check — a
+    // "Covered" tracks an active in-window pass, NOT the daily-cap check: a
     // member who hits their cap for the day shouldn't suddenly see buy prompts.
     const pass = await deps.store.activeRetreatPassForAccount(account.id, Date.now() / 1000);
     return {
@@ -253,18 +249,18 @@ export async function buildAccountView(deps: Deps, account: Account): Promise<Ac
 }
 
 /**
- * Soft-delete an account at the user's request (meditation-pal-8jc). We:
+ * Soft-delete an account at the user's request (meditation-pal-8jc):
  *   - zero any remaining balance with a `debit` entry (credits are forfeit, not
- *     refunded — the ledger stays a complete, append-only audit trail),
+ *     refunded, so the ledger stays a complete append-only audit trail),
  *   - delete the account's identities so each (provider, sub) is free to sign in
- *     fresh later (a genuine clean start for the human), and
+ *     fresh later (a genuine clean start), and
  *   - anonymize + tombstone the account row (scrub email + signup IP, stamp
  *     deletedAt) so it can no longer authenticate while its ledger foreign keys
- *     still resolve. With no email, identities, or IP left, the surviving
- *     ledger/usage rows are keyed by a random UUID only — effectively anonymous
+ *     still resolve. With no email, identities, or IP left, surviving
+ *     ledger/usage rows are keyed by a random UUID only, effectively anonymous
  *     (meditation-pal-9rkg).
- * The email's grant key (recorded at grant time) is deliberately KEPT, so the
- * person can return and buy credits but can't re-claim the free grant.
+ * The email's grant key is KEPT, so the person can return and buy credits but
+ * can't re-claim the free grant.
  */
 export async function deleteAccount(deps: Deps, account: Account): Promise<void> {
     const now = Date.now() / 1000;
@@ -277,13 +273,13 @@ export async function deleteAccount(deps: Deps, account: Account): Promise<void>
     log.info('account deleted', { accountId: account.id, forfeited: balance });
 }
 
-/** How long a signup IP is kept before being scrubbed (meditation-pal-9rkg).
- *  Its only job is velocity-checking new signups; past this window it's just
- *  personal data sitting in the DB and its backups. */
+/** How long a signup IP is kept before scrubbing (meditation-pal-9rkg). Its only
+ *  job is velocity-checking new signups; past this window it's just personal data
+ *  sitting in the DB and its backups. */
 export const SIGNUP_IP_RETENTION_DAYS = 90;
 
-/** Scrub signup IPs older than the retention window. Called from the hourly
- *  sweep in the entrypoint; idempotent, so overlapping runs are harmless. */
+/** Scrub signup IPs past the retention window. Called from the entrypoint's
+ *  hourly sweep; idempotent, so overlapping runs are harmless. */
 export async function ageOutSignupIps(deps: Deps, now: number): Promise<number> {
     const cutoff = now - SIGNUP_IP_RETENTION_DAYS * 86_400;
     const cleared = await deps.store.clearSignupIpsBefore(cutoff);
@@ -291,10 +287,10 @@ export async function ageOutSignupIps(deps: Deps, now: number): Promise<number> 
     return cleared;
 }
 
-/** Resolve any pending retreat invites (meditation-pal-n9kd) addressed to this
- *  account's email into real memberships, then forget the invites. Lets an
- *  operator add attendees by email before they have an account; coverage binds
- *  on first sign-in, in any order. Matched case-insensitively. */
+/** Turn pending retreat invites (meditation-pal-n9kd) addressed to this account's
+ *  email into memberships, then forget the invites. Lets an operator add
+ *  attendees by email before they have an account; coverage binds on first
+ *  sign-in, in any order. Matched case-insensitively. */
 async function bindRetreatInvites(deps: Deps, account: Account): Promise<void> {
     const email = account.email.toLowerCase();
     const invites = await deps.store.invitesForEmail(email);
@@ -314,8 +310,8 @@ export async function issueAuthResponse(
     isNewAccount: boolean
 ): Promise<AuthResponse> {
     const token = await issueSessionToken(account.id, deps.config.sessionSecret);
-    // Claim any invites addressed to this email before building the view, so a
-    // freshly-bound pass shows up as covered in the same response.
+    // Claim invites before building the view, so a freshly-bound pass shows up as
+    // covered in the same response.
     await bindRetreatInvites(deps, account);
     return { token, isNewAccount, account: await buildAccountView(deps, account) };
 }

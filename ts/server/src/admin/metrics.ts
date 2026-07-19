@@ -1,16 +1,13 @@
 /**
- * Spend monitoring (dev ask): aggregate the ledger so the operator can watch
- * cost in near-real-time and tweak the free-grant / pricing if abuse spikes.
+ * Spend monitoring: aggregate the ledger so the operator can watch cost in
+ * near-real-time and tweak the free grant or pricing if abuse spikes. Pure
+ * function over store reads, no I/O. Trial-scale: scans all entries, where a
+ * SQL store would use indexed aggregates.
  *
- * Pure function over store reads — no I/O here, so it's trivially testable.
- * Trial-scale: scans all entries; a SQL store would answer these as indexed
- * aggregates instead.
- *
- * The number that matters most for "am I bleeding on free users": free-grant
- * burn isolated to NON-CONVERTING accounts (got the grant, spent it, never
- * bought). Credits are fungible, so we can't attribute a single debit to a
- * specific grant — but an account that never purchased has spent only free
- * credits, so its debits ARE free burn. That's the honest, exact slice.
+ * The key number for "am I bleeding on free users" is free-grant burn isolated
+ * to NON-CONVERTING accounts. Credits are fungible, so a single debit can't be
+ * attributed to a specific grant, but an account that never purchased has spent
+ * only free credits, so its debits ARE free burn. Exact, not an estimate.
  */
 
 import type { Account, LedgerEntry } from '../credits/store.js';
@@ -33,8 +30,8 @@ export interface MetricsReport {
         grantedCostUsd: number;
         /** What we've actually paid providers (credits debit at cost). */
         providerCostUsd: number;
-        /** Provider cost spent by accounts that have NEVER purchased — the real
-         *  "money spent on free users who didn't convert". */
+        /** Provider cost spent by accounts that have NEVER purchased: money
+         *  spent on free users who didn't convert. */
         freeBurnUsd: number;
         /** Rough gross revenue from purchases (Stripe is source of truth). */
         estGrossRevenueUsd: number;
@@ -75,10 +72,9 @@ export function buildMetrics(
     let creditsPurchased = 0;
     let creditsDebited = 0;
     let creditsOutstanding = 0;
-    // Actual gross revenue, summed per purchase: every purchase priced its
-    // credits on the volume curve, so centsForCredits(amount) recovers the
-    // dollars paid — accurate for the non-linear curve where a flat markup
-    // over-states. (Not net of refunds — those are a separate ledger kind.)
+    // Gross revenue summed per purchase: each priced its credits on the volume
+    // curve, so centsForCredits(amount) recovers the dollars paid, where a flat
+    // markup would over-state. Not net of refunds (a separate ledger kind).
     let grossRevenueCents = 0;
 
     const purchasedAccounts = new Set<string>();
@@ -98,7 +94,7 @@ export function buildMetrics(
         }
     }
 
-    // Free burn = debits by accounts that never purchased.
+    // Free burn: debits by accounts that never purchased.
     let freeBurnCredits = 0;
     for (const [accountId, debited] of debitsByAccount) {
         if (!purchasedAccounts.has(accountId)) freeBurnCredits += debited;

@@ -1,15 +1,13 @@
 /**
- * Buy-credits modal (meditation-pal-8sj / 44o) — lists the packs and either
- * starts a Stripe Checkout (card) or pays in USDC on Base via x402 (du9 Phase 2)
- * when one is picked. Reuses the `.voice-modal-*` classes for visual consistency
- * with the sign-in / voice modals, and floats above whatever view is mounted so
- * it can fire mid-session (out-of-credits) or from Settings.
+ * Buy-credits modal (meditation-pal-8sj / 44o). Lists the packs and, on pick,
+ * either starts a Stripe Checkout (card) or pays USDC on Base via x402 (du9
+ * Phase 2). Reuses the `.voice-modal-*` classes and floats above whatever view
+ * is mounted, so it can fire mid-session (out-of-credits) or from Settings.
  *
- * Card: picking a pack starts a Stripe Checkout (startCheckout). On the web the
- * tab redirects to Stripe and the outcome is read from `?purchase=` on return
- * (cloud-billing.consumePurchaseReturn). In the desktop webview a redirect would
- * take over the whole window and dump the user on the hosted site afterwards, so
- * goToCheckout opens Stripe in the system browser and the modal waits, polling
+ * Card: on web the tab redirects to Stripe and the outcome comes back via
+ * `?purchase=` (cloud-billing.consumePurchaseReturn). In the desktop webview a
+ * redirect would take over the whole window and strand the user on the hosted
+ * site, so goToCheckout opens the system browser and the modal waits, polling
  * /me until the webhook-fulfilled credits land (self-purchases auto-close).
  *
  * USDC: the wallet signs and the server settles in-place (no redirect), so the
@@ -47,10 +45,9 @@ function dollars(cents: number): string {
 }
 
 /**
- * Show the buy-credits modal. Resolves false when dismissed (close, overlay
- * click, Escape); a card pack navigates away to Stripe so the modal never
- * "succeeds" in place, while a USDC pack resolves true after settling.
- * A second call while one is open is a no-op (resolves false).
+ * Resolves false when dismissed (close, overlay click, Escape) and when a second
+ * call finds one already open. A card pack navigates away to Stripe, so it never
+ * "succeeds" in place; a USDC pack resolves true after settling.
  */
 export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promise<boolean> {
     if (document.getElementById(OVERLAY_ID)) return Promise.resolve(false);
@@ -133,11 +130,9 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         });
         document.addEventListener('keydown', onKey);
 
-        // Live balance readout under the subtitle. Show the last-known value
-        // instantly, then reconcile with /me. Subscribing keeps it current when
-        // a USDC top-up settles in-place (buy() calls setKnownBalance), and
-        // fetchMe also feeds the shared balance, so the subscription handles the
-        // reconcile too. A null (signed out / unknown) balance leaves it hidden.
+        // Live balance readout: show the last-known value instantly, then let
+        // the subscription carry both the /me reconcile and an in-place USDC
+        // top-up (both feed the shared store). Null (signed out) stays hidden.
         const balanceEl = overlay.querySelector<HTMLElement>('#buy-credits-balance')!;
         const renderBalance = (bal: number | null): void => {
             if (bal == null) {
@@ -160,15 +155,13 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         let method: 'card' | 'usdc' = 'card';
         let gifting = false;
 
-        // Keep the role=tab buttons' visual state and aria-selected in sync.
         const selectTab = (b: Element, selected: boolean): void => {
             b.classList.toggle('active', selected);
             b.setAttribute('aria-selected', String(selected));
         };
 
-        // Card | USDC. USDC is self-only for now (the x402 route credits the
-        // payer's account; no gift flow yet), so picking it hides the
-        // audience tabs and forces "for myself".
+        // USDC is self-only (the x402 route credits the payer's account; no gift
+        // flow yet), so picking it hides the audience tabs and forces "myself".
         methodRow.querySelectorAll<HTMLButtonElement>('.buy-credits-target-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 method = btn.dataset['method'] === 'usdc' ? 'usdc' : 'card';
@@ -190,7 +183,6 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             });
         });
 
-        // "For myself" vs "Gift to someone" — toggles the recipient email field.
         audienceRow.querySelectorAll<HTMLButtonElement>('.buy-credits-target-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 gifting = btn.dataset['target'] === 'gift';
@@ -203,7 +195,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             });
         });
 
-        // Resolve the gift recipient at pack-click time (card only).
+        // Gift recipient, resolved at pack-click time (card only).
         const recipient = (): { email?: string; error?: string } => {
             if (!gifting) return {};
             const email = emailEl.value.trim();
@@ -218,19 +210,18 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         };
 
         /**
-         * Hand the Stripe Checkout URL off to the user. On the web we redirect
-         * the tab (Stripe returns via `?purchase=`). In the desktop webview that
-         * would take over the whole window and strand the user on the hosted
-         * site after checkout, so instead we open Stripe in the system browser
-         * and keep the modal up in a waiting state: fulfilment is the webhook,
-         * so we poll /me and the balance line updates (and self-purchases
-         * auto-close) when the credits land. Returns true if it entered the
-         * desktop waiting state so callers don't also re-enable the packs.
+         * Hand the Checkout URL to the user. On web, redirect the tab (Stripe
+         * returns via `?purchase=`). On desktop that would take over the whole
+         * window and strand the user on the hosted site, so open the system
+         * browser and hold the modal in a waiting state: fulfilment is the
+         * webhook, so poll /me and update the balance line (self-purchases
+         * auto-close). Returns true when it entered that waiting state, so
+         * callers don't also re-enable the packs.
          */
         const goToCheckout = async (url: string): Promise<boolean> => {
             const opened = await openExternal(url);
             if (!opened) {
-                // Web (or no opener): the classic full-page redirect to Stripe.
+                // Web (or no opener): full-page redirect to Stripe.
                 window.location.assign(url);
                 return false;
             }
@@ -249,9 +240,9 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             overlay.querySelector('#buy-credits-waiting')?.classList.remove('hidden');
             overlay.querySelector('#buy-credits-done')?.addEventListener('click', () => close(true));
             // Auto-detect a self-purchase landing: poll /me (which feeds the
-            // shared balance store) and close once the balance climbs past where
-            // it started. A null start (unknown) or a gift (buyer balance
-            // unchanged) just won't trip it — the Done button covers those.
+            // shared balance store) and close once the balance climbs past its
+            // start. A null start, or a gift (buyer balance unchanged), won't
+            // trip it; the Done button covers those.
             const startBalance = getKnownBalance();
             const deadline = Date.now() + 3 * 60 * 1000;
             pollTimer = setInterval(() => {
@@ -275,7 +266,6 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             return true;
         };
 
-        // What happens when a pack is picked, branching on the payment method.
         const buy = async (pack: CreditPack): Promise<void> => {
             showError('');
             if (method === 'usdc') {
@@ -295,7 +285,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 }
                 return;
             }
-            // Card → Stripe. Resolve the recipient, then redirect.
+            // Card: resolve the recipient, then head to Stripe.
             const to = recipient();
             if (to.error) {
                 showError(to.error);
@@ -310,8 +300,8 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 });
         };
 
-        // Custom amount → Stripe (card only; USDC stays pack-based). Mirrors the
-        // card branch of buy(): resolve the gift recipient, then redirect.
+        // Custom amounts are card-only (USDC stays pack-based); otherwise the
+        // card branch of buy().
         const buyCustom = (credits: number): void => {
             showError('');
             const to = recipient();
@@ -339,7 +329,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 renderPacks(packsHost, packs, buy);
                 if (custom) {
                     renderCustom(customHost, custom, buyCustom);
-                    // Custom is card-only; hide it whenever USDC is the method.
+                    // Card-only, so hide it whenever USDC is the method.
                     const syncCustom = (): void => {
                         customHost.classList.toggle('hidden', method === 'usdc');
                     };
@@ -358,7 +348,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
 
 /** Price (cents) for a custom credit amount, replicating the server's
  *  centsForCredits volume curve so the preview matches the charge.
- *  (ts/server/src/billing/stripe.ts is the source of truth; server re-prices.) */
+ *  ts/server/src/billing/stripe.ts is the source of truth and re-prices. */
 function customPriceCents(credits: number, c: CustomCredits): number {
     const { a, b, c: cc, capSpendCents, capCreditsPerDollar } = c.curve;
     const capCredits = Math.round(capCreditsPerDollar * (capSpendCents / 100));
@@ -369,8 +359,8 @@ function customPriceCents(credits: number, c: CustomCredits): number {
     return Math.round(d * 100);
 }
 
-/** A "type your own amount" row: a credits input that previews the price and
- *  only enables Buy at or above the floor. Server re-prices authoritatively. */
+/** A "type your own amount" row: previews the price and only enables Buy at or
+ *  above the floor. The server re-prices authoritatively. */
 function renderCustom(
     host: HTMLElement,
     custom: CustomCredits,
@@ -416,9 +406,9 @@ function renderCustom(
 }
 
 /** Reveal the Card/USDC toggle only when the x402 channel is live AND the
- *  browser has an injected EIP-1193 wallet — without `window.ethereum`
- *  (most browsers, mobile webviews) the USDC flow can't sign anything, so
- *  offering the tab just dead-ends at "No crypto wallet found". */
+ *  browser has an injected EIP-1193 wallet. Without `window.ethereum` (most
+ *  browsers, mobile webviews) the USDC flow can't sign anything, so the tab
+ *  would dead-end at "No crypto wallet found". */
 function applyChannels(methodRow: HTMLElement, x402: X402Capability): void {
     const hasWallet =
         typeof window !== 'undefined' &&

@@ -1,17 +1,15 @@
 /**
- * Sign in with Apple JS wrapper (meditation-pal-s75) — the browser half of Apple
- * sign-in, mirroring google-signin.ts. Loads Apple's script on demand, runs the
- * popup flow, and hands the returned identity token to the server (`appleSignIn`
- * in cloud-auth.ts), which verifies it against Apple's JWKS and mints our session.
+ * Sign in with Apple JS wrapper (meditation-pal-s75), mirroring
+ * google-signin.ts. Loads Apple's script on demand, runs the popup flow, and
+ * hands the identity token to the server (`appleSignIn` in cloud-auth.ts) to
+ * verify against Apple's JWKS and mint our session.
  *
- * Gated on a runtime/build Services ID (`appleClientId()` —
- * `isAppleSignInConfigured()`): with none, the entry points no-op so a build
- * without Apple configured simply doesn't show the button.
+ * Gated on a Services ID (`appleClientId()`): with none, the entry points no-op
+ * and no button appears.
  *
  * Apple validates the redirectURI against the Services ID's registered Return
- * URLs even in popup mode, so it must match exactly what you configure in the
- * Apple Developer portal (see dev-docs/deploy.md). We use this build's origin +
- * base path.
+ * URLs even in popup mode, so it must match the Apple Developer portal exactly
+ * (see dev-docs/deploy.md). We use this build's origin + base path.
  */
 
 import { appleClientId, appleSignIn, type AuthResponse } from './cloud-auth.js';
@@ -67,15 +65,15 @@ function loadAppleJs(): Promise<AppleAuthApi> {
     return scriptPromise;
 }
 
-/** The Return URL Apple validates against — this build's origin + base path. */
+/** The Return URL Apple validates against: this build's origin + base path. */
 function redirectURI(): string {
     const base = import.meta.env.BASE_URL ?? '/';
     return `${window.location.origin}${base}`;
 }
 
 /**
- * Render an "Continue with Apple" button into `container`. No-op (returns false)
- * when no Services ID is configured, so callers can decide whether to show it.
+ * Render a "Continue with Apple" button into `container`. Returns false without
+ * rendering when no Services ID is configured.
  */
 export async function renderAppleSignInButton(
     container: HTMLElement,
@@ -108,8 +106,8 @@ export async function renderAppleSignInButton(
             .then(handlers.onSignedIn)
             .catch((err: unknown) => {
                 btn.disabled = false;
-                // Apple throws a popup_closed_by_user-style error on cancel; only
-                // surface real failures.
+                // Apple throws a popup_closed_by_user-style error on cancel, so
+                // only surface real failures.
                 const e = err instanceof Error ? err : new Error(String(err));
                 if (!/popup_closed|cancel/i.test(e.message)) handlers.onError?.(e);
             });

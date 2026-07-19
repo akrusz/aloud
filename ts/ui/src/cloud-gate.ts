@@ -1,16 +1,14 @@
 /**
  * Cloud-access gate for starting a session (meditation-pal-rfb).
  *
- * Sign-in/credits aren't tied to the LLM provider alone — Cloud STT and Cloud
- * TTS bill independently, and all three funnel through `ensureCloudToken()`.
- * The LLM path fetches the token eagerly (buildProvider), but STT/TTS fetch it
- * lazily (first transcription / first spoken response), so a naive "catch at
- * build" would let an STT-only hosted session start and then fail mid-utterance.
+ * Cloud STT and TTS bill independently of the LLM provider, and all three go
+ * through `ensureCloudToken()`. The LLM path fetches the token eagerly
+ * (buildProvider) but STT/TTS fetch it lazily, so catching only at build would
+ * let an STT-only hosted session start and then fail mid-utterance.
  *
- * So we pre-flight at session start: if the session will touch ANY credit-
- * metered cloud service and we don't already hold a token, surface the sign-in
- * modal before anything runs. Dev builds with no Google client id fall through —
- * their lazy dev sign-in (cloud-auth.ensureCloudToken) handles it.
+ * So we pre-flight: if the session will touch ANY metered cloud service and we
+ * hold no token, surface the sign-in modal before anything runs. Dev builds with
+ * no Google client id fall through to lazy dev sign-in.
  */
 
 import type { MeditationType, SessionSetup } from './settings.js';
@@ -21,15 +19,13 @@ import { detectCapabilities } from './capabilities.js';
 import { getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
 import { showSignInModal } from './sign-in-modal.js';
 
-/** Whether this session will hit a credit-metered cloud service: the hosted
- *  ('aloud') LLM provider, the hosted STT path, or hosted TTS. All three are
- *  independent choices — someone can run a local/BYOK LLM with Cloud STT, or
- *  pick an `aloud:`-prefixed voice (tts-picker.createTtsForVoice routes those
- *  to metered cloud TTS regardless of provider), and either alone needs
- *  credits. In noting mode the participants each carry their own voice, and
- *  the narrator speaks the opener with setup.voice, so all of them count. STT
- *  is keyed off the resolved choice, not the raw setting, so the mode's
- *  default ('aloud' on web) is accounted for. */
+/** Whether this session will hit a metered cloud service: the 'aloud' LLM
+ *  provider, hosted STT, or hosted TTS. All three are independent choices (a
+ *  local/BYOK LLM with Cloud STT, or an `aloud:`-prefixed voice, which
+ *  tts-picker routes to metered TTS whatever the provider), and any one alone
+ *  needs credits. In noting mode each participant carries its own voice and the
+ *  narrator speaks the opener with setup.voice, so all count. STT keys off the
+ *  resolved choice, not the raw setting, to account for the web default. */
 export function sessionUsesCloud(
     setup: SessionSetup,
     settings: AppSettings,
@@ -50,11 +46,9 @@ export function sessionUsesCloud(
 }
 
 /**
- * Ensure we can use the cloud services this session needs. Returns true to
- * proceed, false if the user dismissed sign-in (the caller should abort the
- * start and leave the user on setup). No-op (true) when the session uses no
- * cloud service, a token is already cached, or the build ships no Google
- * sign-in (dev fallback).
+ * Returns true to proceed, false if the user dismissed sign-in (the caller
+ * aborts the start and leaves them on setup). True with no work when the session
+ * uses no cloud service, a token is cached, or the build ships no sign-in.
  */
 export async function ensureCloudAccess(
     setup: SessionSetup,
@@ -67,9 +61,9 @@ export async function ensureCloudAccess(
     // /auth/dev sign-in (ensureCloudToken) instead of the modal.
     if (isDevBypass()) return true;
     // Resolve the runtime client ids (cached after boot) before deciding: a
-    // server that advertises any interactive sign-in (web/desktop Google or
-    // Apple) → sign-in modal; a bare server with none → lazy dev sign-in.
+    // server advertising any interactive sign-in gets the modal; a bare server
+    // with none falls back to lazy dev sign-in.
     await detectCapabilities();
-    if (!isInteractiveSignInConfigured()) return true; // no sign-in configured → lazy dev sign-in
+    if (!isInteractiveSignInConfigured()) return true;
     return showSignInModal();
 }

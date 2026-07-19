@@ -1,15 +1,14 @@
 /**
- * Settings page — Ollama recommendation + model management UI.
+ * Settings page - Ollama recommendation + model management UI.
  *
- * Pulls the per-machine recommendation block from `/app/v1/providers`
- * (computed in `src-tauri/src/providers.rs` for desktop) and renders the
- * curated tier list with per-tier Download / Remove buttons, plus a list of
- * any models the user pulled outside the curated tiers.
+ * Renders the per-machine recommendation block from `/app/v1/providers`
+ * (computed in `src-tauri/src/providers.rs`) as a curated tier list with
+ * Download / Remove, plus any models pulled outside those tiers.
  *
- * A controls bar manages the daemon itself: Install when it's absent, or
- * Restart + Upgrade when it's present. Those stream NDJSON `{status}` log
- * lines from the desktop backend (`ollama_tools.rs`); Windows / no-Homebrew
- * fall back to a 400 + download URL the bar opens for a manual install.
+ * A controls bar manages the daemon: Install when absent, Restart + Upgrade
+ * when present. Those stream NDJSON `{status}` lines from the desktop backend
+ * (`ollama_tools.rs`); Windows / no-Homebrew return a 400 + download URL the
+ * bar opens for a manual install.
  */
 
 import { appUrl } from './app-base.js';
@@ -57,18 +56,14 @@ export interface OllamaSettingsHandle {
 }
 
 export interface OllamaSettingsOptions {
-    /**
-     * Called whenever the installed-model set changes (a pull or remove
-     * completed). The caller uses it to refresh the standard model picker so
-     * the dropdown reflects the new set.
-     */
+    /** Called when the installed-model set changes (a pull or remove finished),
+     *  so the caller can refresh the standard model picker. */
     onModelsChanged?: () => void | Promise<void>;
 }
 
 /**
- * Mount the recommendation UI into `el`. Returns a handle for refresh/hide;
- * call `refresh()` once the modal is open (and again whenever the provider
- * switches back to Ollama) to populate it.
+ * Mount the recommendation UI into `el`. Call the returned `refresh()` once the
+ * modal is open, and again whenever the provider switches back to Ollama.
  */
 export function mountOllamaSettings(
     el: HTMLElement,
@@ -88,10 +83,9 @@ export function mountOllamaSettings(
             // Backend unreachable — fall through to the direct probe below.
         }
         // If the app backend didn't report Ollama state (not running in dev, or
-        // it errored), probe the daemon directly so a running Ollama shows its
-        // real installed state instead of a misleading "Install Ollama" button.
-        // The curated tier recommendations still require the backend, so we say
-        // so rather than pretending to offer them.
+        // errored), probe the daemon directly so a running Ollama isn't shown a
+        // misleading "Install Ollama" button. Tier recommendations still need
+        // the backend, so the hint says so.
         if (!info.installed && !info.version && !info.recommendation) {
             const direct = await probeOllamaDirect();
             if (direct.installed) {
@@ -142,8 +136,8 @@ export function mountOllamaSettings(
     /**
      * Run a daemon lifecycle action (restart / upgrade / install) that streams
      * NDJSON `{status}` lines. A 400 carrying a `download_url` (Windows / no
-     * Homebrew) opens that page instead. On success, re-render — and for
-     * upgrade/install, refresh the model picker since availability may change.
+     * Homebrew) opens that page instead. Upgrade/install also refresh the model
+     * picker, since availability may change.
      */
     async function runDaemonTool(
         btn: HTMLButtonElement,
@@ -213,8 +207,6 @@ export function mountOllamaSettings(
             });
             if (!resp.ok || !resp.body) throw new Error(`server returned ${resp.status}`);
             await consumePullStream(resp.body, fillEl ?? null, statusEl ?? null);
-            // Reflect new installed state + let the standard model picker
-            // pick up the new option.
             await refresh();
             if (onModelsChanged) await onModelsChanged();
         } catch (err) {
@@ -268,8 +260,8 @@ function renderHTML(info: OllamaInfo): string {
     const controls = renderControls(info);
     const rec = info.recommendation;
     if (!rec || !rec.tiers || rec.tiers.length === 0) {
-        // Ollama daemon not reachable / no tiers — show the controls bar (so an
-        // Install button appears when it's missing) plus the hint if any.
+        // Daemon unreachable / no tiers: still show the controls bar, so an
+        // Install button appears when it's missing.
         const hint = info.hint ? `<p class="ollama-rec-hint">${escapeHtml(info.hint)}</p>` : '';
         return controls + hint;
     }
@@ -292,9 +284,8 @@ function renderHTML(info: OllamaInfo): string {
 
     html += '<div class="ollama-tiers">';
     for (const t of rec.tiers) {
-        // When we know the machine's RAM, hide tiers that can't run on it —
-        // keeps the list short. If RAM detection failed, show everything so
-        // the user can still pick.
+        // With known RAM, hide tiers that can't run, to keep the list short. If
+        // detection failed, show everything so the user can still pick.
         if (rec.ram_gb && !t.fits && !t.installed) continue;
         html += renderTier(t, rec.recommended_model);
     }
@@ -328,11 +319,8 @@ function renderControls(info: OllamaInfo): string {
     </div>`;
 }
 
-/**
- * Render one curated tier as a single condensed flex row: model + label
- * (+ "recommended" badge) on the head line, size + note beneath, action
- * button on the right.
- */
+/** One curated tier as a condensed flex row: model + label (+ badge) on the
+ *  head line, size + note beneath, action button on the right. */
 function renderTier(t: Tier, recommendedModel: string | undefined): string {
     const isRecommended = t.model === recommendedModel;
     const rowClass = isRecommended
@@ -385,10 +373,8 @@ function renderOtherInstalled(m: OtherModel): string {
 // NDJSON stream consumer
 // ---------------------------------------------------------------------------
 
-/**
- * Read the `/app/v1/ollama/pull` NDJSON stream, advancing the progress bar and
- * status text. Throws on an error line so the caller can restore the button.
- */
+/** Read the `/app/v1/ollama/pull` NDJSON stream, advancing the progress bar and
+ *  status text. Throws on an error line so the caller can restore the button. */
 async function consumePullStream(
     body: ReadableStream<Uint8Array>,
     fillEl: HTMLElement | null,
@@ -428,9 +414,9 @@ async function consumePullStream(
 }
 
 /**
- * Read a daemon-tool NDJSON stream (restart / upgrade / install). Each line is
- * `{status}`; the status text is echoed into `statusEl` as a live log. Resolves
- * with the terminal `done` message; throws on a `status:"error"` line.
+ * Read a daemon-tool NDJSON stream (restart / upgrade / install), echoing each
+ * `{status}` into `statusEl` as a live log. Resolves with the terminal `done`
+ * message; throws on a `status:"error"` line.
  */
 async function consumeStatusStream(
     body: ReadableStream<Uint8Array>,

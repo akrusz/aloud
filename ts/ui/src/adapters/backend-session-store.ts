@@ -1,11 +1,10 @@
 /**
- * SessionStoreApi backed by the desktop shell's on-disk session logs.
- *
- * In a Tauri build, the embedded Rust server persists one JSON file per session
- * under <app-data>/sessions/ (see src-tauri/src/server.rs). This adapter maps
- * the store API onto those /app/v1/sessions endpoints, so saved sessions are
- * durable, openable files instead of webview localStorage. Wired in state.ts
- * only when isTauri(); the web build keeps the localStorage-backed SessionStore.
+ * SessionStoreApi backed by the desktop shell's on-disk session logs. The
+ * embedded Rust server persists one JSON file per session under
+ * <app-data>/sessions/ (src-tauri/src/server.rs); this maps the store API onto
+ * those /app/v1/sessions endpoints, so saved sessions are durable, openable
+ * files rather than webview localStorage. Wired in state.ts only under
+ * isTauri(); the web build keeps the localStorage-backed SessionStore.
  */
 
 import type { SessionState } from '../../../src/facilitation/index.js';
@@ -28,7 +27,7 @@ export class BackendSessionStore implements SessionStoreApi {
 
     async load(sessionId: string): Promise<SessionState | null> {
         const res = await fetch(this.url(sessionId));
-        if (!res.ok) return null; // 404 (gone) or error — caller treats as missing
+        if (!res.ok) return null; // 404 (gone) or error - caller treats as missing
         return (await res.json()) as SessionState;
     }
 

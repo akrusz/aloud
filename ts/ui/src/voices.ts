@@ -1,9 +1,7 @@
 /**
- * Voice catalog — unifies browser speechSynthesis voices and server-side
- * voices (Piper / macOS / ElevenLabs) into one list the picker can show.
- *
- * Each entry carries a `source` so the picker knows which adapter to
- * spin up for it.
+ * Voice catalog - one list unifying browser speechSynthesis voices and
+ * server-side ones (Piper / macOS / ElevenLabs). Each entry carries a `source`
+ * so the picker knows which adapter to spin up.
  */
 
 import { appUrl } from './app-base.js';
@@ -40,9 +38,9 @@ export function browserVoices(): VoiceEntry[] {
 }
 
 /**
- * Fetch the server-side voice list. Returns [] (and caches) when the app
- * backend isn't reachable so subsequent calls don't keep hammering a down
- * server. Call `invalidateServerVoices()` to retry after it comes up.
+ * Fetch the server-side voice list. Caches [] when the app backend isn't
+ * reachable, so later calls don't hammer a down server; invalidateServerVoices()
+ * retries once it's up.
  */
 export async function serverVoices(): Promise<VoiceEntry[]> {
     if (cachedServerVoices !== null) return cachedServerVoices;
@@ -77,7 +75,7 @@ export function invalidateServerVoices(): void {
     cachedServerVoices = null;
 }
 
-/** Combined catalog — browser voices first (always present), then server. */
+/** Combined catalog - browser voices first (always present), then server. */
 export async function allVoices(): Promise<VoiceEntry[]> {
     const [server] = await Promise.all([serverVoices()]);
     return [...browserVoices(), ...server];
@@ -89,9 +87,8 @@ export function findVoice(voices: readonly VoiceEntry[], id: string | null): Voi
 }
 
 /**
- * Group voices for display in a <select>. Returns a Map keyed by group
- * label, preserving insertion order. Browser voices grouped under
- * 'Browser', server voices under their engine name (or 'Server').
+ * Group voices for a <select>: browser voices under 'Browser', server voices
+ * under their engine name (or 'Server'). Insertion order preserved.
  */
 export function groupVoices(voices: readonly VoiceEntry[]): Map<string, VoiceEntry[]> {
     const out = new Map<string, VoiceEntry[]>();

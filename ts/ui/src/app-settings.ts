@@ -1,14 +1,10 @@
 /**
- * App-wide settings — defaults that apply across sessions.
+ * App-wide settings - cross-session defaults plus chrome (theme, text scale).
+ * Distinct from SessionSetup (per-session intention, focuses, qualities); a
+ * fresh setup view inherits these where it has no override.
  *
- * Distinct from SessionSetup (per-session config like intention,
- * focuses, qualities). These settings are what a fresh setup view
- * inherits when no per-session overrides exist, plus chrome-level
- * things like theme and text scale.
- *
- * Persisted to KvStorage under a single key. We don't normalize
- * across versions — when fields are added the loader fills in
- * defaults, when fields are removed old values are silently dropped.
+ * Persisted to KvStorage under one key, with no version normalization: added
+ * fields get defaults from the loader, removed ones are silently dropped.
  */
 
 import { createKv } from './adapters/kv.js';
@@ -16,14 +12,14 @@ import type { Provider } from './settings.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
 export type TtsEngineChoice = 'macos' | 'piper' | 'browser' | 'elevenlabs';
-/** Speech-to-text source — always an explicit pick (no hidden "automatic"), so
- *  the user controls where audio goes and knows when it costs credits. When the
- *  stored value is null, the mode's flow default is used (Whisper locally →
- *  browser speech → hosted; see resolveSttChoice in adapters/stt-picker). */
+/** Speech-to-text source. Always an explicit pick (no hidden "automatic") so
+ *  the user controls where audio goes and knows when it costs credits. A stored
+ *  null means the mode's flow default: Whisper locally -> browser speech ->
+ *  hosted (resolveSttChoice in adapters/stt-picker). */
 export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud' | 'capacitor';
 
 /** When the facilitator checks in during silence: never, after a fixed
- *  interval (silenceCheckinSec), or model-set ('smart' — the LLM prefixes
+ *  interval (silenceCheckinSec), or model-set ('smart': the LLM prefixes
  *  [WAIT:Nm] to say how long the next silence stays protected). */
 export type CheckinTiming = 'none' | 'simple' | 'smart';
 /** What a check-in says: a stock phrase, or an LLM line generated from the
@@ -42,27 +38,23 @@ export interface AppSettings {
     // Display
     textScale: number;
     themeMode: ThemeMode;
-    /** Show the live cloud credit balance during a session (off by default — a
-     *  ticking balance is distracting mid-meditation; the balance is always a tap
-     *  away on the setup pill and in Settings). meditation-pal-14s. */
+    /** Show the live cloud credit balance during a session. Off by default: a
+     *  ticking balance is distracting mid-meditation, and it's a tap away on the
+     *  setup pill and in Settings. meditation-pal-14s. */
     showSessionBalance: boolean;
-    /** Keep a local log of sessions (on by default). When on, the session also
-     *  autosaves every turn without an LLM summary, so a crash or going offline
-     *  still leaves a recoverable transcript (the detailed summary is generated
-     *  only on a clean end). When off, nothing is saved by default — the
-     *  end-session dialog still offers a one-tap save, but discarding is the
-     *  obvious choice. */
+    /** Keep a local log of sessions (default on). When on, every turn autosaves
+     *  without an LLM summary, so a crash or going offline still leaves a
+     *  recoverable transcript (the detailed summary is generated only on a clean
+     *  end). When off, the end-session dialog still offers a one-tap save. */
     saveSessionLogs: boolean;
-    /** When continuing a saved session, seed the facilitator's context from the
-     *  stored recap + the last few exchanges instead of replaying the whole
-     *  transcript. The full transcript still shows in the UI; this only changes
-     *  what's sent to the model, so a long session resumes for a few cents
-     *  instead of re-priming the entire history cold. On by default. */
+    /** When continuing a saved session, seed the model's context from the stored
+     *  recap + last few exchanges instead of replaying the whole transcript, so
+     *  a long session resumes for a few cents. The UI still shows the full
+     *  transcript. Default on. */
     resumeFromSummary: boolean;
-    /** Auto-save and end a session after this many minutes with no user
-     *  activity. An open session keeps listening and checking in, which slowly
-     *  uses cloud TTS/STT credit, so we close a forgotten one. On by default;
-     *  minutes are clamped 10-300. */
+    /** Auto-save and end after this many minutes of no user activity: an open
+     *  session keeps listening and checking in, slowly burning cloud TTS/STT
+     *  credit. Default on; minutes clamped 10-300. */
     autoQuitAfterSilence: boolean;
     autoQuitSilenceMin: number;
 
@@ -84,14 +76,12 @@ export interface AppSettings {
     silenceMaxMs: number;
     responseDelayMs: number;
     /**
-     * Pause-detection window (VAD trailing-silence submit base + max) used when
-     * the facilitation provider does NOT stream — the Claude subscription. Such
-     * a reply can't start speaking until it's fully generated, so it can't talk
-     * over a mid-thought pause, and these users pay by subscription rather than
-     * per request, so a too-early submit that a resumed utterance supersedes
-     * (see respondTo's turnGen/activeFullAbort) costs nothing. Shorter than the
-     * streaming `silenceBaseMs`/`silenceMaxMs`, this just cuts latency. Floored
-     * at 1s in the UI.
+     * Pause-detection window (VAD trailing-silence submit base + max) for
+     * non-streaming providers, i.e. the Claude subscription. Such a reply can't
+     * speak until fully generated, so it can't talk over a mid-thought pause,
+     * and these users pay by subscription, so a too-early submit that a resumed
+     * utterance supersedes (respondTo's turnGen/activeFullAbort) costs nothing.
+     * Shorter than the streaming values purely to cut latency. Floored at 1s.
      */
     nonStreamingSilenceBaseMs: number;
     nonStreamingSilenceMaxMs: number;
@@ -124,19 +114,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     nonStreamingSilenceBaseMs: 1500,
     nonStreamingSilenceMaxMs: 4000,
     silenceCheckinSec: 300,
-    // Smart-by-default for both halves of the check-in: the model paces the
-    // silences ([WAIT:Nm], guidance-biased defaults) and writes the line.
-    // 'simple' timing (fixed silenceCheckinSec interval) stays available in
-    // Settings.
+    // Smart by default for both halves: the model paces the silences ([WAIT:Nm],
+    // guidance-biased defaults) and writes the line.
     checkinTiming: 'smart',
     checkinContent: 'smart',
     silenceModeEnabled: true,
 };
 
 /**
- * Speech-recognition / voice-preview language options. Single source of
- * truth — the settings dropdown renders these and `detectLocale()` validates
- * the browser locale against them.
+ * Speech-recognition / voice-preview languages. Single source of truth: the
+ * settings dropdown renders these and `detectLocale()` validates against them.
  */
 export const LANGUAGES: ReadonlyArray<[string, string]> = [
     ['en', 'English'],
@@ -173,10 +160,8 @@ export const LANGUAGES: ReadonlyArray<[string, string]> = [
 
 const SUPPORTED_LANGUAGE_CODES = new Set(LANGUAGES.map(([code]) => code));
 
-/**
- * The browser's UI language as a supported 2-letter code, or 'en' if the
- * locale isn't one we list (or there's no navigator, e.g. in tests).
- */
+/** The browser's UI language as a supported 2-letter code, or 'en' when it
+ *  isn't listed (or there's no navigator, e.g. in tests). */
 export function detectLocale(): string {
     if (typeof navigator === 'undefined') return 'en';
     const base = (navigator.language || 'en').slice(0, 2).toLowerCase();
@@ -188,9 +173,8 @@ const kv = createKv();
 
 export async function loadAppSettings(): Promise<AppSettings> {
     const raw = await kv.get(KEY);
-    // No stored settings, or none with an explicit language: seed the
-    // language from the browser locale (matching the old page, which
-    // pre-selected navigator.language). An explicit stored choice wins.
+    // No stored settings, or none with an explicit language: seed from the
+    // browser locale. An explicit stored choice wins.
     if (!raw) return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
     try {
         const parsed = JSON.parse(raw) as Partial<AppSettings> & {
@@ -212,10 +196,9 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
 }
 
 /**
- * Apply chrome-level settings (text scale, theme) to the live document.
- * Called at app boot and after settings are saved. Theme persists via
- * localStorage too (theme.ts manages that key) so the FOUC preempt in
- * index.html picks it up.
+ * Apply chrome-level settings (text scale, theme) to the live document, at boot
+ * and after a save. Theme also persists to localStorage (theme.ts owns the key)
+ * so the FOUC preempt in index.html picks it up.
  */
 export function applyChromeSettings(settings: AppSettings): void {
     document.documentElement.style.setProperty('--text-scale', String(settings.textScale));

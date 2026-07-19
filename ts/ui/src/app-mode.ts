@@ -1,29 +1,18 @@
 /**
- * Effective app mode — 'web' (the hosted demo: Ollama and BYOK providers hidden
- * by default, keys behind the "use my own keys" toggle) vs 'local' (desktop /
- * full dev: every provider available, Ollama + APIs on).
+ * Effective app mode: 'web' (hosted browser deploy - Ollama hidden, BYOK behind
+ * an opt-in toggle) vs 'local' (desktop / dev - every provider available).
  *
  * The build default is the environment, NOT whether a cloud URL is baked in:
- * aloud cloud is available in EVERY build (web, desktop, mobile), so its
- * presence can't signal "web". Web mode = a hosted browser deployment (the
- * website, a mobile webview). The desktop (Tauri) shell and the dev server are
- * 'local' — they have on-device STT/TTS and local LLM providers, with cloud
- * still available as one provider among many.
+ * aloud cloud ships in every build, so its presence can't signal "web".
  *
- * For DEVELOPMENT you can force either mode at runtime — no rebuild, no settings
- * change — with a `?mode=` query param, remembered for the tab so it survives
- * in-app navigation:
- *   ?mode=web     force web mode
- *   ?mode=local   force local mode
- *   ?mode=auto    clear the override (back to the build default)
- * Open two tabs to run both modes side by side off one dev server.
+ * In development, `?mode=web` / `?mode=local` / `?mode=auto` force or clear the
+ * mode, remembered for the tab so it survives in-app navigation - two tabs can
+ * run both modes off one dev server.
  *
- * SECURITY: the override is DEV-ONLY. `vite build` sets import.meta.env.DEV to
- * false, so in any deployed build readOverride() short-circuits to null (and the
- * branch tree-shakes away) — a visitor to the hosted site CANNOT force local
- * mode to unlock Ollama or skip the BYOK opt-in. Web mode is locked in by the
- * build default with no runtime way around it. No config to maintain; it's
- * enforced at compile time.
+ * SECURITY: the override is DEV-ONLY. `vite build` sets import.meta.env.DEV
+ * false, so readOverride() short-circuits to null and tree-shakes away; a
+ * hosted visitor cannot force local mode to unlock Ollama or skip the BYOK
+ * opt-in. Enforced at compile time, no config to maintain.
  */
 
 import { isTauri } from './is-desktop.js';
@@ -57,16 +46,13 @@ const BYPASS_KEY = 'dev:cloudBypass';
 /**
  * DEV-only cloud sign-in bypass. With `?dev` in the URL (remembered for the tab,
  * like ?mode=), cloud services authenticate through the server's local
- * `/auth/dev` account instead of requiring interactive Google/Apple sign-in — so
- * you can start a hosted-STT/LLM/TTS session in a browser where the sign-in
- * popup won't work (e.g. Brave) without spending a real account's credits. Clear
- * it with `?dev=off`.
+ * `/auth/dev` account instead of interactive Google/Apple sign-in - so you can
+ * start a hosted session in a browser where the sign-in popup won't work (e.g.
+ * Brave) without spending a real account's credits. Clear with `?dev=off`.
  *
- * SECURITY: same compile-time gate as readOverride — `vite build` sets
- * import.meta.env.DEV false, so this short-circuits to false (and tree-shakes
- * away) in any deployed build. A hosted visitor can never skip sign-in. The
- * `/auth/dev` route it leans on is itself local-only (404 in production server
- * mode), so even a forced-true couldn't mint a token against real infra.
+ * SECURITY: same compile-time gate as readOverride, so this is false and
+ * tree-shaken in any deployed build. `/auth/dev` is itself local-only (404 in
+ * production server mode), so even a forced-true couldn't mint a real token.
  */
 export function isDevBypass(): boolean {
     if (!import.meta.env.DEV) return false;
@@ -87,10 +73,10 @@ export function isDevBypass(): boolean {
 }
 
 /**
- * DEV-build-only accessors for the Developer settings section — the Tauri dev
+ * DEV-build-only accessors for the Developer settings section: the Tauri dev
  * webview has no URL bar to type `?mode=` / `?dev` into, so the section offers
- * the same overrides as controls. No-ops (and tree-shaken) in release builds,
- * exactly like the URL readers above. Overrides take effect on reload.
+ * the same overrides as controls. No-ops in release builds, like the URL
+ * readers above. Overrides take effect on reload.
  */
 export function devGetModeOverride(): AppMode | 'auto' {
     if (!import.meta.env.DEV) return 'auto';
@@ -141,9 +127,8 @@ export function appMode(): AppMode {
     return readOverride() ?? buildDefaultMode();
 }
 
-/** Build default, independent of any baked-in cloud URL (cloud ships in every
- *  build). The desktop shell (Tauri, on-device providers) and the dev server are
- *  'local'; a production browser build (website / mobile webview) is 'web'. */
+/** Build default, independent of any baked-in cloud URL. The Tauri shell and
+ *  the dev server are 'local'; a production browser build is 'web'. */
 function buildDefaultMode(): AppMode {
     if (isTauri() || import.meta.env.DEV) return 'local';
     return 'web';
@@ -153,8 +138,8 @@ export function isWebMode(): boolean {
     return appMode() === 'web';
 }
 
-/** True iff a runtime override is forcing the mode — used to surface a small
- *  "dev: web mode" badge so it's obvious you're not seeing the build default. */
+/** True iff a runtime override is forcing the mode; drives the "dev: web mode"
+ *  badge so it's obvious you're not seeing the build default. */
 export function isModeOverridden(): boolean {
     return readOverride() !== null;
 }

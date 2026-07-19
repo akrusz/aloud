@@ -2,26 +2,26 @@
  * Free-tier gating + abuse controls (meditation-pal-2yb). The web demo has a
  * wide-open abuse surface (no app-store gating), so this is load-bearing.
  *
- * Two cheap levers implemented here; the heavier ones (device fingerprinting,
- * disposable-domain blocklists, velocity scoring) attach at these same seams:
+ * Two cheap levers here; heavier ones (device fingerprinting, disposable-domain
+ * blocklists, velocity scoring) attach at the same seams:
  *   1. The free grant is gated on CONNECTING a TRUSTED, VERIFIED identity
- *      (Google/Apple) — not on signing up (meditation-pal-116). A bare email
- *      signup, or an unverified/untrusted identity, gets an account but zero
- *      free credits, and the grant fires at most once per account and once per
- *      identity ever (decideConnectGrant, applied in auth/identity.ts). So
- *      farming throwaway emails — or re-using one Google login across many aloud
- *      accounts — yields nothing spendable.
+ *      (Google/Apple), not on signing up (meditation-pal-116). A bare email
+ *      signup, or an unverified/untrusted identity, gets an account but zero free
+ *      credits, and the grant fires at most once per account and once per
+ *      identity ever (decideConnectGrant, applied in auth/identity.ts). Farming
+ *      throwaway emails, or re-using one Google login across many aloud accounts,
+ *      yields nothing spendable.
  *   2. A per-account request-rate ceiling caps burst abuse and runaway clients.
  *      In-memory sliding window here; swap for Redis when the backend goes
- *      multi-instance (meditation-pal-a3u notes sticky-sessions/Redis only
- *      matter once stateful).
+ *      multi-instance (meditation-pal-a3u: sticky-sessions/Redis only matter once
+ *      stateful).
  */
 
 import type { IdentityProvider } from '../credits/store.js';
 
-/** Providers trusted enough to be worth a free grant — minting one at scale is
+/** Providers trusted enough to be worth a free grant: minting one at scale is
  *  real friction, unlike a throwaway email. Connecting one of these (verified)
- *  is what unlocks credits; a bare 'email' signup gets none (meditation-pal-116). */
+ *  unlocks credits; a bare 'email' signup gets none (meditation-pal-116). */
 export const TRUSTED_IDENTITY_PROVIDERS: readonly IdentityProvider[] = ['google', 'apple'];
 
 export function isTrustedProvider(provider: IdentityProvider): boolean {
@@ -36,15 +36,14 @@ export interface GrantDecision {
 /**
  * Decide the free-credit grant when an identity is connected to an account
  * (meditation-pal-116). Granted only when ALL hold:
- *   - the provider is TRUSTED (Google/Apple — not a bare email signup),
+ *   - the provider is TRUSTED (Google/Apple, not a bare email signup),
  *   - the provider asserts a VERIFIED email,
  *   - the account has not already been granted (one grant per account),
  *   - this identity has not granted before (one grant per identity, ever), and
- *   - this email (normalized) has not granted before — the lever that survives
- *     account deletion, so delete-and-recreate can't re-farm the freebie
+ *   - this normalized email has not granted before, the lever that survives
+ *     account deletion so delete-and-recreate can't re-farm the freebie
  *     (meditation-pal-8jc).
- * This is the "credits come from connecting a hard-to-mint identity, not from
- * signing up" lever — email accounts get nothing until they connect Google/Apple.
+ * Credits come from connecting a hard-to-mint identity, not from signing up.
  */
 export function decideConnectGrant(params: {
     provider: IdentityProvider;
@@ -84,13 +83,12 @@ export function decideConnectGrant(params: {
 }
 
 /**
- * Global free-grant circuit breaker (meditation-pal-kq4) — the emergency brake
- * the dev wants "in the pocket". Tracks free credits granted across ALL signups
- * in a rolling window; once the budget is hit, further grants are refused until
- * the window drains. Deliberately lean: in-memory sliding sum, no persistence
- * (a restart resets it, which is fine for a brake whose whole job is to blunt a
- * live flood). Multi-instance would move this to Redis — not needed at trial
- * scale.
+ * Global free-grant circuit breaker (meditation-pal-kq4), the emergency brake.
+ * Tracks free credits granted across ALL signups in a rolling window; once the
+ * budget is hit, further grants are refused until the window drains. Lean by
+ * design: in-memory sliding sum, no persistence (a restart resets it, fine for a
+ * brake whose job is blunting a live flood). Multi-instance would move it to
+ * Redis, not needed at trial scale.
  */
 export class FreeGrantBreaker {
     private grants: Array<{ ts: number; credits: number }> = [];
@@ -106,8 +104,8 @@ export class FreeGrantBreaker {
         return this.budgetPerWindow;
     }
 
-    /** Retune the budget live (admin panel). 0 halts all free grants. Clamped
-     *  to non-negative. */
+    /** Retune the budget live (admin panel). 0 halts all free grants. Clamped to
+     *  non-negative. */
     setBudget(credits: number): void {
         this.budgetPerWindow = Math.max(0, credits);
     }

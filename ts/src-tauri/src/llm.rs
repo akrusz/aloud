@@ -1,10 +1,9 @@
-//! Desktop LLM bridge — runs the local `claude` CLI for subscription routing,
-//! serving `/app/v1/llm/claude_proxy/complete`.
+//! Desktop LLM bridge, serving `/app/v1/llm/claude_proxy/complete` plus an
+//! Anthropic HTTP relay.
 //!
-//! The browser/webview can't shell out, so the embedded server does it: spawn
-//! `claude -p … --output-format json`, parse the result, and return the same
-//! `{text, finish_reason, tokens_used}` shape the TS `ClaudeProxyHttpProvider`
-//! already expects.
+//! The webview can't shell out, so the embedded server does: spawn
+//! `claude -p … --output-format json` and return the `{text, finish_reason,
+//! tokens_used}` shape the TS `ClaudeProxyHttpProvider` expects.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -28,8 +27,7 @@ pub struct CompleteRequest {
     system: Option<String>,
     #[serde(default)]
     model: Option<String>,
-    // Accepted for wire-compatibility; the `claude` CLI has no max-tokens flag,
-    // so it's not forwarded.
+    // Wire-compatibility only: the `claude` CLI has no max-tokens flag.
     #[serde(default)]
     #[allow(dead_code)]
     max_tokens: Option<u32>,
@@ -41,9 +39,9 @@ struct Msg {
     content: String,
 }
 
-/// An error carrying the HTTP status the handler should return. 503 means the
-/// `claude` CLI is missing or unauthenticated (the TS client renders that as a
-/// friendly "install Claude Code" message).
+/// Error carrying the HTTP status the handler should return. 503 means the
+/// `claude` CLI is missing or unauthenticated; the TS client renders that as an
+/// "install Claude Code" message.
 #[derive(Debug)]
 pub struct ProxyError {
     pub status: u16,
@@ -56,8 +54,8 @@ impl ProxyError {
     }
 }
 
-/// Run one `claude` completion. Returns the `{text, finish_reason,
-/// tokens_used}` JSON body on success.
+/// Run one `claude` completion, returning the `{text, finish_reason,
+/// tokens_used}` JSON body.
 pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, ProxyError> {
     if !req.messages.iter().all(|m| {
         matches!(m.role.as_str(), "user" | "assistant" | "system")
@@ -77,14 +75,13 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     let model = req.model.as_deref().filter(|s| !s.is_empty()).unwrap_or(DEFAULT_MODEL);
 
     let mut cmd = Command::new(binary);
-    // Run from a dedicated, app-owned, per-user scratch dir (passed in by the
-    // handler, under the app data dir) — never the cwd the .app launched with,
-    // and never a world-writable shared temp dir. Two reasons:
+    // An app-owned, per-user scratch dir (under the app data dir) - never the
+    // .app's launch cwd, never a world-writable temp dir:
     //   - the CLI reads CLAUDE.md/.claude from its working dir, so an empty
-    //     app-owned dir means no untrusted config injection (a shared /tmp on
-    //     Linux would let another local user plant config the CLI would obey);
-    //   - it's not the user's home/Documents, so the CLI's first-run project
-    //     scan doesn't trip the macOS "allow access to your files" prompt.
+    //     app-owned dir blocks config injection (on a shared /tmp another local
+    //     user could plant config the CLI would obey);
+    //   - it's outside home/Documents, so the CLI's first-run project scan
+    //     doesn't trip the macOS "allow access to your files" prompt.
     cmd.current_dir(cwd);
     cmd.arg("-p")
         .arg("--tools")
@@ -100,8 +97,8 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     }
     cmd.arg(&prompt);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    // On timeout the `cmd.output()` future is dropped mid-flight — without this
-    // the spawned CLI would be orphaned and keep burning quota in the background.
+    // On timeout the `cmd.output()` future is dropped mid-flight; without this
+    // the CLI is orphaned and keeps burning quota in the background.
     cmd.kill_on_drop(true);
 
     let output = match timeout(TIMEOUT, cmd.output()).await {
@@ -149,9 +146,8 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
 }
 
 /// Encode multi-turn history as the single prompt string the `claude` CLI
-/// takes. System turns are dropped (the system prompt goes via
-/// `--system-prompt`); a lone user turn is sent verbatim; otherwise prior turns
-/// become a `User:`/`Assistant:` transcript.
+/// takes. System turns are dropped (they go via `--system-prompt`); a lone user
+/// turn is verbatim; otherwise turns become a `User:`/`Assistant:` transcript.
 fn format_history(messages: &[Msg]) -> String {
     let convo: Vec<&Msg> = messages.iter().filter(|m| m.role != "system").collect();
     if convo.is_empty() {
@@ -172,21 +168,19 @@ fn format_history(messages: &[Msg]) -> String {
 
 // --- Subscription model availability probe ----------------------------------
 
-/// Per-attempt cap for the probe. Shorter than a real turn — a probe that
-/// hangs is inconclusive, not worth waiting out the full 90s.
+/// Shorter than a real turn: a hung probe is inconclusive, not worth 90s.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(25);
-/// How long a probe verdict stays trusted before we re-check. Long enough to
-/// avoid spending subscription quota on every picker open, short enough to
-/// notice a mid-day removal.
+/// How long a verdict stays trusted. Long enough to avoid spending quota on
+/// every picker open, short enough to notice a mid-day removal.
 const PROBE_TTL: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ProbeStatus {
     /// The subscription served the model.
     Available,
-    /// The model isn't available on this subscription (removed / no access).
+    /// Removed from, or never on, this subscription.
     Unavailable,
-    /// The `claude` CLI isn't installed — the whole provider is unusable.
+    /// No `claude` CLI, so the whole provider is unusable.
     CliMissing,
     /// Inconclusive (timeout, rate limit, transient/auth error): don't act on it.
     Unknown,
@@ -208,11 +202,11 @@ fn probe_cache() -> &'static Mutex<HashMap<String, (Instant, ProbeStatus)>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Is the local Claude subscription able to serve `model` right now? Runs a
-/// tiny one-word completion against the CLI and classifies the outcome, caching
-/// definitive verdicts for PROBE_TTL so repeated picker opens don't each spend
-/// quota. Returns `{model, status}`. Best-effort — anything ambiguous is
-/// `unknown`, which the UI treats as "leave the model shown".
+/// Can the local Claude subscription serve `model` right now? Runs a one-word
+/// completion and classifies the outcome, caching definitive verdicts for
+/// PROBE_TTL so repeated picker opens don't each spend quota. Returns
+/// `{model, status}`; anything ambiguous is `unknown`, which the UI treats as
+/// "leave the model shown".
 pub async fn claude_probe(model: &str, cwd: &Path) -> Value {
     if let Some((at, status)) = probe_cache().lock().unwrap().get(model).copied() {
         if at.elapsed() < PROBE_TTL {
@@ -220,8 +214,8 @@ pub async fn claude_probe(model: &str, cwd: &Path) -> Value {
         }
     }
     let status = run_probe(model, cwd).await;
-    // Cache only definitive verdicts — an `unknown` (transient) shouldn't pin
-    // the model as good-or-bad; let the next call re-probe.
+    // Only definitive verdicts: a transient `unknown` shouldn't pin the model
+    // as good-or-bad, so let the next call re-probe.
     if status != ProbeStatus::Unknown {
         probe_cache()
             .lock()
@@ -253,7 +247,7 @@ async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
 
     let output = match timeout(PROBE_TIMEOUT, cmd.output()).await {
         Ok(Ok(o)) => o,
-        // Couldn't launch or timed out — inconclusive, not a removal.
+        // Couldn't launch or timed out: inconclusive, not a removal.
         Ok(Err(_)) | Err(_) => return ProbeStatus::Unknown,
     };
 
@@ -274,11 +268,10 @@ async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
     classify_probe_detail(&String::from_utf8_lossy(&output.stderr))
 }
 
-/// Map a CLI error string to a probe verdict. Only a clear model-availability
-/// signal counts as `Unavailable`; everything else stays `Unknown` so a rate
-/// limit or auth blip never masquerades as a removed model. The exact wording
-/// the CLI emits for a pulled model isn't contractual — widen the match here as
-/// real strings are observed.
+/// Map a CLI error string to a verdict. Only a clear model-availability signal
+/// counts as `Unavailable`; everything else stays `Unknown` so a rate limit or
+/// auth blip can't masquerade as a removed model. The CLI's wording for a
+/// pulled model isn't contractual, so widen the match as strings are observed.
 fn classify_probe_detail(detail: &str) -> ProbeStatus {
     let d = detail.to_lowercase();
     let model_availability = d.contains("model")
@@ -304,26 +297,25 @@ const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 /// Cap on the forwarded prompt+history payload.
 pub const MAX_PROXY_BYTES: usize = 1024 * 1024;
 
-/// A pass-through of Anthropic's HTTP response: its status and body survive
-/// verbatim so the client sees real error detail instead of a masked 5xx.
+/// Pass-through of Anthropic's response: status and body survive verbatim so
+/// the client sees real error detail instead of a masked 5xx.
 pub struct ProxyResponse {
     pub status: u16,
     pub content_type: String,
     pub body: Vec<u8>,
 }
 
-/// Forward a raw Anthropic Messages request body upstream, injecting the API
-/// version and the given key. Serves `/app/v1/llm/anthropic/messages`: the
-/// webview can't call Anthropic directly (no CORS), so the embedded server
-/// relays it. The key comes from the caller, so the desktop UI can forward the
-/// user's bring-your-own key (it never leaves the loopback). Synchronous
+/// Forward a raw Anthropic Messages body upstream with the API version and the
+/// given key, serving `/app/v1/llm/anthropic/messages`: the webview can't call
+/// Anthropic directly (no CORS). The key comes from the caller so the UI can
+/// forward the user's BYOK key, which never leaves loopback. Synchronous
 /// (ureq); call from `spawn_blocking`.
 pub fn anthropic_proxy(body: Vec<u8>, api_key: &str) -> Result<ProxyResponse, ProxyError> {
     use std::io::Read;
 
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        // Keep 4xx/5xx as normal responses so we can pass the upstream status
-        // and JSON error body straight back to the client.
+        // Keep 4xx/5xx as normal responses so the upstream status and JSON
+        // error body pass straight back to the client.
         .http_status_as_error(false)
         .timeout_global(Some(Duration::from_secs(60)))
         .build()
@@ -383,8 +375,8 @@ mod tests {
         assert_eq!(h, "User: hi\n\nAssistant: hello\n\nUser: more");
     }
 
-    /// Real `claude` CLI round-trip — needs the authenticated CLI and spends
-    /// subscription quota, so ignored by default. Run with
+    /// Real `claude` CLI round-trip. Needs the authenticated CLI and spends
+    /// subscription quota, so ignored by default; run with
     /// `cargo test claude_cli_round_trip -- --ignored`.
     #[tokio::test]
     #[ignore]
@@ -400,7 +392,6 @@ mod tests {
             .expect("claude completion");
         let text = body.get("text").and_then(|v| v.as_str()).unwrap_or("");
         assert!(!text.is_empty(), "empty completion text");
-        // tokens_used should be a positive number from the usage block.
         assert!(body.get("tokens_used").and_then(|v| v.as_u64()).unwrap_or(0) > 0);
     }
 }

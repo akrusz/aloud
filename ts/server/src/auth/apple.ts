@@ -1,13 +1,12 @@
 /**
- * Verify a Sign in with Apple ID token (meditation-pal-s75). Same approach as
- * google.ts — verify the JWT directly against Apple's published JWKS with `jose`,
- * no apple-specific SDK. Apple's identity token carries a stable `sub`, the
- * `email` (present on first authorization; may be absent on later ones), and an
- * `email_verified` claim Apple sets (Apple verifies the address itself, and
- * private-relay addresses are verified too).
+ * Verify a Sign in with Apple ID token (meditation-pal-s75). Like google.ts:
+ * verify the JWT against Apple's published JWKS with `jose`, no Apple SDK. The
+ * token carries a stable `sub`, `email` (first authorization only; may be absent
+ * later), and `email_verified` (Apple verifies the address itself, private-relay
+ * addresses included).
  *
- * The `aud` is the app's Services ID (web) or bundle id (native), supplied as
- * APPLE_CLIENT_IDS. Empty config means Apple sign-in is disabled.
+ * `aud` is the Services ID (web) or bundle id (native), from APPLE_CLIENT_IDS.
+ * Empty config disables Apple sign-in.
  */
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -19,10 +18,10 @@ const APPLE_JWKS_URL = new URL('https://appleid.apple.com/auth/keys');
 const jwks = createRemoteJWKSet(APPLE_JWKS_URL);
 
 export interface AppleIdentity {
-    /** Stable per-user id (the `sub` claim). The key — email can be absent/relayed. */
+    /** Stable per-user id (`sub`). The key: email can be absent/relayed. */
     sub: string;
-    /** May be '' when Apple omits it (later sign-ins); the existing identity row
-     *  already holds the account, so a blank here is harmless. */
+    /** '' when Apple omits it on later sign-ins; harmless, the existing identity
+     *  row already holds the account. */
     email: string;
     emailVerified: boolean;
 }

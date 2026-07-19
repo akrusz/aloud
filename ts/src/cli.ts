@@ -1,10 +1,8 @@
 /**
- * Node CLI shell — wires PromptBuilder + SessionManager + an LLM provider
- * into a text-only meditation session.
- *
- * This is an integration-test surface for the TS orchestration core, not
- * a product. Speak with the facilitator via stdin; `[HOLD]` enters local
- * silence mode (anything you type next resumes).
+ * Node CLI shell: PromptBuilder + SessionManager + an LLM provider wired into a
+ * text-only meditation session. An integration-test surface for the core, not a
+ * product. Type to the facilitator on stdin; `[HOLD]` enters local silence mode
+ * and anything you type next resumes.
  *
  *   npm run cli -- --provider=ollama
  *   ANTHROPIC_API_KEY=sk-... npm run cli -- --provider=anthropic --model=claude-haiku-4-5
@@ -32,8 +30,7 @@ import {
     GroqProvider,
     type LLMProvider,
 } from './llm/index.js';
-// Node-only; imported directly so the browser-targeted index barrel
-// stays free of node:* specifiers.
+// Node-only, imported directly to keep node:* out of the browser barrel.
 import { ClaudeProxyProvider } from './llm/claude-proxy.js';
 
 type ProviderName =
@@ -242,7 +239,6 @@ async function main(): Promise<void> {
     if (args.intention) console.log(`Intention: ${args.intention}`);
     console.log();
 
-    // Generate opener (the LLM's first line, prompted by buildOpenerPrompt).
     const openerPrompt = builder.buildOpenerPrompt(args.intention);
     session.addUserMessage(openerPrompt);
     const openerResp = await provider.complete(session.getContextMessages(), {
@@ -269,9 +265,8 @@ async function main(): Promise<void> {
             try {
                 userInput = (await rl.question(promptLabel)).trim();
             } catch (err) {
-                // Readline closes (EOF on stdin, Ctrl+D, piped input ending)
-                // reject any pending question with "readline was closed".
-                // Treat it as a graceful end-of-session.
+                // A readline close (EOF, Ctrl+D, piped input ending) rejects the
+                // pending question; treat it as a graceful end-of-session.
                 if (err instanceof Error && /readline was closed/i.test(err.message)) break;
                 throw err;
             }

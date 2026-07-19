@@ -1,23 +1,18 @@
 /**
  * Pacing and turn-taking logic for meditation facilitation.
  *
- * Meditation conversation has silences with very different meanings, and
- * the controller must not treat them alike:
+ * Meditation silences mean very different things, and must not be treated alike:
  *
- * - A thinking pause: short mid-share silence while the meditator finds
- *   words. Responding here cuts them off — wait (responseDelayMs, plus the
- *   VAD-side ramp that grants longer shares more trailing-silence patience).
- * - A natural end of sharing: silence past the response delay after speech —
- *   the facilitator's turn to respond.
- * - A contemplative drop: the meditator has gone inward and stopped talking
- *   entirely. Interrupting defeats the practice, so nothing fires until a
- *   long interval (silenceCheckinSec) passes, then a gentle check-in
- *   confirms presence and the timer resets. What the check-in says is the
- *   caller's choice: a canned phrase (no LLM round-trip) or a smart one
- *   (smart-checkin.ts — the LLM offers a line in context, or declines).
- * - Requested silence: the LLM prefixed its reply with [HOLD], entering an
- *   explicit hold where even check-ins stay quiet; any new speech exits it
- *   (subject to the resume-intent classifier upstream).
+ * - Thinking pause: short mid-share silence while the meditator finds words.
+ *   Responding cuts them off, so wait (responseDelayMs, plus the VAD-side ramp
+ *   granting longer shares more trailing-silence patience).
+ * - End of sharing: silence past the response delay. The facilitator's turn.
+ * - Contemplative drop: they've gone inward and stopped talking. Interrupting
+ *   defeats the practice, so nothing fires until silenceCheckinSec passes, then
+ *   a gentle check-in confirms presence and the timer resets. Its content is the
+ *   caller's choice: a canned phrase, or a smart one (smart-checkin.ts).
+ * - Requested silence: the LLM prefixed [HOLD], so even check-ins stay quiet.
+ *   Any new speech exits, subject to the upstream resume-intent classifier.
  */
 
 import { realClock, type Clock } from '../clock.js';
@@ -42,9 +37,7 @@ export type TurnDecision =
     (typeof TurnDecision)[keyof typeof TurnDecision];
 
 export interface PacingConfig {
-    // -----------------------------------------------------------------
-    // Facilitation-side pacing — used by PacingController itself.
-    // -----------------------------------------------------------------
+    // Facilitation-side pacing, used by PacingController itself.
 
     /** Milliseconds of silence after speech before responding. */
     responseDelayMs: number;
@@ -53,19 +46,14 @@ export interface PacingConfig {
     /** If false, check-ins never fire. */
     silenceCheckinsEnabled: boolean;
     /**
-     * If false, the [HOLD] signal from the LLM is ignored — the session
-     * never enters extended silence mode. Useful for users who find
-     * silence mode unsettling. The PacingController doesn't enforce
-     * this on its own; callers should treat a hold-signaled response
-     * as a normal one when this is false.
+     * If false, [HOLD] is ignored and the session never enters extended silence
+     * mode (for users who find it unsettling). PacingController does not enforce
+     * this; callers must treat a hold-signaled response as a normal one.
      */
     silenceModeEnabled: boolean;
 
-    // -----------------------------------------------------------------
-    // Client-side VAD tuning — used by STT adapters, not PacingController.
-    // Grouped here so the user has one knob bag to tune. Adapters read
-    // only the fields they need.
-    // -----------------------------------------------------------------
+    // Client-side VAD tuning, read by STT adapters rather than PacingController.
+    // Grouped here so the user has one knob bag.
 
     /** Base trailing silence before submitting a transcribed utterance. */
     silenceBaseMs: number;
@@ -77,10 +65,10 @@ export interface PacingConfig {
     minSpeechDurationMs: number;
 }
 
-/** Clamp bounds for a model-set check-in interval ([WAIT:Nm] smart timing).
- *  A floor keeps a confused model from turning check-ins into chatter; the
- *  ceiling keeps one from silencing check-ins entirely. The floor admits the
- *  30s high-guidance default (defaultWaitSeconds). */
+/** Clamp bounds for a model-set check-in interval ([WAIT:Nm] smart timing). The
+ *  floor stops a confused model turning check-ins into chatter (and admits the
+ *  30s high-guidance default, defaultWaitSeconds); the ceiling stops one
+ *  silencing check-ins entirely. */
 export const CHECKIN_INTERVAL_MIN_SEC = 30;
 export const CHECKIN_INTERVAL_MAX_SEC = 3600;
 
@@ -90,13 +78,12 @@ export const defaultPacingConfig: PacingConfig = {
     silenceCheckinsEnabled: true,
     silenceModeEnabled: true,
     silenceBaseMs: 3000,
-    // The long-end cap: how much trailing silence a long, reflective share gets
-    // before we submit. Meditation speech has real mid-thought pauses, so the
-    // ceiling is generous (a too-short cap cuts people off mid-sentence).
+    // Trailing silence a long reflective share gets before submitting.
+    // Meditation speech has real mid-thought pauses, so the cap is generous; a
+    // shorter one cuts people off mid-sentence.
     silenceMaxMs: 6000,
-    // Extra ms of trailing-silence tolerance per ms of speech (ramps from base
-    // toward the cap). At 0.16 a short reply stays snappy while a longer share
-    // earns more patience without over-waiting on quick answers.
+    // Extra ms of tolerance per ms of speech, ramping base toward the cap. At
+    // 0.16 short replies stay snappy while longer shares earn more patience.
     silenceRampRate: 0.16,
     minSpeechDurationMs: 500,
 };
@@ -137,9 +124,9 @@ export class PacingController {
 
     /**
      * Smart timing: override the check-in interval (seconds), clamped to
-     * [CHECKIN_INTERVAL_MIN_SEC, CHECKIN_INTERVAL_MAX_SEC]. Sticky — the
-     * model's latest estimate stands across turns until it sets a new one;
-     * null restores the configured silenceCheckinSec.
+     * [CHECKIN_INTERVAL_MIN_SEC, CHECKIN_INTERVAL_MAX_SEC]. Sticky across turns
+     * until the model sets a new one; null restores the configured
+     * silenceCheckinSec.
      */
     setCheckinInterval(sec: number | null): void {
         this._checkinIntervalOverride =
@@ -158,8 +145,8 @@ export class PacingController {
         return this._checkinIntervalOverride !== null;
     }
 
-    /** Seconds until a check-in could fire (0 = due now). Purely the timing
-     *  math — ignores enablement, holds, and the has-spoken gate. */
+    /** Seconds until a check-in could fire (0 = due now). Timing math only:
+     *  ignores enablement, holds, and the has-spoken gate. */
     getCheckinEtaSec(): number {
         const elapsed = this.clock() - this._lastResponseTime;
         return Math.max(0, this.getCheckinInterval() - elapsed);
@@ -180,10 +167,9 @@ export class PacingController {
     }
 
     /**
-     * Process a transcribed utterance and decide on turn-taking.
-     *
-     * Any speech auto-exits silence mode. Entering silence mode is the
-     * LLM's call, handled externally via the [HOLD] signal in its reply.
+     * Decide turn-taking for a transcribed utterance. Any speech auto-exits
+     * silence mode; entering it is the LLM's call, handled externally via
+     * the [HOLD] signal.
      */
     onTranscription(_text: string): TurnDecision {
         if (this._silenceModeStart !== null) {
@@ -192,9 +178,7 @@ export class PacingController {
         return TurnDecision.Respond;
     }
 
-    /**
-     * Timing-based decision, called periodically during silence.
-     */
+    /** Timing-based decision, called periodically during silence. */
     shouldRespond(): TurnDecision {
         const now = this.clock();
 
@@ -258,8 +242,8 @@ export class PacingController {
         return this._silenceModeStart !== null;
     }
 
-    // Internal hooks used by tests that need to set up timing scenarios
-    // without driving the controller through a full transcript.
+    // Hooks for tests that set up timing scenarios without driving the
+    // controller through a full transcript.
     /** @internal */
     _setLastSpeechEnd(t: number): void { this._lastSpeechEnd = t; }
     /** @internal */

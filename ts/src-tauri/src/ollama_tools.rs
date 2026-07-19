@@ -1,15 +1,13 @@
-//! Ollama lifecycle management — restart / upgrade / install the daemon itself,
-//! as opposed to `ollama.rs` which manages the *models*. Serves
-//! `/app/v1/ollama/restart`, `/app/v1/ollama/upgrade`, and
-//! `/app/v1/install/{tool}`. All three stream NDJSON `{status}` progress lines
-//! so the settings UI can show a live log, then a terminal `{status:"done"}` or
-//! `{status:"error", error}` event.
+//! Ollama daemon lifecycle (restart / upgrade / install), as opposed to
+//! `ollama.rs` which manages the *models*. Serves `/app/v1/ollama/restart`,
+//! `/app/v1/ollama/upgrade`, `/app/v1/install/{tool}`, all streaming NDJSON
+//! `{status}` lines for a live log, then `{status:"done"}` or
+//! `{status:"error", error}`.
 //!
-//! Platform notes: upgrade/install are Homebrew on macOS and the official
-//! `install.sh` on Linux; Windows has no automatic path and the
-//! handler returns a download URL instead. The restart dance (detect how Ollama
-//! is running, stop it, bring it back, wait for the version endpoint) is
-//! Unix-only; Windows reports "not supported".
+//! Platform: upgrade/install use Homebrew on macOS and `install.sh` on Linux;
+//! Windows has no automatic path, so the handler returns a download URL. The
+//! restart dance (detect how Ollama runs, stop it, bring it back, wait for the
+//! version endpoint) is Unix-only.
 
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -17,11 +15,11 @@ use std::time::Duration;
 const OLLAMA_URL: &str = "http://localhost:11434";
 const DOWNLOAD_URL: &str = "https://ollama.com/download";
 
-/// One streamed progress event sink. Each `*_stream` fn emits status lines and a
-/// final done/error event through it; the handler serializes them to NDJSON.
+/// Progress sink: each `*_stream` fn emits status lines then a final done/error
+/// event through it, which the handler serializes to NDJSON.
 type Progress<'a> = dyn FnMut(Value) + 'a;
 
-/// Ping the daemon's `/api/version`. `Some(version)` means it's up.
+/// `Some(version)` means the daemon is up.
 fn ping_version() -> Option<String> {
     let url = format!("{OLLAMA_URL}/api/version");
     let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -35,7 +33,7 @@ fn ping_version() -> Option<String> {
 
 // --- restart ----------------------------------------------------------------
 
-/// How Ollama is currently running, so we can bring it back the same way.
+/// How Ollama runs now, so restart can bring it back the same way.
 #[derive(Clone, Copy, PartialEq)]
 enum RunMethod {
     /// macOS Ollama.app GUI process.
@@ -75,8 +73,8 @@ fn has_ollama_app() -> bool {
     false
 }
 
-/// Stop and restart the running Ollama daemon, waiting for it to come back.
-/// Unix-only; Windows gets a "not supported" error event.
+/// Stop and restart the daemon, waiting for it to come back. Unix-only;
+/// Windows gets a "not supported" error event.
 #[cfg(unix)]
 pub fn restart_stream(on: &mut Progress) {
     use std::thread::sleep;
@@ -86,13 +84,12 @@ pub fn restart_stream(on: &mut Progress) {
 
     on(json!({ "status": "Stopping Ollama..." }));
 
-    // Graceful stop. -i case-insensitive (matches `ollama` and `Ollama`), -x
-    // exact name.
+    // -i case-insensitive (matches `ollama` and `Ollama`), -x exact name.
     let _ = std::process::Command::new("pkill").args(["-i", "-x", "ollama"]).output();
 
-    // Wait up to 10s for shutdown. If we can't confirm it, bail before
-    // "starting" — otherwise the version poll below would see the still-running
-    // old daemon and report a false "done".
+    // Wait up to 10s for shutdown. If unconfirmed, bail before "starting":
+    // otherwise the version poll below sees the still-running old daemon and
+    // reports a false "done".
     let mut shut_down = false;
     for _ in 0..20 {
         if ping_version().is_none() {
@@ -151,7 +148,7 @@ pub fn restart_stream(on: &mut Progress) {
         return;
     }
 
-    // Wait up to 90s. macOS may show a Gatekeeper prompt on first launch.
+    // Wait up to 90s: macOS may show a Gatekeeper prompt on first launch.
     for i in 0..180 {
         sleep(Duration::from_millis(500));
         if let Some(version) = ping_version() {
@@ -196,9 +193,9 @@ pub fn restart_stream(on: &mut Progress) {
 
 // --- upgrade -----------------------------------------------------------------
 
-/// Returns `Some((error, download_url))` when automatic upgrade isn't possible
-/// (Windows, or macOS without Homebrew). The handler turns this into a 400 so
-/// the UI can offer the download page. `None` → safe to stream an upgrade.
+/// `Some((error, download_url))` when automatic upgrade isn't possible (Windows,
+/// or macOS without Homebrew); the handler turns it into a 400 so the UI can
+/// offer the download page. `None` → safe to stream an upgrade.
 pub fn upgrade_precheck() -> Option<(String, String)> {
     if cfg!(target_os = "windows") {
         return Some((
@@ -215,9 +212,8 @@ pub fn upgrade_precheck() -> Option<(String, String)> {
     None
 }
 
-/// Shell script for the upgrade, by platform. macOS tries both the cask and the
-/// formula (a user may have either); Linux re-runs the idempotent install
-/// script.
+/// Upgrade script by platform. macOS tries both the cask and the formula (a
+/// user may have either); Linux re-runs the idempotent install script.
 fn upgrade_script() -> &'static str {
     if cfg!(target_os = "macos") {
         "set +e; \
@@ -250,9 +246,9 @@ pub fn upgrade_stream(on: &mut Progress) {
 
 // --- install -----------------------------------------------------------------
 
-/// Validate the tool + platform for install. `Ok(())` → stream the install;
-/// `Err((status, error, download_url?))` → the handler returns that status. In
-/// the Tauri build only `ollama` is installable (Piper is compiled in).
+/// Validate tool + platform. `Ok(())` → stream the install; `Err((status,
+/// error, download_url?))` → the handler returns that status. Only `ollama` is
+/// installable in the Tauri build; Piper is compiled in.
 pub fn install_precheck(tool: &str) -> Result<(), (u16, String, Option<String>)> {
     if tool != "ollama" {
         return Err((400, format!("Unknown or unsupported tool: {tool}"), None));
@@ -278,10 +274,9 @@ pub fn install_stream(tool: &str, on: &mut Progress) {
 
 // --- shared subprocess streaming --------------------------------------------
 
-/// Run a bash script, forwarding each merged stdout/stderr line as
-/// `{status: line}`, then a terminal `{status:"done", message}` (exit 0) or
-/// `{status:"error", error}`. stderr is merged via `2>&1` so progress that
-/// tools write to stderr (brew, curl) still streams.
+/// Run a bash script, forwarding each output line as `{status: line}`, then
+/// `{status:"done", message}` (exit 0) or `{status:"error", error}`. stderr is
+/// merged via `2>&1` because brew and curl write their progress there.
 fn stream_bash(script: &str, on: &mut Progress, done_message: &str) {
     use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};

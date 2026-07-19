@@ -1,16 +1,14 @@
 /**
- * Forward a completion to the chosen provider, with aloud's server-held API
- * key injected. This is the ONE place meditation content transits the server,
- * and it is stateless: request in, stream out, nothing persisted (the privacy
- * invariant — see logger.ts and meditation-pal-dn2).
+ * Forward a completion to the chosen provider with aloud's server-held API key
+ * injected. The ONE place meditation content transits the server, and it is
+ * stateless: request in, stream out, nothing persisted (privacy invariant;
+ * logger.ts, meditation-pal-dn2).
  *
  * Runtime reuse of @aloud/core: we construct the SAME provider classes the
- * client uses (AnthropicProvider, GroqProvider, OpenRouterProvider) rather than
- * re-implementing request building and — critically — usage parsing. Token
- * accounting is what billing rides on (meditation-pal-8sj); having one
- * implementation shared between client and server is the whole reason this
- * lives in the monorepo. (Runs via tsx, which resolves the @aloud/core path
- * alias; see ts/server/tsconfig.json.)
+ * client uses rather than re-implementing request building and, critically,
+ * usage parsing. Token accounting is what billing rides on
+ * (meditation-pal-8sj), so client and server must share one implementation.
+ * (Runs via tsx, which resolves the @aloud/core path alias; see tsconfig.json.)
  */
 
 import {
@@ -43,21 +41,21 @@ export interface ForwardOptions {
 
 /**
  * Server-side OpenRouter fallback chains, sent as the request's `models` array
- * (priority order, primary first, OpenRouter caps the list at 3). OpenRouter
- * walks the array when a slug can't serve — endpoint gone (deprecated model),
- * host downtime, rate limit — so the turn completes instead of erroring.
+ * (priority order, primary first; OpenRouter caps the list at 3). OpenRouter
+ * walks the array when a slug can't serve (endpoint gone, host downtime, rate
+ * limit) so the turn completes instead of erroring.
  *
  * Kimi K2 0711 sits on a single Novita endpoint for a year-old checkpoint, so
  * it degrades to 0905: same K2 generation (the personality break came later,
- * with the Claude-distilled K2 Thinking/K2.5), and its hosts (Novita, Groq)
- * are both US — the privacy story is unchanged.
+ * with the Claude-distilled K2 Thinking/K2.5), and its hosts (Novita, Groq) are
+ * both US, so the privacy story is unchanged.
  *
- * Billing during a degraded window: the meter keys on the REQUESTED model, so
- * a fallback turn debits at the primary's table rates while OpenRouter charges
- * the fallback's (0905: $0.60/$2.50 vs 0711's $0.57/$2.30 — a ~4%
- * under-recovery on this model only). That's the accepted cost of not dropping
- * sessions; if the primary is permanently gone, swap the pricing-table entry
- * (see the ADDING A MODEL checklist in pricing/providers.ts).
+ * Billing during a degraded window: the meter keys on the REQUESTED model, so a
+ * fallback turn debits at the primary's table rates while OpenRouter charges
+ * the fallback's (0905 $0.60/$2.50 vs 0711 $0.57/$2.30, ~4% under-recovery on
+ * this model only). Accepted cost of not dropping sessions; if the primary is
+ * permanently gone, swap the pricing-table entry (ADDING A MODEL checklist in
+ * pricing/providers.ts).
  */
 export const OPENROUTER_FALLBACKS: Record<string, readonly string[]> = {
     'moonshotai/kimi-k2': ['moonshotai/kimi-k2', 'moonshotai/kimi-k2-0905'],
@@ -86,7 +84,6 @@ function buildProvider(keys: ProviderKeys, opts: ForwardOptions): LLMProvider {
             return new GoogleProvider({ apiKey: keys.google, ...common });
         case 'openai':
             if (!keys.openai) throw new ProviderNotConfiguredError('openai');
-            // Direct to api.openai.com (OpenAIProvider's default base URL).
             return new OpenAIProvider({ apiKey: keys.openai, ...common });
     }
 }
@@ -113,8 +110,8 @@ export class Forwarder {
         return provider.complete(messages, opts.system ? { system: opts.system } : {});
     }
 
-    /** Yields incremental deltas; the final chunk (done: true) carries usage.
-     *  Falls back to a single synthetic stream if the provider lacks streaming. */
+    /** Yields deltas; the final chunk (done: true) carries usage. Falls back to
+     *  a single synthetic chunk if the provider lacks streaming. */
     async *stream(
         messages: Message[],
         opts: ForwardOptions & { system?: string }

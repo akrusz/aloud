@@ -1,25 +1,20 @@
 /**
- * Persistence boundary for accounts + credit ledger. The interface is the
- * contract; implementations are swappable.
- *
- * Ships with an in-memory implementation (memory-store.ts) used by tests and
- * local dev. PRODUCTION SWAP: implement this same interface over SQLite
- * (own-your-data, on-brand) or Postgres — nothing above this file knows which
- * backing store is in use. The ledger logic (ledger.ts) is pure and sits on
- * top of whichever store is injected.
+ * Persistence boundary for accounts + credit ledger. This interface is the
+ * contract; implementations are swappable, and nothing above this file knows
+ * which is in use. Ships with memory-store.ts (tests, local dev) and
+ * sqlite-store.ts (production); the same interface ports to Postgres.
  *
  * Design notes:
- *  - The ledger is append-only: balance is derived from entries, never mutated
- *    in place. That gives a full audit trail (every grant, debit, hold,
- *    release, top-up) which is exactly what billing disputes need.
- *  - Holds are first-class: a session places a hold at start, then settles it
- *    to an actual debit (releasing the remainder). An unsettled hold reduces
- *    spendable balance without yet being a charge.
+ *  - Append-only ledger: balance is derived from entries, never mutated in
+ *    place, giving the full audit trail (grant, debit, hold, release, top-up)
+ *    billing disputes need.
+ *  - Holds are first-class: a session holds at start, then settles to an actual
+ *    debit (releasing the remainder). An unsettled hold reduces spendable
+ *    balance without yet being a charge.
  */
 
-// Type-only import (erased at compile) — the raw usage telemetry row this store
-// also persists, kept beside the ledger. Defined in usage.ts with its
-// aggregation logic; here we only need the row shape for the store methods.
+// Type-only import: the raw usage telemetry row this store also persists.
+// Defined with its aggregation logic in usage.ts; here we need only the shape.
 import type { UsageEvent } from './usage.js';
 
 export type LedgerKind =
@@ -39,47 +34,44 @@ export interface LedgerEntry {
     amount: number;
     /** For hold/hold_release/settle linkage. */
     holdId?: string;
-    /** Free-text reason, e.g. "llm:anthropic:claude-sonnet-5". Never carries
-     *  message content. */
+    /** Free-text, e.g. "llm:anthropic:claude-sonnet-5". Never message content. */
     reason: string;
     createdAt: number;
 }
 
 export interface Account {
     id: string;
-    /** Primary email for the account (from its first identity). Display + the
-     *  lookup key for email/password sign-in. */
+    /** Primary email (from the first identity). Display + the lookup key for
+     *  email/password sign-in. */
     email: string;
     emailVerified: boolean;
     createdAt: number;
     /** Client IP at signup, if captured. Feeds velocity-based abuse detection
-     *  (mass-account creation tends to cluster by IP/subnet). Optional — absent
-     *  when behind a proxy that doesn't forward it. */
+     *  (mass-account creation clusters by IP/subnet). Absent behind a proxy that
+     *  doesn't forward it. */
     signupIp?: string;
-    /** When the user deleted this account (soft-delete, meditation-pal-8jc).
-     *  Set ⇒ the account is anonymized, its identities freed, balance zeroed; it
-     *  can no longer sign in. The row itself is kept so the append-only ledger's
-     *  foreign keys (its audit trail) survive. Absent on live accounts. */
+    /** Soft-delete tombstone (meditation-pal-8jc). Set ⇒ anonymized, identities
+     *  freed, balance zeroed, can no longer sign in. The row stays so the
+     *  append-only ledger's FKs (its audit trail) survive. */
     deletedAt?: number;
 }
 
-/** The sign-in methods an account can carry. TRUSTED providers (google, apple)
- *  are hard enough to mint at scale that connecting one unlocks the free-credit
- *  grant; 'email' is a local password account that gets none until it connects
- *  a trusted identity (meditation-pal-116). */
+/** Sign-in methods an account can carry. TRUSTED providers (google, apple) are
+ *  hard enough to mint at scale that connecting one unlocks the free-credit
+ *  grant; 'email' is a local password account that gets none until it connects a
+ *  trusted identity (meditation-pal-116). */
 export type IdentityProvider = 'google' | 'apple' | 'email';
 
 /**
- * A sign-in identity linked to an account. One account may carry several
- * (Google + Apple + email). The (provider, sub) pair is GLOBALLY UNIQUE — an
- * external identity belongs to at most one aloud account, ever — which is the
- * anti-farming lever behind the free grant: you can't reuse one Google account
- * to seed credits on many aloud accounts.
+ * A sign-in identity linked to an account; one account may carry several
+ * (Google + Apple + email). (provider, sub) is GLOBALLY UNIQUE: an external
+ * identity belongs to at most one aloud account, ever. That's the anti-farming
+ * lever behind the free grant - one Google account can't seed credits on many.
  */
 export interface Identity {
     provider: IdentityProvider;
     /** The provider's stable user id: Google/Apple `sub`, or the lower-cased
-     *  email address for the local 'email' provider. */
+     *  email for the local 'email' provider. */
     sub: string;
     accountId: string;
     /** Whether the provider asserts the email is verified. Only a verified
@@ -89,20 +81,20 @@ export interface Identity {
      *  once, never cleared, so re-connecting can't re-trigger it. */
     grantedCredits: boolean;
     createdAt: number;
-    /** Opaque credential the provider verifies against — a password hash for the
-     *  'email' provider, absent for OAuth identities whose proof is the upstream
-     *  token. Never leaves the server. */
+    /** Opaque credential the provider verifies against: a password hash for
+     *  'email', absent for OAuth identities (whose proof is the upstream token).
+     *  Never leaves the server. */
     secretHash?: string;
 }
 
-/** A purchased gift of clouds, addressed to an email. Funded by a CLEARED Stripe
- *  payment, so it never cancels: the clouds are granted exactly once. Lifecycle:
- *  the recipient accepts ('accepted'); or it bounces — declined or 30-day
- *  unclaimed — to 'returned', held for the buyer to RE-GIFT ('regifted', spawning
+/** A purchased gift of clouds, addressed to an email (meditation-pal-bd5).
+ *  Funded by a CLEARED Stripe payment, so it never cancels: granted exactly
+ *  once. The recipient accepts ('accepted'), or it bounces (declined, or 30-day
+ *  unclaimed) to 'returned', held for the buyer to RE-GIFT ('regifted', spawning
  *  a fresh pending gift) or CLAIM to their own balance ('claimed'). No refunds;
- *  value always stays in the credit system. ('declined'/'expired' are legacy
- *  terminal states from before re-gifting, when a bounce credited the buyer
- *  directly — kept so old rows still read.) (meditation-pal-bd5) */
+ *  value stays in the credit system. 'declined'/'expired' are legacy terminal
+ *  states from before re-gifting, when a bounce credited the buyer directly,
+ *  kept so old rows still read. */
 export type GiftStatus =
     | 'pending'
     | 'accepted'
@@ -115,23 +107,22 @@ export type GiftStatus =
 export interface Gift {
     id: string;
     buyerAccountId: string;
-    /** Lower-cased email the gift is addressed to (the recipient may not have an
-     *  account yet — it waits in 'pending' until someone with this email signs in). */
+    /** Lower-cased email the gift is addressed to. The recipient may have no
+     *  account yet; it waits in 'pending' until someone with this email signs in. */
     recipientEmail: string;
     credits: number;
-    /** The Stripe checkout session that funded it — the idempotency key. */
+    /** The Stripe checkout session that funded it: the idempotency key. */
     stripeSessionId: string;
     status: GiftStatus;
     createdAt: number;
-    /** When it left 'pending' (accepted/declined/expired). */
+    /** When the status last changed (left 'pending', or returned→regifted/claimed). */
     resolvedAt?: number;
 }
 
-/** Retreat passes (meditation-pal-414). A time-boxed grant of unlimited access
- *  the OPERATOR sets up for a meditation retreat: members use the cloud without
- *  being metered for the pass's window, then silently fall back to their own
- *  balance once it ends. Admin-only — members are added by email in the admin
- *  panel; there's no attendee-facing UI and no shareable code. */
+/** Retreat passes (meditation-pal-414). An OPERATOR-created, time-boxed grant of
+ *  unlimited access for a meditation retreat: members aren't metered during the
+ *  window, then silently fall back to their own balance. Admin-only, members
+ *  added by email in the admin panel; no attendee UI, no shareable code. */
 export type RetreatPassStatus = 'active' | 'revoked';
 
 export interface RetreatPass {
@@ -142,9 +133,9 @@ export interface RetreatPass {
      *  startsAt <= now <= endsAt and status === 'active'. */
     startsAt: number;
     endsAt: number;
-    /** Optional per-attendee daily credit-equivalent ceiling (null = truly
-     *  unlimited). A cost backstop against a single runaway client; with
-     *  admin-picked members (no leakable code) it's a backstop, not a gate. */
+    /** Per-attendee daily credit-equivalent ceiling (null = truly unlimited).
+     *  With admin-picked members (no leakable code) it's a cost backstop against
+     *  one runaway client, not a gate. */
     perAttendeeDailyCap: number | null;
     status: RetreatPassStatus;
     createdAt: number;
@@ -156,9 +147,9 @@ export interface RetreatMembership {
     joinedAt: number;
 }
 
-/** A pending invite to a pass, addressed to an email that has no account yet
- *  (meditation-pal-n9kd). Resolved to a real membership on that person's first
- *  sign-in (matched by email), mirroring how a gift waits for its recipient. */
+/** A pending invite to a pass, addressed to an email with no account yet
+ *  (meditation-pal-n9kd). Resolved to a membership on that person's first
+ *  sign-in (matched by email), like a gift waiting for its recipient. */
 export interface RetreatInvite {
     passId: string;
     /** Lower-cased email the invite is addressed to. */
@@ -168,17 +159,16 @@ export interface RetreatInvite {
 
 export interface CreditsStore {
     /** Release the backing handle on graceful shutdown (SQLite: closes the DB,
-     *  which checkpoints the WAL into the main file). Optional — the in-memory
-     *  store has nothing to close. */
+     *  checkpointing the WAL into the main file). Optional; the in-memory store
+     *  has nothing to close. */
     close?(): void;
     getAccountById(id: string): Promise<Account | undefined>;
     createAccount(account: Account): Promise<void>;
     /** The live (non-deleted) account whose email canonicalizes to the same
-     *  mailbox as `email` — using auth/email-key normalizeEmail (case, +tag,
-     *  Gmail dots / googlemail), so j.o.h.n+x@gmail.com and john@gmail.com match.
-     *  This is the one-account-per-mailbox key behind sign-in linking and the
-     *  duplicate-account guard. Tombstoned accounts are excluded so a deleted
-     *  mailbox can sign up fresh. */
+     *  mailbox as `email`, via auth/email-key normalizeEmail (case, +tag, Gmail
+     *  dots / googlemail), so j.o.h.n+x@gmail.com matches john@gmail.com. The
+     *  one-account-per-mailbox key behind sign-in linking and the duplicate
+     *  guard. Excludes tombstones, so a deleted mailbox can sign up fresh. */
     findLiveAccountByEmail(email: string): Promise<Account | undefined>;
 
     // ---- Identities (sign-in methods, meditation-pal-116) -------------------
@@ -191,28 +181,27 @@ export interface CreditsStore {
     getIdentitiesForAccount(accountId: string): Promise<Identity[]>;
     /** Flip an identity's grantedCredits flag to true after a grant settles. */
     markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void>;
-    /** Replace the credential hash on an existing identity — a Google/Apple user
-     *  adding an email/password to their account, or later changing it. No-op if
-     *  (provider, sub) doesn't exist. */
+    /** Replace an identity's credential hash: a Google/Apple user adding an
+     *  email/password, or later changing it. No-op if (provider, sub) is absent. */
     setIdentitySecret(provider: IdentityProvider, sub: string, secretHash: string): Promise<void>;
     /** Remove every identity linked to an account, freeing each (provider, sub)
      *  so the same Google/Apple/email can sign in fresh later. Used by account
      *  deletion (meditation-pal-8jc). */
     deleteIdentitiesForAccount(accountId: string): Promise<void>;
-    /** Anonymize + tombstone an account in place (soft-delete). Scrubs the email
-     *  to `anonymizedEmail` and the signup IP, and stamps `deletedAt`; keeps the
-     *  row so ledger FKs hold. With email, identities, and IP gone, the surviving
+    /** Anonymize + tombstone an account in place (soft-delete): scrub email to
+     *  `anonymizedEmail`, drop the signup IP, stamp `deletedAt`, keep the row so
+     *  ledger FKs hold. With email, identities, and IP gone, surviving
      *  ledger/usage rows hang off a random UUID only (meditation-pal-9rkg). */
     markAccountDeleted(accountId: string, deletedAt: number, anonymizedEmail: string): Promise<void>;
     /** Scrub the signup IP from every account created at or before `cutoff`
-     *  (data minimization, meditation-pal-9rkg — the IP's only job is
-     *  velocity-checking new signups). Returns how many rows were cleared. */
+     *  (data minimization, meditation-pal-9rkg: the IP's only job is
+     *  velocity-checking new signups). Returns rows cleared. */
     clearSignupIpsBefore(cutoff: number): Promise<number>;
 
     // ---- Grant-eligibility keys (anti-farming, meditation-pal-8jc) ----------
-    // An append-only log of email-derived keys (see auth/email-key.ts) that have
-    // ever received the free grant. Survives account deletion, so a deleted-then-
-    // recreated account can't claim the freebie twice. Never carries the address.
+    // Append-only log of email-derived keys (auth/email-key.ts) that have ever
+    // received the free grant. Survives account deletion, so delete-then-recreate
+    // can't claim the freebie twice. Never carries the address.
 
     /** True if this grant key has ever been recorded (i.e. already granted). */
     hasGrantKey(keyHash: string): Promise<boolean>;
@@ -232,12 +221,12 @@ export interface CreditsStore {
     getReturnedGiftsForBuyer(buyerAccountId: string): Promise<Gift[]>;
     /** All pending gifts created on/before `cutoff` (the expiry sweep). */
     pendingGiftsCreatedBefore(cutoff: number): Promise<Gift[]>;
-    /** Move a gift out of 'pending'. No-ops if it isn't still pending (so
-     *  concurrent accept/decline/expire can't double-resolve). */
+    /** Move a gift out of 'pending'. No-ops if it isn't still pending, so
+     *  concurrent accept/decline/expire can't double-resolve. */
     resolveGift(id: string, status: Exclude<GiftStatus, 'pending'>, resolvedAt: number): Promise<boolean>;
-    /** Atomic compare-and-set on status: transition only if currently `from`.
-     *  Returns true if this call made the change. Used for the buyer acting on a
-     *  'returned' gift (→ 'regifted' / 'claimed'), so two clicks can't both fire. */
+    /** Atomic compare-and-set on status: transition only if currently `from`;
+     *  true if this call made the change. For the buyer acting on a 'returned'
+     *  gift (→ 'regifted' / 'claimed'), so two clicks can't both fire. */
     transitionGift(id: string, from: GiftStatus, to: GiftStatus, resolvedAt: number): Promise<boolean>;
 
     /** Append a ledger entry. Implementations must make this atomic. */
@@ -247,7 +236,7 @@ export interface CreditsStore {
 
     // ---- Aggregation reads (spend monitoring) -------------------------------
     // Trial-scale implementations may scan; a SQL store should answer these with
-    // indexed aggregate queries. Kept narrow so the metrics layer stays pure.
+    // indexed aggregates. Kept narrow so the metrics layer stays pure.
 
     /** All accounts (for signup counts + velocity signals). */
     allAccounts(): Promise<Account[]>;
@@ -260,15 +249,14 @@ export interface CreditsStore {
 
     /** Append a raw usage telemetry row. */
     appendUsage(event: UsageEvent): Promise<void>;
-    /** Every usage row across all accounts (trial-scale scan; a SQL store
-     *  answers the dashboard's aggregates with indexed queries instead). */
+    /** Every usage row across all accounts (trial-scale scan). */
     allUsage(): Promise<UsageEvent[]>;
 
     // ---- Operator settings (durable runtime config) -------------------------
-    // A tiny key→value store for operator-tunable knobs (free-credit grant,
-    // hourly budget) set from the admin panel. Kept here so an override survives
-    // restart/redeploy instead of snapping back to the env default. Separate
-    // from accounts/ledger; never carries user content.
+    // Key→value store for operator-tunable knobs (free-credit grant, hourly
+    // budget) set from the admin panel. Persisted so an override survives
+    // restart/redeploy instead of snapping back to the env default. Never
+    // carries user content.
 
     /** A persisted setting value, or undefined if never set. */
     getSetting(key: string): Promise<string | undefined>;
@@ -276,32 +264,31 @@ export interface CreditsStore {
     setSetting(key: string, value: string): Promise<void>;
 
     // ---- Retreat passes (meditation-pal-414) --------------------------------
-    // Operator-created, time-boxed unlimited-access grants. Members are added by
-    // account id (the admin route resolves the email first). The metered routes
-    // bypass billing when activeRetreatPassForAccount returns a pass.
+    // Time-boxed unlimited-access grants. Members are added by account id (the
+    // admin route resolves the email first); the metered routes bypass billing
+    // when activeRetreatPassForAccount returns a pass.
 
     createRetreatPass(pass: RetreatPass): Promise<void>;
     getRetreatPass(id: string): Promise<RetreatPass | undefined>;
     /** All passes, newest first (for the admin Retreats list). */
     listRetreatPasses(): Promise<RetreatPass[]>;
-    /** Flip a pass to 'revoked' — coverage stops immediately. */
+    /** Flip a pass to 'revoked'. Coverage stops immediately. */
     revokeRetreatPass(id: string): Promise<void>;
     /** Permanently delete a pass and its roster (memberships + pending invites).
-     *  Revoke leaves the card in the admin list; this removes it for good — the
-     *  operator's tool for clearing out spent/test passes (e.g. durability-probe
-     *  markers). Usage rows keep their passId as historical telemetry. */
+     *  Revoke leaves the card in the admin list; this removes it for good, for
+     *  clearing out spent/test passes. Usage rows keep their passId as telemetry. */
     deleteRetreatPass(id: string): Promise<void>;
     /** Add an account to a pass. Idempotent on (passId, accountId). */
     addRetreatMember(membership: RetreatMembership): Promise<void>;
     /** Members of a pass (for the admin roster / attendee count). */
     listRetreatMembers(passId: string): Promise<RetreatMembership[]>;
-    /** The pass covering this account right now, if any: an 'active' pass the
-     *  account is a member of whose window contains `now`. Returns the latest-
-     *  ending match (a member is normally on just one). */
+    /** The pass covering this account right now: an 'active' pass it's a member
+     *  of whose window contains `now`. Latest-ending match wins (a member is
+     *  normally on just one). */
     activeRetreatPassForAccount(accountId: string, now: number): Promise<RetreatPass | undefined>;
-    /** Sum of metered credits recorded for an account since `sinceTs` — the per-
-     *  attendee daily-cap backstop. Counts usage whether or not it was charged,
-     *  so pass-covered turns still accrue toward the cap. */
+    /** Sum of metered credits for an account since `sinceTs`, for the
+     *  per-attendee daily-cap backstop. Counts usage whether or not it was
+     *  charged, so pass-covered turns still accrue toward the cap. */
     usageCreditsSince(accountId: string, sinceTs: number): Promise<number>;
 
     // ---- Retreat invites (pending membership by email, meditation-pal-n9kd) --
@@ -309,7 +296,7 @@ export interface CreditsStore {
     addRetreatInvite(invite: RetreatInvite): Promise<void>;
     /** Pending invites for a pass (for the admin roster). */
     listRetreatInvites(passId: string): Promise<RetreatInvite[]>;
-    /** All pending invites addressed to an email (lower-cased), across passes —
+    /** All pending invites addressed to an email (lower-cased), across passes,
      *  resolved to memberships on that account's first sign-in. */
     invitesForEmail(email: string): Promise<RetreatInvite[]>;
     /** Remove an invite (after it's claimed into a membership). */

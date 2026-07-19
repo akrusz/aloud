@@ -1,18 +1,14 @@
 /**
  * Hidden developer mode.
  *
- * Unlocked (and re-locked) by tapping the version line in the About box 7
- * times; persisted in localStorage. Gates the Developer section in Settings
- * and the in-session check-in debug HUD — quality-of-life switches for
- * working on the app that must not be visible to someone who just installed
- * it, so there is deliberately no ordinary settings checkbox for it.
+ * Toggled by tapping the About-box version line 7 times; persisted in
+ * localStorage. Gates the Settings Developer section and the check-in debug
+ * HUD. No ordinary settings checkbox, so a fresh install never sees it.
  *
- * SECURITY: dev mode only gates presentation of debug conveniences that are
- * harmless anywhere (a pacing HUD, a fake update banner). The dev-BUILD-only
- * overrides (?mode=, ?dev cloud bypass) keep their compile-time
- * import.meta.env.DEV gate in app-mode.ts — enabling dev mode in a release
- * build cannot reach them; their Developer-section rows simply don't exist
- * in release bundles.
+ * SECURITY: dev mode only gates debug conveniences harmless anywhere (a pacing
+ * HUD, a fake update banner). The dev-BUILD-only overrides (?mode=, ?dev cloud
+ * bypass) keep their compile-time import.meta.env.DEV gate in app-mode.ts, so
+ * enabling dev mode in a release build cannot reach them.
  */
 
 const DEV_MODE_KEY = 'aloud:devMode';
@@ -34,15 +30,12 @@ export function setDevMode(on: boolean): void {
         if (on) localStorage.setItem(DEV_MODE_KEY, '1');
         else localStorage.removeItem(DEV_MODE_KEY);
     } catch {
-        /* storage unavailable — dev mode just won't persist */
+        /* storage unavailable: dev mode just won't persist */
     }
 }
 
-/**
- * Whether the in-session check-in/[WAIT] HUD should mount: the persisted
- * Developer-section toggle, or a `?debug=checkin` (also `1`, `true`,
- * `pacing`) URL param for browser sessions.
- */
+/** Mount the check-in/[WAIT] HUD: persisted toggle, or a `?debug=checkin`
+ *  (also `1`, `true`, `pacing`) URL param for browser sessions. */
 export function isCheckinDebugOn(): boolean {
     try {
         const q = new URLSearchParams(location.search).get('debug') ?? '';
@@ -53,8 +46,8 @@ export function isCheckinDebugOn(): boolean {
     }
 }
 
-/** The persisted HUD toggle alone (what the Developer checkbox renders —
- *  a URL param shouldn't show as a checked setting). */
+/** The persisted toggle alone: what the Developer checkbox renders, since a
+ *  URL param shouldn't show as a checked setting. */
 export function getCheckinDebugSetting(): boolean {
     try {
         return localStorage.getItem(DEBUG_CHECKIN_KEY) === '1';

@@ -1,13 +1,10 @@
 /**
- * Mic input-level meter — pulses the mic button with live input volume.
+ * Mic input-level meter - pulses the mic button with live input volume. CSS
+ * scales the `.btn-voice.active` box-shadow ring off a `--mic-level` (0..1)
+ * custom property. The Web Speech path hides its audio, so this opens a small
+ * dedicated AnalyserNode stream just for the meter.
  *
- * The CSS reacts to a `--mic-level` (0..1) custom property on the
- * `.btn-voice.active` element (box-shadow ring scales with it). The Web Speech
- * path hides its audio, so we open a small dedicated AnalyserNode stream just
- * for the meter.
- *
- * One stream for the whole session; start() opens it, stop() tears it fully
- * down (track + context). Safe to call stop() more than once.
+ * One stream per session; stop() tears down track + context, and is idempotent.
  */
 
 export interface MicMeter {
@@ -18,9 +15,9 @@ const SMOOTHING = 0.8; // exponential smoothing on the level (0..1)
 const GAIN = 4; // maps typical speech RMS (~0.05–0.25) onto a visible 0..1
 
 /**
- * Start metering mic input onto `target`'s `--mic-level`. Resolves once the
- * mic stream is live; rejects if permission is denied or audio is unavailable
- * (callers can ignore the rejection — the meter is purely cosmetic).
+ * Meter mic input onto `target`'s `--mic-level`. Resolves once the stream is
+ * live; rejects on denied permission or unavailable audio, which callers can
+ * ignore - the meter is purely cosmetic.
  */
 export async function startMicMeter(target: HTMLElement): Promise<MicMeter> {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

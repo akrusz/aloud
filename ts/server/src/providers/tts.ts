@@ -1,20 +1,18 @@
 /**
- * Server-side TTS: synthesize speech to MP3 bytes via a hosted provider
- * (Google Cloud TTS or OpenAI). Returns MP3 bytes. Stateless — the text
- * transits only for the synthesis call and is never persisted (privacy
- * invariant; see logger.ts). The route picks the provider from the resolved
- * voice (voice-catalog.resolveVoice) and calls the matching function here.
+ * Server-side TTS to MP3 bytes via Google Cloud TTS or OpenAI. The route picks
+ * the provider from the resolved voice (voice-catalog.resolveVoice) and calls
+ * the matching function here. Stateless: the text transits only for the synth
+ * call, never persisted (privacy invariant; logger.ts).
  *
- * Google voice names encode their language (e.g. en-US-Chirp3-HD-Achernar →
- * languageCode en-US). Chirp3-HD is Google's high-naturalness tier; the voice
- * is configurable per request so the client's voice picker can drive it.
+ * Google voice names encode their language (en-US-Chirp3-HD-Achernar →
+ * languageCode en-US). Voice is per-request so the client's picker can drive it.
  */
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
 
-/** OpenAI's high-quality, instruction-steerable TTS model (meditation-pal-b7i).
- *  Billed by audio output, ~$0.015/min; ~$22/1M chars at a slow pace (priced in
+/** Instruction-steerable OpenAI TTS model (meditation-pal-b7i). Billed by audio
+ *  output, ~$0.015/min; ~$22/1M chars at a slow pace (see
  *  pricing/providers.OPENAI_TTS_USD_PER_CHAR). */
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 
@@ -32,9 +30,9 @@ export async function synthesizeWithGoogle(
     apiKey: string,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<Uint8Array> {
-    // `rate` is a multiplier (1.0 = normal); the client converts WPM→multiplier.
-    // Clamp to Google's accepted sync-synthesis range [0.25, 4.0] so a stray
-    // value can't 400 the request.
+    // `rate` is a multiplier (1.0 = normal); client converts WPM→multiplier.
+    // Clamp to Google's sync-synthesis range [0.25, 4.0] so a stray value
+    // can't 400 the request.
     const speakingRate = Math.min(4, Math.max(0.25, rate));
     const res = await fetchImpl(`${GOOGLE_TTS_URL}?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
@@ -54,10 +52,10 @@ export async function synthesizeWithGoogle(
     return Uint8Array.from(Buffer.from(data.audioContent, 'base64'));
 }
 
-/** A calm facilitation register for the instruction-steered OpenAI model. The
- *  `rate` multiplier (1.0 = normal) folds in as a pace word because
- *  gpt-4o-mini-tts can ignore the numeric `speed` param — the instruction is
- *  the reliable lever — while `speed` is still sent (harmless if honored). */
+/** Calm facilitation register for the instruction-steered OpenAI model. `rate`
+ *  folds in as a pace word because gpt-4o-mini-tts can ignore the numeric
+ *  `speed` param; the instruction is the reliable lever. `speed` is still sent
+ *  (harmless if honored). */
 function meditationInstruction(rate: number): string {
     const pace =
         rate < 0.95 ? ' Speak slowly, leaving generous space between phrases.'
@@ -70,10 +68,10 @@ function meditationInstruction(rate: number): string {
 }
 
 /**
- * Synthesize `text` to MP3 bytes via OpenAI's audio/speech (gpt-4o-mini-tts).
- * Unlike Google's base64-in-JSON shape, OpenAI streams the audio as the raw
- * response body, so we read it straight off arrayBuffer(). `voice` is an OpenAI
- * voice name (coral, ash, sage, …). Throws on an upstream error.
+ * Synthesize `text` to MP3 bytes via OpenAI audio/speech. Unlike Google's
+ * base64-in-JSON shape, OpenAI returns raw audio as the response body, so we
+ * read it straight off arrayBuffer(). `voice` is an OpenAI voice name (coral,
+ * ash, sage, …). Throws on an upstream error.
  */
 export async function synthesizeWithOpenAI(
     text: string,
@@ -82,8 +80,8 @@ export async function synthesizeWithOpenAI(
     apiKey: string,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<Uint8Array> {
-    // Same accepted band as Google [0.25, 4.0]; gpt-4o-mini-tts may ignore it,
-    // which is why pacing also rides in the instruction.
+    // Same band as Google [0.25, 4.0]; gpt-4o-mini-tts may ignore it, which is
+    // why pacing also rides in the instruction.
     const speed = Math.min(4, Math.max(0.25, rate));
     const res = await fetchImpl(OPENAI_TTS_URL, {
         method: 'POST',

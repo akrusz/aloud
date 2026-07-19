@@ -1,16 +1,14 @@
 /**
  * Session token for the aloud cloud (@aloud/server).
  *
- * The metered LLM proxy (/v1/llm/complete) is behind bearer auth: every
- * request carries a short-lived session JWT the server minted. In production
- * that token comes from Google/Apple/email sign-in (the sign-in modal); on a
- * dev build with no Google client id configured, `ensureCloudToken()` falls
- * back to the server's dev sign-in route (/v1/auth/dev, local-only) so the
- * whole loop runs end-to-end locally.
+ * Metered proxies are behind bearer auth: every request carries a session JWT
+ * the server minted, from Google/Apple/email sign-in. A dev build with no
+ * Google client id falls back to /v1/auth/dev (local-only) so the loop runs
+ * end-to-end locally.
  *
- * The token is cached in a KvStorage slot (localStorage today, swappable per
- * platform — same pattern as api-keys.ts). It's not a secret in the BYOK
- * sense, but treating it like one keeps it out of serialized setup/state.
+ * Cached in a KvStorage slot (localStorage today, swappable per platform, same
+ * pattern as api-keys.ts). Not a BYOK secret, but treating it like one keeps it
+ * out of serialized setup/state.
  */
 
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
@@ -22,8 +20,7 @@ import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
 
-/** Shape mirrors the server's AuthResponse (ts/server/src/contract.ts).
- *  Hand-mirrored until the shared @aloud/contract package lands. */
+/** Mirrors the server's AuthResponse (ts/server/src/contract.ts), by hand. */
 export type SignInProvider = 'google' | 'apple' | 'email';
 
 export interface AccountView {
@@ -31,12 +28,12 @@ export interface AccountView {
     email: string;
     emailVerified: boolean;
     creditsRemaining: number;
-    /** Linked sign-in methods — drives the "connect Google/Apple for credits"
+    /** Linked sign-in methods; drives the "connect Google/Apple for credits"
      *  affordance (meditation-pal-116). */
     providers: SignInProvider[];
-    /** True when a retreat pass currently covers this account (meditation-pal-414)
-     *  — usage is free, so the UI drops spend prompts + cost estimates. Optional:
-     *  absent from servers deployed before retreat passes (treated as false). */
+    /** Retreat pass covering this account (meditation-pal-414): usage is free,
+     *  so the UI drops spend prompts + cost estimates. Absent from servers
+     *  deployed before retreat passes (treated as false). */
     retreatCovered?: boolean;
 }
 
@@ -67,38 +64,33 @@ export function setCloudAuthFetch(impl: typeof fetch): void {
     fetchImpl = impl;
 }
 
-/** Google OAuth web client id discovered at runtime from the reachable aloud
- *  cloud (`GET /cloud/v1/config`, set by capabilities.detectCapabilities). Lets
- *  ANY install — local/desktop/web — show real Google sign-in as long as the
- *  server it talks to is Google-configured, without baking the id in at build.
- *  null until the probe runs; '' means the server reported none. */
+/** Google OAuth web client id discovered at runtime from the reachable cloud
+ *  (`GET /cloud/v1/config`, via capabilities.detectCapabilities), so ANY install
+ *  shows real Google sign-in when its server is Google-configured, with nothing
+ *  baked in at build. null until the probe runs; '' means the server has none. */
 let runtimeClientId: string | null = null;
 
-/** Record (or clear) the client id the server advertises. Called by the
- *  capability probe; idempotent. (meditation-pal-rfb) */
+/** Record (or clear) the client id the server advertises; idempotent.
+ *  (meditation-pal-rfb) */
 export function setRuntimeGoogleClientId(id: string): void {
     runtimeClientId = id;
 }
 
-/** The effective Google OAuth web client id, or '' when unset. The runtime
- *  value (from the server we're pointed at) wins; otherwise the build-time bake
- *  (`VITE_GOOGLE_CLIENT_ID`, inlined by Vite) — so a hosted build still works
- *  before the probe resolves, and a local/desktop build with nothing baked
- *  picks the id up from its cloud server. */
+/** The effective Google OAuth web client id, or ''. Runtime value wins, else the
+ *  build-time bake (`VITE_GOOGLE_CLIENT_ID`), so a hosted build works before the
+ *  probe resolves and an unbaked local/desktop build picks it up from its cloud. */
 export function googleClientId(): string {
     return runtimeClientId || (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '');
 }
 
-/** True when real Google sign-in is available (vs the dev fallback) — from the
- *  server config or a build-time bake. */
+/** True when real Google sign-in is available (vs the dev fallback). */
 export function isGoogleSignInConfigured(): boolean {
     return googleClientId() !== '';
 }
 
-/** Google "Desktop app" OAuth client id for the desktop (Tauri) loopback PKCE
- *  flow. Public (it appears in the auth URL the user sees); the secret stays on
- *  the server. Discovered from the cloud `/config` like the web id; '' disables
- *  desktop Google sign-in. (meditation-pal-fae) */
+/** Google "Desktop app" OAuth client id for the Tauri loopback PKCE flow. Public
+ *  (it appears in the auth URL the user sees); the secret stays on the server.
+ *  Discovered from `/config` like the web id; '' disables it. (meditation-pal-fae) */
 let runtimeGoogleDesktopClientId = '';
 
 export function setRuntimeGoogleDesktopClientId(id: string): void {
@@ -109,8 +101,8 @@ export function googleDesktopClientId(): string {
     return runtimeGoogleDesktopClientId;
 }
 
-// Sign in with Apple — same runtime-discovery pattern as Google (the Services ID
-// comes from the server's /config; meditation-pal-s75). No build-time bake today.
+// Sign in with Apple: same runtime discovery as Google (the Services ID comes
+// from the server's /config; meditation-pal-s75). No build-time bake today.
 let runtimeAppleClientId: string | null = null;
 
 export function setRuntimeAppleClientId(id: string): void {
@@ -126,23 +118,21 @@ export function isAppleSignInConfigured(): boolean {
     return appleClientId() !== '';
 }
 
-/** True when the cloud we're pointed at offers ANY interactive sign-in method —
- *  web Google, the desktop loopback Google client, or Apple. The session gate
- *  (cloud-gate.ensureCloudAccess) keys off this rather than web-Google-only:
- *  a desktop release talks to a server configured with just the *desktop* Google
- *  client, so gating on the web id alone let credit-spending sessions start
- *  unauthenticated. The silent dev-sign-in fallback is only correct against a
- *  bare local server that advertises no sign-in method at all. */
+/** True when the cloud offers ANY interactive sign-in: web Google, the desktop
+ *  loopback Google client, or Apple. The session gate (cloud-gate) keys off this
+ *  rather than web-Google-only, since a desktop release talks to a server with
+ *  only the *desktop* client configured, and gating on the web id alone let
+ *  credit-spending sessions start unauthenticated. The silent dev-sign-in
+ *  fallback is only correct against a bare server advertising none of them. */
 export function isInteractiveSignInConfigured(): boolean {
     return (
         isGoogleSignInConfigured() || googleDesktopClientId() !== '' || isAppleSignInConfigured()
     );
 }
 
-/** Thrown by ensureCloudToken when a hosted (Google-configured) build has no
- *  cached session: the user must complete interactive sign-in, which can't be
- *  done from a mid-session LLM call. Callers catch this to surface the sign-in
- *  UI (google-signin.ts) instead of erroring the turn. */
+/** Thrown by ensureCloudToken when a hosted build has no cached session:
+ *  interactive sign-in is required and can't happen from a mid-session LLM call.
+ *  Callers catch it to surface the sign-in UI instead of erroring the turn. */
 export class CloudSignInRequiredError extends Error {
     constructor() {
         super('Sign in to continue.');
@@ -154,27 +144,25 @@ export async function getCloudToken(): Promise<string | null> {
     return kv().get(TOKEN_KEY);
 }
 
-/** Adopt a slid session: on authed requests the server re-mints a token once
- *  the presented one is a day old (X-Session-Refresh, CORS-exposed). fetchMe
- *  runs on every app launch (views/setup.ts), so any weekly-or-more user keeps
- *  a live session indefinitely without re-signing in. */
+/** Adopt a slid session: the server re-mints a token once the presented one is a
+ *  day old (X-Session-Refresh, CORS-exposed). fetchMe runs on every app launch
+ *  (views/setup.ts), so a weekly user never has to re-sign-in. */
 async function adoptRefreshedToken(res: Response): Promise<void> {
     const fresh = res.headers.get('x-session-refresh');
     if (fresh) await kv().set(TOKEN_KEY, fresh);
 }
 
-/** GET /cloud/v1/me — the signed-in account + live balance. Returns null when
- *  there's no cached token or the server rejects it (expired/invalid); callers
- *  treat null as "signed out". Shape mirrors the server's AccountView. */
+/** GET /cloud/v1/me: the signed-in account + live balance. null when there's no
+ *  cached token or the server rejects it; callers read null as "signed out". */
 export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     const token = await getCloudToken();
     if (!token) return null;
     let res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
     if (res.status === 401) {
-        // Stale / secret-rotated token — clear and re-mint once, then retry,
-        // matching the LLM/TTS proxies' self-heal. dev/local re-signs-in
-        // silently; a hosted build with no live session can't, so we surface
-        // null (signed out) rather than throwing or popping a sign-in.
+        // Stale / secret-rotated token: clear, re-mint once, retry, matching the
+        // LLM/TTS proxies' self-heal. dev/local re-signs-in silently; a hosted
+        // build with no live session can't, so return null (signed out) rather
+        // than throwing or popping a sign-in.
         await clearCloudToken();
         let fresh: string;
         try {
@@ -187,13 +175,11 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     if (!res.ok) return null;
     await adoptRefreshedToken(res);
     const account = (await res.json()) as AuthResponse['account'];
-    // Seed the shared balance store with this authoritative reading (live
-    // surfaces subscribe to it — meditation-pal-14s).
+    // Seed the shared balance store; live surfaces subscribe (meditation-pal-14s).
     if (typeof account.creditsRemaining === 'number') setKnownBalance(account.creditsRemaining);
     setRetreatCovered(account.retreatCovered === true);
     // `providers` is newer than some deployed servers; default it so callers can
-    // always `.some()`/`.map()` it (a missing field crashed the account panel
-    // against a not-yet-redeployed server).
+    // always `.some()`/`.map()` it (missing, it crashed the account panel).
     return { ...account, providers: account.providers ?? [] };
 }
 
@@ -201,10 +187,9 @@ export async function clearCloudToken(): Promise<void> {
     await kv().delete(TOKEN_KEY);
 }
 
-/** DELETE /cloud/v1/me — permanently delete the signed-in account
- *  (meditation-pal-8jc). Soft-delete server-side: identities freed, balance
- *  forfeit, the account anonymized and unable to sign in again. Clears the local
- *  session on success. Throws (with the server message when present) on failure. */
+/** DELETE /cloud/v1/me (meditation-pal-8jc). Soft-delete server-side: identities
+ *  freed, balance forfeit, account anonymized and unable to sign in again.
+ *  Clears the local session; throws (with the server message) on failure. */
 export async function deleteAccount(): Promise<void> {
     const token = await getCloudToken();
     if (!token) {
@@ -248,12 +233,11 @@ export async function devSignIn(): Promise<AuthResponse> {
 }
 
 /**
- * POST an auth request and cache the returned session token. If a token is
- * already cached, it rides along as a bearer so the server LINKS the new
- * identity to the signed-in account (the "connect to claim credits" flow,
- * meditation-pal-116) instead of making a separate account. Prefers the
- * server's error message (e.g. "email already exists", identity conflict),
- * falling back to a per-call generic. Shared by every sign-in method below.
+ * POST an auth request and cache the returned session token. A cached token
+ * rides along as a bearer so the server LINKS the new identity to the signed-in
+ * account (the "connect to claim credits" flow, meditation-pal-116) instead of
+ * making a separate one. Prefers the server's error message over the per-call
+ * generic. Shared by every sign-in method below.
  */
 async function postAuthAndCache(
     path: string,
@@ -282,11 +266,10 @@ async function postAuthAndCache(
     return body;
 }
 
-/** POST /cloud/v1/auth/google — exchange a Google ID token for an aloud
- *  session (meditation-pal-rfb). The server verifies the token against Google's
- *  JWKS, signs in (or, on first connect, creates/links the account and grants
- *  free credits). Called from the Google Identity Services callback in
- *  google-signin.ts. */
+/** POST /cloud/v1/auth/google: exchange a Google ID token for a session
+ *  (meditation-pal-rfb). The server verifies against Google's JWKS and signs in,
+ *  or on first connect creates/links the account and grants free credits.
+ *  Called from the GIS callback in google-signin.ts. */
 export function googleSignIn(idToken: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/google', { idToken }, (status) =>
         status === 401
@@ -295,9 +278,9 @@ export function googleSignIn(idToken: string): Promise<AuthResponse> {
     );
 }
 
-/** POST /cloud/v1/auth/google/desktop — finish the desktop loopback PKCE flow:
- *  hand the server the code the app caught on its loopback; it redeems it with
- *  the held secret and verifies. Same session/credits as web. (meditation-pal-fae) */
+/** POST /cloud/v1/auth/google/desktop: finish the loopback PKCE flow by handing
+ *  the server the code the app caught, which it redeems with the held secret.
+ *  Same session/credits as web. (meditation-pal-fae) */
 export function desktopGoogleSignIn(args: {
     code: string;
     codeVerifier: string;
@@ -310,7 +293,7 @@ export function desktopGoogleSignIn(args: {
     );
 }
 
-/** POST /cloud/v1/auth/apple — exchange a Sign in with Apple identity token
+/** POST /cloud/v1/auth/apple: exchange a Sign in with Apple identity token
  *  (meditation-pal-s75). Same connect semantics as Google. */
 export function appleSignIn(idToken: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/apple', { idToken }, (status) =>
@@ -320,15 +303,15 @@ export function appleSignIn(idToken: string): Promise<AuthResponse> {
     );
 }
 
-/** POST /cloud/v1/auth/email/signup — create an email/password account. Gets NO
- *  free credits until a Google/Apple identity is connected (meditation-pal-116). */
+/** POST /cloud/v1/auth/email/signup. Gets NO free credits until a Google/Apple
+ *  identity is connected (meditation-pal-116). */
 export function emailSignup(email: string, password: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/email/signup', { email, password }, () =>
         'Could not create the account. Please try again.'
     );
 }
 
-/** POST /cloud/v1/auth/email/login — sign in with an email/password account. */
+/** POST /cloud/v1/auth/email/login. */
 export function emailLogin(email: string, password: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/email/login', { email, password }, (status) =>
         status === 401
@@ -337,10 +320,9 @@ export function emailLogin(email: string, password: string): Promise<AuthRespons
     );
 }
 
-/** POST /cloud/v1/auth/email/set-password — add (or change) an email/password
- *  credential on the signed-in account, so a Google/Apple user can also sign in
- *  with their email + a password. postAuthAndCache rides the current session as
- *  bearer (required) and refreshes the cached token from the response. */
+/** POST /cloud/v1/auth/email/set-password: add or change a password credential
+ *  so a Google/Apple user can also sign in by email. Requires the current
+ *  session as bearer, which postAuthAndCache supplies (and refreshes). */
 export function setCloudPassword(password: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/email/set-password', { password }, (status) =>
         status === 401
@@ -350,20 +332,18 @@ export function setCloudPassword(password: string): Promise<AuthResponse> {
 }
 
 /**
- * Return a valid server token. A cached token wins. Otherwise: a Google-
- * configured (hosted) build can't mint one non-interactively, so it throws
- * CloudSignInRequiredError for the caller to surface the sign-in UI; a dev
- * build (no Google client id) signs in via the local dev route so the loop
- * runs end-to-end. The session JWT is long-lived (7 days) so we don't
- * proactively refresh; an expired/invalid token surfaces as a 401 from the
- * proxy, which the caller clears and retries through here.
+ * Return a valid server token. A cached one wins. Otherwise a hosted
+ * (Google-configured) build can't mint one non-interactively and throws
+ * CloudSignInRequiredError for the caller to surface sign-in; a dev build uses
+ * the local dev route. The JWT is long-lived (7 days) so there's no proactive
+ * refresh: expiry surfaces as a proxy 401, which the caller clears and retries.
  */
 export async function ensureCloudToken(): Promise<string> {
     const existing = await getCloudToken();
     if (existing) return existing;
     // DEV cloud-bypass (?dev): mint a local /auth/dev session even against a
     // Google-configured server, so hosted STT/LLM/TTS run without the sign-in
-    // popup (e.g. in Brave). Compile-time gated + local-only route — see
+    // popup (e.g. in Brave). Compile-time gated + local-only route; see
     // app-mode.isDevBypass.
     if (isGoogleSignInConfigured() && !isDevBypass()) throw new CloudSignInRequiredError();
     const { token } = await devSignIn();
