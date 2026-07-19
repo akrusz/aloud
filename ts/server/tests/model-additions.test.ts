@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { pricingFor, isModelAllowed } from '../src/pricing/providers.js';
+import { OPENROUTER_FALLBACKS } from '../src/providers/forward.js';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
@@ -78,6 +79,22 @@ describe('Kimi K2 0711 (moonshotai via openrouter)', () => {
         // K3 was swapped OUT (mandatory reasoning: 7-12s first-token, could
         // blank a turn) — it must no longer be billable.
         expect(isModelAllowed('openrouter', 'moonshotai/kimi-k3')).toBe(false);
+    });
+
+    it('degrades to 0905 via the OpenRouter models fallback chain', () => {
+        const chain = OPENROUTER_FALLBACKS['moonshotai/kimi-k2'];
+        expect(chain).toEqual(['moonshotai/kimi-k2', 'moonshotai/kimi-k2-0905']);
+    });
+
+    it('every fallback chain is primary-first and within OpenRouter limits', () => {
+        for (const [primary, chain] of Object.entries(OPENROUTER_FALLBACKS)) {
+            expect(chain[0]).toBe(primary);
+            // OpenRouter rejects lists longer than 3 with a 400.
+            expect(chain.length).toBeLessThanOrEqual(3);
+            // Only allowlisted primaries can be requested, so a chain on an
+            // unlisted key is dead config.
+            expect(isModelAllowed('openrouter', primary)).toBe(true);
+        }
     });
 });
 

@@ -67,7 +67,9 @@ const M = 1_000_000;
  *    (GET /api/v1/models/<slug>/endpoints) — host, jurisdiction, quantization.
  *    Pin routing (extraBody provider.only) if the host matters, and update the
  *    privacy policy's provider list (docs/privacy/index.html) to name where
- *    session content actually goes.
+ *    session content actually goes. Single-host slugs: consider a fallback
+ *    chain (forward.ts OPENROUTER_FALLBACKS) so the turn survives the host
+ *    dropping the model.
  * 4. Reasoning: voice needs ~1s to first token; mandatory reasoning is
  *    disqualifying (Kimi K3, 7-12s). Update OPENROUTER_MANDATORY_REASONING /
  *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the
