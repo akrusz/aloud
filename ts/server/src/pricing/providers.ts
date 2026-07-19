@@ -47,6 +47,38 @@ export interface ModelPricing extends TokenRates {
 
 const M = 1_000_000;
 
+/**
+ * ADDING A MODEL — checklist (each item has bitten us at least once):
+ *
+ * 1. CACHING POLICY, before list price. The session shape is ~45:1 input-heavy
+ *    and most input is re-sent prefix (estimate.ts TYPICAL_SESSION), so the
+ *    cacheRead rate — not input/output — drives $/hr. Check: (a) does the
+ *    endpoint cache at all; (b) the cached-read multiplier (~0.1x on
+ *    OpenAI/Google/Anthropic, only 0.5x on Groq, none on Novita); (c) whether
+ *    cached tokens are actually REPORTED on the wire
+ *    (prompt_tokens_details.cached_tokens / Anthropic's cache fields) — a
+ *    proxy hop like OpenRouter can drop the field. If caching is absent or
+ *    unreported, pin all cache fields at the input rate: estimates then match
+ *    real billing, and if tokens ever do appear we over-charge, never
+ *    under-bill.
+ * 2. Run the math through estimate.ts before calling a model "cheap" — a
+ *    no-cache $0.57 model and a 50%-cached $1 model land within a cent/hr.
+ * 3. OpenRouter slugs: list the real endpoints
+ *    (GET /api/v1/models/<slug>/endpoints) — host, jurisdiction, quantization.
+ *    Pin routing (extraBody provider.only) if the host matters, and update the
+ *    privacy policy's provider list (docs/privacy/index.html) to name where
+ *    session content actually goes.
+ * 4. Reasoning: voice needs ~1s to first token; mandatory reasoning is
+ *    disqualifying (Kimi K3, 7-12s). Update OPENROUTER_MANDATORY_REASONING /
+ *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the
+ *    "slower" note list in ui/src/model-picker.ts.
+ * 5. Ear-test the control tokens ([HOLD]/[WAIT:Nm]/[PASS]/[NEXT]) in a real
+ *    session — small/open models mishandle them; a bare completion won't
+ *    show it.
+ * 6. Housekeeping: pretty name in ui/src/model-picker.ts CLOUD_MODEL_NAMES;
+ *    allowlist + rate assertions in server/tests/model-additions.test.ts.
+ */
+
 /** Keyed by `${provider}:${model}`. */
 const MODELS: Record<string, ModelPricing> = {
     // Fable 5 — Anthropic's most capable model, a premium tier ABOVE Opus 4.8

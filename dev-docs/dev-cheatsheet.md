@@ -239,6 +239,15 @@ full adapter map live in **[mobile.md](mobile.md)** — read it before building.
   forwarded per-request (`x-provider-key` for model lists; `x-api-key` for the
   Anthropic proxy) — never persisted server-side.
 
+## Adding a hosted model
+
+The checklist lives as the comment above the `MODELS` table in
+`ts/server/src/pricing/providers.ts` — read it before adding an entry. The
+short version: check the endpoint's **caching policy first** (cacheRead drives
+$/hr, not list price), run the rates through `estimate.ts`, list the real
+OpenRouter endpoints and update the privacy policy's provider list, confirm
+reasoning can be disabled, and ear-test the control tokens in a real session.
+
 ## Sessions
 
 The UI stores session state in the browser (localStorage) via
