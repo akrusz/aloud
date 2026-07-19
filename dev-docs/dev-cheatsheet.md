@@ -209,17 +209,18 @@ prereqs, release + cutover).
 
 ```bash
 cd ts
-VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run ui:build   # webDir
-npx cap add ios && npx cap add android   # generates ts/{ios,android}/ (gitignored)
-npx cap sync                             # copy ui/dist + plugins into native
-npx cap open ios | android               # → Xcode / Android Studio
+export VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev
+npm run cap:sync       # ui:build + cap sync (both platforms)
+npm run cap:ios        # + open Xcode
+npm run cap:android    # + open Android Studio
 ```
 
-The mobile app wraps `ui/dist` in the OS WebView, runs in **web mode**, and
-talks to aloud cloud. Native adapters (storage, STT, keep-awake, in-app
-browser, sign-in) swap on `isCapacitor()`. Native projects are gitignored, so
-the required Info.plist / AndroidManifest permission strings, icons, and the
-full adapter map live in **[mobile.md](mobile.md)** — read it before building.
+The `cap:*` scripts refuse to run without `VITE_ALOUD_CLOUD_URL` (a mobile build
+without it has no backend). The mobile app wraps `ui/dist` in the OS WebView,
+runs in **web mode**, and talks to aloud cloud. Native adapters (storage, STT,
+keep-awake, in-app browser, sign-in) swap on `isCapacitor()`. `ts/ios/` and
+`ts/android/` are committed (hand-edited native config); the permission strings,
+icons, and full adapter map are documented in **[mobile.md](mobile.md)**.
 
 ## Config & environment
 
@@ -250,8 +251,11 @@ reasoning can be disabled, and ear-test the control tokens in a real session.
 
 ## Sessions
 
-The UI stores session state in the browser (localStorage) via
-`ts/src/platform/storage.ts`.
+Web/mobile builds store session state in the browser (localStorage) via
+`ts/src/platform/storage.ts`. The desktop shell instead writes one JSON file per
+session under `<app-data>/sessions/`, through `/app/v1/sessions` and
+`ui/src/adapters/backend-session-store.ts` (`BackendSessionStore`, wired in
+`state.ts` only when `isTauri()`).
 
 ## Dev gotchas
 

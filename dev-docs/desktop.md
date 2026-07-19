@@ -41,11 +41,6 @@ via `VITE_ALOUD_CLOUD_URL`.
 there the Vite proxy forwards both `/app/v1` and `/cloud/v1` to the Hono server
 on :8787. See `dev-cheatsheet.md`.)
 
-A production desktop build is functional for local features — the `/app/v1/*`
-endpoints below are implemented in Rust. End-to-end release validation (signed
-artifacts launching with their embedded backend) is still pending; see the
-Release note at the bottom.
-
 ## App backend (`/app/v1/*`, native Rust)
 
 Decision (see `meditation-pal-nn1`): desktop uses **native Rust in Tauri** for
@@ -105,12 +100,20 @@ Endpoints (served at `/app/v1/*`):
 - ✅ `/app/v1/llm/claude_proxy/complete` — spawns the local `claude` CLI via
   `tokio::process` with the provider's flags, prompt encoding, JSON parsing, and
   90 s timeout. See `src-tauri/src/llm.rs`.
+- ✅ `/app/v1/sessions` (+ `/sessions/{id}`) — desktop session persistence: one
+  JSON file per session under `<app-data>/sessions/`, so saved sessions are
+  durable, openable files rather than webview localStorage. `{id}` is charset-
+  restricted (`safe_session_id`) so an untrusted client can't escape the dir. The
+  UI side is `ui/src/adapters/backend-session-store.ts` (`BackendSessionStore`),
+  swapped in by `state.ts` only under `isTauri()`.
+- ✅ `/app/v1/google-oauth` — desktop Google sign-in via the loopback PKCE flow
+  (the webview can't run the web GIS popup); hands the result to aloud cloud's
+  `/cloud/v1/auth/google/desktop`.
 - ✅ `/app/v1/open-config-folder`, `/app/v1/open-sessions-folder`,
-  `/app/v1/open-voice-settings` — cross-platform `reveal_path()` helper opens the
-  app data dir for the two folder buttons (desktop sessions live in webview
-  storage, not on disk, so the data dir is the closest meaningful target for
-  now); voice-settings opens macOS System Settings → Spoken Content on Darwin,
-  400s elsewhere.
+  `/app/v1/open-session-file/{id}`, `/app/v1/open-voice-settings` — cross-platform
+  `reveal_path()` helper reveals the app data dir, the sessions dir, or one
+  session's JSON; voice-settings opens macOS System Settings → Spoken Content on
+  Darwin, 400s elsewhere.
 - ⬜ `/app/v1/tts-engines` — listed in the bead but has no fetch site in the TS UI
   (only mentioned in code comments as a future option), so deferred until a
   consumer actually needs it.
@@ -158,10 +161,6 @@ sync if bundle naming changes.
 `scripts/release.sh` reads the version from `tauri.conf.json` (the source of
 truth), bumps it + `ts/package.json` in lockstep, and lints the TS/Rust stack
 (typecheck + `cargo check` + `cargo deny`).
-
-> Untested end-to-end until a real release runs the workflow — validate the
-> artifacts launch, their embedded backend serves `/app/v1/*`, and the in-app
-> Update button moves an older install to the new version.
 
 ## Auto-update (Tauri updater plugin)
 

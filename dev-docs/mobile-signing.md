@@ -6,24 +6,11 @@ Pairs with [mobile.md](mobile.md) (generate + build) and the beta plan in bead
 `meditation-pal-zp47` (US-only TestFlight / Play internal testing, web-purchase
 credits, no IAP).
 
-## First, a workflow decision: commit the native projects
-
-Right now `.gitignore` excludes `ts/ios/` and `ts/android/` — the "regenerate
-with `npx cap add` every time" model. That only holds if you **never hand-edit
-native files**. But we now do: Info.plist permission strings + the Google URL
-scheme, the Sign in with Apple capability, signing config, icons. Regenerating
-wipes all of that.
-
-**Recommendation: commit `ios/` and `android/`** (the standard practice for app
-teams actively doing native work). Drop them from `.gitignore`, run `cap add`
-once, commit, and from then on `npx cap sync` just updates web assets + plugins
-without clobbering your native edits. Keep secrets (keystore, API keys) out of
-git separately (below). Tracked as a decision in bead — see the note at the end.
-
-The alternative (keep them ignored, script the native edits to re-apply after
-each `cap add`) is more moving parts for no real benefit here.
-
----
+`ts/ios/` and `ts/android/` are **committed** (they carry hand-edited native
+config: Info.plist permission strings, the Google URL scheme, the Sign in with
+Apple capability, signing config, icons). `npx cap sync` updates web assets +
+plugins in place; never re-run `cap add` over them. Keep secrets (keystore,
+client secrets) out of git - see the checklist at the end.
 
 ## iOS → TestFlight
 

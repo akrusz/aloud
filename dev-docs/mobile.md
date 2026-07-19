@@ -9,11 +9,10 @@ stays on Tauri; only the mobile shell + a few platform adapters differ.
 Signing + store release (TestFlight / Play internal testing) is a separate
 walkthrough: [mobile-signing.md](mobile-signing.md).
 
-This doc is the source of truth for the **native-side config that isn't
-checked in**. The generated `ts/ios/` and `ts/android/` projects are
-`.gitignore`d (they're regenerated with `npx cap add`), so anything you'd
-normally edit inside them — permission strings, icons — is documented here so a
-fresh clone can reproduce a working build.
+`ts/ios/` and `ts/android/` are **committed** - they carry hand-edited native
+config (permission strings, URL schemes, capabilities, icons) that `cap add`
+would wipe. A fresh clone builds without regenerating them. The "required native
+config" section below is the record of those edits, for reference or a rebuild.
 
 ## What runs where
 
@@ -53,37 +52,30 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
   or `brew install --cask temurin@21`. Set `ANDROID_HOME` (default
   `~/Library/Android/sdk`). A Play Console account for internal testing.
 
-> The dev machine used for the platform-layer work had the `cap` CLI + Xcode but
-> **no CocoaPods, no Android SDK, no JDK** — enough to write and test the
-> web-side TS, not to generate/build the native projects. That split is why this
-> guide exists: the TS layer is committed and CI-tested; the native build is
-> reproduced from here on a properly tooled machine.
-
 ## First build
+
+The `cap:*` npm scripts build the UI and sync in one step, and refuse to run
+without `VITE_ALOUD_CLOUD_URL` (a build without it has no backend):
 
 ```bash
 cd ts
-npm run ui:build                          # produces ui/dist (webDir)
-# Bake the hosted origin so /app/v1 + /cloud/v1 resolve to aloud cloud:
-VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run ui:build
-
-# iOS MUST use CocoaPods, not the Capacitor-8 default (SPM):
-# @capacitor-community/speech-recognition@7.0.1 has no Package.swift, so an SPM
-# build silently DROPS it and native STT breaks. CocoaPods links all 5 plugins.
-npx cap add ios --packagemanager CocoaPods   # generates ts/ios/
-npx cap add android                          # generates ts/android/
-npx cap sync                                 # copies ui/dist + plugins into native
-
-npx cap open ios                          # → Xcode  (run on simulator/device)
-npx cap open android                      # → Android Studio
+export VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev
+npm run cap:sync       # ui:build + cap sync (both platforms)
+npm run cap:ios        # ui:build + cap sync ios + open Xcode
+npm run cap:android    # ui:build + cap sync android + open Android Studio
 ```
 
-After any UI change: `npm run ui:build && npx cap sync` (or `npx cap copy` for
-web-asset-only changes). For fast iteration use live-reload: uncomment the
-`server` block in `capacitor.config.ts` (point `url` at your LAN Vite dev
-server) or run `npx cap run ios --livereload --external`.
+After any UI change re-run `cap:sync` (or `npx cap copy` for web-asset-only
+changes). For fast iteration use live-reload: uncomment the `server` block in
+`capacitor.config.ts` (point `url` at your LAN Vite dev server) or run
+`npx cap run ios --livereload --external`.
 
-## Required native config (re-apply after `cap add`)
+> If you ever *do* regenerate iOS, it MUST use CocoaPods, not the Capacitor-8
+> default (SPM): `@capacitor-community/speech-recognition@7.0.1` has no
+> `Package.swift`, so an SPM build silently drops it and native STT breaks.
+> `npx cap add ios --packagemanager CocoaPods`.
+
+## Required native config (the committed native edits)
 
 ### iOS — `ios/App/App/Info.plist`
 

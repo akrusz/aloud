@@ -1,10 +1,9 @@
 # Deploying the aloud web demo
 
-How to get a stranger-accessible aloud cloud online: a static UI talking to
-the aloud cloud (`@aloud/server`) over HTTPS, with accounts + credits.
-Tracks `meditation-pal-a3u` (infra) under the `meditation-pal-bot` epic.
+The runbook for the live deploy: a static UI talking to aloud cloud
+(`@aloud/server`) over HTTPS, with accounts + credits.
 
-The deploy has **two halves**, deployed independently:
+Two halves, deployed independently:
 
 | Half | What | Where | TLS |
 |---|---|---|---|
@@ -442,8 +441,8 @@ You have an Apple Developer membership; this is what to create (all in
 - [ ] `ALOUD_ADMIN_TOKEN` set; spot-check `GET /cloud/v1/admin/metrics` for
       spend monitoring.
 
-## Still open before charging real money
+## Known limits
 
-See [ts-server.md → Gaps](ts-server.md#gaps-before-a-real-deploy). The durable
-store (this doc) is done; the remaining launch-blockers are real Google OAuth
-in the UI (`meditation-pal-rfb`) and Stripe live keys (`meditation-pal-8sj`).
+See [ts-server.md → Known limits](ts-server.md#known-limits). The durable store,
+UI sign-in, and Stripe are all live; the standing constraint is that the ledger
+is single-machine (above).

@@ -6,7 +6,7 @@ your voice is an overpowered and underrated tool for meditation and inner work.
 
 **aloud.** is a meditation facilitator that listens and responds to your voice. it can be a partner for somatic exploration, parts work, felt sense work, and spaced noting. it uses your mic for voice input, whisper.cpp for speech recognition, an LLM to guide you, and speaks using text-to-speech.
 
-aloud works in your browser and on macOS, Linux, and Windows. choose your LLM — run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
+aloud works in your browser and on macOS, Linux, and Windows. choose your LLM - run fully local and private with ollama, use a claude subscription (may draw from extra-use), or connect any API provider (anthropic, openai, openrouter, venice, groq). all providers are configurable from the settings page. the app will also help you set up text-to-speech if necessary.
 
 ### try it in your browser
 
@@ -27,7 +27,7 @@ in this mode, you optionally set an intention and then mix and match **attention
 
 thanks to [Maija Haavisto](https://lovingawakening.net/) and [Jhourney](https://www.jhourney.io/) for guiding me in similar practices.
 
-**noting**: you specify what participants you'd like, if any — AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1–2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -> hearing my cue -> observing -> speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.
+**noting**: you specify what participants you'd like, if any - AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1–2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -> hearing my cue -> observing -> speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.
 
 thanks to [Vince Horn](https://www.buddhistgeeks.org/) and again to [Jhourney](https://www.jhourney.io/) for inspiration.
 
@@ -43,21 +43,21 @@ grab the latest release for your platform below, or from [releases](https://gith
 
 | platform | download |
 |----------|----------|
-| **macOS** | [`aloud_2.1.2_aarch64.dmg`](https://github.com/akrusz/aloud/releases/download/v2.1.2/aloud_2.1.2_aarch64.dmg) — open the DMG, drag aloud to Applications |
-| **Windows** | [`aloud_2.1.2_x64-setup.exe`](https://github.com/akrusz/aloud/releases/download/v2.1.2/aloud_2.1.2_x64-setup.exe) — run the installer |
-| **Linux** | [`aloud_2.1.2_amd64.AppImage`](https://github.com/akrusz/aloud/releases/download/v2.1.2/aloud_2.1.2_amd64.AppImage) — `chmod +x`, double-click or run from terminal |
+| **macOS** | [`aloud_2.1.2_aarch64.dmg`](https://github.com/akrusz/aloud/releases/download/v2.1.2/aloud_2.1.2_aarch64.dmg) - open the DMG, drag aloud to Applications |
+| **Windows** | [`aloud_2.1.2_x64-setup.exe`](https://github.com/akrusz/aloud/releases/download/v2.1.2/aloud_2.1.2_x64-setup.exe) - run the installer |
+| **Linux** | [`aloud_2.1.2_amd64.AppImage`](https://github.com/akrusz/aloud/releases/download/v2.1.2/aloud_2.1.2_amd64.AppImage) - `chmod +x`, double-click or run from terminal |
 
 all settings (LLM provider, voice, whisper model, display) are configurable from the settings page inside the app. whisper models download automatically on first launch. the app checks for updates on startup and will prompt you when a new version is available.
 
 ### platform notes
 
 - **macOS**: TTS can use the `say` command with access to all system voices. You can download better system voices by going to System Settings > Accessibility > Spoken Content, click the dropdown next to System Voice, select Manage Voices, and download Enhanced or Premium voices.
-- **windows**: if using browser mode, for best voice quality use Edge — it has access to Microsoft's natural voices (Ava, Jenny) through speechSynthesis.
+- **windows**: if using browser mode, for best voice quality use Edge - it has access to Microsoft's natural voices (Ava, Jenny) through speechSynthesis.
 - **linux**: your system probably doesn't have text-to-speech built in. I recommend installing piper-tts - you can do this directly on the settings page unless you're using something like Nix. otherwise TTS falls back to browser speechSynthesis. Note that some browsers don't have built in speech synthesis.
 
 ### claude subscription notes
 
-to use the **Anthropic (Subscription)** provider, install the Claude Code CLI first, then run `claude` once in a terminal to log in with your subscription — aloud shells out to the local `claude` command to route through your account, so no API key is needed. in my testing, this did *not* draw from extra-use credits, but there have been communications from Anthropic to the effect that it would do so. also note that extra-use credits on your Claude subscription are not the same as API credits; if you only have one or the other, be sure to use the appropriate provider setting.
+to use the **Anthropic (Subscription)** provider, install the Claude Code CLI first, then run `claude` once in a terminal to log in with your subscription - aloud shells out to the local `claude` command to route through your account, so no API key is needed. in my testing, this did *not* draw from extra-use credits, but there have been communications from Anthropic to the effect that it would do so. also note that extra-use credits on your Claude subscription are not the same as API credits; if you only have one or the other, be sure to use the appropriate provider setting.
 
 ## tips
 
@@ -76,7 +76,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 ## running from source
 
-aloud is a TypeScript + Rust app. you need [Node.js](https://nodejs.org) (18+) and, for the desktop shell, the [Rust toolchain](https://rustup.rs) plus the [Tauri prerequisites](https://tauri.app/start/prerequisites/).
+aloud is a TypeScript + Rust app. you need [Node.js](https://nodejs.org) (22.5+, for the built-in `node:sqlite`) and, for the desktop shell, the [Rust toolchain](https://rustup.rs) plus the [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
 ```bash
 git clone https://github.com/akrusz/aloud.git
@@ -89,4 +89,4 @@ configure your LLM provider and other settings in the app. for the browser-only 
 
 ## building
 
-release builds are automated via GitHub Actions — creating a release tagged `vX.X.X` triggers builds for all three platforms and attaches the artifacts. see [dev-docs/desktop.md](dev-docs/desktop.md) for the Tauri build and signing flow.
+release builds are automated via GitHub Actions - creating a release tagged `vX.X.X` triggers builds for all three platforms and attaches the artifacts. see [dev-docs/desktop.md](dev-docs/desktop.md) for the Tauri build and signing flow.

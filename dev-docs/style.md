@@ -25,7 +25,7 @@ When the brand appears inline in body copy (welcome cards, hints), use `<span cl
 
 ## Color tokens
 
-All in `ui/src/style.css` at the top. **Always reference via CSS variables, not hex literals.** Hardcoded hexes still exist in a few places (orb gradients, rgba alpha layers); fine, but new code uses tokens.
+All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is the `[data-theme="light"]` override. **Always reference via CSS variables, not hex literals.** Hardcoded hexes still exist in a few places (orb gradients, rgba alpha layers); fine, but new code uses tokens.
 
 ### Both themes share
 
@@ -42,9 +42,9 @@ All in `ui/src/style.css` at the top. **Always reference via CSS variables, not 
 ### Light mode
 
 ```
---bg-primary:    #fdf4ea   /* warm peach — desaturated #f5a52f */
---bg-secondary:  #f5e6d4
---bg-card:       #ead8c0
+--bg-primary:    #fffae0   /* warm cream */
+--bg-secondary:  #f5efd7
+--bg-card:       #fad8c0
 --bg-input:      #fffaf2
 --bg-surface:    #ffffff
 --bg-tertiary:   #efe0cc
@@ -54,7 +54,7 @@ All in `ui/src/style.css` at the top. **Always reference via CSS variables, not 
 --accent:        #e71f75   /* hot pink */
 --accent-hover:  #c01560
 --accent-glow:   rgba(245, 165, 47, 0.45)   /* orange */
---brand-stroke:  #ffd820   /* bright sunny yellow */
+--brand-stroke:  #ffee25   /* bright sunny yellow */
 --brand-glow:    rgba(245, 216, 32, 0.85)
 --warm:          #e5a01a
 --border:        #e2d0b8
@@ -121,7 +121,7 @@ Don't add a glow halo to `.tour-welcome` — the flat overlay handles separation
 Ambient floating particles. Palette per theme, defined in `ui/src/embers.ts`:
 
 - **Light mode** (`EMBER_COLORS_LIGHT`): saturated gold-yellows that contrast against the peach bg. Avoid pale yellows like `#f5e060` — they wash into the bg at the 0.7 peak opacity the ember animation targets.
-- **Dark mode** (`EMBER_COLORS_DARK`): brighter pure yellows plus one orange (`#f5a52f`) for variety. Avoid pale/cream yellows like `#fff4c0` — they read as white blobs against the dark bg.
+- **Dark mode** (`EMBER_COLORS_DARK`): amber/burnt-orange tones (`#e8a840`, `#d4873a`, `#c07830`, …). Avoid pale/cream yellows like `#fff4c0` — they read as white blobs against the dark bg. (These are the pre-rebrand ambers the "things to avoid" list warns off for UI chrome; on embers against a near-black bg they still read right, so they stayed.)
 - **Rainbow mode** (`EMBER_COLORS_RAINBOW`): pastel rainbow cycle, untouched (paired with the rainbow easter-egg orb).
 
 Halo derived per-ember via `hexGlow()`. Light mode has an `!important` amber box-shadow override on `.ember` that wins regardless of inline color — leave it (the warmth reads well against peach).

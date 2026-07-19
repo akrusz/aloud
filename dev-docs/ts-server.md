@@ -1,15 +1,11 @@
 # Running aloud cloud (`@aloud/server`)
 
-aloud cloud — a stateless Hono proxy with Google auth, a credit
-ledger, and metered LLM billing. Lives at `ts/server/`, a workspace package
-of `ts/` (`@aloud/core`). Full design rationale is in `ts/server/README.md`;
-this file is the operational quick-reference.
+aloud cloud — a Hono proxy with Google/Apple/email auth, a credit ledger, and
+metered LLM/STT/TTS billing. Lives at `ts/server/`, a workspace package of `ts/`
+(`@aloud/core`). Design rationale is in `ts/server/README.md`; this file is the
+operational quick-reference. Deploying it: [deploy.md](deploy.md).
 
-## TL;DR — does it run?
-
-Yes. It boots, self-checks pricing solvency, and serves. What it is **not**
-yet is *production-durable* or *feature-complete for the web demo* — see
-[Gaps](#gaps-before-a-real-deploy).
+## Run it
 
 ```bash
 cd ts            # the workspace root
@@ -24,10 +20,10 @@ npm run typecheck
 Smoke-test a running instance:
 
 ```bash
-curl localhost:8787/health          # {"ok":true,"providers":[...],"billing":bool}
-curl localhost:8787/v1/me/models    # public: models, per-token cost, usdPerCredit, packMarkup
-curl localhost:8787/v1/me/estimates # public: credit-use bands per model/STT/voice
-curl localhost:8787/v1/me/packs     # public: credit packs for sale
+curl localhost:8787/health                # {"ok":true,"providers":[...],"billing":bool}
+curl localhost:8787/cloud/v1/me/models    # public: models, per-token cost, usdPerCredit, packMarkup
+curl localhost:8787/cloud/v1/me/estimates # public: credit-use bands per model/STT/voice
+curl localhost:8787/cloud/v1/me/packs     # public: credit packs for sale
 ```
 
 `npm run dev` (watch) vs `npm start` (one-shot) — both run via `tsx`, which
@@ -67,14 +63,14 @@ load logic is `loadConfig` in `config.ts`.
 | `APPLE_CLIENT_IDS` | Apple sign-in | comma-sep Services ID (web) / bundle id (native); empty disables Apple. Email/password needs no config (meditation-pal-s75) |
 | `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client |
 | `GEMINI_API_KEY` | value-tier LLM (Gemini direct) | Google AI Studio key; powers `gemini-2.5-flash-lite` without OpenRouter's fee |
-| `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/v1/stt` (Whisper; `gpt-4o-transcribe`, ≈ $0.36/hr), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
+| `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/cloud/v1/stt` (Whisper; `gpt-4o-transcribe`, ≈ $0.36/hr), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
-| `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/v1/tts` reports not-configured, client falls back to browser TTS |
+| `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup — once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
-| `ALOUD_ADMIN_TOKEN` | `/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
-| `ALOUD_ADMIN_EMAILS` | `/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access — the panel's Google sign-in path, so a phone never holds the static token |
+| `ALOUD_ADMIN_TOKEN` | `/cloud/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
+| `ALOUD_ADMIN_EMAILS` | `/cloud/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access — the panel's Google sign-in path, so a phone never holds the static token |
 
 ### Keys for the full hosted pipeline
 
@@ -97,8 +93,8 @@ npm run dev
 # /health now shows that provider under "providers"
 ```
 
-`/v1/llm/complete` still requires a valid session (a Bearer token from
-`POST /v1/auth/google`), so end-to-end forwarding needs a real Google ID
+`/cloud/v1/llm/complete` still requires a valid session (a Bearer token from
+`POST /cloud/v1/auth/google`), so end-to-end forwarding needs a real Google ID
 token. The route-level logic is unit-tested against the in-memory store in
 `tests/app.test.ts` without network.
 
@@ -120,11 +116,11 @@ npm run ui:dev              # :4649
 ```
 
 In the UI: pick provider **aloud cloud**, choose a model (the picker is
-populated live from `GET /v1/me/models`), start a session. On first LLM turn
-the UI auto-signs-in via the dev route and caches the token.
+populated live from `GET /cloud/v1/me/models`), start a session. On first LLM
+turn the UI auto-signs-in via the dev route and caches the token.
 
 **On the hosted provider, STT and TTS also route through the server** —
-`/v1/stt` (OpenAI Whisper by default) and `/v1/tts` (Google), so the whole
+`/cloud/v1/stt` (OpenAI Whisper by default) and `/cloud/v1/tts` (Google), so the whole
 pipeline runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
 `STT_*` overrides — see `config.ts` `resolveSttConfig`); TTS needs
 `GOOGLE_TTS_API_KEY` (without it the client falls back to browser
@@ -132,20 +128,21 @@ pipeline runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
 and `tts-picker.createCloudAloudTts`, selected in `views/session.ts` when
 `setup.provider === 'aloud'`.
 
-**Auth — dev shortcut.** `/v1/llm/complete` is behind bearer auth. Until the
-Google OAuth flow exists (`meditation-pal-rfb`), the UI's `cloud-auth.ts`
-falls back to `POST /v1/auth/dev` — a **local-only** route that mints a session
-for a fixed `dev@localhost` account (seeded with `ALOUD_FREE_SIGNUP_CREDITS`,
-auto-refilled when it runs dry). It **404s in production** (strict mode), so
-it's a dev convenience, not a backdoor. Client wiring: `ui/src/cloud-auth.ts`
-(token) + `ui/src/adapters/cloud-llm.ts` (`complete` + SSE `completeStream`).
+**Auth — dev shortcut.** `/cloud/v1/llm/complete` is behind bearer auth. On a
+dev build with no Google client id configured, `ensureCloudToken()`
+(`ui/src/cloud-auth.ts`) falls back to `POST /cloud/v1/auth/dev` — a
+**local-only** route that mints a session for a fixed `dev@localhost` account
+(seeded with `ALOUD_FREE_SIGNUP_CREDITS`, auto-refilled when it runs dry). It
+**404s in production** (strict mode), so it's a dev convenience, not a backdoor.
+Client wiring: `ui/src/cloud-auth.ts` (token) + `ui/src/adapters/cloud-llm.ts`
+(`complete` + SSE `completeStream`).
 
 Quick handshake without the UI:
 
 ```bash
-TOK=$(curl -s -X POST localhost:8787/v1/auth/dev | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
-curl -s localhost:8787/v1/me -H "authorization: Bearer $TOK"          # account + balance
-curl -s -X POST localhost:8787/v1/llm/complete -H "authorization: Bearer $TOK" \
+TOK=$(curl -s -X POST localhost:8787/cloud/v1/auth/dev | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+curl -s localhost:8787/cloud/v1/me -H "authorization: Bearer $TOK"    # account + balance
+curl -s -X POST localhost:8787/cloud/v1/llm/complete -H "authorization: Bearer $TOK" \
   -H 'content-type: application/json' \
   -d '{"provider":"anthropic","model":"claude-sonnet-5","messages":[{"role":"user","content":"hi"}]}'
 ```
@@ -154,35 +151,38 @@ curl -s -X POST localhost:8787/v1/llm/complete -H "authorization: Bearer $TOK" \
 
 Wired in `app.ts`; the entire client↔server wire surface is `contract.ts`.
 
-> **Prefix:** the hosted-service routes below are mounted under **`/cloud/v1`**
-> (the app's own backend is under `/app/v1`). The `/v1/...` paths in this table
-> omit that prefix for brevity — e.g. the Stripe webhook is really
-> `POST /cloud/v1/billing/webhook`, and `/v1/me` is `GET /cloud/v1/me`.
+Everything except `/health` is mounted under **`/cloud/v1`** (the app's own
+backend is the separate `/app/v1` group, also served here in browser dev).
 
 | Route | Auth | Purpose |
 |---|---|---|
 | `GET /health` | public | liveness + what's configured |
-| `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: `{googleClientId}` (first of `GOOGLE_CLIENT_IDS`, or `''`). Lets any install render Google sign-in without baking the id in at build |
-| `POST /v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow) |
-| `POST /v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
-| `POST /v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116) |
-| `POST /v1/auth/email/login` | public | email/password sign-in; one generic 401 for wrong-password / unknown-email |
-| `POST /v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
-| `GET /v1/me` | session | account + live balance |
-| `GET /v1/me/models` `/estimates` `/packs` | public | published pricing |
-| `POST /v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
-| `POST /v1/stt` | session | metered STT: raw PCM body → Whisper (OpenAI by default) → transcript; debits by duration |
-| `POST /v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
-| `POST /v1/billing/checkout` | session | start Stripe Checkout for a pack |
-| `POST /v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
-| `GET /v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
-| `GET /v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
-| `GET /v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
-| `GET /v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag |
-| `GET /v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
-| `POST /v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
-| `GET /v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
-| `PUT /v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
+| `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: the Google/Apple client ids (first of `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`). Lets any install render OAuth sign-in without baking ids in at build |
+| `POST /cloud/v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow) |
+| `POST /cloud/v1/auth/google/desktop` | public (optional bearer) | the desktop loopback-PKCE variant (exchanges an auth code server-side) |
+| `POST /cloud/v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
+| `POST /cloud/v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116) |
+| `POST /cloud/v1/auth/email/login` | public | email/password sign-in; one generic 401 for wrong-password / unknown-email |
+| `POST /cloud/v1/auth/email/set-password` | session | add/change a password on an OAuth-created account |
+| `POST /cloud/v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
+| `GET /cloud/v1/me` | session | account + live balance |
+| `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods) |
+| `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
+| `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
+| `POST /cloud/v1/stt` | session | metered STT: raw PCM body → Whisper (OpenAI by default) → transcript; debits by duration |
+| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
+| `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
+| `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
+| `POST /cloud/v1/billing/x402/buy/:packId` | session + payment | USDC-on-Base pack purchase (402 → sign → settle). Config-gated; see [x402.md](x402.md) |
+| `/cloud/v1/gifts/*` | mixed | gift-credit purchase + redemption (`routes/gifts.ts`) |
+| `GET /cloud/v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
+| `GET /cloud/v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
+| `GET /cloud/v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
+| `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag |
+| `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
+| `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
+| `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
+| `PUT /cloud/v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
 
 "admin" auth = the `ALOUD_ADMIN_TOKEN` bearer, or a normal session token whose
 verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
@@ -210,7 +210,7 @@ disabled, not open.
 
 **Tunable free-credit knobs.** The panel's *Free credits* section sets
 `freeSignupCredits` and the global hourly `freeGrantBudgetPerHour` live (no
-redeploy) via `PUT /v1/admin/config`. Set either to **0** to stop handing out
+redeploy) via `PUT /cloud/v1/admin/config`. Set either to **0** to stop handing out
 free credits while testing. Overrides persist in the store's `settings` KV
 (`free_signup_credits`, `free_grant_budget_per_hour`) and are folded over the
 env defaults at boot (`loadRuntimeOverrides`), so they survive a restart — a
@@ -233,9 +233,9 @@ turn (live-reload is a follow-up — meditation-pal).
 
 The curated hosted voices live in `src/providers/voice-catalog.ts` — a
 short-name → Google Cloud TTS id map (currently Pulcherrima/androgynous,
-Sadachbia/male, Leda/female, all Chirp3-HD). `GET /v1/voices` publishes them;
+Sadachbia/male, Leda/female, all Chirp3-HD). `GET /cloud/v1/voices` publishes them;
 the client merges them into its picker (top "Recommended" tier) and sends the
-short name back, which `/v1/tts` resolves. To add more: audition the catalog
+short name back, which `/cloud/v1/tts` resolves. To add more: audition the catalog
 and append the winners to `CURATED_VOICES`.
 
 ```bash
@@ -249,37 +249,19 @@ npx tsx scripts/preview-voices.ts Chirp3-HD en-GB # filter + language
 
 Needs `GOOGLE_TTS_API_KEY` in `.env`. Costs a few cents (one short clip/voice).
 
-## Gaps before a real deploy
+## Known limits
 
-In rough priority order. Tracked under epic `meditation-pal-bot`.
+The launch gaps (durable store, real OAuth in the UI, prompt caching, deploy
+infra) are all closed - the server is live on Fly with a SQLite ledger, Google /
+Apple / email sign-in, Anthropic 5m+1h prompt caching (`ts/src/llm/anthropic.ts`),
+and Stripe. What's left:
 
-1. ~~**Persistent credit store.**~~ **DONE** (`meditation-pal-vd3`). `buildDeps`
-   now selects `SqliteCreditsStore` (`credits/sqlite-store.ts`, built-in
-   `node:sqlite`) whenever `ALOUD_DB_PATH` is set — durable across restarts —
-   and only falls back to `MemoryCreditsStore` for zero-config dev. Production
-   (strict) requires `ALOUD_DB_PATH`. The store is proven behavior-identical to
-   the in-memory reference by a shared parity suite plus a reopen/durability
-   test (`tests/sqlite-store.test.ts`).
-2. **Real auth** (`meditation-pal-rfb`) — the server-side ID-token verification
-   is done (`auth/google.ts` + `POST /cloud/v1/auth/google`); what's missing is
-   the **UI** sign-in button (Google Identity Services) and a real OAuth client
-   id. The dev sign-in 404s in strict mode, so `ensureCloudToken()` needs to
-   branch to the real flow for a live deploy.
-3. **History-prefix caching** (`meditation-pal-cet`) — the cost estimates in
-   `/v1/me/estimates` assume conversation-history prompt caching that isn't
-   implemented, so LLM estimates are optimistic until it lands (needs a 1h
-   cache TTL — meditation's silences exceed the 5-min default).
-4. **Deploy infra** (`meditation-pal-a3u`) — server side **DONE**: Dockerfile +
-   `fly.toml` + a manual deploy workflow + a full runbook in
-   [deploy.md](deploy.md). Remaining: the **UI hosting** decision (the repo's
-   GitHub Pages is taken by the marketing site — subpath vs. separate host;
-   options written up in deploy.md) and real TLS, which the chosen host
-   provides. Wiring is CORS + `VITE_ALOUD_CLOUD_URL`.
-
-**Done since the first cut:** Google-direct value-tier LLM; the configurable
-build-time server base URL (`VITE_ALOUD_CLOUD_URL`); server STT
-(`meditation-pal-age`) and TTS (`meditation-pal-2gz`); the UI LLM/STT/TTS
-adapters repointed at this server on the hosted provider (`meditation-pal-vd3`).
+- **Single-machine by design.** The ledger is one SQLite file on one Fly volume.
+  Scaling out means implementing `CreditsStore` (`credits/store.ts`) over
+  Postgres. See [deploy.md](deploy.md) → Durability & scale.
+- **x402 is flag-gated off** pending mainnet ops (tax, off-ramp, refunds). See
+  [x402.md](x402.md).
+- **In-flight clients don't see a live spend-pause** until their next turn.
 
 ## Test/lint matrix (what "green" means here)
 
