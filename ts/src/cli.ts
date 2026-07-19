@@ -250,7 +250,7 @@ async function main(): Promise<void> {
     console.log(`facilitator> ${opener.cleanText}\n`);
     let silenceMode = opener.signal === 'hold';
     if (silenceMode) {
-        console.log('[silence mode — type anything to resume]\n');
+        console.log('[silence mode - type anything to resume]\n');
     }
 
     const rl = createInterface({ input: stdin, output: stdout });
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
             console.log(`facilitator> ${cleanText}`);
             if (signal === 'hold') {
                 silenceMode = true;
-                console.log('[silence mode — type anything to resume]');
+                console.log('[silence mode - type anything to resume]');
             }
             console.log();
         }

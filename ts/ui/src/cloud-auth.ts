@@ -217,7 +217,7 @@ export async function deleteAccount(): Promise<void> {
     clearRetreatCovered();
 }
 
-/** POST /v1/auth/dev — mint (or reuse) the local dev session. */
+/** POST /v1/auth/dev - mint (or reuse) the local dev session. */
 export async function devSignIn(): Promise<AuthResponse> {
     const res = await fetchImpl(cloudUrl('/auth/dev'), { method: 'POST' });
     if (!res.ok) {

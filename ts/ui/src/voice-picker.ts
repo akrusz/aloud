@@ -513,7 +513,7 @@ export function previewErrorMessage(err: unknown): string {
     // A speechSynthesis voice that couldn't render, most often a Microsoft
     // "Online (Natural)" voice, which needs a live connection.
     if (/^speechSynthesis /.test(msg)) {
-        return "That browser voice wouldn't play — the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.";
+        return "That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.";
     }
     return "Couldn't play that voice preview. Check your connection and try again.";
 }

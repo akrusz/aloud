@@ -80,8 +80,8 @@ pub fn providers() -> Value {
                 ""
             } else {
                 "The Claude Code command-line tool isn't installed. Install the \
-                 CLI with `npm install -g @anthropic-ai/claude-code` — not the \
-                 Claude desktop app, which can't sign in here — then run \
+                 CLI with `npm install -g @anthropic-ai/claude-code` - not the \
+                 Claude desktop app, which can't sign in here - then run \
                  `claude` once to log in with your Pro/Max subscription."
             },
         },
@@ -251,7 +251,9 @@ fn claude_proxy_models() -> Vec<Value> {
     // Aliases the `claude` CLI resolves to the latest of each family. Fable is
     // the one Anthropic has hinted it may drop from subscriptions, so the UI
     // probes it (/llm/claude_proxy/probe) before offering it. Order matters:
-    // the picker auto-selects the first option for a fresh pick.
+    // the picker auto-selects the first option for a fresh pick, and Opus is
+    // the right default for most sessions. Heavier tracks better in general,
+    // but not far enough to lead with Fable.
     vec![
         opt("opus", "Opus (latest)"),
         opt("fable", "Fable (latest)"),

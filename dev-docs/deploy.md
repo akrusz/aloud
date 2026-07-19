@@ -7,13 +7,13 @@ Two halves, deployed independently:
 
 | Half | What | Where | TLS |
 |---|---|---|---|
-| **Server** | `@aloud/server` (Hono): auth, credit ledger, metered LLM/STT/TTS proxy | a small always-on box — **Fly.io** here (Render/any VPS also fine) | Fly terminates TLS |
+| **Server** | `@aloud/server` (Hono): auth, credit ledger, metered LLM/STT/TTS proxy | a small always-on box - **Fly.io** here (Render/any VPS also fine) | Fly terminates TLS |
 | **UI** | `ui/dist` (static Vite build) | a static host (see [UI hosting](#ui-hosting--an-open-decision)) | host-provided |
 
 They're stitched together by two settings: the UI is **built** with
 `VITE_ALOUD_CLOUD_URL` = the server's public origin, and the server is
 **configured** with `ALOUD_CORS_ORIGINS` = every origin a client calls from.
-That's the web UI origin **plus the desktop webview origins** — the Tauri app
+That's the web UI origin **plus the desktop webview origins** - the Tauri app
 calls the same hosted server cross-origin from `tauri://localhost` (macOS /
 Linux) and `http://tauri.localhost` (Windows), so leaving those out breaks
 sign-in/credits on desktop only (a failure mode that's invisible in browser
@@ -27,7 +27,7 @@ HTTPS (a self-signed LAN cert won't do here).
 Files: `ts/server/Dockerfile`, `ts/server/fly.toml`, and the manual
 `.github/workflows/deploy-server.yml`. Everything runs from the **`ts/`
 workspace root** because the server resolves `@aloud/core` (`../src`) at
-runtime via tsx — the build context must include core's source.
+runtime via tsx - the build context must include core's source.
 
 ### One-time setup
 
@@ -40,11 +40,11 @@ fly apps create aloud-cloud                               # globally-unique name
 fly volumes create aloud_data --size 1 --region sjc --app aloud-cloud   # durable ledger disk
 ```
 
-> **Single volume on purpose.** Fly warns you to create two — say no. The ledger
+> **Single volume on purpose.** Fly warns you to create two - say no. The ledger
 > is one SQLite file pinned to one machine (see below); a second volume would
 > mean a second, divergent ledger.
 
-Then set the secrets (everything sensitive — never in `fly.toml`):
+Then set the secrets (everything sensitive - never in `fly.toml`):
 
 ```bash
 fly secrets set \
@@ -61,7 +61,7 @@ fly secrets set \
 ```
 
 Then set the **R2 backup secrets** (see [Backups](#backups-litestream--r2) for why this
-is not optional — the ledger is real money on a single volume):
+is not optional - the ledger is real money on a single volume):
 
 ```bash
 fly secrets set \
@@ -94,15 +94,15 @@ curl https://<your-app>.fly.dev/health      # {"ok":true,"providers":[...],...}
 ### Deploy hygiene (read before `fly deploy`)
 
 A few non-obvious things that have bitten us. This is a money server (the credit
-ledger) — treat a deploy as a production change, not a save button.
+ledger) - treat a deploy as a production change, not a save button.
 
 1. **`fly deploy` ships your whole working tree, not a commit.** The Docker build
-   context is whatever's in `ts/` *right now* — uncommitted edits, and every
+   context is whatever's in `ts/` *right now* - uncommitted edits, and every
    commit on your current branch that isn't live yet. So deploying from a feature
    branch pushes that entire branch's divergence to prod, even the part you
    weren't thinking about. **Habit:** before deploying, run `git status` (clean?)
    and know what's on this branch vs what's running. Deploy from `main` or a
-   branch you've deliberately readied — not "whatever I happen to have checked
+   branch you've deliberately readied - not "whatever I happen to have checked
    out." (This is how a half-finished schema change once rode along with an
    unrelated deploy and crashed the boot.)
 
@@ -117,7 +117,7 @@ ledger) — treat a deploy as a production change, not a save button.
    fly logs -a aloud-cloud                      # watch it boot; look for "aloud cloud up"
    ```
 
-3. **Rolling back is one command** — your escape hatch when a deploy goes bad.
+3. **Rolling back is one command** - your escape hatch when a deploy goes bad.
    Every release keeps its image; redeploy a previous one by digest:
 
    ```bash
@@ -125,7 +125,7 @@ ledger) — treat a deploy as a production change, not a save button.
    fly deploy --image <that-ref> --config server/fly.toml -a aloud-cloud
    ```
 
-   The volume (and thus the ledger) is untouched by a rollback — you're only
+   The volume (and thus the ledger) is untouched by a rollback - you're only
    swapping the code image, not the data.
 
 4. **Build it locally first when the Dockerfile changed.** `docker build -f
@@ -136,32 +136,32 @@ ledger) — treat a deploy as a production change, not a save button.
 
 The credit ledger is a SQLite file (`SqliteCreditsStore`, `node:sqlite`) on the
 mounted volume at `/data/aloud.db`. This is the durable swap for the in-memory
-dev store — **balances survive restarts/redeploys/suspends**. Because a Fly
+dev store - **balances survive restarts/redeploys/suspends**. Because a Fly
 volume binds to one machine, this app is **single-machine by design**
 (`min_machines_running = 0`, `auto_stop = suspend` for cost). That's correct at
 trial scale. To scale out later: implement `CreditsStore` over Postgres
-(`ts/server/src/credits/store.ts` is the whole interface — the ledger logic on
+(`ts/server/src/credits/store.ts` is the whole interface - the ledger logic on
 top is storage-agnostic) and drop the `[mounts]` block.
 
 ### Backups (Litestream → R2)
 
-A Fly volume is a **single copy on one physical host** — Fly's own docs warn that
+A Fly volume is a **single copy on one physical host** - Fly's own docs warn that
 hardware failure can destroy it, so the ledger needs an off-Fly backup. (Fly's
 daily volume snapshots are a nice-to-have second line, not the strategy.) Stripe
 is only a partial backstop: it can reconstruct *purchases* but knows nothing about
 usage debits or free grants, so the ledger file is the real source of truth.
 
-We replicate it with **[Litestream](https://litestream.io)** — purpose-built for a
+We replicate it with **[Litestream](https://litestream.io)** - purpose-built for a
 single SQLite file on a single machine. It streams the WAL (we already run
 `PRAGMA journal_mode = WAL`) to **Cloudflare R2** continuously (~1s lag) and gives
 point-in-time restore. Because the ledger is append-only, a slightly-stale replica
-just misses the most recent rows — no torn-write hazard.
+just misses the most recent rows - no torn-write hazard.
 
 Wiring (already in the image):
 
-- `ts/server/litestream.yml` — replica config (db `${ALOUD_DB_PATH}` → R2 bucket),
+- `ts/server/litestream.yml` - replica config (db `${ALOUD_DB_PATH}` → R2 bucket),
   copied to `/etc/litestream.yml`.
-- `ts/server/docker-entrypoint.sh` — the container entrypoint. On boot, if the
+- `ts/server/docker-entrypoint.sh` - the container entrypoint. On boot, if the
   volume has **no** ledger (fresh/replaced volume) it runs `litestream restore`
   from R2 first; then it runs the server under `litestream replicate -exec`. If
   the `R2_*` secrets are **absent** it just runs the server directly (so dev and
@@ -175,7 +175,7 @@ gives you the Access Key ID / Secret Access Key and your account's S3 endpoint
 above, then `fly deploy`.
 
 > If you see an S3 `region` error on boot, change `region: auto` in
-> `litestream.yml` to `us-east-1` — some SDK versions are picky with R2.
+> `litestream.yml` to `us-east-1` - some SDK versions are picky with R2.
 
 **Verify replication** (after a deploy, once the server has taken a write):
 
@@ -193,23 +193,23 @@ litestream restore -o /tmp/aloud-restored.db /data/aloud.db
 ```
 
 To force a full rebuild from R2 on the server: stop the machine, delete (or
-recreate) the volume, and redeploy — the entrypoint restores automatically because
+recreate) the volume, and redeploy - the entrypoint restores automatically because
 `/data/aloud.db` will be missing.
 
 ### Durability validation (meditation-pal-b8hf)
 
 A real credit purchase was once acknowledged by the webhook and then **lost**
-across an idle suspend + redeploy (meditation-pal-5iv4). The mitigations —
+across an idle suspend + redeploy (meditation-pal-5iv4). The mitigations are
 `auto_stop_machines = "stop"` (clean SIGTERM shutdown, not a frozen VM) and
-`PRAGMA synchronous = FULL` (fsync the WAL every commit) — are *believed* to fix
-it but were not proven under a real cycle. **Do not trust them, or sell credits,
-until both tests below pass.** Re-run after any change to `fly.toml`'s machine
-lifecycle, `litestream.yml`, or the entrypoint.
+`PRAGMA synchronous = FULL` (fsync the WAL every commit). Both tests below have
+passed and credits are selling. **Re-run them after any change to `fly.toml`'s
+machine lifecycle, `litestream.yml`, or the entrypoint** - those are exactly the
+knobs that can silently undo the fix.
 
 The harness is `ts/server/scripts/durability-probe.sh`: it writes an isolated
-marker (a retreat pass — same SQLite file + WAL as the ledger, so it's a faithful
+marker (a retreat pass - same SQLite file + WAL as the ledger, so it's a faithful
 proxy without polluting the ledger), then asserts it survived. Get an admin
-credential first — either the `ALOUD_ADMIN_TOKEN` secret, or copy a signed-in
+credential first - either the `ALOUD_ADMIN_TOKEN` secret, or copy a signed-in
 admin session JWT from the panel console with
 `localStorage.getItem('aloud-admin-token')`:
 
@@ -218,9 +218,8 @@ export ALOUD_ADMIN_TOKEN=…          # token or panel session JWT
 cd ts/server/scripts
 ```
 
-**Precheck — confirm the fix is actually running.** The mitigations only count if
-the deployed image has them (a GitHub-Actions deploy is fine — same `flyctl` —
-but only if it built the branch that carries the commits):
+**Precheck - confirm the fix is actually running.** The mitigations only count if
+the deployed image has them (a GitHub-Actions deploy is fine - same `flyctl` - but only if it built the branch that carries the commits):
 
 ```bash
 fly config show -a aloud-cloud | grep -i auto_stop    # shows true (== stop) or "suspend"
@@ -233,9 +232,9 @@ stop; only `"suspend"` renders as a string), so `true` here is correct. The
 machine-level `autostop` is the unambiguous check. (`synchronous = FULL` rides in
 the image; if `autostop` is right, the build was current.)
 
-**Test 1 — write survives an idle power-down + redeploy** (mirrors 5iv4). The
-distinction that makes this meaningful: an explicit `fly machine stop` — and a
-redeploy of a *running* machine — is a **clean** SIGTERM shutdown that was probably
+**Test 1 - write survives an idle power-down + redeploy** (mirrors 5iv4). The
+distinction that makes this meaningful: an explicit `fly machine stop` - and a
+redeploy of a *running* machine - is a **clean** SIGTERM shutdown that was probably
 always durable. The bug was an **idle auto power-down** (previously `suspend`). So
 don't stop it by hand; let Fly power it down on its own:
 
@@ -249,15 +248,15 @@ fly deploy --config server/fly.toml                   # redeploy onto the same v
 ```
 
 For teeth, run it once against the **pre-fix** config (`auto_stop = "suspend"`) and
-confirm it **FAILs** — that reproduces 5iv4 and proves the probe can actually detect
-the loss — then flip to `"stop"` and confirm it **PASSes**. A pass on a clean
+confirm it **FAILs** - that reproduces 5iv4 and proves the probe can actually detect
+the loss - then flip to `"stop"` and confirm it **PASSes**. A pass on a clean
 manual stop alone doesn't prove much.
 
-A `FAIL` on the fixed config means writes still roll back — leave 5iv4 open and
+A `FAIL` on the fixed config means writes still roll back - leave 5iv4 open and
 escalate to the Postgres migration (meditation-pal-sk9s).
 
-**Test 2 — restore after total volume loss** (proves the Litestream DR claim).
-**Destructive — run on a throwaway/staging app, never prod**, since it deletes the
+**Test 2 - restore after total volume loss** (proves the Litestream DR claim).
+**Destructive - run on a throwaway/staging app, never prod**, since it deletes the
 volume. Stand up a staging app that mirrors `fly.toml` + the `R2_*` secrets
 (point its replica at a *separate* R2 prefix so it can't touch prod's backup),
 then:
@@ -274,8 +273,7 @@ fly deploy --config server/fly.toml -a <staging-app>                       # ent
 ./durability-probe.sh check                                                # PASS = restore brought the marker back
 ```
 
-A `FAIL` here means the backup/restore path is broken (the more dangerous bug —
-you'd discover it only during a real disaster). Fix `litestream.yml` / the
+A `FAIL` here means the backup/restore path is broken (the more dangerous bug - you'd discover it only during a real disaster). Fix `litestream.yml` / the
 entrypoint until it passes, then re-confirm with `litestream snapshots`.
 
 ### Render / VPS alternative
@@ -290,7 +288,7 @@ directly: `cd ts && npm ci && ALOUD_ENV=production ALOUD_DB_PATH=/var/lib/aloud/
 ## UI hosting (aloud.rest/app)
 
 **Decided** (meditation-pal-sgp): the browser app is a **subpath under the
-existing GitHub Pages site** — built with Vite `base: '/app/'` into `docs/app/`,
+existing GitHub Pages site** - built with Vite `base: '/app/'` into `docs/app/`,
 so it serves at `https://aloud.rest/app/` alongside the marketing site at `/`.
 Reuses the existing Pages + cert + domain; the SPA router is base-path aware
 (`ui/src/route-base.ts`) and `docs/404.html` carries the deep-link redirect.
@@ -306,17 +304,17 @@ branch**, so there's nothing to pull after a deploy.
 One-time setup: set **Pages source to "GitHub Actions"** (Settings → Pages →
 Build and deployment → Source). The custom domain (`aloud.rest`) is preserved via
 `docs/CNAME`, which rides along in the artifact. The build output `docs/app/` is
-gitignored — local `ui:build:hosted` runs won't dirty the tree.
+gitignored - local `ui:build:hosted` runs won't dirty the tree.
 
 Also set two repo **Variables** (Settings → Secrets
 and variables → Actions → Variables):
 
-- `ALOUD_CLOUD_URL` — the hosted `/cloud` origin (e.g. `https://aloud-cloud.fly.dev`).
-- `GOOGLE_CLIENT_ID` — the web OAuth client id (= `GOOGLE_CLIENT_IDS` on the
+- `ALOUD_CLOUD_URL` - the hosted `/cloud` origin (e.g. `https://aloud-cloud.fly.dev`).
+- `GOOGLE_CLIENT_ID` - the web OAuth client id (= `GOOGLE_CLIENT_IDS` on the
   server). Not secret; it's baked into the public client. **Optional now**: the
   UI also discovers the client id at runtime from the server's public
   `GET /cloud/v1/config` (capabilities probe → `setRuntimeGoogleClientId`), so
-  sign-in works on any install — desktop/local included — that points at a
+  sign-in works on any install - desktop/local included - that points at a
   Google-configured server, even with nothing baked in. Baking it just lets the
   button paint before the probe resolves.
 
@@ -345,24 +343,23 @@ Three methods, all behind the one account model (accounts ↔ identities). The U
 discovers which OAuth methods to show at runtime from `/cloud/v1/config`, so
 nothing needs baking into the build.
 
-- **Email/password** — always on, zero config. New email accounts get **no free
+- **Email/password** - always on, zero config. New email accounts get **no free
   credits** until they connect Google or Apple (the anti-farming lever,
   meditation-pal-116).
-- **Google** — set `GOOGLE_CLIENT_IDS` (see below). Trusted → connecting unlocks
+- **Google** - set `GOOGLE_CLIENT_IDS` (see below). Trusted → connecting unlocks
   the free grant.
-- **Apple** — set `APPLE_CLIENT_IDS`. Trusted, same as Google.
+- **Apple** - set `APPLE_CLIENT_IDS`. Trusted, same as Google.
 
 **Account deletion + anti-farming (meditation-pal-8jc).** Settings → *Danger zone*
 → *Delete account* calls `DELETE /cloud/v1/me`, a **soft-delete**: the account is
 anonymized and tombstoned (can't sign in), its identities are freed (so the same
-Google/Apple/email can start fresh), and any remaining balance is forfeited — but
+Google/Apple/email can start fresh), and any remaining balance is forfeited - but
 the append-only ledger rows stay for audit. Because the free grant costs real
-money, it's gated on a hash of the **normalized email** (`auth/email-key.ts` —
-case-, dot-, and `+tag`-invariant), recorded in an append-only `grant_keys` log
+money, it's gated on a hash of the **normalized email** (`auth/email-key.ts` - case-, dot-, and `+tag`-invariant), recorded in an append-only `grant_keys` log
 that **survives deletion**. So a deleted user can return and buy credits but can't
 re-claim the freebie. No config; works on any store.
 
-### Sign in with Apple — one-time Apple Developer setup
+### Sign in with Apple - one-time Apple Developer setup
 
 You have an Apple Developer membership; this is what to create (all in
 [developer.apple.com](https://developer.apple.com) → Certificates, IDs & Profiles):
@@ -372,42 +369,39 @@ You have an Apple Developer membership; this is what to create (all in
 > the server verifies against Apple's *public* JWKS (`auth/apple.ts`). The private
 > `.p8` key is only for server-to-server token-endpoint calls (code exchange /
 > refresh / revoke), which we don't make. If registering a Sign in with Apple
-> **key** shows *"There are no identifiers available to associate"* — that's not a
+> **key** shows *"There are no identifiers available to associate"* - that's not a
 > key problem, it's the prerequisite below: no App ID has the capability enabled
 > yet (the same reason the Services ID's "Primary App ID" dropdown would be empty).
 
-> **Bundle ID vs Services ID — you are not stuck with your existing bundle id.**
+> **Bundle ID vs Services ID - you are not stuck with your existing bundle id.**
 > Apple uses two different identifier *types*, and the `aud` of the token differs
 > by platform: a **native** iOS app's token is `aud` = the **App ID / bundle id**
 > (your existing `app.aloud.meditation`); a **web** sign-in's token is `aud` = a
 > separate **Services ID**. Identifiers must be globally unique, so the Services
-> ID can't be the same string as the bundle id — make a new one (e.g.
+> ID can't be the same string as the bundle id - make a new one (e.g.
 > `app.aloud.meditation.web`). Keep `app.aloud.meditation` for the future native
 > app; create the Services ID for the web flow now. `APPLE_CLIENT_IDS` accepts
-> BOTH (comma-separated) — the server verifies a token whose `aud` matches any of
+> BOTH (comma-separated) - the server verifies a token whose `aud` matches any of
 > them, so one server handles web + native.
 
-1. **App ID** (Identifiers → +, type App): you already have `app.aloud.meditation`
-   — just confirm **Sign in with Apple** is enabled on it (Edit → Capabilities).
-2. **Services ID** (Identifiers → +, type Services IDs) — THIS is the web client
+1. **App ID** (Identifiers → +, type App): you already have `app.aloud.meditation` - just confirm **Sign in with Apple** is enabled on it (Edit → Capabilities).
+2. **Services ID** (Identifiers → +, type Services IDs) - THIS is the web client
    id the browser uses. Give it a new, unique identifier, e.g.
    `app.aloud.meditation.web`. Enable **Sign in with Apple**, click **Configure**:
    - **Primary App ID**: `app.aloud.meditation`.
    - **Domains**: `aloud.rest`.
-   - **Return URLs**: the exact app origin + base path the browser posts back to —
-     `https://aloud.rest/app/` (the UI uses `window.location.origin + BASE_URL`).
+   - **Return URLs**: the exact app origin + base path the browser posts back to - `https://aloud.rest/app/` (the UI uses `window.location.origin + BASE_URL`).
      Add `https://localhost:4649/` too if you want to test Apple locally.
 3. Set the server secret to the **Services ID** (add the bundle id later when the
-   native app ships): `fly secrets set APPLE_CLIENT_IDS=app.aloud.meditation.web`
-   — or both: `APPLE_CLIENT_IDS=app.aloud.meditation.web,app.aloud.meditation`.
-   That's all the server needs — it verifies Apple's token against Apple's public
+   native app ships): `fly secrets set APPLE_CLIENT_IDS=app.aloud.meditation.web` - or both: `APPLE_CLIENT_IDS=app.aloud.meditation.web,app.aloud.meditation`.
+   That's all the server needs - it verifies Apple's token against Apple's public
    JWKS; **no private key or client-secret JWT is required** for this verify-only,
    popup web flow.
 4. Redeploy. The Apple button now appears wherever the UI reaches the server (the
-   client reads the Services ID from `/cloud/v1/config` — the first id in
+   client reads the Services ID from `/cloud/v1/config` - the first id in
    `APPLE_CLIENT_IDS`, so list the **web Services ID first**).
 
-> Note: Apple's web popup requires HTTPS and an exact Return URL match — a
+> Note: Apple's web popup requires HTTPS and an exact Return URL match - a
 > mismatch is the usual "it silently won't open" cause. The id token's `email`
 > may be a private-relay address, and Apple omits it on repeat sign-ins (the
 > identity is already linked by then, so that's fine).
@@ -424,7 +418,7 @@ You have an Apple Developer membership; this is what to create (all in
       (see [Backups](#backups-litestream--r2)).
 - [ ] Google OAuth web client id created; `GOOGLE_CLIENT_IDS` set on the server.
       The UI then serves the sign-in button to any install via `/cloud/v1/config`
-      (baking `VITE_GOOGLE_CLIENT_ID` is optional — it only avoids a one-probe
+      (baking `VITE_GOOGLE_CLIENT_ID` is optional - it only avoids a one-probe
       delay). Without `GOOGLE_CLIENT_IDS` the client falls back to dev sign-in,
       which 404s in prod.
 - [ ] (Optional) Apple Services ID created + `APPLE_CLIENT_IDS` set (see

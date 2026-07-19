@@ -24,7 +24,7 @@ What the beta build actually does on a phone: the LLM is **aloud cloud**
 The bundled on-device model tier (beads `dbd` / `7ej`) is not shipped yet, so
 device RAM gates nothing in this build.
 
-## Phase 0 — Validate on a real device (the critical path)
+## Phase 0 - Validate on a real device (the critical path)
 
 The one thing paperwork can't stand in for. Needs hardware.
 
@@ -33,20 +33,20 @@ The one thing paperwork can't stand in for. Needs hardware.
 - [ ] Audio session holds: mic during TTS (barge-in), 30-min session with screen off, survives backgrounding. Beads `nn1` / `0ao`.
 - [ ] Native STT is good enough on real speech, or falls back to cloud cleanly.
 
-## Phase 1 — Sign-in + signing setup
+## Phase 1 - Sign-in + signing setup
 
 - [ ] Google / Apple sign-in consoles (bead `tpj4`): Google iOS OAuth client + both client ids in server `GOOGLE_CLIENT_IDS`; Apple Services ID + "Sign in with Apple" capability. Guideline 4.8: offering Google on iOS requires Apple too.
 - [ ] iOS: automatic signing in Xcode (Team already set up).
 - [ ] Android: create the upload keystore, enroll in Play App Signing, back the keystore up. Steps in [mobile-signing.md](mobile-signing.md).
 
-## Phase 2 — First beta deploy (no store review)
+## Phase 2 - First beta deploy (no store review)
 
 Fastest route to real testers.
 
 - [ ] iOS: create the App Store Connect app record → Archive → Upload → add **internal** TestFlight testers (up to 100, no review).
 - [ ] Android: create the Play Console app → **internal testing** track → upload `.aab` → add testers by email (no review).
 
-## Phase 3 — Store paperwork (before production)
+## Phase 3 - Store paperwork (before production)
 
 Easy to forget, because it's separate from the privacy *page*.
 
@@ -56,12 +56,12 @@ Easy to forget, because it's separate from the privacy *page*.
 - [ ] **Reviewer note**: Noting works free with no account; give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
 - [ ] Listing assets: screenshots (required sizes), description, keywords, support + privacy URLs, age / content rating. Copy direction in bead `7ej` (lead with values, no device-spec claims). Play also wants a 1024x500 feature graphic + 512 icon.
 
-## Phase 4 — Go live (production)
+## Phase 4 - Go live (production)
 
 - [ ] iOS: submit for App Store review (a few days). External TestFlight testers need a one-time light Beta App Review; internal testers don't.
 - [ ] Android: promote internal → closed / open → production (review, a few days). If the Play account is personal and created after Nov 13 2023, production access needs 20 testers for 14 days first; internal testing doesn't.
 
 ## Optional, not blocking the beta
 
-- [ ] Trademark the stylized "aloud." mark (bead `lkh`) — for clone takedowns later, not for approval.
+- [ ] Trademark the stylized "aloud." mark (bead `lkh`) - for clone takedowns later, not for approval.
 - [ ] Native StoreKit / Play Billing consumable credit packs (deferred; the beta uses the web Stripe link-out, which is sanctioned in the US/UK/EEA per bead `zp47`).

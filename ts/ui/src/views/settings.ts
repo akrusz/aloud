@@ -1370,7 +1370,7 @@ function renderProviderSection(s: AppSettings): string {
         <h2>LLM Provider <button type="button" class="info-btn" id="llm-info-btn" aria-label="LLM provider info">?</button></h2>
         <div class="info-panel hidden" id="llm-info-panel">
             <p><strong>What is an LLM?</strong> - A large language model is the AI that listens to what you say and generates thoughtful responses to guide your meditation.</p>
-            <p><strong>Anthropic (Subscription)</strong> - Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> command-line tool (install with <code>npm install -g @anthropic-ai/claude-code</code> — the CLI, not the Claude desktop app). Desktop only.</p>
+            <p><strong>Anthropic (Subscription)</strong> - Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> command-line tool (install with <code>npm install -g @anthropic-ai/claude-code</code> - the CLI, not the Claude desktop app). Desktop only.</p>
             <p><strong>Ollama (Local)</strong> - Free and private. Runs the AI entirely on your computer.</p>
             <p><strong>API Key providers</strong> - Pay-per-use cloud AI. Sign up with the provider, paste the key here.</p>
         </div>

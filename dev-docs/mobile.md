@@ -1,7 +1,7 @@
-# Mobile build guide (Capacitor — iOS & Android)
+# Mobile build guide (Capacitor - iOS & Android)
 
 How to build and run the aloud mobile app. The shell is **Capacitor** (not
-Tauri mobile — decision in bead `meditation-pal-zp47` / `-nn1`): it wraps the
+Tauri mobile - decision in bead `meditation-pal-zp47` / `-nn1`): it wraps the
 same `ts/ui` web app in the OS system WebView (WKWebView / Android System
 WebView) and adds native plugins for the things a browser can't do. Desktop
 stays on Tauri; only the mobile shell + a few platform adapters differ.
@@ -34,7 +34,7 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 
 | Concern | Native (Capacitor) | Web / desktop | File |
 |---|---|---|---|
-| Storage | `CapacitorKv` (@capacitor/preferences — durable UserDefaults / SharedPreferences) | `LocalStorageKv` | `adapters/kv.ts`, `adapters/capacitor-kv.ts` |
+| Storage | `CapacitorKv` (@capacitor/preferences - durable UserDefaults / SharedPreferences) | `LocalStorageKv` | `adapters/kv.ts`, `adapters/capacitor-kv.ts` |
 | STT | `CapacitorSttEngine` (SFSpeechRecognizer / Android SpeechRecognizer) | web-speech / server-whisper / aloud cloud | `adapters/stt-picker.ts`, `adapters/capacitor-stt.ts` |
 | Keep-awake | `@capacitor-community/keep-awake` | web Wake Lock API | `wakelock.ts` |
 | External links / Stripe | `@capacitor/browser` (in-app SFSafariViewController / Custom Tab) | Tauri opener / full-page redirect | `external-links.ts` |
@@ -45,8 +45,7 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 - **Node** (repo's version) + the deps: `cd ts && npm install`.
 - **iOS**: macOS, Xcode, and **CocoaPods** (`sudo gem install cocoapods` or
   `brew install cocoapods`). An Apple Developer account for signing / TestFlight.
-- **Android**: Android Studio (or the SDK command-line tools) and a **JDK 21**
-  — Capacitor 8's Gradle modules target Java 21, so JDK 17 fails with
+- **Android**: Android Studio (or the SDK command-line tools) and a **JDK 21** - Capacitor 8's Gradle modules target Java 21, so JDK 17 fails with
   `invalid source release: 21`. Android Studio's bundled JBR is JDK 21; point
   Gradle at it (`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`)
   or `brew install --cask temurin@21`. Set `ANDROID_HOME` (default
@@ -77,7 +76,7 @@ changes). For fast iteration use live-reload: uncomment the `server` block in
 
 ## Required native config (the committed native edits)
 
-### iOS — `ios/App/App/Info.plist`
+### iOS - `ios/App/App/Info.plist`
 
 The mic + speech-recognition permission strings. Without these iOS **crashes**
 the moment the plugin asks for the mic, rather than showing a prompt:
@@ -89,10 +88,10 @@ the moment the plugin asks for the mic, rather than showing a prompt:
 <string>aloud transcribes your speech on your device to understand what you share.</string>
 ```
 
-(These are visible user-facing copy — keep them honest and warm, and mind the
+(These are visible user-facing copy - keep them honest and warm, and mind the
 brand copy rules: no em-dashes, no "AI" tells.)
 
-### Android — `android/app/src/main/AndroidManifest.xml`
+### Android - `android/app/src/main/AndroidManifest.xml`
 
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -108,7 +107,7 @@ The app-side is wired (`native-signin.ts`, via `@capgo/capacitor-social-login`);
 each provider hands an ID token to the existing `googleSignIn`/`appleSignIn`
 server calls. To turn it on you need the OAuth consoles + build-time client ids
 (bead `tpj4`). App Store Guideline 4.8: if iOS offers Google it must offer Apple
-too — configure both for the store build.
+too - configure both for the store build.
 
 **Build-time env** (bake like `VITE_ALOUD_CLOUD_URL`):
 
@@ -121,10 +120,10 @@ VITE_APPLE_CLIENT_ID=<apple services id>     # Sign in with Apple Services ID
 
 **Google Cloud console:** create an **iOS OAuth client** for bundle
 `app.aloud.meditation`; keep the existing **web** client. Add **both** client ids
-to the server's `GOOGLE_CLIENT_IDS` (accepted token audiences) — the native
+to the server's `GOOGLE_CLIENT_IDS` (accepted token audiences) - the native
 iOS token's `aud` is the iOS client id, the Android/web token's is the web one.
 
-**iOS Info.plist** — add the Google **reversed-client-id** URL scheme (Google
+**iOS Info.plist** - add the Google **reversed-client-id** URL scheme (Google
 Cloud shows it for the iOS client; it looks like `com.googleusercontent.apps.NNN`):
 
 ```xml
@@ -154,10 +153,10 @@ Zero IAP code for the beta. Credits are bought on **aloud.rest via Stripe** and
 are account-bound, so they appear in the app after purchase via the existing
 ledger/auth. The buy-credits modal opens Stripe in `@capacitor/browser` and
 polls `/me` for the balance to land (Stripe can't redirect back into the
-`capacitor://` origin, so there's no return URL — same waiting flow as desktop).
+`capacitor://` origin, so there's no return URL - same waiting flow as desktop).
 USDC/x402 is hidden on mobile (App Store 3.1.1 forbids crypto unlocks; the modal
 already hides it when `window.ethereum` is absent). Native StoreKit / Play
-Billing consumable packs are deferred to public launch — see `zp47`, `czr`,
+Billing consumable packs are deferred to public launch - see `zp47`, `czr`,
 `a2j`.
 
 ## Still device-dependent (not done, needs real hardware)
@@ -165,12 +164,12 @@ Billing consumable packs are deferred to public launch — see `zp47`, `czr`,
 The TS layer is complete and tested, but these can only be validated on a
 device/simulator and are tracked separately:
 
-- **iOS audio session** — `playAndRecord` + concurrent mic during TTS playback
+- **iOS audio session** - `playAndRecord` + concurrent mic during TTS playback
   (barge-in), 30-min playback with the screen off, survives backgrounding. This
   is the crux from `meditation-pal-nn1`. WKWebView's `getUserMedia` should work
   once `NSMicrophoneUsageDescription` is set, but the session category behavior
   under TTS playback is the open risk.
-- **Native STT/TTS quality per device** — which device/OS categories the free
+- **Native STT/TTS quality per device** - which device/OS categories the free
   on-device recognizer + voices are good enough to default to, vs falling back
   to cloud. Full manual-validation matrix (buckets, test cases, default-by-
   category-and-cost logic) in
@@ -178,7 +177,7 @@ device/simulator and are tracked separately:
   (STT), `g0ox` (TTS). If native cuts off, the cloud fallbacks (`aloud` STT /
   cloud voices) already work on mobile.
 - **Keep-awake** actually holding the screen on across a full session.
-- **Native Google/Apple sign-in** — app-side is wired (`native-signin.ts`);
+- **Native Google/Apple sign-in** - app-side is wired (`native-signin.ts`);
   needs the Google/Apple console setup + build-time client ids above, then a
   device to verify. `meditation-pal-tpj4`.
 

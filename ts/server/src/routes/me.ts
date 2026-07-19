@@ -110,7 +110,7 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 source: 'one measured ~50-min session, history-caching on',
                 sessionMinutes: TYPICAL_SESSION_MINUTES,
                 confidence: 'order-of-magnitude (±~35%); validate before launch',
-                voiceBand: 'TTS cost is a band (spacious/typical/engaged) — it tracks facilitator verbosity, user share length, and model chattiness; local voices are free',
+                voiceBand: 'TTS cost is a band (spacious/typical/engaged) - it tracks facilitator verbosity, user share length, and model chattiness; local voices are free',
             },
             models: estimateModels(),
             stt: estimateStt(),

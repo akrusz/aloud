@@ -50,12 +50,12 @@ export function appBackendRoutes(_deps: Deps): Hono {
                 ollama: {
                     available: false,
                     installed: false,
-                    hint: 'Ollama runs on your own machine — use the desktop app for local models.',
+                    hint: 'Ollama runs on your own machine - use the desktop app for local models.',
                 },
                 claude_proxy: {
                     available: false,
                     installed: false,
-                    hint: 'Anthropic (Subscription) uses the local Claude Code CLI — use the desktop app.',
+                    hint: 'Anthropic (Subscription) uses the local Claude Code CLI - use the desktop app.',
                 },
             };
         for (const p of WEB_PROVIDERS) providers[p] = { available: true };

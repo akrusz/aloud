@@ -80,7 +80,7 @@ export function mountOllamaSettings(
                 info = data.ollama ?? {};
             }
         } catch {
-            // Backend unreachable — fall through to the direct probe below.
+            // Backend unreachable - fall through to the direct probe below.
         }
         // If the app backend didn't report Ollama state (not running in dev, or
         // errored), probe the daemon directly so a running Ollama isn't shown a

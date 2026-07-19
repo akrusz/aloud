@@ -1,5 +1,5 @@
 /* ============================================
-   aloud — Theme system
+   aloud - Theme system
    ============================================ */
 
 html { font-size: 16px; }
@@ -11,7 +11,7 @@ html { font-size: 16px; }
     --bg-card: #221a13;
     --bg-input: #281f16;
     /* Between --bg-secondary (view bg) and --bg-input (fields), nearer the
-       field — the .info-panel note surface, distinct from both. */
+       field - the .info-panel note surface, distinct from both. */
     --bg-note: #201608;
     --bg-surface: #2e2419;
     --bg-tertiary: #1e1710;
@@ -35,7 +35,7 @@ html { font-size: 16px; }
     --radius: 12px;
     --radius-sm: 8px;
     /* Effective height of the sticky top bar (.nav). An estimate kept in sync
-       with .nav's padding + brand line-height — used to keep floating modals
+       with .nav's padding + brand line-height - used to keep floating modals
        from sliding up under the bar. Slightly over-reserved on purpose.
        Includes the top safe-area inset so the reserve stays correct on notched
        phones, where .nav is taller by that inset (0 elsewhere). */
@@ -429,7 +429,7 @@ body {
 }
 
 .api-key-paste-status {
-    /* Match body text — feedback should be at least main-text size. */
+    /* Match body text - feedback should be at least main-text size. */
     font-size: 1rem;
     color: var(--text-secondary);
     margin-top: 0;
@@ -853,8 +853,7 @@ input[type="range"].slider-stops {
     --slider-segs: 2;
 }
 
-/* A slider cluster (label, track, end captions) reads as one control —
-   show the finger across all of it, not just the 12px track. The label
+/* A slider cluster (label, track, end captions) reads as one control - show the finger across all of it, not just the 12px track. The label
    needs its own rule: the UA stylesheet gives <label> cursor: default,
    which beats the inherited value. Opened info panels are reading
    material, not a control, so they keep the normal cursor. */
@@ -929,7 +928,7 @@ input[type="range"].slider-stops {
     transform: rotate(45deg);
 }
 
-/* Dev HUD (?debug=checkin) — live [WAIT]/check-in pacing readout,
+/* Dev HUD (?debug=checkin) - live [WAIT]/check-in pacing readout,
    mounted by the session view. Click-through so it never eats a tap. */
 .checkin-debug {
     position: fixed;
@@ -949,7 +948,7 @@ input[type="range"].slider-stops {
     pointer-events: none;
 }
 
-/* Radio — same look as the checkbox, but round with a dot. */
+/* Radio - same look as the checkbox, but round with a dot. */
 
 .radio-group {
     display: flex;
@@ -1026,7 +1025,7 @@ input[type="range"].slider-stops {
     padding: 0.6rem 0.8rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    /* Sit these choice cards on the intermediate note surface — a shade between
+    /* Sit these choice cards on the intermediate note surface - a shade between
        the view background and the text fields, so they read as raised without
        looking like inputs. Selected state below tints over it. */
     background: var(--bg-note);
@@ -1510,7 +1509,7 @@ body:has(.session-container) {
 }
 
 /* Persistent speech-to-text outage banner (id="stt-trouble"), above the input
-   row. A muted warning strip — visible enough to notice mid-session, calm
+   row. A muted warning strip - visible enough to notice mid-session, calm
    enough not to jar a meditation. Shown by removing .hidden. */
 .stt-trouble {
     margin: 0 0 0.75rem;
@@ -1528,7 +1527,7 @@ body:has(.session-container) {
 }
 
 /* One-click switch to aloud cloud speech, shown in the trouble banner when the
-   browser recognizer is blocked. Compact and calm — a way out, not an alarm. */
+   browser recognizer is blocked. Compact and calm - a way out, not an alarm. */
 .stt-trouble-btn {
     flex: none;
     padding: 0.3rem 0.75rem;
@@ -2053,7 +2052,7 @@ body:has(.session-container) {
     top: -1px;
 }
 
-/* Cloud-rate badge on a hosted voice row — "N☁️" ≈ N credits/hour, so a pricier
+/* Cloud-rate badge on a hosted voice row - "N☁️" ≈ N credits/hour, so a pricier
    voice reads as pricier (meditation-pal-b7i). Colored by tier: 'value' (cheaper
    Neural2) green, 'premium' (Chirp3-HD) amber. The title attr carries the exact
    credits/hr; the picker also shows a "1☁️ ≈ 1 credit/hour" legend. */
@@ -2080,7 +2079,7 @@ body:has(.session-container) {
 }
 
 /* The "1☁️ ≈ 1 credit/hour" legend under a credit-spending picker (voice list,
-   hosted model select). Quiet — it explains the badge without competing. */
+   hosted model select). Quiet - it explains the badge without competing. */
 .credit-rate-legend {
     margin: 0.5rem 0 0;
     color: var(--text-muted);
@@ -2088,7 +2087,7 @@ body:has(.session-container) {
 }
 
 /* A credit-spending control grayed out because it can't apply in the current
-   mode — e.g. the Provider/Model pickers in a noting circle with no AI
+   mode - e.g. the Provider/Model pickers in a noting circle with no AI
    participants. Dimmed and non-interactive, but still legible so the user can
    see what would otherwise be used (an #ai-inactive-note says why). */
 .ai-group-disabled {
@@ -2336,7 +2335,7 @@ body:has(.session-container) {
     animation: breathe 10s ease-in-out infinite;
 }
 
-/* Breathing pulse — animate ONLY transform + opacity (both composited
+/* Breathing pulse - animate ONLY transform + opacity (both composited
    without repainting). The orb's static box-shadow (.orb / .orb-nav) supplies
    the glow; opacity dims/brightens the whole orb including that shadow, so the
    glow still appears to breathe. Animating box-shadow here forced Firefox's
@@ -2367,7 +2366,7 @@ body:has(.session-container) {
    Ambient Effects
    ============================================ */
 
-/* Warm vignette — subtle edge darkening like firelight falloff */
+/* Warm vignette - subtle edge darkening like firelight falloff */
 body::before {
     content: '';
     position: fixed;
@@ -2381,7 +2380,7 @@ body::before {
     background: radial-gradient(ellipse at center, transparent 50%, rgba(120, 90, 50, 0.06) 100%);
 }
 
-/* Organic flicker — layered with breathe to break the perfect sine wave */
+/* Organic flicker - layered with breathe to break the perfect sine wave */
 @keyframes orbFlicker {
     0%, 100% { --orb-brightness: 1; }
     30% { --orb-brightness: 1.1; }
@@ -2398,8 +2397,8 @@ body::before {
     margin: auto;
     width: 140px;
     height: 140px;
-    /* Above the sticky nav (z-index: 100) so the centered gaze object — and
-       its FLIP transition / drag near the top — floats over the bar. */
+    /* Above the sticky nav (z-index: 100) so the centered gaze object - and
+       its FLIP transition / drag near the top - floats over the bar. */
     z-index: 150;
     cursor: grab;
     background: radial-gradient(circle at 45% 45% in oklab, #fff4c0 0%, #f8f288 18%, #f5d820 38%, #ffb805 49%, #ed7326 65%, #e71f75 71%, #870a3e 76%);
@@ -2411,7 +2410,7 @@ body::before {
     opacity: 1;
 }
 
-/* Gaze-mode pulse — transform only (the large static .orb-kasina box-shadow
+/* Gaze-mode pulse - transform only (the large static .orb-kasina box-shadow
    supplies the glow). Animating that 200px+ blur every frame was the single
    most expensive thing on screen for the compositor. */
 @keyframes kasinaPulse {
@@ -2423,7 +2422,7 @@ body::before {
     }
 }
 
-/* Rainbow easter egg — triggered by shaking the kasina orb */
+/* Rainbow easter egg - triggered by shaking the kasina orb */
 
 @keyframes rainbowRotate {
     from { filter: hue-rotate(0deg); }
@@ -2460,7 +2459,7 @@ body::before {
         #e8a0d8 calc(86% + var(--rainbow-shift)),
         #f7a8c4 calc(100% + var(--rainbow-shift))
     ) !important;
-    /* rainbowRotate (hue-rotate) is a GPU-composited filter pass — keep it for
+    /* rainbowRotate (hue-rotate) is a GPU-composited filter pass - keep it for
        the color cycling. rainbowFlow animated --rainbow-shift, scrolling the
        gradient stops, which repaints the gradient every frame and pegged the
        GPU process on Firefox/WebRender; dropped so the easter egg can stay up
@@ -2668,7 +2667,7 @@ body::before {
    Update Indicator & Modal
    ============================================ */
 
-/* Update available — pill button in nav, parallel entry in mobile More sheet.
+/* Update available - pill button in nav, parallel entry in mobile More sheet.
    Visibility driven off the brand's has-update / has-update-static classes
    (set by about.ts → runStartupUpdateNudge) via :has(), so we don't have to
    touch that JS lifecycle. */
@@ -2730,7 +2729,7 @@ html:has(.nav-brand.has-update) .update-btn {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    /* Modal tier — above tour elements but below notifications and the nav. */
+    /* Modal tier - above tour elements but below notifications and the nav. */
     z-index: 80;
     display: flex;
     align-items: center;
@@ -2746,7 +2745,7 @@ html:has(.nav-brand.has-update) .update-btn {
     border-radius: var(--radius);
     overflow: hidden;
     /* Never taller than the viewport (minus room for the top bar); the body
-       scrolls when content — e.g. the source-checkout commit list — is long. */
+       scrolls when content - e.g. the source-checkout commit list - is long. */
     max-height: calc(100dvh - 6rem);
     display: flex;
     flex-direction: column;
@@ -2786,7 +2785,7 @@ html:has(.nav-brand.has-update) .update-btn {
 
 /* The brand logo is sometimes wrapped in an <a> (e.g. linking to aloud.rest
    from the about modal). The wrapper shouldn't impose the default link
-   color/underline — the Knewave glyph + stroke is the brand and should
+   color/underline - the Knewave glyph + stroke is the brand and should
    look identical whether it's a link or not. */
 .about-app-name a,
 .about-app-name a:visited,
@@ -2802,7 +2801,7 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-bottom: 0.75rem;
 }
 
-/* Desktop self-update slot — revealed (JS removes .hidden) only when a newer
+/* Desktop self-update slot - revealed (JS removes .hidden) only when a newer
    release is available; mirrors where the old app surfaced its update
    link. */
 .about-update {
@@ -2836,7 +2835,7 @@ html:has(.nav-brand.has-update) .update-btn {
     color: var(--text-secondary);
 }
 
-/* Dev/browser "Get the latest release" link — block so it drops to its own
+/* Dev/browser "Get the latest release" link - block so it drops to its own
    line under the "Update available: X" version text. */
 .about-update-link {
     display: block;
@@ -3031,7 +3030,7 @@ html:has(.nav-brand.has-update) .update-btn {
     pointer-events: auto;
 }
 
-/* Success variant — a calm confirmation (e.g. credits added), not an alarm. */
+/* Success variant - a calm confirmation (e.g. credits added), not an alarm. */
 .error-toast.toast-success {
     background: var(--accent, #4a7c59);
 }
@@ -3048,7 +3047,7 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-right: 1.25rem;
 }
 /* The buy flow stacks more than the 70vh shared cap allows (subtitle, balance,
-   two tab rows, pack list, custom-amount row, notes — and the gift flow adds a
+   two tab rows, pack list, custom-amount row, notes - and the gift flow adds a
    recipient field + note), so let the whole modal scroll instead of clipping.
    The header is pinned so the title/close stay reachable while the packs scroll
    under it. Height + position are governed by the overlay rule below. */
@@ -3115,7 +3114,7 @@ html:has(.nav-brand.has-update) .update-btn {
     color: var(--danger, #c0503e);
 }
 
-/* USDC (x402) settle confirmation — shown in-place since there's no redirect. */
+/* USDC (x402) settle confirmation - shown in-place since there's no redirect. */
 .buy-credits-success {
     margin-top: 0.75rem;
     color: var(--success, #5a9e6f);
@@ -3125,7 +3124,7 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-top: 0.5rem;
 }
 
-/* Desktop "finish in your browser" state — shown after Stripe opens in the
+/* Desktop "finish in your browser" state - shown after Stripe opens in the
  * system browser (goToCheckout), since the webview can't host checkout. */
 .buy-credits-waiting {
     display: flex;
@@ -3259,7 +3258,7 @@ html:has(.nav-brand.has-update) .update-btn {
 /* Inset the modal body 1.25rem; the header keeps its full-bleed padding + border
  * so the divider under it still spans edge to edge. Plain controls take padding;
  * `.provider-hint` children (the subtitle + error) are tinted BOXES, so they take
- * MARGIN instead — padding would leave the box itself full-width with only the
+ * MARGIN instead - padding would leave the box itself full-width with only the
  * text inset. */
 .signin-modal > *:not(.voice-modal-header):not(.provider-hint) {
     padding-left: 1.25rem;
@@ -3339,7 +3338,7 @@ html:has(.nav-brand.has-update) .update-btn {
     border: 1px solid var(--border);
     font-size: 0.95rem;
     font-family: var(--font);
-    /* Theme-aware — the old --input-bg fallback was #fff, which rendered a white
+    /* Theme-aware - the old --input-bg fallback was #fff, which rendered a white
      * box (and an unreadable placeholder) in dark mode. */
     background: var(--bg-input);
     color: var(--text-primary);
@@ -3490,7 +3489,7 @@ html:has(.nav-brand.has-update) .update-btn {
 .settings-section .pacing-subhead-note {
     margin: 0 0 var(--space-xs);
 }
-/* A row directly under a subhead (or its note) keeps its labels tight — the
+/* A row directly under a subhead (or its note) keeps its labels tight - the
    subhead already provides the separation; the generic .form-group > label
    space-md below is for groups stacked without one. */
 .settings-section .pacing-subhead + .form-row .form-group > label,
@@ -3671,7 +3670,7 @@ html:has(.nav-brand.has-update) .update-btn {
        sticking to the document root's text-scale. Same em-based
        sizing the other preview elements use. */
     font-size: 0.875em;
-    /* Padding in em so the button box scales too — otherwise the
+    /* Padding in em so the button box scales too - otherwise the
        button stays the same physical size while the inner glyphs
        grow/shrink, which looks awkward. */
     padding: 0.6em 1.2em;
@@ -3679,7 +3678,7 @@ html:has(.nav-brand.has-update) .update-btn {
 
 /* The preview box carries its own data-theme (set by settings.js), so the
    plain [data-theme="light"] / [data-theme="dark"] palette blocks above apply
-   to it directly and cascade to its children — no preview-local literals to
+   to it directly and cascade to its children - no preview-local literals to
    drift out of sync with the real theme. */
 
 .settings-section .form-group > label {
@@ -4055,7 +4054,7 @@ html:has(.nav-brand.has-update) .update-btn {
     gap: var(--space-sm);
 }
 
-/* Setup-footer (index page) — same fixed-bar pattern as settings-footer
+/* Setup-footer (index page) - same fixed-bar pattern as settings-footer
    so the Begin Session button is always reachable, even mid-scroll.
    z-index sits above the tour spotlight/overlay (55, or 65 when fixed) but
    below the tour tooltip card (70): the opaque bar stays on top of the
@@ -4281,7 +4280,7 @@ html:has(.nav-brand.has-update) .update-btn {
     text-decoration: underline;
 }
 
-/* Welcome card (step 0 — centered, no spotlight) */
+/* Welcome card (step 0 - centered, no spotlight) */
 .tour-welcome {
     position: fixed;
     z-index: 70;
@@ -4393,7 +4392,7 @@ html:has(.nav-brand.has-update) .update-btn {
     border-color: var(--accent);
 }
 
-/* "Show setup guide" button in footer — matches btn-config-path */
+/* "Show setup guide" button in footer - matches btn-config-path */
 .tour-show-btn {
     padding: 0.35rem 0.85rem;
     font-size: 0.875rem;
@@ -4459,15 +4458,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     margin: 0.4rem 0.25rem;
 }
 
-/* Floating session hamburger — visible only on mobile during a session
+/* Floating session hamburger - visible only on mobile during a session
    (set up in the mobile breakpoint below). */
 .session-hamburger {
     display: none;
 }
 
 @media (max-width: 767px) {
-    /* Top nav becomes a thin transparent floating header on mobile —
-       only the brand (left) and the session orb (right) remain visible. */
+    /* Top nav becomes a thin transparent floating header on mobile - only the brand (left) and the session orb (right) remain visible. */
     .nav {
         position: fixed;
         top: 0;
@@ -4525,7 +4523,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
             calc(3.1rem + env(safe-area-inset-bottom) * 0.4);
     }
 
-    /* Session page: the .main host is padding:0 by design — push the
+    /* Session page: the .main host is padding:0 by design - push the
        inner container down so chat doesn't underlap the floating chrome
        (the brand/orb header now sits below the notch, so clear that too). */
     .session-container {
@@ -4536,14 +4534,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         max-width: 95%;
     }
 
-    /* Three-up grids collapse straight to single column on phone — skip
+    /* Three-up grids collapse straight to single column on phone - skip
        the awkward two-up intermediate step. */
     .style-cards,
     .modifier-toggles {
         grid-template-columns: 1fr;
     }
 
-    /* Tap targets — the form is built around a cursor; on phones we
+    /* Tap targets - the form is built around a cursor; on phones we
        need thumb-sized hit zones. Roughly aiming for 44px minimums on
        the most-tapped controls. */
     .tab-btn {
@@ -4574,13 +4572,13 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         margin-left: 0.5rem;
     }
     /* With three method tabs the tab-bar "?" gets crushed against the right
-       edge on phones. Float it up into the top chrome instead — centered
+       edge on phones. Float it up into the top chrome instead - centered
        between the "aloud." wordmark (left) and the orb (right), matching the
        same translucent chip treatment so it reads as part of the header. It
        still toggles the methods panel / "take the full tour" link as before. */
     .tab-bar .info-btn {
         position: fixed;
-        /* Centered on the bar's vertical midline — the 1.4rem brand chip sets
+        /* Centered on the bar's vertical midline - the 1.4rem brand chip sets
            the bar height, so its middle lands ~0.75rem below the top edge. */
         top: 0.75rem;
         left: 50%;
@@ -4597,7 +4595,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         font-size: 1.5rem;
         padding: 0.25rem 0.5rem;
     }
-    /* Session input controls (Embers / Kasina / Voice) — chunkier so
+    /* Session input controls (Embers / Kasina / Voice) - chunkier so
        they're tappable, and allowed to wrap so they don't crash into
        each other on the narrowest widths. */
     .input-controls {
@@ -4721,7 +4719,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding-bottom: calc(env(safe-area-inset-bottom) * 0.4);
     }
 
-    /* Floating hamburger button — top-right, sharing a chip with the
+    /* Floating hamburger button - top-right, sharing a chip with the
        orb in .nav-session-info. */
     .session-hamburger {
         display: flex;
@@ -4768,7 +4766,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         right: 0;
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
-        /* Only ~0.4x of the home-indicator inset as bottom clearance — the full
+        /* Only ~0.4x of the home-indicator inset as bottom clearance - the full
            inset (~34px) leaves a big dead band under the labels. 0.4x keeps the
            tap targets off the indicator while reclaiming most of that space. */
         padding: 0.35rem 0.25rem calc(0.3rem + env(safe-area-inset-bottom) * 0.4);
@@ -4949,7 +4947,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Save Settings button: at this width the single-line "Save Settings *"
        starts overflowing the viewport. Drop "Settings" (and its inline dirty
        marker) onto a second line below "Save". First-run "Save & Start"
-       stays single-line — no .settings-word wrapper on that label.
+       stays single-line - no .settings-word wrapper on that label.
        The button is display: inline-flex, so we use flex-wrap + a full-row
        basis on .settings-word rather than `display: block`. */
     .btn-begin {

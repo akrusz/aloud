@@ -474,7 +474,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             }
             track?.addEventListener('ended', () => {
                 if (this.stopRequested || this.stream !== stream) return;
-                console.warn('[vad] capture track ended unexpectedly — reacquiring mic');
+                console.warn('[vad] capture track ended unexpectedly - reacquiring mic');
                 this.releaseStream();
                 void this.ensureCaptureGraph().catch((err) => {
                     console.warn('[vad] mic reacquire failed:', err);
@@ -778,7 +778,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
                         : await transcribeChunks(this.chunks);
                 if (tailHasSpeechHints && lastSpecResult) {
-                    console.info('[vad] tail had speech hints after the speculative pass — re-transcribed full buffer');
+                    console.info('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
                 }
 
                 // The user kept talking past the submit decision - the turn
@@ -788,7 +788,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (this.postSubmitSpeech && !this.stopRequested) {
                     this.postSubmitSpeech = false;
                     this.utteranceDone = false;
-                    console.info('[vad] speech continued past submit — reopening the utterance');
+                    console.info('[vad] speech continued past submit - reopening the utterance');
                     if (result.ok && result.text) {
                         emittedPartial = true;
                         lastSpecResult = { text: result.text, seconds: result.seconds };

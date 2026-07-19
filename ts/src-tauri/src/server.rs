@@ -320,7 +320,7 @@ async fn stt_whisper(
     if !state.whisper_ready.load(Ordering::SeqCst) {
         return err(
             StatusCode::SERVICE_UNAVAILABLE,
-            "Whisper model still loading — try again in a moment.",
+            "Whisper model still loading - try again in a moment.",
         );
     }
     if body.is_empty() {
@@ -347,7 +347,7 @@ async fn stt_whisper(
         None => {
             return err(
                 StatusCode::SERVICE_UNAVAILABLE,
-                "Whisper model still loading — try again in a moment.",
+                "Whisper model still loading - try again in a moment.",
             )
         }
     };
@@ -482,7 +482,7 @@ async fn tts_download_model(State(state): State<Shared>, Json(req): Json<ModelRe
         .expect("build ndjson response")
 }
 
-/// `POST /app/v1/tts/uninstall-model` — delete a downloaded Piper model.
+/// `POST /app/v1/tts/uninstall-model` - delete a downloaded Piper model.
 async fn tts_uninstall_model(
     State(state): State<Shared>,
     Json(req): Json<ModelReq>,
@@ -738,7 +738,7 @@ async fn open_sessions_folder(State(state): State<Shared>) -> (StatusCode, Json<
     open_dir_response(&state.sessions_dir)
 }
 
-// --- /app/v1/sessions — on-disk session logs (desktop persistence) ------------
+// --- /app/v1/sessions - on-disk session logs (desktop persistence) ------------
 
 /// Session ids are `YYYY-MM-DD-HHMMSS`, but the client is untrusted, so allow
 /// only a safe filename charset. This is what keeps `{id}` from escaping the

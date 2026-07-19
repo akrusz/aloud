@@ -1,7 +1,7 @@
 # Voice Barge-In Behavior
 
 Barge-in lets the user interrupt the facilitator mid-sentence by speaking over
-its TTS. It is **entirely client-side** — the backend just streams TTS audio and
+its TTS. It is **entirely client-side** - the backend just streams TTS audio and
 receives the next utterance; it's unaware a barge-in occurred. The energy/timing
 heuristics below are tuned for typical conversation volume.
 
@@ -10,15 +10,14 @@ heuristics below are tuned for typical conversation volume.
 The path is chosen by STT backend (`ts/ui/src/views/session.ts`,
 `engineDrivenBargeIn = sttBackend === 'server-whisper'`):
 
-1. **Engine-driven (server-Whisper)** — `ts/ui/src/adapters/whisper-pcm-stt.ts`.
+1. **Engine-driven (server-Whisper)** - `ts/ui/src/adapters/whisper-pcm-stt.ts`.
    The adapter keeps a continuous, echo-cancelled capture stream alive between
    turns and runs barge-in detection on it (wired via `setBargeInHandler` in
    `session.ts`). Because that stream is always warm, it can keep an onset
    **pre-buffer** (`PRE_BUFFER_MS`, 2000ms ring) so the first word(s) spoken over
-   the facilitator survive into the captured utterance — **no re-speak needed.**
+   the facilitator survive into the captured utterance - **no re-speak needed.**
 
-2. **Generic wrapper (Web Speech, Capacitor, any non-self-detecting engine)** —
-   `ts/ui/src/barge-in.ts` (`wrapTtsWithBargeIn` / `BargeInListener`). During each
+2. **Generic wrapper (Web Speech, Capacitor, any non-self-detecting engine)** - `ts/ui/src/barge-in.ts` (`wrapTtsWithBargeIn` / `BargeInListener`). During each
    `speak()` it opens a *parallel* echo-cancelled mic stream and watches RMS
    energy. It does **not** capture the triggering audio; once TTS is cancelled the
    normal listen loop wakes (busy → false as the `speak()` promise resolves) and
@@ -40,7 +39,7 @@ Both pathways open their mic stream with `echoCancellation: true`. Echo
 cancellation matters most here: the browser subtracts speaker output from the
 mic feed, so the facilitator's own TTS is far less likely to cross the barge-in
 threshold. The elevated threshold is the *second* line of defense, for
-environments where AEC is imperfect — notably some WebViews and speaker-heavy
+environments where AEC is imperfect - notably some WebViews and speaker-heavy
 setups. If false barge-ins recur, suspect AEC not being honored on that
 platform.
 
@@ -51,7 +50,7 @@ platform.
    native engine on desktop) and makes the in-flight `speak()` promise resolve.
 2. The generic listener stops itself (one fire per `speak()`); the engine-driven
    adapter flips its continuous stream from idle to capturing.
-3. The listen loop resumes and captures the user's utterance — seeded from the
+3. The listen loop resumes and captures the user's utterance - seeded from the
    onset pre-buffer on the engine-driven path, or from the user's next words on
    the generic path.
 
@@ -73,7 +72,7 @@ and no watchdog/cooldown machinery is needed.
 
 | File | Role |
 |---|---|
-| `ts/ui/src/barge-in.ts` | `BargeInListener` + `wrapTtsWithBargeIn` — the generic parallel-stream detector |
+| `ts/ui/src/barge-in.ts` | `BargeInListener` + `wrapTtsWithBargeIn` - the generic parallel-stream detector |
 | `ts/ui/src/adapters/whisper-pcm-stt.ts` | Engine-driven barge-in on the continuous stream + onset pre-buffer |
 | `ts/ui/src/views/session.ts` | Picks the pathway (`engineDrivenBargeIn`), wires `onBargeIn` / `setBargeInHandler` |
 | `ts/tests/barge-in.test.ts` | Detector unit tests |

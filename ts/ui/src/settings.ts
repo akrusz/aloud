@@ -106,7 +106,7 @@ export function resolveSetupProvider(
     return (available[0]?.value ?? 'aloud') as Provider;
 }
 
-/** The modes the setup tab bar offers — ModeSpec ids from facilitation/modes.ts.
+/** The modes the setup tab bar offers - ModeSpec ids from facilitation/modes.ts.
  *  (SessionState.meditationType is a plain string for forward compatibility;
  *  this union is just the UI's closed list of tabs.) */
 export type MeditationType = 'exploration' | 'noting' | 'felt_sense';

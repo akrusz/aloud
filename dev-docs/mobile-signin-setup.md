@@ -1,4 +1,4 @@
-# Native mobile sign-in — console + config checklist
+# Native mobile sign-in - console + config checklist
 
 Everything needed to turn on native Google + Apple sign-in in the iOS app
 (bead `meditation-pal-tpj4`). The **code is done and compiles**; what's left is
@@ -7,7 +7,7 @@ buttons light up; skip any and that provider's button simply doesn't render
 (email still works, and it stays App-Store-compliant).
 
 App Store Guideline 4.8: on iOS, offering Google requires also offering Apple.
-The code renders both when configured — Apple needs no client id on iOS (below),
+The code renders both when configured - Apple needs no client id on iOS (below),
 so doing Google means doing Apple too. Both are set up here.
 
 ## The short version
@@ -21,7 +21,7 @@ so doing Google means doing Apple too. Both are set up here.
 | 5 | Server (Fly) | `GOOGLE_CLIENT_IDS` += iOS client id; `APPLE_CLIENT_IDS` += `app.aloud.meditation` | token verification |
 | 6 | Xcode | Confirm **Sign in with Apple** shows under Signing & Capabilities | signing |
 
-## 1. Google Cloud — iOS OAuth client
+## 1. Google Cloud - iOS OAuth client
 
 APIs & Services → Credentials → **Create credentials → OAuth client ID → iOS**.
 Bundle ID: `app.aloud.meditation`. You get:
@@ -29,19 +29,19 @@ Bundle ID: `app.aloud.meditation`. You get:
 - its **reversed** form `com.googleusercontent.apps.1234567890-abc` (Google shows
   both; the reversed one is the URL scheme).
 
-Keep your existing **web** client ID (`VITE_GOOGLE_CLIENT_ID`) — it stays the
+Keep your existing **web** client ID (`VITE_GOOGLE_CLIENT_ID`) - it stays the
 Android/web audience.
 
-## 2. Apple Developer — Sign in with Apple
+## 2. Apple Developer - Sign in with Apple
 
 Certificates, IDs & Profiles → **Identifiers** → your App ID
 (`app.aloud.meditation`) → enable **Sign in with Apple** → Save. That's all iOS
-native Apple needs — the token's audience is the **bundle id**, so there's no
+native Apple needs - the token's audience is the **bundle id**, so there's no
 Services ID to create for the app (the Services ID is only for the *web* Apple
 flow, which you already have). The `App.entitlements` file is already in the
 project requesting this capability.
 
-## 3. Info.plist — paste the reversed client id
+## 3. Info.plist - paste the reversed client id
 
 In `ts/ios/App/App/Info.plist`, replace the placeholder:
 
@@ -62,11 +62,11 @@ VITE_GOOGLE_CLIENT_ID=<your existing web client id> \
 npm run ui:build && npx cap sync ios
 ```
 
-- `VITE_GOOGLE_IOS_CLIENT_ID` — required for Google on **iOS**.
-- `VITE_GOOGLE_CLIENT_ID` — only needed for Google on **Android** (webClientId).
+- `VITE_GOOGLE_IOS_CLIENT_ID` - required for Google on **iOS**.
+- `VITE_GOOGLE_CLIENT_ID` - only needed for Google on **Android** (webClientId).
 - Apple on iOS needs **no** env var (system flow off the bundle id).
 
-## 5. Server (Fly) — accept the new token audiences
+## 5. Server (Fly) - accept the new token audiences
 
 No code change; two env vars, then redeploy. The native tokens are verified by
 `aud`:
@@ -83,7 +83,7 @@ fly secrets set \
 (Comma-separated; keep the existing web values. Verified against
 `ts/server/src/auth/google.ts` / `apple.ts`, which check `aud ∈ *_CLIENT_IDS`.)
 
-## 6. Xcode — confirm the capability
+## 6. Xcode - confirm the capability
 
 Open `npx cap open ios` → App target → **Signing & Capabilities**. With the
 entitlement in the project, **Sign in with Apple** appears here automatically;

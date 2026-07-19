@@ -98,7 +98,7 @@ interface SettleResponse {
  *  in du9 Phase 3. Until then, refuse loudly so we never half-settle. */
 async function facilitatorAuthHeaders(settings: X402Settings): Promise<Record<string, string>> {
     if (!settings.useCdpFacilitator) return {};
-    throw new Error('x402 Base mainnet (CDP facilitator) is not wired yet — testnet only (du9 Phase 3)');
+    throw new Error('x402 Base mainnet (CDP facilitator) is not wired yet - testnet only (du9 Phase 3)');
 }
 
 async function facilitatorPost(
@@ -132,7 +132,7 @@ function paymentRequirements(pack: CreditPack, settings: X402Settings, resource:
         network: settings.network,
         maxAmountRequired: String(pack.priceUsdCents * 10_000),
         resource,
-        description: `aloud credits — ${pack.label}`,
+        description: `aloud credits - ${pack.label}`,
         mimeType: 'application/json',
         payTo: settings.payTo,
         maxTimeoutSeconds: 300,

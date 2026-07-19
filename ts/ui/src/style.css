@@ -1,6 +1,6 @@
 /* aloud UI stylesheet.
  *
- * app-base.css is the core stylesheet — variables, class names, animations,
+ * app-base.css is the core stylesheet - variables, class names, animations,
  * responsive rules. It was vendored here (from the original app's static/css)
  * when Python was removed (meditation-pal-sk8) and is now the single source
  * of truth for the base styles.
@@ -16,7 +16,7 @@
    TS-preview-only additions
    ============================================ */
 
-/* First-paint boot orb (index.html #boot-orb, a .orb-kasina form) — faint
+/* First-paint boot orb (index.html #boot-orb, a .orb-kasina form) - faint
    magenta ripples radiating outward so it reads as "working" while the bundle
    loads. Two staggered border-rings (transparent centers, so the orb's
    gradient shows through) scale up and fade. Magenta tracks the per-theme
@@ -28,8 +28,8 @@
    (orbFlicker) and a transform pulse (kasinaPulse); in Chromium (seen in Brave)
    an element with an animated filter / composited transform clips its own
    box-shadow to the border box, so the soft glow squares off. The boot orb is a
-   brief first-paint state that doesn't need the flicker/pulse — the ripple rings
-   below already read as "working" — so we drop both compositing triggers here
+   brief first-paint state that doesn't need the flicker/pulse - the ripple rings
+   below already read as "working" - so we drop both compositing triggers here
    and the box-shadow renders as the intended round glow. */
 #boot-orb {
     filter: none;
@@ -86,7 +86,7 @@
     transform-origin: left center;
 }
 
-/* In-app confirm/alert dialogs (ui/src/dialog.ts) — replace
+/* In-app confirm/alert dialogs (ui/src/dialog.ts) - replace
    window.confirm()/alert(), which silently no-op in the Tauri webview. */
 .app-dialog-backdrop {
     position: fixed;
@@ -140,7 +140,7 @@
     font-family: 'Knewave', cursive;
 }
 
-/* Crypto donation panel in the About modal — revealed by clicking the
+/* Crypto donation panel in the About modal - revealed by clicking the
    krusz.eth link (these classes are TS-UI-only, so they live here rather
    than in the imported legacy stylesheet). The QR encodes the bare 0x
    address so it works on whatever chain/token the sender chooses (mainnet
@@ -181,8 +181,7 @@
 
 @media (max-width: 767px) {
     /* The mobile top bar is a transparent floating header with
-       pointer-events:none so it doesn't block content scrolling beneath it —
-       which also means only the brand/orb (pointer-events:auto) can drag the
+       pointer-events:none so it doesn't block content scrolling beneath it - which also means only the brand/orb (pointer-events:auto) can drag the
        window. During a session the content sits below the header (padding-top),
        so re-enable the whole strip as a drag region (tauri-chrome listens on
        .nav). Non-session pages keep the click-through behavior. */
@@ -192,7 +191,7 @@
 }
 
 @media (max-width: 530px) {
-    /* The imported rule wraps .input-row at this width — voice-status takes a
+    /* The imported rule wraps .input-row at this width - voice-status takes a
        full row and the timer/buttons drop below. That's right for exploration
        (status + timer + TTS + mic + Just Listen crowd the row), but noting has
        fewer controls and no Just Listen, so the reflow is gratuitous. Keep
@@ -211,7 +210,7 @@
 
 /* TTS settings row layout. The row wraps and the ElevenLabs key row is
    full-width, but where the key lands relative to the voice picker depends on
-   width — the two half-width inputs don't sequence cleanly the same way at both
+   width - the two half-width inputs don't sequence cleanly the same way at both
    widths, so we reorder with flex `order` rather than DOM order:
      • Wide: engine + voices share the top row; the full-width key drops below
        them (engine 1, voices 2, key 3). When the key is hidden, engine + voices
@@ -261,7 +260,7 @@
 }
 
 /* Wide widths: the key is a third COLUMN in the TTS row (engine | key | voices),
-   not a full-width field dropped below — so its label + input top-align with the
+   not a full-width field dropped below - so its label + input top-align with the
    engine selector and voice button, the actions hanging beneath the input. The
    id+class selector outranks `.form-row-tts > .form-group-fullrow` (flex 1 1 100%)
    to pull it back into the row. The <=767px block keeps the field stacked
@@ -305,7 +304,7 @@
 /* The TS SPA mounts views into #app-root, an extra wrapper between .main
    and the view that the old multi-page app didn't have. The lifted session layout
    pins .input-area to the bottom by making .session-container flex:1 inside
-   a full-height .main — but that chain breaks across #app-root unless it
+   a full-height .main - but that chain breaks across #app-root unless it
    also grows and stays a flex column. Scope it to session views (:has) so
    scrollable pages like setup/settings/history keep their natural height. */
 .main:has(.session-container) > #app-root,
@@ -375,7 +374,7 @@
     color: var(--text-primary);
 }
 
-/* Setup view — extras the existing CSS doesn't cover */
+/* Setup view - extras the existing CSS doesn't cover */
 .session-stage {
     display: flex;
     flex-direction: column;
@@ -407,7 +406,7 @@
 }
 /* Bubble shape, padding, background, max-width, and right/left alignment all
    come from the lifted .message-content rules (style.css). Don't restyle
-   .message itself — doing so wrapped the user's text in a SECOND bubble and,
+   .message itself - doing so wrapped the user's text in a SECOND bubble and,
    with the nested max-widths, forced short messages onto a second line. */
 .message.partial .message-content {
     color: var(--text-muted);
@@ -415,7 +414,7 @@
 }
 
 /* Inline "Buy clouds to continue" affordance under the out-of-credits apology
-   bubble — one-tap recovery right in the transcript (meditation-pal-4l5). */
+   bubble - one-tap recovery right in the transcript (meditation-pal-4l5). */
 .buy-clouds-inline {
     margin-top: 0.5rem;
     padding: 0.4rem 0.85rem;
@@ -431,7 +430,7 @@
 }
 
 /* Noting participant rows + cue use the lifted .participant-* / .noting-option
-   / .sound-pick-btn classes (from the imported stylesheet) — no overrides here. */
+   / .sound-pick-btn classes (from the imported stylesheet) - no overrides here. */
 /* Trailing "…" marks speech that's transcribed but not yet submitted (the
    pause-before-submit window). Pulses gently so it reads as "still listening".
    Applies to any partial bubble, so it'll cover per-chunk speculative
@@ -481,8 +480,7 @@
     padding: 0.25rem 0;
 }
 
-/* Voice picker preview row (TS preview's simple dropdown variant —
-   the modal lift from voice-picker.js lives in meditation-pal-cfy). */
+/* Voice picker preview row (TS preview's simple dropdown variant - the modal lift from voice-picker.js lives in meditation-pal-cfy). */
 .voice-row {
     display: flex;
     gap: 0.5rem;
@@ -515,7 +513,7 @@
 
 /* meditation-pal-93b: the lifted breakpoints key off viewport width only,
    so a bumped --text-scale widens content without moving the breakpoint and
-   these rows overflow. Let them reflow intrinsically — wraps on overflow from
+   these rows overflow. Let them reflow intrinsically - wraps on overflow from
    any cause (narrow viewport or large text), independent of the px breakpoints. */
 .settings-footer-secondary {
     flex-wrap: wrap;
@@ -528,14 +526,14 @@
 /* Combined estimated cloud rate for the configured session (meditation-pal-14s),
    rendered as a small second line INSIDE the Begin button rather than a separate
    floating pill. Hidden entirely when the session spends nothing (local/BYOK
-   across every leg — see updateSessionEstimate), so a free session shows a plain
+   across every leg - see updateSessionEstimate), so a free session shows a plain
    single-line CTA. The "≈" carries the estimate/per-hour caveat. */
 .setup-footer-inner {
     display: flex;
     justify-content: center;
     align-items: center;
 }
-/* One line — "Begin Session (≈ N☁️/hr)" — to keep the CTA a single row tall.
+/* One line - "Begin Session (≈ N☁️/hr)" - to keep the CTA a single row tall.
    Natural width on desktop, full-width on phone (narrow override below + the
    lifted .setup-footer .btn-begin rule). */
 .setup-footer-inner .btn-begin {
@@ -548,13 +546,13 @@
     padding-right: 1.5rem;
 }
 /* A parenthetical aside after the label, SAME size as it. The parens (not
-   opacity — house style avoids opacity de-emphasis) mark it as secondary; it
+   opacity - house style avoids opacity de-emphasis) mark it as secondary; it
    inherits the label's color/weight so it stays legible on the accent CTA. */
 .btn-begin-rate {
     font-size: inherit;
     font-weight: inherit;
     margin-left: 0.4em;
-    /* Taps fall through to the button (begin the session) — a label, not a control. */
+    /* Taps fall through to the button (begin the session) - a label, not a control. */
     pointer-events: none;
 }
 .btn-begin-rate::before {
@@ -574,20 +572,19 @@
 
 /* The ☁️ unit glyph is pale and washes out on a light surface. Color emoji
    ignore -webkit-text-stroke, so ring it with tight black drop-shadows in four
-   directions — a thin dark edge that reads on white and is invisible on dark. */
+   directions - a thin dark edge that reads on white and is invisible on dark. */
 .cloud-glyph {
     display: inline-block;
     /* A hair of side margin so the outline can't bleed into adjacent text. */
     margin: 0 2px;
-    /* Dark-brown ring (the dark-mode input/dropdown bg) rather than black —
-       softer, on-brand; still pops the pale ☁️ on a light surface. Hard-coded
+    /* Dark-brown ring (the dark-mode input/dropdown bg) rather than black - softer, on-brand; still pops the pale ☁️ on a light surface. Hard-coded
        (not a theme var) so it stays this brown in both themes. */
     filter:
         drop-shadow(1px 0 0 #281f16) drop-shadow(-1px 0 0 #281f16)
         drop-shadow(0 1px 0 #281f16) drop-shadow(0 -1px 0 #281f16);
 }
 
-/* Cloud-balance chip in the Display style-preview — mirrors the setup pill
+/* Cloud-balance chip in the Display style-preview - mirrors the setup pill
    (.session-estimate) but inline, and in em so it scales with the preview. */
 .preview-pill {
     display: inline-block;
@@ -604,7 +601,7 @@
    / .session-item classes, so styling cascades from the @import. (The earlier
    from-scratch .history-row/.history-list rules were dead and removed.) */
 
-/* Setup view — light layout glue. The existing app uses .setup-container
+/* Setup view - light layout glue. The existing app uses .setup-container
    class names verbatim so most styling cascades through the @import.
    These rules only fill in the small layout pieces the existing CSS
    relies on parent-container layout for (.setup-form etc.). */
@@ -627,7 +624,7 @@
     flex: 1;
     min-width: 180px;
 }
-/* Three-up rows (e.g. Speech Recognition / Language / Whisper model) — let the
+/* Three-up rows (e.g. Speech Recognition / Language / Whisper model) - let the
    columns get a bit narrower before wrapping so all three sit on one line. */
 .form-row-thirds > .form-group {
     min-width: 140px;
@@ -646,7 +643,7 @@
        and a text I-beam on chrome; keep the default arrow cursor on chrome. */
     cursor: default;
 }
-/* Links and buttons are draggable by default in WKWebView — grabbing the
+/* Links and buttons are draggable by default in WKWebView - grabbing the
    "aloud." brand (an <a>) started a native link-drag (ghost image) instead of
    moving the window. Kill element-dragging on chrome so the title-bar drag
    region wins. */
@@ -823,17 +820,17 @@
     font-size: 0.875rem;
     opacity: 0.85;
     /* The streamed log line can be long (brew/curl output); don't let it push
-       the layout — clip to a single line. */
+       the layout - clip to a single line. */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* Settings "Danger zone" (meditation-pal-8jc) — set apart from the everyday
+/* Settings "Danger zone" (meditation-pal-8jc) - set apart from the everyday
    settings above with the palette's --danger. Holds the BYOK footgun and
    irreversible account deletion, collapsed behind a Show toggle.
    The compound selector beats `.settings-section:last-of-type`, which zeroes the
-   section border-bottom — without it the box's bottom edge goes missing since
+   section border-bottom - without it the box's bottom edge goes missing since
    the danger zone is the last section. */
 .settings-section.settings-danger {
     border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
@@ -860,7 +857,7 @@
 }
 /* The "Add an API key to load models" stand-in that replaces the model <select>
    when no list can be fetched. A bare <p> sits at the top of the slot, reading
-   higher than the provider dropdown beside it — match the select's height and
+   higher than the provider dropdown beside it - match the select's height and
    center the text so the two line up. */
 .model-unavailable {
     margin: 0;
@@ -868,7 +865,7 @@
     align-items: center;
     min-height: 2.75rem;
 }
-/* aloud cloud cold-start note in the model slot — matches .model-unavailable's
+/* aloud cloud cold-start note in the model slot - matches .model-unavailable's
    height so the slot doesn't jump while the hosted service wakes. Muted via
    color (not opacity), consistent with .ollama-rec-hint. */
 .model-cloud-waking {
@@ -921,7 +918,7 @@
     color: var(--text-primary);
 }
 
-/* Opt-in live balance during a session (meditation-pal-14s) — sits by the timer,
+/* Opt-in live balance during a session (meditation-pal-14s) - sits by the timer,
    same understated treatment. Hidden unless enabled + a balance is known. */
 .session-balance {
     font-size: 0.875rem;
@@ -951,7 +948,7 @@
     color: var(--text-muted);
 }
 
-/* Nav "ⓘ" button — opens the in-session info panel. Styled to match the
+/* Nav "ⓘ" button - opens the in-session info panel. Styled to match the
    theme-toggle beside it (bordered pill, same size/tint). */
 .nav-info-btn {
     background: transparent;
@@ -1077,7 +1074,7 @@
     border-color: var(--accent, #df3f88);
 }
 
-/* Buy-credits custom amount (type-your-own) — a labelled input + Buy button,
+/* Buy-credits custom amount (type-your-own) - a labelled input + Buy button,
    set off from the preset packs above it. */
 .buy-credits-custom {
     margin-top: 14px;

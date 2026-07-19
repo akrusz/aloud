@@ -1,6 +1,6 @@
 # Running aloud cloud (`@aloud/server`)
 
-aloud cloud — a Hono proxy with Google/Apple/email auth, a credit ledger, and
+aloud cloud - a Hono proxy with Google/Apple/email auth, a credit ledger, and
 metered LLM/STT/TTS billing. Lives at `ts/server/`, a workspace package of `ts/`
 (`@aloud/core`). Design rationale is in `ts/server/README.md`; this file is the
 operational quick-reference. Deploying it: [deploy.md](deploy.md).
@@ -12,7 +12,7 @@ cd ts            # the workspace root
 npm install      # installs server deps too (hoisted; server is a workspace)
 
 cd ts/server
-npm run dev      # tsx watch — boots on :8787 with an in-memory store, no secrets
+npm run dev      # tsx watch - boots on :8787 with an in-memory store, no secrets
 npm test         # vitest
 npm run typecheck
 ```
@@ -26,10 +26,10 @@ curl localhost:8787/cloud/v1/me/estimates # public: credit-use bands per model/S
 curl localhost:8787/cloud/v1/me/packs     # public: credit packs for sale
 ```
 
-`npm run dev` (watch) vs `npm start` (one-shot) — both run via `tsx`, which
+`npm run dev` (watch) vs `npm start` (one-shot) - both run via `tsx`, which
 resolves the `@aloud/core` path alias at runtime so the proxy reuses core's
 provider classes (`AnthropicProvider`, etc.) for request-building and
-token-usage parsing. Billing rides on that shared usage split — that's the
+token-usage parsing. Billing rides on that shared usage split - that's the
 whole reason the server lives in this monorepo.
 
 ## Dev mode vs production mode
@@ -55,7 +55,7 @@ load logic is `loadConfig` in `config.ts`.
 | Var | Needed for | Notes |
 |---|---|---|
 | `ALOUD_ENV` | toggle prod checks | `production` or unset |
-| `PORT` | — | default 8787 |
+| `PORT` | - | default 8787 |
 | `ALOUD_CORS_ORIGINS` | browser client | comma-sep; the `ui/dist` host origin(s) |
 | `ALOUD_DB_PATH` | durable credit ledger | SQLite file path (e.g. `/data/aloud.db` on a Fly volume); **required in prod**. Unset in dev → in-memory store, lost on restart |
 | `ALOUD_SESSION_SECRET` | signing session JWTs | `openssl rand -hex 32`; required in prod |
@@ -66,11 +66,11 @@ load logic is `loadConfig` in `config.ts`.
 | `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/cloud/v1/stt` (Whisper; `gpt-4o-transcribe`, ≈ $0.36/hr), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
-| `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup — once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
+| `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup - once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
 | `ALOUD_ADMIN_TOKEN` | `/cloud/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
-| `ALOUD_ADMIN_EMAILS` | `/cloud/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access — the panel's Google sign-in path, so a phone never holds the static token |
+| `ALOUD_ADMIN_EMAILS` | `/cloud/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access - the panel's Google sign-in path, so a phone never holds the static token |
 
 ### Keys for the full hosted pipeline
 
@@ -105,12 +105,12 @@ provider in Setup/Settings routes LLM turns through this server instead of
 BYOK or a local provider.
 
 ```bash
-# Terminal 1 — the server (needs a real provider key to actually complete)
+# Terminal 1 - the server (needs a real provider key to actually complete)
 cd ts/server
 cp .env.example .env        # set ANTHROPIC_API_KEY (or GROQ / OPENROUTER)
 npm run dev                 # :8787
 
-# Terminal 2 — the UI (Vite proxies /app/v1 + /cloud/v1 → :8787; override via ALOUD_CLOUD_URL)
+# Terminal 2 - the UI (Vite proxies /app/v1 + /cloud/v1 → :8787; override via ALOUD_CLOUD_URL)
 cd ts
 npm run ui:dev              # :4649
 ```
@@ -119,18 +119,17 @@ In the UI: pick provider **aloud cloud**, choose a model (the picker is
 populated live from `GET /cloud/v1/me/models`), start a session. On first LLM
 turn the UI auto-signs-in via the dev route and caches the token.
 
-**On the hosted provider, STT and TTS also route through the server** —
-`/cloud/v1/stt` (OpenAI Whisper by default) and `/cloud/v1/tts` (Google), so the whole
+**On the hosted provider, STT and TTS also route through the server** - `/cloud/v1/stt` (OpenAI Whisper by default) and `/cloud/v1/tts` (Google), so the whole
 pipeline runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
-`STT_*` overrides — see `config.ts` `resolveSttConfig`); TTS needs
+`STT_*` overrides - see `config.ts` `resolveSttConfig`); TTS needs
 `GOOGLE_TTS_API_KEY` (without it the client falls back to browser
 `speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
 and `tts-picker.createCloudAloudTts`, selected in `views/session.ts` when
 `setup.provider === 'aloud'`.
 
-**Auth — dev shortcut.** `/cloud/v1/llm/complete` is behind bearer auth. On a
+**Auth - dev shortcut.** `/cloud/v1/llm/complete` is behind bearer auth. On a
 dev build with no Google client id configured, `ensureCloudToken()`
-(`ui/src/cloud-auth.ts`) falls back to `POST /cloud/v1/auth/dev` — a
+(`ui/src/cloud-auth.ts`) falls back to `POST /cloud/v1/auth/dev` - a
 **local-only** route that mints a session for a fixed `dev@localhost` account
 (seeded with `ALOUD_FREE_SIGNUP_CREDITS`, auto-refilled when it runs dry). It
 **404s in production** (strict mode), so it's a dev convenience, not a backdoor.
@@ -190,13 +189,13 @@ verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
 ### Admin control panel
 
 Browse to `/cloud/v1/admin` on the server (e.g.
-`https://aloud-cloud.fly.dev/cloud/v1/admin`) — a single self-contained page
+`https://aloud-cloud.fly.dev/cloud/v1/admin`) - a single self-contained page
 (`src/admin/panel.ts`) for spend monitoring, account lookup, and credit grants.
 Two ways in, both kept in this origin's localStorage and sent as a Bearer
 header (never baked into the page):
 
-- **Paste `ALOUD_ADMIN_TOKEN`** — the original path; still what scripts/curl use.
-- **Sign in with Google** (`ALOUD_ADMIN_EMAILS`) — for the road: the device
+- **Paste `ALOUD_ADMIN_TOKEN`** - the original path; still what scripts/curl use.
+- **Sign in with Google** (`ALOUD_ADMIN_EMAILS`) - for the road: the device
   holds a 7-day session JWT instead of the root token. The gate
   (`routes/admin.ts` `authFailure`) requires the session account's email to be
   on the list AND verified, so an email-signup squatting on an admin address
@@ -205,15 +204,14 @@ header (never baked into the page):
   must list the server's origin (e.g. `https://aloud-cloud.fly.dev`) under
   "Authorized JavaScript origins" in the Google Cloud console.
 
-With neither configured the panel and every `/admin/*` endpoint 404 —
-disabled, not open.
+With neither configured the panel and every `/admin/*` endpoint 404 - disabled, not open.
 
 **Tunable free-credit knobs.** The panel's *Free credits* section sets
 `freeSignupCredits` and the global hourly `freeGrantBudgetPerHour` live (no
 redeploy) via `PUT /cloud/v1/admin/config`. Set either to **0** to stop handing out
 free credits while testing. Overrides persist in the store's `settings` KV
 (`free_signup_credits`, `free_grant_budget_per_hour`) and are folded over the
-env defaults at boot (`loadRuntimeOverrides`), so they survive a restart — a
+env defaults at boot (`loadRuntimeOverrides`), so they survive a restart - a
 persisted panel override wins over `ALOUD_FREE_SIGNUP_CREDITS` /
 `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` on subsequent boots. See
 `src/admin/runtime-config.ts`.
@@ -222,16 +220,16 @@ persisted panel override wins over `ALOUD_FREE_SIGNUP_CREDITS` /
 `meteredPaused` + a `testerEmails` allowlist (also persisted; env seeds
 `ALOUD_METERED_PAUSED=1` / `ALOUD_TESTER_EMAILS`). While paused, a conversation
 call (`POST /cloud/v1/llm/complete`) from a non-tester returns a graceful 200
-turn — `FREE_LIMIT_MESSAGE`, **cost 0, no hold** — instead of a real billed
+turn - `FREE_LIMIT_MESSAGE`, **cost 0, no hold** - instead of a real billed
 response (`isMeteredBlocked` short-circuits before the hold). So users keep their
 granted credits, the facilitator says "come back later," TTS speaks it, and the
 session saves normally. STT/TTS stay open so that message can be heard; tester
 emails bypass the pause entirely. In-flight clients only see it on their next
-turn (live-reload is a follow-up — meditation-pal).
+turn (live-reload is a follow-up - meditation-pal).
 
 ## Hosted voices & auditioning new ones
 
-The curated hosted voices live in `src/providers/voice-catalog.ts` — a
+The curated hosted voices live in `src/providers/voice-catalog.ts` - a
 short-name → Google Cloud TTS id map (currently Pulcherrima/androgynous,
 Sadachbia/male, Leda/female, all Chirp3-HD). `GET /cloud/v1/voices` publishes them;
 the client merges them into its picker (top "Recommended" tier) and sends the

@@ -89,7 +89,7 @@ async function render(root: HTMLElement): Promise<void> {
             <div class="account-row">
                 <span class="account-credits">${
                     account.retreatCovered
-                        ? 'Retreat access — usage is on your retreat for now'
+                        ? 'Retreat access - usage is on your retreat for now'
                         : withCloudOutline(`${creditAmount(account.creditsRemaining)} remaining`)
                 }</span>
                 ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>`}
@@ -165,7 +165,7 @@ function wirePasswordSection(root: HTMLElement, hasPassword: boolean): void {
                 showSuccessToast(
                     hasPassword
                         ? 'Password changed.'
-                        : 'Password set — you can now sign in with your email and password.'
+                        : 'Password set - you can now sign in with your email and password.'
                 );
                 void render(root);
             })

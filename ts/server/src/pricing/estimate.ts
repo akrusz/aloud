@@ -162,7 +162,7 @@ export function estimateVoices(): VoiceEstimate[] {
             Math.ceil(usdToCredits(chars * rate) * PER_HOUR);
         return {
             voiceId: v.providerVoiceId,
-            label: `Cloud voice — ${v.name} (${voiceEngineLabel(v)})`,
+            label: `Cloud voice - ${v.name} (${voiceEngineLabel(v)})`,
             creditsPerHour: {
                 spacious: perHour(TTS_CHAR_PROFILES.spacious),
                 typical: perHour(TTS_CHAR_PROFILES.typical),

@@ -317,7 +317,7 @@ export function mountModelPicker(
             const opt = Array.from(sel.options).find((o) => o.value === m.value);
             if (opt) {
                 opt.disabled = true;
-                opt.textContent = `${m.label} — unavailable on your subscription`;
+                opt.textContent = `${m.label} - unavailable on your subscription`;
             }
             if (currentValue === m.value) {
                 const fallback = nearestSubscriptionModel(m.value) ?? 'sonnet';

@@ -36,7 +36,7 @@ function readOverride(): AppMode | null {
         const stored = sessionStorage.getItem(OVERRIDE_KEY);
         if (stored === 'web' || stored === 'local') return stored;
     } catch {
-        /* no window/sessionStorage (e.g. unit tests) — use the build default */
+        /* no window/sessionStorage (e.g. unit tests) - use the build default */
     }
     return null;
 }
@@ -118,7 +118,7 @@ export function initAppMode(): void {
     readOverride();
     if (isDevBypass()) {
         // eslint-disable-next-line no-console
-        console.info('[aloud] dev cloud-bypass ON — cloud services use the local /auth/dev account (no sign-in). Clear with ?dev=off.');
+        console.info('[aloud] dev cloud-bypass ON - cloud services use the local /auth/dev account (no sign-in). Clear with ?dev=off.');
     }
 }
 

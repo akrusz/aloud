@@ -31,7 +31,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>aloud — admin</title>
+<title>aloud - admin</title>
 <style>
   :root {
     --bg: #14110f; --panel: #1d1916; --line: #2e2823; --ink: #efe7dd;
@@ -49,7 +49,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
        color: var(--dim); margin: 28px 0 12px; font-weight: 600; }
   .sub { color: var(--dim); font-size: 16px; margin: 0 0 20px; }
-  /* Explainer paragraphs are toggled as a group — hidden by default, revealed
+  /* Explainer paragraphs are toggled as a group - hidden by default, revealed
      by the "Show explanations" button in the header. */
   body.hide-help .help-text { display: none; }
   .card { background: var(--panel); border: 1px solid var(--line);
@@ -110,7 +110,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 </head>
 <body class="hide-help">
   <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button></h1>
-  <p class="sub help-text">Operator console — spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
+  <p class="sub help-text">Operator console - spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
 
   <div class="card" id="authCard">
     <label for="tok">Admin token (<code>ALOUD_ADMIN_TOKEN</code>)</label>
@@ -145,10 +145,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
-    <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost — the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
+    <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost - the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
     <div class="grid" id="usageStats"></div>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 10px">LLM prompt cache — the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently — the per-provider hit rate is how you tell each path is actually caching.</p>
+      <p class="sub help-text" style="margin:0 0 10px">LLM prompt cache - the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently - the per-provider hit rate is how you tell each path is actually caching.</p>
       <div class="grid" id="cacheStats" style="margin-bottom:12px"></div>
       <table>
         <thead><tr><th>Provider</th><th class="num">Hit</th><th class="num">Fresh tok</th><th class="num">Read tok</th><th class="num">Write tok</th><th class="num">Cost $</th><th class="num">Saved $</th></tr></thead>
@@ -156,7 +156,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       </table>
     </div>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 10px">Cost split by service — what drives the bill.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Cost split by service - what drives the bill.</p>
       <table>
         <thead><tr><th>Service</th><th class="num">Provider $</th><th class="num">Share</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageServiceRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
@@ -170,7 +170,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       </table>
     </div>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 10px">Per-session distribution — sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
+      <p class="sub help-text" style="margin:0 0 10px">Per-session distribution - sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
       <table>
         <thead><tr><th>Metric</th><th class="num">Median</th><th class="num">p90</th><th class="num">Max</th><th class="num">Mean</th></tr></thead>
         <tbody id="usageSessionRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
@@ -208,7 +208,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
     <h2>Free credits</h2>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 14px">Tune the free tier live — no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
+      <p class="sub help-text" style="margin:0 0 14px">Tune the free tier live - no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
       <div class="row">
         <div>
           <label for="cSignup">Free credits per new signup</label>
@@ -223,12 +223,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="configMsg"></div>
     </div>
 
-    <h2>Soft launch — pause spending</h2>
+    <h2>Soft launch - pause spending</h2>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 14px">While paused, signed-in users keep their credits, but a conversation turn returns a polite "come back later" message instead of a real (billed) facilitator response — so nobody spends yet, and their session still saves. Tester emails below bypass the pause so you can keep testing.</p>
+      <p class="sub help-text" style="margin:0 0 14px">While paused, signed-in users keep their credits, but a conversation turn returns a polite "come back later" message instead of a real (billed) facilitator response - so nobody spends yet, and their session still saves. Tester emails below bypass the pause so you can keep testing.</p>
       <label class="check"><input type="checkbox" id="cPaused"> <span>Pause metered usage (conversations return the canned apology)</span></label>
       <div style="margin-top:14px">
-        <label for="cTesters">Tester emails — exempt from the pause (one per line)</label>
+        <label for="cTesters">Tester emails - exempt from the pause (one per line)</label>
         <textarea id="cTesters" rows="3" placeholder="you@example.com" autocomplete="off"></textarea>
       </div>
       <div class="row" style="margin-top:12px"><button id="savePause">Save</button></div>
@@ -301,14 +301,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   }
 
   function usd(n) { return '$' + Number(n || 0).toFixed(2); }
-  // Provider costs per call/session are often fractions of a cent — show enough
+  // Provider costs per call/session are often fractions of a cent - show enough
   // precision to be legible (4 dp under $1, 2 dp above).
   function usdp(n) { n = Number(n || 0); return '$' + n.toFixed(n < 1 ? 4 : 2); }
   function pct(n) { return (Number(n || 0) * 100).toFixed(0) + '%'; }
   function int(n) { return Number(n || 0).toLocaleString(); }
   // Credit amounts are fractional (TTS debits sub-credit), so show one decimal.
   function dec1(n) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
-  // Counts that can be fractional means (turns/session) — up to one decimal, no
+  // Counts that can be fractional means (turns/session) - up to one decimal, no
   // forced trailing zero, so a clean integer median still reads as "6".
   function num1(n) { return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }); }
   function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
@@ -416,7 +416,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     },
   };
 
-  // Inline-SVG bar chart — no deps, scales to the window. One bar per day, a
+  // Inline-SVG bar chart - no deps, scales to the window. One bar per day, a
   // dashed max gridline, and first/mid/last date ticks so it stays legible at
   // 90 bars. Each bar carries a <title> for hover-to-read the exact value.
   function barChart(buckets, metricKey) {
@@ -523,8 +523,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     }).then(function (cfg) {
       $('cTesters').value = (cfg.testerEmails || []).join('\n');
       setMsg($('pauseMsg'), cfg.meteredPaused
-        ? 'Saved — spending PAUSED for everyone except ' + (cfg.testerEmails.length || 0) + ' tester(s).'
-        : 'Saved — spending is live.', 'ok');
+        ? 'Saved - spending PAUSED for everyone except ' + (cfg.testerEmails.length || 0) + ' tester(s).'
+        : 'Saved - spending is live.', 'ok');
     }).catch(function (e) {
       setMsg($('pauseMsg'), e.message, 'err');
     }).then(function () { $('savePause').disabled = false; });
@@ -552,7 +552,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   var allAccounts = [];
   // Everything on an account row we can match a search against: the UUID (how
   // you find an account from a log line), the email, and the sign-in providers.
-  // The email is skipped for deleted accounts — there it's an anonymized
+  // The email is skipped for deleted accounts - there it's an anonymized
   // 'deleted+<id>@deleted.invalid' placeholder, not a real address, so matching
   // it would surface scrubbed rows on a stray substring. The id stays
   // searchable, so a deleted account is still reachable by its id.
@@ -673,7 +673,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: email, credits: credits }),
     }).then(function (r) {
-      setMsg($('grantMsg'), 'Granted ' + int(credits) + ' to ' + email + ' — new balance ' + dec1(r.balance) + '.', 'ok');
+      setMsg($('grantMsg'), 'Granted ' + int(credits) + ' to ' + email + ' - new balance ' + dec1(r.balance) + '.', 'ok');
       $('gCredits').value = '';
       return Promise.all([loadAccounts(), loadMetrics()]);
     }).catch(function (e) {
@@ -701,7 +701,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var revoke = p.status === 'revoked' ? ''
         : '<button class="ghost xs" data-revoke="' + p.id + '">revoke</button>';
       // Once a pass is inert (revoked or past its window) it can be cleared out
-      // for good — spent retreats, durability-probe test markers. Matches the
+      // for good - spent retreats, durability-probe test markers. Matches the
       // server guard that refuses to delete a still-live pass.
       var del = (p.status === 'revoked' || p.endsAt < now)
         ? '<button class="ghost xs" data-delete="' + p.id + '">delete</button>'
@@ -798,7 +798,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   }
 
   // ---- connect / boot ----------------------------------------------------
-  // "token" is whatever credential we hold — the static admin token or a
+  // "token" is whatever credential we hold - the static admin token or a
   // session JWT from the Google sign-in below; the server accepts either.
   // loadMetrics() doubles as the auth check before anything is persisted.
   function boot() {
@@ -822,7 +822,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
   // ---- Google sign-in (ALOUD_ADMIN_EMAILS) -------------------------------
   // Mints a normal session via /cloud/v1/auth/google; the admin gate then
-  // checks the account email server-side. Anyone can sign in here — only
+  // checks the account email server-side. Anyone can sign in here - only
   // allowlisted accounts get past loadMetrics().
   (function () {
     if (!GOOGLE_CLIENT_ID) return;
@@ -873,7 +873,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('usageMinTurns').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('historyDays').addEventListener('change', function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
-  // Metric switch is a pure client-side re-render — no refetch needed.
+  // Metric switch is a pure client-side re-render - no refetch needed.
   $('historyMetric').addEventListener('change', renderHistory);
   $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('refreshRetreats').onclick = function () { loadRetreats().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
@@ -882,7 +882,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') connect(); });
   $('gCredits').addEventListener('keydown', function (e) { if (e.key === 'Enter') doGrant(); });
 
-  // Explanations toggle — show/hide the help paragraphs as a group. Hidden by
+  // Explanations toggle - show/hide the help paragraphs as a group. Hidden by
   // default (body.hide-help) so the panel stays dense; click to reveal.
   (function () {
     var btn = $('toggleHelp');

@@ -757,7 +757,7 @@ export async function mountSessionView(
         sttTroubleEl.replaceChildren();
         const msg = document.createElement('span');
         msg.textContent = canSwitchToCloud
-            ? "Trouble hearing you — your browser may be blocking its speech recognition."
+            ? "Trouble hearing you - your browser may be blocking its speech recognition."
             : "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.";
         sttTroubleEl.appendChild(msg);
         if (canSwitchToCloud) {
@@ -794,7 +794,7 @@ export async function mountSessionView(
             const next = await createSttForChoice(choice, vadOpts);
             if (!next) {
                 showErrorToast(
-                    "Couldn't start aloud cloud speech — check your connection and that you're signed in."
+                    "Couldn't start aloud cloud speech - check your connection and that you're signed in."
                 );
                 setStatus(muted ? 'Muted' : 'Listening…');
                 return;
@@ -2380,7 +2380,7 @@ export function describeSttError(err: unknown): string {
     // toggle or an enterprise policy: the recognizer can't work until that
     // changes, so point at the in-session switch to aloud cloud.
     if (msg === 'service-not-allowed') {
-        return "This browser is blocking its speech recognition (on Windows, turn on Settings → Privacy → Speech). Or switch to aloud cloud speech — it doesn't need it.";
+        return "This browser is blocking its speech recognition (on Windows, turn on Settings → Privacy → Speech). Or switch to aloud cloud speech - it doesn't need it.";
     }
     // Web Speech's own denied-permission code is the hyphenated `not-allowed`
     // (distinct from getUserMedia's `NotAllowedError`, matched below).

@@ -162,7 +162,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 if (meta && meta.isGift) {
                     // A gift purchase credited a gift record, not the buyer, so
                     // auto clawback would wrongly debit them. Flag for a human.
-                    log.error('reversal on a GIFT purchase — manual review needed', {
+                    log.error('reversal on a GIFT purchase - manual review needed', {
                         kind: reversal.kind,
                         ref: reversal.ref,
                         paymentIntentId: reversal.paymentIntentId,
@@ -181,7 +181,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                         ref: reversal.ref,
                     });
                 } else {
-                    log.error('reversal could not be mapped to a purchase — manual review needed', {
+                    log.error('reversal could not be mapped to a purchase - manual review needed', {
                         kind: reversal.kind,
                         ref: reversal.ref,
                         paymentIntentId: reversal.paymentIntentId,

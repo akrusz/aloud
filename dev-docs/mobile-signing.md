@@ -1,7 +1,7 @@
 # Mobile signing & release walkthrough (iOS TestFlight + Android Play)
 
 How to sign and ship the app once the native projects build. This is the part
-that needs *your* accounts and certificates — it can't be automated headlessly.
+that needs *your* accounts and certificates - it can't be automated headlessly.
 Pairs with [mobile.md](mobile.md) (generate + build) and the beta plan in bead
 `meditation-pal-zp47` (US-only TestFlight / Play internal testing, web-purchase
 credits, no IAP).
@@ -24,7 +24,7 @@ client secrets) out of git - see the checklist at the end.
 - An app record in App Store Connect (appstoreconnect.apple.com) using that
   bundle id.
 
-**Sign & upload (Xcode GUI — simplest first time)**
+**Sign & upload (Xcode GUI - simplest first time)**
 
 1. `cd ts && npm run ui:build && npx cap sync ios`, then `npx cap open ios`.
 2. Select the **App** target → **Signing & Capabilities**:
@@ -43,7 +43,7 @@ client secrets) out of git - see the checklist at the end.
    Testers install via the **TestFlight** app on their device.
 
 **External testers** (up to 10,000) need a one-time lightweight **Beta App
-Review** — this is the "in beta for N weeks" gate. Internal testing does not.
+Review** - this is the "in beta for N weeks" gate. Internal testing does not.
 
 **CLI / CI path** (once the GUI works and you want to automate):
 
@@ -67,7 +67,7 @@ script the archive→upload→TestFlight loop for CI.
 - Google Play Console account ($25 one-time).
 - An app created in the Play Console with package `app.aloud.meditation`.
 
-**Create an upload keystore** (once — back it up; losing it is painful):
+**Create an upload keystore** (once - back it up; losing it is painful):
 
 ```bash
 keytool -genkey -v -keystore aloud-upload.jks -alias aloud \
@@ -116,5 +116,5 @@ release, add testers by email. Internal testing has no review wait. Own-billing
 
 [store-submission-checklist.md](store-submission-checklist.md) (the end-to-end
 checklist this walkthrough plugs into), `zp47` (beta plan), `tpj4` (native
-sign-in — needs the Apple capability + Google URL scheme above), `mobile.md`
+sign-in - needs the Apple capability + Google URL scheme above), `mobile.md`
 (build), `7rh` (store submission).

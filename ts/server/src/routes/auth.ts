@@ -185,7 +185,7 @@ export function authRoutes(deps: Deps): Hono {
             (await deps.store.findLiveAccountByEmail(email))
         ) {
             return c.json(
-                apiError('bad_request', 'an account with this email already exists — try signing in'),
+                apiError('bad_request', 'an account with this email already exists - try signing in'),
                 ERROR_STATUS.bad_request
             );
         }

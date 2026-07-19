@@ -31,7 +31,7 @@ export interface AppSettings {
     defaultProvider: Provider;
     defaultModel: string;
     /** On the hosted/website build, show bring-your-own-key providers (off by
-     *  default — the hosted proxy is the intended path there). No effect on a
+     *  default - the hosted proxy is the intended path there). No effect on a
      *  local build, where BYOK is always shown. */
     enableByok: boolean;
 
@@ -70,7 +70,7 @@ export interface AppSettings {
      *  SttEngineChoice + resolveSttChoice. */
     sttEngine: SttEngineChoice | null;
 
-    // Pacing — used by both the session view's PacingController and
+    // Pacing - used by both the session view's PacingController and
     // the STT adapter's client-side VAD.
     silenceBaseMs: number;
     silenceMaxMs: number;

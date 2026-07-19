@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS identities (
 );
 CREATE INDEX IF NOT EXISTS idx_identities_account ON identities(account_id);
 -- Gift clouds (meditation-pal-bd5). Funded by a cleared Stripe payment; granted
--- once — to the recipient on accept, or back to the buyer on decline/expiry.
+-- once - to the recipient on accept, or back to the buyer on decline/expiry.
 CREATE TABLE IF NOT EXISTS gifts (
     id                TEXT PRIMARY KEY,
     buyer_account_id  TEXT NOT NULL REFERENCES accounts(id),
@@ -147,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
 -- Retreat passes (meditation-pal-414). Operator-created, time-boxed unlimited
 -- access: a member's metered calls bypass billing while now is inside the
 -- window and status='active'. Members are added by the admin (no shareable
--- code), so there's no seat cap — the operator controls the roster.
+-- code), so there's no seat cap - the operator controls the roster.
 CREATE TABLE IF NOT EXISTS retreat_passes (
     id                     TEXT PRIMARY KEY,
     label                  TEXT NOT NULL,
@@ -353,7 +353,7 @@ export class SqliteCreditsStore implements CreditsStore {
             // Duplicate live mailboxes block the index. Don't fail startup; log
             // loudly so the operator deletes a dup in the admin panel, after
             // which the next restart creates it.
-            log.warn('canonical_email unique index deferred — duplicate live accounts share a mailbox', {
+            log.warn('canonical_email unique index deferred - duplicate live accounts share a mailbox', {
                 err: String(err),
             });
         }

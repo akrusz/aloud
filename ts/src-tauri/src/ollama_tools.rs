@@ -205,7 +205,7 @@ pub fn upgrade_precheck() -> Option<(String, String)> {
     }
     if cfg!(target_os = "macos") && which::which("brew").is_err() {
         return Some((
-            "Homebrew not found — please update from the Ollama site.".to_string(),
+            "Homebrew not found - please update from the Ollama site.".to_string(),
             DOWNLOAD_URL.to_string(),
         ));
     }

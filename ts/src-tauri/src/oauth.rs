@@ -147,7 +147,7 @@ pub async fn google_loopback(client_id: &str) -> Result<OauthResult, String> {
 
     // CSRF guard: the redirect must echo the state we generated.
     if got_state != state {
-        return Err("OAuth state mismatch (possible CSRF) — aborted".into());
+        return Err("OAuth state mismatch (possible CSRF) - aborted".into());
     }
     Ok(OauthResult { code, code_verifier: verifier, redirect_uri })
 }

@@ -387,7 +387,7 @@ function renderCustom(
         const valid = Number.isInteger(n) && n >= custom.minCredits && n <= custom.maxCredits;
         btn.disabled = !valid;
         const price = valid ? customPriceCents(n, custom) : 0;
-        btn.textContent = valid ? `Buy ${n} ☁️ — ${dollars(price)}` : 'Buy';
+        btn.textContent = valid ? `Buy ${n} ☁️ - ${dollars(price)}` : 'Buy';
         // Volume discount = how far the curve price beats the flat base rate.
         const baseCents = Math.ceil(n * custom.baseCentsPerCredit);
         const pct = valid && price < baseCents ? Math.round((1 - price / baseCents) * 100) : 0;

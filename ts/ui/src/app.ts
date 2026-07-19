@@ -32,7 +32,7 @@ import { showErrorToast, showSuccessToast } from './toast.js';
 type View = 'setup' | 'session' | 'history' | 'settings' | 'account';
 
 // Paths carry the deploy base ('/' in dev, '/app/' for the hosted subpath
-// build) so pushState + refresh resolve under either — see route-base.ts.
+// build) so pushState + refresh resolve under either - see route-base.ts.
 const ROUTE_FOR_VIEW: Record<Exclude<View, 'session'>, string> = {
     setup: routePath('/'),
     history: routePath('/history'),

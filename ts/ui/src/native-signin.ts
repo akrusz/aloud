@@ -53,8 +53,8 @@ export function isNativeGoogleConfigured(): boolean {
  *     flow). The server verifies the native token's `aud` = bundle id, so
  *     APPLE_CLIENT_IDS must include it, and the app must carry the Sign in with
  *     Apple entitlement (App.entitlements).
- *   - Android: only with a Services ID + redirect URL (the web-style flow),
- *     unset for the beta, so Apple is iOS-only there.
+ *   - Android: only with a Services ID + redirect URL (the web-style flow).
+ *     Leave either unset and Apple is iOS-only.
  */
 export function isNativeAppleConfigured(): boolean {
     if (!isCapacitor()) return false;

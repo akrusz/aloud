@@ -23,7 +23,7 @@ import {
     type X402Requirements,
 } from './x402-sign.js';
 
-/** EIP-1193 provider — the subset we use. */
+/** EIP-1193 provider - the subset we use. */
 interface Eip1193Provider {
     request(args: { method: string; params?: unknown[] | object }): Promise<unknown>;
 }

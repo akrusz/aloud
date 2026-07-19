@@ -133,7 +133,7 @@ export function runUpdateNudge(): void {
     // it must NEVER flag an update, preview path included. Gated explicitly
     // rather than via isWebMode(): mobile is web mode only incidentally.
     if (isCapacitor()) return;
-    // Already flagged, or forced via preview — nothing more to check.
+    // Already flagged, or forced via preview - nothing more to check.
     if (brand.classList.contains('has-update') || brand.classList.contains('has-update-static')) {
         return;
     }

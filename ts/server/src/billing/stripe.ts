@@ -87,7 +87,7 @@ export const CREDIT_PACKS: CreditPack[] = [
         id,
         credits,
         priceUsdCents: cents,
-        label: `${credits} credits — ${dollars}`,
+        label: `${credits} credits - ${dollars}`,
     };
 });
 
