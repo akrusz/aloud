@@ -114,7 +114,9 @@ The dev server has its own ledger (`ALOUD_DB_PATH` in `ts/server/.env`,
 `.data/aloud-dev.db`) - balances there are separate from production. To top up
 an account, use the admin panel at <http://localhost:8787/cloud/v1/admin>
 (paste `ALOUD_ADMIN_TOKEN` from `ts/server/.env`, then the "Grant credits"
-form), or curl the same endpoint:
+form), or curl the same endpoint. If the panel 404s, the token is unset in
+`.env` - admin is disabled without one. Generate (`openssl rand -hex 32`),
+fill it in, restart the server.
 
 ```bash
 curl -X POST http://localhost:8787/cloud/v1/admin/grant \
