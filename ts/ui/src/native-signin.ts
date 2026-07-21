@@ -122,9 +122,13 @@ async function runNativeGoogle(btn: HTMLButtonElement, handlers: SignInHandlers)
     btn.textContent = 'Signing in…';
     try {
         const SocialLogin = await ensureInit();
+        // No explicit scopes: both platforms default to email/profile/openid,
+        // and passing ANY scopes on Android trips the plugin's "modify the
+        // main activity" guard (custom scopes need onActivityResult wiring in
+        // MainActivity; the defaults don't).
         const { result } = await SocialLogin.login({
             provider: 'google',
-            options: { scopes: ['email', 'profile'] },
+            options: {},
         });
         // Online mode returns idToken; we never hit the offline branch
         // (serverAuthCode) because we initialize with mode:'online'.
