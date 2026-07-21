@@ -4511,6 +4511,16 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         font-size: calc(15px * var(--text-scale, 1));
     }
 
+    :root {
+        /* Vertical midline of the floating top chrome, from the viewport top:
+           the nav's inset-aware padding plus half the brand chip (the row's
+           tallest piece: 1.4rem x 1.6 line-height + 0.6rem padding = 2.84rem).
+           The brand and orb center on this via the nav's flex row; fixed
+           top-center chips (setup "?", session phase) anchor to it with
+           translate(-50%, -50%) so all of them share one midline. */
+        --top-chrome-mid: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 1.42rem);
+    }
+
     /* Top nav becomes a thin transparent floating header on mobile - only the brand (left) and the session orb (right) remain visible. */
     .nav {
         position: fixed;
@@ -4591,8 +4601,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        need thumb-sized hit zones. Roughly aiming for 44px minimums on
        the most-tapped controls. */
     .tab-btn {
-        padding: 0.75rem 1.25rem;
+        /* Narrower side padding than desktop so all three labels ("Felt
+           Sense" included) fit one line on a 360dp phone; nowrap so a
+           label never breaks internally. Height stays thumb-sized. */
+        padding: 0.75rem 0.8rem;
         font-size: 1.05rem;
+        white-space: nowrap;
     }
     .style-card-inner {
         padding: 0.85rem 0.95rem;
@@ -4624,11 +4638,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        still toggles the methods panel / "take the full tour" link as before. */
     .tab-bar .info-btn {
         position: fixed;
-        /* Ride the bar's vertical midline: same inset-aware top padding as
-           .nav, plus 0.25rem to center against the 1.4rem brand chip. */
-        top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 0.25rem);
+        top: var(--top-chrome-mid);
         left: 50%;
-        transform: translateX(-50%);
+        transform: translate(-50%, -50%);
         z-index: 95;
         margin-left: 0;
         color: var(--accent);
@@ -5003,9 +5015,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        of its neighbors; non-interactive, so taps pass through. */
     #session-phase {
         position: fixed;
-        top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 0.25rem);
+        top: var(--top-chrome-mid);
         left: 50%;
-        transform: translateX(-50%);
+        transform: translate(-50%, -50%);
         z-index: 90;
         max-width: 46vw;
         height: auto;

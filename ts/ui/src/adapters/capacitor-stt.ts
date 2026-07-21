@@ -95,6 +95,14 @@ export class CapacitorSttEngine implements SttEngine {
             }
         };
 
+        // Clear any half-torn-down native session (the next start() fails
+        // "RecognitionService busy" otherwise). The plugin's stop() NEVER
+        // resolves its call on the success path - fire and forget, never
+        // await it - and it runs before the listeners attach so its
+        // 'stopped' event can't read as this turn ending.
+        void SpeechRecognition.stop().catch(() => {});
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
         this.partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
             const matches = (data as { matches?: string[] }).matches ?? [];
             const text = matches[0];
@@ -117,9 +125,6 @@ export class CapacitorSttEngine implements SttEngine {
         });
 
         try {
-            // A previous session the OS hasn't fully torn down makes the next
-            // start() throw "RecognitionService busy" - a no-op stop clears it.
-            await SpeechRecognition.stop().catch(() => {});
             // The plugin's start() resolves with the final transcript(s) when
             // listening ends - that resolution is the stream's final event.
             const startPromise = SpeechRecognition.start({
@@ -166,10 +171,11 @@ export class CapacitorSttEngine implements SttEngine {
 
     async stop(): Promise<void> {
         this.stopRequested = true;
-        try {
-            await SpeechRecognition.stop();
-        } catch {
+        // Never await: the plugin's stop() call never resolves on success
+        // (Android impl calls stopListening() without call.resolve()), so an
+        // await here hangs the caller forever.
+        void SpeechRecognition.stop().catch(() => {
             // Already stopped - fine.
-        }
+        });
     }
 }
