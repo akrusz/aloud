@@ -66,6 +66,10 @@ export interface ModeSpec {
     /** Instruction for the LLM-generated opener. Omitted = classic exploration
      *  wording built from the active dimensions. */
     openerPrompt?: string;
+    /** Rotating entry invitations folded into the LLM opener one at a time, so
+     *  sessions don't all begin the same way. Each must be a faithful doorway
+     *  into the mode. Only used alongside openerPrompt. */
+    openerAngles?: readonly string[];
     /** Check-in pool for long silences. Omitted = CHECK_IN_PROMPTS. */
     checkIns?: readonly string[];
     /** Ordered phases, present only for staged modes. */

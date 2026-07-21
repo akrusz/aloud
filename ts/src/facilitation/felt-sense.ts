@@ -149,12 +149,26 @@ export const FELT_SENSE_OPENERS: readonly string[] = [
     "Take a moment to arrive... and when you're ready, you might ask inside: what's between me and feeling fine right now?",
     "Settling in, no rush. When you're ready, let's notice what's carrying weight today.",
     "Let's arrive first. A few easy breaths... then maybe ask inside: what wants my attention right now?",
+    "Whenever you're ready. You might let your attention settle down into the middle of your body, and just notice how it is in there.",
+    "No hurry to begin. Let's land first... and see what you've carried in with you today.",
 ];
 
 export const FELT_SENSE_OPENER_PROMPT =
     'Generate a brief, gentle opening for this felt-sense session: a sentence or ' +
-    'two welcoming the meditator, inviting them to settle, and, when they feel ' +
-    'ready, to ask inside what is between them and feeling fine right now.';
+    'two welcoming the meditator and inviting them to settle and turn their ' +
+    'attention gently inward, in their own time.';
+
+/** Rotating entry invitations for the opener (buildOpenerPrompt folds one in at
+ *  random). Each is a faithful felt-sense doorway - a gentle turn inward, never
+ *  a demand for content - so the welcome varies session to session while the
+ *  practice stays the same. */
+export const FELT_SENSE_OPENER_ANGLES: readonly string[] = [
+    'For the invitation, use the classic doorway: when they feel ready, to ask inside what is between them and feeling fine right now.',
+    'For the invitation, invite them - when ready - to notice what is asking for their attention today, whatever wants to be felt.',
+    'For the invitation, invite them to sense the general background feel in the middle of the body right now, without needing it to be anything in particular yet.',
+    'For the invitation, invite them to notice gently whatever they have carried in with them into this moment.',
+    'For the invitation, keep it open: just landing, and letting their attention settle down into the body, trusting something will come in its own time. No question needed yet.',
+];
 
 /** Long-silence check-ins, more patient than the exploration pool: here a long
  *  silence usually means it's working. */
@@ -181,6 +195,7 @@ export const FELT_SENSE_MODE: ModeSpec = {
     composes: { focuses: false, qualities: false, directiveness: false, verbosity: false, custom: false },
     openers: FELT_SENSE_OPENERS,
     openerPrompt: FELT_SENSE_OPENER_PROMPT,
+    openerAngles: FELT_SENSE_OPENER_ANGLES,
     checkIns: FELT_SENSE_CHECK_INS,
     phases: FELT_SENSE_PHASES,
     checkinPaceSlider: true,

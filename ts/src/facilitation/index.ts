@@ -84,6 +84,7 @@ export {
     FELT_SENSE_SYSTEM_PROMPT,
     FELT_SENSE_PHASES,
     FELT_SENSE_OPENERS,
+    FELT_SENSE_OPENER_ANGLES,
     FELT_SENSE_CHECK_INS,
 } from './felt-sense.js';
 

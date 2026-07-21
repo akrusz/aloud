@@ -620,6 +620,11 @@ export class PromptBuilder {
     buildOpenerPrompt(intention = ''): string {
         if (this.mode?.openerPrompt) {
             const parts: string[] = [this.mode.openerPrompt];
+            // Rotate the entry invitation so openers don't all land the same
+            // way; the base prompt stays fixed, only the doorway varies.
+            if (this.mode.openerAngles?.length) {
+                parts.push(choice(this.mode.openerAngles, this.random));
+            }
             if (intention) {
                 parts.push(`The meditator has set an intention: "${intention}". You can weave it in gently.`);
             }
