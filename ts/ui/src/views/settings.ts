@@ -60,6 +60,7 @@ import {
     updateVoiceSelection,
     type ScoredVoice,
 } from '../voice-picker.js';
+import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
 import { confirmDialog, alertDialog } from '../dialog.js';
 
@@ -574,6 +575,29 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     function wireTtsSection(): void {
         const engineSel = root.querySelector<HTMLSelectElement>('#s-tts-engine')!;
         engineSel.value = settings.ttsEngine;
+        // A stored engine this platform doesn't offer (e.g. 'macos' persisted
+        // before the list was platform-gated) leaves the select blank - snap
+        // to the first offered engine and persist the repair. Safe: the field
+        // only drives this management UI, not which voice speaks.
+        if (engineSel.value !== settings.ttsEngine) {
+            engineSel.selectedIndex = 0;
+            settings.ttsEngine = engineSel.value as TtsEngineChoice;
+            persist();
+        }
+        // Browser speechSynthesis with zero voices (typical in the Android
+        // WebView) is a dead engine - drop the option once the async voice
+        // list settles, snapping the selection off it if needed.
+        void browserVoicesSettled().then((voices) => {
+            if (voices.length > 0) return;
+            engineSel.querySelector('option[value="browser"]')?.remove();
+            if (settings.ttsEngine === 'browser' && engineSel.options.length > 0) {
+                engineSel.selectedIndex = 0;
+                settings.ttsEngine = engineSel.value as TtsEngineChoice;
+                persist();
+                refreshElevenLabsRow();
+                updateTtsEngineHint();
+            }
+        });
         engineSel.addEventListener('change', () => {
             settings.ttsEngine = engineSel.value as TtsEngineChoice;
             persist();

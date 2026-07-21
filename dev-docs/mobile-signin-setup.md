@@ -32,6 +32,28 @@ Bundle ID: `app.aloud.meditation`. You get:
 Keep your existing **web** client ID (`VITE_GOOGLE_CLIENT_ID`) - it stays the
 Android/web audience.
 
+## 1b. Google Cloud - Android OAuth client (SHA-1)
+
+Android needs a second thing beyond the web client id: an **Android OAuth
+client** in the same project, tied to the app's signing certificate. Without it
+the account sheet opens, but picking an account fails - surfaced by the plugin
+as "Google sign-in canceled by user".
+
+Credentials → **Create credentials → OAuth client ID → Android**:
+- Package name: `app.aloud.meditation`
+- SHA-1: the signing cert of the build being tested. For dev installs that's
+  the debug keystore:
+  ```bash
+  keytool -list -v -keystore ~/.android/debug.keystore \
+    -alias androiddebugkey -storepass android | grep SHA1
+  ```
+- No client id lands in the app or server config - registration alone is what
+  authorizes the signature. Nothing to bake or deploy.
+
+Repeat with the **upload keystore's** SHA-1 when it exists, and - after
+enrolling in Play App Signing - add **Play's app-signing SHA-1** (Play Console →
+Test and release → App integrity), or store builds will fail the same way.
+
 ## 2. Apple Developer - Sign in with Apple
 
 Certificates, IDs & Profiles → **Identifiers** → your App ID

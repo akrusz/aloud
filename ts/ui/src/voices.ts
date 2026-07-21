@@ -37,6 +37,27 @@ export function browserVoices(): VoiceEntry[] {
     }));
 }
 
+/** {@link browserVoices} after giving Chrome's async `voiceschanged` a chance
+ *  to fire (mirrors BrowserTtsEngine.listVoices). Resolves after ~1s at worst;
+ *  an empty result then is a real "no voices" (e.g. the Android WebView). */
+export async function browserVoicesSettled(): Promise<VoiceEntry[]> {
+    if (typeof speechSynthesis === 'undefined') return [];
+    if (speechSynthesis.getVoices().length === 0) {
+        await new Promise<void>((resolve) => {
+            let done = false;
+            const finish = (): void => {
+                if (done) return;
+                done = true;
+                speechSynthesis.removeEventListener('voiceschanged', finish);
+                resolve();
+            };
+            speechSynthesis.addEventListener('voiceschanged', finish);
+            setTimeout(finish, 1000);
+        });
+    }
+    return browserVoices();
+}
+
 /**
  * Fetch the server-side voice list. Caches [] when the app backend isn't
  * reachable, so later calls don't hammer a down server; invalidateServerVoices()

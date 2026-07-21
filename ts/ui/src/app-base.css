@@ -1860,6 +1860,14 @@ body:has(.session-container) {
     align-items: center;
     justify-content: center;
     animation: fadeIn 0.15s ease;
+    /* Scrolls inside the modal must not chain to the page behind it. */
+    overscroll-behavior: contain;
+}
+
+/* Pin the page while a voice picker is open - on touch screens, drags over
+   the modal's non-scrolling parts were scrolling the settings page behind. */
+body:has(.voice-modal-overlay:not(.hidden)) {
+    overflow: hidden;
 }
 
 .voice-modal {
@@ -1923,6 +1931,7 @@ body:has(.session-container) {
     flex: 1;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
+    overscroll-behavior: contain;
 }
 
 .voice-tier-label {
@@ -4776,27 +4785,36 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
 
     /* Settings + setup: fixed footers must stack above the bottom nav,
-       and forms need enough bottom padding to clear both. */
+       and forms need enough bottom padding to clear both. The bottom nav is
+       ~3.9rem + inset tall (its 22px icons don't scale with the 15px phone
+       rem), so 4rem clears it where 3.7rem tucked underneath. */
     .settings-footer,
     .setup-footer {
-        bottom: calc(3.7rem + var(--safe-bottom-clear));
+        bottom: calc(4rem + var(--safe-bottom-clear));
     }
 
     /* Slimmer settings footer: the desktop bar's padding reads chunky
        stacked on the bottom nav. */
     .settings-footer {
-        padding: 0.3rem 1rem;
+        padding: 0.25rem 1rem;
     }
     .settings-footer-inner {
         min-height: 0;
     }
     .settings-footer .btn {
-        padding: 0.4rem 1rem;
+        padding: 0.35rem 1rem;
     }
+
+    /* The label-height spacer that aligns the Advanced button with the
+       selects beside it is dead space once the row stacks. */
+    .form-label-spacer {
+        display: none;
+    }
+
     .setup-container {
         max-width: 500px;
         margin: 0 auto;
-        padding-bottom: calc(7rem + 3.7rem + var(--safe-bottom-clear));
+        padding-bottom: calc(7rem + 4rem + var(--safe-bottom-clear));
     }
 
     /* Bottom nav itself */
@@ -4998,6 +5016,15 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .settings-word {
         flex-basis: 100%;
         text-align: center;
+    }
+    /* ...but the footer's "Undo Changes" fits on one line - wrapping it
+       just makes the footer tall. */
+    .settings-footer .btn-begin {
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+    .settings-footer .settings-word {
+        flex-basis: auto;
     }
 }
 
