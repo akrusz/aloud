@@ -96,10 +96,48 @@ describe('CapacitorSttEngine restart-stitching', () => {
         partial('a tightness');
         await vi.advanceTimersByTimeAsync(800); // relaunch #3
 
-        // Now stay silent past the end-of-turn window.
-        await vi.advanceTimersByTimeAsync(5000);
+        // Now stay silent past the end-of-turn window. The window is the 5000ms
+        // budget PLUS the deaf-teardown credit from each relaunch (the mic can't
+        // hear during a restart, so that time isn't counted as silence), so this
+        // must clear the raw budget by a comfortable margin.
+        await vi.advanceTimersByTimeAsync(6000);
 
         expect(finals(events)).toEqual([{ type: 'final', text: 'I notice a tightness' }]);
+        await finished;
+    });
+
+    it('credits deaf teardown time so a short word + think-pause is not truncated (the "yeah" bug)', async () => {
+        // A low pause budget where the ~750ms settle + relaunch would, uncredited,
+        // race the end-of-turn timer and ship the first word alone - exactly the
+        // "'yeah, I'm feeling a little optimism' sent just 'yeah'" report.
+        const engine = new CapacitorSttEngine({
+            language: 'en-US',
+            submitDelayMs: 1500,
+            submitMaxDelayMs: 1500,
+        });
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        partial('yeah'); // a short first word...
+        stopped(); // ...Android endpoints almost immediately
+        partial('yeah'); // post-stop final
+        await vi.advanceTimersByTimeAsync(800); // settle + relaunch #2 (deaf gap credited)
+
+        // Past the raw 1500ms budget from the first word (the uncredited deadline
+        // was ~1560ms): the turn must still be open - the deaf gap was credited,
+        // not spent. Without the fix, 'yeah' would already have submitted alone.
+        await vi.advanceTimersByTimeAsync(1100);
+        expect(finals(events)).toEqual([]);
+
+        // The continuation lands on the relaunched mic and stitches on.
+        partial('I feel some optimism');
+        stopped();
+        partial('I feel some optimism');
+        await vi.advanceTimersByTimeAsync(3000); // silence past the window
+
+        expect(finals(events)).toEqual([
+            { type: 'final', text: 'yeah I feel some optimism' },
+        ]);
         await finished;
     });
 

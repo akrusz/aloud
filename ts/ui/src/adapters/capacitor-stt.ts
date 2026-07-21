@@ -52,6 +52,12 @@ export interface CapacitorSttEngineOptions {
 const RESTART_GAP_MS = 50;
 const SEGMENT_SETTLE_MS = 700;
 const IDLE_TIMEOUT_MS = 15000;
+// The relaunched native recognizer isn't actually listening the instant
+// start() is called - Android spends a few hundred ms warming up (and clips
+// the first syllable). Treat that as deaf time too when crediting the pause
+// budget across a restart, so a continuation spoken right after the pause
+// isn't raced by the end-of-turn timer.
+const RELAUNCH_WARMUP_MS = 400;
 
 export class CapacitorSttEngine implements SttEngine {
     private readonly options: Required<CapacitorSttEngineOptions>;
@@ -164,6 +170,13 @@ export class CapacitorSttEngine implements SttEngine {
         // (which would cancel the pending restart and reset the end-of-turn
         // window - the mic would then wait dead and still cut the user off).
         let segmentStopped = false;
+        // Absolute time (ms) the turn should submit if no more speech arrives.
+        // The end timer is scheduled to this, not to a raw delay, so we can push
+        // it out to credit deaf teardown time (see restartSegment).
+        let endsAt = 0;
+        // When the current segment's Android end-of-speech fired - the moment the
+        // mic went deaf. Used to credit the deaf gap back into endsAt at relaunch.
+        let stoppedAt = 0;
         let endTimer: ReturnType<typeof setTimeout> | null = null;
         let settleTimer: ReturnType<typeof setTimeout> | null = null;
         let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -200,11 +213,18 @@ export class CapacitorSttEngine implements SttEngine {
             const speechDur = lastSpeechAt && speechStartMs ? lastSpeechAt - speechStartMs : 0;
             return Math.min(submitDelayMs + speechDur * submitRampRate, submitMaxDelayMs);
         };
-        // (Re)arm the end-of-turn timer. Called only on real speech, so a silent
-        // restart cycle can't keep pushing the deadline out.
-        const armEnd = (): void => {
+        // Schedule the end timer to fire at the absolute `endsAt` deadline.
+        const scheduleEnd = (): void => {
             if (endTimer !== null) clearTimeout(endTimer);
-            endTimer = setTimeout(submit, neededMs());
+            endTimer = setTimeout(submit, Math.max(0, endsAt - Date.now()));
+        };
+        // (Re)arm the end-of-turn timer from live speech: a fresh full pause
+        // window starting now. Clears any pending deaf-gap credit - we're live
+        // again, the mic just heard the user.
+        const armEnd = (): void => {
+            endsAt = Date.now() + neededMs();
+            stoppedAt = 0;
+            scheduleEnd();
         };
         // Nothing heard for a long time (recognizer wedged, or a silent turn
         // that never errored): submit what we have (or note silence) as a
@@ -222,6 +242,19 @@ export class CapacitorSttEngine implements SttEngine {
             void SpeechRecognition.stop().catch(() => {});
             await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
             if (submitted || done || this.stopRequested) return;
+            // Credit the deaf teardown gap back into the pause budget. The mic
+            // was down from Android's end-of-speech (stoppedAt) through this
+            // relaunch, plus the recognizer's warmup - the user couldn't be heard
+            // for any of it, so none of it should count as end-of-turn silence.
+            // Without this, a short word before a think-pause ("yeah, ..." then a
+            // beat) submits the fragment before the continuation reaches a live
+            // mic. Only extends a live deadline; converges because real listening
+            // silence accrues faster than the deaf credit, and idleTimer caps it.
+            if (endsAt && stoppedAt) {
+                endsAt += Date.now() - stoppedAt + RELAUNCH_WARMUP_MS;
+                stoppedAt = 0;
+                scheduleEnd();
+            }
             segmentStopped = false; // the relaunched segment's partials are live
             segmentHasSpeech = false; // count this new segment only if it hears speech
             launchSegment();
@@ -271,6 +304,8 @@ export class CapacitorSttEngine implements SttEngine {
             console.info(`[stt-native] state: ${status}`);
             if (status !== 'stopped' || submitted || done) return;
             segmentStopped = true;
+            // Mark when the mic went deaf so restartSegment can credit the gap.
+            if (stoppedAt === 0) stoppedAt = Date.now();
             if (!stitching) {
                 // Legacy: submit a short debounce after end-of-speech; a
                 // post-stop final re-arms it (above) so the cleaner text wins.
@@ -331,7 +366,10 @@ export class CapacitorSttEngine implements SttEngine {
                     if (submitted || done) return;
                     if (stitching && sawSpeech && accumulated) {
                         // Silence during a turn in progress: the end-of-turn timer
-                        // will submit; keep the mic live for a continuation.
+                        // will submit; keep the mic live for a continuation. Mark
+                        // the deaf point if 'stopped' didn't already (NO_MATCH can
+                        // arrive without it) so restartSegment credits the gap.
+                        if (stoppedAt === 0) stoppedAt = Date.now();
                         void restartSegment();
                     } else {
                         submit(); // nothing heard: end the (empty) turn
