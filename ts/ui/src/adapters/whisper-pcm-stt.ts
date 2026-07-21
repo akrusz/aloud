@@ -435,24 +435,33 @@ export class WhisperPcmSttEngine implements SttEngine {
             // plays. Without EC the pre-buffer captures the speakers, and a
             // barge-in would prepend the facilitator's own words to the user's
             // utterance before sending it to Whisper. Matches barge-in.ts.
-            this.stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    // macOS's voice processing includes a noise gate that can
-                    // hard-zero soft speech MID-UTTERANCE - observed as RMS
-                    // exactly 0.000 for seconds while the user was still
-                    // talking, Whisper returning [BLANK_AUDIO] for spans that
-                    // had words. The gate rides with noise suppression, not echo
-                    // cancellation, so NS off while keeping EC (which continuous
-                    // capture requires).
-                    noiseSuppression: false,
-                    // On by default everywhere, but pinned: the VAD's input
-                    // level depends on it (it lifts quiet mics into usable
-                    // range), so a browser default change shouldn't silently
-                    // alter behavior.
-                    autoGainControl: true,
-                },
-            });
+            this.stream = await navigator.mediaDevices
+                .getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        // macOS's voice processing includes a noise gate that can
+                        // hard-zero soft speech MID-UTTERANCE - observed as RMS
+                        // exactly 0.000 for seconds while the user was still
+                        // talking, Whisper returning [BLANK_AUDIO] for spans that
+                        // had words. The gate rides with noise suppression, not echo
+                        // cancellation, so NS off while keeping EC (which continuous
+                        // capture requires).
+                        noiseSuppression: false,
+                        // On by default everywhere, but pinned: the VAD's input
+                        // level depends on it (it lifts quiet mics into usable
+                        // range), so a browser default change shouldn't silently
+                        // alter behavior.
+                        autoGainControl: true,
+                    },
+                })
+                .catch((err: unknown) => {
+                    // Greppable in adb logcat (Capacitor/Console): permission
+                    // denials here surface to the user as a vague mic error.
+                    const detail =
+                        err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+                    console.warn(`[stt-cloud] getUserMedia failed - ${detail}`);
+                    throw err;
+                });
             this.teardownGraph(); // any prior nodes belong to a dead stream
 
             // Diagnose + self-heal capture-track death: a dead track keeps the

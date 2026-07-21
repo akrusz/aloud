@@ -103,10 +103,15 @@ export class CapacitorSttEngine implements SttEngine {
         void SpeechRecognition.stop().catch(() => {});
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
+        let sawPartial = false;
         this.partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
             const matches = (data as { matches?: string[] }).matches ?? [];
             const text = matches[0];
             if (text === undefined) return;
+            if (!sawPartial) {
+                sawPartial = true;
+                console.info('[stt-native] first partial received');
+            }
             push({ type: 'partial', text });
         });
 
@@ -119,7 +124,9 @@ export class CapacitorSttEngine implements SttEngine {
         // the settle wins the race; the timer is a fallback, not the norm.
         let stopGrace: ReturnType<typeof setTimeout> | null = null;
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
-            if ((data as { status?: string }).status === 'stopped' && stopGrace === null) {
+            const status = (data as { status?: string }).status;
+            console.info(`[stt-native] state: ${status}`);
+            if (status === 'stopped' && stopGrace === null) {
                 stopGrace = setTimeout(finish, 400);
             }
         });
@@ -133,10 +140,12 @@ export class CapacitorSttEngine implements SttEngine {
                 partialResults: this.options.partialResults,
                 popup: false,
             });
+            console.info('[stt-native] start requested');
             startPromise
                 .then((result) => {
                     const matches = (result as { matches?: string[] } | undefined)?.matches ?? [];
                     const text = matches[0];
+                    console.info(`[stt-native] resolved: ${text ? `${text.length} chars` : 'no text'}`);
                     if (text !== undefined) push({ type: 'final', text });
                     finish();
                 })
@@ -145,6 +154,7 @@ export class CapacitorSttEngine implements SttEngine {
                     // silence, not a fault - end the turn without an error so
                     // the loop just listens again (paced by its cycle guard).
                     const msg = err instanceof Error ? err.message : String(err);
+                    console.warn(`[stt-native] start error: ${msg}`);
                     if (!/didn't understand|no match/i.test(msg)) {
                         push({ type: 'error', error: err });
                     }

@@ -62,6 +62,24 @@ applyTheme(resolveTheme());
 // regenerateEmbers is a no-op with no active session, so the theme toggle
 // handler below is safe to call it.
 
+/**
+ * Measure the floating top chrome's true midline from the brand chip's box and
+ * publish it as --top-chrome-mid, overriding the CSS estimate. The estimate
+ * can't be exact: the Knewave webfont's metrics (and when it finishes loading)
+ * change the chip's height. Fixed top-center chips (setup "?", session phase)
+ * center on this so brand, chip, and orb share one midline.
+ */
+function syncTopChromeMid(): void {
+    const brand = document.querySelector<HTMLElement>('.nav-brand');
+    if (!brand) return;
+    const rect = brand.getBoundingClientRect();
+    if (rect.height === 0) return;
+    document.documentElement.style.setProperty(
+        '--top-chrome-mid',
+        `${rect.top + rect.height / 2}px`
+    );
+}
+
 function setupGlobalChrome(): void {
     const btn = document.querySelector<HTMLElement>('[data-theme-toggle]');
     if (btn) initThemeToggle(btn);
@@ -71,6 +89,11 @@ function setupGlobalChrome(): void {
     // Follow OS-level theme flips (e.g. macOS Auto at sunset) without a
     // refresh. The watcher respects Settings/sticky and recent manual toggles.
     watchSystemTheme(() => regenerateEmbers());
+    syncTopChromeMid();
+    // Re-measure once the brand webfont lands (its metrics move the midline)
+    // and on viewport changes (rotation, browser chrome show/hide).
+    document.fonts?.ready.then(syncTopChromeMid).catch(() => {});
+    window.addEventListener('resize', syncTopChromeMid);
 }
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupGlobalChrome, { once: true });
