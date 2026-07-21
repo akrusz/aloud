@@ -142,18 +142,22 @@ export interface SetupViewHandle {
     getSetup(): SessionSetup;
 }
 
-/** "felt sense · 12 min in" - mode + elapsed for the resume banner. endTime is
- *  the last autosave stamp, so it approximates where the session was cut off. */
-function resumeBannerDetail(state: SessionState): string {
+/** Human mode name for the resume banner ("felt sense", "exploration", ...). */
+function resumeModeLabel(state: SessionState): string {
     const labels: Record<string, string> = {
         exploration: 'exploration',
         noting: 'noting',
         felt_sense: 'felt sense',
     };
-    const mode = labels[state.meditationType ?? ''] ?? 'session';
+    return labels[state.meditationType ?? ''] ?? 'session';
+}
+
+/** "felt sense · 12 min in" - mode + elapsed for the resume banner. endTime is
+ *  the last autosave stamp, so it approximates where the session was cut off. */
+function resumeBannerDetail(state: SessionState): string {
     const end = state.endTime ?? Math.floor(state.startTime);
     const mins = Math.max(1, Math.round((end - state.startTime) / 60));
-    return `${mode} · ${mins} min in`;
+    return `${resumeModeLabel(state)} · ${mins} min in`;
 }
 
 export async function mountSetupView(
@@ -193,19 +197,121 @@ export async function mountSetupView(
     // Lazy-loaded; the setup form is interactive while voices fetch.
     let scoredVoices: ScoredVoice[] = [];
 
-    // The history view writes 'continueFrom' to sessionStorage and routes back
-    // here; we pick it up and thread it into onBegin.
-    async function loadQueuedContinuation(): Promise<SessionState | null> {
-        if (typeof sessionStorage === 'undefined') return null;
-        const id = sessionStorage.getItem('continueFrom');
-        if (!id) return null;
-        const state = await sessionStore.load(id);
-        // One-shot: clear so a reload doesn't keep auto-continuing.
+    // A pending continuation: a History "Continue" (reason 'history') or a
+    // cold-boot resume (reason 'resume', meditation-pal-v73p). The history view /
+    // boot seeder writes it to sessionStorage and routes here; initPendingContinue
+    // loads it once. The banner tracks whether the selected mode still matches it,
+    // and Begin follows the selected tab - resume on the paused mode, fresh
+    // otherwise (see the Begin handler). The banner stays in the DOM at a constant
+    // height throughout, so switching tabs never shifts the layout.
+    let pendingContinue: { state: SessionState; reason: 'resume' | 'history' } | null = null;
+
+    function clearContinueStorage(): void {
+        if (typeof sessionStorage === 'undefined') return;
         sessionStorage.removeItem('continueFrom');
         sessionStorage.removeItem('continueFromSummary');
         sessionStorage.removeItem('continueReason');
-        if (!state) return null;
-        return state;
+    }
+
+    // Drop the offer entirely: on ✕, or when Begin commits to a fresh session in a
+    // different mode. Clears the handoff and, for a cold-boot resume, the durable
+    // pointer so the next launch doesn't re-offer it.
+    function dropPendingContinue(): void {
+        const wasResume = pendingContinue?.reason === 'resume';
+        pendingContinue = null;
+        clearContinueStorage();
+        if (wasResume) void clearActiveSession();
+    }
+
+    // Paint the banner from the in-memory pendingContinue. Same box either way (no
+    // layout shift): a statement when the selected mode matches the paused
+    // session, a reversible "Switch back" offer when it doesn't.
+    function updateContinueBanner(): void {
+        const banner = root.querySelector<HTMLElement>('#continue-banner');
+        const text = root.querySelector<HTMLElement>('#continue-banner-text');
+        if (!banner || !text) return;
+        if (!pendingContinue) {
+            banner.classList.add('hidden');
+            return;
+        }
+        const { state, reason } = pendingContinue;
+        const matches = setup.meditationType === state.meditationType;
+        text.textContent = '';
+        if (matches) {
+            if (reason === 'resume') {
+                text.textContent = `Resuming session: ${resumeBannerDetail(state)}`;
+            } else {
+                const summary =
+                    (typeof sessionStorage !== 'undefined' &&
+                        sessionStorage.getItem('continueFromSummary')) ||
+                    new Date(state.startTime * 1000).toLocaleString();
+                text.textContent = `Continuing from: ${summary}`;
+            }
+        } else {
+            // Diverged: the selected tab is a different mode, so Begin will start
+            // fresh. Reframe as a reversible offer, not a statement.
+            text.append(
+                document.createTextNode(
+                    reason === 'resume'
+                        ? `Paused: ${resumeModeLabel(state)} · `
+                        : 'Continuation set aside · '
+                )
+            );
+            const back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'continue-banner-switch';
+            back.textContent = 'Switch back';
+            back.addEventListener('click', () => {
+                const t = state.meditationType;
+                if (t === 'exploration' || t === 'noting' || t === 'felt_sense') selectMode(t);
+            });
+            text.append(back);
+        }
+        // Must be the .hidden class: the HTML hidden attribute loses to
+        // .continue-banner's `display: flex`.
+        banner.classList.remove('hidden');
+    }
+
+    // Load the pending continuation once at mount, then default to the paused
+    // session's own mode so the banner reads as a statement (a felt-sense session
+    // returns staged in its saved phase, not as whatever tab was active).
+    async function initPendingContinue(): Promise<void> {
+        if (typeof sessionStorage === 'undefined') return;
+        const id = sessionStorage.getItem('continueFrom');
+        if (!id) return;
+        const state = await sessionStore.load(id);
+        if (!state) return;
+        pendingContinue = {
+            state,
+            reason: sessionStorage.getItem('continueReason') === 'resume' ? 'resume' : 'history',
+        };
+        const t = state.meditationType;
+        if (
+            (t === 'exploration' || t === 'noting' || t === 'felt_sense') &&
+            t !== setup.meditationType
+        ) {
+            selectMode(t); // repaints tabs + banner
+        } else {
+            updateContinueBanner();
+        }
+    }
+
+    // Select a meditation mode (from a tab tap or the banner's "Switch back"),
+    // keeping the banner and dependent copy/estimates in sync.
+    function selectMode(tab: MeditationType): void {
+        if (setup.meditationType !== tab) {
+            setup.meditationType = tab;
+            // Noting has no intention field, so its slot is always empty.
+            setup.intention = setup.intentionByMode[tab] ?? '';
+            persist();
+            applyTabSelection(tab);
+            // Switching to/from noting changes whether an LLM is needed, and
+            // changes the estimate (noting has its own multiplier).
+            updateBeginButton();
+            updateAiNotes();
+            updateSessionEstimate();
+        }
+        updateContinueBanner();
     }
 
     function persist(): void {
@@ -609,12 +715,26 @@ export async function mountSetupView(
             btn.addEventListener('click', () => openVoiceModal());
         });
 
-        // One Begin path handles both fresh and continued sessions: it picks up
-        // any continuation the history view queued.
+        // One Begin path handles fresh and continued sessions, and it follows the
+        // selected tab: resume the paused session only when its mode still matches
+        // the tab, else start fresh in the chosen mode and drop the paused one.
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
             void (async () => {
-                const queued = await loadQueuedContinuation();
+                let queued: SessionState | null = null;
+                if (pendingContinue) {
+                    if (setup.meditationType === pendingContinue.state.meditationType) {
+                        // Resuming: hand off the paused state. The durable resume
+                        // pointer rides with the resumed session (re-set on its
+                        // autosave, cleared on a clean end), so don't clear it here.
+                        queued = pendingContinue.state;
+                        pendingContinue = null;
+                        clearContinueStorage();
+                    } else {
+                        // A fresh session in another mode supersedes the paused one.
+                        dropPendingContinue();
+                    }
+                }
                 onBegin(setup, queued);
             })();
         });
@@ -631,57 +751,16 @@ export async function mountSetupView(
         // (pointer-events: none), so it's no longer the old pill's tap-to-buy
         // shortcut. Buying credits lives behind the profile surface.
 
-        // Continuation banner, shown when history has queued a session.
-        void (async () => {
-            if (typeof sessionStorage === 'undefined') return;
-            const id = sessionStorage.getItem('continueFrom');
-            if (!id) return;
-            const state = await sessionStore.load(id);
-            if (!state) return;
-            // Resuming re-enters the session's own mode: a felt-sense session
-            // must come back staged (in its saved phase), not as whatever tab
-            // was active. Unknown/legacy types keep the current tab.
-            const t = state.meditationType;
-            if (
-                (t === 'exploration' || t === 'noting' || t === 'felt_sense') &&
-                t !== setup.meditationType
-            ) {
-                setup.meditationType = t;
-                persist();
-                applyTabSelection(t);
-                updateBeginButton();
-                updateAiNotes();
-                updateSessionEstimate();
-            }
-            const banner = root.querySelector<HTMLElement>('#continue-banner');
-            const text = root.querySelector<HTMLElement>('#continue-banner-text');
-            const cancel = root.querySelector<HTMLButtonElement>('#continue-cancel');
-            if (!banner || !text || !cancel) return;
-            // A cold-boot resume (mobile, meditation-pal-v73p) is tagged 'resume'
-            // and reads as "Resume your session"; a History continuation reads as
-            // "Continuing from". Begin resumes either; the ✕ starts fresh.
-            const resuming = sessionStorage.getItem('continueReason') === 'resume';
-            if (resuming) {
-                text.textContent = `Resume your session: ${resumeBannerDetail(state)}`;
-            } else {
-                const summary =
-                    sessionStorage.getItem('continueFromSummary') ||
-                    new Date(state.startTime * 1000).toLocaleString();
-                text.textContent = `Continuing from: ${summary}`;
-            }
-            // Must be the .hidden class: the HTML hidden attribute loses to
-            // .continue-banner's `display: flex`.
-            banner.classList.remove('hidden');
-            cancel.addEventListener('click', () => {
-                sessionStorage.removeItem('continueFrom');
-                sessionStorage.removeItem('continueFromSummary');
-                sessionStorage.removeItem('continueReason');
-                // Dismissing a cold-boot resume means "start fresh": drop the
-                // durable pointer so the next launch doesn't offer it again.
-                if (resuming) void clearActiveSession();
-                banner.classList.add('hidden');
-            });
-        })();
+        // Continuation / resume banner. render() rebuilds the DOM, so re-wire the
+        // ✕ and repaint from the in-memory pendingContinue every render (the
+        // one-time load lives in initPendingContinue, called at mount). ✕ drops
+        // the offer, which also shifts layout - fine, it's an explicit dismiss.
+        const bannerCancel = root.querySelector<HTMLButtonElement>('#continue-cancel');
+        bannerCancel?.addEventListener('click', () => {
+            dropPendingContinue();
+            updateContinueBanner();
+        });
+        updateContinueBanner();
     }
 
     // Provider status from /app/v1/providers - see provider-markers.ts.
@@ -871,17 +950,7 @@ export async function mountSetupView(
             btn.addEventListener('click', () => {
                 const tab = btn.dataset['tab'];
                 if (tab !== 'exploration' && tab !== 'noting' && tab !== 'felt_sense') return;
-                if (setup.meditationType === tab) return;
-                setup.meditationType = tab;
-                // Noting has no intention field, so its slot is always empty.
-                setup.intention = setup.intentionByMode[tab] ?? '';
-                persist();
-                applyTabSelection(tab);
-                // Switching to/from noting changes whether an LLM is needed,
-                // and changes the estimate (noting has its own multiplier).
-                updateBeginButton();
-                updateAiNotes();
-                updateSessionEstimate();
+                selectMode(tab);
             });
         });
     }
@@ -1270,6 +1339,9 @@ export async function mountSetupView(
     }
 
     render();
+    // Load any pending continuation (History "Continue" / cold-boot resume) once,
+    // after the first render so its tab-select + banner paint hit a live DOM.
+    void initPendingContinue();
     // Async so the form is interactive immediately; the picker populates when
     // the voices arrive.
     void loadVoiceCatalog();

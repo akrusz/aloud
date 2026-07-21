@@ -1462,6 +1462,22 @@ body:has(.session-container) {
     color: var(--text-primary);
 }
 
+/* Inline "Switch back" action inside the banner text when the selected mode has
+   diverged from the paused session. A plain accent link (no de-emphasis). */
+.continue-banner-switch {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.continue-banner-switch:hover {
+    color: var(--accent-strong, var(--accent));
+}
+
 /* Typing indicator (inside a facilitator chat bubble) */
 
 .typing-bubble {
@@ -4652,6 +4668,20 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .continue-banner-close {
         font-size: 1.5rem;
         padding: 0.25rem 0.5rem;
+    }
+    /* The setup content starts right under the floating top chrome (brand chip
+       left, orb right). Nudge the first row clear of it: the full-width resume
+       banner otherwise slips under the "aloud." wordmark, and the centered tabs
+       sit in the orb's glow. Only one of these is ever the first row, so the
+       adjacency rule below cancels the double-gap when the banner is present. */
+    .setup-header {
+        margin-top: 0.4rem;
+    }
+    .continue-banner {
+        margin-top: 0.75rem;
+    }
+    .continue-banner + .setup-header {
+        margin-top: 0;
     }
     /* Session input controls (Embers / Kasina / Voice) - chunkier so
        they're tappable, and allowed to wrap so they don't crash into
