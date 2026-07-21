@@ -103,10 +103,16 @@ brand copy rules: no em-dashes, no "AI" tells.)
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 ```
 
 `INTERNET` is present by default; `RECORD_AUDIO` must be added. The
 speech-recognition plugin requests it at runtime (first mic use).
+`MODIFY_AUDIO_SETTINGS` is required for the cloud/Whisper STT path: Capacitor's
+WebChromeClient grants a WebView `getUserMedia` audio request only if EVERY
+permission it asks for is granted, and for `AUDIO_CAPTURE` it requests both
+`RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS`. Undeclared, the latter returns denied
+and the whole mic grant fails with `NotAllowedError` (bead `t25n`).
 
 ### Native sign-in (Google + Apple)
 

@@ -40,6 +40,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Native speech recognition (@capacitor-community/speech-recognition) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Required for the cloud/Whisper STT path: Capacitor's WebChromeClient
+         grants a WebView getUserMedia audio request only if EVERY permission it
+         asks for is granted, and for AUDIO_CAPTURE it requests both RECORD_AUDIO
+         AND MODIFY_AUDIO_SETTINGS. Undeclared, the latter comes back denied and
+         the whole mic grant fails with NotAllowedError (meditation-pal-t25n). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
