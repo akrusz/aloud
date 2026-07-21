@@ -11,7 +11,7 @@ import { createKv } from './adapters/kv.js';
 import type { Provider } from './settings.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
-export type TtsEngineChoice = 'macos' | 'piper' | 'browser' | 'elevenlabs';
+export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenlabs';
 /** Speech-to-text source. Always an explicit pick (no hidden "automatic") so
  *  the user controls where audio goes and knows when it costs credits. A stored
  *  null means the mode's flow default: Whisper locally -> browser speech ->
@@ -102,7 +102,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     resumeFromSummary: true,
     autoQuitAfterSilence: true,
     autoQuitSilenceMin: 120,
-    ttsEngine: 'browser',
+    ttsEngine: 'cloud',
     defaultVoice: null,
     defaultTtsRate: 160,
     language: 'en',

@@ -25,8 +25,16 @@ export function manageModalFocus(overlay: HTMLElement): () => void {
 
     // Prefer the first control that isn't the close button, so a keyboard user
     // starts on the dialog's content; close stays reachable by Shift+Tab.
+    // Text fields are last resort: auto-focusing one pops the keyboard on
+    // touch screens, burying the controls most users actually want (e.g. the
+    // sign-in modal's Google/Apple buttons above the email field).
+    const isTextEntry = (el: HTMLElement): boolean =>
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLInputElement &&
+            !['button', 'submit', 'reset', 'checkbox', 'radio', 'range'].includes(el.type));
     const initial = focusables(overlay);
-    (initial.find((el) => !el.classList.contains('voice-modal-close')) ?? initial[0])?.focus();
+    const nonClose = initial.filter((el) => !el.classList.contains('voice-modal-close'));
+    (nonClose.find((el) => !isTextEntry(el)) ?? nonClose[0] ?? initial[0])?.focus();
 
     const onKeydown = (e: KeyboardEvent): void => {
         if (e.key !== 'Tab') return;

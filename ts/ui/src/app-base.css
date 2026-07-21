@@ -4497,11 +4497,11 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 }
 
 @media (max-width: 767px) {
-    /* Phone typography: the 16px desktop base reads oversized next to native
-       apps. One knob - the UI is rem-based - and it still multiplies with the
-       OS font-size accessibility setting rather than overriding it. */
+    /* Phone typography: the 18px desktop base reads oversized next to native
+       apps. Keep the user's text-scale multiplier (matching the desktop html
+       rule); the OS font-size accessibility setting still multiplies on top. */
     html {
-        font-size: 15px;
+        font-size: calc(15px * var(--text-scale, 1));
     }
 
     /* Top nav becomes a thin transparent floating header on mobile - only the brand (left) and the session orb (right) remain visible. */

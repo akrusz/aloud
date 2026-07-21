@@ -637,6 +637,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             ? ' <a href="#" data-open-voice-settings>Download Premium voices</a>. In the System Voice row, click the <b>ⓘ</b> then click Voice.'
             : '';
         const hints: Record<TtsEngineChoice, string> = {
+            cloud: 'Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁️ entries.',
             macos:
                 'Built-in macOS voices. Zero latency, works offline.' +
                 (isMac ? openSettingsLink : ''),
@@ -939,14 +940,23 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const appliedEl = root.querySelector<HTMLElement>('#display-applied');
         textScale.value = String(pendingChrome.textScale);
         textScaleLabel.textContent = `${Math.round(pendingChrome.textScale * 100)}%`;
+        // The platform base size (18px desktop, 15px phone) times the PENDING
+        // scale. Derived from the live root font (base × applied scale) rather
+        // than hardcoding the base, so the preview always matches what Apply
+        // would produce.
+        const previewFontSize = (): string => {
+            const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+            const basePx = rootPx / (settings.textScale || 1);
+            return `${basePx * pendingChrome.textScale}px`;
+        };
         if (previewInner) {
-            previewInner.style.fontSize = `${18 * pendingChrome.textScale}px`;
+            previewInner.style.fontSize = previewFontSize();
         }
         textScale.addEventListener('input', () => {
             pendingChrome.textScale = Number(textScale.value);
             textScaleLabel.textContent = `${Math.round(pendingChrome.textScale * 100)}%`;
             if (previewInner) {
-                previewInner.style.fontSize = `${18 * pendingChrome.textScale}px`;
+                previewInner.style.fontSize = previewFontSize();
             }
             updateApplyDisplayState();
         });
@@ -1508,10 +1518,11 @@ function renderLanguageSection(s: AppSettings): string {
 }
 
 function renderTtsSection(s: AppSettings): string {
-    // macOS `say` and Piper live in the desktop shell's loopback backend -
-    // offering them anywhere else (web, phone) gives a silent voice. Mirrors
-    // sttEngineOptions' platform gating.
+    // aloud cloud is on every platform; macOS `say` and Piper live in the
+    // desktop shell's loopback backend - offering them anywhere else (web,
+    // phone) gives a silent voice. Mirrors sttEngineOptions' platform gating.
     const engines: ReadonlyArray<[TtsEngineChoice, string]> = [
+        ['cloud', 'aloud cloud'],
         ...(isTauri()
             ? ([
                   ['macos', "macOS (built-in 'say')"],
@@ -1531,6 +1542,7 @@ function renderTtsSection(s: AppSettings): string {
     <section class="settings-section" id="settings-tts">
         <h2>Text-to-Speech <button type="button" class="info-btn" id="tts-info-btn" aria-label="TTS engine info">?</button></h2>
         <div class="info-panel hidden" id="tts-info-panel">
+            <p><strong>aloud cloud</strong> - Natural hosted voices, metered from your credit balance. No setup.</p>
             ${
                 isTauri()
                     ? `<p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
