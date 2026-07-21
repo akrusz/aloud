@@ -1499,6 +1499,10 @@ export async function mountSessionView(
                                 const content =
                                     currentPartial.querySelector('.message-content');
                                 if (content) content.textContent = event.text;
+                                // Keep the growing partial in view: a multi-line
+                                // in-progress bubble otherwise runs off the bottom
+                                // of the transcript until the final replaces it.
+                                conversation.scrollTop = conversation.scrollHeight;
                             }
                         } else if (event.type === 'final') {
                             finalText = event.text;
