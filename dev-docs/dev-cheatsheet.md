@@ -209,14 +209,14 @@ prereqs, release + cutover).
 
 ```bash
 cd ts
-export VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev
 npm run cap:sync       # ui:build + cap sync (both platforms)
 npm run cap:ios        # + open Xcode
 npm run cap:android    # + open Android Studio
 ```
 
-The `cap:*` scripts refuse to run without `VITE_ALOUD_CLOUD_URL` (a mobile build
-without it has no backend). The mobile app wraps `ui/dist` in the OS WebView,
+`VITE_ALOUD_CLOUD_URL` defaults from the committed `ts/ui/.env.production`
+(build-only; an env var overrides it), and the `cap:*` scripts refuse to run if
+neither supplies it (a mobile build without it has no backend). The mobile app wraps `ui/dist` in the OS WebView,
 runs in **web mode**, and talks to aloud cloud. Native adapters (storage, STT,
 keep-awake, in-app browser, sign-in) swap on `isCapacitor()`. `ts/ios/` and
 `ts/android/` are committed (hand-edited native config); the permission strings,
@@ -231,8 +231,9 @@ icons, and full adapter map are documented in **[mobile.md](mobile.md)**.
   `GOOGLE_CLIENT_IDS`, Stripe keys,
   `ALOUD_ADMIN_TOKEN`, and `ALOUD_UI_DIR` (serve `ui/dist` from the same process - the single-box self-host story).
 - **UI build**: `VITE_ALOUD_CLOUD_URL` - the hosted origin baked into a
-  static/desktop build so `/app/v1` + `/cloud/v1` resolve off-origin (unset in
-  dev; the Vite proxy handles it).
+  static/desktop/mobile build so `/app/v1` + `/cloud/v1` resolve off-origin.
+  Committed default in `ts/ui/.env.production` (production builds only; dev
+  uses the Vite proxy); an env var / CI repo var overrides it.
 - **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono - both `/app` and `/cloud`
   proxy targets), `OLLAMA_URL`.
 - **BYOK keys** entered in the UI live in the browser's localStorage and are
