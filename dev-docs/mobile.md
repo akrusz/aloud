@@ -50,6 +50,13 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
   Gradle at it (`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`)
   or `brew install --cask temurin@21`. Set `ANDROID_HOME` (default
   `~/Library/Android/sdk`). A Play Console account for internal testing.
+- **Decline Android Studio's upgrade prompts** (AGP / Gradle "Upgrade
+  Assistant"): Capacitor generates the project against a pinned AGP major,
+  and its plugins under `node_modules` build against it too - accepting the
+  bump (e.g. AGP 9) breaks the build immediately. Those upgrades arrive via
+  Capacitor releases (`npx cap migrate`). If accepted by accident, revert
+  `android/build.gradle`, `android/gradle.properties`, and
+  `android/gradle/wrapper/gradle-wrapper.properties`.
 
 ## First build
 
