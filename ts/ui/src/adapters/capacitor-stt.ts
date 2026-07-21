@@ -154,6 +154,10 @@ export class CapacitorSttEngine implements SttEngine {
         let lastSpeechAt = 0;
         let sawSpeech = false;
         let submitted = false;
+        // How many segments contributed speech this turn. Logged at submit so a
+        // logcat reader can see stitching held across a pause (> 1 = stitched).
+        let segments = 0;
+        let segmentHasSpeech = false;
         // True between a segment's end-of-speech and its relaunch: the plugin
         // delivers the segment's FINAL transcript as a 'partialResults' event
         // AFTER 'stopped', and that late delivery must not read as new speech
@@ -180,7 +184,7 @@ export class CapacitorSttEngine implements SttEngine {
             clearTimers();
             const text = combined();
             if (text) {
-                console.info(`[stt-native] final: ${text.length} chars`);
+                console.info(`[stt-native] final: ${text.length} chars, ${segments} segment(s)`);
                 push({ type: 'final', text });
             } else {
                 console.info('[stt-native] turn ended with no speech');
@@ -219,6 +223,7 @@ export class CapacitorSttEngine implements SttEngine {
             await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
             if (submitted || done || this.stopRequested) return;
             segmentStopped = false; // the relaunched segment's partials are live
+            segmentHasSpeech = false; // count this new segment only if it hears speech
             launchSegment();
         };
 
@@ -229,6 +234,10 @@ export class CapacitorSttEngine implements SttEngine {
             if (!sawSpeech) {
                 sawSpeech = true;
                 console.info('[stt-native] first partial received');
+            }
+            if (!segmentHasSpeech) {
+                segmentHasSpeech = true;
+                segments++;
             }
             if (speechStartMs === 0) speechStartMs = Date.now();
             segmentText = text;
