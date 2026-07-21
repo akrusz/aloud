@@ -19,6 +19,7 @@ import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitatio
 import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
+import { ensureMicPermission } from '../mic-permission.js';
 // Type-only: dynamic-imported in acquireSilero() so the ort runtime + model
 // assets stay out of the main bundle (and out of node-env tests).
 import type { SileroFrameVad } from './silero-vad.js';
@@ -430,6 +431,10 @@ export class WhisperPcmSttEngine implements SttEngine {
      */
     private async ensureCaptureGraph(): Promise<void> {
         if (!this.stream || !this.stream.active) {
+            // On native mobile the WebView only grants getUserMedia audio once
+            // the app holds RECORD_AUDIO; this cloud path never requested it, so
+            // pre-flight it (no-op elsewhere). See mic-permission.ts.
+            await ensureMicPermission();
             // echoCancellation matters more than usual here: this stream stays
             // live across turns, so it fills the onset pre-buffer WHILE TTS
             // plays. Without EC the pre-buffer captures the speakers, and a
