@@ -17,7 +17,7 @@ import type { SttEngine } from '../../../src/platform/stt.js';
 import type { PacingConfig } from '../../../src/facilitation/pacing.js';
 
 import { rateSuffix } from '../credit-rate.js';
-import { CapacitorSttEngine } from './capacitor-stt.js';
+import { CapacitorSttEngine, type CapacitorSttEngineOptions } from './capacitor-stt.js';
 import { WhisperPcmSttEngine } from './whisper-pcm-stt.js';
 import {
     WebSpeechSttEngine,
@@ -130,14 +130,15 @@ export async function detectSttBackend(): Promise<SttBackend> {
 /**
  * Construct the best-available STT engine, or null so the caller can switch the
  * UI into text-only mode. Only the server-Whisper path does client-side VAD;
- * Capacitor and Web Speech detect end-of-utterance themselves and ignore the
- * VAD tuning fields.
+ * Web Speech and Capacitor self-endpoint, but both honor the pause window by
+ * holding the turn open across a mid-thought pause (Web Speech runs continuous;
+ * Capacitor restart-stitches, since Android won't keep the mic open).
  */
 export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | null> {
     const backend = await detectSttBackend();
     switch (backend) {
         case 'capacitor':
-            return new CapacitorSttEngine();
+            return new CapacitorSttEngine(capacitorOpts(vadOpts));
         case 'web-speech':
             return new WebSpeechSttEngine(webSpeechOpts(vadOpts));
         case 'server-whisper':
@@ -161,6 +162,17 @@ function webSpeechOpts(vadOpts: VadOpts): WebSpeechSttEngineOptions {
     return opts;
 }
 
+/** Same mapping for the native engine. Android's recognizer endpoints on a
+ *  ~1.5s pause, so without this a mid-thought pause ships a fragment to the AI;
+ *  the engine restart-stitches to hold the turn open for this window instead. */
+function capacitorOpts(vadOpts: VadOpts): CapacitorSttEngineOptions {
+    const opts: CapacitorSttEngineOptions = {};
+    if (vadOpts.silenceBaseMs !== undefined) opts.submitDelayMs = vadOpts.silenceBaseMs;
+    if (vadOpts.silenceMaxMs !== undefined) opts.submitMaxDelayMs = vadOpts.silenceMaxMs;
+    if (vadOpts.silenceRampRate !== undefined) opts.submitRampRate = vadOpts.silenceRampRate;
+    return opts;
+}
+
 /**
  * Build the STT engine for an explicit user choice (Settings → Speech
  * Recognition). Null when that source isn't usable here (Whisper with no local
@@ -175,7 +187,7 @@ export async function createSttForChoice(
         case 'capacitor':
             // Native app only; a stale stored pick outside it gets the honest
             // mic-unavailable state, not a plugin that throws at start().
-            return isCapacitor() ? new CapacitorSttEngine() : null;
+            return isCapacitor() ? new CapacitorSttEngine(capacitorOpts(vadOpts)) : null;
         case 'aloud':
             return createServerAloudStt(vadOpts);
         case 'web-speech':

@@ -8,8 +8,11 @@
  *   - The first permission prompt must come from a user gesture (mic-button
  *     click). requestPermissions() runs lazily inside start() so callers don't
  *     have to remember.
- *   - Native APIs auto-stop on end-of-speech. continuous=true holds the session
- *     across pauses; the default false matches turn-taking.
+ *   - Native APIs auto-stop on end-of-speech. The plugin (v7) has no continuous
+ *     mode on Android, so to hold a turn open across a mid-thought pause we
+ *     restart-stitch: fold each segment's transcript and relaunch the recognizer
+ *     until submitDelayMs of real silence elapses (see start()). submitDelayMs=0
+ *     keeps the old one-utterance-per-turn behavior.
  *   - In a plain browser (no Capacitor runtime) this throws at start(), not at
  *     import.
  */
@@ -29,7 +32,26 @@ export interface CapacitorSttEngineOptions {
     /** Candidates per result. We use only the top one, but the plugin requires
      *  the field. Default 1. */
     maxResults?: number;
+    /**
+     * Base pause (ms) tolerated before the turn is submitted. When > 0 we own
+     * end-of-turn: Android's recognizer endpoints on ~1.5s of silence, so each
+     * end-of-speech is treated as a segment boundary - the transcript is kept
+     * and the recognizer relaunched - and the turn only ends after this much
+     * real silence. 0 (default) submits on the first end-of-speech. Mirrors
+     * WebSpeechSttEngine.submitDelayMs.
+     */
+    submitDelayMs?: number;
+    /** Max pause (ms) tolerated - the cap on the ramp below. Defaults to
+     *  submitDelayMs. */
+    submitMaxDelayMs?: number;
+    /** Adaptive ramp: each ms of speech buys this many ms of extra pause
+     *  tolerance, capped at submitMaxDelayMs. 0 = flat delay. */
+    submitRampRate?: number;
 }
+
+const RESTART_GAP_MS = 50;
+const SEGMENT_SETTLE_MS = 700;
+const IDLE_TIMEOUT_MS = 15000;
 
 export class CapacitorSttEngine implements SttEngine {
     private readonly options: Required<CapacitorSttEngineOptions>;
@@ -38,11 +60,15 @@ export class CapacitorSttEngine implements SttEngine {
     private stopRequested = false;
 
     constructor(options: CapacitorSttEngineOptions = {}) {
+        const submitDelayMs = options.submitDelayMs ?? 0;
         this.options = {
             language: options.language ?? document.documentElement.lang ?? 'en-US',
             continuous: options.continuous ?? false,
             partialResults: options.partialResults ?? true,
             maxResults: options.maxResults ?? 1,
+            submitDelayMs,
+            submitMaxDelayMs: options.submitMaxDelayMs ?? submitDelayMs,
+            submitRampRate: options.submitRampRate ?? 0,
         };
     }
 
@@ -101,7 +127,7 @@ export class CapacitorSttEngine implements SttEngine {
         // await it - and it runs before the listeners attach so its
         // 'stopped' event can't read as this turn ending.
         void SpeechRecognition.stop().catch(() => {});
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
 
         // The plugin's REAL contract with partialResults: true (our default;
         // read from the Android source, not the docs):
@@ -112,97 +138,203 @@ export class CapacitorSttEngine implements SttEngine {
         //     final transcript lands.
         //   - A silent turn is INVISIBLE: native errors (NO_MATCH) reject the
         //     already-resolved call, which JS never sees. No event arrives.
-        // So the turn ends on: last transcript after 'stopped' (debounced),
-        // a cap after 'stopped' with nothing further, or an idle timeout for
-        // the silent-turn case. Only with partialResults: false does start()
-        // resolve with the final matches.
-        let lastText: string | null = null;
-        let stopped = false;
-        let finalTimer: ReturnType<typeof setTimeout> | null = null;
+        //
+        // stitching (submitDelayMs > 0): each end-of-speech is a segment
+        // boundary. After a short settle to catch the post-'stopped' final,
+        // fold the segment into `accumulated`, relaunch the recognizer, and let
+        // an end-of-turn timer - reset on every real utterance, NOT on empty
+        // restarts - decide when the pause is long enough to submit. Legacy
+        // (submitDelayMs === 0): finalize a short debounce after 'stopped'.
+        const { submitDelayMs, submitMaxDelayMs, submitRampRate } = this.options;
+        const stitching = submitDelayMs > 0;
+
+        let accumulated = ''; // folded transcript from prior segments this turn
+        let segmentText = ''; // current segment's latest partial
+        let speechStartMs = 0;
+        let lastSpeechAt = 0;
+        let sawSpeech = false;
+        let submitted = false;
+        // True between a segment's end-of-speech and its relaunch: the plugin
+        // delivers the segment's FINAL transcript as a 'partialResults' event
+        // AFTER 'stopped', and that late delivery must not read as new speech
+        // (which would cancel the pending restart and reset the end-of-turn
+        // window - the mic would then wait dead and still cut the user off).
+        let segmentStopped = false;
+        let endTimer: ReturnType<typeof setTimeout> | null = null;
+        let settleTimer: ReturnType<typeof setTimeout> | null = null;
         let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-        const finishTurn = (): void => {
-            if (done) return;
-            if (lastText !== null) {
-                console.info(`[stt-native] final: ${lastText.length} chars`);
-                push({ type: 'final', text: lastText });
+        const clearTimers = (): void => {
+            if (endTimer !== null) clearTimeout(endTimer);
+            if (settleTimer !== null) clearTimeout(settleTimer);
+            if (idleTimer !== null) clearTimeout(idleTimer);
+            endTimer = settleTimer = idleTimer = null;
+        };
+        const combined = (): string =>
+            [accumulated, segmentText].map((s) => s.trim()).filter(Boolean).join(' ');
+
+        // End the turn: emit the stitched transcript (or note silence) and stop.
+        const submit = (): void => {
+            if (submitted || done) return;
+            submitted = true;
+            clearTimers();
+            const text = combined();
+            if (text) {
+                console.info(`[stt-native] final: ${text.length} chars`);
+                push({ type: 'final', text });
             } else {
                 console.info('[stt-native] turn ended with no speech');
             }
             finish();
+            // Fire-and-forget: the plugin's stop() never resolves (see stop()).
+            void SpeechRecognition.stop().catch(() => {});
         };
-        // After end-of-speech, each further transcript re-arms a short
-        // debounce; the last one to land within it is the final.
-        const scheduleFinal = (ms: number): void => {
-            if (finalTimer !== null) clearTimeout(finalTimer);
-            finalTimer = setTimeout(finishTurn, ms);
+
+        // Pause tolerated right now: base + speech-so-far × ramp, capped. Ramps
+        // with speech duration so longer turns get more patience mid-sentence.
+        const neededMs = (): number => {
+            const speechDur = lastSpeechAt && speechStartMs ? lastSpeechAt - speechStartMs : 0;
+            return Math.min(submitDelayMs + speechDur * submitRampRate, submitMaxDelayMs);
         };
-        // Nothing at all heard (recognizer died silently or user stayed
-        // quiet): end the turn so the listen loop starts a fresh session.
+        // (Re)arm the end-of-turn timer. Called only on real speech, so a silent
+        // restart cycle can't keep pushing the deadline out.
+        const armEnd = (): void => {
+            if (endTimer !== null) clearTimeout(endTimer);
+            endTimer = setTimeout(submit, neededMs());
+        };
+        // Nothing heard for a long time (recognizer wedged, or a silent turn
+        // that never errored): submit what we have (or note silence) as a
+        // backstop so the listen loop isn't left hanging.
         const bumpIdle = (): void => {
             if (idleTimer !== null) clearTimeout(idleTimer);
-            idleTimer = setTimeout(finishTurn, 15000);
+            idleTimer = setTimeout(submit, IDLE_TIMEOUT_MS);
         };
-        bumpIdle();
 
-        let sawPartial = false;
-        this.partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
-            const matches = (data as { matches?: string[] }).matches ?? [];
-            const text = matches[0];
-            if (text === undefined) return;
-            if (!sawPartial) {
-                sawPartial = true;
+        // Relaunch the native recognizer for the next segment, keeping the
+        // stitched transcript. Bounded by the end-of-turn timer, which fires
+        // submit() and flips `submitted`, so this can't loop forever.
+        const restartSegment = async (): Promise<void> => {
+            if (submitted || done || this.stopRequested) return;
+            void SpeechRecognition.stop().catch(() => {});
+            await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
+            if (submitted || done || this.stopRequested) return;
+            segmentStopped = false; // the relaunched segment's partials are live
+            launchSegment();
+        };
+
+        // Live speech in the currently-active segment: advances the transcript
+        // and resets the end-of-turn window.
+        const onLiveSpeech = (text: string): void => {
+            if (submitted || done) return;
+            if (!sawSpeech) {
+                sawSpeech = true;
                 console.info('[stt-native] first partial received');
             }
-            lastText = text;
+            if (speechStartMs === 0) speechStartMs = Date.now();
+            segmentText = text;
+            lastSpeechAt = Date.now();
             bumpIdle();
-            if (stopped) scheduleFinal(700);
-            push({ type: 'partial', text });
+            if (stitching) armEnd();
+            push({ type: 'partial', text: combined() });
+        };
+
+        this.partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
+            const text = ((data as { matches?: string[] }).matches ?? [])[0];
+            if (text === undefined || submitted || done) return;
+            if (segmentStopped) {
+                // Post-'stopped' final delivery of the segment that just ended:
+                // adopt the (usually cleaner) final text for the live preview,
+                // but the segment is over - don't touch the end-of-turn window
+                // or the pending restart.
+                segmentText = text;
+                push({ type: 'partial', text: combined() });
+                if (!stitching) {
+                    if (settleTimer !== null) clearTimeout(settleTimer);
+                    settleTimer = setTimeout(submit, 700);
+                }
+                return;
+            }
+            onLiveSpeech(text);
         });
 
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
             const status = (data as { status?: string }).status;
             console.info(`[stt-native] state: ${status}`);
-            bumpIdle();
-            if (status === 'stopped') {
-                stopped = true;
-                // Cap: the final usually lands well inside this; each arrival
-                // shortens the wait via the 700ms debounce above.
-                scheduleFinal(2500);
+            if (status !== 'stopped' || submitted || done) return;
+            segmentStopped = true;
+            if (!stitching) {
+                // Legacy: submit a short debounce after end-of-speech; a
+                // post-stop final re-arms it (above) so the cleaner text wins.
+                if (settleTimer !== null) clearTimeout(settleTimer);
+                settleTimer = setTimeout(submit, 2500);
+                return;
             }
+            // Settle briefly to catch the post-'stopped' final transcript, then
+            // fold and relaunch to catch a continuation. The end-of-turn timer,
+            // armed from the last LIVE utterance, is what actually ends the turn.
+            if (settleTimer !== null) clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+                settleTimer = null;
+                if (submitted || done) return;
+                if (segmentText) {
+                    accumulated = combined();
+                    segmentText = '';
+                }
+                if (sawSpeech && accumulated) {
+                    // A turn is in progress; keep the mic available for a
+                    // continuation until the end-of-turn timer fires.
+                    void restartSegment();
+                } else {
+                    submit(); // silent turn: let the listen loop start fresh
+                }
+            }, SEGMENT_SETTLE_MS);
         });
 
-        try {
+        // Launch (or relaunch) one native recognition segment.
+        const launchSegment = (): void => {
             const startPromise = SpeechRecognition.start({
                 language: this.options.language,
                 maxResults: this.options.maxResults,
                 partialResults: this.options.partialResults,
                 popup: false,
             });
-            console.info('[stt-native] start requested');
             startPromise
                 .then((result) => {
-                    // Meaningful only with partialResults: false; in partial
-                    // mode this resolves instantly and empty - ignore it.
-                    const matches = (result as { matches?: string[] } | undefined)?.matches ?? [];
-                    const text = matches[0];
+                    // Meaningful only with partialResults: false; in partial mode
+                    // this resolves instantly and empty - ignore it.
+                    const text = ((result as { matches?: string[] } | undefined)?.matches ?? [])[0];
                     if (text !== undefined) {
-                        lastText = text;
-                        finishTurn();
+                        onLiveSpeech(text);
+                        if (!stitching) submit();
                     }
                 })
                 .catch((err: unknown) => {
                     // Android's NO_MATCH ("Didn't understand...") is ordinary
-                    // silence, not a fault - end the turn without an error so
-                    // the loop just listens again (paced by its cycle guard).
+                    // silence, not a fault.
                     const msg = err instanceof Error ? err.message : String(err);
-                    console.warn(`[stt-native] start error: ${msg}`);
-                    if (!/didn't understand|no match/i.test(msg)) {
+                    const benign = /didn't understand|no match/i.test(msg);
+                    if (!benign) {
+                        console.warn(`[stt-native] start error: ${msg}`);
                         push({ type: 'error', error: err });
+                        finish();
+                        return;
                     }
-                    finish();
+                    if (submitted || done) return;
+                    if (stitching && sawSpeech && accumulated) {
+                        // Silence during a turn in progress: the end-of-turn timer
+                        // will submit; keep the mic live for a continuation.
+                        void restartSegment();
+                    } else {
+                        submit(); // nothing heard: end the (empty) turn
+                    }
                 });
+        };
 
+        console.info('[stt-native] start requested');
+        bumpIdle();
+        launchSegment();
+
+        try {
             while (true) {
                 while (queue.length > 0) {
                     yield queue.shift()!;
@@ -213,8 +345,7 @@ export class CapacitorSttEngine implements SttEngine {
                 });
             }
         } finally {
-            if (finalTimer !== null) clearTimeout(finalTimer);
-            if (idleTimer !== null) clearTimeout(idleTimer);
+            clearTimers();
             await this.partialListener?.remove().catch(() => {});
             await this.stateListener?.remove().catch(() => {});
             this.partialListener = null;
