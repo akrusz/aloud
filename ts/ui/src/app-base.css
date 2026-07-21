@@ -4488,6 +4488,13 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 }
 
 @media (max-width: 767px) {
+    /* Phone typography: the 16px desktop base reads oversized next to native
+       apps. One knob - the UI is rem-based - and it still multiplies with the
+       OS font-size accessibility setting rather than overriding it. */
+    html {
+        font-size: 15px;
+    }
+
     /* Top nav becomes a thin transparent floating header on mobile - only the brand (left) and the session orb (right) remain visible. */
     .nav {
         position: fixed;
@@ -4773,6 +4780,18 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .settings-footer,
     .setup-footer {
         bottom: calc(3.7rem + var(--safe-bottom-clear));
+    }
+
+    /* Slimmer settings footer: the desktop bar's padding reads chunky
+       stacked on the bottom nav. */
+    .settings-footer {
+        padding: 0.3rem 1rem;
+    }
+    .settings-footer-inner {
+        min-height: 0;
+    }
+    .settings-footer .btn {
+        padding: 0.4rem 1rem;
     }
     .setup-container {
         max-width: 500px;

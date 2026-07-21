@@ -7,6 +7,7 @@ import { isTauri, capacitorPlatform } from './is-desktop.js';
 import { initTauriWindowDrag } from './tauri-chrome.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
+import { initAndroidBack } from './android-back.js';
 
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.
@@ -19,6 +20,9 @@ const nativePlatform = capacitorPlatform();
 if (nativePlatform !== 'web') {
     document.documentElement.dataset.platform = nativePlatform;
 }
+
+// Android hardware/gesture back walks in-app history instead of exiting.
+initAndroidBack();
 
 // Dev only: the dev server shares port 4649 with the retired app, whose service
 // worker may still be registered from a past session - it would shadow Vite

@@ -1427,7 +1427,11 @@ function renderAdvancedBody(s: AppSettings): string {
                     <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
                     <span>Enable providers that require API keys</span>
                 </label>
-                <span class="form-hint">Enables you to enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Your keys are stored only on this device and never saved on our servers, but your key passes through our system in transit. Enable only if you're comfortable with that. Downloadable versions of aloud don't pipe your keys through our servers.</span>
+                <span class="form-hint">Enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Keys are stored only on this device and never saved on our servers. Most providers are called directly; Anthropic blocks direct browser calls, so those requests (key included) relay through our servers.${
+                    isCapacitor()
+                        ? ''
+                        : ' The downloadable desktop app calls every provider directly.'
+                }</span>
             </div>
         </div>`;
 }
