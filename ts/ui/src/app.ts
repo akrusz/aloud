@@ -177,7 +177,7 @@ function wireNav(): void {
             return;
         }
         const root = $('app-root');
-        void routeTo(root, view);
+        void routeTo(root, view, { anchor: target.dataset['navAnchor'] });
     });
 }
 
@@ -259,7 +259,7 @@ function wirePopstate(): void {
 async function routeTo(
     root: HTMLElement,
     view: Exclude<View, 'session'>,
-    options: { replace?: boolean; fromPopstate?: boolean } = {}
+    options: { replace?: boolean; fromPopstate?: boolean; anchor?: string | undefined } = {}
 ): Promise<void> {
     // Already there with nothing to tear down. currentView is null on the very
     // first mount, so the deep-link still routes.
@@ -284,6 +284,16 @@ async function routeTo(
     else if (view === 'history') await goHistory(root);
     else if (view === 'settings') await goSettings(root);
     else if (view === 'account') await goAccount(root);
+
+    // Land at the top of the new view (the old view's scroll position would
+    // otherwise carry over), or at a link's requested section
+    // (data-nav-anchor, e.g. the no-voices banner → the TTS section).
+    // Back/forward keeps the browser's own scroll restoration.
+    if (!options.fromPopstate) {
+        const anchorEl = options.anchor ? document.getElementById(options.anchor) : null;
+        if (anchorEl) anchorEl.scrollIntoView();
+        else window.scrollTo(0, 0);
+    }
 }
 
 function setActiveNav(view: View): void {

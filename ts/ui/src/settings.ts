@@ -72,10 +72,9 @@ export function isProviderAvailable(
 ): boolean {
     if (opts.webMode) {
         if (meta.requires === 'ollama' || meta.requires === 'flask') return false;
-        // Always offered on web - it's the point of the hosted app. Whether it's
-        // reachable right now (it scales to zero when idle) is a transient
-        // question, surfaced at the model picker + Begin gate so the option
-        // never vanishes mid-wake.
+        // Always offered on web - it's the point of the hosted app. Whether
+        // it's reachable right now is a transient question, surfaced at the
+        // model picker + Begin gate so the option never vanishes on a blip.
         if (meta.requires === 'cloud') return true;
         return opts.allowByok === true;
     }

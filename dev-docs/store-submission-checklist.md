@@ -28,7 +28,7 @@ device RAM gates nothing in this build.
 
 The one thing paperwork can't stand in for. Needs hardware.
 
-- [ ] Dev-install on your Android: Developer options (tap Build number 7x) → USB debugging → `npx cap run android`. Detail in [mobile.md](mobile.md).
+- [ ] Dev-install on your Android: Developer options (tap Build number 7x) → USB debugging → `npx cap run android` (from `ts/`). Detail in [mobile.md](mobile.md).
 - [ ] Dev-install on an iPhone: Developer Mode → automatic signing → Run. Wanted but skippable for the first TestFlight; a base current iPhone is enough since the LLM is cloud.
 - [ ] Audio session holds: mic during TTS (barge-in), 30-min session with screen off, survives backgrounding. Beads `nn1` / `0ao`.
 - [ ] Native STT is good enough on real speech, or falls back to cloud cleanly.

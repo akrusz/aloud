@@ -355,22 +355,20 @@ export function mountModelPicker(
             </p>`;
     }
 
-    /** aloud cloud scales to zero when idle, so a cold visit may not answer the
-     *  first requests while the machine boots - a "waking" note beats an error
-     *  while we retry. */
-    function renderCloudWaking(): void {
+    /** A first miss is usually a network blip - a "connecting" note beats an
+     *  error while we retry. */
+    function renderCloudConnecting(): void {
         container.innerHTML = `
             <p class="model-cloud-waking" id="model-cloud-waking">
-                Waking up aloud cloud - this can take a few seconds…
+                Connecting to aloud cloud…
             </p>`;
     }
 
-    /** No answer after several retries. Say so plainly, with a manual Retry -
-     *  it may still be a slow cold start. */
+    /** No answer after several retries. Say so plainly, with a manual Retry. */
     function renderCloudUnreachable(): void {
         container.innerHTML = `
             <p class="model-unavailable" id="model-cloud-down">
-                aloud cloud is temporarily unreachable. It may be waking up -
+                Can't reach aloud cloud. Check your connection and
                 <button type="button" class="model-retry-btn" id="model-cloud-retry">try again</button>.
             </p>`;
         container
@@ -383,11 +381,11 @@ export function mountModelPicker(
         container.innerHTML = `
             <select disabled><option>Loading models…</option></select>`;
         let models = await fetchModels(provider);
-        // Fly boots the machine on the request and serves once it's up, so a
-        // first miss isn't a real failure. Retry with backoff before giving up.
+        // A miss may be a transient network hiccup rather than a real outage,
+        // so retry with backoff before giving up.
         if (!models && provider === 'aloud') {
             for (const ms of [1500, 2500, 4000, 6000]) {
-                renderCloudWaking();
+                renderCloudConnecting();
                 await new Promise((resolve) => setTimeout(resolve, ms));
                 models = await fetchModels(provider);
                 if (models) break;

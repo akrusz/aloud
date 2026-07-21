@@ -3,7 +3,7 @@ import { bootApp } from './app.js';
 import { applyTheme, initThemeToggle, resolveTheme, watchSystemTheme } from './theme.js';
 import { regenerateEmbers } from './embers.js';
 import { initAbout } from './about.js';
-import { isTauri } from './is-desktop.js';
+import { isTauri, capacitorPlatform } from './is-desktop.js';
 import { initTauriWindowDrag } from './tauri-chrome.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
@@ -11,6 +11,14 @@ import { initAppMode } from './app-mode.js';
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.
 initAppMode();
+
+// Stamp the native platform on <html> for CSS that differs per OS - e.g.
+// Android reserves the full bottom safe-area inset (system nav bar) where
+// iOS trims the home-indicator inset (app-base.css --safe-bottom-clear).
+const nativePlatform = capacitorPlatform();
+if (nativePlatform !== 'web') {
+    document.documentElement.dataset.platform = nativePlatform;
+}
 
 // Dev only: the dev server shares port 4649 with the retired app, whose service
 // worker may still be registered from a past session - it would shadow Vite

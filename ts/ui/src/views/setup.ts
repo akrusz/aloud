@@ -256,7 +256,7 @@ export async function mountSetupView(
     // Selected hosted model's credits/hr for the estimate. Wired to the model
     // picker once it mounts; 0 until then / for free providers.
     let getModelRate: () => number = () => 0;
-    // Wired to the mounted picker so the cloud-wake watcher can repopulate it
+    // Wired to the mounted picker so the cloud-reachability watcher can repopulate it
     // once aloud cloud is up.
     let refreshModelPicker: (provider: string) => void = () => {};
     // Cloud-wake watcher unsubscribe (web/mobile only). Called on hide so a
@@ -683,7 +683,7 @@ export async function mountSetupView(
         }
         applyProviderIndicators();
         updateProviderHint();
-        scheduleCloudWakePoll();
+        scheduleCloudWatch();
     }
 
     /**
@@ -711,8 +711,8 @@ export async function mountSetupView(
         if (setup.provider === 'ollama' && capabilitiesSync().ollama) return true;
         // /app/v1/providers (Hono) reports aloud cloud available unconditionally
         // - it can't see the hosted service's health - so gate on the real
-        // reachability probe. A cold machine reads unavailable until the wake
-        // poll confirms it's up, keeping Begin blocked rather than starting a
+        // reachability probe. Unreachable reads unavailable until the watcher
+        // confirms it's up, keeping Begin blocked rather than starting a
         // session that stalls on its first turn.
         if (setup.provider === 'aloud' && byokOpts.webMode) return capabilitiesSync().cloud;
         const info = providerStatus?.[setup.provider];
@@ -796,11 +796,11 @@ export async function mountSetupView(
     function updateProviderHint(): void {
         const hintEl = root.querySelector<HTMLElement>('#provider-hint');
         if (!hintEl) return;
-        // aloud cloud unreachable on web is almost always a cold start (it
-        // scales to zero when idle), so say so rather than showing an error,
-        // while the background poll waits for it to boot.
+        // aloud cloud unreachable is usually a transient miss, so show a calm
+        // "connecting" note rather than an error while the background poll
+        // waits for it to answer.
         if (setup.provider === 'aloud' && byokOpts.webMode && !capabilitiesSync().cloud) {
-            hintEl.textContent = 'aloud cloud is waking up - one moment…';
+            hintEl.textContent = 'Connecting to aloud cloud…';
             hintEl.classList.remove('hidden');
             return;
         }
@@ -820,13 +820,13 @@ export async function mountSetupView(
     }
 
     /**
-     * aloud cloud scales to zero when idle, so the initial capability probe can
-     * give up before the machine boots (cloud=false), stranding Begin behind a
-     * "waking" hint forever. Watch for it to answer, then refresh markers, model
-     * picker, and gate so the page heals without a reload. Web/mobile only;
-     * no-op once cloud is reachable or a wait is already pending.
+     * The initial capability probe can miss aloud cloud on a flaky connection
+     * (cloud=false), stranding Begin behind a "connecting" hint forever. Watch
+     * for it to answer, then refresh markers, model picker, and gate so the
+     * page heals without a reload. Web/mobile only; no-op once cloud is
+     * reachable or a wait is already pending.
      */
-    function scheduleCloudWakePoll(): void {
+    function scheduleCloudWatch(): void {
         if (!byokOpts.webMode || cloudUnwatch !== null) return;
         if (capabilitiesSync().cloud) return;
         cloudUnwatch = watchCloudReachable(() => {
@@ -1421,7 +1421,7 @@ function renderSetupHTML(
                     <label>Voice</label>
                     <button type="button" id="setup-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
                     <div id="setup-no-voices" class="no-voices-banner inline hidden" role="alert">
-                        <p>No speech voices found. <a href="#" data-nav="settings">Set up TTS in Settings</a>.</p>
+                        <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
                     </div>
                 </div>
             </div>
@@ -1477,7 +1477,7 @@ function renderSetupHTML(
                     <label>Voice</label>
                     <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
                     <div class="no-voices-banner inline hidden" role="alert">
-                        <p>No speech voices found. <a href="#" data-nav="settings">Set up TTS in Settings</a>.</p>
+                        <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
                     </div>
                 </div>
             </div>

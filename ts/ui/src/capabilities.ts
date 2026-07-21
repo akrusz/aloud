@@ -144,14 +144,13 @@ export function invalidateCapabilities(): void {
     cached = null;
 }
 
-// --- Cloud wake watch --------------------------------------------------------
+// --- Cloud reachability watch ------------------------------------------------
 //
-// aloud cloud scales to zero when idle, so a cold visit finds it unreachable
-// for a few seconds while Fly boots the machine. probeCloudWithRetry keeps
-// first paint fast with a short retry; this is the longer tail: a shared
-// exponential-backoff re-probe that fires once the machine answers, so surfaces
-// gated on cloud reachability (account page, sign-in nav, setup pickers) heal
-// without a reload. Desktop, mobile, and web all hit the same cold start.
+// The initial probe can miss aloud cloud on a flaky or slow connection (the
+// server itself stays warm). probeCloudWithRetry keeps first paint fast with a
+// short retry; this is the longer tail: a shared exponential-backoff re-probe
+// that fires once the server answers, so surfaces gated on cloud reachability
+// (account page, sign-in nav, setup pickers) heal without a reload.
 
 type CloudUpListener = () => void;
 const cloudUpListeners = new Set<CloudUpListener>();

@@ -36,11 +36,11 @@ async function render(root: HTMLElement): Promise<void> {
 
     const caps = await detectCapabilities();
     if (!caps.cloud) {
-        // Unreachable is almost always a cold start (the service scales to zero
-        // when idle), so watch for it and re-render in place. BYOK keys stay a
-        // Settings concern (device-scoped); this page is cloud-account only.
+        // Usually a transient network miss, so watch for reachability and
+        // re-render in place. BYOK keys stay a Settings concern
+        // (device-scoped); this page is cloud-account only.
         body.innerHTML = `<section class="settings-section"><h2>Account</h2>
-            <p class="provider-hint">aloud cloud is waking up… Your account, balance, and gifts will appear as soon as it's reachable. This can take a few seconds.</p>
+            <p class="provider-hint">Can't reach aloud cloud. Your account, balance, and gifts will appear once it's reachable.</p>
             </section>`;
         watchCloudReachable(() => void render(root));
         return;

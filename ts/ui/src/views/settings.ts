@@ -21,7 +21,7 @@ import {
 } from '../app-settings.js';
 import { sttEngineOptions, resolveSttChoice } from '../adapters/stt-picker.js';
 import { ALL_PROVIDERS, isProviderAvailable, providerNeedsKey, type Provider } from '../settings.js';
-import { isDesktopSync, isTauri } from '../is-desktop.js';
+import { isCapacitor, isDesktopSync, isTauri } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
 import {
     isWebMode,
@@ -1220,9 +1220,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
 
         // Only shown when the app backend actually answers: the browser preview
-        // reaches it, a standalone hosted tab doesn't.
+        // reaches it, a standalone hosted tab doesn't. Never probed on native
+        // mobile - there's no folder to open, and Capacitor's local static
+        // server answers any /app path with the SPA fallback, fooling the probe.
         const openConfigBtn = root.querySelector<HTMLButtonElement>('#btn-open-config-folder');
-        if (openConfigBtn) {
+        if (openConfigBtn && !isCapacitor()) {
             void (async () => {
                 try {
                     const resp = await fetch(appUrl('/open-config-folder'), { method: 'OPTIONS' });
@@ -1478,9 +1480,16 @@ function renderLanguageSection(s: AppSettings): string {
 }
 
 function renderTtsSection(s: AppSettings): string {
+    // macOS `say` and Piper live in the desktop shell's loopback backend -
+    // offering them anywhere else (web, phone) gives a silent voice. Mirrors
+    // sttEngineOptions' platform gating.
     const engines: ReadonlyArray<[TtsEngineChoice, string]> = [
-        ['macos', "macOS (built-in 'say')"],
-        ['piper', 'Piper (local neural TTS)'],
+        ...(isTauri()
+            ? ([
+                  ['macos', "macOS (built-in 'say')"],
+                  ['piper', 'Piper (local neural TTS)'],
+              ] as ReadonlyArray<[TtsEngineChoice, string]>)
+            : []),
         ['browser', 'Browser (speechSynthesis)'],
         ['elevenlabs', 'ElevenLabs (API)'],
     ];
@@ -1491,11 +1500,15 @@ function renderTtsSection(s: AppSettings): string {
         )
         .join('');
     return `
-    <section class="settings-section">
+    <section class="settings-section" id="settings-tts">
         <h2>Text-to-Speech <button type="button" class="info-btn" id="tts-info-btn" aria-label="TTS engine info">?</button></h2>
         <div class="info-panel hidden" id="tts-info-panel">
-            <p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
-            <p><strong>Piper</strong> - Fast local neural TTS, ~60–100 MB per voice.</p>
+            ${
+                isTauri()
+                    ? `<p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
+            <p><strong>Piper</strong> - Fast local neural TTS, ~60–100 MB per voice.</p>`
+                    : ''
+            }
             <p><strong>Browser</strong> - Uses your browser's speechSynthesis. No install needed.</p>
             <p><strong>ElevenLabs</strong> - Cloud TTS with the most natural voices. Requires an API key.</p>
         </div>

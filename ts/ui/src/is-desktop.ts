@@ -88,6 +88,13 @@ let inflight: Promise<boolean> | null = null;
 
 export async function detectIsDesktop(): Promise<boolean> {
     if (cached !== null) return cached;
+    // The packaged mobile app is never the desktop shell - and its local
+    // static server answers /app/v1/system-info with the SPA fallback (an
+    // ok, field-less response the probe would misread as desktop:true).
+    if (isCapacitor()) {
+        cached = false;
+        return cached;
+    }
     if (inflight) return inflight;
     inflight = (async () => {
         try {

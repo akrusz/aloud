@@ -34,12 +34,26 @@ html { font-size: 16px; }
     --success: #5a9e6f;
     --radius: 12px;
     --radius-sm: 8px;
+    /* Safe-area insets. Android WebViews don't reliably surface
+       env(safe-area-inset-*) to CSS; Capacitor 8 injects the real values as
+       --safe-area-inset-* inline on <html> (Android 15+ edge-to-edge), so
+       prefer those and fall back to env() (iOS, plain browsers). Use these
+       aliases, never env() directly. */
+    --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+    --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+    --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+    --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+    /* Clearance for fixed bottom chrome above the OS bottom inset. On iOS the
+       inset is the home indicator - a visual line you may draw near, so 0.4x
+       reclaims dead space. Overridden to the full inset on Android (below),
+       where the inset is a real gesture/3-button nav bar drawn over the app. */
+    --safe-bottom-clear: calc(var(--safe-bottom) * 0.4);
     /* Effective height of the sticky top bar (.nav). An estimate kept in sync
        with .nav's padding + brand line-height - used to keep floating modals
        from sliding up under the bar. Slightly over-reserved on purpose.
        Includes the top safe-area inset so the reserve stays correct on notched
        phones, where .nav is taller by that inset (0 elsewhere). */
-    --nav-h: calc(64px + env(safe-area-inset-top));
+    --nav-h: calc(64px + var(--safe-top));
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -47,6 +61,11 @@ html { font-size: 16px; }
     --space-xl: 2rem;
     --transition: 0.25s ease;
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* data-platform is stamped by main.ts from Capacitor's getPlatform(). */
+html[data-platform="android"] {
+    --safe-bottom-clear: var(--safe-bottom);
 }
 
 [data-theme="light"] {
@@ -111,8 +130,8 @@ body {
        The top pad absorbs the status-bar / notch inset on mobile (env is 0 on
        desktop + non-notched, so the bar is unchanged there); the sides use
        max() so a landscape notch can't clip the brand or links (bead 3or7). */
-    padding: calc(0.8rem + env(safe-area-inset-top)) max(2rem, env(safe-area-inset-right))
-        0.8rem max(2rem, env(safe-area-inset-left));
+    padding: calc(0.8rem + var(--safe-top)) max(2rem, var(--safe-right))
+        0.8rem max(2rem, var(--safe-left));
     border-bottom: 1px solid var(--border);
     background: var(--bg-secondary);
     flex-shrink: 0;
@@ -3387,7 +3406,9 @@ html:has(.nav-brand.has-update) .update-btn {
     padding-right: 2.5rem;
     border-radius: var(--radius-sm);
     font-size: 0.9rem;
-    z-index: 85;
+    /* Below .voice-modal-overlay (80): the fix for "no voices" may be opening
+       the voice picker, which must not render under this warning. */
+    z-index: 75;
     max-width: 90vw;
     text-align: center;
 }
@@ -3460,6 +3481,8 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-bottom: var(--space-xs);
     padding-bottom: var(--space-md);
     border-bottom: 1px solid var(--border);
+    /* Anchored links (data-nav-anchor) land clear of the fixed top bar. */
+    scroll-margin-top: var(--nav-h);
 }
 
 .settings-section:first-of-type {
@@ -4476,8 +4499,8 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
            without the top inset the brand overlaps the clock (bead 3or7). Pull
            ~0.4rem back out of the full inset so the brand/orb ride a touch
            higher (still clear of the clock), giving the page more middle room. */
-        padding: max(0.5rem, calc(env(safe-area-inset-top) - 0.4rem)) max(0.75rem, env(safe-area-inset-right))
-            0.4rem max(0.75rem, env(safe-area-inset-left));
+        padding: max(0.5rem, var(--safe-top) - 0.4rem) max(0.75rem, var(--safe-right))
+            0.4rem max(0.75rem, var(--safe-left));
         background: transparent;
         border-bottom: none;
         display: flex;
@@ -4519,15 +4542,15 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Reserve room: top space clears the floating brand/orb,
        bottom space clears the fixed bottom nav. */
     .main {
-        padding: calc(2.4rem + env(safe-area-inset-top)) 1rem
-            calc(3.1rem + env(safe-area-inset-bottom) * 0.4);
+        padding: calc(2.4rem + var(--safe-top)) 1rem
+            calc(3.1rem + var(--safe-bottom-clear));
     }
 
     /* Session page: the .main host is padding:0 by design - push the
        inner container down so chat doesn't underlap the floating chrome
        (the brand/orb header now sits below the notch, so clear that too). */
     .session-container {
-        padding: calc(2.4rem + env(safe-area-inset-top)) 1rem 0;
+        padding: calc(2.4rem + var(--safe-top)) 1rem 0;
     }
 
     .message-content {
@@ -4578,9 +4601,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        still toggles the methods panel / "take the full tour" link as before. */
     .tab-bar .info-btn {
         position: fixed;
-        /* Centered on the bar's vertical midline - the 1.4rem brand chip sets
-           the bar height, so its middle lands ~0.75rem below the top edge. */
-        top: 0.75rem;
+        /* Ride the bar's vertical midline: same inset-aware top padding as
+           .nav, plus 0.25rem to center against the 1.4rem brand chip. */
+        top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 0.25rem);
         left: 50%;
         transform: translateX(-50%);
         z-index: 95;
@@ -4707,7 +4730,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        bottom nav. The body is locked to 100dvh on this page so we
        can't rely on document scroll. */
     .main:has(.session-container) {
-        padding-bottom: calc(3rem + env(safe-area-inset-bottom) * 0.4);
+        padding-bottom: calc(3rem + var(--safe-bottom-clear));
     }
 
     /* During an active session: hide the bottom nav (the floating
@@ -4716,7 +4739,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         display: none;
     }
     body[data-session-active] .main:has(.session-container) {
-        padding-bottom: calc(env(safe-area-inset-bottom) * 0.4);
+        padding-bottom: var(--safe-bottom-clear);
     }
 
     /* Floating hamburger button - top-right, sharing a chip with the
@@ -4749,12 +4772,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        and forms need enough bottom padding to clear both. */
     .settings-footer,
     .setup-footer {
-        bottom: calc(3.7rem + env(safe-area-inset-bottom) * 0.4);
+        bottom: calc(3.7rem + var(--safe-bottom-clear));
     }
     .setup-container {
         max-width: 500px;
         margin: 0 auto;
-        padding-bottom: calc(7rem + 3.7rem + env(safe-area-inset-bottom) * 0.4);
+        padding-bottom: calc(7rem + 3.7rem + var(--safe-bottom-clear));
     }
 
     /* Bottom nav itself */
@@ -4766,10 +4789,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         right: 0;
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
-        /* Only ~0.4x of the home-indicator inset as bottom clearance - the full
-           inset (~34px) leaves a big dead band under the labels. 0.4x keeps the
-           tap targets off the indicator while reclaiming most of that space. */
-        padding: 0.35rem 0.25rem calc(0.3rem + env(safe-area-inset-bottom) * 0.4);
+        /* --safe-bottom-clear: 0.4x of the iOS home-indicator inset (the full
+           ~34px leaves a big dead band under the labels), full inset on
+           Android where the system nav bar is real UI. */
+        padding: 0.35rem 0.25rem calc(0.3rem + var(--safe-bottom-clear));
         z-index: 95;
         justify-content: space-around;
         align-items: stretch;
@@ -4839,7 +4862,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
         border-radius: 1rem 1rem 0 0;
-        padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+        padding: 0.75rem 0.75rem calc(0.75rem + var(--safe-bottom));
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
