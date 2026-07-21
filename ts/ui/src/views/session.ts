@@ -1464,6 +1464,7 @@ export async function mountSessionView(
                 }
                 if (torn || muted) break;
 
+                const cycleStart = Date.now();
                 let finalText = '';
                 // Engine-reported "speech began while TTS was playing", the
                 // authoritative echo signal. undefined on engines that don't
@@ -1556,6 +1557,12 @@ export async function mountSessionView(
                     noteSttFailure();
                     // Brief backoff so a broken mic doesn't tight-loop us.
                     await new Promise<void>((r) => setTimeout(r, 2000));
+                } else if (Date.now() - cycleStart < 1000) {
+                    // Empty capture that also ended in under a second: the
+                    // engine is bouncing (e.g. Android's recognizer erroring
+                    // straight into 'stopped'). Pace the restart so a bounce
+                    // can't become a bridge-speed storm.
+                    await new Promise<void>((r) => setTimeout(r, 600));
                 }
                 // Empty utterance with no error: just loop and listen again.
             }

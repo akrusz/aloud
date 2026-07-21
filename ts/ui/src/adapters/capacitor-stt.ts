@@ -102,11 +102,24 @@ export class CapacitorSttEngine implements SttEngine {
             push({ type: 'partial', text });
         });
 
+        // 'stopped' can fire BEFORE the start() promise settles with the final
+        // transcript or error. Finishing immediately would end the stream with
+        // neither - the listen loop reads that as "silence, go again" and
+        // restarts at bridge speed (observed as a native restart storm on
+        // Android: NO_MATCH → instant restart → "RecognitionService busy" →
+        // repeat until the app dies). Grace-delay the state-driven finish so
+        // the settle wins the race; the timer is a fallback, not the norm.
+        let stopGrace: ReturnType<typeof setTimeout> | null = null;
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
-            if ((data as { status?: string }).status === 'stopped') finish();
+            if ((data as { status?: string }).status === 'stopped' && stopGrace === null) {
+                stopGrace = setTimeout(finish, 400);
+            }
         });
 
         try {
+            // A previous session the OS hasn't fully torn down makes the next
+            // start() throw "RecognitionService busy" - a no-op stop clears it.
+            await SpeechRecognition.stop().catch(() => {});
             // The plugin's start() resolves with the final transcript(s) when
             // listening ends - that resolution is the stream's final event.
             const startPromise = SpeechRecognition.start({
@@ -123,7 +136,13 @@ export class CapacitorSttEngine implements SttEngine {
                     finish();
                 })
                 .catch((err: unknown) => {
-                    push({ type: 'error', error: err });
+                    // Android's NO_MATCH ("Didn't understand...") is ordinary
+                    // silence, not a fault - end the turn without an error so
+                    // the loop just listens again (paced by its cycle guard).
+                    const msg = err instanceof Error ? err.message : String(err);
+                    if (!/didn't understand|no match/i.test(msg)) {
+                        push({ type: 'error', error: err });
+                    }
                     finish();
                 });
 
@@ -137,6 +156,7 @@ export class CapacitorSttEngine implements SttEngine {
                 });
             }
         } finally {
+            if (stopGrace !== null) clearTimeout(stopGrace);
             await this.partialListener?.remove().catch(() => {});
             await this.stateListener?.remove().catch(() => {});
             this.partialListener = null;

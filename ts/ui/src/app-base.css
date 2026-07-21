@@ -4985,32 +4985,34 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         flex: 1 1 auto;
     }
 
-    /* Session input row: the status line moves into the top chrome on
-       phones (below), so the row just spaces the timer + buttons to
-       align with the controls beneath it (.input-controls also has
-       0.25rem horizontal padding). */
+    /* Session input row: status text wraps onto 4+ lines around here
+       and crowds the timer/buttons next to it. Give the status its own
+       row at full width and let the timer + buttons drop to a second
+       row, spaced across the row to align with the controls below it
+       (.input-controls also has 0.25rem horizontal padding). */
     .input-row {
         flex-wrap: wrap;
         padding: 0 0.25rem;
         justify-content: space-between;
     }
 
-    /* Session status ("Listening…", "Thinking…") as a translucent chip in
-       the top chrome, centered between the brand (left) and orb (right) -
-       in the input row it claimed a whole extra line and crowded the
-       bottom controls. Same chip treatment as its neighbors; ellipsized to
-       stay clear of them; non-interactive, so taps pass through. */
-    #voice-status {
+    /* Staged-mode phase hint ("settling in", "sensing") as a translucent
+       chip in the top chrome, centered between the brand (left) and orb
+       (right) - in the input row it forced the felt-sense controls onto
+       an extra line the other modes don't have. Ellipsized to stay clear
+       of its neighbors; non-interactive, so taps pass through. */
+    #session-phase {
         position: fixed;
         top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 0.25rem);
         left: 50%;
         transform: translateX(-50%);
         z-index: 90;
         max-width: 46vw;
+        height: auto;
+        line-height: 1.2;
         display: block;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
         text-align: center;
         pointer-events: none;
         background: var(--bg-secondary);
@@ -5019,8 +5021,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         backdrop-filter: blur(4px);
         font-size: 0.8rem;
         padding: 0.35rem 0.7rem;
+        margin-right: 0;
     }
-    #voice-status:empty {
+    #session-phase:empty {
         display: none;
     }
     .voice-status {
