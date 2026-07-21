@@ -103,6 +103,48 @@ export class CapacitorSttEngine implements SttEngine {
         void SpeechRecognition.stop().catch(() => {});
         await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
+        // The plugin's REAL contract with partialResults: true (our default;
+        // read from the Android source, not the docs):
+        //   - start() resolves IMMEDIATELY and empty - it is not a result.
+        //   - Interim AND final transcripts all arrive as 'partialResults'
+        //     events (native onResults is forwarded to the same event).
+        //   - listeningState 'stopped' fires at END OF SPEECH, before the
+        //     final transcript lands.
+        //   - A silent turn is INVISIBLE: native errors (NO_MATCH) reject the
+        //     already-resolved call, which JS never sees. No event arrives.
+        // So the turn ends on: last transcript after 'stopped' (debounced),
+        // a cap after 'stopped' with nothing further, or an idle timeout for
+        // the silent-turn case. Only with partialResults: false does start()
+        // resolve with the final matches.
+        let lastText: string | null = null;
+        let stopped = false;
+        let finalTimer: ReturnType<typeof setTimeout> | null = null;
+        let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const finishTurn = (): void => {
+            if (done) return;
+            if (lastText !== null) {
+                console.info(`[stt-native] final: ${lastText.length} chars`);
+                push({ type: 'final', text: lastText });
+            } else {
+                console.info('[stt-native] turn ended with no speech');
+            }
+            finish();
+        };
+        // After end-of-speech, each further transcript re-arms a short
+        // debounce; the last one to land within it is the final.
+        const scheduleFinal = (ms: number): void => {
+            if (finalTimer !== null) clearTimeout(finalTimer);
+            finalTimer = setTimeout(finishTurn, ms);
+        };
+        // Nothing at all heard (recognizer died silently or user stayed
+        // quiet): end the turn so the listen loop starts a fresh session.
+        const bumpIdle = (): void => {
+            if (idleTimer !== null) clearTimeout(idleTimer);
+            idleTimer = setTimeout(finishTurn, 15000);
+        };
+        bumpIdle();
+
         let sawPartial = false;
         this.partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
             const matches = (data as { matches?: string[] }).matches ?? [];
@@ -112,28 +154,25 @@ export class CapacitorSttEngine implements SttEngine {
                 sawPartial = true;
                 console.info('[stt-native] first partial received');
             }
+            lastText = text;
+            bumpIdle();
+            if (stopped) scheduleFinal(700);
             push({ type: 'partial', text });
         });
 
-        // 'stopped' can fire BEFORE the start() promise settles with the final
-        // transcript or error. Finishing immediately would end the stream with
-        // neither - the listen loop reads that as "silence, go again" and
-        // restarts at bridge speed (observed as a native restart storm on
-        // Android: NO_MATCH → instant restart → "RecognitionService busy" →
-        // repeat until the app dies). Grace-delay the state-driven finish so
-        // the settle wins the race; the timer is a fallback, not the norm.
-        let stopGrace: ReturnType<typeof setTimeout> | null = null;
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
             const status = (data as { status?: string }).status;
             console.info(`[stt-native] state: ${status}`);
-            if (status === 'stopped' && stopGrace === null) {
-                stopGrace = setTimeout(finish, 400);
+            bumpIdle();
+            if (status === 'stopped') {
+                stopped = true;
+                // Cap: the final usually lands well inside this; each arrival
+                // shortens the wait via the 700ms debounce above.
+                scheduleFinal(2500);
             }
         });
 
         try {
-            // The plugin's start() resolves with the final transcript(s) when
-            // listening ends - that resolution is the stream's final event.
             const startPromise = SpeechRecognition.start({
                 language: this.options.language,
                 maxResults: this.options.maxResults,
@@ -143,11 +182,14 @@ export class CapacitorSttEngine implements SttEngine {
             console.info('[stt-native] start requested');
             startPromise
                 .then((result) => {
+                    // Meaningful only with partialResults: false; in partial
+                    // mode this resolves instantly and empty - ignore it.
                     const matches = (result as { matches?: string[] } | undefined)?.matches ?? [];
                     const text = matches[0];
-                    console.info(`[stt-native] resolved: ${text ? `${text.length} chars` : 'no text'}`);
-                    if (text !== undefined) push({ type: 'final', text });
-                    finish();
+                    if (text !== undefined) {
+                        lastText = text;
+                        finishTurn();
+                    }
                 })
                 .catch((err: unknown) => {
                     // Android's NO_MATCH ("Didn't understand...") is ordinary
@@ -171,7 +213,8 @@ export class CapacitorSttEngine implements SttEngine {
                 });
             }
         } finally {
-            if (stopGrace !== null) clearTimeout(stopGrace);
+            if (finalTimer !== null) clearTimeout(finalTimer);
+            if (idleTimer !== null) clearTimeout(idleTimer);
             await this.partialListener?.remove().catch(() => {});
             await this.stateListener?.remove().catch(() => {});
             this.partialListener = null;
