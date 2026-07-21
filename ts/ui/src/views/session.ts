@@ -82,6 +82,7 @@ import {
 } from '../settings.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { sessionStore } from '../state.js';
+import { markSessionActive, clearActiveSession } from '../active-session.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { getApiKey } from '../api-keys.js';
@@ -97,7 +98,7 @@ import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isTauri, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
+import { isTauri, isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { appUrl } from '../app-base.js';
 import {
@@ -1061,6 +1062,9 @@ export async function mountSessionView(
     let muted = false;
     let listenLoopRunning = false;
     let torn = false;
+    // Capacitor App 'appStateChange' handle (mobile background-save); removed in
+    // endSession. Held as the addListener promise so teardown can await + remove.
+    let appStateListener: Promise<{ remove(): Promise<void> }> | null = null;
     // Smart check-ins: single-flight guard + how many have fired in the current
     // silence stretch (reset on any real user turn). Past the cap we stop paying
     // for LLM calls; auto-quit handles true walk-aways.
@@ -1704,6 +1708,20 @@ export async function mountSessionView(
         { signal: viewCleanup.signal }
     );
 
+    // Mobile: Android can kill a backgrounded activity, cold-booting to setup
+    // (meditation-pal-v73p). Force a save the moment we go inactive so the
+    // resume pointer + latest transcript are on disk before any kill. Per-round
+    // autosave already covers the common case; this catches mid-round progress.
+    // Removed in endSession (App.addListener isn't AbortController-aware).
+    if (isCapacitor()) {
+        appStateListener = (async () => {
+            const { App } = await import('@capacitor/app');
+            return App.addListener('appStateChange', ({ isActive }) => {
+                if (!isActive && !torn) void autosaveSession();
+            });
+        })();
+    }
+
     // Kasina gazing mode, shared with the noting session view. Document-level
     // listeners are tied to viewCleanup so they don't leak across sessions.
     if (orbEl) {
@@ -2180,6 +2198,9 @@ export async function mountSessionView(
         // handler re-acquiring the wake lock.
         releaseWakeLock();
         delete document.body.dataset['sessionActive'];
+        // Cleanly ended: drop the resume pointer so relaunch doesn't offer it.
+        void appStateListener?.then((h) => h.remove());
+        void clearActiveSession();
         // Embers are session-only.
         unmountEmberContainer();
         // Exit kasina if active: the toggle's exit branch restores the
@@ -2274,6 +2295,10 @@ export async function mountSessionView(
         };
         try {
             await sessionStore.save(snapshot);
+            // Mark this session as the one to resume if the app is killed while
+            // backgrounded (meditation-pal-v73p). Only after a successful save,
+            // so the pointer never outlives a recoverable transcript.
+            void markSessionActive(state.sessionId);
         } catch (err) {
             console.warn('Session autosave failed', err);
         }

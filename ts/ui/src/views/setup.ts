@@ -61,6 +61,7 @@ import {
     CLOUD_STT_CREDITS_PER_HOUR,
 } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
+import { clearActiveSession } from '../active-session.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
@@ -141,6 +142,20 @@ export interface SetupViewHandle {
     getSetup(): SessionSetup;
 }
 
+/** "felt sense · 12 min in" - mode + elapsed for the resume banner. endTime is
+ *  the last autosave stamp, so it approximates where the session was cut off. */
+function resumeBannerDetail(state: SessionState): string {
+    const labels: Record<string, string> = {
+        exploration: 'exploration',
+        noting: 'noting',
+        felt_sense: 'felt sense',
+    };
+    const mode = labels[state.meditationType ?? ''] ?? 'session';
+    const end = state.endTime ?? Math.floor(state.startTime);
+    const mins = Math.max(1, Math.round((end - state.startTime) / 60));
+    return `${mode} · ${mins} min in`;
+}
+
 export async function mountSetupView(
     root: HTMLElement,
     onBegin: (setup: SessionSetup, continueFrom: SessionState | null) => void
@@ -188,6 +203,7 @@ export async function mountSetupView(
         // One-shot: clear so a reload doesn't keep auto-continuing.
         sessionStorage.removeItem('continueFrom');
         sessionStorage.removeItem('continueFromSummary');
+        sessionStorage.removeItem('continueReason');
         if (!state) return null;
         return state;
     }
@@ -641,16 +657,28 @@ export async function mountSetupView(
             const text = root.querySelector<HTMLElement>('#continue-banner-text');
             const cancel = root.querySelector<HTMLButtonElement>('#continue-cancel');
             if (!banner || !text || !cancel) return;
-            const summary =
-                sessionStorage.getItem('continueFromSummary') ||
-                new Date(state.startTime * 1000).toLocaleString();
-            text.textContent = `Continuing from: ${summary}`;
+            // A cold-boot resume (mobile, meditation-pal-v73p) is tagged 'resume'
+            // and reads as "Resume your session"; a History continuation reads as
+            // "Continuing from". Begin resumes either; the ✕ starts fresh.
+            const resuming = sessionStorage.getItem('continueReason') === 'resume';
+            if (resuming) {
+                text.textContent = `Resume your session: ${resumeBannerDetail(state)}`;
+            } else {
+                const summary =
+                    sessionStorage.getItem('continueFromSummary') ||
+                    new Date(state.startTime * 1000).toLocaleString();
+                text.textContent = `Continuing from: ${summary}`;
+            }
             // Must be the .hidden class: the HTML hidden attribute loses to
             // .continue-banner's `display: flex`.
             banner.classList.remove('hidden');
             cancel.addEventListener('click', () => {
                 sessionStorage.removeItem('continueFrom');
                 sessionStorage.removeItem('continueFromSummary');
+                sessionStorage.removeItem('continueReason');
+                // Dismissing a cold-boot resume means "start fresh": drop the
+                // durable pointer so the next launch doesn't offer it again.
+                if (resuming) void clearActiveSession();
                 banner.classList.add('hidden');
             });
         })();

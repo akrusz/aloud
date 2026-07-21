@@ -28,6 +28,9 @@ import { ensureCloudAccess } from './cloud-gate.js';
 import { consumePurchaseReturn } from './cloud-billing.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import { showErrorToast, showSuccessToast } from './toast.js';
+import { isCapacitor } from './is-desktop.js';
+import { getActiveSessionId, clearActiveSession } from './active-session.js';
+import { sessionStore } from './state.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings' | 'account';
 
@@ -87,6 +90,12 @@ export async function bootApp(): Promise<void> {
         if (caps.cloud) revealAccountNav();
     });
 
+    // Mobile: if Android killed a backgrounded session, surface it as a resume
+    // banner on setup (meditation-pal-v73p) by seeding the same continueFrom
+    // handoff the History "Continue" flow uses. Must run before routeTo mounts
+    // setup, since the banner reads sessionStorage at mount.
+    await seedInterruptedResume();
+
     wireNav();
     wireMobileMore();
     wirePopstate();
@@ -118,6 +127,38 @@ export async function bootApp(): Promise<void> {
     // Prompt to accept any clouds gifted to this account (no-op when signed out
     // or none pending). meditation-pal-bd5.
     void checkAndShowGifts();
+}
+
+/**
+ * Restore an interrupted mobile session as a setup resume banner
+ * (meditation-pal-v73p). The session view leaves a durable pointer while live
+ * and clears it on a clean end; a pointer surviving into the next launch means
+ * the OS killed us mid-session. We verify the transcript still loads with real
+ * content, then hand it to setup via the existing continueFrom keys - tagged
+ * `resume` so setup shows resume copy rather than "Continuing from". A stale or
+ * empty pointer is cleared so it never nags twice.
+ *
+ * Mobile-only: web reload has its own semantics (per-tab sessionStorage, the
+ * beforeunload prompt) and shouldn't sprout a resume banner on every refresh.
+ */
+async function seedInterruptedResume(): Promise<void> {
+    if (!isCapacitor()) return;
+    if (typeof sessionStorage === 'undefined') return;
+    // A queued History continuation already owns the handoff; don't clobber it.
+    if (sessionStorage.getItem('continueFrom')) return;
+    const id = await getActiveSessionId();
+    if (!id) return;
+    const state = await sessionStore.load(id);
+    if (!state || !state.exchanges.some((e) => e.role === 'user')) {
+        // Nothing worth resuming - drop the pointer so we don't check again.
+        await clearActiveSession();
+        return;
+    }
+    sessionStorage.setItem('continueFrom', id);
+    // 'resume' tag drives resume-specific banner copy; the resume banner shows
+    // mode + elapsed (resumeBannerDetail), not the notes summary, so we don't
+    // seed continueFromSummary here.
+    sessionStorage.setItem('continueReason', 'resume');
 }
 
 /**
