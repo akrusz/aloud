@@ -48,7 +48,7 @@ import { initKasinaMode } from '../kasina.js';
 import { type SessionSetup, type NotingParticipantConfig, ALL_PROVIDERS } from '../settings.js';
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
-import { openBugReport } from '../bug-report.js';
+import { openAiContentReport, openBugReport } from '../bug-report.js';
 
 export interface NotingSessionViewHandle {
     teardown(): void;
@@ -145,7 +145,21 @@ export async function mountNotingSessionView(
                 value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
             },
         ];
-    }, 'Session', [{ label: 'Report a bug', onClick: () => void openBugReport() }]);
+    }, 'Session', [
+        { label: 'Report a bug', onClick: () => void openBugReport() },
+        // AI circle participants generate content too (a word or two at a
+        // time), so the Play GenAI-policy flag belongs here as well.
+        {
+            label: 'Report AI content',
+            onClick: () =>
+                void openAiContentReport({
+                    sourceLabel:
+                        ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ??
+                        setup.provider,
+                    ownProvider: setup.provider !== 'aloud',
+                }),
+        },
+    ]);
     document
         .getElementById('session-info-btn')
         ?.addEventListener('click', () => infoPanel.toggle());
