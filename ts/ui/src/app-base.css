@@ -1462,20 +1462,20 @@ body:has(.session-container) {
     color: var(--text-primary);
 }
 
-/* Inline "Switch back" action inside the banner text when the selected mode has
-   diverged from the paused session. A plain accent link (no de-emphasis). */
-.continue-banner-switch {
-    background: none;
-    border: none;
-    padding: 0;
-    font: inherit;
-    color: var(--accent);
-    text-decoration: underline;
-    cursor: pointer;
+/* Resume-session modal (cold-boot interruption offer, meditation-pal-v73p).
+   Reuses the .voice-modal chrome; these style the detail line + button row. */
+.resume-modal-detail {
+    color: var(--text-secondary);
+    margin: 0.25rem 0 1.25rem;
 }
 
-.continue-banner-switch:hover {
-    color: var(--accent-strong, var(--accent));
+.resume-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.resume-modal-actions .btn {
+    flex: 1;
 }
 
 /* Typing indicator (inside a facilitator chat bubble) */

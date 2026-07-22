@@ -62,6 +62,7 @@ import {
 } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
+import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
 import { appUrl } from '../app-base.js';
@@ -223,68 +224,64 @@ export async function mountSetupView(
         if (wasResume) void clearActiveSession();
     }
 
-    // Paint the banner from the in-memory pendingContinue. Same box either way (no
-    // layout shift): a statement when the selected mode matches the paused
-    // session, a reversible "Switch back" offer when it doesn't.
+    // Paint the inline banner from the in-memory pendingContinue. This banner is
+    // ONLY for a History "Continue" (reason 'history') - a cold-boot resume uses
+    // the modal instead, so it never paints here.
     function updateContinueBanner(): void {
         const banner = root.querySelector<HTMLElement>('#continue-banner');
         const text = root.querySelector<HTMLElement>('#continue-banner-text');
         if (!banner || !text) return;
-        if (!pendingContinue) {
+        if (!pendingContinue || pendingContinue.reason !== 'history') {
             banner.classList.add('hidden');
             return;
         }
-        const { state, reason } = pendingContinue;
-        const matches = setup.meditationType === state.meditationType;
-        text.textContent = '';
-        if (matches) {
-            if (reason === 'resume') {
-                text.textContent = `Resuming session: ${resumeBannerDetail(state)}`;
-            } else {
-                const summary =
-                    (typeof sessionStorage !== 'undefined' &&
-                        sessionStorage.getItem('continueFromSummary')) ||
-                    new Date(state.startTime * 1000).toLocaleString();
-                text.textContent = `Continuing from: ${summary}`;
-            }
-        } else {
-            // Diverged: the selected tab is a different mode, so Begin will start
-            // fresh. Reframe as a reversible offer, not a statement.
-            text.append(
-                document.createTextNode(
-                    reason === 'resume'
-                        ? `Paused: ${resumeModeLabel(state)} · `
-                        : 'Continuation set aside · '
-                )
-            );
-            const back = document.createElement('button');
-            back.type = 'button';
-            back.className = 'continue-banner-switch';
-            back.textContent = 'Switch back';
-            back.addEventListener('click', () => {
-                const t = state.meditationType;
-                if (t === 'exploration' || t === 'noting' || t === 'felt_sense') selectMode(t);
-            });
-            text.append(back);
-        }
+        const { state } = pendingContinue;
+        const summary =
+            (typeof sessionStorage !== 'undefined' &&
+                sessionStorage.getItem('continueFromSummary')) ||
+            new Date(state.startTime * 1000).toLocaleString();
+        text.textContent = `Continuing from: ${summary}`;
         // Must be the .hidden class: the HTML hidden attribute loses to
         // .continue-banner's `display: flex`.
         banner.classList.remove('hidden');
     }
 
-    // Load the pending continuation once at mount, then default to the paused
-    // session's own mode so the banner reads as a statement (a felt-sense session
-    // returns staged in its saved phase, not as whatever tab was active).
+    // Load the pending continuation once at mount. A cold-boot resume (reason
+    // 'resume', meditation-pal-v73p) is offered in a modal; a History "Continue"
+    // (reason 'history') defaults to the session's mode and shows the inline
+    // banner. Noting is never resumable (goNotingSession drops continueFrom,
+    // meditation-pal-nh53), so a noting resume is quietly discarded.
     async function initPendingContinue(): Promise<void> {
         if (typeof sessionStorage === 'undefined') return;
         const id = sessionStorage.getItem('continueFrom');
         if (!id) return;
         const state = await sessionStore.load(id);
         if (!state) return;
-        pendingContinue = {
-            state,
-            reason: sessionStorage.getItem('continueReason') === 'resume' ? 'resume' : 'history',
-        };
+        const reason = sessionStorage.getItem('continueReason') === 'resume' ? 'resume' : 'history';
+
+        if (reason === 'resume') {
+            const t = state.meditationType;
+            if (t !== 'exploration' && t !== 'felt_sense') {
+                // Not a resumable mode (noting / legacy): drop it silently.
+                dropPendingContinue();
+                return;
+            }
+            pendingContinue = { state, reason };
+            showResumeModal({
+                detail: resumeBannerDetail(state),
+                onResume: () => {
+                    selectMode(t); // enter the paused session's own mode
+                    const resumed = state;
+                    pendingContinue = null;
+                    clearContinueStorage();
+                    onBegin(setup, resumed);
+                },
+                onStartFresh: () => dropPendingContinue(),
+            });
+            return;
+        }
+
+        pendingContinue = { state, reason };
         const t = state.meditationType;
         if (
             (t === 'exploration' || t === 'noting' || t === 'felt_sense') &&
@@ -715,25 +712,16 @@ export async function mountSetupView(
             btn.addEventListener('click', () => openVoiceModal());
         });
 
-        // One Begin path handles fresh and continued sessions, and it follows the
-        // selected tab: resume the paused session only when its mode still matches
-        // the tab, else start fresh in the chosen mode and drop the paused one.
+        // One Begin path handles fresh and continued sessions. A cold-boot resume
+        // runs through the modal, so pendingContinue here is only ever a History
+        // "Continue" (or null): hand its queued state to onBegin as before.
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
             void (async () => {
-                let queued: SessionState | null = null;
+                const queued = pendingContinue?.state ?? null;
                 if (pendingContinue) {
-                    if (setup.meditationType === pendingContinue.state.meditationType) {
-                        // Resuming: hand off the paused state. The durable resume
-                        // pointer rides with the resumed session (re-set on its
-                        // autosave, cleared on a clean end), so don't clear it here.
-                        queued = pendingContinue.state;
-                        pendingContinue = null;
-                        clearContinueStorage();
-                    } else {
-                        // A fresh session in another mode supersedes the paused one.
-                        dropPendingContinue();
-                    }
+                    pendingContinue = null;
+                    clearContinueStorage();
                 }
                 onBegin(setup, queued);
             })();

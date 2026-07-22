@@ -154,6 +154,12 @@ async function seedInterruptedResume(): Promise<void> {
         await clearActiveSession();
         return;
     }
+    // Noting isn't resumable (goNotingSession ignores continueFrom,
+    // meditation-pal-nh53) and it's an odd thing to resume anyway - drop it.
+    if (state.meditationType === 'noting') {
+        await clearActiveSession();
+        return;
+    }
     sessionStorage.setItem('continueFrom', id);
     // 'resume' tag drives resume-specific banner copy; the resume banner shows
     // mode + elapsed (resumeBannerDetail), not the notes summary, so we don't
