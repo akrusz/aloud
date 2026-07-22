@@ -28,16 +28,17 @@ device RAM gates nothing in this build.
 
 The one thing paperwork can't stand in for. Needs hardware.
 
-- [ ] Dev-install on your Android: Developer options (tap Build number 7x) → USB debugging → `npx cap run android` (from `ts/`). Detail in [mobile.md](mobile.md).
+- [x] Dev-install on your Android: Developer options (tap Build number 7x) → USB debugging → `npx cap run android` (from `ts/`). Detail in [mobile.md](mobile.md). *(Working 2026-07-20.)*
 - [ ] Dev-install on an iPhone: Developer Mode → automatic signing → Run. Wanted but skippable for the first TestFlight; a base current iPhone is enough since the LLM is cloud.
-- [ ] Audio session holds: mic during TTS (barge-in), 30-min session with screen off, survives backgrounding. Beads `nn1` / `0ao`.
-- [ ] Native STT is good enough on real speech, or falls back to cloud cleanly.
+- [ ] Audio session holds: mic during TTS (barge-in), 30-min session with screen off, survives backgrounding. Beads `nn1` / `0ao`. *(Partly validated - short sessions good; long screen-off run still owed. Internal testing is the natural place to finish this.)*
+- [x] Native STT is good enough on real speech, or falls back to cloud cleanly. *(After the plugin patch + watchdog fix, 2026-07-21; cloud STT stays one tap away in the picker.)*
 
 ## Phase 1 - Sign-in + signing setup
 
 - [ ] Google / Apple sign-in consoles (bead `tpj4`): Google iOS OAuth client + both client ids in server `GOOGLE_CLIENT_IDS`; Apple Services ID + "Sign in with Apple" capability. Guideline 4.8: offering Google on iOS requires Apple too.
+- [ ] Google **Android** OAuth clients - one per signing cert: debug SHA-1 (dev installs) AND, once the Play app exists, the **App signing key** SHA-1 from Play Console → App integrity (store installs get re-signed by Google). See the gotcha in [mobile-signing.md](mobile-signing.md).
 - [ ] iOS: automatic signing in Xcode (Team already set up).
-- [ ] Android: create the upload keystore, enroll in Play App Signing, back the keystore up. Steps in [mobile-signing.md](mobile-signing.md).
+- [ ] Android: create the upload keystore, enroll in Play App Signing, back the keystore up. Steps in [mobile-signing.md](mobile-signing.md). *(Gradle side is wired: `app/build.gradle` reads gitignored `android/keystore.properties` when present; `versionName` tracks the app version - bump it and `versionCode` each upload.)*
 
 ## Phase 2 - First beta deploy (no store review)
 
