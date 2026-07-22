@@ -12,7 +12,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({
     listeners: new Map<string, (d: unknown) => void>(),
-    start: vi.fn(async () => undefined as unknown),
+    // The real plugin fires listeningState 'started' when the recognizer comes
+    // up; the engine's startup watchdog relies on it. Mirror that by default so
+    // launches don't look hung (a specific test overrides this to simulate one).
+    start: vi.fn(async () => {
+        H.listeners.get('listeningState')?.({ status: 'started' });
+        return undefined as unknown;
+    }),
     stop: vi.fn(async () => undefined as unknown),
 }));
 
@@ -139,6 +145,29 @@ describe('CapacitorSttEngine restart-stitching', () => {
             { type: 'final', text: 'yeah I feel some optimism' },
         ]);
         await finished;
+    });
+
+    it('relaunches when the first start() hangs with no started event (sluggish cold start)', async () => {
+        // The reported failure: the first native start() after a cold session
+        // start silently hangs - no 'started', no partial, no error - and only
+        // the 15s idle backstop ended the turn. Simulate that hang on launch #1;
+        // later launches use the default mock (which emits 'started').
+        H.start.mockImplementationOnce(async () => undefined as unknown);
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60); // launch #1 - hangs
+        expect(H.start).toHaveBeenCalledTimes(1);
+
+        // The startup watchdog (2500ms), not the 15s idle timer, catches it.
+        await vi.advanceTimersByTimeAsync(2600);
+        expect(H.start).toHaveBeenCalledTimes(2);
+
+        // The relaunched segment is live and transcribes normally.
+        partial('hello there');
+        stopped();
+        partial('hello there');
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'hello there' }]);
     });
 
     it('does not cut off before the silence window elapses', async () => {

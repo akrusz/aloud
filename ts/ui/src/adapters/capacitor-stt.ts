@@ -58,6 +58,13 @@ const IDLE_TIMEOUT_MS = 15000;
 // budget across a restart, so a continuation spoken right after the pause
 // isn't raced by the end-of-turn timer.
 const RELAUNCH_WARMUP_MS = 400;
+// The first native start() after a cold session start can silently hang -
+// no 'started', no partial, no error - for many seconds (observed ~15s, until
+// the idle backstop). A short watchdog: if the recognizer hasn't reported it
+// started within this window, relaunch (a fresh bind usually comes up in ~1s)
+// instead of waiting the idle timeout out.
+const STARTUP_WATCHDOG_MS = 2500;
+const MAX_START_RETRIES = 3;
 
 export class CapacitorSttEngine implements SttEngine {
     private readonly options: Required<CapacitorSttEngineOptions>;
@@ -177,14 +184,22 @@ export class CapacitorSttEngine implements SttEngine {
         // When the current segment's Android end-of-speech fired - the moment the
         // mic went deaf. Used to credit the deaf gap back into endsAt at relaunch.
         let stoppedAt = 0;
+        // Startup watchdog: whether the active segment has reported it started
+        // (via listeningState 'started' or a first partial), and how many times
+        // we've relaunched a hung start this turn (reset on a real start).
+        let started = false;
+        let startRetries = 0;
         let endTimer: ReturnType<typeof setTimeout> | null = null;
         let settleTimer: ReturnType<typeof setTimeout> | null = null;
         let idleTimer: ReturnType<typeof setTimeout> | null = null;
+        let startTimer: ReturnType<typeof setTimeout> | null = null;
 
         const clearTimers = (): void => {
             if (endTimer !== null) clearTimeout(endTimer);
             if (settleTimer !== null) clearTimeout(settleTimer);
             if (idleTimer !== null) clearTimeout(idleTimer);
+            if (startTimer !== null) clearTimeout(startTimer);
+            startTimer = null;
             endTimer = settleTimer = idleTimer = null;
         };
         const combined = (): string =>
@@ -234,6 +249,41 @@ export class CapacitorSttEngine implements SttEngine {
             idleTimer = setTimeout(submit, IDLE_TIMEOUT_MS);
         };
 
+        // (Re)arm the startup watchdog for the segment we're about to launch.
+        const armStart = (): void => {
+            started = false;
+            if (startTimer !== null) clearTimeout(startTimer);
+            startTimer = setTimeout(onStartTimeout, STARTUP_WATCHDOG_MS);
+        };
+        // The recognizer reported it started (or spoke): cancel the watchdog and
+        // refresh the relaunch budget so a later hang gets a fresh set of tries.
+        const markStarted = (): void => {
+            if (started) return;
+            started = true;
+            startRetries = 0;
+            if (startTimer !== null) {
+                clearTimeout(startTimer);
+                startTimer = null;
+            }
+        };
+        // The launch produced no 'started'/partial in time: the start() call hung.
+        // Relaunch (a fresh bind usually comes up fast); give up after a few tries
+        // so a truly-dead recognizer ends the turn rather than spinning.
+        const onStartTimeout = (): void => {
+            startTimer = null;
+            if (submitted || done || this.stopRequested || started) return;
+            if (startRetries < MAX_START_RETRIES) {
+                startRetries++;
+                console.info(
+                    `[stt-native] no start in ${STARTUP_WATCHDOG_MS}ms - relaunch ${startRetries}/${MAX_START_RETRIES}`
+                );
+                void restartSegment();
+            } else {
+                console.warn('[stt-native] recognizer never started - ending turn');
+                submit();
+            }
+        };
+
         // Relaunch the native recognizer for the next segment, keeping the
         // stitched transcript. Bounded by the end-of-turn timer, which fires
         // submit() and flips `submitted`, so this can't loop forever.
@@ -264,6 +314,7 @@ export class CapacitorSttEngine implements SttEngine {
         // and resets the end-of-turn window.
         const onLiveSpeech = (text: string): void => {
             if (submitted || done) return;
+            markStarted(); // a partial proves the recognizer came up
             if (!sawSpeech) {
                 sawSpeech = true;
                 console.info('[stt-native] first partial received');
@@ -302,6 +353,10 @@ export class CapacitorSttEngine implements SttEngine {
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
             const status = (data as { status?: string }).status;
             console.info(`[stt-native] state: ${status}`);
+            if (status === 'started') {
+                markStarted(); // recognizer is live - cancel the startup watchdog
+                return;
+            }
             if (status !== 'stopped' || submitted || done) return;
             segmentStopped = true;
             // Mark when the mic went deaf so restartSegment can credit the gap.
@@ -336,6 +391,7 @@ export class CapacitorSttEngine implements SttEngine {
 
         // Launch (or relaunch) one native recognition segment.
         const launchSegment = (): void => {
+            armStart(); // watchdog: relaunch if this start() hangs
             const startPromise = SpeechRecognition.start({
                 language: this.options.language,
                 maxResults: this.options.maxResults,
