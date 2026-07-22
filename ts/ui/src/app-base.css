@@ -833,6 +833,10 @@ input[type="range"] {
     outline: none;
     cursor: pointer;
     margin: 2px 0 -2px;
+    /* A vertical swipe that starts on a slider scrolls the page (the browser
+       keeps the gesture and fires pointercancel; slider-touch.ts then reverts
+       the touch-down value jump). Horizontal drags still work the slider. */
+    touch-action: pan-y;
 }
 
 input[type="range"]::-webkit-slider-thumb {
