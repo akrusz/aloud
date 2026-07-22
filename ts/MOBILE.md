@@ -63,6 +63,15 @@ applies to builds, and the Vite dev proxy handles `/cloud` there.)
 - **STT**: `CapacitorSttEngine` wraps `@capacitor-community/speech-recognition`.
   Uses `SFSpeechRecognizer` on iOS, `SpeechRecognizer` on Android. No Whisper
   bundled. Validation pending — see beads ticket `meditation-pal-0ao`.
+  - The Android plugin is **patched** (`patches/`, applied by `postinstall`
+    via patch-package; the Android build compiles plugin source straight from
+    `node_modules`). Stock v7 leaves `onReadyForSpeech` empty and, in
+    partial-results mode, rejects an already-resolved call on `onError` — so
+    JS could see neither "recognizer is live" nor any error (NO_MATCH,
+    SPEECH_TIMEOUT, BUSY). The patch emits `listeningState: 'ready'` and
+    `listeningState: 'error'` events; `CapacitorSttEngine` keys its startup
+    watchdog and silence handling on them. Note the stock `'started'` event
+    is `onBeginningOfSpeech` — user speech, not launch.
 - **TTS**: `BrowserTtsEngine` (speechSynthesis) works inside Capacitor's
   WKWebView and Android WebView. We may swap to a Capacitor TTS plugin
   later for higher-quality iOS voices.

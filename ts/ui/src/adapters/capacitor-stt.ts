@@ -59,10 +59,17 @@ const IDLE_TIMEOUT_MS = 15000;
 // isn't raced by the end-of-turn timer.
 const RELAUNCH_WARMUP_MS = 400;
 // The first native start() after a cold session start can silently hang -
-// no 'started', no partial, no error - for many seconds (observed ~15s, until
+// no 'ready', no partial, no error - for many seconds (observed ~15s, until
 // the idle backstop). A short watchdog: if the recognizer hasn't reported it
-// started within this window, relaunch (a fresh bind usually comes up in ~1s)
+// came up within this window, relaunch (a fresh bind usually comes up in ~1s)
 // instead of waiting the idle timeout out.
+//
+// The liveness signal is the patched plugin's listeningState 'ready'
+// (onReadyForSpeech; see patches/). The stock plugin's only launch-ish event,
+// 'started', actually fires on onBeginningOfSpeech - USER SPEECH - so keying
+// the watchdog on it meant every quiet stretch looked like a hung start and
+// got its live recognizer torn down at 2.5s cadence, clipping whatever the
+// user said into the deaf relaunch gaps.
 const STARTUP_WATCHDOG_MS = 2500;
 const MAX_START_RETRIES = 3;
 
@@ -143,14 +150,21 @@ export class CapacitorSttEngine implements SttEngine {
         await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
 
         // The plugin's REAL contract with partialResults: true (our default;
-        // read from the Android source, not the docs):
+        // read from the Android source, not the docs; 'ready'/'error' exist
+        // only because we patch them in - see patches/):
         //   - start() resolves IMMEDIATELY and empty - it is not a result.
+        //   - listeningState 'ready' (patched in, onReadyForSpeech) fires when
+        //     the recognizer is actually live and hearing the mic.
+        //   - listeningState 'started' is onBeginningOfSpeech - the user began
+        //     SPEAKING. It is not a launch signal; on a quiet mic it never fires.
         //   - Interim AND final transcripts all arrive as 'partialResults'
         //     events (native onResults is forwarded to the same event).
         //   - listeningState 'stopped' fires at END OF SPEECH, before the
         //     final transcript lands.
-        //   - A silent turn is INVISIBLE: native errors (NO_MATCH) reject the
-        //     already-resolved call, which JS never sees. No event arrives.
+        //   - listeningState 'error' (patched in, onError) carries the native
+        //     error message; without the patch NO_MATCH / SPEECH_TIMEOUT /
+        //     BUSY reject the already-resolved start() call and JS never sees
+        //     them - a silent turn and a wedged recognizer look identical.
         //
         // stitching (submitDelayMs > 0): each end-of-speech is a segment
         // boundary. After a short settle to catch the post-'stopped' final,
@@ -189,6 +203,9 @@ export class CapacitorSttEngine implements SttEngine {
         // we've relaunched a hung start this turn (reset on a real start).
         let started = false;
         let startRetries = 0;
+        // True while a relaunch is tearing down/rebinding; error events in that
+        // window belong to the dying segment and must not trigger another one.
+        let relaunching = false;
         let endTimer: ReturnType<typeof setTimeout> | null = null;
         let settleTimer: ReturnType<typeof setTimeout> | null = null;
         let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -288,10 +305,17 @@ export class CapacitorSttEngine implements SttEngine {
         // stitched transcript. Bounded by the end-of-turn timer, which fires
         // submit() and flips `submitted`, so this can't loop forever.
         const restartSegment = async (): Promise<void> => {
-            if (submitted || done || this.stopRequested) return;
+            if (submitted || done || this.stopRequested || relaunching) return;
+            // Latched until the relaunch lands: the native stop() below can
+            // itself fire onError (now a visible 'error' event, see the state
+            // listener), which must not trigger a second, racing restart.
+            relaunching = true;
             void SpeechRecognition.stop().catch(() => {});
             await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
-            if (submitted || done || this.stopRequested) return;
+            if (submitted || done || this.stopRequested) {
+                relaunching = false;
+                return;
+            }
             // Credit the deaf teardown gap back into the pause budget. The mic
             // was down from Android's end-of-speech (stoppedAt) through this
             // relaunch, plus the recognizer's warmup - the user couldn't be heard
@@ -307,6 +331,7 @@ export class CapacitorSttEngine implements SttEngine {
             }
             segmentStopped = false; // the relaunched segment's partials are live
             segmentHasSpeech = false; // count this new segment only if it hears speech
+            relaunching = false;
             launchSegment();
         };
 
@@ -353,8 +378,48 @@ export class CapacitorSttEngine implements SttEngine {
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
             const status = (data as { status?: string }).status;
             console.info(`[stt-native] state: ${status}`);
-            if (status === 'started') {
-                markStarted(); // recognizer is live - cancel the startup watchdog
+            if (status === 'ready' || status === 'started') {
+                // 'ready' = the recognizer came up (patched plugin). 'started' =
+                // speech began - also proof of life, and the only signal on
+                // builds without the patch (or iOS).
+                markStarted();
+                return;
+            }
+            if (status === 'error') {
+                const msg = (data as { message?: string }).message ?? 'recognizer error';
+                if (submitted || done || this.stopRequested || relaunching) return;
+                // NO_MATCH / SPEECH_TIMEOUT: ordinary silence, not a fault.
+                if (/didn't understand|no match|no speech/i.test(msg)) {
+                    // If end-of-speech already scheduled this segment's wrap-up,
+                    // let the settle path own it (fold + restart/submit).
+                    if (settleTimer !== null) return;
+                    if (stitching && sawSpeech && accumulated) {
+                        // Silence during a turn in progress: keep the mic live
+                        // for a continuation; the end-of-turn timer submits.
+                        // Mark the deaf point so restartSegment credits the gap.
+                        if (stoppedAt === 0) stoppedAt = Date.now();
+                        void restartSegment();
+                    } else {
+                        submit(); // nothing heard: end the (empty) turn
+                    }
+                    return;
+                }
+                // BUSY / flaky client errors: the service didn't take the
+                // launch. Relaunch on the watchdog's retry budget.
+                if (/busy|client side/i.test(msg) && startRetries < MAX_START_RETRIES) {
+                    startRetries++;
+                    console.info(
+                        `[stt-native] recognizer error "${msg}" - relaunch ${startRetries}/${MAX_START_RETRIES}`
+                    );
+                    void restartSegment();
+                    return;
+                }
+                // Real fault (audio, permissions, network, retries exhausted):
+                // surface it so the listen loop can toast and back off.
+                console.warn(`[stt-native] recognizer error: ${msg}`);
+                push({ type: 'error', error: new Error(msg) });
+                finish();
+                void SpeechRecognition.stop().catch(() => {});
                 return;
             }
             if (status !== 'stopped' || submitted || done) return;
@@ -409,8 +474,11 @@ export class CapacitorSttEngine implements SttEngine {
                     }
                 })
                 .catch((err: unknown) => {
-                    // Android's NO_MATCH ("Didn't understand...") is ordinary
-                    // silence, not a fault.
+                    // In partial mode start() resolves up front, so this catch
+                    // only sees pre-resolve rejects (permission, unavailable) -
+                    // recognition-time errors arrive as listeningState 'error'
+                    // above. The benign-silence branch is kept for iOS and for
+                    // builds without the plugin patch.
                     const msg = err instanceof Error ? err.message : String(err);
                     const benign = /didn't understand|no match/i.test(msg);
                     if (!benign) {

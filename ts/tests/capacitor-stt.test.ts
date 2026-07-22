@@ -12,11 +12,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({
     listeners: new Map<string, (d: unknown) => void>(),
-    // The real plugin fires listeningState 'started' when the recognizer comes
-    // up; the engine's startup watchdog relies on it. Mirror that by default so
-    // launches don't look hung (a specific test overrides this to simulate one).
+    // The PATCHED plugin (patches/) fires listeningState 'ready' from
+    // onReadyForSpeech when the recognizer comes up; the engine's startup
+    // watchdog keys on it. Mirror that by default so launches don't look hung
+    // (a specific test overrides this to simulate one). The stock plugin's
+    // 'started' is onBeginningOfSpeech - user SPEECH, not launch - and never
+    // fires on a quiet mic.
     start: vi.fn(async () => {
-        H.listeners.get('listeningState')?.({ status: 'started' });
+        H.listeners.get('listeningState')?.({ status: 'ready' });
         return undefined as unknown;
     }),
     stop: vi.fn(async () => undefined as unknown),
@@ -51,6 +54,8 @@ function collect(engine: CapacitorSttEngine): { events: SttEvent[]; finished: Pr
 const partial = (text: string): void =>
     H.listeners.get('partialResults')?.({ matches: [text] });
 const stopped = (): void => H.listeners.get('listeningState')?.({ status: 'stopped' });
+const nativeError = (message: string): void =>
+    H.listeners.get('listeningState')?.({ status: 'error', message });
 const finals = (events: SttEvent[]): SttEvent[] => events.filter((e) => e.type === 'final');
 
 beforeEach(() => {
@@ -147,11 +152,11 @@ describe('CapacitorSttEngine restart-stitching', () => {
         await finished;
     });
 
-    it('relaunches when the first start() hangs with no started event (sluggish cold start)', async () => {
+    it('relaunches when the first start() hangs with no ready event (sluggish cold start)', async () => {
         // The reported failure: the first native start() after a cold session
-        // start silently hangs - no 'started', no partial, no error - and only
+        // start silently hangs - no 'ready', no partial, no error - and only
         // the 15s idle backstop ended the turn. Simulate that hang on launch #1;
-        // later launches use the default mock (which emits 'started').
+        // later launches use the default mock (which emits 'ready').
         H.start.mockImplementationOnce(async () => undefined as unknown);
         const engine = new CapacitorSttEngine(OPTS);
         const { events } = collect(engine);
@@ -195,6 +200,90 @@ describe('CapacitorSttEngine restart-stitching', () => {
 
         expect(finals(events)).toEqual([]);
         expect(H.start).toHaveBeenCalledTimes(1); // never relaunched
+        await finished;
+    });
+
+    it('does NOT relaunch a live recognizer just because the user is quiet', async () => {
+        // The watchdog regression this patch exists for: 'started' only fires
+        // on user SPEECH, so keying liveness on it made every quiet stretch
+        // look like a hung start - the live recognizer was torn down every
+        // 2.5s and speech landing in a relaunch gap was clipped. With 'ready'
+        // as the liveness signal, a quiet mic must stay untouched.
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60); // launch; mock emits 'ready'
+        expect(H.start).toHaveBeenCalledTimes(1);
+
+        // Well past the 2.5s watchdog, still short of the 15s idle backstop.
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(H.start).toHaveBeenCalledTimes(1); // no churn
+        expect(finals(events)).toEqual([]);
+
+        // And speech arriving after the long quiet transcribes normally.
+        partial('here now');
+        stopped();
+        partial('here now');
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'here now' }]);
+    });
+
+    it('a native silence timeout ends an empty turn instead of hanging invisibly', async () => {
+        // With the plugin patch, SPEECH_TIMEOUT/NO_MATCH arrive as 'error'
+        // events. On a turn with no speech they end it cleanly (previously the
+        // recognizer died silently and only the idle backstop recovered).
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        nativeError('No speech input');
+        await vi.advanceTimersByTimeAsync(10);
+
+        expect(finals(events)).toEqual([]);
+        expect(events.filter((e) => e.type === 'error')).toEqual([]); // benign
+        expect(H.start).toHaveBeenCalledTimes(1);
+        await finished;
+    });
+
+    it('a silence timeout mid-turn relaunches to catch a continuation', async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        partial('I notice');
+        stopped();
+        partial('I notice');
+        await vi.advanceTimersByTimeAsync(800); // fold + relaunch #2
+
+        // Segment 2 hears nothing and times out natively mid-pause.
+        nativeError('No match');
+        await vi.advanceTimersByTimeAsync(100); // relaunch #3
+        expect(H.start).toHaveBeenCalledTimes(3);
+        expect(finals(events)).toEqual([]); // turn still open
+
+        partial('a warmth'); // continuation lands on the relaunched mic
+        stopped();
+        partial('a warmth');
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'I notice a warmth' }]);
+        await finished;
+    });
+
+    it('retries a busy recognizer, then surfaces the error once the budget is spent', async () => {
+        // Never come up: every launch is answered with RECOGNIZER_BUSY.
+        H.start.mockImplementation(async () => undefined as unknown);
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        for (let i = 0; i < 3; i++) {
+            nativeError('RecognitionService busy');
+            await vi.advanceTimersByTimeAsync(100); // relaunch gap
+        }
+        expect(H.start).toHaveBeenCalledTimes(4); // 1 launch + 3 retries
+
+        nativeError('RecognitionService busy'); // budget spent
+        await vi.advanceTimersByTimeAsync(10);
+        expect(events.filter((e) => e.type === 'error')).toHaveLength(1);
         await finished;
     });
 });
