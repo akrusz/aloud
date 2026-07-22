@@ -146,11 +146,11 @@ export interface SetupViewHandle {
 /** Human mode name for the resume banner ("felt sense", "exploration", ...). */
 function resumeModeLabel(state: SessionState): string {
     const labels: Record<string, string> = {
-        exploration: 'exploration',
-        noting: 'noting',
-        felt_sense: 'felt sense',
+        exploration: 'Exploration',
+        noting: 'Noting',
+        felt_sense: 'Felt sense',
     };
-    return labels[state.meditationType ?? ''] ?? 'session';
+    return labels[state.meditationType ?? ''] ?? 'Session';
 }
 
 /** "felt sense · 12 min in" - mode + elapsed for the resume banner. endTime is

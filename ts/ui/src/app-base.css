@@ -1485,7 +1485,8 @@ body:has(.session-container) {
 /* Resume-session modal (cold-boot interruption offer, meditation-pal-v73p).
    Reuses the .voice-modal chrome; these style the detail line + button row. */
 .resume-modal-detail {
-    color: var(--text-secondary);
+    color: var(--text-primary);
+    font-size: 1.05rem;
     /* The .voice-modal chrome has no body padding (children own it, like the
        header's 1rem sides), so pad the detail + actions off the edges. */
     margin: 0;
