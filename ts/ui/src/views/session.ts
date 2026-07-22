@@ -50,7 +50,7 @@ import {
     SLOW_MODEL_NOTE,
 } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
-import { openBugReport } from '../bug-report.js';
+import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
@@ -448,6 +448,20 @@ export async function mountSessionView(
     }
     const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows, 'Session', [
         { label: 'Report a bug', onClick: () => void openBugReport() },
+        // Flag an inappropriate facilitator response. Play's AI-Generated
+        // Content policy requires this to be reachable in-session, whatever
+        // the LLM source; own-provider (BYOK/local) reports self-identify in
+        // the mail template.
+        {
+            label: 'Report AI content',
+            onClick: () =>
+                void openAiContentReport({
+                    sourceLabel:
+                        ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ??
+                        setup.provider,
+                    ownProvider: setup.provider !== 'aloud',
+                }),
+        },
     ]);
     // The nav ⓘ button that opens it is created further down (navLinks), and
     // wired there once it exists in the DOM.
