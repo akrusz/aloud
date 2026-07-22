@@ -1247,6 +1247,12 @@ export async function mountSessionView(
         // turn generating (it bails without recording), and cut its audio. With
         // continuous capture this is how an interrupting utterance takes over.
         const myGen = ++turnGen;
+        // Diagnostic (native STT resume: only the first sentence of a reply is
+        // vocalized). If a reply/opener is still playing (busy) when this
+        // utterance arrives, superseding it hushes the audio after the current
+        // sentence. Log the interrupting text so a logcat reader can tell a real
+        // barge-in from an un-caught echo of the facilitator's own voice.
+        if (busy) console.info(`[turn] interrupting in-flight reply with: "${userText}"`);
         activeFullAbort?.abort();
         void tts.cancel();
         const myFullAbort = new AbortController();
