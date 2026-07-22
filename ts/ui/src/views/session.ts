@@ -550,7 +550,18 @@ export async function mountSessionView(
         } else {
             ({ engine } = await createTtsForVoice(voiceId, ttsOpts));
         }
-        return engineDrivenBargeIn ? engine : wrapTtsWithBargeIn(engine, { onBargeIn });
+        // The barge-in wrapper opens a PARALLEL getUserMedia stream during every
+        // speak(). On Android's WebView that misfires two ways: its
+        // echoCancellation isn't honored, so the facilitator's own voice trips
+        // the energy detector and cancels its own TTS (only the first sentence of
+        // a reply plays - each sentence is a separate speak() with its own
+        // listener); and the extra mic stream contends with the native
+        // SpeechRecognizer, so the next start() hangs (the ~2.5s startup-watchdog
+        // relaunches in the logs). Native STT already pauses capture while busy,
+        // so skip the wrapper there. Barge-in stays on web-speech (real Chrome
+        // honors EC) and server-whisper drives its own. See meditation-pal-x4h4.
+        const wrapBargeIn = !engineDrivenBargeIn && sttBackend !== 'capacitor';
+        return wrapBargeIn ? wrapTtsWithBargeIn(engine, { onBargeIn }) : engine;
     }
     // `let` so an in-session voice change can swap the engine (see the voice
     // modal). Reassigning here is picked up by the outer `tts` wrapper.
