@@ -1365,6 +1365,26 @@ body:has(.session-container) {
     animation: messageIn 0.4s ease;
 }
 
+/* Transcript separators ("resumed", "continuing from …", "intention: …"): not
+   chat bubbles but a centered muted label flanked by short rules. The LLM never
+   sees these - they're inserted straight into the DOM, not session context. */
+.message.divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+.message.divider::before,
+.message.divider::after {
+    content: '';
+    width: 1.75rem;
+    height: 1px;
+    background: var(--border);
+}
+
 .message-sender {
     font-size: 0.875rem;
     color: var(--text-muted);
@@ -1466,12 +1486,16 @@ body:has(.session-container) {
    Reuses the .voice-modal chrome; these style the detail line + button row. */
 .resume-modal-detail {
     color: var(--text-secondary);
-    margin: 0.25rem 0 1.25rem;
+    /* The .voice-modal chrome has no body padding (children own it, like the
+       header's 1rem sides), so pad the detail + actions off the edges. */
+    margin: 0;
+    padding: 1rem 1rem 0.25rem;
 }
 
 .resume-modal-actions {
     display: flex;
     gap: 0.75rem;
+    padding: 0.75rem 1rem 1rem;
 }
 
 .resume-modal-actions .btn {
