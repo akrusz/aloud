@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 432" width="432" height="432">
+  <!-- Android adaptive-icon foreground layer (108dp viewport at xxxhdpi = 432px).
+       Transparent background; pairs with ic_launcher_background = #110d08.
+       Orb kept inside the 66dp safe zone so no launcher mask clips it. -->
+  <defs>
+    <radialGradient id="orb" cx="45%" cy="45%" r="78%">
+      <stop offset="0" stop-color="#fff4c0"/>
+      <stop offset="0.18" stop-color="#f8f288"/>
+      <stop offset="0.38" stop-color="#f5d820"/>
+      <stop offset="0.49" stop-color="#ffb805"/>
+      <stop offset="0.65" stop-color="#ed7326"/>
+      <stop offset="0.71" stop-color="#e71f75"/>
+      <stop offset="0.76" stop-color="#870a3e"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0.5" stop-color="#e71f75" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#870a3e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="216" cy="216" r="150" fill="url(#glow)"/>
+  <circle cx="216" cy="216" r="112" fill="url(#orb)"/>
+</svg>

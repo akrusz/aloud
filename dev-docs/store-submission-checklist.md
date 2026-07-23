@@ -15,7 +15,7 @@ Already done:
 
 - [x] Native projects generated + committed (`ts/ios`, `ts/android`); iOS builds for the simulator.
 - [x] iOS Info.plist: mic + speech permission strings, Google URL scheme, Sign in with Apple wiring. Android manifest: `RECORD_AUDIO` + `INTERNET`.
-- [x] App icons (iOS set, Android adaptive). AGPL App Store exception (`LICENSE-EXCEPTION.md`, bead `84x`).
+- [x] App icons (iOS set, Android adaptive). AGPL App Store exception (`LICENSE-EXCEPTION.md`, bead `84x`). *(Re-done 2026-07-23: the Capacitor projects were still shipping the stock placeholder icons; both now use the orb. Android adaptive foreground source: `assets/app-icon-android-fg.svg`.)*
 - [x] Privacy policy + terms live (`docs/privacy`, `docs/terms`). Android `targetSdk 36` clears Play's floor.
 - [x] Apple Developer Program membership (already used for macOS notarization).
 
