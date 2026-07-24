@@ -46,6 +46,7 @@ describe('buildUsageReport', () => {
         ];
         const r = buildUsageReport(events, 2000, 0);
         expect(r.totals.providerCostUsd).toBeCloseTo(1.0, 9);
+        expect(r.accounts).toBe(1); // all three events share accountId a1
         const byKind = Object.fromEntries(r.byService.map((s) => [s.kind, s]));
         expect(byKind.llm!.costShare).toBeCloseTo(0.6, 6);
         expect(byKind.stt!.costShare).toBeCloseTo(0.1, 6);
@@ -259,6 +260,21 @@ describe('buildUsageHistory', () => {
         expect(yesterday.credits).toBeCloseTo(7, 9);
         // Other days stay empty.
         expect(h.filter((b) => b.sessions > 0)).toHaveLength(1);
+    });
+
+    it('counts distinct active accounts per day, not sessions', () => {
+        const events = [
+            // a1: two separate sessions yesterday (gap > SESSION_GAP_SEC)
+            ev({ accountId: 'a1', ts: 99 * DAY + 100 }),
+            ev({ accountId: 'a1', ts: 99 * DAY + 100 + SESSION_GAP_SEC + 60 }),
+            // a2: one session the same day
+            ev({ accountId: 'a2', ts: 99 * DAY + 500 }),
+        ];
+        const h = buildUsageHistory(events, NOW, 7);
+        const yesterday = h.find((b) => b.dayStartTs === 99 * DAY)!;
+        expect(yesterday.sessions).toBe(3);
+        expect(yesterday.accounts).toBe(2);
+        expect(h.find((b) => b.dayStartTs === 100 * DAY)!.accounts).toBe(0);
     });
 
     it('does not split a midnight-spanning session across two days', () => {

@@ -23,7 +23,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { LedgerEntry } from '../credits/store.js';
-import { buildMetrics } from '../admin/metrics.js';
+import { buildMetrics, buildDailyRevenue } from '../admin/metrics.js';
 import { buildUsageReport, buildUsageHistory, buildProviderDailyCosts } from '../credits/usage.js';
 import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
@@ -152,17 +152,31 @@ export function adminRoutes(deps: Deps): Hono {
     });
 
     // Daily usage history for the trend charts: sessions, turns, spend, duration
-    // per day over the last `days` days. Computed live from retained
-    // usage_events (no rollup table at this scale), so it's real history bounded
-    // only by how far back the telemetry goes.
+    // per day over the last `days` days, plus gross revenue per day from the
+    // ledger's purchase entries (the revenue-vs-cost margin trend). Computed
+    // live from retained usage_events (no rollup table at this scale), so it's
+    // real history bounded only by how far back the telemetry goes.
     app.get('/usage/history', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
 
         const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
         const now = Date.now() / 1000;
-        const events = await usageEvents(c, deps);
-        return c.json({ generatedAt: now, days, buckets: buildUsageHistory(events, now, days) });
+        const excludeAdmin = c.req.query('excludeAdmin') === '1';
+        const admin = excludeAdmin ? await adminAccountIds(deps) : new Set<string>();
+        let [events, entries] = await Promise.all([deps.store.allUsage(), deps.store.allEntries()]);
+        if (admin.size) {
+            // The omit-admin toggle drops the operator's purchases too, so the
+            // revenue line matches the filtered cost bars.
+            events = events.filter((e) => !admin.has(e.accountId));
+            entries = entries.filter((e) => !admin.has(e.accountId));
+        }
+        const revenue = buildDailyRevenue(entries, now, days);
+        const buckets = buildUsageHistory(events, now, days).map((b) => ({
+            ...b,
+            revenueUsd: revenue.get(b.dayStartTs) ?? 0,
+        }));
+        return c.json({ generatedAt: now, days, buckets });
     });
 
     // Per-provider, per-UTC-day computed spend: our side of reconciling against
@@ -188,11 +202,18 @@ export function adminRoutes(deps: Deps): Hono {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
 
-        const [accounts, entries] = await Promise.all([
+        const [accounts, entries, usage] = await Promise.all([
             deps.store.allAccounts(),
             deps.store.allEntries(),
+            deps.store.allUsage(),
         ]);
         const balances = balancesByAccount(entries);
+        // Last metered call per account: "is this person actually using it" at
+        // a glance, without opening the ledger.
+        const lastActive = new Map<string, number>();
+        for (const u of usage) {
+            if ((lastActive.get(u.accountId) ?? 0) < u.ts) lastActive.set(u.accountId, u.ts);
+        }
         const granted = new Map<string, number>();
         const debited = new Map<string, number>();
         const purchased = new Set<string>();
@@ -215,6 +236,7 @@ export function adminRoutes(deps: Deps): Hono {
                 id: a.id,
                 email: a.email,
                 createdAt: a.createdAt,
+                lastActiveTs: lastActive.get(a.id) ?? null,
                 balance: balances.get(a.id) ?? 0,
                 granted: granted.get(a.id) ?? 0,
                 debited: debited.get(a.id) ?? 0,

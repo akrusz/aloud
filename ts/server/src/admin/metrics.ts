@@ -158,3 +158,30 @@ export function buildMetrics(
 function round2(n: number): number {
     return Math.round(n * 100) / 100;
 }
+
+/** Seconds in a UTC day; must match the usage-history bucket width. */
+const DAY_SEC = 24 * 60 * 60;
+
+/** Gross revenue (USD) per UTC day over the last `days` days, from purchase
+ *  entries priced on the volume curve (centsForCredits) - the same math as
+ *  totals.estGrossRevenueUsd, just bucketed. Keyed by UTC start-of-day to line
+ *  up with buildUsageHistory's buckets; days without purchases have no key, the
+ *  caller zero-fills. Pure. */
+export function buildDailyRevenue(
+    entries: LedgerEntry[],
+    now: number,
+    days: number
+): Map<number, number> {
+    const dayCount = Math.max(1, Math.floor(days));
+    const todayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
+    const firstDay = todayStart - (dayCount - 1) * DAY_SEC;
+
+    const revenue = new Map<number, number>();
+    for (const e of entries) {
+        if (e.kind !== 'purchase') continue;
+        if (e.createdAt < firstDay || e.createdAt >= todayStart + DAY_SEC) continue;
+        const day = Math.floor(e.createdAt / DAY_SEC) * DAY_SEC;
+        revenue.set(day, (revenue.get(day) ?? 0) + centsForCredits(e.amount) / 100);
+    }
+    return revenue;
+}

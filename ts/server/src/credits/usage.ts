@@ -171,6 +171,8 @@ export interface UsageReport {
     generatedAt: number;
     windowSinceTs: number;
     events: number;
+    /** Distinct accounts with at least one metered call in the window. */
+    accounts: number;
     totals: { providerCostUsd: number; credits: number };
     /** Cost split by service: the "what drove the bill" answer. */
     byService: ServiceAgg[];
@@ -221,6 +223,8 @@ export interface UsageHistoryBucket {
     credits: number;
     /** Total session wall-clock minutes (sum of per-session first→last). */
     durationMin: number;
+    /** Distinct accounts with a session that began this day (daily actives). */
+    accounts: number;
 }
 
 function emptyDist(): Distribution {
@@ -427,6 +431,7 @@ export function buildUsageReport(
         generatedAt: now,
         windowSinceTs,
         events: inWindow.length,
+        accounts: new Set(inWindow.map((e) => e.accountId)).size,
         totals: { providerCostUsd: totalCost, credits: totalCredits },
         byService: Object.values(services),
         llmCacheHitRatio: cacheableTokens > 0 ? cacheReadTokens / cacheableTokens : 0,
@@ -474,9 +479,11 @@ export function buildUsageHistory(
             providerCostUsd: 0,
             credits: 0,
             durationMin: 0,
+            accounts: 0,
         });
     }
 
+    const dayAccounts = new Map<number, Set<string>>();
     const sessions = clusterSessions(events.filter((e) => e.ts >= firstDay));
     for (const s of sessions) {
         const day = Math.floor(s[0]!.ts / DAY_SEC) * DAY_SEC;
@@ -490,7 +497,11 @@ export function buildUsageHistory(
             b.credits += e.credits;
         }
         if (s.length >= 2) b.durationMin += (s[s.length - 1]!.ts - s[0]!.ts) / 60;
+        const set = dayAccounts.get(day) ?? new Set<string>();
+        set.add(s[0]!.accountId);
+        dayAccounts.set(day, set);
     }
+    for (const [day, set] of dayAccounts) buckets.get(day)!.accounts = set.size;
 
     return [...buckets.values()].sort((a, b) => a.dayStartTs - b.dayStartTs);
 }

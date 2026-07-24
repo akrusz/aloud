@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildMetrics } from '../src/admin/metrics.js';
+import { buildMetrics, buildDailyRevenue } from '../src/admin/metrics.js';
 import type { Account, LedgerEntry } from '../src/credits/store.js';
 import { USD_PER_CREDIT } from '../src/pricing/meter.js';
+import { centsForCredits } from '../src/billing/stripe.js';
 
 let seq = 0;
 function entry(accountId: string, kind: LedgerEntry['kind'], amount: number, at: number): LedgerEntry {
@@ -59,5 +60,27 @@ describe('buildMetrics', () => {
         expect(m.totals.creditsDebited).toBe(15); // all-time
         expect(m.window.creditsDebited).toBe(5); // windowed
         expect(m.window.signups).toBe(1); // only 'new'
+    });
+});
+
+describe('buildDailyRevenue', () => {
+    const DAY = 24 * 60 * 60;
+    const NOW = 100 * DAY + 3600; // mid-day on day 100
+
+    it('sums purchase revenue per UTC day and ignores other kinds', () => {
+        const entries = [
+            entry('a', 'purchase', 550, 99 * DAY + 100),
+            entry('b', 'purchase', 550, 99 * DAY + 200),
+            entry('a', 'purchase', 550, 100 * DAY + 60),
+            entry('a', 'signup_grant', 20, 99 * DAY + 300), // not revenue
+            entry('a', 'debit', -5, 99 * DAY + 400), // not revenue
+            entry('a', 'purchase', 550, 50 * DAY), // outside the window
+        ];
+        const rev = buildDailyRevenue(entries, NOW, 7);
+        const perPack = centsForCredits(550) / 100;
+        expect(rev.get(99 * DAY)).toBeCloseTo(perPack * 2, 9);
+        expect(rev.get(100 * DAY)).toBeCloseTo(perPack, 9);
+        expect(rev.has(50 * DAY)).toBe(false);
+        expect(rev.has(98 * DAY)).toBe(false); // no purchases → no key
     });
 });

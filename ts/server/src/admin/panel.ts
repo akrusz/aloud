@@ -109,7 +109,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 </style>
 </head>
 <body class="hide-help">
-  <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button></h1>
+  <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button><button id="signOut" class="ghost xs hidden" type="button" style="float:right;margin-top:6px;margin-right:8px">Sign out</button></h1>
   <p class="sub help-text">Operator console - spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
 
   <div class="card" id="authCard">
@@ -127,7 +127,16 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   </div>
 
   <div id="app" class="hidden">
-    <h2>Spend &amp; abuse <button class="ghost" id="refreshMetrics" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
+    <h2>Spend &amp; abuse
+      <span style="float:right;display:flex;gap:8px;align-items:center">
+        <select id="metricsWindow" style="width:auto;padding:4px 8px;font-size:16px">
+          <option value="24">last 24h</option>
+          <option value="168">last 7d</option>
+          <option value="720">last 30d</option>
+        </select>
+        <button class="ghost" id="refreshMetrics" style="padding:4px 10px;font-size:16px">refresh</button>
+      </span>
+    </h2>
     <div class="grid" id="stats"></div>
 
     <h2>Cost attribution
@@ -136,6 +145,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
+          <option value="8760">last year</option>
           <option value="1000000">all time</option>
         </select>
         <select id="usageMinTurns" style="width:auto;padding:4px 8px;font-size:16px">
@@ -181,9 +191,11 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <h2>Usage over time
       <span style="float:right;display:flex;gap:8px;align-items:center">
         <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:16px">
+          <option value="cost" selected>provider $</option>
+          <option value="margin">revenue vs cost</option>
           <option value="sessions">sessions</option>
+          <option value="accounts">active accounts</option>
           <option value="turns">turns</option>
-          <option value="cost">provider $</option>
           <option value="credits">credits</option>
           <option value="duration">avg min / session</option>
         </select>
@@ -191,19 +203,20 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="7">last 7d</option>
           <option value="30" selected>last 30d</option>
           <option value="90">last 90d</option>
+          <option value="365">last year</option>
         </select>
         <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
         <button class="ghost" id="refreshHistory" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
-    <p class="sub help-text" style="margin:-4px 0 12px">Daily trend, one bar per day. Each session is counted on the day it began. Hover a bar for the exact value.</p>
+    <p class="sub help-text" style="margin:-4px 0 12px">Daily trend, one bar per UTC day (dates labeled in UTC). Each session is counted on the day it began. Hover a bar for the exact value.</p>
     <div class="card">
       <div id="historyChart"><p class="muted" style="margin:0">Connect to load.</p></div>
     </div>
     <div class="card">
       <table>
-        <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
-        <tbody id="historyRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
+        <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Accounts</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Revenue $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
+        <tbody id="historyRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
       </table>
       <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
@@ -267,8 +280,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
       </div>
       <table>
-        <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th></th></tr></thead>
-        <tbody id="acctRows"><tr><td colspan="8" class="muted">Connect to load accounts.</td></tr></tbody>
+        <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th></th></tr></thead>
+        <tbody id="acctRows"><tr><td colspan="9" class="muted">Connect to load accounts.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -302,6 +315,17 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     el.className = 'msg' + (kind ? ' ' + kind : '');
   }
 
+  // Sticky view prefs (window selectors, chart metric, omit-admin) so the
+  // panel reopens the way you left it. Stored beside the credential.
+  var PREFS_KEY = 'aloud-admin-prefs';
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function savePref(k, v) {
+    var p = loadPrefs(); p[k] = v;
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) {}
+  }
+
   function usd(n) { return '$' + Number(n || 0).toFixed(2); }
   // Provider costs per call/session are often fractions of a cent - show enough
   // precision to be legible (4 dp under $1, 2 dp above).
@@ -314,10 +338,16 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // forced trailing zero, so a clean integer median still reads as "6".
   function num1(n) { return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }); }
   function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
+  // History buckets are UTC days - label them in UTC so a bar's date matches
+  // its bucket (a local-time label reads a full day early west of Greenwich).
+  function dateUTC(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 
   // ---- metrics dashboard -------------------------------------------------
   function loadMetrics() {
-    return api('/metrics?sinceHours=24').then(function (m) {
+    var sel = $('metricsWindow');
+    // "last 24h" → "24h" for the card labels.
+    var wl = sel.options[sel.selectedIndex].text.replace('last ', '');
+    return api('/metrics?sinceHours=' + sel.value).then(function (m) {
       var t = m.totals, w = m.window, a = m.abuse;
       var cards = [
         ['Accounts', int(t.accounts)],
@@ -325,9 +355,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['Provider cost (all-time)', usd(t.providerCostUsd)],
         ['Free burn (non-converters)', usd(t.freeBurnUsd), t.freeBurnUsd > 0 ? 'warn' : ''],
         ['Est. gross revenue', usd(t.estGrossRevenueUsd)],
-        ['Signups (24h)', int(w.signups)],
-        ['Provider cost (24h)', usd(w.providerCostUsd)],
-        ['IP clusters (24h)', int(a.ipsOverThreshold), a.ipsOverThreshold > 0 ? 'warn' : ''],
+        ['Signups (' + wl + ')', int(w.signups)],
+        ['Provider cost (' + wl + ')', usd(w.providerCostUsd)],
+        ['IP clusters (' + wl + ')', int(a.ipsOverThreshold), a.ipsOverThreshold > 0 ? 'warn' : ''],
       ];
       $('stats').innerHTML = cards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
@@ -351,6 +381,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
         ['Credits spent', dec1(u.totals.credits)],
+        ['Active accounts', int(u.accounts)],
         ['Metered calls', int(u.events)],
         ['LLM cache-hit', pct(u.llmCacheHitRatio)],
         ['Sessions', int(s.count) + (s.excludedShort ? ' (+' + int(s.excludedShort) + ' short)' : '')],
@@ -416,8 +447,18 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   var HISTORY = [];
   var METRICS = {
     sessions: { label: 'Sessions', val: function (b) { return b.sessions; }, fmt: int },
+    accounts: { label: 'Active accounts', val: function (b) { return b.accounts; }, fmt: int },
     turns: { label: 'Turns', val: function (b) { return b.turns; }, fmt: int },
     cost: { label: 'Provider $', val: function (b) { return b.providerCostUsd; }, fmt: usdp },
+    // Dual series: cost bars + a revenue line on the same $ scale - the daily
+    // gross-margin picture (revenue is spiky, so it reads best as an overlay).
+    margin: {
+      label: 'Provider $ (bars) vs revenue (line)',
+      val: function (b) { return b.providerCostUsd; },
+      val2: function (b) { return b.revenueUsd || 0; },
+      label2: 'revenue',
+      fmt: usdp,
+    },
     credits: { label: 'Credits', val: function (b) { return b.credits; }, fmt: dec1 },
     duration: {
       label: 'Avg min / session',
@@ -432,7 +473,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function barChart(buckets, metricKey) {
     var m = METRICS[metricKey] || METRICS.sessions;
     var vals = buckets.map(m.val);
-    var max = Math.max.apply(null, vals.concat([0]));
+    // A second series (m.val2) shares the scale - both are USD - and overlays
+    // as a line, so the max covers both.
+    var vals2 = m.val2 ? buckets.map(m.val2) : [];
+    var max = Math.max.apply(null, vals.concat(vals2).concat([0]));
     // Every day zero-fills, so buckets is never empty; the real "nothing to show"
     // case is an all-zero window. Say so instead of drawing a flat, empty axis.
     if (max <= 0) return '<p class="muted" style="margin:0">No metered usage in this window yet.</p>';
@@ -444,8 +488,28 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var x = padX + i * bw, y = padTop + (plotH - h);
       return '<rect x="' + (x + 0.7).toFixed(1) + '" y="' + y.toFixed(1) +
         '" width="' + Math.max(0.5, bw - 1.4).toFixed(1) + '" height="' + h.toFixed(1) +
-        '" rx="1.5" fill="var(--accent)"><title>' + esc(date(b.dayStartTs) + ': ' + m.fmt(v)) + '</title></rect>';
+        '" rx="1.5" fill="var(--accent)"><title>' + esc(dateUTC(b.dayStartTs) + ': ' + m.fmt(v)) + '</title></rect>';
     }).join('');
+    var overlay = '';
+    if (m.val2) {
+      var pts = buckets.map(function (b, i) {
+        var v = m.val2(b);
+        return {
+          x: padX + i * bw + bw / 2,
+          y: padTop + (plotH - plotH * (v / max)),
+          v: v, ts: b.dayStartTs,
+        };
+      });
+      overlay = '<polyline fill="none" stroke="var(--good)" stroke-width="1.5" points="' +
+        pts.map(function (p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ') + '"/>' +
+        pts.filter(function (p) { return p.v > 0; }).map(function (p) {
+          return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+            '" r="2.5" fill="var(--good)"><title>' +
+            esc(dateUTC(p.ts) + ': ' + m.fmt(p.v) + ' ' + m.label2) + '</title></circle>';
+        }).join('') +
+        '<text x="' + padX + '" y="' + (padTop - 4) + '" font-size="13" fill="var(--good)">' +
+          esc(m.label2) + '</text>';
+    }
     var baseY = padTop + plotH;
     var axis = '<line x1="' + padX + '" y1="' + baseY + '" x2="' + (W - padX) + '" y2="' + baseY +
       '" stroke="var(--line)" stroke-width="1"/>';
@@ -462,11 +526,11 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var x = padX + i * bw + bw / 2;
       var anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
       return '<text x="' + x.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor +
-        '" font-size="13" fill="var(--dim)">' + esc(date(buckets[i].dayStartTs)) + '</text>';
+        '" font-size="13" fill="var(--dim)">' + esc(dateUTC(buckets[i].dayStartTs)) + '</text>';
     }).join('');
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H +
       '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(m.label) + ' per day">' +
-      grid + bars + axis + labels + '</svg>';
+      grid + bars + overlay + axis + labels + '</svg>';
   }
 
   // The table paginates (newest day first) so a 90-day window stays scannable;
@@ -485,13 +549,15 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
     $('historyRows').innerHTML = page.map(function (b) {
       var avgMin = b.sessions ? b.durationMin / b.sessions : 0;
-      return '<tr><td class="muted">' + date(b.dayStartTs) + '</td>' +
+      return '<tr><td class="muted">' + dateUTC(b.dayStartTs) + '</td>' +
         '<td class="num">' + int(b.sessions) + '</td>' +
+        '<td class="num">' + int(b.accounts) + '</td>' +
         '<td class="num">' + int(b.turns) + '</td>' +
         '<td class="num">' + usdp(b.providerCostUsd) + '</td>' +
+        '<td class="num">' + usdp(b.revenueUsd || 0) + '</td>' +
         '<td class="num">' + dec1(b.credits) + '</td>' +
         '<td class="num">' + avgMin.toFixed(1) + '</td></tr>';
-    }).join('') || '<tr><td colspan="6" class="muted">No usage yet.</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="muted">No usage yet.</td></tr>';
 
     // Pager: only when there's more than one page.
     if (pages <= 1) {
@@ -576,7 +642,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     var q = $('search').value.trim().toLowerCase();
     var rows = allAccounts.filter(function (a) { return !q || acctSearchText(a).indexOf(q) >= 0; });
     if (!rows.length) {
-      $('acctRows').innerHTML = '<tr><td colspan="8" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
+      $('acctRows').innerHTML = '<tr><td colspan="9" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
       return;
     }
     $('acctRows').innerHTML = rows.map(function (a) {
@@ -590,6 +656,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         '<td class="num">' + dec1(a.granted) + '</td>' +
         '<td class="num">' + dec1(a.debited) + '</td>' +
         '<td class="muted">' + date(a.createdAt) + '</td>' +
+        '<td class="muted">' + (a.lastActiveTs ? date(a.lastActiveTs) : 'never') + '</td>' +
         '<td>' + (a.deleted ? '' : '<button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button>') + '</td>' +
         '</tr>';
     }).join('');
@@ -811,15 +878,25 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // "token" is whatever credential we hold - the static admin token or a
   // session JWT from the Google sign-in below; the server accepts either.
   // loadMetrics() doubles as the auth check before anything is persisted.
+  // Once a credential works the auth card collapses out of the way - the panel
+  // is for reading, not re-authenticating. "Sign out" in the header brings it
+  // back (and forgets the stored credential).
+  function setConnected(on) {
+    $('authCard').classList.toggle('hidden', on);
+    $('signOut').classList.toggle('hidden', !on);
+  }
+
   function boot() {
     setMsg($('authMsg'), 'Connecting…');
     return loadMetrics().then(function () {
       localStorage.setItem(KEY, token);
       setMsg($('authMsg'), 'Connected.', 'ok');
+      setConnected(true);
       $('app').classList.remove('hidden');
       return Promise.all([loadAccounts(), loadConfig(), loadUsage(), loadUsageHistory(), loadRetreats()]);
     }).catch(function (e) {
       setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
+      setConnected(false);
       $('app').classList.add('hidden');
     });
   }
@@ -870,14 +947,18 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   })();
 
   $('connect').onclick = connect;
-  $('forget').onclick = function () {
+  function forgetCredential() {
     localStorage.removeItem(KEY); token = ''; $('tok').value = '';
-    $('app').classList.add('hidden'); setMsg($('authMsg'), 'Credential forgotten.');
-  };
+    $('app').classList.add('hidden'); setConnected(false);
+    setMsg($('authMsg'), 'Credential forgotten.');
+  }
+  $('forget').onclick = forgetCredential;
+  $('signOut').onclick = forgetCredential;
   $('grant').onclick = doGrant;
   $('saveConfig').onclick = saveConfig;
   $('savePause').onclick = savePause;
   $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('metricsWindow').addEventListener('change', function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('usageMinTurns').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
@@ -885,6 +966,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (cb) {
     cb.addEventListener('change', function () {
       Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = cb.checked; });
+      savePref('omitAdmin', cb.checked);
       Promise.all([loadUsage(), loadUsageHistory()]).catch(function (e) { setMsg($('authMsg'), e.message, 'err'); });
     });
   });
@@ -913,6 +995,24 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       sync();
     });
     sync();
+  })();
+
+  // Restore sticky prefs and persist future changes. Runs before the
+  // auto-connect below so the restored selections drive the initial loads.
+  (function () {
+    var prefs = loadPrefs();
+    ['metricsWindow', 'usageWindow', 'usageMinTurns', 'historyMetric', 'historyDays'].forEach(function (id) {
+      var el = $(id);
+      if (prefs[id] != null) {
+        var prev = el.value;
+        el.value = String(prefs[id]);
+        if (el.selectedIndex < 0) el.value = prev; // stored option no longer exists
+      }
+      el.addEventListener('change', function () { savePref(id, el.value); });
+    });
+    if (prefs.omitAdmin) {
+      Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = true; });
+    }
   })();
 
   var saved = localStorage.getItem(KEY);

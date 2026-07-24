@@ -239,6 +239,26 @@ describe('admin routes — data', () => {
         expect(buckets.reduce((s, b) => s + b.events, 0)).toBe(1);
         expect(buckets.reduce((s, b) => s + b.sessions, 0)).toBe(1);
     });
+
+    it('merges daily gross revenue into history buckets, filtered with excludeAdmin', async () => {
+        const h2 = makeApp({ token: TOKEN, adminEmails: 'admin@example.com' });
+        await seedAccount(h2.store, 'adm', 'admin@example.com');
+        await seedAccount(h2.store, 'usr', 'user@example.com');
+        // Reasons must differ: purchases are idempotent on (kind, reason), the
+        // webhook-replay guard (in prod the reason embeds the Stripe ref).
+        await h2.ledger.purchase('adm', 550, 'stripe:cs_adm');
+        await h2.ledger.purchase('usr', 550, 'stripe:cs_usr');
+
+        type Hist = { buckets: Array<{ revenueUsd: number }> };
+        const sum = (h3: Hist) => h3.buckets.reduce((s, b) => s + b.revenueUsd, 0);
+
+        const all = await h2.app.request('/cloud/v1/admin/usage/history?days=7', { headers: authed() });
+        const filtered = await h2.app.request('/cloud/v1/admin/usage/history?days=7&excludeAdmin=1', { headers: authed() });
+        const allSum = sum((await all.json()) as Hist);
+        const userSum = sum((await filtered.json()) as Hist);
+        expect(userSum).toBeGreaterThan(0);
+        expect(allSum).toBeCloseTo(userSum * 2, 6); // admin's purchase drops out
+    });
 });
 
 describe('admin routes — grant', () => {

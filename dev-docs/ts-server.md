@@ -177,7 +177,10 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
 | `GET /cloud/v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
 | `GET /cloud/v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
-| `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag |
+| `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&minTurns=&excludeAdmin=1`) |
+| `GET /cloud/v1/admin/usage/history` | admin | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
+| `GET /cloud/v1/admin/usage/provider-daily` | admin | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
+| `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |
 | `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
 | `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
 | `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
