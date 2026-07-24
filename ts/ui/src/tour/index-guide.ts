@@ -74,6 +74,16 @@ function setupHeader(): HTMLElement | null {
     return document.querySelector<HTMLElement>('.setup-header');
 }
 
+/** The focus/vibe groups sit inside the "Customize facilitator" disclosure,
+ *  collapsed by default on phones - open it so those steps have a visible
+ *  target to spotlight. */
+function ensureCustomizeOpen(): void {
+    const section = document.getElementById('customize-section');
+    if (!section || section.classList.contains('open')) return;
+    section.classList.add('open');
+    document.getElementById('customize-toggle')?.setAttribute('aria-expanded', 'true');
+}
+
 // The methods panel shows only the active tab's text (views/setup.ts), so the
 // tour visits each tab in turn to cover all three methods.
 const SECTIONS: ReadonlyArray<Section> = [
@@ -84,6 +94,7 @@ const SECTIONS: ReadonlyArray<Section> = [
         id: 'focus',
         tab: 'exploration',
         target: function () {
+            ensureCustomizeOpen();
             const btn = document.querySelector<HTMLElement>('[data-info="focus"]');
             return btn ? btn.closest<HTMLElement>('.form-group') : null;
         },
@@ -92,6 +103,7 @@ const SECTIONS: ReadonlyArray<Section> = [
         id: 'vibe',
         tab: 'exploration',
         target: function () {
+            ensureCustomizeOpen();
             const btn = document.querySelector<HTMLElement>('[data-info="vibe"]');
             return btn ? btn.closest<HTMLElement>('.form-group') : null;
         },

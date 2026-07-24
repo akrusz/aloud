@@ -126,7 +126,6 @@ export interface SessionSetup {
      * intention field.
      */
     intentionByMode: Partial<Record<MeditationType, string>>;
-    preset: string | null;
     focuses: Focus[];
     qualities: Quality[];
     /** UI slider value 0-4. Map via DIRECTIVENESS_VALUES below. */
@@ -252,10 +251,9 @@ export const defaultSetup: SessionSetup = {
     meditationType: 'exploration',
     intention: '',
     intentionByMode: {},
-    preset: 'pleasant_play',
     focuses: ['body_sensations', 'emotions'],
-    qualities: ['playful', 'feeling_good'],
-    dirStep: 1,
+    qualities: ['feeling_good'],
+    dirStep: 2,
     feltSensePaceStep: 1,
     verbosity: 'medium',
     customInstructions: '',

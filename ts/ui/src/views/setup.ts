@@ -28,7 +28,6 @@ import {
     saveSetup,
 } from '../settings.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
-import { PRESETS, findPreset } from '../presets.js';
 import {
     buildScoredVoiceList,
     downloadPercent,
@@ -574,31 +573,36 @@ export async function mountSetupView(
         ];
         for (const [el, mode] of intentionFields) {
             el.value = setup.intentionByMode[mode] ?? '';
+            autosizeIntention(el);
             el.addEventListener('input', () => {
                 setup.intentionByMode[mode] = el.value;
                 if (setup.meditationType === mode) setup.intention = el.value;
                 persist();
+                autosizeIntention(el);
             });
         }
 
-        // Presets
-        root.querySelectorAll<HTMLElement>('.style-card').forEach((card) => {
-            const id = card.dataset['preset']!;
-            const isSelected = id === setup.preset;
-            card.classList.toggle('selected', isSelected);
-            const radio = card.querySelector<HTMLInputElement>('input[type="radio"]');
-            if (radio) radio.checked = isSelected;
-            card.addEventListener('click', () => {
-                const preset = findPreset(id);
-                if (!preset) return;
-                setup.preset = preset.id;
-                setup.focuses = [...preset.focuses];
-                setup.qualities = [...preset.qualities];
-                setup.dirStep = preset.dirStep;
-                persist();
-                render();
-            });
+        // "Customize facilitator" disclosure. On phones the focus + vibe grids
+        // are most of the page's scroll, so they collapse behind this toggle;
+        // on desktop CSS hides the toggle and always shows the body.
+        const customizeSection = root.querySelector<HTMLElement>('#customize-section');
+        const customizeToggle = root.querySelector<HTMLButtonElement>('#customize-toggle');
+        customizeToggle?.addEventListener('click', () => {
+            const open = customizeSection?.classList.toggle('open') ?? false;
+            customizeToggle.setAttribute('aria-expanded', String(open));
         });
+        // The collapsed toggle still shows what's active, so persisted picks
+        // from a previous session aren't invisible.
+        function updateCustomizeSummary(): void {
+            const el = root.querySelector<HTMLElement>('#customize-summary');
+            if (!el) return;
+            const names = [
+                ...setup.focuses.map((f) => FOCUS_LABELS[f]),
+                ...setup.qualities.map((q) => QUALITY_LABELS[q]),
+            ].filter(Boolean);
+            el.textContent = names.join(', ');
+        }
+        updateCustomizeSummary();
 
         // Focus checkboxes
         root.querySelectorAll<HTMLInputElement>('input[name="focus"]').forEach((cb) => {
@@ -608,9 +612,8 @@ export async function mountSetupView(
                 setup.focuses = cb.checked
                     ? [...setup.focuses, value]
                     : setup.focuses.filter((f) => f !== value);
-                setup.preset = null; // manual change leaves preset state
                 persist();
-                updatePresetHighlights();
+                updateCustomizeSummary();
                 cb.closest('.modifier-toggle')!.classList.toggle('selected', cb.checked);
             });
         });
@@ -623,9 +626,8 @@ export async function mountSetupView(
                 setup.qualities = cb.checked
                     ? [...setup.qualities, value]
                     : setup.qualities.filter((q) => q !== value);
-                setup.preset = null;
                 persist();
-                updatePresetHighlights();
+                updateCustomizeSummary();
                 cb.closest('.modifier-toggle')!.classList.toggle('selected', cb.checked);
             });
         });
@@ -635,9 +637,7 @@ export async function mountSetupView(
         dirSlider.value = String(setup.dirStep);
         dirSlider.addEventListener('input', () => {
             setup.dirStep = Number(dirSlider.value);
-            setup.preset = null;
             persist();
-            updatePresetHighlights();
         });
 
         // Felt-sense check-in pace: same stops as the guidance slider, its own
@@ -943,6 +943,16 @@ export async function mountSetupView(
         });
     }
 
+    /** Grow an intention box to fit its text; CSS caps it (max-height), after
+     *  which it scrolls. Skips hidden panels - scrollHeight reads 0 there -
+     *  so applyTabSelection re-runs this when a tab becomes visible. */
+    function autosizeIntention(el: HTMLTextAreaElement | null): void {
+        if (!el || el.offsetParent === null) return;
+        el.style.height = 'auto';
+        // + border widths: scrollHeight is content+padding only.
+        el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+    }
+
     function applyTabSelection(active: MeditationType): void {
         root.querySelectorAll<HTMLElement>('.tab-bar .tab-btn').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset['tab'] === active);
@@ -959,6 +969,12 @@ export async function mountSetupView(
         if (exploration) exploration.classList.toggle('hidden', active !== 'exploration');
         if (noting) noting.classList.toggle('hidden', active !== 'noting');
         if (feltSense) feltSense.classList.toggle('hidden', active !== 'felt_sense');
+        // Now that the active panel is visible, its intention box can measure.
+        if (active === 'exploration') {
+            autosizeIntention(root.querySelector<HTMLTextAreaElement>('#intention'));
+        } else if (active === 'felt_sense') {
+            autosizeIntention(root.querySelector<HTMLTextAreaElement>('#felt-sense-intention'));
+        }
     }
 
     /**
@@ -1320,12 +1336,6 @@ export async function mountSetupView(
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
-    function updatePresetHighlights(): void {
-        root.querySelectorAll<HTMLElement>('.style-card').forEach((card) => {
-            card.classList.toggle('selected', card.dataset['preset'] === setup.preset);
-        });
-    }
-
     render();
     // Load any pending continuation (History "Continue" / cold-boot resume) once,
     // after the first render so its tab-select + banner paint hit a live DOM.
@@ -1381,20 +1391,6 @@ function renderSetupHTML(
         )
         .join('');
 
-    // Radio inputs wrapped in labels styled as cards. The radio is hidden by
-    // CSS (.style-card input { display: none }); the label's .selected class
-    // drives the active border.
-    const presetCards = PRESETS.map(
-        (p) => `
-        <label class="style-card" data-preset="${p.id}">
-            <input type="radio" name="preset" value="${p.id}">
-            <div class="style-card-inner">
-                <span class="style-name">${escapeHtml(p.name)}</span>
-                <span class="style-desc">${escapeHtml(p.description)}</span>
-            </div>
-        </label>`
-    ).join('');
-
     const focusToggles = FOCUSES.map(
         (f) => `
         <label class="modifier-toggle">
@@ -1438,7 +1434,7 @@ function renderSetupHTML(
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
                 <p><strong>exploration</strong>: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.</p>
-                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good). presets give you quick starting points, or you can build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
+                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good) to build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
                 <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
             </div>
             <div data-method="noting" class="hidden">
@@ -1461,32 +1457,45 @@ function renderSetupHTML(
                     placeholder="e.g. play with energetic flow, just be present with sensations, drop the need to control"></textarea>
             </div>
 
-            <div class="form-group">
-                <label>Suggested Presets</label>
-                <div class="style-cards">${presetCards}</div>
+            <div class="customize-section" id="customize-section">
+                <button type="button" class="customize-toggle" id="customize-toggle"
+                    aria-expanded="false" aria-controls="customize-body">
+                    <span class="customize-toggle-label">Customize facilitation</span>
+                    <span class="customize-toggle-summary" id="customize-summary"></span>
+                </button>
+                <div class="customize-body" id="customize-body">
+                    <div class="form-group">
+                        <label>Attention Focus <button type="button" class="info-btn" data-info="focus" aria-label="About attention focus">?</button></label>
+                        <div class="info-panel hidden" id="info-focus">
+                            <p>These let the facilitator know where you intend to place your attention.</p>
+                            <p><strong>Body &amp; sensations:</strong> Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.</p>
+                            <p><strong>Emotions &amp; feeling tone:</strong> More complex collections of sensations and labels - joy, anger, something unnamed.</p>
+                            <p><strong>Parts &amp; inner world:</strong> Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.</p>
+                            <p>You can also select multiple, or leave all unchecked to keep things open.</p>
+                            <p>Some combinations to try: body &amp; emotions with playful and feeling good; emotions with loving and feeling good; parts with compassionate.</p>
+                        </div>
+                        <div class="modifier-toggles">${focusToggles}</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Vibe <button type="button" class="info-btn" data-info="vibe" aria-label="About vibes">?</button></label>
+                        <div class="info-panel hidden" id="info-vibe">
+                            <p>Vibes color the tone of facilitation. Select any combination; they blend naturally.</p>
+                            <p><strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.</p>
+                            <p>Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.</p>
+                        </div>
+                        <div class="modifier-toggles">${qualityToggles}</div>
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label>Attention Focus <button type="button" class="info-btn" data-info="focus" aria-label="About attention focus">?</button></label>
-                <div class="info-panel hidden" id="info-focus">
-                    <p>These let the facilitator know where you intend to place your attention.</p>
-                    <p><strong>Body &amp; sensations:</strong> Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.</p>
-                    <p><strong>Emotions &amp; feeling tone:</strong> More complex collections of sensations and labels - joy, anger, something unnamed.</p>
-                    <p><strong>Parts &amp; inner world:</strong> Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.</p>
-                    <p>You can also select multiple, or leave all unchecked to keep things open.</p>
+            <details class="advanced-settings">
+                <summary>Additional instructions</summary>
+                <div class="form-group">
+                    <textarea id="custom-instructions" rows="3"
+                        placeholder="Any specific guidance for the facilitator…"></textarea>
                 </div>
-                <div class="modifier-toggles">${focusToggles}</div>
-            </div>
-
-            <div class="form-group">
-                <label>Vibe <button type="button" class="info-btn" data-info="vibe" aria-label="About vibes">?</button></label>
-                <div class="info-panel hidden" id="info-vibe">
-                    <p>Vibes color the tone of facilitation. Select any combination; they blend naturally.</p>
-                    <p><strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.</p>
-                    <p>Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.</p>
-                </div>
-                <div class="modifier-toggles">${qualityToggles}</div>
-            </div>
+            </details>
 
             <div class="form-row form-row-thirds">
                 <div class="form-group">
@@ -1495,7 +1504,7 @@ function renderSetupHTML(
                         <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
                         <p>If the <strong>Check-In Timing</strong> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
                     </div>
-                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
+                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2">
                     <div class="range-labels">
                         <span>Following</span>
                         <span>Directing</span>
@@ -1513,14 +1522,6 @@ function renderSetupHTML(
                     </div>
                 </div>
             </div>
-
-            <details class="advanced-settings">
-                <summary>Additional instructions</summary>
-                <div class="form-group">
-                    <textarea id="custom-instructions" rows="3"
-                        placeholder="Any specific guidance for the facilitator…"></textarea>
-                </div>
-            </details>
         </div>
 
         <div class="tab-panel hidden" id="noting-panel">
@@ -1534,7 +1535,7 @@ function renderSetupHTML(
             <div class="noting-option-row">
                 <label class="noting-option">
                     <input type="checkbox" id="user-turn-cue">
-                    <span>Play a sound when it's your turn</span>
+                    <span>Play a sound on your turn</span>
                 </label>
                 <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">Chime</button>
                 <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>

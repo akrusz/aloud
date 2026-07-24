@@ -812,6 +812,15 @@ textarea::placeholder {
     color: var(--text-muted);
 }
 
+/* Intention boxes grow with their text (setup.ts autosizeIntention) up to
+   about half a screen, then scroll. Self-sizing, so no manual resize grip. */
+#intention,
+#felt-sense-intention {
+    max-height: 50vh;
+    overflow-y: auto;
+    resize: none;
+}
+
 select {
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23786a58' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -1027,57 +1036,57 @@ input[type="range"].slider-stops {
 }
 
 
-/* Style cards */
+/* Customize facilitator (focus + vibe). Desktop always shows both grids and
+   hides the toggle; on phones they collapse behind it (mobile block below)
+   because they're most of the setup page's scroll. */
 
-.style-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 0.5rem;
+.customize-body {
+    display: flex;
+    flex-direction: column;
+    /* Match .tab-panel's gap so wrapping the two groups changes nothing. */
+    gap: 1.5rem;
 }
 
-.style-card {
-    display: block;
+.customize-toggle {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    /* Same disclosure treatment as .advanced-settings ("Additional
+       instructions"): note surface, muted text, +/- marker. */
+    background: var(--bg-note);
+    color: var(--text-secondary);
+    font-family: var(--font);
+    font-size: 0.9rem;
+    text-align: left;
     cursor: pointer;
 }
 
+.customize-toggle-label::before {
+    content: "+ ";
+    color: var(--text-muted);
+}
 
-.style-card input {
+.customize-section.open .customize-toggle-label::before {
+    content: "- ";
+}
+
+/* Second line: the active picks, ellipsized. Same size as the label; muted
+   color carries the de-emphasis. */
+.customize-toggle-summary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.customize-toggle-summary:empty {
     display: none;
-}
-
-.style-card-inner {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    padding: 0.6rem 0.8rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    /* Sit these choice cards on the intermediate note surface - a shade between
-       the view background and the text fields, so they read as raised without
-       looking like inputs. Selected state below tints over it. */
-    background: var(--bg-note);
-    transition: all var(--transition);
-    width: 100%;
-    height: 100%;
-}
-
-.style-card:hover .style-card-inner {
-    border-color: var(--text-muted);
-}
-
-.style-card.selected .style-card-inner {
-    border-color: var(--accent-dim);
-    background: hsl(from var(--accent-dim) h calc(s * 0.65) l / alpha);
-}
-
-.style-name {
-    font-weight: 500;
-    font-size: 0.9rem;
-}
-
-.style-desc {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
 }
 
 /* Modifier toggles */
@@ -4637,9 +4646,28 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 
     /* Three-up grids collapse straight to single column on phone - skip
        the awkward two-up intermediate step. */
-    .style-cards,
     .modifier-toggles {
         grid-template-columns: 1fr;
+    }
+
+    /* Focus + vibe collapse behind "Customize facilitator" so a session is
+       reachable without a long scroll. The tour force-opens the section when
+       it spotlights these groups (tour/index-guide.ts). */
+    .customize-toggle {
+        display: flex;
+    }
+    .customize-section:not(.open) .customize-body {
+        display: none;
+    }
+    .customize-section.open .customize-body {
+        margin-top: 1.25rem;
+    }
+
+    /* The intention placeholder wraps to ~3 lines at phone widths; rows="2"
+       clips it. Give the box room for the full hint. */
+    #intention,
+    #felt-sense-intention {
+        min-height: 5.8em;
     }
 
     /* Tap targets - the form is built around a cursor; on phones we
@@ -4652,9 +4680,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding: 0.75rem 0.8rem;
         font-size: 1.05rem;
         white-space: nowrap;
-    }
-    .style-card-inner {
-        padding: 0.85rem 0.95rem;
     }
     .modifier-toggle {
         padding: 0.75rem 0.85rem;
@@ -4699,17 +4724,24 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding: 0.25rem 0.5rem;
     }
     /* The setup content starts right under the floating top chrome (brand chip
-       left, orb right). Nudge the first row clear of it: the full-width resume
-       banner otherwise slips under the "aloud." wordmark, and the centered tabs
-       sit in the orb's glow. Only one of these is ever the first row, so the
-       adjacency rule below cancels the double-gap when the banner is present. */
+       left, orb right). Push the first row clear of it: the brand chip's bottom
+       edge sits ~3.3rem down (nav padding + chip height) against .main's 2.4rem
+       top padding, so the tab labels underlap the wordmark at narrow widths
+       without ~1.2rem more. The margin-bottom trim below gives most of it back
+       between the tabs and the panel content. Only one of banner/header is ever
+       the first row, so the adjacency rule cancels the double-gap when the
+       banner is present. */
     .setup-header {
-        margin-top: 0.4rem;
+        margin-top: 1.8rem;
+        margin-bottom: 1.25rem;
     }
     .continue-banner {
         margin-top: 0.75rem;
     }
-    .continue-banner + .setup-header {
+    /* :not(.hidden): the banner div is always in the DOM (views/setup.ts just
+       toggles .hidden), and `+` matches through display:none - unscoped, this
+       zeroed the header's clearance margin on every page load. */
+    .continue-banner:not(.hidden) + .setup-header {
         margin-top: 0;
     }
     /* Session input controls (Embers / Kasina / Voice) - chunkier so
@@ -4869,6 +4901,17 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .settings-footer,
     .setup-footer {
         bottom: calc(4rem + var(--safe-bottom-clear));
+    }
+
+    /* Slimmer Begin bar: less chrome covering the page while the keyboard is
+       up. Width/side-padding live in style.css (.setup-footer-inner .btn-begin),
+       which loads later and wins those - only trim the vertical here. */
+    .setup-footer {
+        padding: 0.3rem 1.5rem;
+    }
+    .setup-footer .btn-begin {
+        padding-top: 0.65rem;
+        padding-bottom: 0.65rem;
     }
 
     /* Slimmer settings footer: the desktop bar's padding reads chunky

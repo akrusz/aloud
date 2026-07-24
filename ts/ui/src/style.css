@@ -534,8 +534,8 @@
     align-items: center;
 }
 /* One line - "Begin Session (≈ N☁️/hr)" - to keep the CTA a single row tall.
-   Natural width on desktop, full-width on phone (narrow override below + the
-   lifted .setup-footer .btn-begin rule). */
+   Natural width on desktop, capped near-full-width on phone (narrow override
+   below + the lifted .setup-footer .btn-begin rule). */
 .setup-footer-inner .btn-begin {
     width: auto;
     /* Enough to keep the CTA roomy on desktop, trimmed from 2.2rem so the
@@ -566,7 +566,11 @@
 }
 @media (max-width: 488px) {
     .setup-footer-inner .btn-begin {
-        width: 100%;
+        /* Wide enough for the one-line "Begin Session (≈ N☁️/hr)", but capped
+           short of the screen edges so the slimmed bar (app-base.css narrow
+           block trims its vertical padding) keeps its proportions. The flex
+           parent centers it. */
+        width: min(100%, 20rem);
     }
 }
 
