@@ -209,10 +209,17 @@ prereqs, release + cutover).
 
 ```bash
 cd ts
+npm run cap:android:run  # ui:build + cap sync + Gradle build + install/launch on
+                         # the connected device - no Android Studio. THE way to
+                         # run the current code on a phone.
 npm run cap:sync       # ui:build + cap sync (both platforms)
 npm run cap:ios        # + open Xcode
 npm run cap:android    # + open Android Studio
 ```
+
+Rebuilding from *inside* Android Studio repackages whatever `cap sync` last
+copied into `android/` - it never rebuilds `ui/dist` - so web-side changes only
+reach the device through the `cap:*` scripts above.
 
 `VITE_ALOUD_CLOUD_URL` defaults from the committed `ts/ui/.env.production`
 (build-only; an env var overrides it), and the `cap:*` scripts refuse to run if

@@ -34,7 +34,8 @@
         "cap:require-cloud-url": "node -e \"const fs = require('fs'); let f = ''; try { f = fs.readFileSync('ui/.env.production', 'utf8'); } catch {} if (!process.env.VITE_ALOUD_CLOUD_URL && !/^VITE_ALOUD_CLOUD_URL=.+$/m.test(f)) { console.error('VITE_ALOUD_CLOUD_URL is unset (no env var, nothing in ui/.env.production) - the packaged mobile app would ship with aloud cloud (sign-in/credits) disabled. See ts/MOBILE.md.'); process.exit(1); }\"",
         "cap:sync": "npm run cap:require-cloud-url && npm run ui:build && cap sync",
         "cap:ios": "npm run cap:require-cloud-url && npm run ui:build && cap sync ios && cap open ios",
-        "cap:android": "npm run cap:require-cloud-url && npm run ui:build && cap sync android && cap open android"
+        "cap:android": "npm run cap:require-cloud-url && npm run ui:build && cap sync android && cap open android",
+        "cap:android:run": "npm run cap:require-cloud-url && npm run ui:build && cap sync android && cap run android"
     },
     "devDependencies": {
         "@capacitor/cli": "^8.3.4",

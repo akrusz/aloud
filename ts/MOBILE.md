@@ -32,16 +32,24 @@ from `ts/.gitignore`, then `git add ts/ios ts/android` and commit.
 ## Daily workflow
 
 ```bash
+# Android: build + sync + install + launch on the connected device in one
+# step, no Android Studio. The main way to run the current code on a phone.
+npm run cap:android:run
+
 # Live reload — Capacitor loads from the Vite dev server.
 # Edit ui/src/, see changes on the device immediately.
 npm run ui:dev                                 # one terminal
 npx cap run ios --livereload --external        # another terminal
 # (or `npx cap run android --livereload --external`)
 
-# Without live reload — packaged build each time.
+# Without live reload, via the IDEs.
 npm run cap:ios          # builds + syncs + opens Xcode
 npm run cap:android      # builds + syncs + opens Android Studio
 ```
+
+Note a rebuild from inside Android Studio repackages the last-synced
+`ui/dist` — it never rebuilds it. If the app looks stale, run
+`cap:android:run` (or `cap:sync`) so the web bundle is rebuilt first.
 
 ### `VITE_ALOUD_CLOUD_URL` is required for packaged builds
 

@@ -66,13 +66,25 @@ without `VITE_ALOUD_CLOUD_URL` (a build without it has no backend):
 ```bash
 cd ts
 export VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev
+npm run cap:android:run  # ui:build + cap sync android + Gradle build +
+                         # install/launch on the connected device (adb).
+                         # No Android Studio needed - the main way to run.
 npm run cap:sync       # ui:build + cap sync (both platforms)
 npm run cap:ios        # ui:build + cap sync ios + open Xcode
 npm run cap:android    # ui:build + cap sync android + open Android Studio
 ```
 
-After any UI change re-run `cap:sync` (or `npx cap copy` for web-asset-only
-changes). For fast iteration use live-reload: uncomment the `server` block in
+`cap:android:run` auto-picks the only connected device/emulator; with several,
+it prompts (or pass `-- --target <adb-serial>`). It installs the debug APK -
+release/Play builds still go through the signed `.aab` path
+([mobile-signing.md](mobile-signing.md)). Android
+Studio is only needed for native debugging; the webview console is available
+directly with `adb logcat -s Capacitor/Console Capacitor`.
+
+After any UI change re-run `cap:android:run` (or `cap:sync`; `npx cap copy`
+suffices for web-asset-only changes). Rebuilding from inside Android Studio
+does NOT rebuild `ui/dist` - it repackages the last-synced bundle. For fast
+iteration use live-reload: uncomment the `server` block in
 `capacitor.config.ts` (point `url` at your LAN Vite dev server) or run
 `npx cap run ios --livereload --external`.
 
