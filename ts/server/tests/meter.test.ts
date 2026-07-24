@@ -23,7 +23,7 @@ describe('llmCostUsd', () => {
     it('prices the 1h cache anchor at 2x and the rest of cache-creation at 5m (1.25x)', () => {
         // opus: 5/M in, 0.5/M read, 6.25/M (5m write), 10/M (1h write).
         // 1000 creation tokens, 400 of them at the 1h TTL.
-        const cost = llmCostUsd('anthropic', 'claude-opus-4-8', {
+        const cost = llmCostUsd('anthropic', 'claude-opus-5', {
             cacheCreation: 1000,
             cacheCreation1h: 400,
         });
@@ -33,7 +33,7 @@ describe('llmCostUsd', () => {
 
     it('clamps a bogus 1h count to the cache-creation total (never over-bills)', () => {
         // 1h reported higher than the total → cap at the total, all at 1h rate.
-        const cost = llmCostUsd('anthropic', 'claude-opus-4-8', {
+        const cost = llmCostUsd('anthropic', 'claude-opus-5', {
             cacheCreation: 500,
             cacheCreation1h: 9999,
         });
@@ -41,7 +41,7 @@ describe('llmCostUsd', () => {
     });
 
     it('treats absent 1h split as all-5m (back-compat with non-anchor turns)', () => {
-        const cost = llmCostUsd('anthropic', 'claude-opus-4-8', { cacheCreation: 1000 });
+        const cost = llmCostUsd('anthropic', 'claude-opus-5', { cacheCreation: 1000 });
         expect(cost).toBeCloseTo((1000 * 6.25) / 1_000_000, 9);
     });
 

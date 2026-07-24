@@ -1,7 +1,7 @@
 /**
  * Allowlist coverage for the July 2026 model additions: GPT-5.6 Sol (openai
- * direct) and Kimi K3 (moonshotai via openrouter). Guards the exact pinned ids
- * the picker and the debit math both key on.
+ * direct), Claude Opus 5 (anthropic), and Kimi K2 (moonshotai via openrouter).
+ * Guards the exact pinned ids the picker and the debit math both key on.
  */
 import { describe, it, expect } from 'vitest';
 import { pricingFor, isModelAllowed } from '../src/pricing/providers.js';
@@ -60,6 +60,23 @@ describe('GPT-5.6 Sol (openai)', () => {
 
         // The bare family id isn't servable — only the pinned tier.
         expect(isModelAllowed('openai', 'gpt-5.6')).toBe(false);
+    });
+});
+
+describe('Opus 5 (anthropic)', () => {
+    it('is allowlisted at the Opus rates and is the picker default', () => {
+        const p = pricingFor('anthropic', 'claude-opus-5');
+        expect(p).toBeDefined();
+        expect(p!.input).toBeCloseTo(5 / M, 12);
+        expect(p!.output).toBeCloseTo(25 / M, 12);
+        expect(p!.cacheRead).toBeCloseTo(0.5 / M, 12);
+        expect(p!.cacheCreation).toBeCloseTo(6.25 / M, 12);
+        expect(p!.cacheCreation1h).toBeCloseTo(10 / M, 12);
+        expect(p!.default).toBe(true);
+
+        // Opus 4.8 was swapped OUT for its same-price successor — it must no
+        // longer be billable, the way Sonnet 4.6 went when Sonnet 5 landed.
+        expect(isModelAllowed('anthropic', 'claude-opus-4-8')).toBe(false);
     });
 });
 

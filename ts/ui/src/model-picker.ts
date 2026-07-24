@@ -23,11 +23,11 @@ function providerNeedsKey(provider: string): boolean {
 }
 
 /** Display names for the aloud cloud allowlist, so the dropdown reads "Claude
- *  Opus 4.8" not "claude-opus-4-8". Unknown ids fall back to prettyModelName.
+ *  Opus 5" not "claude-opus-5". Unknown ids fall back to prettyModelName.
  *  The option VALUE keeps the raw id; only the label changes. */
 const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-fable-5': 'Claude Fable 5',
-    'claude-opus-4-8': 'Claude Opus 4.8',
+    'claude-opus-5': 'Claude Opus 5',
     'claude-3-opus-20240229': 'Claude Opus 3',
     'claude-sonnet-5': 'Claude Sonnet 5',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',

@@ -66,14 +66,14 @@ describe('buildUsageReport', () => {
 
     it('computes cache economics — token split, $ saved vs no-cache, per provider', () => {
         const M = 1_000_000;
-        // Opus 4.8 rates: in 5/M, out 25/M, read 0.5/M, write 6.25/M.
+        // Opus 5 rates: in 5/M, out 25/M, read 0.5/M, write 6.25/M.
         const actual = (1000 * 5 + 200 * 25 + 10_000 * 0.5 + 1000 * 6.25) / M;
         const noCache = (1000 * 5 + 200 * 25 + (10_000 + 1000) * 5) / M;
         const events = [
             ev({
                 kind: 'llm',
                 provider: 'anthropic',
-                model: 'claude-opus-4-8',
+                model: 'claude-opus-5',
                 tokensIn: 1000,
                 tokensOut: 200,
                 cacheRead: 10_000,

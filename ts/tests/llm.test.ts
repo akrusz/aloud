@@ -94,7 +94,7 @@ describe('AnthropicProvider', () => {
         expect(headers['anthropic-version']).toBe('2023-06-01');
     });
 
-    it('disables thinking on opt-out models (Sonnet 5) and omits the param elsewhere', async () => {
+    it('disables thinking on opt-out models (Sonnet 5, Opus 5) and omits the param elsewhere', async () => {
         const bodyFor = async (model: string) => {
             const fetchImpl = vi.fn(async () =>
                 mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
@@ -111,6 +111,11 @@ describe('AnthropicProvider', () => {
         // Sonnet 5 runs adaptive thinking when the param is omitted — the
         // voice loop needs the explicit disable to speak without a preamble.
         expect((await bodyFor('claude-sonnet-5'))['thinking']).toEqual({ type: 'disabled' });
+        // Opus 5 is the same opt-out shape, and must NOT carry an effort
+        // override: the disable 400s above effort `high`.
+        const opus5 = await bodyFor('claude-opus-5');
+        expect(opus5['thinking']).toEqual({ type: 'disabled' });
+        expect(opus5['output_config']).toBeUndefined();
         // Opt-in models are already off without it; Fable would 400 on it.
         expect((await bodyFor('claude-opus-4-8'))['thinking']).toBeUndefined();
         expect((await bodyFor('claude-fable-5'))['thinking']).toBeUndefined();

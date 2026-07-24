@@ -81,11 +81,11 @@ const M = 1_000_000;
 
 /** Keyed by `${provider}:${model}`. */
 const MODELS: Record<string, ModelPricing> = {
-    // Fable 5: Anthropic's most capable model, a premium tier ABOVE Opus 4.8
+    // Fable 5: Anthropic's most capable model, a premium tier ABOVE Opus 5
     // ($10/$50 per 1M, ~2x Opus). Same 5m/1h prompt caching as the Opus family
     // (verified live on the metered request shape), so the 1h "anchor" bills
     // through cacheCreation1h like the others. Offered but NOT the default: it's
-    // slow (always reasons) and the priciest tier, so Opus 4.8 is pre-selected
+    // slow (always reasons) and the priciest tier, so Opus 5 is pre-selected
     // (see `default` below) and Fable is opt-in. Uses the newer tokenizer (~30%
     // more tokens for the same text), which inflates token COUNTS, not the
     // per-token rates below, so no adjustment here.
@@ -98,9 +98,19 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 12.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 20 / M, // 1h write, 2x input
     },
-    'anthropic:claude-opus-4-8': {
+    // Opus 5 (replaced Opus 4.8 here, July 2026): a drop-in successor at
+    // IDENTICAL rates ($5/$25 per 1M, same cache multipliers), so the debit math
+    // and the shown credits/hr don't move. Swapped rather than listed alongside
+    // 4.8, the same way Sonnet 5 replaced Sonnet 4.6 below - two same-price Opus
+    // entries would only clutter the picker. Two behavioural notes: (1) thinking
+    // is ON by default on this model, so the core AnthropicProvider sends an
+    // explicit thinking-disabled (THINKING_OFF_MODELS) to keep the voice loop
+    // prompt; (2) it has a 512-token prompt-cache minimum (half Opus 4.8's), so
+    // short early turns cache where they previously didn't - cheaper, never
+    // costlier.
+    'anthropic:claude-opus-5': {
         provider: 'anthropic',
-        model: 'claude-opus-4-8',
+        model: 'claude-opus-5',
         default: true, // pre-selected default: capable, faster + cheaper than Fable
         input: 5 / M,
         output: 25 / M,
