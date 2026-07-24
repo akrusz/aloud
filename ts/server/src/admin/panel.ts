@@ -142,6 +142,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="4" selected>4+ turn sessions</option>
           <option value="0">all sessions</option>
         </select>
+        <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
         <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
@@ -191,6 +192,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="30" selected>last 30d</option>
           <option value="90">last 90d</option>
         </select>
+        <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
         <button class="ghost" id="refreshHistory" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
     </h2>
@@ -335,8 +337,16 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
   // ---- cost attribution --------------------------------------------------
   var SVC = { llm: 'LLM', stt: 'STT', tts: 'TTS' };
+  // "omit admin" - one logical toggle rendered in both usage headers. Checking
+  // either box syncs the other and refetches both sections without usage from
+  // ALOUD_ADMIN_EMAILS accounts, so operator testing doesn't pollute the
+  // real-user picture.
+  function omitAdminParam() {
+    var cb = document.querySelector('.omitAdmin');
+    return cb && cb.checked ? '&excludeAdmin=1' : '';
+  }
   function loadUsage() {
-    return api('/usage?sinceHours=' + $('usageWindow').value + '&minTurns=' + $('usageMinTurns').value).then(function (u) {
+    return api('/usage?sinceHours=' + $('usageWindow').value + '&minTurns=' + $('usageMinTurns').value + omitAdminParam()).then(function (u) {
       var s = u.sessions;
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
@@ -497,7 +507,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   }
 
   function loadUsageHistory() {
-    return api('/usage/history?days=' + $('historyDays').value).then(function (h) {
+    return api('/usage/history?days=' + $('historyDays').value + omitAdminParam()).then(function (h) {
       HISTORY = h.buckets || [];
       historyPage = 0; // fresh data / new window → back to the first page
       renderHistory();
@@ -872,6 +882,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('usageMinTurns').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (cb) {
+    cb.addEventListener('change', function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = cb.checked; });
+      Promise.all([loadUsage(), loadUsageHistory()]).catch(function (e) { setMsg($('authMsg'), e.message, 'err'); });
+    });
+  });
   $('historyDays').addEventListener('change', function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   // Metric switch is a pure client-side re-render - no refetch needed.
   $('historyMetric').addEventListener('change', renderHistory);

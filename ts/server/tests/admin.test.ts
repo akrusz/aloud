@@ -212,6 +212,33 @@ describe('admin routes — data', () => {
         const res = await h.app.request('/cloud/v1/admin/usage');
         expect(res.status).toBe(401);
     });
+
+    it('excludeAdmin=1 drops admin-account usage from the report and the history', async () => {
+        // Fresh app with an email allowlist: the filter matches accounts whose
+        // stored email (case-insensitively) is on ALOUD_ADMIN_EMAILS.
+        const h2 = makeApp({ token: TOKEN, adminEmails: 'admin@example.com' });
+        await seedAccount(h2.store, 'adm', 'Admin@Example.com');
+        await seedAccount(h2.store, 'usr', 'user@example.com');
+        const base = {
+            sessionId: null, passId: null, kind: 'llm' as const, provider: 'google',
+            model: 'gemini-2.5-flash-lite', tokensIn: 100, tokensOut: 20, cacheRead: 0,
+            cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
+        };
+        const now = Date.now() / 1000;
+        await h2.store.appendUsage({ id: 'ua', accountId: 'adm', ts: now - 60, ...base });
+        await h2.store.appendUsage({ id: 'ub', accountId: 'usr', ts: now - 60, ...base });
+
+        const all = await h2.app.request('/cloud/v1/admin/usage?sinceHours=1000000', { headers: authed() });
+        expect(((await all.json()) as { events: number }).events).toBe(2);
+
+        const filtered = await h2.app.request('/cloud/v1/admin/usage?sinceHours=1000000&excludeAdmin=1', { headers: authed() });
+        expect(((await filtered.json()) as { events: number }).events).toBe(1);
+
+        const hist = await h2.app.request('/cloud/v1/admin/usage/history?days=7&excludeAdmin=1', { headers: authed() });
+        const { buckets } = (await hist.json()) as { buckets: Array<{ sessions: number; events: number }> };
+        expect(buckets.reduce((s, b) => s + b.events, 0)).toBe(1);
+        expect(buckets.reduce((s, b) => s + b.sessions, 0)).toBe(1);
+    });
 });
 
 describe('admin routes — grant', () => {

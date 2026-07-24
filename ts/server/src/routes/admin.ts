@@ -30,6 +30,7 @@ import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
 import { verifySessionToken } from '../auth/session.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
+import type { UsageEvent } from '../credits/usage.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
     if (!provided) return false;
@@ -69,6 +70,30 @@ async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
         }
     }
     return c.json(apiError('unauthenticated', 'admin access required'), ERROR_STATUS.unauthenticated);
+}
+
+/** Account ids on the ALOUD_ADMIN_EMAILS allowlist, for the excludeAdmin
+ *  filter below. Same comparison as the session auth gate (lowercased stored
+ *  email vs the lowercased list); empty when only the static token is
+ *  configured, in which case the filter is a no-op. */
+async function adminAccountIds(deps: Deps): Promise<Set<string>> {
+    if (deps.config.adminEmails.length === 0) return new Set();
+    const accounts = await deps.store.allAccounts();
+    return new Set(
+        accounts
+            .filter((a) => deps.config.adminEmails.includes(a.email.toLowerCase()))
+            .map((a) => a.id)
+    );
+}
+
+/** Usage events for the report endpoints, minus admin-account rows when the
+ *  request carries ?excludeAdmin=1 (the panel's "omit admin" toggle), so the
+ *  operator's own testing doesn't pollute the real-user picture. */
+async function usageEvents(c: Context, deps: Deps): Promise<UsageEvent[]> {
+    const events = await deps.store.allUsage();
+    if (c.req.query('excludeAdmin') !== '1') return events;
+    const admin = await adminAccountIds(deps);
+    return admin.size ? events.filter((e) => !admin.has(e.accountId)) : events;
 }
 
 /** Net balance per account id, summing the append-only ledger once. */
@@ -122,7 +147,7 @@ export function adminRoutes(deps: Deps): Hono {
         const now = Date.now() / 1000;
         const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
 
-        const events = await deps.store.allUsage();
+        const events = await usageEvents(c, deps);
         return c.json(buildUsageReport(events, now, windowSinceTs, { minSessionTurns }));
     });
 
@@ -136,14 +161,16 @@ export function adminRoutes(deps: Deps): Hono {
 
         const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
         const now = Date.now() / 1000;
-        const events = await deps.store.allUsage();
+        const events = await usageEvents(c, deps);
         return c.json({ generatedAt: now, days, buckets: buildUsageHistory(events, now, days) });
     });
 
     // Per-provider, per-UTC-day computed spend: our side of reconciling against
     // the provider cost reports (scripts/reconcile-cloud-spend.mjs,
     // meditation-pal-xejm). Buckets by event time, not session start, so rows
-    // line up with the providers' own daily billing buckets.
+    // line up with the providers' own daily billing buckets. No excludeAdmin
+    // here on purpose: the provider bills admin usage too, so filtering it
+    // would break the reconciliation.
     app.get('/usage/provider-daily', async (c) => {
         const fail = await authFailure(c, deps);
         if (fail) return fail;
