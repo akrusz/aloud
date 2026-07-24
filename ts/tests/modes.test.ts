@@ -112,6 +112,12 @@ describe('parseTurnSignals', () => {
         expect(r.stage).toBe('none');
         expect(r.cleanText).toBe('We can go later.');
     });
+
+    it('honors a token a leaked reasoning block was sitting in front of', () => {
+        const r = parseTurnSignals('<think>They want quiet.</think>[HOLD] I am right here.');
+        expect(r.hold).toBe(true);
+        expect(r.cleanText).toBe('I am right here.');
+    });
 });
 
 describe('scrubControlTokens', () => {
@@ -130,6 +136,25 @@ describe('scrubControlTokens', () => {
     it('drops tag-shaped leftovers the model invented', () => {
         expect(scrubControlTokens('[PAUSE] Let it settle.')).toBe('Let it settle.');
         expect(scrubControlTokens('Rest here. <SILENCE>')).toBe('Rest here.');
+    });
+
+    it('drops a reasoning block with its contents, and stray markup without', () => {
+        expect(scrubControlTokens('<think>They sound tense.</think> Rest here.')).toBe(
+            'Rest here.'
+        );
+        expect(scrubControlTokens('<thinking>\nmulti\nline\n</thinking>Rest here.')).toBe(
+            'Rest here.'
+        );
+        // Not a reasoning block: the tags go, the words stay.
+        expect(scrubControlTokens('<p>Rest <em>here</em>.</p>')).toBe('Rest here.');
+        expect(scrubControlTokens('Rest here.<br/>')).toBe('Rest here.');
+    });
+
+    it('leaves prose that merely uses angle brackets alone', () => {
+        expect(scrubControlTokens('Breathe in <3 counts.')).toBe('Breathe in <3 counts.');
+        expect(scrubControlTokens('It felt like 3 < 5 somehow.')).toBe(
+            'It felt like 3 < 5 somehow.'
+        );
     });
 
     it('never strands the decoration a removed token was wrapped in', () => {

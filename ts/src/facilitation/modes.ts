@@ -181,17 +181,43 @@ const ANY_PAREN_TOKEN_RE = new RegExp(PAREN_TOKEN_SRC, 'g');
 const TAG_SHAPED_RE = /[*_"']*[[<{]\s*[A-Z][A-Z0-9 _:.-]{0,23}\s*[\]>}][*_"']*/g;
 
 /**
+ * A reasoning block and its CONTENTS. Reasoning leaks into the spoken reply
+ * more often than any other markup: local models reason in <think> by default
+ * (deepseek-r1, qwen3), and a hosted model asked not to think can still emit a
+ * stray <thinking> now and then. Dropping just the tags would leave the
+ * reasoning to be read aloud, which is worse than the tag, so the whole block
+ * goes. Only a CLOSED block is removed - an unclosed one (reasoning cut off by
+ * the token cap) loses its tag below and speaks, which beats a silent turn.
+ */
+const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+
+/**
+ * Any remaining XML/HTML-shaped tag, contents kept. A spoken facilitation turn
+ * never needs markup, so this is a blanket net rather than a list of tags we've
+ * been bitten by - the app's own signals are bracketed ([HOLD]) and already
+ * parsed by here. Requires a letter straight after the "<", so ordinary prose
+ * ("3 < 5", "breathe in <3") survives.
+ */
+const XML_TAG_RE = /<\/?[a-z][\w.:-]*(?:\s[^<>]*?)?\/?>/gi;
+
+/**
  * Remove control tokens ANYWHERE in text about to be spoken. Small models
  * misplace them mid-reply ("Sure. [HOLD] Want some quiet?"); a misplaced token
  * is never honored (signals parse leading-only) but would otherwise be read
- * aloud. Also drops tag-shaped leftovers (TAG_SHAPED_RE) and tidies the
- * punctuation a removal can strand.
+ * aloud. Also drops reasoning blocks and stray markup (REASONING_BLOCK_RE,
+ * XML_TAG_RE), tag-shaped leftovers (TAG_SHAPED_RE), and tidies the punctuation
+ * a removal can strand.
+ *
+ * Deliberately code, not a prompt rule: the models most likely to emit markup
+ * are the local ones least likely to follow an instruction not to.
  */
 export function scrubControlTokens(text: string): string {
     return text
+        .replace(REASONING_BLOCK_RE, ' ')
         .replace(ANY_CONTROL_TOKEN_RE, ' ')
         .replace(ANY_PAREN_TOKEN_RE, ' ')
         .replace(TAG_SHAPED_RE, ' ')
+        .replace(XML_TAG_RE, ' ')
         .replace(/[ \t]{2,}/g, ' ')
         .replace(/ +([,.;:!?])/g, '$1')
         // Punctuation or a list marker the removal stranded at the front.
@@ -219,7 +245,10 @@ export interface TurnSignals {
  * placement. Contradictory tokens: first wins.
  */
 export function parseTurnSignals(response: string): TurnSignals {
-    let text = response.trim();
+    // Reasoning blocks come off FIRST: a leaked <think>…</think> ahead of the
+    // reply would otherwise hide the leading token run behind it, costing the
+    // signal as well as the silence.
+    let text = response.replace(REASONING_BLOCK_RE, ' ').trim();
     let hold = false;
     let stage: StageSignal = 'none';
     let waitSec: number | null = null;
