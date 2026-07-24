@@ -69,7 +69,7 @@ jobs:
           VITE_ALOUD_CLOUD_URL: ${{ vars.ALOUD_CLOUD_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - name: Upload docs/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
