@@ -287,9 +287,15 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
 Static site in `docs/` (hand-written). Published to GitHub Pages as an
 **artifact** by `.github/workflows/deploy-web.yml` (Pages source = "GitHub
 Actions" - the old "serve `/docs` from a branch" mode is retired), which uploads
-the whole `docs/` tree: marketing pages plus the freshly built app at
-`docs/app/`. Download buttons hit the GitHub `releases/latest` API at load, so
-no redeploy per release.
+the whole `docs/` tree: marketing pages plus the built app at `docs/app/`.
+Download buttons hit the GitHub `releases/latest` API at load, so no redeploy
+per release.
+
+**The two halves are on different clocks.** Marketing pages publish on every
+push to `main` that touches `docs/`; the app is built from the **latest
+published release**, and only a release (`deploy-release.yml`) moves it - after
+the server deploy succeeds, so client and API ship together. See
+[deploy.md](deploy.md#release-deploys-one-tag-ships-everything).
 
 ```bash
 npx serve docs                        # serves docs/ on a printed localhost port

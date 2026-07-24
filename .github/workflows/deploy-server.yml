@@ -1,11 +1,25 @@
 name: Deploy server (Fly)
 
-# Manual only — deploying spends money and the Fly app + volume + secrets must
-# already be provisioned (see dev-docs/deploy.md). No push trigger on purpose:
-# a hosted billing server should never redeploy itself from a code push without
-# a human in the loop. Wire an on:push:main trigger later if you want CD.
+# Deploying spends money and the Fly app + volume + secrets must already be
+# provisioned (see dev-docs/deploy.md). Two ways in, no push trigger on purpose:
+#
+#   - a RELEASE, via deploy-release.yml, which runs this first and only then
+#     publishes the matching web app, so client and server ship together;
+#   - the manual button, for a hotfix or to re-run a failed deploy.
+#
+# A hosted billing server should never redeploy itself from a code push.
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to deploy (default: the branch this is run from)"
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
 
 jobs:
   deploy:
@@ -14,6 +28,9 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Empty = the triggering ref, which is what the manual button wants.
+          ref: ${{ inputs.ref }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       # Run from ts/ so the Docker build context includes ../src (@aloud/core);
       # the Dockerfile + fly.toml live under server/.

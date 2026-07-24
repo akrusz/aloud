@@ -3,7 +3,7 @@
 The runbook for the live deploy: a static UI talking to aloud cloud
 (`@aloud/server`) over HTTPS, with accounts + credits.
 
-Two halves, deployed independently:
+Two halves, deployed together (see [Release deploys](#release-deploys-one-tag-ships-everything)):
 
 | Half | What | Where | TLS |
 |---|---|---|---|
@@ -22,10 +22,41 @@ HTTPS (a self-signed LAN cert won't do here).
 
 ---
 
+## Release deploys: one tag ships everything
+
+**Publishing a GitHub release is the deploy.** `.github/workflows/deploy-release.yml`
+runs the Fly server deploy and then, only if it succeeded, publishes the hosted
+web app built from the same tag. The desktop build rides the same release
+(`tauri-release.yml`). So the browser app and the API it calls always ship
+together, and `main` is somewhere you can merge without shipping.
+
+The order is deliberate: **server first, web second.** New UI against an old
+server is the skew that breaks (it calls fields that don't exist yet); an old
+client against a new server is the permanent state of the world anyway, since
+desktop and mobile update on their own schedule - which is also why the server
+contract has to stay backward-compatible regardless.
+
+What does *not* wait for a release:
+
+- **Marketing pages** (`docs/index.html`, `/privacy`, `/terms`, …) publish on
+  every push to `main` that touches `docs/`. Pages replaces the whole site on
+  each deployment, so that run also rebuilds `docs/app` - from the **latest
+  published release**, never from `main`. Vite's asset hashes are
+  content-derived, so an unchanged app rebuilds to the same bytes.
+- **Mobile** (Play / App Store) is out of band; a store build is its own trip.
+- **`npm audit fix` commits** from `audit-autofix.yml` land on `main` and ship
+  with the next release. If an advisory is urgent, cut one.
+
+Re-running after a failure: the **Release deploy (server → web)** button takes a
+tag, or use the individual **Deploy server (Fly)** / **Deploy web app** buttons -
+both still accept a manual run.
+
+---
+
 ## Server (Fly.io)
 
-Files: `ts/server/Dockerfile`, `ts/server/fly.toml`, and the manual
-`.github/workflows/deploy-server.yml`. Everything runs from the **`ts/`
+Files: `ts/server/Dockerfile`, `ts/server/fly.toml`, and
+`.github/workflows/deploy-server.yml` (run by a release, or by hand). Everything runs from the **`ts/`
 workspace root** because the server resolves `@aloud/core` (`../src`) at
 runtime via tsx - the build context must include core's source.
 
@@ -295,11 +326,21 @@ Reuses the existing Pages + cert + domain; the SPA router is base-path aware
 
 ### Deploy (recommended): the workflow
 
-Run the **Deploy web app (UI → GitHub Pages)** GitHub Action
-(`.github/workflows/deploy-web.yml`, manual). It builds the hosted UI into
-`docs/app/` in the runner, then uploads the whole `docs/` tree (marketing site +
-built app) straight to Pages as an artifact. **Nothing is committed back to the
-branch**, so there's nothing to pull after a deploy.
+`.github/workflows/deploy-web.yml` builds the hosted UI into `docs/app/` in the
+runner, then uploads the whole `docs/` tree (marketing site + built app) to Pages
+as an artifact. **Nothing is committed back to the branch**, so there's nothing
+to pull after a deploy.
+
+It runs three ways, and **which app it builds depends on how it was triggered**:
+
+| Trigger | Marketing pages | `docs/app` |
+|---|---|---|
+| Push to `main` touching `docs/` | that commit | latest published release |
+| Release (via `deploy-release.yml`) | `main` | the release tag |
+| Manual button | the branch you run it from | `app_ref` input, else latest release |
+
+The app is never built from `main` (except on a repo with no releases at all,
+which warns) - that's what keeps the hosted client in step with the server.
 
 One-time setup: set **Pages source to "GitHub Actions"** (Settings → Pages →
 Build and deployment → Source). The custom domain (`aloud.rest`) is preserved via

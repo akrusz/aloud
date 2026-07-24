@@ -1,17 +1,26 @@
 name: Deploy web app (UI → GitHub Pages)
 
-# Builds the hosted browser app and publishes the whole docs/ tree (marketing
-# site + freshly built app) straight to GitHub Pages as an artifact. NOTHING is
-# committed back to the branch, so there's nothing to pull after a deploy. This
-# replaces the older "commit docs/app to the branch" flow.
+# Publishes the whole docs/ tree to GitHub Pages: the marketing site from the
+# triggering commit, plus the browser app built into docs/app. NOTHING is
+# committed back to the branch, so there's nothing to pull after a deploy.
+#
+# THE TWO HALVES MOVE ON DIFFERENT CLOCKS. Pages replaces the entire site on
+# every deployment - there's no such thing as publishing only docs/index.html -
+# so a marketing-copy push still has to put an app at /app. It builds one from
+# the LATEST PUBLISHED RELEASE (app_ref below), not from main:
+#
+#   marketing push to main → docs/ from main   + app from the last release tag
+#   release published      → docs/ from main   + app from the release tag
+#                            (via deploy-release.yml, after the server is live)
+#
+# So marketing pages ship continuously while the app ships on releases, in step
+# with the server. Vite's asset hashes are content-derived, so rebuilding an
+# unchanged app produces the same bytes - a marketing deploy doesn't churn /app.
 #
 # REQUIRES Pages source = "GitHub Actions" (Settings → Pages → Build and
 # deployment → Source). With the old "Deploy from a branch" source this workflow
 # does nothing useful. The custom domain (aloud.rest) is preserved via docs/CNAME,
 # which is included in the uploaded artifact.
-#
-# TRIGGERS: auto-deploys on pushes to `main` that touch the UI, plus a manual
-# button. If auto runs too often, narrow the paths or gate on a tag/release marker.
 #
 # Required repo settings (Settings → Secrets and variables → Actions → Variables):
 #   - ALOUD_CLOUD_URL   the hosted /cloud origin, e.g. https://aloud-cloud.fly.dev
@@ -20,9 +29,24 @@ name: Deploy web app (UI → GitHub Pages)
 #                        server). NOT secret — it's baked into the public client.
 on:
   workflow_dispatch:
+    inputs:
+      app_ref:
+        description: "Ref to build docs/app from (default: latest published release)"
+        type: string
+        required: false
+  # Called by deploy-release.yml with the release tag, after the server deploy.
+  workflow_call:
+    inputs:
+      app_ref:
+        type: string
+        required: false
+  # Marketing site only. The app deliberately does NOT auto-deploy from main —
+  # it ships with the server on a release, so the two can't drift.
   push:
     branches: [main]
-    paths: ['ts/ui/**', 'ts/src/**', 'ts/package.json', 'ts/package-lock.json']
+    paths:
+      - "docs/**"
+      - ".github/workflows/deploy-web.yml"
 
 # Pages deployment needs these; contents:read is enough since we no longer push.
 permissions:
@@ -42,6 +66,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # The site tree (marketing pages, CNAME, 404 redirect) from the trigger.
       - uses: actions/checkout@v5
 
       # Fail loudly instead of shipping a build where sign-in/credits silently
@@ -54,27 +79,62 @@ jobs:
             exit 1
           fi
 
+      # Which app to publish. Caller's choice wins (the release tag); otherwise
+      # the latest published release, so a marketing push republishes the app
+      # that's already live rather than shipping unreleased main.
+      - name: Resolve the app source ref
+        id: appref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref="${{ inputs.app_ref }}"
+          if [ -z "$ref" ]; then
+            ref="$(gh release view --json tagName -q .tagName 2>/dev/null || true)"
+          fi
+          if [ -z "$ref" ]; then
+            # First deploy of a fresh repo: nothing released yet, so main is the
+            # only app there is. Warn — every later run should find a release.
+            echo "::warning::No published release found - building the app from ${{ github.sha }}."
+            ref="${{ github.sha }}"
+          fi
+          echo "Building docs/app from $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.appref.outputs.ref }}
+          path: app-src
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: app-src/ts/package-lock.json
 
-      - name: Install deps
-        working-directory: ts
+      - name: Install deps (at the app ref)
+        working-directory: app-src/ts
         run: npm ci
 
       - name: Build hosted UI → docs/app
-        working-directory: ts
+        working-directory: app-src/ts
         run: npm run ui:build:hosted
         env:
           VITE_ALOUD_CLOUD_URL: ${{ vars.ALOUD_CLOUD_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+
+      # ui:build:hosted writes to <checkout>/docs/app, so the build landed in
+      # the app-src tree — move it into the site tree we're publishing.
+      - name: Graft the built app into the site tree
+        run: |
+          rm -rf docs/app
+          mv app-src/docs/app docs/app
 
       - uses: actions/configure-pages@v5
 
       - name: Upload docs/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # The whole site: committed marketing pages + the just-built docs/app.
+          # The whole site: marketing pages from this ref + the grafted app.
           path: docs
 
       - name: Deploy to GitHub Pages

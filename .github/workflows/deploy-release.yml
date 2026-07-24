@@ -1,0 +1,51 @@
+name: Release deploy (server → web)
+
+# ONE TAG SHIPS EVERYTHING. Publishing a GitHub release deploys aloud cloud and
+# then the hosted browser app from that same tag, so the client and the API it
+# talks to can't drift. (The desktop build rides the same release via
+# tauri-release.yml, which triggers on `created`.)
+#
+# ORDER IS DELIBERATE: server first, web second, `needs:` between them. New UI
+# against an old server is the dangerous skew — it calls fields that aren't
+# there yet — while an old UI against a new server is the normal state of the
+# world anyway (desktop and mobile clients update on their own schedule, so the
+# server contract has to stay backward-compatible regardless). A failed server
+# deploy therefore blocks the web deploy rather than stranding a client ahead of
+# its API.
+#
+# Marketing pages under docs/ are NOT gated on a release — they publish on every
+# push to main (deploy-web.yml). Mobile (Play/App Store) is out of band.
+#
+# To re-run after fixing a deploy failure: this workflow's manual button with
+# the tag, or the individual deploy-server / deploy-web buttons.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to deploy (e.g. v2.1.2)"
+        type: string
+        required: true
+
+jobs:
+  server:
+    uses: ./.github/workflows/deploy-server.yml
+    with:
+      ref: ${{ github.event.release.tag_name || inputs.tag }}
+    # FLY_API_TOKEN lives on the production environment declared in the called
+    # workflow; inherit passes the org/repo secrets through to it.
+    secrets: inherit
+
+  web:
+    needs: server
+    # A called workflow gets the CALLER's job permissions, so Pages needs them
+    # declared here as well as in deploy-web.yml.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      app_ref: ${{ github.event.release.tag_name || inputs.tag }}
+    secrets: inherit

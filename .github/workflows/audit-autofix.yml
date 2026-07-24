@@ -1,10 +1,15 @@
 # Zero-touch follow-up to security.yml. When the Security audit workflow fails
 # on main (usually the Monday cron catching a freshly published advisory), this
 # does what a human would: `npm audit fix`, verify with the same gates as
-# ci.yml, and push the lockfile fix to main as a bot commit. Then it dispatches
-# deploy-web.yml so the hosted app rebuilds with the patched dep — the same
-# thing a human push touching package-lock.json would have triggered. The Fly
-# server deploy stays manual on purpose (see deploy-server.yml).
+# ci.yml, and push the lockfile fix to main as a bot commit.
+#
+# IT DOES NOT SHIP THE FIX. Since deploys became release-gated
+# (deploy-release.yml), the patched dep reaches the hosted app and the server
+# only when you cut the next release — the fix sits on main until then, like any
+# other merge. It used to dispatch a web deploy here; that would now rebuild the
+# app from the last release tag (i.e. WITHOUT the fix), so it was dropped rather
+# than left looking like it shipped something. If an advisory is urgent, cut a
+# release.
 #
 # When it can't help, it exits without committing and the Security-audit
 # failure email still arrives, which is right — those cases need a human:
@@ -13,8 +18,7 @@
 #   - the failure was cargo-deny (Rust advisories), which npm can't fix
 #
 # Note: pushes made with GITHUB_TOKEN do NOT trigger other workflows (GitHub's
-# recursion guard) — that's why CI's gates are run inline here, and why
-# deploy-web is dispatched explicitly instead of relying on its push trigger.
+# recursion guard) — that's why CI's gates are run inline here.
 name: Audit autofix
 
 on:
@@ -25,7 +29,6 @@ on:
 
 permissions:
   contents: write # push the fix commit
-  actions: write # dispatch deploy-web.yml
 
 concurrency:
   group: audit-autofix
@@ -94,10 +97,8 @@ jobs:
           git commit -m "chore(deps): npm audit fix (automated by audit-autofix workflow)"
           git push origin main
 
-      # Rebuild the hosted app with the patched dep — mirrors what the
-      # push-paths trigger on deploy-web.yml would have done for a human push.
-      - name: Dispatch web deploy
+      # No deploy dispatch on purpose (see the header): shipping is release-gated
+      # now, so the fix goes out with the next release.
+      - name: Note that the fix is not yet shipped
         if: steps.diff.outputs.changed == 'true'
-        run: gh workflow run deploy-web.yml --ref main
-        env:
-          GH_TOKEN: ${{ github.token }}
+        run: echo "::notice::Lockfile fix pushed to main. It reaches the hosted app and server on the next release (deploy-release.yml)."
