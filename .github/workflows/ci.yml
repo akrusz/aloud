@@ -16,7 +16,7 @@ jobs:
         working-directory: ts
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           # Node 22 (>=22.5): the @aloud/server package uses the built-in
           # node:sqlite module (credits/sqlite-store.ts), absent in Node 20.
