@@ -147,7 +147,8 @@ and the whole mic grant fails with `NotAllowedError` (bead `t25n`).
 The app-side is wired (`native-signin.ts`, via `@capgo/capacitor-social-login`);
 each provider hands an ID token to the existing `googleSignIn`/`appleSignIn`
 server calls. To turn it on you need the OAuth consoles + build-time client ids
-(bead `tpj4`). App Store Guideline 4.8: if iOS offers Google it must offer Apple
+(bead `tpj4`) - the console-by-console walkthrough is in
+[mobile-signin-setup.md](mobile-signin-setup.md). App Store Guideline 4.8: if iOS offers Google it must offer Apple
 too - configure both for the store build.
 
 **Build-time env** (bake like `VITE_ALOUD_CLOUD_URL`):

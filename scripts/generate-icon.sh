@@ -3,8 +3,7 @@ set -euo pipefail
 
 # ─────────────────────────────────────────────────
 # Generate aloud.app icon from assets/app-icon.svg (the opaque dark rounded-rect
-# tile — distinct from the transparent web favicon, which stays in
-# src/web/static/favicon.svg).
+# tile — distinct from the transparent web favicon, ts/ui/public/aloud.png).
 # Requires: rsvg-convert (librsvg), iconutil (macOS built-in)
 # Install: brew install librsvg
 # ─────────────────────────────────────────────────
