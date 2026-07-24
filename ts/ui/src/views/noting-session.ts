@@ -38,6 +38,7 @@ import {
 } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
+import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { initThemeToggle } from '../theme.js';
 import {
     mountEmberContainer,
@@ -113,6 +114,7 @@ export async function mountNotingSessionView(
     // reveals the session-only More-sheet items (End/History), keeps the
     // wakelock/footer rules active. Cleared in endSession.
     document.body.dataset['sessionActive'] = 'true';
+    void acquireWakeLock();
     if (navLinks) {
         navLinks.innerHTML = `
             <a href="#" id="end-btn" class="nav-end-link">End<span class="nav-word-session"> Session</span></a>
@@ -706,6 +708,7 @@ export async function mountNotingSessionView(
             }
         }
         delete document.body.dataset['sessionActive'];
+        releaseWakeLock();
         if (navCenter) navCenter.innerHTML = '';
         if (navLinks && savedNavLinks !== null) {
             navLinks.innerHTML = savedNavLinks;
