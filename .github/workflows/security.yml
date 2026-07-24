@@ -2,6 +2,9 @@
 # NOT part of the release build (tauri-release.yml) or any build script. It answers
 # "are our dependencies free of known advisories?" on every PR/push and weekly
 # (to catch advisories published against deps we already shipped).
+# When this fails on main, audit-autofix.yml tries `npm audit fix` and pushes
+# the lockfile fix itself if the ci.yml gates pass — a failure email means it
+# couldn't (semver-major fix, no patch yet, or a Rust advisory).
 name: Security audit
 
 on:

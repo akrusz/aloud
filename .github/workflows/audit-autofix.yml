@@ -1,0 +1,103 @@
+# Zero-touch follow-up to security.yml. When the Security audit workflow fails
+# on main (usually the Monday cron catching a freshly published advisory), this
+# does what a human would: `npm audit fix`, verify with the same gates as
+# ci.yml, and push the lockfile fix to main as a bot commit. Then it dispatches
+# deploy-web.yml so the hosted app rebuilds with the patched dep — the same
+# thing a human push touching package-lock.json would have triggered. The Fly
+# server deploy stays manual on purpose (see deploy-server.yml).
+#
+# When it can't help, it exits without committing and the Security-audit
+# failure email still arrives, which is right — those cases need a human:
+#   - the fix requires a semver-major bump (`npm audit fix --force` territory)
+#   - no patched version exists yet
+#   - the failure was cargo-deny (Rust advisories), which npm can't fix
+#
+# Note: pushes made with GITHUB_TOKEN do NOT trigger other workflows (GitHub's
+# recursion guard) — that's why CI's gates are run inline here, and why
+# deploy-web is dispatched explicitly instead of relying on its push trigger.
+name: Audit autofix
+
+on:
+  workflow_run:
+    workflows: ["Security audit"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write # push the fix commit
+  actions: write # dispatch deploy-web.yml
+
+concurrency:
+  group: audit-autofix
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+
+      # `npm audit fix` applies only semver-compatible updates; it exits
+      # non-zero when advisories remain, so don't gate on its exit code —
+      # gate on whether it changed anything.
+      - name: npm audit fix
+        run: npm audit fix || true
+
+      - name: Detect lockfile changes
+        id: diff
+        run: |
+          if git diff --quiet -- package.json package-lock.json server/package.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "npm audit fix changed nothing — this failure needs a human (semver-major fix, no patch yet, or a cargo-deny finding)."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- package.json package-lock.json server/package.json
+          fi
+
+      # Same gates as ci.yml — the bot push below won't retrigger CI
+      # (GITHUB_TOKEN recursion guard), so verification happens here.
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm run typecheck
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm test
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm run ui:build
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm run typecheck --workspace @aloud/server
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm test --workspace @aloud/server
+
+      - name: Confirm the audit now passes
+        if: steps.diff.outputs.changed == 'true'
+        # Don't fail if only part was fixable — a partial fix is still worth
+        # shipping; the next Security-audit run reports what remains.
+        run: npm audit --audit-level=high || echo "::warning::Advisories remain after the fix — the rest needs a human."
+
+      - name: Commit and push the fix
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json server/package.json
+          git commit -m "chore(deps): npm audit fix (automated by audit-autofix workflow)"
+          git push origin main
+
+      # Rebuild the hosted app with the patched dep — mirrors what the
+      # push-paths trigger on deploy-web.yml would have done for a human push.
+      - name: Dispatch web deploy
+        if: steps.diff.outputs.changed == 'true'
+        run: gh workflow run deploy-web.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
