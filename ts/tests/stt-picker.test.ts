@@ -90,12 +90,21 @@ describe('sttEngineOptions — Web Speech gating', () => {
 });
 
 describe('sttEngineOptions — native mobile (Capacitor)', () => {
-    // The native app always runs in web mode. On-device (private) leads and
+    // The native app always runs in web mode. The platform recognizer leads and
     // becomes the default; the flaky WebView web-speech is not offered.
     beforeEach(() => isCapacitorMock.mockReturnValue(true));
 
-    it('offers On-device (private) first, then aloud cloud', () => {
+    it('offers the built-in recognizer first, then aloud cloud', () => {
         expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud']);
+    });
+
+    // No privacy promise: it's the PLATFORM's recognizer and Android's routes to
+    // Google ("private" went in 580e049, "On-device" after it; sn1w tracks
+    // earning it back).
+    it('labels it for what it is, with no on-device or privacy claim', () => {
+        const label = sttEngineOptions(true).find((o) => o.value === 'capacitor')!.label;
+        expect(label).toBe('Built-in speech');
+        expect(label.toLowerCase()).not.toMatch(/private|on-device|local/);
     });
     it('defaults to the native on-device recognizer', () => {
         expect(defaultSttChoice(true)).toBe('capacitor');

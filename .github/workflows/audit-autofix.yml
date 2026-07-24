@@ -3,13 +3,11 @@
 # does what a human would: `npm audit fix`, verify with the same gates as
 # ci.yml, and push the lockfile fix to main as a bot commit.
 #
-# IT DOES NOT SHIP THE FIX. Since deploys became release-gated
-# (deploy-release.yml), the patched dep reaches the hosted app and the server
-# only when you cut the next release — the fix sits on main until then, like any
-# other merge. It used to dispatch a web deploy here; that would now rebuild the
-# app from the last release tag (i.e. WITHOUT the fix), so it was dropped rather
-# than left looking like it shipped something. If an advisory is urgent, cut a
-# release.
+# IT DOES NOT SHIP THE FIX. Deploys are release-gated (deploy-release.yml), so
+# the patched dep reaches the app and server on the next release; until then it
+# sits on main like any other merge. The old web-deploy dispatch was dropped
+# because it would now rebuild the app from the last release tag — i.e. WITHOUT
+# the fix. If an advisory is urgent, cut a release.
 #
 # When it can't help, it exits without committing and the Security-audit
 # failure email still arrives, which is right — those cases need a human:

@@ -1,23 +1,21 @@
 name: Release deploy (server → web)
 
 # ONE TAG SHIPS EVERYTHING. Publishing a GitHub release deploys aloud cloud and
-# then the hosted browser app from that same tag, so the client and the API it
-# talks to can't drift. (The desktop build rides the same release via
-# tauri-release.yml, which triggers on `created`.)
+# then the hosted app from that same tag, so client and API can't drift. Desktop
+# rides the same release (tauri-release.yml, on `created`).
 #
 # ORDER IS DELIBERATE: server first, web second, `needs:` between them. New UI
-# against an old server is the dangerous skew — it calls fields that aren't
-# there yet — while an old UI against a new server is the normal state of the
-# world anyway (desktop and mobile clients update on their own schedule, so the
-# server contract has to stay backward-compatible regardless). A failed server
-# deploy therefore blocks the web deploy rather than stranding a client ahead of
-# its API.
+# against an old server is the skew that breaks — it calls fields that aren't
+# there yet; an old client against a new server is the normal state of the world
+# (desktop/mobile update on their own schedule), which is why the server contract
+# stays backward-compatible regardless. So a failed server deploy blocks the web
+# half rather than stranding a client ahead of its API.
 #
-# Marketing pages under docs/ are NOT gated on a release — they publish on every
-# push to main (deploy-web.yml). Mobile (Play/App Store) is out of band.
+# Not gated on a release: marketing pages under docs/ (every push to main, see
+# deploy-web.yml). Out of band: mobile stores.
 #
-# To re-run after fixing a deploy failure: this workflow's manual button with
-# the tag, or the individual deploy-server / deploy-web buttons.
+# Re-run after a failure with this workflow's button + the tag, or the individual
+# deploy-server / deploy-web buttons.
 on:
   release:
     types: [published]

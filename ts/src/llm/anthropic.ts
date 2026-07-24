@@ -40,15 +40,13 @@ const EFFORT_LOW_MODELS = new Set(['claude-fable-5']);
 
 /**
  * Models where thinking is opt-OUT: omitting `thinking` runs adaptive thinking
- * (Sonnet 5 first, then Opus 5), costing a silent delay plus output-billed
- * thinking tokens every turn, so send an explicit disable. Gated to this exact
- * set: the disable 400s on always-on models (Fable), and opt-in models are
- * already off.
+ * (Sonnet 5, Opus 5), costing a silent delay plus output-billed thinking tokens
+ * every turn, so send an explicit disable. Gated to this exact set: the disable
+ * 400s on always-on models (Fable), and opt-in models are already off.
  *
- * Opus 5 accepts the disable only at effort `high` or lower - we send no
- * `output_config` at all, so it runs at the `high` default and stays valid. Keep
- * it out of EFFORT_LOW_MODELS unless the pairing is re-checked: `xhigh`/`max`
- * alongside a disable is a 400.
+ * Opus 5 accepts the disable only at effort `high` or lower, so keep it OUT of
+ * EFFORT_LOW_MODELS: sending no `output_config` leaves it at the `high` default,
+ * while `xhigh`/`max` alongside a disable is a 400.
  */
 const THINKING_OFF_MODELS = new Set(['claude-sonnet-5', 'claude-opus-5']);
 

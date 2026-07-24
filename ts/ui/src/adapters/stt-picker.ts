@@ -1,11 +1,9 @@
 /**
  * Pick an STT adapter at runtime, in order of preference:
  *
- *   1. Capacitor native plugin   - best on iOS/Android. Free and no sign-in,
- *                                  but NOT necessarily on-device: it's the
- *                                  platform recognizer, and Android's may send
- *                                  audio to Google (hence no privacy claim in
- *                                  the label - 580e049)
+ *   1. Capacitor native plugin   - best on iOS/Android. The PLATFORM's
+ *                                  recognizer, so not necessarily on-device:
+ *                                  Android's may send audio to Google
  *   2. Web Speech API            - Chrome / Edge / Android Chrome
  *   3. Server Whisper            - covers Firefox, Safari, and anywhere else
  *                                  Web Speech doesn't, given a reachable
@@ -234,15 +232,14 @@ export const CLOUD_STT_CREDITS_PER_HOUR = 1;
  */
 export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
-    // The native mobile recognizer: free, no sign-in, no credits. It is the
-    // PLATFORM's recognizer, not ours, and Android's may route audio to Google -
-    // which is why 580e049 dropped "(private)" from the label and why the
-    // privacy policy's "Your voice" section spells the routing out. Don't
-    // reintroduce a privacy claim here. Capacitor-only (web/desktop builds never
-    // have it), and first so it defaults there. Vocabulary per the tiering plan
+    // The native mobile recognizer: free, no sign-in, no credits. Labelled for
+    // what it IS, not where the audio goes - Android's routes to Google, so
+    // don't reintroduce a privacy claim ("private" went in 580e049, "On-device"
+    // after it; sn1w tracks earning it back). Capacitor-only (web/desktop builds
+    // never have it), and first so it defaults there. Vocabulary per the plan
     // (meditation-pal-7ej); meditation-speech quality still device-validated
     // (meditation-pal-0ao), with aloud cloud one tap below if it disappoints.
-    if (isCapacitor()) out.push({ value: 'capacitor', label: 'On-device' });
+    if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in speech' });
     // Local Whisper exists only in the desktop (Tauri) Rust shell: Hono doesn't
     // serve the /app whisper route, and the desktop's loopback backend isn't
     // reachable from a separate browser, so offering it on the web gives a dead
@@ -251,8 +248,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // Browser speech needs a recognizer that actually works. Not under Tauri:
     // the macOS WKWebView exposes webkitSpeechRecognition but never returns
     // results (same reason detectSttBackend skips it), and desktop has Whisper +
-    // cloud. Not in the native app either: the native plugin above is better,
-    // and the native plugin is the better of the two either way.
+    // cloud. Not in the native app either: the plugin above is better.
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     }

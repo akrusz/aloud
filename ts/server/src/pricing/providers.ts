@@ -101,13 +101,11 @@ const MODELS: Record<string, ModelPricing> = {
     // Opus 5 (replaced Opus 4.8 here, July 2026): a drop-in successor at
     // IDENTICAL rates ($5/$25 per 1M, same cache multipliers), so the debit math
     // and the shown credits/hr don't move. Swapped rather than listed alongside
-    // 4.8, the same way Sonnet 5 replaced Sonnet 4.6 below - two same-price Opus
-    // entries would only clutter the picker. Two behavioural notes: (1) thinking
-    // is ON by default on this model, so the core AnthropicProvider sends an
-    // explicit thinking-disabled (THINKING_OFF_MODELS) to keep the voice loop
-    // prompt; (2) it has a 512-token prompt-cache minimum (half Opus 4.8's), so
-    // short early turns cache where they previously didn't - cheaper, never
-    // costlier.
+    // 4.8, as Sonnet 5 replaced Sonnet 4.6 below - two same-price Opus entries
+    // would only clutter the picker. Thinking is ON by default here, so the core
+    // AnthropicProvider sends an explicit disable (THINKING_OFF_MODELS) to keep
+    // the voice loop prompt. Its 512-token cache minimum (half of 4.8's) makes
+    // short early turns cacheable - cheaper, never costlier.
     'anthropic:claude-opus-5': {
         provider: 'anthropic',
         model: 'claude-opus-5',
