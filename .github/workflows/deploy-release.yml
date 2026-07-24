@@ -14,6 +14,15 @@ name: Release deploy (server → web)
 # Not gated on a release: marketing pages under docs/ (every push to main, see
 # deploy-web.yml). Out of band: mobile stores.
 #
+# REQUIRES a `v*` tag rule on the github-pages environment (Settings →
+# Environments → github-pages → Deployment branches and tags). A reusable
+# workflow runs under the CALLER's ref, so the web job here runs as the release
+# TAG — and Pages ships with a default-branch-only policy, which rejected
+# v2.3.0's deploy with "not allowed to deploy to github-pages". Checking out
+# main inside the job does not help: the policy reads the run's ref, not the
+# checkout. Recovery if it happens again: run deploy-web.yml from main with
+# app_ref set to the tag.
+#
 # Re-run after a failure with this workflow's button + the tag, or the individual
 # deploy-server / deploy-web buttons.
 on:

@@ -343,9 +343,17 @@ The app is never built from `main` (except on a repo with no releases at all,
 which warns) - that's what keeps the hosted client in step with the server.
 
 One-time setup: set **Pages source to "GitHub Actions"** (Settings → Pages →
-Build and deployment → Source). The custom domain (`aloud.rest`) is preserved via
-`docs/CNAME`, which rides along in the artifact. The build output `docs/app/` is
-gitignored - local `ui:build:hosted` runs won't dirty the tree.
+Build and deployment → Source), and add a **`v*` tag rule** to the
+`github-pages` environment (Settings → Environments → github-pages → Deployment
+branches and tags). Pages ships with a default-branch-only policy, and a release
+deploy runs under the tag - without the rule it fails with *"Tag v2.3.0 is not
+allowed to deploy to github-pages"* (hit on v2.3.0). Recovery, if it ever
+resurfaces: run **Deploy web app** from `main` with `app_ref` set to the tag,
+which publishes the same thing from an allowed ref.
+
+The custom domain (`aloud.rest`) is preserved via `docs/CNAME`, which rides along
+in the artifact. The build output `docs/app/` is gitignored - local
+`ui:build:hosted` runs won't dirty the tree.
 
 Also set two repo **Variables** (Settings → Secrets
 and variables → Actions → Variables):
