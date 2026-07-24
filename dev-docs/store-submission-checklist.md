@@ -51,7 +51,7 @@ Fastest route to real testers.
 
 Easy to forget, because it's separate from the privacy *page*.
 
-- [ ] Apple **App Privacy** labels + Google **Data Safety** form, filled from the real data flows (account email, transcribed audio, credits).
+- [ ] Apple **App Privacy** labels + Google **Data Safety** form, filled from the real data flows (account email, transcribed audio, credits). **Audio is a three-path answer**, matching `docs/privacy/index.html` → "Your voice": on-device (Whisper, desktop), the **platform recognizer** the mobile apps default to (Android's may route audio to Google - the app's own labels cover what *we* collect, so this is disclosed in the policy, not claimed as on-device), and aloud cloud (relayed to an STT provider, not retained). Nothing here should imply mobile speech never leaves the device - `580e049` removed exactly that claim from the UI.
 - [x] iOS **privacy manifest** (`ts/ios/App/App/PrivacyInfo.xcprivacy`): tracking = false, UserDefaults required-reason (CA92.1), wired into the App target. Collected-data-types left empty; the App Store Connect labels above are the source of truth.
 - [x] iOS **export compliance**: `ITSAppUsesNonExemptEncryption` = `false` in Info.plist (HTTPS-only is exempt) skips the per-upload prompt.
 - [ ] **Reviewer note**: Noting works free with no account; give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).

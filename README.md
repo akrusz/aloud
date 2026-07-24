@@ -10,7 +10,7 @@ aloud works in your browser and on macOS, Linux, and Windows. choose your LLM - 
 
 ### try it in your browser
 
-no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the hosted web app runs on **aloud cloud**, a managed service that handles the AI for you, so there's nothing to set up. sign in with google, apple, or email to get free starter credits, then top up if you'd like to keep going. prefer your own keys? switch on bring-your-own-key in settings. the downloadable app below stays fully local and free.
+no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the hosted web app runs on **aloud cloud**, a managed service that handles the AI for you, so there's nothing to set up. sign in with google or apple to get free starter credits, then top up if you'd like to keep going (email sign-in works too, without the starter credits). prefer your own keys? switch on bring-your-own-key in settings. the downloadable app below stays fully local and free.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/aloud-screen-dark.webp">
@@ -23,7 +23,7 @@ aloud has three modes: exploration, noting, and felt sense.
 
 **exploration**: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore. 
 
-in this mode, you optionally set an intention and then mix and match **attention focuses** (body, emotions, parts work) with **vibes** (playful, compassionate, loving, spacious, effortless, feel-good). presets give you quick starting points, or you can build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.
+in this mode, you optionally set an intention, and **customize facilitator** opens up **attention focuses** (body, emotions, parts work) and **vibes** (playful, compassionate, loving, spacious, effortless, feel-good) to mix and match. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.
 
 thanks to [Maija Haavisto](https://lovingawakening.net/) and [Jhourney](https://www.jhourney.io/) for guiding me in similar practices.
 

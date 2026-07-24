@@ -1,7 +1,11 @@
 /**
  * Pick an STT adapter at runtime, in order of preference:
  *
- *   1. Capacitor native plugin   - best on iOS/Android (no network)
+ *   1. Capacitor native plugin   - best on iOS/Android. Free and no sign-in,
+ *                                  but NOT necessarily on-device: it's the
+ *                                  platform recognizer, and Android's may send
+ *                                  audio to Google (hence no privacy claim in
+ *                                  the label - 580e049)
  *   2. Web Speech API            - Chrome / Edge / Android Chrome
  *   3. Server Whisper            - covers Firefox, Safari, and anywhere else
  *                                  Web Speech doesn't, given a reachable
@@ -230,9 +234,12 @@ export const CLOUD_STT_CREDITS_PER_HOUR = 1;
  */
 export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
-    // The native mobile recognizer: free, no network or sign-in, speech stays on
-    // device. Capacitor-only (web/desktop builds never have it), and first so it
-    // defaults there. Vocabulary per the capability-tiering plan
+    // The native mobile recognizer: free, no sign-in, no credits. It is the
+    // PLATFORM's recognizer, not ours, and Android's may route audio to Google -
+    // which is why 580e049 dropped "(private)" from the label and why the
+    // privacy policy's "Your voice" section spells the routing out. Don't
+    // reintroduce a privacy claim here. Capacitor-only (web/desktop builds never
+    // have it), and first so it defaults there. Vocabulary per the tiering plan
     // (meditation-pal-7ej); meditation-speech quality still device-validated
     // (meditation-pal-0ao), with aloud cloud one tap below if it disappoints.
     if (isCapacitor()) out.push({ value: 'capacitor', label: 'On-device' });
@@ -245,7 +252,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // the macOS WKWebView exposes webkitSpeechRecognition but never returns
     // results (same reason detectSttBackend skips it), and desktop has Whisper +
     // cloud. Not in the native app either: the native plugin above is better,
-    // and Android's web recognizer round-trips to Google, which "private" avoids.
+    // and the native plugin is the better of the two either way.
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     }

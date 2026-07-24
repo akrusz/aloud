@@ -180,6 +180,17 @@ if [ -f ts/package.json ]; then
     sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
     rm -f ts/package.json.bak
 fi
+# Android (Capacitor) carries its own version pair, and Play REJECTS a re-used
+# versionCode — so versionName tracks the release and versionCode increments on
+# every bump, including a 'same'/'redo' re-release (that's a fresh upload to
+# Play even though the name didn't move). See dev-docs/mobile-signing.md.
+if [ -f ts/android/app/build.gradle ]; then
+    ANDROID_CODE=$(grep -m1 'versionCode ' ts/android/app/build.gradle | sed -E 's/.*versionCode +([0-9]+).*/\1/')
+    sed -i.bak -E "s/versionName \"[0-9][0-9.]*\"/versionName \"${VERSION}\"/" ts/android/app/build.gradle
+    sed -i.bak -E "s/versionCode +[0-9]+/versionCode $((ANDROID_CODE + 1))/" ts/android/app/build.gradle
+    rm -f ts/android/app/build.gradle.bak
+    echo "  Android: versionName ${VERSION}, versionCode $((ANDROID_CODE + 1))"
+fi
 # Update README download links — STABLE releases only, mirroring the updater:
 # a prerelease stays off /releases/latest and never force-updates installs, so
 # the README likewise keeps pointing at the last stable build (an RC's links
@@ -194,6 +205,7 @@ if [ "$PRERELEASE" = false ]; then
 fi
 [ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
 [ -f ts/package.json ] && git add ts/package.json
+[ -f ts/android/app/build.gradle ] && git add ts/android/app/build.gradle
 git diff --cached --quiet || git commit -m "v${VERSION}"
 
 # Re-release: move existing tag to this commit

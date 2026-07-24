@@ -17,14 +17,20 @@ check each of these still reflects reality:
   "iOS and Android coming soon" platform lines.
 - **`docs/privacy/index.html`** - data-flow descriptions, provider examples,
   on-device claims, "last updated" date.
+- **`docs/terms/index.html`** - anything the product now does with money or
+  accounts: refunds, credit expiry, what deletion forfeits, "last updated" date.
+- **`docs/delete-account/index.html`** - the account-deletion instructions Play
+  requires (a public URL, reachable without the app). Must match what
+  `identity.ts` actually does on delete, including the credit balance.
 - **`docs/assets/aloud-share.png`** + `assets/share-card.svg` - the share-card
   tagline if the positioning/tagline changed.
 - **`README.md`** - product description, modes, provider list, platform notes,
   tips, install instructions, screenshot reference.
 - **App Store / Play listings** - name, subtitle, description, keywords; especially
-  the provider/feature claims and the mobile-provider caveat. These live in the
-  consoles (App Store Connect / Play Console), not the repo - the draft copy isn't
-  tracked here.
+  the provider/feature claims and the mobile-provider caveat. The **draft copy is
+  tracked** in `dev-docs/store-descriptions.md`; the live listings are in the
+  consoles (App Store Connect / Play Console), so a change here means editing
+  both - the file is the source, the console is the deploy.
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
 - **`dev-docs/dev-cheatsheet.md`, `desktop.md`, `voice-barge-in.md`** - dev/build/feature docs.

@@ -57,7 +57,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: July 19, 2026</p>
+    <p class="updated">Last updated: July 24, 2026</p>
 
     <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains, plainly, what happens to your data in each case.</p>
 
@@ -78,7 +78,13 @@
     <h2>What aloud processes, and where it goes</h2>
 
     <h3>Your voice</h3>
-    <p>Your microphone audio is used to transcribe what you say into text. In <strong>local mode</strong>, transcription runs on your device where supported and the audio is not sent anywhere. With <strong>aloud cloud</strong>, your audio is relayed through our service to a speech-to-text provider to transcribe it, then discarded. We don't record your audio, and we don't store it.</p>
+    <p>Your microphone audio is used to transcribe what you say into text. There are three paths, and the app tells you which one is selected:</p>
+    <ul>
+      <li><strong>On your device.</strong> Where supported (such as Whisper in the desktop app), transcription runs locally and the audio is not sent anywhere.</li>
+      <li><strong>Your platform's speech recognizer.</strong> The mobile apps default to the recognizer built into your phone, and browsers may offer their own. These are operated by the platform vendor, not by us: depending on the device and its settings, they may process your audio on the device or send it to the vendor's servers (Android's speech recognition, for example, commonly uses Google's). That processing is covered by your platform vendor's privacy policy. We never receive this audio.</li>
+      <li><strong>aloud cloud.</strong> Your audio is relayed through our service to a speech-to-text provider to transcribe it, then discarded.</li>
+    </ul>
+    <p>We don't record your audio, and we don't store it.</p>
 
     <h3>Your words and the AI facilitator</h3>
     <p>To generate responses, aloud sends your transcribed messages and the conversation so far to a language-model provider:</p>

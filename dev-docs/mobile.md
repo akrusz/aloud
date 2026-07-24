@@ -40,6 +40,22 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 | External links / Stripe | `@capacitor/browser` (in-app SFSafariViewController / Custom Tab) | Tauri opener / full-page redirect | `external-links.ts` |
 | Sign-in | native Google/Apple via `@capgo/capacitor-social-login` (+ email) | web GIS / Apple JS, or desktop loopback PKCE | `sign-in-modal.ts`, `native-signin.ts` |
 
+#### The speech plugin is patched - don't lose the patch
+
+`@capacitor-community/speech-recognition` is patched in `ts/patches/`, applied by
+`postinstall` via patch-package (the Android build compiles plugin source
+straight from `node_modules`, so the patch is load-bearing at build time).
+Stock v7 leaves `onReadyForSpeech` empty and, in partial-results mode, rejects an
+already-resolved call on `onError` - so JS saw neither "recognizer is live" nor
+any error (NO_MATCH, SPEECH_TIMEOUT, BUSY). The patch emits `listeningState:
+'ready'` and `listeningState: 'error'`; `CapacitorSttEngine` keys its startup
+watchdog and silence handling on them. Note the stock `'started'` event is
+`onBeginningOfSpeech` - user speech, not launch.
+
+Because postinstall runs it, `patch-package` is a **regular dependency**, not a
+dev one: the server image installs with `--omit=dev` and died on a missing
+binary until that moved (`ce07963`).
+
 ## Prerequisites
 
 - **Node** (repo's version) + the deps: `cd ts && npm install`.

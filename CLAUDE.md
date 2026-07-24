@@ -9,7 +9,7 @@ aloud is a voice-based meditation facilitator. Users speak into a microphone, sp
 It ships three ways:
 - **Hosted web app** at `aloud.rest/app` — no install; the launch centerpiece. Runs on **aloud cloud** (below).
 - **Desktop app** — a Tauri (Rust) shell, distributed as DMG / MSI / AppImage.
-- **(Coming) mobile** — a Capacitor wrapper around the same web UI.
+- **Mobile (beta)** — a Capacitor wrapper around the same web UI. `ts/ios/` and `ts/android/` are committed native projects (icons, signing, native STT/sign-in adapters); Android is headed for Play internal testing. See `dev-docs/mobile.md` + `dev-docs/store-submission-checklist.md`.
 
 The codebase is a **TypeScript + Rust stack** under `ts/`. (It was migrated from a Python/Flask app, removed in meditation-pal-sk8 — if old docs or commits reference `src/web` or `uv run python -m src.web`, that code is gone.) **All work happens in `ts/`.**
 
