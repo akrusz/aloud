@@ -75,7 +75,13 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   .row > div { flex: 1; min-width: 140px; }
   .row > button { flex: 0 0 auto; }
   table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  /* Wide tables scroll inside their card instead of spilling past its edge. */
+  .table-wrap { overflow-x: auto; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  /* Long unbreakable values (emails) give up width first; the action column
+     never wraps and takes only what its button needs. */
+  td.wrap { overflow-wrap: anywhere; }
+  th.act, td.act { width: 1%; white-space: nowrap; text-align: right; }
   th { color: var(--dim); font-weight: 600; font-size: 15px;
        text-transform: uppercase; letter-spacing: .6px; }
   tbody tr { cursor: pointer; }
@@ -279,10 +285,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
       </div>
-      <table>
-        <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th></th></tr></thead>
-        <tbody id="acctRows"><tr><td colspan="9" class="muted">Connect to load accounts.</td></tr></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th class="act"></th></tr></thead>
+          <tbody id="acctRows"><tr><td colspan="9" class="muted">Connect to load accounts.</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -649,7 +657,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var pill = a.deleted ? '<span class="pill free">deleted</span>'
         : a.purchased ? '<span class="pill paid">paid</span>' : '<span class="pill free">free</span>';
       return '<tr data-id="' + a.id + '"' + (a.deleted ? ' class="muted"' : '') + '>' +
-        '<td>' + esc(a.email) + '</td>' +
+        '<td class="wrap">' + esc(a.email) + '</td>' +
         '<td>' + providerBadges(a.providers) + '</td>' +
         '<td>' + pill + '</td>' +
         '<td class="num">' + dec1(a.balance) + '</td>' +
@@ -657,7 +665,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         '<td class="num">' + dec1(a.debited) + '</td>' +
         '<td class="muted">' + date(a.createdAt) + '</td>' +
         '<td class="muted">' + (a.lastActiveTs ? date(a.lastActiveTs) : 'never') + '</td>' +
-        '<td>' + (a.deleted ? '' : '<button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button>') + '</td>' +
+        '<td class="act">' + (a.deleted ? '' : '<button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button>') + '</td>' +
         '</tr>';
     }).join('');
     Array.prototype.forEach.call($('acctRows').querySelectorAll('tr'), function (tr) {
@@ -706,37 +714,64 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var sign = providerBadges(d.account.providers);
       var footer = deleted
         ? '<p class="sub" style="margin:14px 0 0;color:var(--bad)">This account is deleted (anonymized, identities freed, balance zeroed).</p>'
-        : '<div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">' +
+        : '<div id="delZone" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px">' +
             '<span class="muted" style="font-size:15px">Soft-delete: anonymizes the email, frees the sign-ins, zeroes the balance. Used to clear a duplicate.</span>' +
-            '<button class="ghost xs" id="delAcct" data-id="' + esc(d.account.id) +
-              '" style="color:var(--bad);border-color:var(--bad)">Delete account</button></div>';
+            '<button class="ghost xs" id="delAcct" style="color:var(--bad);border-color:var(--bad);flex:0 0 auto">Delete account</button></div>';
       $('modalRoot').innerHTML =
         '<div class="modal-bg" id="mbg"><div class="modal">' +
         '<button class="x" id="mx">&times;</button>' +
         '<h3>' + esc(d.account.email) + '</h3>' +
         '<p class="sub" style="margin:0 0 14px">Balance <strong>' + dec1(d.balance) + '</strong> credits · ' +
         'sign-in ' + sign + ' · id <code>' + esc(d.account.id) + '</code></p>' +
-        '<table><thead><tr><th>When</th><th>Kind</th><th>Reason</th><th class="num">Δ</th></tr></thead><tbody>' +
-        rows + '</tbody></table>' + footer + '</div></div>';
+        '<div class="table-wrap"><table><thead><tr><th>When</th><th>Kind</th><th>Reason</th><th class="num">Δ</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>' + footer + '</div></div>';
       $('mx').onclick = $('mbg').onclick = function (e) {
         if (e.target === $('mbg') || e.target === $('mx')) $('modalRoot').innerHTML = '';
       };
-      if (!deleted && $('delAcct')) $('delAcct').onclick = function () { doDeleteAccount(d.account); };
+      if (!deleted && $('delAcct')) $('delAcct').onclick = function () { armDelete(d.account); };
     }).catch(function (e) { alert(e.message); });
   }
 
-  // Soft-delete an account (clearing a duplicate). Double-confirms because it's
-  // destructive, then refreshes the table + spend stats.
+  // Deleting is two deliberate steps: the button only arms the confirm, and the
+  // confirm only unlocks once the operator has typed the account's email back.
+  // A single stray click can't destroy an account.
+  function armDelete(account) {
+    $('delZone').innerHTML =
+      '<div style="width:100%">' +
+        '<p class="sub" style="margin:0 0 8px;color:var(--bad)">This anonymizes the account, frees its sign-in methods, and zeroes its balance. It cannot sign in afterward, and this cannot be undone.</p>' +
+        '<label for="delEmail">Type <code>' + esc(account.email) + '</code> to confirm</label>' +
+        '<div class="row">' +
+          '<div><input id="delEmail" placeholder="' + esc(account.email) + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+          '<button class="ghost xs" id="delCancel">Cancel</button>' +
+          '<button class="ghost xs" id="delGo" disabled style="color:var(--bad);border-color:var(--bad)">Delete permanently</button>' +
+        '</div>' +
+        '<div class="msg" id="delMsg"></div>' +
+      '</div>';
+    var input = $('delEmail'), go = $('delGo');
+    function matches() {
+      return input.value.trim().toLowerCase() === String(account.email).trim().toLowerCase();
+    }
+    input.addEventListener('input', function () { go.disabled = !matches(); });
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && matches()) doDeleteAccount(account); });
+    $('delCancel').onclick = function () { openLedger(account.id); };
+    go.onclick = function () { if (matches()) doDeleteAccount(account); };
+    input.focus();
+  }
+
+  // Soft-delete an account (clearing a duplicate), then refresh the table +
+  // spend stats. Only reachable through armDelete's typed confirmation.
   function doDeleteAccount(account) {
-    if (!confirm('Delete ' + account.email + '?\n\nThis anonymizes the account, frees its sign-in methods, and zeroes its balance. It cannot sign in afterward.')) return;
-    var btn = $('delAcct');
+    var btn = $('delGo');
     if (btn) btn.disabled = true;
     api('/accounts/' + encodeURIComponent(account.id) + '/delete', { method: 'POST' })
       .then(function () {
         $('modalRoot').innerHTML = '';
         return Promise.all([loadAccounts(), loadMetrics()]);
       })
-      .catch(function (e) { alert(e.message); if (btn) btn.disabled = false; });
+      .catch(function (e) {
+        setMsg($('delMsg'), e.message, 'err');
+        if (btn) btn.disabled = false;
+      });
   }
 
   // ---- grant -------------------------------------------------------------
