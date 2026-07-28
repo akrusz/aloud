@@ -56,6 +56,16 @@ Easy to forget, because it's separate from the privacy *page*.
 - [x] iOS **export compliance**: `ITSAppUsesNonExemptEncryption` = `false` in Info.plist (HTTPS-only is exempt) skips the per-upload prompt.
 - [ ] **Reviewer note**: Noting works free with no account; give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
 - [ ] Listing assets: screenshots (required sizes), description, keywords, support + privacy URLs, age / content rating. Copy direction in bead `7ej` (lead with values, no device-spec claims). Play also wants a 1024x500 feature graphic + 512 icon.
+- [ ] **Promo video** (optional; Play takes a YouTube URL, not a file). Beta-grade
+      recipe: screen-record one short real session on the phone (system settings →
+      screen recorder, audio source **"media and mic"** so both the facilitator's
+      TTS and your voice land in the file), then run
+      `./scripts/build-promo-video.sh <recording.mp4>` to top and tail it with
+      `assets/store/video-title-card.png` / `video-end-card.png`. Upload
+      **unlisted** to YouTube and paste the full `watch?v=` URL - Play rejects
+      `youtu.be` short links, playlist/timestamp params, age-restricted videos,
+      and videos with ads enabled. Aim for 30s-2min. Do a proper landscape cut
+      for the production listing.
 
 ## Phase 4 - Go live (production)
 
