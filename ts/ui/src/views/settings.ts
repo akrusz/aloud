@@ -611,9 +611,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
     }
 
+    interface WhisperModelInfo {
+        size: string;
+        installed: boolean;
+        approx_download_mb: number;
+    }
+    let whisperModels: WhisperModelInfo[] = [];
+    let whisperDownloadBusy = false;
+
     /** Badge each Whisper size with its on-disk state for the current
-     *  language: "downloaded" or the download size. Desktop only (the local
-     *  shell owns the models dir); plain labels when the backend is down. */
+     *  language ("downloaded" / download size) and point the action button at
+     *  the selected size. Desktop only (the local shell owns the models dir);
+     *  plain labels + no button when the backend is down. */
     async function refreshWhisperModelBadges(): Promise<void> {
         const sel = root.querySelector<HTMLSelectElement>('#s-whisper-model');
         if (!sel || !isTauri()) return;
@@ -622,10 +631,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 appUrl(`/stt/whisper/models?lang=${encodeURIComponent(settings.language)}`)
             );
             if (!res.ok) return;
-            const { models } = (await res.json()) as {
-                models: Array<{ size: string; installed: boolean; approx_download_mb: number }>;
-            };
-            for (const m of models) {
+            ({ models: whisperModels } = (await res.json()) as { models: WhisperModelInfo[] });
+            for (const m of whisperModels) {
                 const opt = sel.querySelector<HTMLOptionElement>(`option[value="${m.size}"]`);
                 if (!opt) continue;
                 // Stash the plain label once so re-badging (language change)
@@ -636,8 +643,95 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                     : `${label} - ${m.approx_download_mb} MB download`;
             }
         } catch {
-            // backend down - keep plain labels
+            return; // backend down - keep plain labels, leave the button hidden
         }
+        updateWhisperModelAction();
+    }
+
+    /** Point the Download/Remove button at the currently selected size. */
+    function updateWhisperModelAction(): void {
+        const btn = root.querySelector<HTMLButtonElement>('#s-whisper-model-action');
+        if (!btn || whisperDownloadBusy) return;
+        const info = whisperModels.find((m) => m.size === settings.sttWhisperModel);
+        if (!info) {
+            btn.classList.add('hidden');
+            return;
+        }
+        btn.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = info.installed
+            ? 'Remove download'
+            : `Download now (${info.approx_download_mb} MB)`;
+        btn.dataset['action'] = info.installed ? 'remove' : 'download';
+    }
+
+    /** Pre-fetch the selected model, showing ndjson progress on the button
+     *  (mirrors the Piper voice download flow). */
+    async function downloadWhisperModel(btn: HTMLButtonElement): Promise<void> {
+        const statusEl = root.querySelector<HTMLElement>('#s-whisper-model-status');
+        whisperDownloadBusy = true;
+        btn.disabled = true;
+        btn.textContent = 'Downloading…';
+        try {
+            const resp = await fetch(appUrl('/stt/whisper/download-model'), {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ size: settings.sttWhisperModel, lang: settings.language }),
+            });
+            if (!resp.ok || !resp.body) throw new Error(`server returned ${resp.status}`);
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                let nl: number;
+                while ((nl = buffer.indexOf('\n')) >= 0) {
+                    const line = buffer.slice(0, nl).trim();
+                    buffer = buffer.slice(nl + 1);
+                    if (!line) continue;
+                    let msg: { status?: string; error?: string; completed?: number; total?: number };
+                    try {
+                        msg = JSON.parse(line);
+                    } catch {
+                        continue; // partial/garbled line
+                    }
+                    if (msg.status === 'error') throw new Error(msg.error || 'download failed');
+                    if (msg.status === 'downloading' && msg.total) {
+                        btn.textContent = `Downloading… ${Math.round(((msg.completed ?? 0) / msg.total) * 100)}%`;
+                    }
+                }
+            }
+            statusEl?.classList.add('hidden');
+        } catch (err) {
+            if (statusEl) {
+                statusEl.textContent =
+                    err instanceof Error ? err.message : 'Download failed.';
+                statusEl.classList.remove('hidden');
+            }
+        } finally {
+            whisperDownloadBusy = false;
+            void refreshWhisperModelBadges();
+        }
+    }
+
+    async function removeWhisperModel(): Promise<void> {
+        const ok = await confirmDialog(
+            'Remove this speech model from disk? It re-downloads if a session needs it.',
+            { okLabel: 'Remove', danger: true }
+        );
+        if (!ok) return;
+        try {
+            await fetch(appUrl('/stt/whisper/remove-model'), {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ size: settings.sttWhisperModel, lang: settings.language }),
+            });
+        } catch {
+            // refresh below shows the real state either way
+        }
+        void refreshWhisperModelBadges();
     }
 
     function wireLanguageSection(): void {
@@ -672,6 +766,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         whisperSel.addEventListener('change', () => {
             settings.sttWhisperModel = whisperSel.value as AppSettings['sttWhisperModel'];
             persist();
+            updateWhisperModelAction();
+        });
+        const actionBtn = root.querySelector<HTMLButtonElement>('#s-whisper-model-action');
+        actionBtn?.addEventListener('click', () => {
+            if (actionBtn.dataset['action'] === 'remove') void removeWhisperModel();
+            else void downloadWhisperModel(actionBtn);
         });
         void refreshWhisperModelBadges();
     }
@@ -1630,6 +1730,10 @@ function renderLanguageSection(s: AppSettings): string {
                     <option value="large">Large (most accurate)</option>
                 </select>
                 <span class="form-hint">Larger = more accurate but slower. Downloads on first use.</span>
+                <div class="whisper-model-actions">
+                    <button type="button" class="btn btn-small btn-secondary hidden" id="s-whisper-model-action"></button>
+                    <span class="form-hint hidden" id="s-whisper-model-status"></span>
+                </div>
             </div>
         </div>
     </section>`;

@@ -160,6 +160,8 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/system-info", get(system_info))
         .route("/stt/whisper", post(stt_whisper))
         .route("/stt/whisper/models", get(stt_whisper_models))
+        .route("/stt/whisper/download-model", post(stt_whisper_download_model))
+        .route("/stt/whisper/remove-model", post(stt_whisper_remove_model))
         .route("/voices", get(voices))
         .route("/voices/preview", get(voices_preview))
         .route("/tts/download-model", post(tts_download_model))
@@ -324,7 +326,7 @@ fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
     if !path.exists() {
         let url = format!("{WHISPER_MODEL_BASE_URL}{file}");
         log::info!("downloading whisper model {file} -> {}", path.display());
-        download(&url, &path, state)?;
+        download(&url, &path, state, |_, _| {})?;
         log::info!("whisper model downloaded: {file}");
     }
     let model_path = path.to_str().ok_or("model path not UTF-8")?;
@@ -345,8 +347,14 @@ fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
 
 /// Stream a URL to a file via a `.part` sibling, renamed on success so a
 /// half-finished download can't be mistaken for a complete model. Progress
-/// lands in `whisper_progress` for the 503 body / system-info.
-fn download(url: &str, dest: &Path, state: &AppState) -> Result<(), String> {
+/// lands in `whisper_progress` for the 503 body / system-info, and in
+/// `on_progress` for the Settings download button's ndjson stream.
+fn download(
+    url: &str,
+    dest: &Path,
+    state: &AppState,
+    mut on_progress: impl FnMut(u64, Option<u64>),
+) -> Result<(), String> {
     use std::io::{Read, Write};
     let tmp = dest.with_extension("part");
     let response = ureq::get(url).call().map_err(|e| e.to_string())?;
@@ -369,6 +377,7 @@ fn download(url: &str, dest: &Path, state: &AppState) -> Result<(), String> {
                 }
                 done += n as u64;
                 *state.whisper_progress.lock().unwrap() = Some((done, total));
+                on_progress(done, total);
             }
             Err(e) => break Err(e.to_string()),
         }
@@ -462,6 +471,90 @@ async fn stt_whisper_models(
         })
         .collect();
     Json(json!({ "models": models }))
+}
+
+#[derive(Deserialize)]
+struct WhisperModelReq {
+    size: String,
+    lang: Option<String>,
+}
+
+/// `POST /app/v1/stt/whisper/download-model` {size, lang} - pre-fetch a model
+/// from Settings instead of at session start. Streams ndjson progress lines
+/// (same shape as /tts/download-model). Download only - the loader still owns
+/// loading, on the next stt request that targets this file.
+async fn stt_whisper_download_model(
+    State(state): State<Shared>,
+    Json(req): Json<WhisperModelReq>,
+) -> Response {
+    let lang = req.lang.unwrap_or_else(|| "en".to_string());
+    let Some(file) = whisper_model_file(&req.size, &lang) else {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Unknown Whisper model size." })))
+            .into_response();
+    };
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
+    tokio::task::spawn_blocking(move || {
+        let send = |v: Value| {
+            let _ = tx.blocking_send(Ok(format!("{v}\n")));
+        };
+        let dest = state.model_dir.join(&file);
+        if dest.exists() {
+            send(json!({ "status": "done" }));
+            return;
+        }
+        // The loader may already be pulling this (session start raced the
+        // button); two writers on one .part would corrupt it.
+        if state.whisper_progress.lock().unwrap().is_some() {
+            send(json!({ "status": "error", "error": "A model download is already running." }));
+            return;
+        }
+        if let Err(e) = std::fs::create_dir_all(&state.model_dir) {
+            send(json!({ "status": "error", "error": e.to_string() }));
+            return;
+        }
+        let url = format!("{WHISPER_MODEL_BASE_URL}{file}");
+        log::info!("downloading whisper model (settings) {file}");
+        let result = download(&url, &dest, &state, |done, total| {
+            send(json!({ "status": "downloading", "completed": done, "total": total }));
+        });
+        match result {
+            Ok(()) => send(json!({ "status": "done" })),
+            Err(e) => send(json!({ "status": "error", "error": e })),
+        }
+    });
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/x-ndjson")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .body(axum::body::Body::from_stream(stream))
+        .expect("build ndjson response")
+}
+
+/// `POST /app/v1/stt/whisper/remove-model` {size, lang} - delete a downloaded
+/// model. If it's the loaded one, unload it too (the loader re-downloads on
+/// the next stt request that wants it), so "removed" is never half-true.
+async fn stt_whisper_remove_model(
+    State(state): State<Shared>,
+    Json(req): Json<WhisperModelReq>,
+) -> (StatusCode, Json<Value>) {
+    let lang = req.lang.unwrap_or_else(|| "en".to_string());
+    let Some(file) = whisper_model_file(&req.size, &lang) else {
+        return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
+    };
+    let path = state.model_dir.join(&file);
+    if !path.exists() {
+        return (StatusCode::OK, Json(json!({ "status": "not_found" })));
+    }
+    if let Err(e) = std::fs::remove_file(&path) {
+        return err(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string());
+    }
+    let current = state.whisper_model.lock().unwrap();
+    if *current == file {
+        state.whisper_ready.store(false, Ordering::SeqCst);
+        *state.whisper.lock().unwrap() = None;
+    }
+    log::info!("removed whisper model {file}");
+    (StatusCode::OK, Json(json!({ "status": "removed" })))
 }
 
 #[derive(Deserialize)]

@@ -636,6 +636,17 @@
     min-width: 140px;
 }
 
+/* Download/Remove action under the Whisper model select. */
+.whisper-model-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+.whisper-model-actions .btn {
+    align-self: flex-start;
+}
+
 /* Settings dropdowns size to their content instead of stretching to the
    column (the global select rule is width:100%, comically wide in one-column
    rows). A <select> measures by its widest option; the floor keeps
