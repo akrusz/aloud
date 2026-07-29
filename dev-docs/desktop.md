@@ -20,10 +20,13 @@ downloads a Whisper model (default base.en GGML, ~142 MB) to
 `<app-data>/models/` (`~/Library/Application Support/app.aloud.meditation/models`
 on macOS); STT returns 503 until that finishes loading. The Settings model
 size + language pick the file (`whisper_model_file` in `server.rs`; English
-gets the `.en` variants, `large` is large-v3) and a change retargets the
-loader on the next stt request, downloading on demand. A failed download or
-load retries with backoff (`run_whisper_loader`), and the 503 body plus the
-`whisper` block in `/app/v1/system-info` report progress / the last error.
+gets the `.en` variants, `large` is large-v3); a change retargets the loader
+via the session-start warm probe (`GET /stt/whisper/warm`, see the endpoint
+list), downloading on demand, and the last-used model persists
+(`data_dir/whisper-model`) so the next boot loads it directly. A failed
+download or load retries with backoff (`run_whisper_loader`), and the 503 body
+plus the `whisper` block in `/app/v1/system-info` report progress / the last
+error.
 
 `tauri:dev` runs `beforeDevCommand` (`npm run ui:dev -- --port 4649
 --strictPort`) and points the webview at `http://localhost:4649` (`devUrl`). The
@@ -64,7 +67,19 @@ on an ephemeral loopback port and injects `window.__ALOUD_API_BASE__` via an
 Endpoints (served at `/app/v1/*`):
 
 - ✅ `/app/v1/system-info` - platform + tool availability (`which`).
-- ✅ `/app/v1/stt/whisper` - local Whisper via `whisper-rs` (whisper.cpp).
+- ✅ `/app/v1/stt/whisper` - local Whisper via `whisper-rs` (whisper.cpp). The
+  request's `model_size`/`lang` params pick the model file (see first-run notes
+  above).
+- ✅ `/app/v1/stt/whisper/warm` - the session-start probe: GET with the
+  session's `model_size`/`lang` proves the route exists (web Hono 404s) and
+  starts loading that model during setup, so the first utterance never 503s.
+- ✅ `/app/v1/stt/whisper/models` - per Settings size for the given `?lang=`:
+  mapped file, on-disk state, approx download MB. Drives the Settings badges
+  ("downloaded" / "N MB download") and the Download/Remove button state.
+- ✅ `/app/v1/stt/whisper/download-model` + `/app/v1/stt/whisper/remove-model` -
+  the Settings button: explicit pre-fetch (streamed NDJSON progress, same shape
+  as the Piper flow below) and delete (unloads too if it's the loaded model).
+  Wired in `views/settings.ts` (`downloadWhisperModel`/`removeWhisperModel`).
 - ✅ `/app/v1/voices` + `/app/v1/voices/preview` - Piper (ONNX via `piper-rs`:
   `ort` + espeak-ng) cross-platform, plus macOS `say` as a Darwin-only local
   engine. See `src-tauri/src/tts.rs`.

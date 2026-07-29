@@ -183,6 +183,11 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |
 | `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
 | `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
+| `POST /cloud/v1/admin/accounts/:id/delete` | admin | soft-delete an account (the panel's typed-email confirm flow) |
+| `GET /cloud/v1/admin/retreats` | admin | retreat passes with rosters + real provider spend so far |
+| `POST /cloud/v1/admin/retreats` | admin | create a pass (date window, optional spend cap) |
+| `POST /cloud/v1/admin/retreats/:id/members` | admin | add an attendee by email; no account yet → pending invite that binds on first sign-in |
+| `POST /cloud/v1/admin/retreats/:id/revoke` | admin | revoke a pass; coverage stops for every member |
 | `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
 | `PUT /cloud/v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
 
@@ -193,7 +198,8 @@ verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
 
 Browse to `/cloud/v1/admin` on the server (e.g.
 `https://aloud-cloud.fly.dev/cloud/v1/admin`) - a single self-contained page
-(`src/admin/panel.ts`) for spend monitoring, account lookup, and credit grants.
+(`src/admin/panel.ts`) for spend monitoring, account lookup, credit grants,
+account deletion (typed-email confirm), and retreat passes.
 Two ways in, both kept in this origin's localStorage and sent as a Bearer
 header (never baked into the page):
 

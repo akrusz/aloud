@@ -151,6 +151,9 @@ cd ts/server && npx tsc --noEmit -p tsconfig.json
 cargo check --manifest-path ts/src-tauri/Cargo.toml
 cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips are #[ignore]
 (cd ts/src-tauri && cargo deny check)                   # supply-chain gate (CI enforces)
+
+# Model evals (by hand, NOT in CI - real API calls; see ts/evals/README.md)
+cd ts && npx tsx evals/protocol-eval.ts
 ```
 
 ## Building & releasing
