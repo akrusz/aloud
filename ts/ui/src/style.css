@@ -277,17 +277,18 @@
     }
 }
 
-/* Microphone column: when the active STT source doesn't capture through us
-   (browser/native speech) the field is hidden, but at widths where all three
-   columns sit on one row we keep its empty slot so Language/Recognition stay
-   a third each (stretching them to halves as you switch STT is jarring). Once
-   the row stacks, drop the slot so there's no dead vertical space. Paired
-   with updateMicDeviceVisibility() in settings.ts. */
-.form-row-thirds > .form-group.slot-hidden {
+/* Conditional settings columns (Microphone: only when the STT source
+   captures through us; Whisper model: only for local Whisper). When hidden
+   at widths where the row shows both columns, keep the empty slot so the
+   row-mate stays at half width (stretching it to full as you switch STT is
+   jarring). Once the row stacks, drop the slot so there's no dead vertical
+   space. Paired with updateMicDeviceVisibility()/updateWhisperVisibility()
+   in settings.ts. */
+.form-row > .form-group.slot-hidden {
     visibility: hidden;
 }
 @media (max-width: 767px) {
-    .form-row-thirds > .form-group.slot-hidden {
+    .form-row > .form-group.slot-hidden {
         display: none;
     }
 }

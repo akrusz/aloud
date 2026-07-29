@@ -526,11 +526,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
     }
 
-    /** Model size only matters for on-device Whisper; hide its row for
-     *  browser/hosted STT. */
+    /** Model size only matters for on-device Whisper; hide its column for
+     *  browser/hosted STT (slot kept, see renderLanguageSection). */
     function updateWhisperVisibility(): void {
-        root.querySelector<HTMLElement>('#s-whisper-model-row')?.classList.toggle(
-            'hidden',
+        root.querySelector<HTMLElement>('#s-whisper-model-group')?.classList.toggle(
+            'slot-hidden',
             resolveSttChoice(settings.sttEngine, isWebMode()) !== 'whisper'
         );
     }
@@ -1592,33 +1592,35 @@ function renderLanguageSection(s: AppSettings): string {
         )
         .join('');
 
-    // The mic column starts slot-hidden (visible slot, invisible field) and
-    // updateMicDeviceVisibility reveals it when the resolved STT source
-    // captures through us; the Whisper-model row shows only for local Whisper.
+    // Two half-width rows: Language | Microphone, then Speech Recognition |
+    // Whisper Model. The conditional columns (mic: only when the STT source
+    // captures through us; whisper model: only for local Whisper) start/toggle
+    // slot-hidden - the empty slot keeps its row-mate at half width on wide
+    // layouts, and collapses once the row stacks (narrow/mobile).
     return `
     <section class="settings-section">
         <h2>Language &amp; Speech Recognition</h2>
-        <div class="form-row form-row-thirds">
-            <div class="form-group form-group-third">
+        <div class="form-row">
+            <div class="form-group">
                 <label for="s-language">Language</label>
                 <select id="s-language" name="language">${langOptions}</select>
                 <span class="form-hint">Affects speech recognition and voice previews</span>
             </div>
-            <div class="form-group form-group-third slot-hidden" id="s-mic-device-group">
+            <div class="form-group slot-hidden" id="s-mic-device-group">
                 <label for="s-mic-device">Microphone</label>
                 <select id="s-mic-device" name="mic_device">
                     <option value="">System default</option>
                 </select>
                 <span class="form-hint">Which mic aloud listens to.</span>
             </div>
-            <div class="form-group form-group-third">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
                 <label for="s-stt-engine">Speech Recognition</label>
                 <select id="s-stt-engine" name="stt_engine">${sttOptions}</select>
                 <span class="form-hint" id="s-stt-engine-hint"></span>
             </div>
-        </div>
-        <div class="form-row${sttSelected === 'whisper' ? '' : ' hidden'}" id="s-whisper-model-row">
-            <div class="form-group form-group-third" id="s-whisper-model-group">
+            <div class="form-group${sttSelected === 'whisper' ? '' : ' slot-hidden'}" id="s-whisper-model-group">
                 <label for="s-whisper-model">Whisper Model</label>
                 <select id="s-whisper-model" name="whisper_model">
                     <option value="tiny">Tiny (fastest)</option>
