@@ -24,14 +24,22 @@ const ENDPOINT = appUrl('/llm/claude_proxy/complete');
 
 /**
  * Per-attempt stall deadline. The local `claude` CLI cold-starts every turn (no
- * daemon, --no-session-persistence) but still lands well under this, so
- * exceeding it means a hung attempt. Aborting drops the connection, which lets
- * the Rust handler's kill_on_drop reap the child, and we retry on a fresh
+ * daemon, --no-session-persistence); the smaller models land well under 20s,
+ * so exceeding it means a hung attempt. Aborting drops the connection, which
+ * lets the Rust handler's kill_on_drop reap the child, and we retry on a fresh
  * process rather than wait out the server's 90s cap with no feedback.
+ *
+ * The big models (opus, fable) legitimately run past 20s on a long prompt -
+ * the flat deadline was killing HEALTHY turns near the finish and restarting
+ * from zero (3 kills = a minute of silence, then the canned fallback), so
+ * they get a longer leash and one fewer retry to bound the worst case.
  */
 const ATTEMPT_TIMEOUT_MS = 20_000;
+const SLOW_MODEL_ATTEMPT_TIMEOUT_MS = 60_000;
+const SLOW_MODEL_RE = /opus|fable/i;
 /** Initial try + retries. A cold-start stall often clears on a fresh attempt. */
 const MAX_ATTEMPTS = 3;
+const SLOW_MODEL_MAX_ATTEMPTS = 2;
 /** Embedded in the error thrown once every attempt fails; the session view
  *  matches it to show a gentle apology instead of a raw error. */
 export const CLAUDE_PROXY_STALLED = 'claude_proxy_stalled';
@@ -74,8 +82,11 @@ export class ClaudeProxyHttpProvider implements LLMProvider {
         };
         if (options.system) body['system'] = options.system;
 
+        const slow = SLOW_MODEL_RE.test(this.model);
+        const attemptTimeoutMs = slow ? SLOW_MODEL_ATTEMPT_TIMEOUT_MS : ATTEMPT_TIMEOUT_MS;
+        const maxAttempts = slow ? SLOW_MODEL_MAX_ATTEMPTS : MAX_ATTEMPTS;
         let lastDetail = '';
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             // The caller already gave up (session ended / superseded): stop now,
             // don't burn a retry or apologize.
             if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -94,7 +105,7 @@ export class ClaudeProxyHttpProvider implements LLMProvider {
                         body: JSON.stringify(body),
                         signal: attemptAbort.signal,
                     }),
-                    ATTEMPT_TIMEOUT_MS,
+                    attemptTimeoutMs,
                     'Claude Subscription turn stalled.',
                     () => attemptAbort.abort()
                 );

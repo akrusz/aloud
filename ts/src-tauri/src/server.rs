@@ -35,6 +35,26 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 // stt request's `model_size`/`lang` params (whisper_model_file).
 const WHISPER_MODEL_BASE_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
 const DEFAULT_WHISPER_MODEL: &str = "ggml-base.en.bin";
+// Remembers the last retarget across launches (a bare file name under
+// data_dir) so boot warms the model the user actually uses.
+const LAST_WHISPER_MODEL_FILE: &str = "whisper-model";
+
+/// The model to load at boot: the persisted last-used file when it parses as
+/// a plain ggml file name (defense against a tampered data file), else the
+/// default.
+fn boot_whisper_model(data_dir: &Path) -> String {
+    let saved = std::fs::read_to_string(data_dir.join(LAST_WHISPER_MODEL_FILE))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    let valid = saved.starts_with("ggml-")
+        && saved.ends_with(".bin")
+        && saved.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.');
+    if valid {
+        saved
+    } else {
+        DEFAULT_WHISPER_MODEL.to_string()
+    }
+}
 
 /// Map the Settings size + language onto a whisper.cpp model file. English
 /// gets the smaller, better `.en` variants; other languages the multilingual
@@ -237,7 +257,7 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
         whisper: Mutex::new(None),
         whisper_ready: AtomicBool::new(false),
         whisper_error: Mutex::new(None),
-        whisper_model: Mutex::new(DEFAULT_WHISPER_MODEL.to_string()),
+        whisper_model: Mutex::new(boot_whisper_model(&data_dir)),
         whisper_loading: AtomicBool::new(true),
         whisper_progress: Mutex::new(None),
         model_dir: data_dir.join("models"),
@@ -484,6 +504,9 @@ fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> Result<(), ()> {
     let mut current = state.whisper_model.lock().unwrap();
     if *current != file {
         log::info!("whisper model switch: {} -> {file}", *current);
+        // Remember across launches so boot loads THIS model, not the default
+        // (which was a wasted base.en load + switch for anyone on another size).
+        let _ = std::fs::write(state.data_dir.join(LAST_WHISPER_MODEL_FILE), &file);
         *current = file;
         state.whisper_ready.store(false, Ordering::SeqCst);
         *state.whisper.lock().unwrap() = None;
