@@ -18,6 +18,9 @@
 
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
 import modelUrl from '@ricky0123/vad-web/dist/silero_vad_v5.onnx?url';
+import type { InferenceSession, Tensor } from 'onnxruntime-web';
+
+type Ort = typeof import('onnxruntime-web/wasm');
 
 /** Samples per model invocation at 16 kHz (~32 ms) - fixed by Silero v5. */
 const CHUNK_SAMPLES = 512;
@@ -36,6 +39,51 @@ export interface SileroModel {
     process(audioFrame: Float32Array): Promise<{ isSpeech: number; notSpeech: number }>;
     reset_state(): void;
     release(): Promise<void>;
+}
+
+/** Fresh RNN state: [2, 1, 128] zeros, matching vad-web's SileroV5. */
+function zeroState(ort: Ort): Tensor {
+    return new ort.Tensor('float32', new Float32Array(2 * 128), [2, 1, 128]);
+}
+
+/**
+ * vad-web's SileroV5 runner, reimplemented so WE create the ort session:
+ * `SileroV5.new` calls `InferenceSession.create(model)` with no options, and
+ * some webviews need the graph-optimizer fallback in `create()` below - its
+ * session create dies with "Could not find OrtValue with name
+ * '.../stft/padding/Constant_output_0'" (an ort-web If-branch-inlining bug),
+ * which read as a completely deaf desktop app. Inference math is unchanged.
+ */
+class SileroV5Model implements SileroModel {
+    private state: Tensor;
+    private readonly sr: Tensor;
+
+    constructor(
+        private readonly ort: Ort,
+        private readonly session: InferenceSession
+    ) {
+        this.state = zeroState(ort);
+        this.sr = new ort.Tensor('int64', [16_000n]);
+    }
+
+    async process(audioFrame: Float32Array): Promise<{ isSpeech: number; notSpeech: number }> {
+        const input = new this.ort.Tensor('float32', audioFrame, [1, audioFrame.length]);
+        const out = await this.session.run({ input, state: this.state, sr: this.sr });
+        const stateN = out['stateN'];
+        if (!stateN) throw new Error('Silero returned no state');
+        this.state = stateN;
+        const isSpeech = out['output']?.data[0];
+        if (typeof isSpeech !== 'number') throw new Error('Silero returned no speech probability');
+        return { isSpeech, notSpeech: 1 - isSpeech };
+    }
+
+    reset_state(): void {
+        this.state = zeroState(this.ort);
+    }
+
+    async release(): Promise<void> {
+        await this.session.release();
+    }
 }
 
 export class SileroFrameVad {
@@ -71,13 +119,25 @@ export class SileroFrameVad {
         // The /wasm entry is the *bundle* build (JS loader inlined), so the
         // .wasm binary is the only runtime asset ort needs to locate.
         ort.env.wasm.wasmPaths = { wasm: new URL(wasmUrl, location.href).href };
-        const { SileroV5 } = await import('@ricky0123/vad-web/dist/models/index.js');
-        const model = await SileroV5.new(ort, async () => {
-            const res = await fetch(modelUrl);
-            if (!res.ok) throw new Error(`Silero model fetch failed: ${res.status}`);
-            return res.arrayBuffer();
-        });
-        return new SileroFrameVad(model);
+        const res = await fetch(modelUrl);
+        if (!res.ok) throw new Error(`Silero model fetch failed: ${res.status}`);
+        const modelBytes = await res.arrayBuffer();
+        let session: InferenceSession;
+        try {
+            session = await ort.InferenceSession.create(modelBytes);
+        } catch (err) {
+            // The If-branch-inlining failure described on SileroV5Model. The
+            // model is a tiny RNN, so running unoptimized is imperceptible -
+            // far better than losing the mic entirely.
+            console.warn(
+                '[vad] silero session create failed - retrying with graph optimization disabled:',
+                err
+            );
+            session = await ort.InferenceSession.create(modelBytes, {
+                graphOptimizationLevel: 'disabled',
+            });
+        }
+        return new SileroFrameVad(new SileroV5Model(ort, session));
     }
 
     /**

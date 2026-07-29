@@ -66,6 +66,7 @@ import {
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
+import { describeCloudError, describeSttError } from '../stt-errors.js';
 import { isCheckinDebugOn } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
@@ -516,6 +517,7 @@ export async function mountSessionView(
         silenceMaxMs: pacingConfig.silenceMaxMs,
         silenceRampRate: pacingConfig.silenceRampRate,
         minSpeechDurationMs: pacingConfig.minSpeechDurationMs,
+        micDeviceId: appSettings.micDeviceId,
     };
     // The STT source is an explicit, mode-resolved choice (Settings / setup):
     // local Whisper, browser speech, or the aloud cloud (credits). No hidden
@@ -575,7 +577,9 @@ export async function mountSessionView(
         // so skip the wrapper there. Barge-in stays on web-speech (real Chrome
         // honors EC) and server-whisper drives its own. See meditation-pal-x4h4.
         const wrapBargeIn = !engineDrivenBargeIn && sttBackend !== 'capacitor';
-        return wrapBargeIn ? wrapTtsWithBargeIn(engine, { onBargeIn }) : engine;
+        return wrapBargeIn
+            ? wrapTtsWithBargeIn(engine, { onBargeIn, micDeviceId: appSettings.micDeviceId })
+            : engine;
     }
     // `let` so an in-session voice change can swap the engine (see the voice
     // modal). Reassigning here is picked up by the outer `tts` wrapper.
@@ -1657,7 +1661,7 @@ export async function mountSessionView(
         if (micMeter || sttBackend !== 'web-speech') return;
         // Single-owner mic platforms (Android, iOS/iPadOS): see above.
         if (isSingleOwnerMicPlatform()) return;
-        void startMicMeter(micBtn)
+        void startMicMeter(micBtn, appSettings.micDeviceId)
             .then((m) => {
                 if (torn || muted) m.stop(); // raced with teardown/mute
                 else micMeter = m;
@@ -2406,65 +2410,10 @@ function stripVoicePrefix(voice: string | null): string | null {
     return m ? (m[2] ?? null) : voice;
 }
 
-/**
- * Map a hosted-server error to a clear, actionable message. The server returns
- * structured errors ({error:{code}}, ts/server/src/contract.ts), but by the time
- * they reach the client they're flattened to a status + message string, so match
- * on both the code names and the embedded HTTP status. Returns null for
- * unrecognized errors so callers keep their own phrasing. Exported for the
- * noting view, which shares the hosted TTS/STT paths.
- */
-export function describeCloudError(msg: string): string | null {
-    if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
-        return 'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.';
-    }
-    if (/unauthenticated|endpoint 401/i.test(msg)) {
-        return 'aloud cloud needs you to sign in again. Check Settings.';
-    }
-    if (/email_unverified|endpoint 403/i.test(msg)) {
-        return 'Verify your email to use aloud cloud, then try again.';
-    }
-    if (/quota_exceeded|endpoint 429/i.test(msg)) {
-        return "You've hit aloud's rate limit. Wait a moment and try again.";
-    }
-    return null;
-}
-
-export function describeSttError(err: unknown): string {
-    const msg = err instanceof Error ? err.message : String(err);
-    // Hosted credits/auth conditions get a clear line instead of a raw
-    // "Whisper endpoint 402: {json}".
-    const hosted = describeCloudError(msg);
-    if (hosted) return hosted;
-    if (/Whisper endpoint 5\d\d/.test(msg) || /failed to fetch/i.test(msg)) {
-        return 'Speech-recognition backend unreachable. Check your connection.';
-    }
-    if (/Whisper endpoint 503/.test(msg)) {
-        return 'Whisper model still loading. Try again in a moment.';
-    }
-    // `service-not-allowed` is a blocked *service*, not a denied mic. On
-    // Windows/Edge it's usually the OS "online speech recognition" privacy
-    // toggle or an enterprise policy: the recognizer can't work until that
-    // changes, so point at the in-session switch to aloud cloud.
-    if (msg === 'service-not-allowed') {
-        return "This browser is blocking its speech recognition (on Windows, turn on Settings → Privacy → Speech). Or switch to aloud cloud speech - it doesn't need it.";
-    }
-    // Web Speech's own denied-permission code is the hyphenated `not-allowed`
-    // (distinct from getUserMedia's `NotAllowedError`, matched below).
-    if (msg === 'not-allowed') {
-        return 'Microphone access is blocked. Allow the mic for this site (the padlock in the address bar), or switch to aloud cloud speech.';
-    }
-    if (/permission/i.test(msg) || /denied/i.test(msg) || /NotAllowed/.test(msg)) {
-        return 'Mic permission denied. Allow microphone access and try again.';
-    }
-    // `network` means Web Speech's cloud recognizer was unreachable. Usually a
-    // Chromium build (Brave, others) where Google blocks the speech endpoint, so
-    // it can never succeed - point at the paths that work.
-    if (msg === 'network') {
-        return 'Browser speech recognition is blocked in this browser. Switch to aloud cloud speech, or use Chrome.';
-    }
-    return `Mic error: ${msg}`;
-}
+// describeSttError / describeCloudError live in ui/src/stt-errors.ts
+// (standalone so node-env tests can cover the matching order); re-exported
+// here for existing importers.
+export { describeCloudError, describeSttError } from '../stt-errors.js';
 
 function renderSessionHTML(): string {
     return `

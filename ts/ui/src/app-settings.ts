@@ -69,6 +69,11 @@ export interface AppSettings {
     /** Where speech-to-text runs, or null to use the mode's flow default. See
      *  SttEngineChoice + resolveSttChoice. */
     sttEngine: SttEngineChoice | null;
+    /** Capture device (MediaDeviceInfo.deviceId) for the mic-capturing STT
+     *  paths (Whisper / aloud cloud); null = the system default. Applied as an
+     *  `ideal` constraint, so an unplugged saved mic falls back to the default
+     *  instead of a dead mic. Web Speech and native mobile pick their own. */
+    micDeviceId: string | null;
 
     // Pacing - used by both the session view's PacingController and
     // the STT adapter's client-side VAD.
@@ -108,6 +113,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     language: 'en',
     whisperModel: 'small',
     sttEngine: null,
+    micDeviceId: null,
     silenceBaseMs: 3000,
     silenceMaxMs: 5000,
     responseDelayMs: 2000,

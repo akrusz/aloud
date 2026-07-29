@@ -43,6 +43,10 @@ const MAX_AUDIO_BYTES: usize = 8 * 1024 * 1024;
 pub struct AppState {
     whisper: Mutex<Option<Arc<WhisperContext>>>,
     whisper_ready: AtomicBool,
+    // Last whisper init failure (download or load), cleared on success. Drives
+    // an honest 503 body and the system-info whisper block - without it a
+    // first-run download failure is invisible outside the Rust log.
+    whisper_error: Mutex<Option<String>>,
     model_dir: PathBuf,
     // Piper voice models (.onnx/.onnx.json).
     piper_dir: PathBuf,
@@ -201,6 +205,7 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
     let state: Shared = Arc::new(AppState {
         whisper: Mutex::new(None),
         whisper_ready: AtomicBool::new(false),
+        whisper_error: Mutex::new(None),
         model_dir: data_dir.join("models"),
         piper_dir: data_dir.join("piper-models"),
         piper: Mutex::new(None),
@@ -210,12 +215,26 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
 
     // The download is large and the load slow, so keep both off the server path.
     // Until it finishes /app/v1/stt/whisper returns 503, which the UI surfaces
-    // as "model still loading".
+    // as "model still loading". A failed first-run download (offline launch,
+    // proxy blocking huggingface.co) used to fail once and leave STT dead for
+    // the app's lifetime - retry with backoff so it heals when the network does.
     {
         let state = state.clone();
         std::thread::spawn(move || {
-            if let Err(e) = load_whisper(&state) {
-                log::error!("whisper init failed: {e}");
+            let mut delay = std::time::Duration::from_secs(15);
+            loop {
+                match load_whisper(&state) {
+                    Ok(()) => break,
+                    Err(e) => {
+                        log::error!(
+                            "whisper init failed (retrying in {}s): {e}",
+                            delay.as_secs()
+                        );
+                        *state.whisper_error.lock().unwrap() = Some(e);
+                        std::thread::sleep(delay);
+                        delay = (delay * 2).min(std::time::Duration::from_secs(300));
+                    }
+                }
             }
         });
     }
@@ -256,6 +275,7 @@ fn load_whisper(state: &AppState) -> Result<(), String> {
     let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
         .map_err(|e| format!("load model: {e}"))?;
     *state.whisper.lock().unwrap() = Some(Arc::new(ctx));
+    *state.whisper_error.lock().unwrap() = None;
     state.whisper_ready.store(true, Ordering::SeqCst);
     log::info!("whisper model ready");
     Ok(())
@@ -275,7 +295,7 @@ fn download(url: &str, dest: &Path) -> Result<(), String> {
 
 /// `GET /app/v1/system-info` - platform + tool availability. A successful
 /// response is also the UI's "is desktop" signal.
-async fn system_info() -> Json<Value> {
+async fn system_info(State(state): State<Shared>) -> Json<Value> {
     let claude = which::which("claude").ok();
     let ollama = which::which("ollama").ok();
     let path_str = |p: Option<PathBuf>| -> Value {
@@ -298,6 +318,12 @@ async fn system_info() -> Json<Value> {
         // (contextLengthForRam). null when detection fails.
         "ram_gb": crate::providers::system_ram_gb(),
         "has_homebrew": which::which("brew").is_ok(),
+        // STT health for the bug-report diagnostics block: ready, still
+        // loading (error null), or failed-and-retrying (error set).
+        "whisper": {
+            "ready": state.whisper_ready.load(Ordering::SeqCst),
+            "error": state.whisper_error.lock().unwrap().clone(),
+        },
         "tools": {
             "claude_cli": { "installed": claude.is_some(), "path": path_str(claude) },
             "ollama": { "installed": ollama.is_some(), "path": path_str(ollama) },
@@ -318,10 +344,15 @@ async fn stt_whisper(
     body: Bytes,
 ) -> (StatusCode, Json<Value>) {
     if !state.whisper_ready.load(Ordering::SeqCst) {
-        return err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "Whisper model still loading - try again in a moment.",
-        );
+        // A stored init error means "failed and retrying", not "almost there" -
+        // say so, or a first-run download failure reads as an endless load.
+        let msg = match state.whisper_error.lock().unwrap().clone() {
+            Some(e) => format!(
+                "Local speech recognition isn't ready ({e}). It keeps retrying - check your connection, or switch to aloud cloud in Settings."
+            ),
+            None => "Whisper model still loading - try again in a moment.".to_string(),
+        };
+        return err(StatusCode::SERVICE_UNAVAILABLE, &msg);
     }
     if body.is_empty() {
         return err(StatusCode::BAD_REQUEST, "Empty request body.");

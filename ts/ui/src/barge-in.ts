@@ -22,11 +22,16 @@ export interface BargeInListenerOptions {
     threshold?: number;
     /** Consecutive over-threshold frames required to trigger. */
     requiredChunks?: number;
+    /** Capture device (Settings → Microphone); null/absent = system default.
+     *  Must match the STT engine's pick, or the detector listens to a
+     *  different mic than the one transcribing. */
+    micDeviceId?: string | null;
 }
 
 export class BargeInListener {
     private readonly threshold: number;
     private readonly requiredChunks: number;
+    private readonly micDeviceId: string | null;
     private context: AudioContext | null = null;
     private stream: MediaStream | null = null;
     private processor: ScriptProcessorNode | null = null;
@@ -36,6 +41,7 @@ export class BargeInListener {
     constructor(options: BargeInListenerOptions = {}) {
         this.threshold = options.threshold ?? BARGE_IN_THRESHOLD;
         this.requiredChunks = options.requiredChunks ?? BARGE_IN_REQUIRED_CHUNKS;
+        this.micDeviceId = options.micDeviceId ?? null;
     }
 
     /** Begin listening. Calls `onBargeIn` at most once per start()/stop() cycle,
@@ -49,7 +55,10 @@ export class BargeInListener {
             // in and tripping a barge-in - the facilitator interrupting itself.
             // Plain {audio:true} doesn't guarantee it, especially in a WebView.
             this.stream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true },
+                audio: {
+                    ...(this.micDeviceId ? { deviceId: { ideal: this.micDeviceId } } : {}),
+                    echoCancellation: true,
+                },
             });
         } catch {
             return; // mic access denied - silently disabled, TTS plays normally

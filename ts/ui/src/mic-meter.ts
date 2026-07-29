@@ -19,8 +19,15 @@ const GAIN = 4; // maps typical speech RMS (~0.05–0.25) onto a visible 0..1
  * live; rejects on denied permission or unavailable audio, which callers can
  * ignore - the meter is purely cosmetic.
  */
-export async function startMicMeter(target: HTMLElement): Promise<MicMeter> {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+export async function startMicMeter(
+    target: HTMLElement,
+    micDeviceId?: string | null
+): Promise<MicMeter> {
+    // Same device pick as the capture engines (Settings → Microphone), `ideal`
+    // so a missing device degrades to the default rather than rejecting.
+    const stream = await navigator.mediaDevices.getUserMedia({
+        audio: micDeviceId ? { deviceId: { ideal: micDeviceId } } : true,
+    });
     const AC =
         (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
         (globalThis as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;

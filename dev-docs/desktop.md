@@ -18,7 +18,9 @@ backend downloads the matching ONNX Runtime binary at build time, so the same
 toolchain works on macOS/Windows/Linux. On first run the app
 downloads the Whisper model (base.en GGML, ~142 MB) to
 `<app-data>/models/` (`~/Library/Application Support/app.aloud.meditation/models`
-on macOS); STT returns 503 until that finishes loading.
+on macOS); STT returns 503 until that finishes loading. A failed download or
+load retries with backoff (`load_whisper` loop in `server.rs`), and the 503
+body plus the `whisper` block in `/app/v1/system-info` report the last error.
 
 `tauri:dev` runs `beforeDevCommand` (`npm run ui:dev -- --port 4649
 --strictPort`) and points the webview at `http://localhost:4649` (`devUrl`). The

@@ -311,6 +311,7 @@ export async function mountNotingSessionView(
     invalidateSttBackendCache();
     const sttBackend = await detectSttBackend();
     const stt: SttEngine | null = await createBestStt({
+        micDeviceId: appSettings.micDeviceId,
         silenceBaseMs: 1200,
         silenceMaxMs: 6000,
         silenceRampRate: 1,

@@ -526,18 +526,89 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
     }
 
-    /** Model size only matters for on-device Whisper; hide it for
+    /** Model size only matters for on-device Whisper; hide its row for
      *  browser/hosted STT. */
     function updateWhisperVisibility(): void {
-        const group = root.querySelector<HTMLElement>('#s-whisper-model-group');
-        // `.whisper-slot-hidden` (style.css) keeps the column's slot at wide
-        // widths so Language/Recognition stay at a third each rather than
-        // stretching to halves as you toggle STT, and collapses to display:none
-        // once the row stacks, leaving no dead space when narrow.
-        group?.classList.toggle(
-            'whisper-slot-hidden',
+        root.querySelector<HTMLElement>('#s-whisper-model-row')?.classList.toggle(
+            'hidden',
             resolveSttChoice(settings.sttEngine, isWebMode()) !== 'whisper'
         );
+    }
+
+    /** The mic picker only applies where WE open the capture stream (the PCM
+     *  engines: local Whisper / aloud cloud). Web Speech and the native
+     *  recognizer own their capture, so the pick couldn't take effect. */
+    function micPickApplies(): boolean {
+        const choice = resolveSttChoice(settings.sttEngine, isWebMode());
+        return choice === 'whisper' || choice === 'aloud';
+    }
+
+    function updateMicDeviceVisibility(): void {
+        const canEnumerate = !!navigator.mediaDevices?.enumerateDevices;
+        // `.slot-hidden` (style.css) keeps the column's empty slot at wide
+        // widths so Language/Recognition stay at a third each rather than
+        // stretching to halves as you toggle STT, and collapses to
+        // display:none once the row stacks.
+        root.querySelector<HTMLElement>('#s-mic-device-group')?.classList.toggle(
+            'slot-hidden',
+            !micPickApplies() || !canEnumerate
+        );
+    }
+
+    /** Fill the mic select with the current audio inputs. Device labels are
+     *  blank until the page has held mic permission, so `withPermission` (set
+     *  when the user actually opens the picker) briefly requests the mic to
+     *  unlock them - never on plain page load. */
+    async function populateMicDevices(withPermission: boolean): Promise<void> {
+        const sel = root.querySelector<HTMLSelectElement>('#s-mic-device');
+        if (!sel || !navigator.mediaDevices?.enumerateDevices) return;
+        const inputs = async (): Promise<MediaDeviceInfo[]> =>
+            (await navigator.mediaDevices.enumerateDevices()).filter(
+                // Chrome adds 'default'/'communications' pseudo-devices that
+                // shadow a real one; the "System default" option covers those.
+                (d) =>
+                    d.kind === 'audioinput' &&
+                    d.deviceId !== 'default' &&
+                    d.deviceId !== 'communications'
+            );
+        let devices: MediaDeviceInfo[] = [];
+        try {
+            devices = await inputs();
+            if (withPermission && devices.some((d) => !d.label)) {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                for (const t of stream.getTracks()) t.stop();
+                devices = await inputs();
+            }
+        } catch {
+            // enumeration failed or permission denied - keep what we have
+        }
+        const stored = settings.micDeviceId ?? '';
+        sel.innerHTML =
+            `<option value="">System default</option>` +
+            devices
+                .map(
+                    (d, i) =>
+                        `<option value="${escape(d.deviceId)}">${escape(d.label || `Microphone ${i + 1}`)}</option>`
+                )
+                .join('');
+        // Show the stored pick when its device is present; otherwise display
+        // the default WITHOUT persisting a repair - the mic may just be
+        // unplugged right now, and capture uses `ideal` so nothing breaks.
+        sel.value = devices.some((d) => d.deviceId === stored) ? stored : '';
+    }
+
+    function wireMicDeviceRow(): void {
+        const sel = root.querySelector<HTMLSelectElement>('#s-mic-device');
+        if (!sel) return;
+        updateMicDeviceVisibility();
+        void populateMicDevices(false);
+        // Unlock real labels only on user intent (opening the picker).
+        const unlock = (): void => void populateMicDevices(true);
+        sel.addEventListener('pointerdown', unlock, { once: true });
+        sel.addEventListener('change', () => {
+            settings.micDeviceId = sel.value || null;
+            persist();
+        });
     }
 
     function wireLanguageSection(): void {
@@ -559,8 +630,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 persist();
                 updateSttHint();
                 updateWhisperVisibility();
+                updateMicDeviceVisibility();
             });
         }
+        wireMicDeviceRow();
 
         const whisperSel = root.querySelector<HTMLSelectElement>('#s-whisper-model')!;
         whisperSel.value = settings.whisperModel;
@@ -1486,6 +1559,9 @@ function renderLanguageSection(s: AppSettings): string {
         )
         .join('');
 
+    // The mic column starts slot-hidden (visible slot, invisible field) and
+    // updateMicDeviceVisibility reveals it when the resolved STT source
+    // captures through us; the Whisper-model row shows only for local Whisper.
     return `
     <section class="settings-section">
         <h2>Language &amp; Speech Recognition</h2>
@@ -1495,14 +1571,21 @@ function renderLanguageSection(s: AppSettings): string {
                 <select id="s-language" name="language">${langOptions}</select>
                 <span class="form-hint">Affects speech recognition and voice previews</span>
             </div>
+            <div class="form-group form-group-third slot-hidden" id="s-mic-device-group">
+                <label for="s-mic-device">Microphone</label>
+                <select id="s-mic-device" name="mic_device">
+                    <option value="">System default</option>
+                </select>
+                <span class="form-hint">Which mic aloud listens to.</span>
+            </div>
             <div class="form-group form-group-third">
                 <label for="s-stt-engine">Speech Recognition</label>
                 <select id="s-stt-engine" name="stt_engine">${sttOptions}</select>
                 <span class="form-hint" id="s-stt-engine-hint"></span>
             </div>
-            <div class="form-group form-group-third${
-                sttSelected === 'whisper' ? '' : ' whisper-slot-hidden'
-            }" id="s-whisper-model-group">
+        </div>
+        <div class="form-row${sttSelected === 'whisper' ? '' : ' hidden'}" id="s-whisper-model-row">
+            <div class="form-group form-group-third" id="s-whisper-model-group">
                 <label for="s-whisper-model">Whisper Model</label>
                 <select id="s-whisper-model" name="whisper_model">
                     <option value="tiny">Tiny (fastest)</option>

@@ -32,13 +32,15 @@ import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import type { SttEngineChoice } from '../app-settings.js';
 
-/** VAD-tuning subset of PacingConfig the picker forwards to adapters. */
+/** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
+ *  capture-device pick. Only the PCM engines (Whisper / aloud cloud) consume
+ *  micDeviceId - Web Speech and the native recognizer own their capture. */
 type VadOpts = Partial<
     Pick<
         PacingConfig,
         'silenceBaseMs' | 'silenceMaxMs' | 'silenceRampRate' | 'minSpeechDurationMs'
     >
->;
+> & { micDeviceId?: string | null };
 
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 

@@ -89,6 +89,10 @@ type VadFields = Pick<
 export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Endpoint URL. Default '/app/v1/stt/whisper' - Vite proxies in dev. */
     endpointUrl?: string;
+    /** Capture device id (Settings → Microphone); null/absent = system
+     *  default. Applied as `ideal`, so a saved-but-unplugged device falls back
+     *  to the default rather than failing getUserMedia. */
+    micDeviceId?: string | null;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -185,6 +189,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     constructor(options: WhisperPcmSttEngineOptions = {}) {
         this.opts = {
             endpointUrl: options.endpointUrl ?? '/app/v1/stt/whisper',
+            micDeviceId: options.micDeviceId ?? null,
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
             silenceMaxMs: options.silenceMaxMs ?? defaultPacingConfig.silenceMaxMs,
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
@@ -443,6 +448,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.stream = await navigator.mediaDevices
                 .getUserMedia({
                     audio: {
+                        ...(this.opts.micDeviceId
+                            ? { deviceId: { ideal: this.opts.micDeviceId } }
+                            : {}),
                         echoCancellation: true,
                         // macOS's voice processing includes a noise gate that can
                         // hard-zero soft speech MID-UTTERANCE - observed as RMS
