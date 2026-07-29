@@ -764,6 +764,27 @@ export async function mountSessionView(
         statusEl.textContent = text;
     }
 
+    // Slow-response indicator: if nothing has been spoken this long after a
+    // turn (or opener) started generating, say so - during a provider
+    // slowdown or outage the quiet typing dots read as a dead app. One shared
+    // timer: arming replaces any previous one, and the first spoken sentence
+    // or the turn's end clears it.
+    const SLOW_RESPONSE_STATUS_MS = 15_000;
+    let slowStatusTimer: ReturnType<typeof setTimeout> | null = null;
+    function armSlowResponseStatus(): void {
+        clearSlowResponseStatus();
+        slowStatusTimer = setTimeout(
+            () => setStatus('Still working - the response is taking longer than usual'),
+            SLOW_RESPONSE_STATUS_MS
+        );
+    }
+    function clearSlowResponseStatus(): void {
+        if (slowStatusTimer) {
+            clearTimeout(slowStatusTimer);
+            slowStatusTimer = null;
+        }
+    }
+
     // Persistent STT outage banner. The status line and a one-shot toast are
     // easy to miss, so a run of failed transcriptions raises a banner that stays
     // until a transcription lands: nobody should talk into a dead mic for a
@@ -1332,8 +1353,9 @@ export async function mountSessionView(
             // speaking before the rest finishes generating. Two signals, so a
             // barge-in can hush the audio (ttsSignal) without losing the
             // transcript, while a newer turn aborts outright (signal).
-            // onSpeakStart fires with control tokens already stripped.
-            setStatus('Speaking…');
+            // onSpeakStart fires with control tokens already stripped; status
+            // stays "Thinking…" until a sentence actually speaks.
+            armSlowResponseStatus();
             const bubble = createAssistantReveal();
             reveal = bubble;
             const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
@@ -1347,7 +1369,11 @@ export async function mountSessionView(
                     signal: myFullAbort.signal,
                     ttsSignal: myTtsAbort.signal,
                     onSpeakStart: (sentence) => {
-                        if (!superseded()) bubble.reveal(sentence);
+                        if (!superseded()) {
+                            clearSlowResponseStatus();
+                            setStatus('Speaking…');
+                            bubble.reveal(sentence);
+                        }
                     },
                 }
             );
@@ -1357,6 +1383,7 @@ export async function mountSessionView(
                 bubble.discard();
                 return;
             }
+            clearSlowResponseStatus();
             const { hold, stage, waitSec, cleanText } = parseTurnSignals(rawText);
             // A soft-launch-pause canned turn (proxy spoke a graceful apology,
             // charged nothing): show it transiently but keep it OUT of session
@@ -1418,6 +1445,7 @@ export async function mountSessionView(
             // bubble so the transcript matches what's recorded.
             reveal?.discard();
             if (superseded()) return;
+            clearSlowResponseStatus();
             hideTyping();
             const msg = (err as Error).message;
             // Running out of credits is a graceful stop, not an error. Ephemeral
@@ -1890,8 +1918,9 @@ export async function mountSessionView(
         const openerPrompt = builder.buildOpenerPrompt(setup.intention.trim());
         const reveal = createAssistantReveal();
         try {
-            setStatus('Speaking…');
+            setStatus('Thinking…');
             showTyping();
+            armSlowResponseStatus();
             // First LLM call, so this is where Ollama pays the cold-load cost;
             // surface that wait at session start.
             if (provider instanceof OllamaProvider) {
@@ -1908,11 +1937,16 @@ export async function mountSessionView(
                 {
                     system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
-                    onTtsError: handleTtsError,
                     // Reveal in step with the voice (createAssistantReveal).
-                    onSpeakStart: (sentence) => reveal.reveal(sentence),
+                    onTtsError: handleTtsError,
+                    onSpeakStart: (sentence) => {
+                        clearSlowResponseStatus();
+                        setStatus('Speaking…');
+                        reveal.reveal(sentence);
+                    },
                 }
             );
+            clearSlowResponseStatus();
             // Strip control tokens an eager model put on the greeting: an opener
             // can neither hold nor move the arc.
             const { cleanText } = parseTurnSignals(rawText);
@@ -1932,6 +1966,7 @@ export async function mountSessionView(
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } catch (err) {
             console.warn('LLM opener failed, using static fallback', err);
+            clearSlowResponseStatus();
             reveal.discard();
             hideTyping();
             const fallback = builder.getSessionOpener();
@@ -1961,8 +1996,8 @@ export async function mountSessionView(
                 ...session.getContextMessages(),
                 { role: 'user' as const, content: continuationNote },
             ];
-            setStatus('Speaking…');
             showTyping();
+            armSlowResponseStatus();
             const { text: rawText, ttsDone, usage } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
@@ -1971,9 +2006,14 @@ export async function mountSessionView(
                     system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
-                    onSpeakStart: (sentence) => reveal.reveal(sentence),
+                    onSpeakStart: (sentence) => {
+                        clearSlowResponseStatus();
+                        setStatus('Speaking…');
+                        reveal.reveal(sentence);
+                    },
                 }
             );
+            clearSlowResponseStatus();
             const { cleanText } = parseTurnSignals(rawText);
             // Empty welcome-back: fall through to the static fallback below.
             if (!rawText.trim()) throw new Error('empty continuation completion');
@@ -1989,6 +2029,7 @@ export async function mountSessionView(
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
         } catch (err) {
             console.warn('Continuation opener failed', err);
+            clearSlowResponseStatus();
             reveal.discard();
             hideTyping();
             const fallback = 'Welcome back. Let’s continue.';
