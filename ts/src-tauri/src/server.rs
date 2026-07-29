@@ -159,6 +159,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
     let app_v1 = Router::new()
         .route("/system-info", get(system_info))
         .route("/stt/whisper", post(stt_whisper))
+        .route("/stt/whisper/models", get(stt_whisper_models))
         .route("/voices", get(voices))
         .route("/voices/preview", get(voices_preview))
         .route("/tts/download-model", post(tts_download_model))
@@ -419,6 +420,48 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
             "ollama": { "installed": ollama.is_some(), "path": path_str(ollama) },
         },
     }))
+}
+
+#[derive(Deserialize)]
+struct WhisperModelsQuery {
+    lang: Option<String>,
+}
+
+/// Rough download size per Settings size (whisper.cpp ggml files; .en and
+/// multilingual are near-identical). For the picker's "N MB download" badge.
+fn whisper_approx_mb(size: &str) -> u64 {
+    match size {
+        "tiny" => 75,
+        "base" => 142,
+        "small" => 466,
+        "medium" => 1500,
+        _ => 2900, // large-v3
+    }
+}
+
+/// `GET /app/v1/stt/whisper/models?lang=xx` - per Settings size, the model
+/// file the current language maps to and whether it's already on disk, so the
+/// picker can badge "downloaded" vs "N MB download".
+async fn stt_whisper_models(
+    State(state): State<Shared>,
+    Query(q): Query<WhisperModelsQuery>,
+) -> Json<Value> {
+    let lang = q.lang.unwrap_or_else(|| "en".to_string());
+    let models: Vec<Value> = ["tiny", "base", "small", "medium", "large"]
+        .iter()
+        .filter_map(|size| {
+            let file = whisper_model_file(size, &lang)?;
+            let bytes = std::fs::metadata(state.model_dir.join(&file)).ok().map(|m| m.len());
+            Some(json!({
+                "size": size,
+                "file": file,
+                "installed": bytes.is_some(),
+                "bytes": bytes,
+                "approx_download_mb": whisper_approx_mb(size),
+            }))
+        })
+        .collect();
+    Json(json!({ "models": models }))
 }
 
 #[derive(Deserialize)]

@@ -611,12 +611,44 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
     }
 
+    /** Badge each Whisper size with its on-disk state for the current
+     *  language: "downloaded" or the download size. Desktop only (the local
+     *  shell owns the models dir); plain labels when the backend is down. */
+    async function refreshWhisperModelBadges(): Promise<void> {
+        const sel = root.querySelector<HTMLSelectElement>('#s-whisper-model');
+        if (!sel || !isTauri()) return;
+        try {
+            const res = await fetch(
+                appUrl(`/stt/whisper/models?lang=${encodeURIComponent(settings.language)}`)
+            );
+            if (!res.ok) return;
+            const { models } = (await res.json()) as {
+                models: Array<{ size: string; installed: boolean; approx_download_mb: number }>;
+            };
+            for (const m of models) {
+                const opt = sel.querySelector<HTMLOptionElement>(`option[value="${m.size}"]`);
+                if (!opt) continue;
+                // Stash the plain label once so re-badging (language change)
+                // replaces the suffix instead of stacking suffixes.
+                const label = (opt.dataset['label'] ??= opt.textContent ?? '');
+                opt.textContent = m.installed
+                    ? `${label} - downloaded`
+                    : `${label} - ${m.approx_download_mb} MB download`;
+            }
+        } catch {
+            // backend down - keep plain labels
+        }
+    }
+
     function wireLanguageSection(): void {
         const langSel = root.querySelector<HTMLSelectElement>('#s-language')!;
         langSel.value = settings.language;
         langSel.addEventListener('change', () => {
             settings.language = langSel.value;
             persist();
+            // The language picks .en vs multilingual model files, so the
+            // on-disk state per size can change with it.
+            void refreshWhisperModelBadges();
         });
 
         const sttSel = root.querySelector<HTMLSelectElement>('#s-stt-engine');
@@ -641,6 +673,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             settings.sttWhisperModel = whisperSel.value as AppSettings['sttWhisperModel'];
             persist();
         });
+        void refreshWhisperModelBadges();
     }
 
     // ---- TTS section ---------------------------------------------------
