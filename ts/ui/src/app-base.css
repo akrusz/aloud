@@ -3779,6 +3779,16 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-top: var(--space-md);
 }
 
+/* When form rows stack (767px, .form-row goes column), a row's non-first
+   fields would get the 1rem flex gap PLUS the 1rem label margin above -
+   a visibly bigger gap than between rows (which only have the label
+   margin). Keep just the flex gap inside a stacked row. */
+@media (max-width: 767px) {
+    .settings-section .form-row > .form-group:not(:first-child) > label {
+        margin-top: 0;
+    }
+}
+
 .settings-section .stepper {
     max-width: 10rem;
 }
