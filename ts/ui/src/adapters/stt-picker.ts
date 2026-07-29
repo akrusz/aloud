@@ -49,20 +49,24 @@ export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 // Resolved through appUrl(): the desktop's embedded Rust backend
 // (127.0.0.1:<port>) under Tauri, or the relative /app path (Hono) on the web.
 const SERVER_WHISPER_PATH = '/stt/whisper';
+const SERVER_WHISPER_WARM_PATH = '/stt/whisper/warm';
 let cachedBackend: SttBackend | null = null;
 
-async function isServerWhisperReachable(): Promise<boolean> {
+async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean> {
     if (!WhisperPcmSttEngine.isAvailable()) return false;
     try {
-        // Empty POST → 400 (route exists, body missing) or 503 (model loading);
-        // either proves the STT route is wired. A 5xx from Vite's proxy
-        // (ECONNREFUSED) means the backend is down - fail closed rather than
-        // pretend the mic will work.
-        const response = await fetch(appUrl(SERVER_WHISPER_PATH), {
-            method: 'POST',
-            headers: { 'content-type': 'application/octet-stream' },
-        });
-        return response.status === 400 || response.status === 503;
+        // GET /warm: a 200 proves the local whisper route is wired (the web
+        // Hono 404s, Vite's proxy 5xxes when the backend is down - both fail
+        // closed). The model params make the shell start loading THIS
+        // session's model now, during setup - without the warm, the retarget
+        // waited for the first utterance, which 503'd into a lost first turn
+        // after a model/language change.
+        const params = vadOpts.whisperModelSize
+            ? `?model_size=${encodeURIComponent(vadOpts.whisperModelSize)}` +
+              `&lang=${encodeURIComponent(vadOpts.language ?? 'en')}`
+            : '';
+        const response = await fetch(appUrl(`${SERVER_WHISPER_WARM_PATH}${params}`));
+        return response.ok;
     } catch {
         return false;
     }
@@ -99,8 +103,10 @@ export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
     });
 }
 
-/** Detect which STT path the current environment supports. */
-export async function detectSttBackend(): Promise<SttBackend> {
+/** Detect which STT path the current environment supports. vadOpts (when the
+ *  caller has them) ride along to the whisper probe, which doubles as the
+ *  model warm-up. */
+export async function detectSttBackend(vadOpts: VadOpts = {}): Promise<SttBackend> {
     if (cachedBackend !== null) return cachedBackend;
 
     // Prefer the native on-device recognizer (SFSpeechRecognizer / Android
@@ -127,7 +133,7 @@ export async function detectSttBackend(): Promise<SttBackend> {
         return cachedBackend;
     }
 
-    if (await isServerWhisperReachable()) {
+    if (await isServerWhisperReachable(vadOpts)) {
         cachedBackend = 'server-whisper';
         return cachedBackend;
     }
@@ -144,7 +150,7 @@ export async function detectSttBackend(): Promise<SttBackend> {
  * Capacitor restart-stitches, since Android won't keep the mic open).
  */
 export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | null> {
-    const backend = await detectSttBackend();
+    const backend = await detectSttBackend(vadOpts);
     switch (backend) {
         case 'capacitor':
             return new CapacitorSttEngine(capacitorOpts(vadOpts));
@@ -206,7 +212,9 @@ export async function createSttForChoice(
                 ? new WebSpeechSttEngine(webSpeechOpts(vadOpts))
                 : null;
         case 'whisper':
-            return (await isServerWhisperReachable())
+            // The probe doubles as the model warm-up (see above), so pass the
+            // session's model params through.
+            return (await isServerWhisperReachable(vadOpts))
                 ? new WhisperPcmSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
                 : null;
     }

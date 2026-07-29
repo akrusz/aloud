@@ -160,6 +160,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/system-info", get(system_info))
         .route("/stt/whisper", post(stt_whisper))
         .route("/stt/whisper/models", get(stt_whisper_models))
+        .route("/stt/whisper/warm", get(stt_whisper_warm))
         .route("/stt/whisper/download-model", post(stt_whisper_download_model))
         .route("/stt/whisper/remove-model", post(stt_whisper_remove_model))
         .route("/voices", get(voices))
@@ -473,6 +474,53 @@ async fn stt_whisper_models(
     Json(json!({ "models": models }))
 }
 
+/// Retarget on an explicit size/language change: drop the old context (frees
+/// its RAM), mark not-ready, (re)start the loader if none runs. Err = unknown
+/// size. Shared by the stt request and the session-start warm probe.
+fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> Result<(), ()> {
+    let Some(file) = whisper_model_file(size, lang) else {
+        return Err(());
+    };
+    let mut current = state.whisper_model.lock().unwrap();
+    if *current != file {
+        log::info!("whisper model switch: {} -> {file}", *current);
+        *current = file;
+        state.whisper_ready.store(false, Ordering::SeqCst);
+        *state.whisper.lock().unwrap() = None;
+        *state.whisper_error.lock().unwrap() = None;
+        if !state.whisper_loading.swap(true, Ordering::SeqCst) {
+            let state = state.clone();
+            std::thread::spawn(move || run_whisper_loader(&state));
+        }
+    }
+    Ok(())
+}
+
+/// `GET /app/v1/stt/whisper/warm?model_size=xx&lang=xx` - the session-start
+/// probe. Existing at all answers "local Whisper lives here" (the web Hono
+/// 404s), and the model params kick the loader NOW, during setup, instead of
+/// on the first utterance - which used to 503 and eat the user's first words
+/// after a model switch. Always 200 (no console noise); body says how far
+/// along the model is.
+async fn stt_whisper_warm(
+    State(state): State<Shared>,
+    Query(q): Query<SttQuery>,
+) -> (StatusCode, Json<Value>) {
+    if let Some(size) = q.model_size.as_deref() {
+        let lang = q.lang.clone().unwrap_or_else(|| "en".to_string());
+        if retarget_whisper(&state, size, &lang).is_err() {
+            return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
+        }
+    }
+    (
+        StatusCode::OK,
+        Json(json!({
+            "ready": state.whisper_ready.load(Ordering::SeqCst),
+            "error": state.whisper_error.lock().unwrap().clone(),
+        })),
+    )
+}
+
 #[derive(Deserialize)]
 struct WhisperModelReq {
     size: String,
@@ -577,23 +625,9 @@ async fn stt_whisper(
     body: Bytes,
 ) -> (StatusCode, Json<Value>) {
     let lang = q.lang.clone().unwrap_or_else(|| "en".to_string());
-    // Retarget on an explicit size/language change: drop the old context
-    // (frees its RAM), mark not-ready, (re)start the loader if none runs.
     if let Some(size) = q.model_size.as_deref() {
-        let Some(file) = whisper_model_file(size, &lang) else {
+        if retarget_whisper(&state, size, &lang).is_err() {
             return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
-        };
-        let mut current = state.whisper_model.lock().unwrap();
-        if *current != file {
-            log::info!("whisper model switch: {} -> {file}", *current);
-            *current = file;
-            state.whisper_ready.store(false, Ordering::SeqCst);
-            *state.whisper.lock().unwrap() = None;
-            *state.whisper_error.lock().unwrap() = None;
-            if !state.whisper_loading.swap(true, Ordering::SeqCst) {
-                let state = state.clone();
-                std::thread::spawn(move || run_whisper_loader(&state));
-            }
         }
     }
     if !state.whisper_ready.load(Ordering::SeqCst) {
