@@ -635,6 +635,15 @@
     min-width: 140px;
 }
 
+/* Settings dropdowns size to their content instead of stretching to the
+   column (the global select rule is width:100%, comically wide in one-column
+   rows). A <select> measures by its widest option; cap at the column so long
+   option labels can't overflow it. */
+.settings-section select {
+    width: fit-content;
+    max-width: 100%;
+}
+
 /* ============================================
    Tauri desktop shell chrome ([data-shell="tauri"] on <html>)
    ============================================ */
