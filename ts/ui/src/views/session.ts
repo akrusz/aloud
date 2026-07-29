@@ -518,6 +518,8 @@ export async function mountSessionView(
         silenceRampRate: pacingConfig.silenceRampRate,
         minSpeechDurationMs: pacingConfig.minSpeechDurationMs,
         micDeviceId: appSettings.micDeviceId,
+        whisperModelSize: appSettings.sttWhisperModel,
+        language: appSettings.language,
     };
     // The STT source is an explicit, mode-resolved choice (Settings / setup):
     // local Whisper, browser speech, or the aloud cloud (credits). No hidden

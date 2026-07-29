@@ -33,14 +33,16 @@ import { appUrl } from '../app-base.js';
 import type { SttEngineChoice } from '../app-settings.js';
 
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
- *  capture-device pick. Only the PCM engines (Whisper / aloud cloud) consume
- *  micDeviceId - Web Speech and the native recognizer own their capture. */
+ *  capture-device pick and the local-Whisper model params. Only the PCM
+ *  engines (Whisper / aloud cloud) consume micDeviceId - Web Speech and the
+ *  native recognizer own their capture; whisperModelSize/language reach only
+ *  the LOCAL Whisper engine (the cloud endpoint picks its own model). */
 type VadOpts = Partial<
     Pick<
         PacingConfig,
         'silenceBaseMs' | 'silenceMaxMs' | 'silenceRampRate' | 'minSpeechDurationMs'
     >
-> & { micDeviceId?: string | null };
+> & { micDeviceId?: string | null; whisperModelSize?: string | null; language?: string | null };
 
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 
@@ -84,8 +86,11 @@ export function invalidateSttBackendCache(): void {
  */
 export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
     if (!WhisperPcmSttEngine.isAvailable()) return null;
+    // Strip the local-Whisper model params: the cloud endpoint would receive
+    // them as stray query params (it picks its own model server-side).
+    const { whisperModelSize: _size, language: _lang, ...rest } = vadOpts;
     return new WhisperPcmSttEngine({
-        ...vadOpts,
+        ...rest,
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
         // Drop a rejected token and re-sign-in once (mirrors the LLM/TTS

@@ -16,11 +16,14 @@ cmake`) plus a C compiler - `whisper-rs` compiles whisper.cpp and `piper-rs`
 (via espeak-rs) compiles espeak-ng, both from source. `piper-rs`'s `ort`
 backend downloads the matching ONNX Runtime binary at build time, so the same
 toolchain works on macOS/Windows/Linux. On first run the app
-downloads the Whisper model (base.en GGML, ~142 MB) to
+downloads a Whisper model (default base.en GGML, ~142 MB) to
 `<app-data>/models/` (`~/Library/Application Support/app.aloud.meditation/models`
-on macOS); STT returns 503 until that finishes loading. A failed download or
-load retries with backoff (`load_whisper` loop in `server.rs`), and the 503
-body plus the `whisper` block in `/app/v1/system-info` report the last error.
+on macOS); STT returns 503 until that finishes loading. The Settings model
+size + language pick the file (`whisper_model_file` in `server.rs`; English
+gets the `.en` variants, `large` is large-v3) and a change retargets the
+loader on the next stt request, downloading on demand. A failed download or
+load retries with backoff (`run_whisper_loader`), and the 503 body plus the
+`whisper` block in `/app/v1/system-info` report progress / the last error.
 
 `tauri:dev` runs `beforeDevCommand` (`npm run ui:dev -- --port 4649
 --strictPort`) and points the webview at `http://localhost:4649` (`devUrl`). The

@@ -29,12 +29,31 @@ use serde_json::{json, Value};
 use tower_http::cors::CorsLayer;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-// base.en GGML (~142 MB), downloaded on first run: a good accuracy/size balance
-// for a turn-based app. meditation-pal-nn1 calls for a capability-tiered choice
-// (tiny/base/small) later.
-const WHISPER_MODEL_URL: &str =
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
-const WHISPER_MODEL_FILE: &str = "ggml-base.en.bin";
+// GGML models downloaded on demand from whisper.cpp's official mirror. The
+// launch default is base.en (~142 MB, a good accuracy/size balance for a
+// turn-based app); the Settings model-size + language pick retargets via the
+// stt request's `model_size`/`lang` params (whisper_model_file).
+const WHISPER_MODEL_BASE_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
+const DEFAULT_WHISPER_MODEL: &str = "ggml-base.en.bin";
+
+/// Map the Settings size + language onto a whisper.cpp model file. English
+/// gets the smaller, better `.en` variants; other languages the multilingual
+/// ones. "large" is v3 (no `.en` variant exists). None = unknown size.
+fn whisper_model_file(size: &str, lang: &str) -> Option<String> {
+    let en = lang.eq_ignore_ascii_case("en");
+    let stem = match size {
+        "tiny" | "base" | "small" | "medium" => {
+            if en {
+                format!("{size}.en")
+            } else {
+                size.to_string()
+            }
+        }
+        "large" => "large-v3".to_string(),
+        _ => return None,
+    };
+    Some(format!("ggml-{stem}.bin"))
+}
 const TARGET_SAMPLE_RATE: u32 = 16_000;
 // 30 s of 16 kHz f32 mono ≈ 1.9 MB, and onset pre-buffering can stretch an
 // utterance past that, so cap generously.
@@ -47,6 +66,14 @@ pub struct AppState {
     // an honest 503 body and the system-info whisper block - without it a
     // first-run download failure is invisible outside the Rust log.
     whisper_error: Mutex<Option<String>>,
+    // The model file the loader is targeting (whisper_model_file). An stt
+    // request naming a different one retargets and the loader follows.
+    whisper_model: Mutex<String>,
+    // A run_whisper_loader thread is alive. Guards against spawning two.
+    whisper_loading: AtomicBool,
+    // (bytes downloaded, content-length if known) while a model download is in
+    // flight; None otherwise. Read by the 503 body and system-info.
+    whisper_progress: Mutex<Option<(u64, Option<u64>)>>,
     model_dir: PathBuf,
     // Piper voice models (.onnx/.onnx.json).
     piper_dir: PathBuf,
@@ -206,6 +233,9 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
         whisper: Mutex::new(None),
         whisper_ready: AtomicBool::new(false),
         whisper_error: Mutex::new(None),
+        whisper_model: Mutex::new(DEFAULT_WHISPER_MODEL.to_string()),
+        whisper_loading: AtomicBool::new(true),
+        whisper_progress: Mutex::new(None),
         model_dir: data_dir.join("models"),
         piper_dir: data_dir.join("piper-models"),
         piper: Mutex::new(None),
@@ -213,30 +243,12 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
         data_dir,
     });
 
-    // The download is large and the load slow, so keep both off the server path.
-    // Until it finishes /app/v1/stt/whisper returns 503, which the UI surfaces
-    // as "model still loading". A failed first-run download (offline launch,
-    // proxy blocking huggingface.co) used to fail once and leave STT dead for
-    // the app's lifetime - retry with backoff so it heals when the network does.
+    // The download is large and the load slow, so keep both off the server
+    // path. Until the loader finishes /app/v1/stt/whisper returns 503 with the
+    // reason (loading / downloading / failed-and-retrying).
     {
         let state = state.clone();
-        std::thread::spawn(move || {
-            let mut delay = std::time::Duration::from_secs(15);
-            loop {
-                match load_whisper(&state) {
-                    Ok(()) => break,
-                    Err(e) => {
-                        log::error!(
-                            "whisper init failed (retrying in {}s): {e}",
-                            delay.as_secs()
-                        );
-                        *state.whisper_error.lock().unwrap() = Some(e);
-                        std::thread::sleep(delay);
-                        delay = (delay * 2).min(std::time::Duration::from_secs(300));
-                    }
-                }
-            }
-        });
+        std::thread::spawn(move || run_whisper_loader(&state));
     }
 
     tauri::async_runtime::block_on(async {
@@ -263,32 +275,105 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
     })
 }
 
-fn load_whisper(state: &AppState) -> Result<(), String> {
+/// Background loader: (re)load whichever model `whisper_model` targets,
+/// retrying failures with backoff, until the loaded model matches the target.
+/// At most one runs (`whisper_loading`); stt_whisper retargets and respawns.
+/// A failed first-run download (offline launch, proxy blocking huggingface.co)
+/// used to fail once and leave STT dead for the app's lifetime.
+fn run_whisper_loader(state: &AppState) {
+    let mut delay = std::time::Duration::from_secs(15);
+    loop {
+        let target = state.whisper_model.lock().unwrap().clone();
+        match load_whisper(state, &target) {
+            Ok(retargeted) => {
+                if !retargeted {
+                    break;
+                }
+                delay = std::time::Duration::from_secs(15);
+            }
+            Err(e) => {
+                log::error!("whisper init failed (retrying in {}s): {e}", delay.as_secs());
+                *state.whisper_error.lock().unwrap() = Some(e);
+                // Sleep in 1s slices so a model switch doesn't wait out the
+                // whole backoff before being picked up.
+                let mut slept = std::time::Duration::ZERO;
+                while slept < delay
+                    && *state.whisper_model.lock().unwrap() == target
+                {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    slept += std::time::Duration::from_secs(1);
+                }
+                delay = if *state.whisper_model.lock().unwrap() == target {
+                    (delay * 2).min(std::time::Duration::from_secs(300))
+                } else {
+                    std::time::Duration::from_secs(15)
+                };
+            }
+        }
+    }
+    state.whisper_loading.store(false, Ordering::SeqCst);
+}
+
+/// Download (if absent) + load one model file. Ok(true) = loaded fine but the
+/// target changed mid-load, so the result was discarded and the caller should
+/// go again; Ok(false) = loaded and installed.
+fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
     std::fs::create_dir_all(&state.model_dir).map_err(|e| e.to_string())?;
-    let path = state.model_dir.join(WHISPER_MODEL_FILE);
+    let path = state.model_dir.join(file);
     if !path.exists() {
-        log::info!("downloading whisper model -> {}", path.display());
-        download(WHISPER_MODEL_URL, &path)?;
-        log::info!("whisper model downloaded");
+        let url = format!("{WHISPER_MODEL_BASE_URL}{file}");
+        log::info!("downloading whisper model {file} -> {}", path.display());
+        download(&url, &path, state)?;
+        log::info!("whisper model downloaded: {file}");
     }
     let model_path = path.to_str().ok_or("model path not UTF-8")?;
     let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
         .map_err(|e| format!("load model: {e}"))?;
+    // Install only if this is still the wanted model - a switch mid-load must
+    // not briefly publish the superseded one as ready.
+    let current = state.whisper_model.lock().unwrap();
+    if *current != file {
+        return Ok(true);
+    }
     *state.whisper.lock().unwrap() = Some(Arc::new(ctx));
     *state.whisper_error.lock().unwrap() = None;
     state.whisper_ready.store(true, Ordering::SeqCst);
-    log::info!("whisper model ready");
-    Ok(())
+    log::info!("whisper model ready: {file}");
+    Ok(false)
 }
 
 /// Stream a URL to a file via a `.part` sibling, renamed on success so a
-/// half-finished download can't be mistaken for a complete model.
-fn download(url: &str, dest: &Path) -> Result<(), String> {
+/// half-finished download can't be mistaken for a complete model. Progress
+/// lands in `whisper_progress` for the 503 body / system-info.
+fn download(url: &str, dest: &Path, state: &AppState) -> Result<(), String> {
+    use std::io::{Read, Write};
     let tmp = dest.with_extension("part");
     let response = ureq::get(url).call().map_err(|e| e.to_string())?;
+    let total: Option<u64> = response
+        .headers()
+        .get("content-length")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.parse().ok());
     let mut reader = response.into_body().into_reader();
     let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
-    std::io::copy(&mut reader, &mut file).map_err(|e| e.to_string())?;
+    let mut buf = [0u8; 65536];
+    let mut done: u64 = 0;
+    *state.whisper_progress.lock().unwrap() = Some((0, total));
+    let copied = loop {
+        match reader.read(&mut buf) {
+            Ok(0) => break Ok(()),
+            Ok(n) => {
+                if let Err(e) = file.write_all(&buf[..n]) {
+                    break Err(e.to_string());
+                }
+                done += n as u64;
+                *state.whisper_progress.lock().unwrap() = Some((done, total));
+            }
+            Err(e) => break Err(e.to_string()),
+        }
+    };
+    *state.whisper_progress.lock().unwrap() = None;
+    copied?;
     std::fs::rename(&tmp, dest).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -319,10 +404,15 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
         "ram_gb": crate::providers::system_ram_gb(),
         "has_homebrew": which::which("brew").is_ok(),
         // STT health for the bug-report diagnostics block: ready, still
-        // loading (error null), or failed-and-retrying (error set).
+        // loading (error null), or failed-and-retrying (error set), plus the
+        // targeted model file and download progress when one is in flight.
         "whisper": {
             "ready": state.whisper_ready.load(Ordering::SeqCst),
             "error": state.whisper_error.lock().unwrap().clone(),
+            "model": state.whisper_model.lock().unwrap().clone(),
+            "download": state.whisper_progress.lock().unwrap().map(|(done, total)| {
+                json!({ "downloaded": done, "total": total })
+            }),
         },
         "tools": {
             "claude_cli": { "installed": claude.is_some(), "path": path_str(claude) },
@@ -334,6 +424,13 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
 #[derive(Deserialize)]
 struct SttQuery {
     sample_rate: Option<u32>,
+    /// Settings model size (tiny/base/small/medium/large). Absent = keep the
+    /// current model - the UI's reachability probe sends a bare POST and must
+    /// not retarget.
+    model_size: Option<String>,
+    /// 2-letter language (Settings). Picks .en vs multilingual model files and
+    /// steers transcription.
+    lang: Option<String>,
 }
 
 /// Transcribe raw f32 mono PCM. Body and response match the
@@ -343,14 +440,48 @@ async fn stt_whisper(
     Query(q): Query<SttQuery>,
     body: Bytes,
 ) -> (StatusCode, Json<Value>) {
+    let lang = q.lang.clone().unwrap_or_else(|| "en".to_string());
+    // Retarget on an explicit size/language change: drop the old context
+    // (frees its RAM), mark not-ready, (re)start the loader if none runs.
+    if let Some(size) = q.model_size.as_deref() {
+        let Some(file) = whisper_model_file(size, &lang) else {
+            return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
+        };
+        let mut current = state.whisper_model.lock().unwrap();
+        if *current != file {
+            log::info!("whisper model switch: {} -> {file}", *current);
+            *current = file;
+            state.whisper_ready.store(false, Ordering::SeqCst);
+            *state.whisper.lock().unwrap() = None;
+            *state.whisper_error.lock().unwrap() = None;
+            if !state.whisper_loading.swap(true, Ordering::SeqCst) {
+                let state = state.clone();
+                std::thread::spawn(move || run_whisper_loader(&state));
+            }
+        }
+    }
     if !state.whisper_ready.load(Ordering::SeqCst) {
-        // A stored init error means "failed and retrying", not "almost there" -
-        // say so, or a first-run download failure reads as an endless load.
-        let msg = match state.whisper_error.lock().unwrap().clone() {
-            Some(e) => format!(
-                "Local speech recognition isn't ready ({e}). It keeps retrying - check your connection, or switch to aloud cloud in Settings."
-            ),
-            None => "Whisper model still loading - try again in a moment.".to_string(),
+        // Say WHY: mid-download (with progress), failed-and-retrying (with the
+        // error), or plain loading - an endless generic "loading" reads as a
+        // dead mic.
+        let msg = if let Some((done, total)) = *state.whisper_progress.lock().unwrap() {
+            match total {
+                Some(t) => format!(
+                    "Downloading the speech model - {}% done.",
+                    done * 100 / t.max(1)
+                ),
+                None => format!(
+                    "Downloading the speech model - {} MB so far.",
+                    done / (1024 * 1024)
+                ),
+            }
+        } else {
+            match state.whisper_error.lock().unwrap().clone() {
+                Some(e) => format!(
+                    "Local speech recognition isn't ready ({e}). It keeps retrying - check your connection, or switch to aloud cloud in Settings."
+                ),
+                None => "Whisper model still loading - try again in a moment.".to_string(),
+            }
         };
         return err(StatusCode::SERVICE_UNAVAILABLE, &msg);
     }
@@ -385,7 +516,8 @@ async fn stt_whisper(
 
     // Whisper inference is CPU-heavy and blocking; keep it off the async
     // reactor so the server stays responsive.
-    match tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate)).await {
+    match tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate, &lang)).await
+    {
         Ok(Ok((text, duration))) => (
             StatusCode::OK,
             Json(json!({ "text": text.trim(), "language": "en", "duration": duration })),
@@ -996,6 +1128,7 @@ fn transcribe(
     ctx: &WhisperContext,
     samples: &[f32],
     sample_rate: u32,
+    lang: &str,
 ) -> Result<(String, f64), String> {
     // The TS client downsamples to the 16 kHz mono f32 whisper.cpp wants before
     // POSTing, so guard the assumption rather than resample here.
@@ -1007,7 +1140,7 @@ fn transcribe(
 
     let mut wstate = ctx.create_state().map_err(|e| e.to_string())?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(Some("en"));
+    params.set_language(Some(lang));
     params.set_print_special(false);
     params.set_print_progress(false);
     params.set_print_realtime(false);

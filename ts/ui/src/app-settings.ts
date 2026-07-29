@@ -65,7 +65,13 @@ export interface AppSettings {
 
     // Speech recognition
     language: string;
-    whisperModel: 'tiny' | 'base' | 'small' | 'medium' | 'large';
+    /** Local Whisper model size, sent per stt request (with `language`) so the
+     *  desktop shell downloads/loads the matching whisper.cpp model. Named
+     *  sttWhisperModel (not the pre-2.4 `whisperModel`) ON PURPOSE: the old key
+     *  never did anything and everyone has its 'small' default persisted -
+     *  honoring it now would silently pull a 466 MB model for every desktop
+     *  user. The rename drops stored values once; explicit picks stick. */
+    sttWhisperModel: 'tiny' | 'base' | 'small' | 'medium' | 'large';
     /** Where speech-to-text runs, or null to use the mode's flow default. See
      *  SttEngineChoice + resolveSttChoice. */
     sttEngine: SttEngineChoice | null;
@@ -111,7 +117,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     defaultVoice: null,
     defaultTtsRate: 160,
     language: 'en',
-    whisperModel: 'small',
+    sttWhisperModel: 'base',
     sttEngine: null,
     micDeviceId: null,
     silenceBaseMs: 3000,

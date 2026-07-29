@@ -93,6 +93,11 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  default. Applied as `ideal`, so a saved-but-unplugged device falls back
      *  to the default rather than failing getUserMedia. */
     micDeviceId?: string | null;
+    /** Local-Whisper model size + language, sent as query params so the
+     *  desktop shell loads the matching whisper.cpp model. Only the local
+     *  endpoint understands these - leave unset for aloud cloud. */
+    whisperModelSize?: string | null;
+    language?: string | null;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -190,6 +195,8 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.opts = {
             endpointUrl: options.endpointUrl ?? '/app/v1/stt/whisper',
             micDeviceId: options.micDeviceId ?? null,
+            whisperModelSize: options.whisperModelSize ?? null,
+            language: options.language ?? null,
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
             silenceMaxMs: options.silenceMaxMs ?? defaultPacingConfig.silenceMaxMs,
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
@@ -648,6 +655,10 @@ export class WhisperPcmSttEngine implements SttEngine {
                 // report). The desktop STT ignores it.
                 const sessionId = getCloudSessionId();
                 const sessionParam = sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : '';
+                const modelParam = this.opts.whisperModelSize
+                    ? `&model_size=${encodeURIComponent(this.opts.whisperModelSize)}` +
+                      `&lang=${encodeURIComponent(this.opts.language ?? 'en')}`
+                    : '';
                 const send = async (): Promise<Response> => {
                     const headers: Record<string, string> = {
                         'content-type': 'application/octet-stream',
@@ -657,7 +668,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         if (token) headers['authorization'] = `Bearer ${token}`;
                     }
                     return this.opts.fetchImpl(
-                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}`,
+                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}${modelParam}`,
                         {
                             method: 'POST',
                             headers,

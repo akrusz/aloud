@@ -636,9 +636,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireMicDeviceRow();
 
         const whisperSel = root.querySelector<HTMLSelectElement>('#s-whisper-model')!;
-        whisperSel.value = settings.whisperModel;
+        whisperSel.value = settings.sttWhisperModel;
         whisperSel.addEventListener('change', () => {
-            settings.whisperModel = whisperSel.value as AppSettings['whisperModel'];
+            settings.sttWhisperModel = whisperSel.value as AppSettings['sttWhisperModel'];
             persist();
         });
     }
@@ -1589,12 +1589,12 @@ function renderLanguageSection(s: AppSettings): string {
                 <label for="s-whisper-model">Whisper Model</label>
                 <select id="s-whisper-model" name="whisper_model">
                     <option value="tiny">Tiny (fastest)</option>
-                    <option value="base">Base</option>
-                    <option value="small">Small (recommended)</option>
+                    <option value="base">Base (recommended)</option>
+                    <option value="small">Small</option>
                     <option value="medium">Medium</option>
                     <option value="large">Large (most accurate)</option>
                 </select>
-                <span class="form-hint">Larger = more accurate but slower.</span>
+                <span class="form-hint">Larger = more accurate but slower. Downloads on first use.</span>
             </div>
         </div>
     </section>`;
