@@ -433,6 +433,13 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
         // The UI sizes the Ollama context window from this
         // (contextLengthForRam). null when detection fails.
         "ram_gb": crate::providers::system_ram_gb(),
+        // For the bug-report diagnostics: the webview's UA freezes the OS
+        // version (WebKit reports "Mac OS X 10_15_7" forever), and ort-web
+        // failures track webview builds (6z11), so send the real ones.
+        "os": {
+            "version": sysinfo::System::long_os_version(),
+            "webview": tauri::webview_version().ok(),
+        },
         "has_homebrew": which::which("brew").is_ok(),
         // STT health for the bug-report diagnostics block: ready, still
         // loading (error null), or failed-and-retrying (error set), plus the

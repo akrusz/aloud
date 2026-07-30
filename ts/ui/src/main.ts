@@ -9,6 +9,10 @@ import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
 import { initAndroidBack } from './android-back.js';
 import { initSliderTouchGuard } from './slider-touch.js';
+import { installErrorLog } from './error-log.js';
+
+// First, so the bug-report "Recent errors" block sees boot-time failures too.
+installErrorLog();
 
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.

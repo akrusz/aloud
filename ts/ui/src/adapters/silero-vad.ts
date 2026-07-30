@@ -125,17 +125,28 @@ export class SileroFrameVad {
         let session: InferenceSession;
         try {
             session = await ort.InferenceSession.create(modelBytes);
-        } catch (err) {
+        } catch (optErr) {
             // The If-branch-inlining failure described on SileroV5Model. The
             // model is a tiny RNN, so running unoptimized is imperceptible -
             // far better than losing the mic entirely.
             console.warn(
                 '[vad] silero session create failed - retrying with graph optimization disabled:',
-                err
+                optErr
             );
-            session = await ort.InferenceSession.create(modelBytes, {
-                graphOptimizationLevel: 'disabled',
-            });
+            try {
+                session = await ort.InferenceSession.create(modelBytes, {
+                    graphOptimizationLevel: 'disabled',
+                });
+            } catch (unoptErr) {
+                // Surface BOTH failures: this bug class varies by machine
+                // ("graph output does not exist" on one webview, "Could not
+                // find OrtValue" on another - 6z11) and the first error is
+                // what an upstream report needs.
+                throw new Error(
+                    `ort session create failed - optimized: ${errText(optErr)}; ` +
+                        `unoptimized: ${errText(unoptErr)}`
+                );
+            }
         }
         return new SileroFrameVad(new SileroV5Model(ort, session));
     }
@@ -219,15 +230,35 @@ export class SileroFrameVad {
     }
 }
 
+function errText(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
+
 // App-lifetime singleton: one ort session for every engine instance. Memoized
 // on the promise so concurrent callers (setup preload + the session's prime())
 // share one load; cleared on failure so a later session retries.
 let pendingLoad: Promise<SileroFrameVad> | null = null;
+// Last load failure, kept for the bug-report diagnostics: its VAD probe can
+// time out before the real error lands, and this is the machine-specific
+// string an ort-web bug report needs.
+let lastLoadError: string | null = null;
 
 export function loadSileroVad(): Promise<SileroFrameVad> {
-    pendingLoad ??= SileroFrameVad.create().catch((err) => {
-        pendingLoad = null;
-        throw err;
-    });
+    pendingLoad ??= SileroFrameVad.create().then(
+        (vad) => {
+            lastLoadError = null;
+            return vad;
+        },
+        (err) => {
+            pendingLoad = null;
+            lastLoadError = errText(err);
+            throw err;
+        }
+    );
     return pendingLoad;
+}
+
+/** The most recent load failure's message, null after a successful load. */
+export function sileroLoadError(): string | null {
+    return lastLoadError;
 }

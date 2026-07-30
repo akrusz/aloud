@@ -8,6 +8,9 @@
  *
  * Silero v5 (silero-vad.ts) is the speech signal; RMS energy is demoted to the
  * echo reference, since Silero scores the facilitator's own TTS echo as speech.
+ * If Silero's ONNX session can't be created on this machine (an ort-web graph
+ * bug class that varies by webview - 6z11), the engine degrades to the energy
+ * speech decision (FALLBACK_ENERGY_THRESHOLD) instead of losing the mic.
  * Capture (stream, context, callback) runs continuously for the engine's
  * lifetime - only stop() tears it down - so the onset pre-buffer stays warm and
  * a barge-in's first word isn't clipped. A short pause fires a speculative pass
@@ -62,6 +65,15 @@ const BARGE_IN_REQUIRED_CHUNKS = 3;
 const ECHO_EMA_ALPHA = 0.05;
 const ECHO_GATE_MARGIN = 2.0;
 const ECHO_GATE_MAX = 0.035;
+
+// Energy-only speech decision, active ONLY while the Silero session is
+// unavailable (create failed - 6z11). This is the absolute-RMS gate Silero
+// replaced (fgbj): a frame is speech when it clears the max of this static
+// floor, 3x the adaptive noise floor, and the echo gates. Worse endpointing on
+// quiet mics and soft trailing speech - but a VAD load failure must degrade
+// the mic, never kill it.
+const FALLBACK_ENERGY_THRESHOLD = 0.015;
+const NOISE_FLOOR_SEED = 0.005;
 
 // Extra silence (ms) when the speculative transcript ends in a dangling clause
 // ("...never had a bad time doing") - the speaker is likely mid-thought
@@ -179,9 +191,15 @@ export class WhisperPcmSttEngine implements SttEngine {
     // typical echo-cancelled level so the gate is sane from the first frame.
     private ttsActive = false;
     private echoFloor = 0.005;
-    // The shared Silero VAD (loadSileroVad), acquired by prime()/start(). It IS
-    // the speech signal, which is why start() treats a load failure as fatal.
+    // The shared Silero VAD (loadSileroVad), acquired by prime()/start(). Null
+    // while capturing means the load failed and the energy fallback is the
+    // speech signal (isSpeechFrame).
     private silero: SileroFrameVad | null = null;
+    // Energy-fallback state: adaptive noise floor, an EMA of quiet capturing
+    // frames. Persists across turns like echoFloor - the room doesn't reset
+    // between utterances.
+    private noiseFloor = NOISE_FLOOR_SEED;
+    private noiseSamples = 0;
     // Mic input-level listener (the session view's mic-button ring), fed from
     // this engine's frames so the UI never opens a second mic stream: on macOS
     // the voice-processing unit attaches to ONE input, and a competing capture
@@ -213,13 +231,21 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     /** Await the shared Silero instance, starting the load if the setup view's
      *  preload didn't. Resets its streaming state on first adopt - a fresh
-     *  capture stream shouldn't inherit a previous session's recurrent state. */
+     *  capture stream shouldn't inherit a previous session's recurrent state.
+     *  A load failure leaves `silero` null - the energy fallback takes over
+     *  for this utterance, and the next start() retries the load (loadSileroVad
+     *  clears its memo on failure). */
     private async acquireSilero(): Promise<void> {
-        const { loadSileroVad } = await import('./silero-vad.js');
-        const vad = await loadSileroVad();
-        if (this.silero !== vad) {
-            vad.reset();
-            this.silero = vad;
+        try {
+            const { loadSileroVad } = await import('./silero-vad.js');
+            const vad = await loadSileroVad();
+            if (this.silero !== vad) {
+                vad.reset();
+                this.silero = vad;
+            }
+        } catch (err) {
+            this.silero = null;
+            console.warn('[vad] silero unavailable - using the energy speech decision:', err);
         }
     }
 
@@ -253,6 +279,22 @@ export class WhisperPcmSttEngine implements SttEngine {
     private pushPre(frame: Float32Array): void {
         this.preBuffer.push(frame);
         if (this.preBuffer.length > this.preBufferFrames) this.preBuffer.shift();
+    }
+
+    /** Per-frame speech decision. With the model up: Silero's debounced
+     *  verdict, plus barge-in-grade energy while TTS plays (echo IS speech to
+     *  Silero, so speaker separation needs the energy reference - 8h1x).
+     *  Degraded (silero null): the energy gate over the adaptive noise floor. */
+    private isSpeechFrame(energy: number, echoGate: number): boolean {
+        if (this.silero) {
+            return (
+                this.silero.speaking &&
+                (echoGate === 0 || energy > Math.max(echoGate, BARGE_IN_THRESHOLD))
+            );
+        }
+        let threshold = Math.max(FALLBACK_ENERGY_THRESHOLD, this.noiseFloor * 3);
+        if (echoGate > 0) threshold = Math.max(threshold, echoGate, BARGE_IN_THRESHOLD);
+        return energy > threshold;
     }
 
     /** Continuous audio callback - runs for the engine's whole lifetime. */
@@ -313,11 +355,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // reopens the utterance rather than losing them. Frames accumulate
             // either way so a resumed utterance's audio is contiguous, and the
             // pre-buffer stays warm for the no-resume case.
-            const stillSpeech =
-                this.silero !== null &&
-                this.silero.speaking &&
-                (echoGate === 0 || energy > Math.max(echoGate, BARGE_IN_THRESHOLD));
-            if (stillSpeech) {
+            if (this.isSpeechFrame(energy, echoGate)) {
                 this.postSubmitSpeech = true;
                 this.lastSpeechMs = now;
                 this.peakEnergy = Math.max(this.peakEnergy, energy);
@@ -332,19 +370,15 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.energyHistory.shift();
         }
 
-        // Speech signal: Silero's debounced per-chunk classification. While TTS
-        // plays the frame must also clear barge-in-grade energy - Silero scores
-        // the facilitator's echo as speech (it IS speech), so telling the
+        // Speech signal: Silero's debounced per-chunk classification (energy
+        // fallback when the model couldn't load). While TTS plays the frame
+        // must also clear barge-in-grade energy - Silero scores the
+        // facilitator's echo as speech (it IS speech), so telling the
         // speakers apart needs an energy reference, and anything quieter than
         // the barge-in gate couldn't have interrupted anyway. Closes the
         // session-start phantom turn (8h1x): greeting echo at ~0.016 RMS cleared
         // the old 0.015 floor before the echo EMA had calibrated.
-        const isSpeech =
-            this.silero !== null &&
-            this.silero.speaking &&
-            (echoGate === 0 || energy > Math.max(echoGate, BARGE_IN_THRESHOLD));
-
-        if (isSpeech) {
+        if (this.isSpeechFrame(energy, echoGate)) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
                 this.startedWhileTtsActive = this.ttsActive;
@@ -383,7 +417,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                         `peak=${this.peakEnergy.toFixed(3)} ` +
                         `echoFloor=${this.echoFloor.toFixed(4)} ` +
                         `dropped=${this.silero?.droppedChunks ?? 0} ` +
-                        `dangling=${this.partialIncomplete}`
+                        `dangling=${this.partialIncomplete} ` +
+                        `mode=${this.silero ? 'silero' : `energy(floor=${this.noiseFloor.toFixed(4)})`}`
                 );
                 // Energy + speech-prob traces, last 8s in 0.5s buckets (max per
                 // bucket, oldest first). The prob row shows what the model
@@ -419,6 +454,15 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.echoFloor = (1 - ECHO_EMA_ALPHA) * this.echoFloor + ECHO_EMA_ALPHA * energy;
             this.pushPre(frame);
         } else {
+            // Degraded mode only: quiet pre-speech frames with TTS silent are
+            // echo-free room tone - calibrate the adaptive noise floor. (Under
+            // Silero this branch also catches soft speech the energy gate would
+            // miss, which must not inflate the floor.)
+            if (!this.silero) {
+                const alpha = this.noiseSamples < 100 ? 0.1 : 0.01;
+                this.noiseFloor = (1 - alpha) * this.noiseFloor + alpha * energy;
+                this.noiseSamples++;
+            }
             this.pushPre(frame);
         }
 
@@ -606,8 +650,9 @@ export class WhisperPcmSttEngine implements SttEngine {
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
         try {
-            // The model IS the speech signal - a load failure is a hard error
-            // surfaced to the UI, not a degraded mode.
+            // Silero is the preferred speech signal; a load failure leaves the
+            // energy fallback in charge (acquireSilero swallows it), so only a
+            // capture-graph failure is a hard error surfaced to the UI.
             await this.acquireSilero();
             await this.ensureCaptureGraph();
         } catch (err) {

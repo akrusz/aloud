@@ -17,6 +17,7 @@ import { appUrl } from './app-base.js';
 import { loadAppSettings } from './app-settings.js';
 import { resolveSttChoice } from './adapters/stt-picker.js';
 import { withTimeout } from './net-timeout.js';
+import { recentErrors } from './error-log.js';
 
 /** Same inbox as the About "kind words" / privacy contact. */
 const SUPPORT_EMAIL = 'lexkrusz@gmail.com';
@@ -53,7 +54,15 @@ async function sttDiagnostics(): Promise<string[]> {
             );
             const info = (await res.json()) as {
                 whisper?: { ready?: boolean; error?: string | null };
+                os?: { version?: string | null; webview?: string | null };
             };
+            // The real OS + webview build - the UA below can't carry either
+            // (WebKit freezes its UA at "Mac OS X 10_15_7"), and ort-web
+            // failures track webview versions (6z11).
+            if (info.os?.version) {
+                const wv = info.os.webview ? `, webview ${info.os.webview}` : '';
+                lines.push(`OS: ${info.os.version}${wv}`);
+            }
             const w = info.whisper;
             if (w) {
                 lines.push(
@@ -74,20 +83,20 @@ async function sttDiagnostics(): Promise<string[]> {
     } catch {
         // Permissions API absent - the device list below still tells a lot
     }
+    // Actively load the VAD (app-lifetime singleton, so usually already
+    // warm): it's the primary speech signal for the PCM engines, and a
+    // machine where its ONNX session can't be created runs the degraded
+    // energy fallback - this line is the difference between one email
+    // round-trip and three.
+    const vadMod = await import('./adapters/silero-vad.js');
     try {
-        // Actively load the VAD (app-lifetime singleton, so usually already
-        // warm): it IS the speech signal for the PCM engines, and a machine
-        // where its ONNX session can't be created is simply deaf - this line
-        // is the difference between one email round-trip and three.
-        await withTimeout(
-            (await import('./adapters/silero-vad.js')).loadSileroVad(),
-            5000,
-            'load timed out'
-        );
+        await withTimeout(vadMod.loadSileroVad(), 5000, 'load timed out');
         lines.push('VAD: ok');
     } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
-        lines.push(`VAD: failed (${detail})`);
+        // The recorded load error carries both create attempts' messages and
+        // survives a probe timeout racing the real failure.
+        lines.push(`VAD: failed (${vadMod.sileroLoadError() ?? detail})`);
     }
     try {
         const inputs = (await navigator.mediaDevices.enumerateDevices()).filter(
@@ -109,6 +118,7 @@ async function sttDiagnostics(): Promise<string[]> {
 }
 
 async function diagnostics(extra: string[] = []): Promise<string> {
+    const errs = recentErrors();
     return [
         `Version: ${__APP_VERSION__}`,
         `Platform: ${platformLabel()}`,
@@ -116,6 +126,8 @@ async function diagnostics(extra: string[] = []): Promise<string> {
         ...extra,
         ...(await sttDiagnostics()),
         `Browser: ${navigator.userAgent}`,
+        `Env: cores=${navigator.hardwareConcurrency ?? '?'}, isolated=${globalThis.crossOriginIsolated === true}`,
+        ...(errs.length ? ['Recent errors:', ...errs.map((l) => `- ${l}`)] : []),
     ].join('\n');
 }
 

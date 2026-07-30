@@ -191,7 +191,8 @@ export async function mountSetupView(
         void import('../adapters/silero-vad.js')
             .then((m) => m.loadSileroVad())
             .catch(() => {
-                /* best-effort warmup; the session start surfaces real errors */
+                /* best-effort warmup; a failed load degrades the session's
+                   engine to the energy speech decision (6z11) */
             });
     }
     // Lazy-loaded; the setup form is interactive while voices fetch.
