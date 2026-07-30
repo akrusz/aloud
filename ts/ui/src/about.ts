@@ -285,12 +285,14 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
 
 /**
  * Dev preview switch for the "update available" flow. Returns the version to
- * pretend is available, or null when off. Set via `?previewUpdate` or the
- * `aloud:previewUpdate` localStorage key (handy inside the Tauri webview, where
- * editing the URL is awkward):
+ * pretend is available, or null when off. Set via `?previewUpdate` (lasts for
+ * the tab session) or the `aloud:previewUpdate` localStorage key, written by
+ * the dev-settings "Preview update" field (handy inside the Tauri webview,
+ * where editing the URL is awkward):
  *   - bare flag ("1" / "true" / empty) -> one patch above the running build
  *   - any other value -> used verbatim, e.g. ?previewUpdate=2.0.0
- * Clear by dropping the param or removing the localStorage key.
+ * The URL flavor dies with the tab; clear the settings flavor by emptying the
+ * field or removing the localStorage key.
  */
 export const PREVIEW_UPDATE_KEY = 'aloud:previewUpdate';
 
@@ -299,13 +301,16 @@ function previewUpdateVersion(): string | null {
     try {
         const fromUrl = new URLSearchParams(location.search).get('previewUpdate');
         if (fromUrl !== null) {
-            // Persist so preview survives the router normalizing the query
-            // string away: the nudge fires on boot, but the About box opens
-            // later, after the param is gone.
-            localStorage.setItem(PREVIEW_UPDATE_KEY, fromUrl);
+            // Persist for this tab only, so preview survives the router
+            // normalizing the query string away (the nudge fires on boot, but
+            // the About box opens later, after the param is gone) without
+            // haunting every future session from localStorage.
+            sessionStorage.setItem(PREVIEW_UPDATE_KEY, fromUrl);
             raw = fromUrl;
         } else {
-            raw = localStorage.getItem(PREVIEW_UPDATE_KEY);
+            raw =
+                sessionStorage.getItem(PREVIEW_UPDATE_KEY) ??
+                localStorage.getItem(PREVIEW_UPDATE_KEY);
         }
     } catch {
         return null;
