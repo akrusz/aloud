@@ -419,7 +419,8 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
-        // The page-bottom ☁️ legend rides the same visibility: it explains
+        // The ☁️ legend (under the AI Provider select) rides the same
+        // visibility: it explains
         // badges that only exist when something on the page costs credits.
         const legend = root.querySelector<HTMLElement>('#cloud-rate-legend');
 
@@ -1590,6 +1591,10 @@ function renderSetupHTML(
                         )
                         .join('')}
                 </select>
+                <!-- Legend for every ☁️ badge on the page (model picker, voice
+                     button, Begin estimate). Shown/hidden with the estimate
+                     pill: no cloud spend, no badges, no legend. -->
+                <p class="credit-rate-legend hidden" id="cloud-rate-legend">☁️: approximate hourly credit usage</p>
             </div>
             <div class="form-group" id="ai-model-group">
                 <label for="model-select">Model</label>
@@ -1600,10 +1605,6 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
-        <!-- Legend for every ☁️ badge on the page (model picker, voice button,
-             Begin estimate). Shown/hidden with the estimate pill: no cloud
-             spend, no badges, no legend. -->
-        <p class="credit-rate-legend hidden" id="cloud-rate-legend">☁️: approximate hourly credit usage</p>
         <p class="credit-rate-legend" id="noting-spend-note">AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
