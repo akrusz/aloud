@@ -5,13 +5,14 @@
    ============================================================ */
 
 /* Self-hosted + preloaded (see index.html) so the brand face is ready
-   before first paint — avoids a fallback→Knewave swap reflow that nudged
-   the page on the first interaction after a mid-page reload. */
+   before first paint. font-display: block keeps the wordmark invisible
+   for the brief load window instead of flashing a fallback face - the
+   mark must never render in another font. */
 @font-face {
   font-family: 'Knewave';
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url('../assets/fonts/knewave-v15.woff2') format('woff2');
 }
 
@@ -79,7 +80,7 @@ code {
    Pink fill, yellow outer stroke via paint-order. */
 .nav-brand,
 .brand-mark {
-  font-family: 'Knewave', cursive;
+  font-family: 'Knewave', var(--font);
   color: var(--accent);
   -webkit-text-stroke: 3px var(--brand-stroke);
   paint-order: stroke fill;

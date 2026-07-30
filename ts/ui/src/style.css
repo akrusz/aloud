@@ -137,7 +137,7 @@
 /* The "aloud." glyph in the mobile More sheet should use the brand face,
    like .nav-brand / .about-app-name (the imported CSS doesn't set it). */
 .mobile-more-glyph {
-    font-family: 'Knewave', cursive;
+    font-family: 'Knewave', var(--font);
 }
 
 /* Crypto donation panel in the About modal - revealed by clicking the
