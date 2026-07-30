@@ -2172,6 +2172,18 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     font-size: 0.875rem;
 }
 
+/* The two under-select notes on the setup AI row must sit at the same height.
+   The ☁️ legend is a direct flex child of its .form-group, so the group's
+   0.4rem gap (style.css) already spaces it; the model tier toggle lives inside
+   the #model-picker-slot wrapper, which the gap doesn't reach. Zero the one,
+   hand the other the same 0.4rem. */
+#ai-provider-group > .credit-rate-legend {
+    margin-top: 0;
+}
+#model-picker-slot .credit-rate-legend {
+    margin-top: 0.4rem;
+}
+
 /* A credit-spending control grayed out because it can't apply in the current
    mode - e.g. the Provider/Model pickers in a noting circle with no AI
    participants. Dimmed and non-interactive, but still legible so the user can
@@ -2368,10 +2380,12 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 
 /* The model picker's tier toggle sits where a label would (under the select,
    like the range-stop labels), so it gets the same full-opacity muted color -
-   notes stay readable, never dimmed. */
+   notes stay readable, never dimmed. Padding zeroed so its text baseline
+   matches the ☁️ legend sitting at the same height in the provider column. */
 .credit-rate-legend .btn-link {
     color: var(--text-muted);
     opacity: 1;
+    padding: 0;
 }
 
 @keyframes fadeIn {
