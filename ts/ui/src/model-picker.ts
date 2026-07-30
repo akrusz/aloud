@@ -13,7 +13,8 @@ import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 import { getApiKey, hasApiKey } from './api-keys.js';
 import { probeOllamaDirect } from './ollama-direct.js';
-import { rateSuffix, RATE_LEGEND, RATE_LEGEND_TITLE } from './credit-rate.js';
+import { rateSuffix } from './credit-rate.js';
+import { loadAppSettings, saveAppSettings } from './app-settings.js';
 import type { Provider } from './settings.js';
 
 /** Providers that authenticate with a user-supplied key (BYOK). The hosted
@@ -142,6 +143,25 @@ interface ModelOption {
     /** Pre-select when the user hasn't chosen (aloud cloud only, from
      *  /me/models). At most one option carries it. */
     isDefault?: boolean;
+    /** Expanded-tier (aloud cloud only): hidden until the user opts into "Show
+     *  all available models". Older and niche models with distinct voices. */
+    expanded?: boolean;
+}
+
+/** The "Show all available models" state, shared by every mounted picker
+ *  (setup + settings) and persisted in AppSettings.showAllModels. Cached at
+ *  module level so a re-render doesn't wait on storage. */
+let showAllModels: boolean | null = null;
+
+async function loadShowAllModels(): Promise<boolean> {
+    if (showAllModels === null) showAllModels = (await loadAppSettings()).showAllModels;
+    return showAllModels;
+}
+
+async function setShowAllModels(value: boolean): Promise<void> {
+    showAllModels = value;
+    const s = await loadAppSettings();
+    await saveAppSettings({ ...s, showAllModels: value });
 }
 
 const cache = new Map<string, ModelOption[]>();
@@ -166,6 +186,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                     model: string;
                     creditsPerHour?: number | null;
                     default?: boolean;
+                    expanded?: boolean;
                 }>;
             };
             if (!data.models?.length) return null;
@@ -176,6 +197,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 label: `${prettyModelName(m.model)}${rateSuffix(m.creditsPerHour)}`,
                 creditsPerHour: m.creditsPerHour ?? null,
                 isDefault: m.default ?? false,
+                expanded: m.expanded ?? false,
             }));
             cache.set(provider, opts);
             return opts;
@@ -255,26 +277,42 @@ export function mountModelPicker(
 
     function renderSelect(provider: string, models: ModelOption[]): void {
         currentModels = models;
-        const optionsHTML = models
+        // Curated vs expanded tier (aloud cloud only): expanded models hide
+        // until the user opts in, EXCEPT the currently-selected one - toggling
+        // off must never silently switch an existing choice.
+        const showAll = showAllModels === true;
+        const visible =
+            provider === 'aloud' && !showAll
+                ? models.filter((m) => !m.expanded || m.value === currentValue)
+                : models;
+        const optionsHTML = visible
             .map((m) => `<option value="${attr(m.value)}">${escape(m.label)}</option>`)
             .join('');
-        // Only hosted models carry the rate badge, so its legend belongs only
-        // under that provider's selector.
-        const legend =
+        // Under the hosted selector, the tier toggle (it took over the slot the
+        // rate legend used to fill; the ☁️ badges read fine without it).
+        const toggle =
             provider === 'aloud'
-                ? `<p class="credit-rate-legend" title="${attr(RATE_LEGEND_TITLE)}">${escape(RATE_LEGEND)}</p>`
+                ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escape(
+                      showAll ? 'Show fewer models' : 'Show all available models'
+                  )}</button></p>`
                 : '';
         container.innerHTML = `
-            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${legend}
+            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${toggle}
             <p class="model-slow-note hidden" id="model-slow-note">${escape(SLOW_MODEL_NOTE)}</p>`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
         const slowNote = container.querySelector<HTMLElement>('#model-slow-note')!;
+        container
+            .querySelector<HTMLButtonElement>('#model-show-all')
+            ?.addEventListener('click', () => {
+                void setShowAllModels(!showAll);
+                renderSelect(provider, models);
+            });
         // The picker always shows a concrete model name, never a "(provider
         // default)" placeholder: an unmatched persisted value promotes the
         // flagged default (aloud cloud marks one), else the first model. Keeps
         // the displayed model honest about what will actually run.
-        const matched = models.find((m) => m.value === currentValue);
-        const promoted = matched ?? models.find((m) => m.isDefault) ?? models[0];
+        const matched = visible.find((m) => m.value === currentValue);
+        const promoted = matched ?? visible.find((m) => m.isDefault) ?? visible[0];
         if (promoted) {
             sel.value = promoted.value;
             currentValue = promoted.value;
@@ -392,6 +430,9 @@ export function mountModelPicker(
             }
         }
         if (models && models.length > 0) {
+            // The tier toggle's persisted state must be known before the first
+            // hosted render, or the curated filter would flicker.
+            if (provider === 'aloud') await loadShowAllModels();
             renderSelect(provider, models);
         } else if (provider === 'ollama') {
             renderOllamaEmpty();

@@ -43,4 +43,23 @@ describe('GET /cloud/v1/me/models', () => {
         expect(defaults).toHaveLength(1);
         expect(defaults[0]).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5' });
     });
+
+    it('keeps a curated (non-expanded) tier the picker shows by default', async () => {
+        const app = createApp(buildDeps(loadConfig({})));
+        const res = await app.request('/cloud/v1/me/models');
+        const body = (await res.json()) as {
+            models: Array<{ model: string; default?: boolean; expanded?: boolean }>;
+        };
+        const curated = body.models.filter((m) => !m.expanded).map((m) => m.model);
+        // The short list new users see: flagship + default + midrange + budget
+        // (and Fable, deliberately surfaced). Expanded models exist behind the
+        // "Show all available models" toggle.
+        expect(curated).toEqual(
+            expect.arrayContaining(['claude-fable-5', 'claude-opus-5', 'claude-sonnet-5'])
+        );
+        expect(curated.length).toBeLessThanOrEqual(6);
+        expect(body.models.some((m) => m.expanded)).toBe(true);
+        // The pre-selected default must be visible without the toggle.
+        expect(body.models.find((m) => m.default)!.expanded).toBeFalsy();
+    });
 });

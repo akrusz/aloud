@@ -42,6 +42,12 @@ export interface ModelPricing extends TokenRates {
      *  none does. Independent of list order, so the dropdown can order models
      *  however it likes. */
     default?: boolean;
+    /** Expanded-tier: hidden from the model picker until the user opts into
+     *  "Show all available models" (ui model-picker.ts). For older and niche
+     *  models kept for their distinct voices (Opus 3, Kimi K2) or as price
+     *  variants of a listed sibling, so new users see a short curated list.
+     *  Billing and forwarding ignore it - an expanded model is fully served. */
+    expanded?: boolean;
 }
 
 const M = 1_000_000;
@@ -76,7 +82,9 @@ const M = 1_000_000;
  *    session; small/open models mishandle them and a bare completion won't show
  *    it.
  * 6. Housekeeping: pretty name in ui/src/model-picker.ts CLOUD_MODEL_NAMES;
- *    allowlist + rate assertions in server/tests/model-additions.test.ts.
+ *    allowlist + rate assertions in server/tests/model-additions.test.ts; decide
+ *    curated vs expanded-tier (`expanded: true` hides it behind the picker's
+ *    "Show all available models" toggle).
  */
 
 /** Keyed by `${provider}:${model}`. */
@@ -134,9 +142,13 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 3.75 / M, // 5m write, 1.25x input
         cacheCreation1h: 6 / M, // 1h write, 2x input
     },
+    // Expanded-tier: Gemini Flash Lite covers the budget slot in the curated
+    // list at ~1/10 Haiku's rates; Haiku stays for people who want a cheap
+    // CLAUDE specifically.
     'anthropic:claude-haiku-4-5-20251001': {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',
+        expanded: true,
         input: 1 / M,
         output: 5 / M,
         cacheRead: 0.1 / M,
@@ -154,6 +166,7 @@ const MODELS: Record<string, ModelPricing> = {
     'anthropic:claude-3-opus-20240229': {
         provider: 'anthropic',
         model: 'claude-3-opus-20240229',
+        expanded: true, // niche draw, not a first-session pick
         input: 15 / M,
         output: 75 / M,
         cacheRead: 1.5 / M,
@@ -206,9 +219,12 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // real 1.25x write fee, new in the 5.6 family
         cacheCreation1h: 6.25 / M, // no 1h tier on automatic caching; never accrues
     },
+    // Expanded-tier: same sticker as its 5.6 Sol successor, kept only for its
+    // different voice.
     'openai:gpt-5.5': {
         provider: 'openai',
         model: 'gpt-5.5',
+        expanded: true,
         input: 5 / M,
         output: 30 / M,
         cacheRead: 0.5 / M,
@@ -222,6 +238,7 @@ const MODELS: Record<string, ModelPricing> = {
     'openai:gpt-5.4': {
         provider: 'openai',
         model: 'gpt-5.4',
+        expanded: true, // midrange price variant; Sonnet 5 holds that slot in the curated list
         input: 2.5 / M,
         output: 15 / M,
         cacheRead: 0.25 / M,
@@ -249,6 +266,7 @@ const MODELS: Record<string, ModelPricing> = {
     'openrouter:moonshotai/kimi-k2': {
         provider: 'openrouter',
         model: 'moonshotai/kimi-k2',
+        expanded: true, // niche draw, same logic as Opus 3
         input: 0.57 / M,
         output: 2.3 / M,
         cacheRead: 0.57 / M,

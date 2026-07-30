@@ -34,6 +34,10 @@ export interface AppSettings {
      *  default - the hosted proxy is the intended path there). No effect on a
      *  local build, where BYOK is always shown. */
     enableByok: boolean;
+    /** Show the expanded tier of hosted models (older and niche models kept for
+     *  their distinct voices) in the model picker. Off by default so new users
+     *  see a short curated list; toggled inline in the picker itself. */
+    showAllModels: boolean;
 
     // Display
     textScale: number;
@@ -106,6 +110,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     defaultProvider: 'ollama',
     defaultModel: '',
     enableByok: false,
+    showAllModels: false,
     textScale: 1.0,
     themeMode: 'auto',
     showSessionBalance: false,
