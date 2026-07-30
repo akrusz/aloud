@@ -5220,3 +5220,35 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         align-items: stretch;
     }
 }
+
+/* ============================================
+   Desktop compaction
+   ============================================
+   The setup page should fit a MacBook-class viewport (~1000px tall) without
+   scrolling, so wide layouts give up some vertical air: tighter block gaps,
+   slimmer option cards, less header/footer breathing room. Control sizes and
+   type are untouched; mobile (max-width: 767px) keeps the roomier spacing. */
+@media (min-width: 768px) {
+    .main {
+        padding-top: 1rem; /* 2rem */
+    }
+    .setup-header {
+        margin-bottom: 1.25rem; /* 2.5rem */
+    }
+    .setup-container {
+        gap: 1rem; /* 1.25rem */
+        padding-bottom: 5.5rem; /* 7rem; still clears the fixed footer */
+    }
+    .tab-panel,
+    .customize-body {
+        gap: 1rem; /* 1.5rem */
+    }
+    .modifier-toggle {
+        padding-top: 0.35rem; /* 0.5rem */
+        padding-bottom: 0.35rem;
+    }
+    .setup-footer {
+        padding-top: 0.35rem; /* 0.5rem */
+        padding-bottom: 0.35rem;
+    }
+}
