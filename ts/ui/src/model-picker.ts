@@ -296,7 +296,7 @@ export function mountModelPicker(
         const toggle =
             provider === 'aloud'
                 ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escape(
-                      showAll ? 'Show fewer models' : 'Show all available models'
+                      showAll ? 'Show fewer models ▴' : 'Show all available models ▾'
                   )}</button></p>`
                 : '';
         container.innerHTML = `
