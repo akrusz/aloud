@@ -124,6 +124,23 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
+    // Opus 4.8, RE-ADDED as expanded-tier (July 2026): it was the hosted default
+    // until Opus 5 replaced it, so it's already ear-tested and cache-verified in
+    // production here - restored verbatim from the pre-2bd2120 entry because the
+    // older personalities speak differently, not worse. Same $5/$25 sticker and
+    // cache multipliers as Opus 5; thinking is off by default (no
+    // THINKING_OFF_MODELS entry needed). Legacy-model caveat: Anthropic will
+    // retire it eventually - drop the entry when the API does.
+    'anthropic:claude-opus-4-8': {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        expanded: true,
+        input: 5 / M,
+        output: 25 / M,
+        cacheRead: 0.5 / M,
+        cacheCreation: 6.25 / M, // 5m write, 1.25x input
+        cacheCreation1h: 10 / M, // 1h write, 2x input
+    },
     // Sonnet 5 (replaced Sonnet 4.6 here, July 2026): same $3/$15 sticker and
     // cache multipliers as 4.6, near-Opus quality. Two notes: (1) newer tokenizer
     // (~30% more tokens for the same text than 4.6), which inflates token COUNTS,
@@ -142,13 +159,30 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 3.75 / M, // 5m write, 1.25x input
         cacheCreation1h: 6 / M, // 1h write, 2x input
     },
-    // Expanded-tier: Gemini Flash Lite covers the budget slot in the curated
-    // list at ~1/10 Haiku's rates; Haiku stays for people who want a cheap
-    // CLAUDE specifically.
+    // Sonnet 4.6, RE-ADDED as expanded-tier (July 2026): same re-add logic as
+    // Opus 4.8 above (served here until Sonnet 5 replaced it in e851420, so
+    // production-proven; distinct voice, not a downgrade). Same $3/$15 sticker
+    // and cache multipliers as Sonnet 5, older tokenizer (fewer tokens for the
+    // same text, so if anything it estimates slightly cheap). Thinking off by
+    // default. Same retirement caveat as 4.8.
+    'anthropic:claude-sonnet-4-6': {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+        expanded: true,
+        input: 3 / M,
+        output: 15 / M,
+        cacheRead: 0.3 / M,
+        cacheCreation: 3.75 / M, // 5m write, 1.25x input
+        cacheCreation1h: 6 / M, // 1h write, 2x input
+    },
+    // The curated list's budget slot. Flash Lite is ~11x cheaper per token, but
+    // in absolute terms that's $0.046/hr vs $0.004/hr (estimate.ts) - both round
+    // up to the same 1☁️ badge and both are noise next to the session's TTS
+    // spend - so the slot goes to the model with the warmer prose (a Claude),
+    // and Flash Lite sits in the expanded tier for whoever wants the floor.
     'anthropic:claude-haiku-4-5-20251001': {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',
-        expanded: true,
         input: 1 / M,
         output: 5 / M,
         cacheRead: 0.1 / M,
@@ -188,6 +222,7 @@ const MODELS: Record<string, ModelPricing> = {
     'google:gemini-2.5-flash-lite': {
         provider: 'google',
         model: 'gemini-2.5-flash-lite',
+        expanded: true, // absolute-cheapest option; Haiku holds the curated budget slot (see above)
         input: 0.1 / M,
         output: 0.4 / M,
         cacheRead: 0.01 / M, // Google list price for cached-input read (text), ~90% off input

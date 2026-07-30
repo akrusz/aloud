@@ -418,11 +418,15 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
+        // The page-bottom ☁️ legend rides the same visibility: it explains
+        // badges that only exist when something on the page costs credits.
+        const legend = root.querySelector<HTMLElement>('#cloud-rate-legend');
 
         // Retreat attendees aren't metered (meditation-pal-414).
         if (getRetreatCovered()) {
             el.classList.add('hidden');
             el.innerHTML = '';
+            legend?.classList.add('hidden');
             return;
         }
 
@@ -439,9 +443,11 @@ export async function mountSetupView(
         if (total <= 0) {
             el.classList.add('hidden');
             el.innerHTML = '';
+            legend?.classList.add('hidden');
             return;
         }
         el.classList.remove('hidden');
+        legend?.classList.remove('hidden');
         const rate = `≈ ${rateUnits(total)}${RATE_EMOJI}/hr`;
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
@@ -1598,6 +1604,11 @@ function renderSetupHTML(
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
 
         <div id="provider-hint" class="provider-hint hidden"></div>
+
+        <!-- Legend for every ☁️ badge on the page (model picker, voice button,
+             Begin estimate). Shown/hidden with the estimate pill: no cloud
+             spend, no badges, no legend. -->
+        <p class="credit-rate-legend hidden" id="cloud-rate-legend">☁️: approximate hourly credit usage</p>
 
     </form>
 

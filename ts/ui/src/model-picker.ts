@@ -29,8 +29,10 @@ function providerNeedsKey(provider: string): boolean {
 const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-fable-5': 'Claude Fable 5',
     'claude-opus-5': 'Claude Opus 5',
+    'claude-opus-4-8': 'Claude Opus 4.8',
     'claude-3-opus-20240229': 'Claude Opus 3',
     'claude-sonnet-5': 'Claude Sonnet 5',
+    'claude-sonnet-4-6': 'Claude Sonnet 4.6',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
     'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
     'gpt-5.6-sol': 'GPT-5.6 Sol',

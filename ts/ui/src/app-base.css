@@ -2366,6 +2366,14 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     text-decoration: underline;
 }
 
+/* The model picker's tier toggle sits where a label would (under the select,
+   like the range-stop labels), so it gets the same full-opacity muted color -
+   notes stay readable, never dimmed. */
+.credit-rate-legend .btn-link {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

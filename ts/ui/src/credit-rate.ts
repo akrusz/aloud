@@ -3,8 +3,10 @@
  * balance renders "13.7☁️", a 50-credit pack "50☁️". In the credit-spending
  * pickers (LLM model, hosted voice, cloud STT) the number is a per-HOUR rate,
  * so a user can eyeball burn rate and add model + voice in their head. The
- * voice list carries the "≈ ☁️ per hour" legend; the model picker's slot under
- * the select went to the "Show all available models" toggle instead.
+ * voice list carries the "≈ ☁️ per hour" legend; on the setup page the badges
+ * are explained once at the page bottom ("☁️: approximate hourly credit
+ * usage", #cloud-rate-legend), freeing the slot under the model select for the
+ * "Show all available models" toggle.
  *
  * Rates are ESTIMATES calibrated on exploration mode talking as concisely as
  * possible, a near-floor: real use drifts up with how much gets said, and noting

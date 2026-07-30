@@ -74,9 +74,24 @@ describe('Opus 5 (anthropic)', () => {
         expect(p!.cacheCreation1h).toBeCloseTo(10 / M, 12);
         expect(p!.default).toBe(true);
 
-        // Opus 4.8 was swapped OUT for its same-price successor — it must no
-        // longer be billable, the way Sonnet 4.6 went when Sonnet 5 landed.
-        expect(isModelAllowed('anthropic', 'claude-opus-4-8')).toBe(false);
+        // Opus 4.8 and Sonnet 4.6 were swapped out for their same-price
+        // successors, then deliberately RE-ADDED as expanded-tier (July 2026,
+        // "older personalities speak differently, not worse"). They must bill
+        // at the same rates as their successors and stay behind the picker's
+        // "Show all available models" toggle.
+        for (const [model, successor] of [
+            ['claude-opus-4-8', 'claude-opus-5'],
+            ['claude-sonnet-4-6', 'claude-sonnet-5'],
+        ] as const) {
+            const legacy = pricingFor('anthropic', model);
+            const current = pricingFor('anthropic', successor)!;
+            expect(legacy).toBeDefined();
+            expect(legacy!.expanded).toBe(true);
+            expect(legacy!.default).toBeUndefined();
+            expect(legacy!.input).toBeCloseTo(current.input, 12);
+            expect(legacy!.output).toBeCloseTo(current.output, 12);
+            expect(legacy!.cacheRead).toBeCloseTo(current.cacheRead, 12);
+        }
     });
 });
 
