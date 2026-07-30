@@ -249,7 +249,9 @@ const MODELS: Record<string, ModelPricing> = {
     },
     // OpenAI's current flagship (GA July 2026), the GPT counterpart to Opus: the
     // top "Sol" tier of the 5.6 family (Terra/Luna are the mid/value tiers we
-    // don't list - Terra ≈ 5.4's price, Luna loses to Gemini on this workload).
+    // don't list; after OpenAI's Jul 30 2026 cuts Terra is $2/$12 - undercutting
+    // gpt-5.4 below - and Luna $0.20/$1.20/$0.02-cached, near Flash Lite range,
+    // so both are worth a revisit - see the bead filed with this note).
     // PINNED to the exact tier id, NOT the moving chatgpt-latest alias: the debit
     // math bills against THIS table, so the model must be a known quantity (a new
     // flagship at a different price can't bill at a stale rate). Cache-capable,
