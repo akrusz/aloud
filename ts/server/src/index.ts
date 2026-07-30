@@ -86,7 +86,10 @@ async function main(): Promise<void> {
     //   - gift expiry: return clouds from gifts left unaccepted past their
     //     expiry to the buyer (meditation-pal-bd5);
     //   - signup-IP ageing: scrub IPs past the retention window
-    //     (meditation-pal-9rkg).
+    //     (meditation-pal-9rkg);
+    //   - model liveness: zero-token metadata probes so /me/models drops any
+    //     allowlisted model its provider has retired (pricing/liveness.ts,
+    //     fail-open on probe errors).
     const sweep = (): void => {
         void reconcileExpiredGifts(deps, Date.now() / 1000)
             .then((n) => {
@@ -96,6 +99,15 @@ async function main(): Promise<void> {
         void ageOutSignupIps(deps, Date.now() / 1000).catch((err: unknown) =>
             log.error('signup IP ageing failed', { err: String(err) })
         );
+        void deps.liveness
+            .sweep()
+            .then((r) => {
+                // Gone models are the actionable signal; log them every sweep
+                // so a retirement can't scroll away unnoticed.
+                if (r.gone.length > 0) log.error('model liveness: retired models dropped from /me/models', { gone: r.gone });
+                if (r.unknown.length > 0) log.info('model liveness: unverified (kept, fail-open)', { unknown: r.unknown });
+            })
+            .catch((err: unknown) => log.error('model liveness sweep failed', { err: String(err) }));
     };
     sweep();
     setInterval(sweep, 3_600_000).unref();

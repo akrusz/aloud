@@ -81,6 +81,7 @@ describe('Opus 5 (anthropic)', () => {
         // "Show all available models" toggle.
         for (const [model, successor] of [
             ['claude-opus-4-8', 'claude-opus-5'],
+            ['claude-opus-4-5', 'claude-opus-5'], // oldest Opus at the $5/$25 tier
             ['claude-sonnet-4-6', 'claude-sonnet-5'],
         ] as const) {
             const legacy = pricingFor('anthropic', model);

@@ -11,6 +11,7 @@ import { SqliteCreditsStore } from './credits/sqlite-store.js';
 import { Ledger } from './credits/ledger.js';
 import { Forwarder } from './providers/forward.js';
 import { FreeGrantBreaker, RateGuard } from './quota/freetier.js';
+import { HttpModelProber, ModelLiveness } from './pricing/liveness.js';
 
 export interface Deps {
     config: Config;
@@ -19,6 +20,10 @@ export interface Deps {
     forwarder: Forwarder;
     rateGuard: RateGuard;
     grantBreaker: FreeGrantBreaker;
+    /** Which allowlisted models the providers still serve. Everything reads
+     *  live until index.ts's hourly sweep proves otherwise; tests never sweep,
+     *  so they see the full allowlist unless they stub this. */
+    liveness: ModelLiveness;
 }
 
 export interface BuildDepsOptions {
@@ -39,5 +44,6 @@ export function buildDeps(config: Config, options: BuildDepsOptions = {}): Deps 
         forwarder: new Forwarder(config.providerKeys),
         rateGuard: new RateGuard(),
         grantBreaker: new FreeGrantBreaker(config.freeGrantBudgetPerHour),
+        liveness: new ModelLiveness(new HttpModelProber(config.providerKeys)),
     };
 }

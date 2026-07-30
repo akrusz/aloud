@@ -9,7 +9,6 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { buildAccountView, deleteAccount } from '../auth/identity.js';
-import { allowedModels } from '../pricing/providers.js';
 import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 import {
     CREDIT_PACKS,
@@ -54,7 +53,9 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     // Public pricing transparency, no auth: the margin is published. Each model
     // carries its typical-session creditsPerHour so the model dropdown can show
-    // the cloud-rate badge ("N☁️").
+    // the cloud-rate badge ("N☁️"). Only models the liveness sweep hasn't
+    // proven retired are offered (pricing/liveness.ts, fail-open) - the picker
+    // never lists an id the provider would 404.
     app.get('/models', (c) => {
         const ratePerHour = new Map(
             estimateModels().map((e) => [`${e.provider}:${e.model}`, e.creditsPerHour])
@@ -63,7 +64,7 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // Credits debit at provider COST; margin is added at purchase.
             usdPerCredit: USD_PER_CREDIT,
             packMarkup: PACK_MARKUP,
-            models: allowedModels().map((m) => ({
+            models: deps.liveness.liveModels().map((m) => ({
                 ...m,
                 creditsPerHour: ratePerHour.get(`${m.provider}:${m.model}`) ?? null,
             })),

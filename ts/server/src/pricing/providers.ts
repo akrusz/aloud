@@ -141,6 +141,24 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
+    // Opus 4.5, expanded-tier: the OLDEST Opus under the 5☁️/hr line (a direct
+    // ask). Nov 2025 is where Opus pricing dropped to $5/$25; every Opus before
+    // it (4.1, 4, 3) sits at the $15/$75 legacy tier - Opus 3's 14☁️/hr - so
+    // this is as far back as the family goes at this rate. Same cache
+    // multipliers as its successors; thinking off by default (pre-Opus-5, like
+    // 4.8/4.6). UNLIKE 4.8/4.6 it never served here, so it still needs the
+    // checklist's ear-test before release; the liveness sweep only proves the
+    // id exists.
+    'anthropic:claude-opus-4-5': {
+        provider: 'anthropic',
+        model: 'claude-opus-4-5',
+        expanded: true,
+        input: 5 / M,
+        output: 25 / M,
+        cacheRead: 0.5 / M,
+        cacheCreation: 6.25 / M, // 5m write, 1.25x input
+        cacheCreation1h: 10 / M, // 1h write, 2x input
+    },
     // Sonnet 5 (replaced Sonnet 4.6 here, July 2026): same $3/$15 sticker and
     // cache multipliers as 4.6, near-Opus quality. Two notes: (1) newer tokenizer
     // (~30% more tokens for the same text than 4.6), which inflates token COUNTS,
