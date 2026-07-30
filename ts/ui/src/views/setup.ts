@@ -1600,16 +1600,15 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
+        <!-- Legend for every ☁️ badge on the page (model picker, voice button,
+             Begin estimate). Shown/hidden with the estimate pill: no cloud
+             spend, no badges, no legend. -->
+        <p class="credit-rate-legend hidden" id="cloud-rate-legend">☁️: approximate hourly credit usage</p>
         <p class="credit-rate-legend" id="noting-spend-note">AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
 
         <div id="provider-hint" class="provider-hint hidden"></div>
-
-        <!-- Legend for every ☁️ badge on the page (model picker, voice button,
-             Begin estimate). Shown/hidden with the estimate pill: no cloud
-             spend, no badges, no legend. -->
-        <p class="credit-rate-legend hidden" id="cloud-rate-legend">☁️: approximate hourly credit usage</p>
 
     </form>
 
