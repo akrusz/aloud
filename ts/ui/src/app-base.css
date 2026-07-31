@@ -4703,10 +4703,11 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         backdrop-filter: blur(4px);
     }
 
-    /* Reserve room: top space clears the floating brand/orb,
+    /* Reserve room: top space clears the floating brand/orb (chip bottom
+       lands ~3.4rem down; match .session-container's reserve below),
        bottom space clears the fixed bottom nav. */
     .main {
-        padding: calc(2.4rem + var(--safe-top)) 1rem
+        padding: calc(4.5rem + var(--safe-top)) 1rem
             calc(3.1rem + var(--safe-bottom-clear));
     }
 
@@ -4716,7 +4717,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        The brand chip bottom lands ~3.4rem down (0.5rem offset + 1.4rem
        Knewave line + 0.6rem chip padding), so reserve past that. */
     .session-container {
-        padding: calc(3.9rem + var(--safe-top)) 1rem 0;
+        padding: calc(4.5rem + var(--safe-top)) 1rem 0;
     }
 
     .message-content {

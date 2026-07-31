@@ -62,6 +62,9 @@ export interface NotingSessionViewHandle {
      * `destination`.
      */
     requestLeave(destination?: SessionEndDestination): void;
+    /** Enter/exit kasina gazing. Wired to the More sheet's Kasina entry; the
+     *  nav orb toggles it directly (kasina.ts). */
+    toggleKasina(): void;
 }
 
 const DEFAULT_CADENCE_MS = 4000;
@@ -203,10 +206,10 @@ export async function mountNotingSessionView(
                         </div>
                         <button class="ember-btn" id="ember-plus" type="button">+</button>
                     </div>
-                    <label class="toggle-label" title="Kasina gazing mode">
-                        <input type="checkbox" id="kasina-toggle">
-                        <span class="toggle-text">Kasina</span>
-                    </label>
+                    <!-- Hidden state holder for kasina gazing (initKasinaMode).
+                         Entry points: tapping the nav orb, or the More sheet's
+                         Kasina entry on mobile; click-outside exits. -->
+                    <input type="checkbox" id="kasina-toggle" class="hidden">
                 </div>
             </div>
         </div>
@@ -745,6 +748,10 @@ export async function mountNotingSessionView(
         showInfo(): void {
             infoPanel.open();
         },
+        toggleKasina(): void {
+            kasinaToggle.checked = !kasinaToggle.checked;
+            kasinaToggle.dispatchEvent(new Event('change'));
+        },
     };
 }
 
@@ -795,6 +802,7 @@ function mountError(
         teardown() { /* nothing to tear down */ },
         requestLeave() { /* no live circle to guard */ },
         showInfo() { /* no panel on the error view */ },
+        toggleKasina() { /* no orb on the error view */ },
     };
 }
 

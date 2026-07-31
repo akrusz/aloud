@@ -254,6 +254,9 @@ function wireMobileMore(): void {
         } else if (t.closest('#moreSessionInfo')) {
             close();
             (currentSession ?? currentNoting)?.showInfo();
+        } else if (t.closest('#moreKasina')) {
+            close();
+            (currentSession ?? currentNoting)?.toggleKasina();
         } else if (t.closest('#moreAccount')) {
             // wireNav's global data-nav handler does the routing; just dismiss.
             close();
