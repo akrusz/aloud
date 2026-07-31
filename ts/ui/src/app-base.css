@@ -4712,9 +4712,11 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 
     /* Session page: the .main host is padding:0 by design - push the
        inner container down so chat doesn't underlap the floating chrome
-       (the brand/orb header now sits below the notch, so clear that too). */
+       (the brand/orb header now sits below the notch, so clear that too).
+       The brand chip bottom lands ~3.4rem down (0.5rem offset + 1.4rem
+       Knewave line + 0.6rem chip padding), so reserve past that. */
     .session-container {
-        padding: calc(2.4rem + var(--safe-top)) 1rem 0;
+        padding: calc(3.9rem + var(--safe-top)) 1rem 0;
     }
 
     .message-content {
