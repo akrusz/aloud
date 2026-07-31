@@ -36,6 +36,17 @@ const STT_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
     },
 };
 
+/** Models a client may request per-call (POST /cloud/v1/stt?model=...) on top
+ *  of the configured backend's default. Only OpenAI hosts both options the STT
+ *  picker offers — gpt-4o-transcribe (2☁️/hr) and the newer gpt-transcribe
+ *  (1☁️/hr); rates in pricing/providers.ts STT_MODEL_PRICING. Other backends
+ *  accept only their configured model: the model keys billing, so an arbitrary
+ *  client value could otherwise name a cheaper rate. */
+export function sttModelChoices(backend: SttBackend): readonly string[] {
+    if (backend.provider !== 'openai') return [backend.model];
+    return [...new Set([backend.model, 'gpt-4o-transcribe', 'gpt-transcribe'])];
+}
+
 /**
  * Resolve the STT backend from env. Precedence:
  *   1. STT_API_KEY: explicit/custom backend (STT_BASE_URL + STT_MODEL +

@@ -13,7 +13,7 @@
 
 import type { MeditationType, SessionSetup } from './settings.js';
 import type { AppSettings } from './app-settings.js';
-import { resolveSttChoice } from './adapters/stt-picker.js';
+import { isHostedSttChoice, resolveSttChoice } from './adapters/stt-picker.js';
 import { isWebMode, isDevBypass } from './app-mode.js';
 import { detectCapabilities } from './capabilities.js';
 import { getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
@@ -42,7 +42,7 @@ export function sessionUsesCloud(
     ) {
         return true;
     }
-    return resolveSttChoice(settings.sttEngine, webMode) === 'aloud';
+    return isHostedSttChoice(resolveSttChoice(settings.sttEngine, webMode));
 }
 
 /**

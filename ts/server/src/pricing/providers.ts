@@ -330,13 +330,49 @@ const MODELS: Record<string, ModelPricing> = {
     },
 };
 
-/** Per-second cost of cloud STT (OpenAI gpt-4o-transcribe, the default backend).
- *  The free/browser engine bills zero; only the server-side engine feeds this.
- *  Revisit if the STT backend is switched via env (config.ts resolveSttConfig):
- *  OpenAI gpt-4o-transcribe ≈ $0.36/hr, gpt-4o-mini-transcribe ≈ $0.18/hr,
- *  Groq ≈ $0.04/hr. Even at the top of that range STT is a small fraction of a
- *  session's TTS + LLM spend. */
-export const STT_USD_PER_SECOND = 0.36 / 3600; // $0.36/hr (OpenAI gpt-4o-transcribe)
+/** Hosted STT pricing, per model. STT is the ONE flat-priced leg — an explicit
+ *  exception to the at-cost debit model (meter.ts header): each model bills the
+ *  advertised whole-☁️/hr rate shown in the client's STT picker, spread over the
+ *  typical talk profile's speech seconds so a typical session-hour debits
+ *  exactly the advertised number. `providerUsdPerSecond` stays the TRUE
+ *  provider cost — recorded on usage rows for cost telemetry, never billed.
+ *  The free/browser engines bill zero; only /cloud/v1/stt feeds this. */
+export interface SttModelPricing {
+    /** The advertised price: whole ☁️ per typical session-hour (what the STT
+     *  picker shows, and exactly what a typical hour of talking debits). */
+    creditsPerTypicalHour: number;
+    /** True provider cost per second of transcribed audio (telemetry only).
+     *  For reference: gpt-4o-transcribe $0.006/min, gpt-transcribe $0.0045/min,
+     *  Groq whisper-large-v3-turbo ≈ $0.04/hr (verified July 2026). */
+    providerUsdPerSecond: number;
+}
+
+/** The server-default model (config.ts STT_DEFAULTS), used when a request names
+ *  no model — and the pricing fallback for env-pinned backends (Groq, custom)
+ *  whose models aren't in the table: they bill the top rate, which can only
+ *  over-charge fractions of a cent, never under-bill. */
+export const DEFAULT_STT_MODEL = 'gpt-4o-transcribe';
+
+export const STT_MODEL_PRICING: Record<string, SttModelPricing> = {
+    // The launch backend. Repriced from at-cost (~0.6☁️/hr) to a flat 2☁️/hr so
+    // the two hosted options read as a clean 2:1 choice in the picker.
+    'gpt-4o-transcribe': { creditsPerTypicalHour: 2, providerUsdPerSecond: 0.36 / 3600 },
+    // OpenAI's July 2026 successor: same /audio/transcriptions API, 25% cheaper
+    // upstream, better WER (AA-WER 3.31% vs ~4%). Offered alongside the default
+    // while it's validated in real sessions; candidate to replace it.
+    'gpt-transcribe': { creditsPerTypicalHour: 1, providerUsdPerSecond: 0.27 / 3600 },
+};
+
+/** Speech seconds per typical session-hour: TYPICAL_SESSION (estimate.ts) hears
+ *  240 s of VAD-segmented speech per 50-minute session, i.e. 288 s/hr. This is
+ *  the divisor that turns the advertised ☁️/hr into a per-second debit — keep
+ *  in sync with TYPICAL_SESSION.sttSeconds. */
+export const TYPICAL_SPEECH_SECONDS_PER_HOUR = 288;
+
+/** Pricing row for a model, falling back to the default (top) rate. */
+export function sttPricingFor(model: string): SttModelPricing {
+    return STT_MODEL_PRICING[model] ?? STT_MODEL_PRICING[DEFAULT_STT_MODEL]!;
+}
 
 /** Google Cloud TTS list price per CHARACTER, by voice tier. The hosted TTS
  *  backend is Google (providers/tts.ts synthesizes en-US-Chirp3-HD-* voices), so

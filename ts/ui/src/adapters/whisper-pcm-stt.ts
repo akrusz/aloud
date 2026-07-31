@@ -110,6 +110,11 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  endpoint understands these - leave unset for aloud cloud. */
     whisperModelSize?: string | null;
     language?: string | null;
+    /** Hosted-model override, sent as a `model` query param the cloud /stt
+     *  route validates against its backend's allowlist (e.g. 'gpt-transcribe').
+     *  Cloud endpoint only - leave unset for the desktop endpoint and for the
+     *  server-default model. */
+    cloudModel?: string | null;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -215,6 +220,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             micDeviceId: options.micDeviceId ?? null,
             whisperModelSize: options.whisperModelSize ?? null,
             language: options.language ?? null,
+            cloudModel: options.cloudModel ?? null,
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
             silenceMaxMs: options.silenceMaxMs ?? defaultPacingConfig.silenceMaxMs,
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
@@ -704,6 +710,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                     ? `&model_size=${encodeURIComponent(this.opts.whisperModelSize)}` +
                       `&lang=${encodeURIComponent(this.opts.language ?? 'en')}`
                     : '';
+                const cloudModelParam = this.opts.cloudModel
+                    ? `&model=${encodeURIComponent(this.opts.cloudModel)}`
+                    : '';
                 const send = async (): Promise<Response> => {
                     const headers: Record<string, string> = {
                         'content-type': 'application/octet-stream',
@@ -713,7 +722,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         if (token) headers['authorization'] = `Bearer ${token}`;
                     }
                     return this.opts.fetchImpl(
-                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}${modelParam}`,
+                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}${modelParam}${cloudModelParam}`,
                         {
                             method: 'POST',
                             headers,

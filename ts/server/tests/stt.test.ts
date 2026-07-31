@@ -8,7 +8,7 @@ import type { AuthResponse, TranscribeResponse } from '../src/contract.js';
 // Stub global fetch so the route's STT call never hits the network. Returns a
 // fixed transcript and records the request for assertions. The default backend
 // is OpenAI (config.ts resolveSttConfig), so match its transcription host.
-let sttCalls: Array<{ url: string; hasFile: boolean }> = [];
+let sttCalls: Array<{ url: string; hasFile: boolean; model: string | null }> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -17,7 +17,11 @@ beforeEach(() => {
         const u = String(url);
         if (u.includes('api.openai.com') || u.includes('groq.com')) {
             const body = init?.body as FormData | undefined;
-            sttCalls.push({ url: u, hasFile: body instanceof FormData && body.has('file') });
+            sttCalls.push({
+                url: u,
+                hasFile: body instanceof FormData && body.has('file'),
+                model: body instanceof FormData ? (body.get('model') as string | null) : null,
+            });
             return new Response(JSON.stringify({ text: '  hello world  ' }), { status: 200 });
         }
         return realFetch(url, init);
@@ -127,10 +131,38 @@ describe('POST /cloud/v1/stt', () => {
         expect(sttCalls).toHaveLength(1);
         expect(sttCalls[0]!.url).toContain('api.openai.com'); // default backend
         expect(sttCalls[0]!.hasFile).toBe(true);
-        // 10s × $0.36/3600 / $0.05 per credit ≈ 0.02 credits — fractional, tiny.
-        expect(body.creditsCharged).toBeGreaterThan(0);
-        expect(body.creditsCharged).toBeLessThan(0.05);
+        expect(sttCalls[0]!.model).toBe('gpt-4o-transcribe'); // server default
+        // Flat-priced: 2☁️ per 288 s of typical-hour speech → 10 s ≈ 0.069.
+        expect(body.creditsCharged).toBeCloseTo((10 * 2) / 288, 6);
         expect(body.creditsRemaining).toBeCloseTo(20 - body.creditsCharged, 6);
+    });
+
+    it('honors ?model=gpt-transcribe: forwards it upstream and bills the 1☁️ rate', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=gpt-transcribe', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcmBody(10),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(sttCalls).toHaveLength(1);
+        expect(sttCalls[0]!.model).toBe('gpt-transcribe');
+        // Half the default model's flat rate: 1☁️ per 288 s.
+        expect(body.creditsCharged).toBeCloseTo(10 / 288, 6);
+    });
+
+    it('rejects a model outside the backend allowlist (the model keys billing)', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=gpt-4o-mini-transcribe', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcmBody(1),
+        });
+        expect(res.status).toBe(400);
+        expect(sttCalls).toHaveLength(0); // refused before any provider call
     });
 
     it('requires auth', async () => {

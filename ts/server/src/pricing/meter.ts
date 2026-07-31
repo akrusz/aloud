@@ -8,6 +8,8 @@
  * Money model (Model B: margin lives at PURCHASE, not in the debit):
  *   - 1 credit = USD_PER_CREDIT of PROVIDER COST (what we pay). Debit is at
  *     cost: credits_spent = providerCostUsd / USD_PER_CREDIT. No markup here.
+ *     (One deliberate exception: STT debits a flat advertised whole-☁️/hr rate
+ *     instead of at-cost — see priceSttSeconds.)
  *   - Margin is applied when CREDITS ARE SOLD, on a VOLUME CURVE whose single
  *     source of truth is billing/stripe.ts (creditsForCents / centsForCredits):
  *     credits-per-dollar steps up with spend, so markup is highest at the entry
@@ -30,7 +32,9 @@ import type { LlmUsage, SessionUsage } from '@aloud/core/facilitation';
 import { WORST_CASE_COMMISSION, commissionFor } from './commission.js';
 import type { PurchaseChannel } from '../contract.js';
 import {
-    STT_USD_PER_SECOND,
+    DEFAULT_STT_MODEL,
+    TYPICAL_SPEECH_SECONDS_PER_HOUR,
+    sttPricingFor,
     TTS_USD_PER_CHAR,
     ttsRateFor,
     pricingFor,
@@ -99,13 +103,23 @@ export function priceLlmTurn(provider: ProviderId, model: string, usage: LlmUsag
     return toCredits(llmCostUsd(provider, model, usage));
 }
 
-/** Price `seconds` of cloud STT, fractional credits like every other leg. A turn
- *  fires several short STT passes (speculative + final), each a real
- *  Whisper-backend call, so debiting the exact proportional cost keeps a
- *  fraction-of-a-cent leg from being rounded up by orders of magnitude. */
-export function priceSttSeconds(seconds: number): CostBreakdown {
-    const providerCostUsd = Math.max(0, seconds) * STT_USD_PER_SECOND;
-    return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
+/** Price `seconds` of cloud STT for `model` (default: the server-default
+ *  gpt-4o-transcribe). THE one flat-priced leg: unlike LLM/TTS, credits here are
+ *  NOT providerCostUsd / USD_PER_CREDIT — each model debits its advertised
+ *  whole-☁️/hr rate (providers.ts STT_MODEL_PRICING; 2☁️ gpt-4o-transcribe, 1☁️
+ *  gpt-transcribe) spread over the typical profile's speech seconds, so a
+ *  typical session-hour lands exactly on the number the picker shows.
+ *  providerCostUsd stays the TRUE upstream cost for usage telemetry; the gap is
+ *  margin in the debit, the exception flagged in the header. Still fractional
+ *  per call: a turn fires several short passes (speculative + final) and each
+ *  debits only its exact share. */
+export function priceSttSeconds(seconds: number, model: string = DEFAULT_STT_MODEL): CostBreakdown {
+    const p = sttPricingFor(model);
+    const s = Math.max(0, seconds);
+    return {
+        providerCostUsd: s * p.providerUsdPerSecond,
+        credits: (s * p.creditsPerTypicalHour) / TYPICAL_SPEECH_SECONDS_PER_HOUR,
+    };
 }
 
 /** Price `chars` of cloud TTS, fractional credits, same rationale as STT. The
@@ -140,9 +154,15 @@ export function priceSession(
         cacheCreation: usage.llmCacheCreation,
         cacheCreation1h: 0,
     });
-    const stt = usage.sttSeconds * STT_USD_PER_SECOND;
+    // STT is flat-priced (see priceSttSeconds); SessionUsage doesn't carry the
+    // STT model, so the default (top) rate applies — matches what a session on
+    // the default hosted engine is actually debited, over-states the cheaper one.
+    const stt = priceSttSeconds(usage.sttSeconds);
     const tts = usage.ttsChars * TTS_USD_PER_CHAR;
-    return toCredits(llm + stt + tts);
+    return {
+        providerCostUsd: llm + stt.providerCostUsd + tts,
+        credits: usdToCredits(llm + tts) + stt.credits,
+    };
 }
 
 /** Conservative pre-auth hold at session start, before usage is known

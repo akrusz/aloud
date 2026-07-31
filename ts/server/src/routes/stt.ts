@@ -10,6 +10,7 @@
  */
 
 import { Hono } from 'hono';
+import { sttModelChoices } from '../config.js';
 import { ERROR_STATUS, apiError, type TranscribeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
@@ -47,6 +48,16 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('bad_request', 'invalid sample_rate'), ERROR_STATUS.bad_request);
         }
 
+        // Optional per-call model pick (the client picker's two hosted options).
+        // Allowlisted against the configured backend: the model keys billing, so
+        // an arbitrary value could otherwise name a cheaper rate — or make us
+        // forward garbage upstream.
+        const requestedModel = c.req.query('model');
+        if (requestedModel && !sttModelChoices(stt).includes(requestedModel)) {
+            return c.json(apiError('bad_request', 'unknown stt model'), ERROR_STATUS.bad_request);
+        }
+        const model = requestedModel || stt.model;
+
         const raw = await c.req.arrayBuffer();
         if (raw.byteLength === 0 || raw.byteLength % 4 !== 0) {
             return c.json(apiError('bad_request', 'body must be non-empty Float32 PCM'), ERROR_STATUS.bad_request);
@@ -59,7 +70,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // front, it's duration-priced) must fit the balance, or a near-zero
         // balance would buy an unbounded provider call with the debit clamped
         // after the fact.
-        const cost = priceSttSeconds(seconds);
+        const cost = priceSttSeconds(seconds, model);
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
         const balance = pass ? 0 : await deps.ledger.balance(account.id);
         if (!pass && balance < cost.credits) {
@@ -68,7 +79,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         let text: string;
         try {
-            text = await transcribeWhisper(samples, sampleRate, stt);
+            text = await transcribeWhisper(samples, sampleRate, { ...stt, model });
         } catch (err) {
             log.error('stt forward failed', { err: String(err) });
             return c.json(apiError('provider_error', 'STT upstream error'), ERROR_STATUS.provider_error);
@@ -86,7 +97,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             sessionId,
             kind: 'stt',
             provider: stt.provider,
-            model: stt.model,
+            model,
             tokensIn: 0,
             tokensOut: 0,
             cacheRead: 0,
