@@ -45,6 +45,40 @@ export function initKasinaMode(opts: KasinaOptions): void {
         rainbowCooldownUntil = now + 2000;
     }
 
+    // Grow-on-hover/press affordance for the nav orb (.orb-grown,
+    // app-base.css). Latched: once a grow/shrink transition starts, intent
+    // changes only record the desired state; it's re-applied when the latch
+    // expires. Without this a flickering :active on touch (tiny finger moves)
+    // reverses the scale transition mid-flight and the orb jitters.
+    const GROW_LATCH_MS = 260; // just past the 0.25s scale transition
+    let growDesired = false;
+    let growLatched = false;
+    function applyGrow(): void {
+        if (growLatched) return;
+        const want = growDesired && !toggle.checked;
+        if (orb.classList.contains('orb-grown') === want) return;
+        orb.classList.toggle('orb-grown', want);
+        growLatched = true;
+        setTimeout(() => {
+            growLatched = false;
+            applyGrow();
+        }, GROW_LATCH_MS);
+    }
+    function setGrow(desired: boolean): void {
+        growDesired = desired;
+        applyGrow();
+    }
+    // Mouse hover grows; touch grows on press (finger down, not yet released).
+    // pointerenter fires on touch too, so gate it to mouse - a tap shouldn't
+    // leave a sticky grown orb behind.
+    orb.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') setGrow(true);
+    });
+    orb.addEventListener('pointerdown', () => setGrow(true));
+    orb.addEventListener('pointerleave', () => setGrow(false));
+    orb.addEventListener('pointerup', () => setGrow(false));
+    orb.addEventListener('pointercancel', () => setGrow(false));
+
     // Nav orb click enters kasina; 4 quick clicks while gazing toggles rainbow.
     // The click that ends a drag is suppressed.
     orb.addEventListener('click', (e) => {
@@ -84,7 +118,11 @@ export function initKasinaMode(opts: KasinaOptions): void {
         orb.style.animation = 'none';
 
         if (toggle.checked) {
-            orb.classList.remove('orb-breathing', 'orb-nav');
+            // Drop the hover/press growth (after `first` is measured, so the
+            // FLIP starts from the true grown rect) - a lingering .orb-grown
+            // would pop the orb large when it returns to the nav on exit.
+            growDesired = false;
+            orb.classList.remove('orb-grown', 'orb-breathing', 'orb-nav');
             orb.classList.add('orb-kasina');
             document.body.appendChild(orb);
             sessionContainer?.classList.add('kasina-active');
