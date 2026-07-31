@@ -224,6 +224,19 @@ Rebuilding from *inside* Android Studio repackages whatever `cap sync` last
 copied into `android/` - it never rebuilds `ui/dist` - so web-side changes only
 reach the device through the `cap:*` scripts above.
 
+**Play Store release bundle** (`cap:android:run` installs a debug APK; Play
+uploads need the signed `.aab`):
+
+```bash
+cd ts && npm run ui:build && npx cap sync android
+cd android && ./gradlew bundleRelease
+# → ts/android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Bump `versionCode`/`versionName` in `android/app/build.gradle` before each
+upload; signing comes from the gitignored `android/keystore.properties`. Full
+keystore/Play App Signing detail: [mobile-signing.md](mobile-signing.md).
+
 `VITE_ALOUD_CLOUD_URL` defaults from the committed `ts/ui/.env.production`
 (build-only; an env var overrides it), and the `cap:*` scripts refuse to run if
 neither supplies it (a mobile build without it has no backend). The mobile app wraps `ui/dist` in the OS WebView,
