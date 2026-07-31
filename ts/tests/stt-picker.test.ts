@@ -32,20 +32,20 @@ beforeEach(() => {
 
 describe('sttEngineOptions — browser (non-Tauri; no Web Speech in Node)', () => {
     it('local mode offers only the hosted option — no on-device Whisper in a browser', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
     });
     it('web mode offers only the hosted option', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
     });
 });
 
 describe('sttEngineOptions — desktop (Tauri)', () => {
     beforeEach(() => isTauriMock.mockReturnValue(true));
     it('local mode offers Whisper then the hosted option', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud', 'aloud-gpt-transcribe']);
     });
     it('web mode still hides Whisper (local-only)', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
     });
 });
 
@@ -75,13 +75,13 @@ describe('sttEngineOptions — Web Speech gating', () => {
     });
 
     it('offers web-speech in a browser that exposes the API', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud', 'aloud-gpt-transcribe']);
     });
     it('hides web-speech under Tauri even though the WKWebView exposes the API', () => {
         // Recognition silently never returns results in the embedded webview —
         // offering it gives a pulsing mic that can't transcribe.
         isTauriMock.mockReturnValue(true);
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud', 'aloud-gpt-transcribe']);
     });
     it('a web-speech pick stored before the Tauri gate resolves to the desktop default', () => {
         isTauriMock.mockReturnValue(true);
@@ -95,7 +95,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     beforeEach(() => isCapacitorMock.mockReturnValue(true));
 
     it('offers the built-in recognizer first, then aloud cloud', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud', 'aloud-gpt-transcribe']);
     });
 
     // No privacy promise: it's the PLATFORM's recognizer and Android's routes to
@@ -113,7 +113,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         (globalThis as unknown as { window: unknown }).window = {
             webkitSpeechRecognition: class {},
         };
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud', 'aloud-gpt-transcribe']);
         delete (globalThis as unknown as { window?: unknown }).window;
     });
     it('resolveSttChoice honors a stored on-device pick', () => {
@@ -121,6 +121,21 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     });
     it("maps the 'capacitor' choice to the capacitor backend (non-continuous)", () => {
         expect(sttBackendForChoice('capacitor')).toBe('capacitor');
+    });
+});
+
+describe('hosted STT options — the two cloud models', () => {
+    it('shows the shared ~1☁️/hr rate badge on both hosted entries', () => {
+        const opts = sttEngineOptions(true);
+        expect(opts.find((o) => o.value === 'aloud')!.label).toContain('1☁️');
+        expect(opts.find((o) => o.value === 'aloud-gpt-transcribe')!.label).toContain('1☁️');
+    });
+    it('maps the new hosted choice to the continuous PCM backend, like classic', () => {
+        expect(sttBackendForChoice('aloud-gpt-transcribe')).toBe('server-whisper');
+    });
+    it('resolveSttChoice honors a stored gpt-transcribe pick in every mode', () => {
+        expect(resolveSttChoice('aloud-gpt-transcribe', true)).toBe('aloud-gpt-transcribe');
+        expect(resolveSttChoice('aloud-gpt-transcribe', false)).toBe('aloud-gpt-transcribe');
     });
 });
 

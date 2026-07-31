@@ -19,7 +19,7 @@ import {
     loadAppSettings,
     saveAppSettings,
 } from '../app-settings.js';
-import { sttEngineOptions, resolveSttChoice } from '../adapters/stt-picker.js';
+import { sttEngineOptions, resolveSttChoice, isHostedSttChoice } from '../adapters/stt-picker.js';
 import { ALL_PROVIDERS, isProviderAvailable, providerNeedsKey, type Provider } from '../settings.js';
 import { isCapacitor, isDesktopSync, isTauri } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
@@ -522,6 +522,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             capacitor: 'Transcribed on your phone. Free, and your speech stays on the device.',
             'web-speech': "Uses your browser's built-in speech recognition. Free.",
             aloud: "Audio is transcribed by aloud's selected provider and spends credits.",
+            'aloud-gpt-transcribe':
+                "Audio is transcribed by aloud's newest hosted model and spends credits.",
         };
         hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
     }
@@ -540,7 +542,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
      *  recognizer own their capture, so the pick couldn't take effect. */
     function micPickApplies(): boolean {
         const choice = resolveSttChoice(settings.sttEngine, isWebMode());
-        return choice === 'whisper' || choice === 'aloud';
+        return choice === 'whisper' || isHostedSttChoice(choice);
     }
 
     function updateMicDeviceVisibility(): void {

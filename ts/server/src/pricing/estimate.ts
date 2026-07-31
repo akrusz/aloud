@@ -18,8 +18,8 @@
 
 import type { SessionUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
-import { priceSession, usdToCredits } from './meter.js';
-import { allowedModels, ttsRateFor } from './providers.js';
+import { priceSession, priceSttSeconds, usdToCredits } from './meter.js';
+import { DEFAULT_STT_MODEL, allowedModels, ttsRateFor } from './providers.js';
 import { CURATED_VOICES, type TtsProvider } from '../providers/voice-catalog.js';
 
 /** Representative ~50-min session, history-caching ON. See file header. */
@@ -101,12 +101,10 @@ export function estimateModels(): ModelEstimate[] {
     });
 }
 
-/** Cloud STT (Whisper; OpenAI by default) leg, model-independent. */
-export function estimateStt(): LegEstimate {
-    const sttOnly: SessionUsage = { ...TYPICAL_SESSION, llmCalls: 0, llmTokensIn: 0, llmTokensOut: 0, llmCacheRead: 0, llmCacheCreation: 0, ttsChars: 0 };
-    // Any allowed model works as the pricing key; llm fields are zero.
-    const m = allowedModels()[0]!;
-    const cost = priceSession(m.provider, m.model, sttOnly);
+/** Cloud STT leg for a hosted model (default: the server-default
+ *  gpt-4o-transcribe), priced through the same meter code that bills. */
+export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
+    const cost = priceSttSeconds(TYPICAL_SESSION.sttSeconds, model);
     return {
         creditsPerSession: cost.credits,
         creditsPerHour: Math.ceil(cost.credits * PER_HOUR),

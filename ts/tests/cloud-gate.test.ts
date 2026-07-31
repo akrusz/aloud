@@ -42,6 +42,8 @@ describe('sessionUsesCloud', () => {
         // resolves to itself regardless of webMode.
         expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud'), true)).toBe(true);
         expect(sessionUsesCloud(setupWith('openai'), settingsWith('aloud'), false)).toBe(true);
+        // The second hosted model spends credits just the same.
+        expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud-gpt-transcribe'), true)).toBe(true);
     });
 
     it('is false for a local LLM + local Whisper STT on desktop (no cloud touched)', () => {

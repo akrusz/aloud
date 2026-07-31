@@ -30,7 +30,8 @@ import type { LlmUsage, SessionUsage } from '@aloud/core/facilitation';
 import { WORST_CASE_COMMISSION, commissionFor } from './commission.js';
 import type { PurchaseChannel } from '../contract.js';
 import {
-    STT_USD_PER_SECOND,
+    DEFAULT_STT_MODEL,
+    sttUsdPerSecond,
     TTS_USD_PER_CHAR,
     ttsRateFor,
     pricingFor,
@@ -99,12 +100,13 @@ export function priceLlmTurn(provider: ProviderId, model: string, usage: LlmUsag
     return toCredits(llmCostUsd(provider, model, usage));
 }
 
-/** Price `seconds` of cloud STT, fractional credits like every other leg. A turn
- *  fires several short STT passes (speculative + final), each a real
- *  Whisper-backend call, so debiting the exact proportional cost keeps a
+/** Price `seconds` of cloud STT for `model` (default: the server-default
+ *  gpt-4o-transcribe), at provider cost like every other leg, fractional
+ *  credits. A turn fires several short STT passes (speculative + final), each a
+ *  real Whisper-backend call, so debiting the exact proportional cost keeps a
  *  fraction-of-a-cent leg from being rounded up by orders of magnitude. */
-export function priceSttSeconds(seconds: number): CostBreakdown {
-    const providerCostUsd = Math.max(0, seconds) * STT_USD_PER_SECOND;
+export function priceSttSeconds(seconds: number, model: string = DEFAULT_STT_MODEL): CostBreakdown {
+    const providerCostUsd = Math.max(0, seconds) * sttUsdPerSecond(model);
     return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
 }
 
@@ -140,7 +142,9 @@ export function priceSession(
         cacheCreation: usage.llmCacheCreation,
         cacheCreation1h: 0,
     });
-    const stt = usage.sttSeconds * STT_USD_PER_SECOND;
+    // SessionUsage doesn't carry the STT model, so the default's rate applies —
+    // exact on the default hosted engine, slightly over-stating the cheaper one.
+    const stt = usage.sttSeconds * sttUsdPerSecond(DEFAULT_STT_MODEL);
     const tts = usage.ttsChars * TTS_USD_PER_CHAR;
     return toCredits(llm + stt + tts);
 }

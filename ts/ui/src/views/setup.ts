@@ -57,7 +57,7 @@ import {
     sttEngineOptions,
     resolveSttChoice,
     sttBackendForChoice,
-    CLOUD_STT_CREDITS_PER_HOUR,
+    cloudSttCreditsPerHour,
 } from '../adapters/stt-picker.js';
 import { sessionStore } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
@@ -436,7 +436,7 @@ export async function mountSetupView(
         const sttChoice = sttSel?.value ?? sttSetupSelected;
 
         const llm = setup.provider === 'aloud' ? getModelRate() : 0;
-        const stt = sttChoice === 'aloud' ? CLOUD_STT_CREDITS_PER_HOUR : 0;
+        const stt = cloudSttCreditsPerHour(sttChoice as SttEngineChoice);
         const tts = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
         // Noting mode burns far less than the exploration-calibrated legs imply.
         const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1);

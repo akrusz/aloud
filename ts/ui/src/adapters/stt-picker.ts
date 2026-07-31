@@ -88,13 +88,15 @@ export function invalidateSttBackendCache(): void {
  * session runs on the hosted ('aloud') provider. Null when mic capture isn't
  * available here.
  */
-export function createServerAloudStt(vadOpts: VadOpts = {}): SttEngine | null {
+export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): SttEngine | null {
     if (!WhisperPcmSttEngine.isAvailable()) return null;
     // Strip the local-Whisper model params: the cloud endpoint would receive
-    // them as stray query params (it picks its own model server-side).
+    // them as stray query params (it picks its own model server-side unless
+    // `model` pins one of its allowlisted alternates).
     const { whisperModelSize: _size, language: _lang, ...rest } = vadOpts;
     return new WhisperPcmSttEngine({
         ...rest,
+        ...(model ? { cloudModel: model } : {}),
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
         // Drop a rejected token and re-sign-in once (mirrors the LLM/TTS
@@ -205,6 +207,8 @@ export async function createSttForChoice(
             return isCapacitor() ? new CapacitorSttEngine(capacitorOpts(vadOpts)) : null;
         case 'aloud':
             return createServerAloudStt(vadOpts);
+        case 'aloud-gpt-transcribe':
+            return createServerAloudStt(vadOpts, 'gpt-transcribe');
         case 'web-speech':
             // Same Tauri guard as detectSttBackend/sttEngineOptions - honor a
             // stale stored pick with null rather than a mic that pulses forever.
@@ -227,6 +231,7 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
         case 'capacitor':
             return 'capacitor';
         case 'aloud':
+        case 'aloud-gpt-transcribe':
         case 'whisper':
             return 'server-whisper';
         case 'web-speech':
@@ -234,10 +239,24 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     }
 }
 
-/** aloud cloud STT bills a flat ~1 credit/hour of speech at a typical talk
- *  profile (mirrors the server's estimateStt). Shown with the same ☁️ unit as
- *  the model/voice pickers so all three read consistently. */
+/** aloud cloud STT bills at provider cost — a flat ~1 credit/hour of speech at
+ *  a typical talk profile for either hosted model (mirrors the server's
+ *  estimateStt; the newer gpt-transcribe runs a bit under it). Shown with the
+ *  same ☁️ unit as the model/voice pickers so all three read consistently.
+ *  'aloud' is the server-default model (OpenAI gpt-4o-transcribe);
+ *  'aloud-gpt-transcribe' pins OpenAI's newer gpt-transcribe (July 2026),
+ *  offered alongside while it's validated — it may replace the default. */
 export const CLOUD_STT_CREDITS_PER_HOUR = 1;
+
+/** The hosted (credit-spending, cloud-auth) STT choices. */
+export function isHostedSttChoice(choice: SttEngineChoice): boolean {
+    return choice === 'aloud' || choice === 'aloud-gpt-transcribe';
+}
+
+/** ☁️/hr for a picker choice — 0 for the free local/browser engines. */
+export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
+    return isHostedSttChoice(choice) ? CLOUD_STT_CREDITS_PER_HOUR : 0;
+}
 
 /**
  * Which STT choices to offer for the current mode, in flow-default order:
@@ -268,6 +287,14 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
         out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     }
     out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
+    // OpenAI's gpt-transcribe on the same hosted route: cheaper upstream and
+    // (per benchmarks) more accurate than the default's gpt-4o-transcribe. A
+    // second entry while it's validated in real sessions — it may replace the
+    // default, retiring this split.
+    out.push({
+        value: 'aloud-gpt-transcribe',
+        label: `aloud cloud - new${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}`,
+    });
     return out;
 }
 
