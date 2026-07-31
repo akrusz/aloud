@@ -7,6 +7,7 @@
  */
 
 import { alertDialog } from './dialog.js';
+import { withCloudOutline } from './credit-rate.js';
 
 const EXPLAINER =
     '☁️ are aloud cloud credits.\n\n' +
@@ -15,7 +16,9 @@ const EXPLAINER =
     'Options without a badge use no ☁️ at all: device voices and speech recognition, local AI, or your own API keys.';
 
 export function showCloudsExplainer(): void {
-    void alertDialog(EXPLAINER, 'Got it');
+    // html mode carries the cloud-glyph outline spans; EXPLAINER is our own
+    // static copy with no markup of its own, so wrapping is safe.
+    void alertDialog(withCloudOutline(EXPLAINER), 'Got it', { html: true });
 }
 
 /** Wire a "what are ☁️?" link if `id` is present under `root`. */

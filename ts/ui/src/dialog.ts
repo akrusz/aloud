@@ -16,7 +16,12 @@ interface ButtonSpec {
     danger?: boolean;
 }
 
-function showDialog(message: string, buttons: ButtonSpec[], dismissValue: boolean): Promise<boolean> {
+function showDialog(
+    message: string,
+    buttons: ButtonSpec[],
+    dismissValue: boolean,
+    asHtml = false
+): Promise<boolean> {
     return new Promise((resolve) => {
         if (typeof document === 'undefined') {
             resolve(dismissValue);
@@ -31,7 +36,11 @@ function showDialog(message: string, buttons: ButtonSpec[], dismissValue: boolea
 
         const msg = document.createElement('p');
         msg.className = 'app-dialog-message';
-        msg.textContent = message;
+        // textContent by default so ordinary callers can't inject markup;
+        // asHtml is opt-in for OUR OWN static copy (e.g. cloud-glyph outline
+        // spans in the clouds explainer), never for user or server strings.
+        if (asHtml) msg.innerHTML = message;
+        else msg.textContent = message;
         box.appendChild(msg);
 
         const btnRow = document.createElement('div');
@@ -95,9 +104,19 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
     );
 }
 
-/** A one-button acknowledgement. Resolves once dismissed. */
-export function alertDialog(message: string, okLabel = 'OK'): Promise<void> {
-    return showDialog(message, [{ label: okLabel, value: true, action: true }], true).then(() => undefined);
+/** A one-button acknowledgement. Resolves once dismissed. `html: true`
+ *  renders the message as markup - static app copy only, nothing untrusted. */
+export function alertDialog(
+    message: string,
+    okLabel = 'OK',
+    opts: { html?: boolean } = {}
+): Promise<void> {
+    return showDialog(
+        message,
+        [{ label: okLabel, value: true, action: true }],
+        true,
+        opts.html ?? false
+    ).then(() => undefined);
 }
 
 export interface ConfirmTypedOptions {
