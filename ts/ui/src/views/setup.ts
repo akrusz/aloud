@@ -71,6 +71,7 @@ import {
     type ProviderStatusMap,
 } from '../provider-markers.js';
 import { alertDialog } from '../dialog.js';
+import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import {
     autoStart as autoStartGuide,
@@ -402,7 +403,9 @@ export async function mountSetupView(
         } else {
             text = scoredVoices.length > 0 ? 'Default' : 'Voice';
         }
-        for (const btn of btns) btn.textContent = text;
+        // innerHTML so a paid pick's ☁️ badge gets the legibility outline;
+        // voice names are catalog data, so escape before wrapping.
+        for (const btn of btns) btn.innerHTML = withCloudOutline(escapeAttr(text));
         // The voice leg feeds the combined estimate.
         updateSessionEstimate();
     }
@@ -419,16 +422,21 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
-        // The ☁️ legend (under the AI Provider select) rides the same
-        // visibility: it explains
-        // badges that only exist when something on the page costs credits.
+        // The ☁️ legend (below the AI row) and the footer's "what are ☁️?"
+        // help button ride the same visibility: both explain badges/spend that
+        // only exist when something on the page costs credits.
         const legend = root.querySelector<HTMLElement>('#cloud-rate-legend');
+        const help = root.querySelector<HTMLElement>('#clouds-help');
+        const setCloudUi = (visible: boolean): void => {
+            legend?.classList.toggle('hidden', !visible);
+            help?.classList.toggle('hidden', !visible);
+        };
 
         // Retreat attendees aren't metered (meditation-pal-414).
         if (getRetreatCovered()) {
             el.classList.add('hidden');
             el.innerHTML = '';
-            legend?.classList.add('hidden');
+            setCloudUi(false);
             return;
         }
 
@@ -445,11 +453,11 @@ export async function mountSetupView(
         if (total <= 0) {
             el.classList.add('hidden');
             el.innerHTML = '';
-            legend?.classList.add('hidden');
+            setCloudUi(false);
             return;
         }
         el.classList.remove('hidden');
-        legend?.classList.remove('hidden');
+        setCloudUi(true);
         const rate = `≈ ${rateUnits(total)}${RATE_EMOJI}/hr`;
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
@@ -999,6 +1007,7 @@ export async function mountSetupView(
                 void resetGuide();
             });
         }
+        wireCloudsExplainer(root, 'clouds-help');
     }
 
     // ---- Noting circle participants ----
@@ -1591,10 +1600,6 @@ function renderSetupHTML(
                         )
                         .join('')}
                 </select>
-                <!-- Legend for every ☁️ badge on the page (model picker, voice
-                     button, Begin estimate). Shown/hidden with the estimate
-                     pill: no cloud spend, no badges, no legend. -->
-                <p class="credit-rate-legend hidden" id="cloud-rate-legend">☁️: approximate hourly credit usage</p>
             </div>
             <div class="form-group" id="ai-model-group">
                 <label for="model-select">Model</label>
@@ -1605,7 +1610,12 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
-        <p class="credit-rate-legend" id="noting-spend-note">AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.</p>
+        <!-- Legend for every ☁️ badge on the page (model picker, voice button,
+             Begin estimate). Below the whole AI row so it never wraps inside a
+             column; shown/hidden with the estimate pill: no cloud spend, no
+             badges, no legend. -->
+        <p class="credit-rate-legend hidden" id="cloud-rate-legend">${withCloudOutline('☁️: approximate hourly credit usage')}</p>
+        <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline('AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.')}</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
 
@@ -1646,5 +1656,10 @@ function renderSetupHTML(
                 <span class="btn-begin-rate" id="session-estimate"></span>
             </button>
         </div>
+        <!-- "What are ☁️?" explainer. Absolutely positioned so Begin keeps its
+             centered column; rides the estimate pill's visibility (only shown
+             when beginning would spend clouds). -->
+        <button type="button" class="clouds-help hidden" id="clouds-help"
+            aria-label="What are clouds?" title="What are ☁️?">${withCloudOutline('☁️')}?</button>
     </div>`;
 }

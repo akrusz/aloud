@@ -2172,14 +2172,14 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     font-size: 0.875rem;
 }
 
-/* The two under-select notes on the setup AI row must sit at the same height.
-   The ☁️ legend is a direct flex child of its .form-group, so the group's
-   0.4rem gap (style.css) already spaces it; the model tier toggle lives inside
-   the #model-picker-slot wrapper, which the gap doesn't reach. Zero the one,
-   hand the other the same 0.4rem. */
-#ai-provider-group > .credit-rate-legend {
-    margin-top: 0;
+/* The setup ☁️ legend sits below the whole AI row (it wraps ugly inside a
+   column). The form's 1rem flex gap is too airy for a footnote, so pull it
+   back up to the under-select 0.4rem. */
+#cloud-rate-legend {
+    margin-top: -0.6rem;
 }
+/* The model tier toggle lives inside the #model-picker-slot wrapper, which
+   the .form-group 0.4rem gap doesn't reach - hand it the same spacing. */
 #model-picker-slot .credit-rate-legend {
     margin-top: 0.4rem;
 }
@@ -4201,8 +4201,34 @@ html:has(.nav-brand.has-update) .update-btn {
     margin: 0 auto;
 }
 
-.setup-footer .btn-begin {
-    width: 100%;
+/* The "what are ☁️?" bubble: right side of the Begin bar, absolutely
+   positioned so the centered Begin column never shifts. Begin keeps its
+   natural width at every viewport, so the bubble fits in-row on phones too.
+   Only visible when the session would spend clouds (updateSessionEstimate).
+   Bold pops the "?"; the emoji ignores the weight. */
+.clouds-help {
+    position: absolute;
+    right: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+.clouds-help:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
 }
 
 /* Pad the bottom of the form so content isn't hidden behind the fixed

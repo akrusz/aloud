@@ -55,7 +55,7 @@ import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js
 import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
-import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
+import { creditAmount, withCloudOutline } from '../credit-rate.js';
 
 import {
     createSttForChoice,
@@ -1218,7 +1218,8 @@ export async function mountSessionView(
             }
             if (!revealed && prev != null && b < prev) revealed = true;
             if (revealed) {
-                balanceEl.textContent = `${creditAmount(b)}${RATE_EMOJI}`;
+                // creditAmount already carries the ☁️; outline it for light bg.
+                balanceEl.innerHTML = withCloudOutline(creditAmount(b));
                 balanceEl.classList.remove('hidden');
             }
             prev = b;

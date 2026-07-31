@@ -17,6 +17,7 @@ import {
 } from '../cloud-billing.js';
 import { creditAmount, RATE_EMOJI, withCloudOutline } from '../credit-rate.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
+import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { showSignInModal } from '../sign-in-modal.js';
 import { confirmTypedDialog, alertDialog } from '../dialog.js';
 import { showSuccessToast, showErrorToast } from '../toast.js';
@@ -94,6 +95,8 @@ async function render(root: HTMLElement): Promise<void> {
                 }</span>
                 ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>`}
             </div>
+            <p class="form-hint">${withCloudOutline(RATE_EMOJI)} pay for hosted AI as you use it: the facilitator model, cloud voices, and speech recognition.
+                <button type="button" class="btn-link" id="acct-clouds-what">What are ${withCloudOutline(RATE_EMOJI)}?</button></p>
             ${connectPrompt}
         </section>
         <section class="settings-section" id="password-section">
@@ -190,6 +193,7 @@ function wireAccountSection(root: HTMLElement): void {
         clearRetreatCovered();
         void clearCloudToken().then(() => render(root));
     });
+    wireCloudsExplainer(root, 'acct-clouds-what');
     root.querySelector('#acct-connect')?.addEventListener('click', () => {
         void showSignInModal({
             title: 'Claim your free credits',
@@ -206,7 +210,7 @@ function wireGiftableList(root: HTMLElement, gifts: ReturnedGiftView[]): void {
         row.className = 'gift-row gift-row-returned';
         row.innerHTML = `
             <div class="gift-row-info">
-                <span class="gift-row-amount">${creditAmount(gift.credits, 0)}</span>
+                <span class="gift-row-amount">${withCloudOutline(creditAmount(gift.credits, 0))}</span>
                 <span class="provider-hint gift-row-from"> · was for ${escape(gift.toEmail)}</span>
             </div>
             <div class="gift-row-actions">

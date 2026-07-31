@@ -24,7 +24,7 @@ import {
 import { payWithUsdc, WalletError } from './x402-pay.js';
 import { getKnownBalance, setKnownBalance, subscribeBalance } from './cloud-balance.js';
 import { fetchMe } from './cloud-auth.js';
-import { creditAmount } from './credit-rate.js';
+import { creditAmount, withCloudOutline } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { openExternal } from './external-links.js';
 
@@ -59,10 +59,10 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         overlay.innerHTML = `
             <div class="voice-modal buy-credits-modal" role="dialog" aria-modal="true" aria-label="Buy credits">
                 <div class="voice-modal-header">
-                    <span class="voice-modal-title">${escapeHtml(options.title ?? DEFAULT_TITLE)}</span>
+                    <span class="voice-modal-title">${withCloudOutline(escapeHtml(options.title ?? DEFAULT_TITLE))}</span>
                     <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="Close">&times;</button>
                 </div>
-                <p class="provider-hint buy-credits-subtitle">${escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE)}</p>
+                <p class="provider-hint buy-credits-subtitle">${withCloudOutline(escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE))}</p>
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
                     <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">Card</button>
@@ -387,13 +387,14 @@ function renderCustom(
         const valid = Number.isInteger(n) && n >= custom.minCredits && n <= custom.maxCredits;
         btn.disabled = !valid;
         const price = valid ? customPriceCents(n, custom) : 0;
-        btn.textContent = valid ? `Buy ${n} ☁️ - ${dollars(price)}` : 'Buy';
+        // innerHTML for the ☁️ legibility outline; content is our own numbers.
+        btn.innerHTML = valid ? withCloudOutline(`Buy ${n} ☁️ - ${dollars(price)}`) : 'Buy';
         // Volume discount = how far the curve price beats the flat base rate.
         const baseCents = Math.ceil(n * custom.baseCentsPerCredit);
         const pct = valid && price < baseCents ? Math.round((1 - price / baseCents) * 100) : 0;
         if (empty) hint.textContent = '';
-        else if (n < custom.minCredits) hint.textContent = `Minimum ${custom.minCredits} ☁️.`;
-        else if (n > custom.maxCredits) hint.textContent = `Maximum ${custom.maxCredits.toLocaleString()} ☁️.`;
+        else if (n < custom.minCredits) hint.innerHTML = withCloudOutline(`Minimum ${custom.minCredits} ☁️.`);
+        else if (n > custom.maxCredits) hint.innerHTML = withCloudOutline(`Maximum ${custom.maxCredits.toLocaleString()} ☁️.`);
         else if (pct >= 1) hint.textContent = `${pct}% volume discount applied.`;
         else hint.textContent = '';
     };
@@ -426,7 +427,7 @@ function renderPacks(host: HTMLElement, packs: CreditPack[], onPick: (pack: Cred
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-secondary buy-credits-pack';
-        btn.innerHTML = `<span class="buy-credits-pack-credits">${creditAmount(pack.credits, 0)}</span>
+        btn.innerHTML = `<span class="buy-credits-pack-credits">${withCloudOutline(creditAmount(pack.credits, 0))}</span>
             <span class="buy-credits-pack-price">${dollars(pack.priceUsdCents)}</span>`;
         btn.addEventListener('click', () => onPick(pack));
         host.appendChild(btn);

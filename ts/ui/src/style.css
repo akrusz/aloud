@@ -536,8 +536,8 @@
     align-items: center;
 }
 /* One line - "Begin Session (≈ N☁️/hr)" - to keep the CTA a single row tall.
-   Natural width on desktop, capped near-full-width on phone (narrow override
-   below + the lifted .setup-footer .btn-begin rule). */
+   Natural width at every viewport, centered by the flex parent (a full-width
+   phone override used to live here; it made the button WIDER under 489px). */
 .setup-footer-inner .btn-begin {
     width: auto;
     /* Enough to keep the CTA roomy on desktop, trimmed from 2.2rem so the
@@ -566,16 +566,6 @@
 .btn-begin-rate.hidden {
     display: none;
 }
-@media (max-width: 488px) {
-    .setup-footer-inner .btn-begin {
-        /* Wide enough for the one-line "Begin Session (≈ N☁️/hr)", but capped
-           short of the screen edges so the slimmed bar (app-base.css narrow
-           block trims its vertical padding) keeps its proportions. The flex
-           parent centers it. */
-        width: min(100%, 20rem);
-    }
-}
-
 /* The ☁️ unit glyph is pale and washes out on a light surface. Color emoji
    ignore -webkit-text-stroke, so ring it with tight black drop-shadows in four
    directions - a thin dark edge that reads on white and is invisible on dark. */
