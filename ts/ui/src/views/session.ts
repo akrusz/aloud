@@ -985,7 +985,7 @@ export async function mountSessionView(
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'buy-clouds-inline';
-        btn.textContent = 'Buy clouds to continue';
+        btn.innerHTML = withCloudOutline('Buy ☁️ to continue');
         btn.addEventListener('click', () => {
             void showBuyCreditsModal({
                 title: "You're out of clouds",

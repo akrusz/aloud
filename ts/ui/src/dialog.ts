@@ -68,7 +68,10 @@ function showDialog(
         for (const b of buttons) {
             const el = document.createElement('button');
             el.type = 'button';
-            el.textContent = b.label;
+            // html mode covers the labels too, so a ☁️ in a button can carry
+            // its cloud-glyph outline span. Same trust rule as the message.
+            if (asHtml) el.innerHTML = b.label;
+            else el.textContent = b.label;
             el.className = `btn btn-small ${b.danger ? 'btn-danger' : b.action ? 'btn-begin' : 'btn-secondary'}`;
             el.addEventListener('click', () => finish(b.value));
             if (b.action) actionBtn = el;
@@ -90,7 +93,8 @@ export interface ConfirmOptions {
     cancelLabel?: string;
     /** Style the affirmative button as destructive. */
     danger?: boolean;
-    /** Render the message as markup - static app copy only, nothing untrusted. */
+    /** Render the message AND button labels as markup - static app copy only,
+     *  nothing untrusted. */
     html?: boolean;
 }
 

@@ -93,7 +93,7 @@ async function render(root: HTMLElement): Promise<void> {
                         ? 'Retreat access - usage is on your retreat for now'
                         : withCloudOutline(`${creditAmount(account.creditsRemaining)} remaining`)
                 }</span>
-                ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${RATE_EMOJI}</button>`}
+                ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${withCloudOutline(RATE_EMOJI)}</button>`}
             </div>
             <p class="form-hint">${withCloudOutline(RATE_EMOJI)} pay for hosted AI as you use it: the facilitator model, cloud voices, and speech recognition.
                 <button type="button" class="btn-link" id="acct-clouds-what">What are ${withCloudOutline(RATE_EMOJI)}?</button></p>

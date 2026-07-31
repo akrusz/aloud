@@ -41,7 +41,7 @@ export async function showCloudsExplainer(): Promise<void> {
     // html mode: the copy's own <strong> plus the cloud-glyph outline spans
     // (EXPLAINER is our own static copy, safe to inject).
     const getClouds = await confirmDialog(withCloudOutline(EXPLAINER + hint), {
-        okLabel: 'Get clouds',
+        okLabel: withCloudOutline('Get ☁️'),
         cancelLabel: 'Got it',
         html: true,
     });
