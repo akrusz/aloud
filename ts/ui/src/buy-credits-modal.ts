@@ -123,7 +123,8 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         const showSuccess = (msg: string): void => {
             const el = overlay.querySelector<HTMLElement>('#buy-credits-success');
             if (!el) return;
-            el.textContent = msg;
+            // Internal copy (numbers + fixed words); outline any ☁️ in it.
+            el.innerHTML = withCloudOutline(msg);
             el.classList.remove('hidden');
         };
 
@@ -149,7 +150,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 balanceEl.classList.add('hidden');
                 return;
             }
-            balanceEl.textContent = `Balance: ${creditAmount(bal)}`;
+            balanceEl.innerHTML = withCloudOutline(`Balance: ${creditAmount(bal)}`);
             balanceEl.classList.remove('hidden');
         };
         renderBalance(getKnownBalance());
