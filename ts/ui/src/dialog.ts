@@ -90,6 +90,8 @@ export interface ConfirmOptions {
     cancelLabel?: string;
     /** Style the affirmative button as destructive. */
     danger?: boolean;
+    /** Render the message as markup - static app copy only, nothing untrusted. */
+    html?: boolean;
 }
 
 /** Resolves true if the user confirms, false on cancel / backdrop / Escape. */
@@ -100,7 +102,8 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
             { label: opts.cancelLabel ?? 'Cancel', value: false },
             { label: opts.okLabel ?? 'OK', value: true, action: true, danger: opts.danger ?? false },
         ],
-        false
+        false,
+        opts.html ?? false
     );
 }
 
