@@ -10,9 +10,13 @@ import { initAppMode } from './app-mode.js';
 import { initAndroidBack } from './android-back.js';
 import { initSliderTouchGuard } from './slider-touch.js';
 import { installErrorLog } from './error-log.js';
+import { initNativeBugReportMenu } from './bug-report.js';
 
 // First, so the bug-report "Recent errors" block sees boot-time failures too.
 installErrorLog();
+
+// Desktop: Help > "Report a Bug…" opens the same composer from any page.
+initNativeBugReportMenu();
 
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.

@@ -168,6 +168,29 @@ pub fn run() {
       let window = builder.build()?;
       // No-op on first run.
       let _ = window.restore_state(GEOMETRY_FLAGS);
+
+      // Keep the stock menu (App/Edit/Window - dropping it breaks Cmd+C/V)
+      // and add Help > "Report a Bug…", so a report is reachable from any
+      // page, not just the in-session info panel. The webview side listens
+      // for the event and opens the prefilled composer (ui/src/bug-report.ts
+      // initNativeBugReportMenu).
+      #[cfg(desktop)]
+      {
+        use tauri::menu::{Menu, MenuItem, Submenu};
+        let handle = app.handle();
+        let menu = Menu::default(handle)?;
+        let report =
+          MenuItem::with_id(handle, "report-bug", "Report a Bug…", true, None::<&str>)?;
+        let help = Submenu::with_items(handle, "Help", true, &[&report])?;
+        menu.append(&help)?;
+        app.set_menu(menu)?;
+        app.on_menu_event(|app, event| {
+          if event.id().as_ref() == "report-bug" {
+            use tauri::Emitter;
+            let _ = app.emit("report-bug", ());
+          }
+        });
+      }
       Ok(())
     })
     .run(tauri::generate_context!())

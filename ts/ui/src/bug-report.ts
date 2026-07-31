@@ -182,6 +182,17 @@ export async function openBugReport(): Promise<void> {
     await openMailto(await bugReportMailtoHref());
 }
 
+/** Desktop: the native Help > "Report a Bug…" menu item (src-tauri lib.rs)
+ *  emits `report-bug`; open the same composer. Call once at boot. */
+export function initNativeBugReportMenu(): void {
+    if (!isTauri()) return;
+    void import('@tauri-apps/api/event')
+        .then((m) => m.listen('report-bug', () => void openBugReport()))
+        .catch(() => {
+            /* the menu entry is a nicety; in-app paths still work */
+        });
+}
+
 export async function openAiContentReport(ctx: AiReportContext): Promise<void> {
     await openMailto(await aiContentReportMailtoHref(ctx));
 }

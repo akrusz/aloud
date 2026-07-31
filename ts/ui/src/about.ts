@@ -19,6 +19,7 @@ import { isWebMode } from './app-mode.js';
 import { isDevMode, setDevMode, DEV_MODE_TAPS } from './dev-mode.js';
 import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
 import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
+import { openBugReport } from './bug-report.js';
 
 // krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this same
 // bare address, so a scan and a copy land in the same place.
@@ -76,6 +77,12 @@ export function initAbout(): void {
     close.addEventListener('click', hide);
     modal.addEventListener('click', (e) => {
         if (e.target === modal) hide();
+    });
+    document.getElementById('aboutReportBug')?.addEventListener('click', (e) => {
+        // preventDefault keeps the '#' href from routing; the composer opens
+        // over whatever page the user was on.
+        e.preventDefault();
+        void openBugReport();
     });
 
     if (ethEl && crypto) {
