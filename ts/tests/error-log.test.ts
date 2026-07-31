@@ -52,6 +52,19 @@ describe('error-log', () => {
         expect(recentErrors().at(-1)!.length).toBeLessThan(240);
     });
 
+    it('drops benign STT bridge noise but keeps [stt-native] escalations', () => {
+        const before = recentErrors(100).length;
+        fireRejection({ message: 'No match' });
+        fireRejection({ message: "Didn't understand, please try again." });
+        fireRejection({ message: 'Client side error' });
+        expect(recentErrors(100).length).toBe(before);
+
+        fireRejection('[stt-native] recognizer error: Client side error');
+        expect(recentErrors().at(-1)).toBe(
+            'unhandledrejection: [stt-native] recognizer error: Client side error'
+        );
+    });
+
     it('drops the oldest entries past the cap', () => {
         for (let i = 0; i < 30; i++) fireRejection(`e${i}`);
         const all = recentErrors(100);

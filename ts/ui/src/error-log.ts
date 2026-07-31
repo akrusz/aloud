@@ -11,7 +11,21 @@ const MAX_ENTRIES = 20;
 const MAX_ENTRY_CHARS = 220;
 const entries: string[] = [];
 
+// Known-benign Android STT noise. The Capacitor bridge console-logs every
+// rejected plugin call before the adapter's handler sees it, so each quiet
+// stretch spams NO_MATCH / CLIENT pairs that would evict real errors from
+// this small buffer. Same benign set the adapter absorbs (capacitor-stt.ts);
+// its own [stt-native] lines are exempt so a real fault that happens to
+// carry one of these phrases (e.g. retries exhausted) still gets recorded.
+const BENIGN_STT =
+    /didn't understand|no match|no speech|client side error|speech timeout/i;
+
+function isBenignNoise(line: string): boolean {
+    return BENIGN_STT.test(line) && !line.includes('[stt-native]');
+}
+
 function push(line: string): void {
+    if (isBenignNoise(line)) return;
     const clipped =
         line.length > MAX_ENTRY_CHARS ? `${line.slice(0, MAX_ENTRY_CHARS)}…` : line;
     // Collapse immediate repeats so a failing loop can't evict everything else.
