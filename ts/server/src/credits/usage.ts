@@ -179,6 +179,10 @@ export interface PerHourModel extends PerHourLeg {
      *  that used this model/voice at least once (not the whole window's hours,
      *  so a rarely-picked voice still shows its true burn rate). */
     hours: number;
+    /** Kind-specific volume per hour: LLM turns, STT audio seconds, or TTS
+     *  characters. Maps a row straight onto its TYPICAL_SESSION assumption
+     *  (pricing/estimate.ts), so an off estimate shows WHICH input is off. */
+    unitsPerHour: number;
 }
 
 /** The observed burn rate: total spend of qualifying ("real") sessions divided
@@ -194,6 +198,14 @@ export interface PerHourReport {
     hours: number;
     creditsPerHour: number;
     costUsdPerHour: number;
+    /** Facilitator turns (LLM calls) per hour. Estimate assumes ~40. */
+    turnsPerHour: number;
+    /** Billed STT audio seconds per hour. Estimate assumes ~288 (4.8 min);
+     *  well above that means either chattier users or VAD padding billing
+     *  silence as audio. */
+    sttSecondsPerHour: number;
+    /** Cloud-TTS characters per hour. Estimate band assumes 6k–19.2k. */
+    ttsCharsPerHour: number;
     byService: PerHourLeg[];
     byModel: PerHourModel[];
 }
@@ -453,9 +465,16 @@ export function buildUsageReport(
         stt: { credits: 0, cost: 0 },
         tts: { credits: 0, cost: 0 },
     };
-    const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; credits: number; cost: number; hours: number }>();
+    const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; credits: number; cost: number; hours: number; units: number }>();
     let phCredits = 0;
     let phCost = 0;
+    let phTurns = 0;
+    let phSttSeconds = 0;
+    let phTtsChars = 0;
+    // The volume a leg's pricing is driven by: turns for LLM, audio seconds for
+    // STT, characters for TTS.
+    const unitsOf = (e: UsageEvent): number =>
+        e.kind === 'llm' ? 1 : e.kind === 'stt' ? e.seconds : e.chars;
     for (const s of qualifying) {
         const sessionHours = durationMinOf(s) / 60;
         const modelsInSession = new Set<string>();
@@ -464,6 +483,9 @@ export function buildUsageReport(
             phCost += e.providerCostUsd;
             phService[e.kind].credits += e.credits;
             phService[e.kind].cost += e.providerCostUsd;
+            if (e.kind === 'llm') phTurns += 1;
+            else if (e.kind === 'stt') phSttSeconds += e.seconds;
+            else phTtsChars += e.chars;
             const key = `${e.kind}:${e.provider}:${e.model}`;
             const m = phModels.get(key) ?? {
                 kind: e.kind,
@@ -472,9 +494,11 @@ export function buildUsageReport(
                 credits: 0,
                 cost: 0,
                 hours: 0,
+                units: 0,
             };
             m.credits += e.credits;
             m.cost += e.providerCostUsd;
+            m.units += unitsOf(e);
             // This session's hours count once per model, not once per event.
             if (!modelsInSession.has(key)) m.hours += sessionHours;
             modelsInSession.add(key);
@@ -486,6 +510,9 @@ export function buildUsageReport(
         hours: totalHours,
         creditsPerHour: rate(phCredits, totalHours),
         costUsdPerHour: rate(phCost, totalHours),
+        turnsPerHour: rate(phTurns, totalHours),
+        sttSecondsPerHour: rate(phSttSeconds, totalHours),
+        ttsCharsPerHour: rate(phTtsChars, totalHours),
         byService: (Object.keys(phService) as UsageKind[]).map((kind) => ({
             kind,
             creditsPerHour: rate(phService[kind].credits, totalHours),
@@ -499,6 +526,7 @@ export function buildUsageReport(
                 creditsPerHour: rate(m.credits, m.hours),
                 costUsdPerHour: rate(m.cost, m.hours),
                 hours: m.hours,
+                unitsPerHour: rate(m.units, m.hours),
             }))
             .sort((a, b) => b.costUsdPerHour - a.costUsdPerHour),
     };

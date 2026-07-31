@@ -223,7 +223,8 @@ describe('buildUsageReport', () => {
         const events = [
             // session 1: 30 min, 2 turns + a TTS leg, 6 credits / $0.30 total
             ev({ sessionId: 's1', ts: 1000, kind: 'llm', providerCostUsd: 0.1, credits: 2 }),
-            ev({ sessionId: 's1', ts: 1000 + 900, kind: 'tts', providerCostUsd: 0.1, credits: 2 }),
+            ev({ sessionId: 's1', ts: 1000 + 900, kind: 'tts', providerCostUsd: 0.1, credits: 2, chars: 5000 }),
+            ev({ sessionId: 's1', ts: 1000 + 1200, kind: 'stt', providerCostUsd: 0, credits: 0, seconds: 120 }),
             ev({ sessionId: 's1', ts: 1000 + 1800, kind: 'llm', providerCostUsd: 0.1, credits: 2 }),
             // session 2: 30 s blip — below both bars, excluded
             ev({ sessionId: 's2', ts: 50_000, kind: 'llm', providerCostUsd: 5, credits: 100 }),
@@ -240,6 +241,10 @@ describe('buildUsageReport', () => {
         expect(svc.llm!.creditsPerHour).toBeCloseTo(8, 9);
         expect(svc.tts!.creditsPerHour).toBeCloseTo(4, 9);
         expect(svc.stt!.creditsPerHour).toBe(0);
+        // Volumes per hour, in each leg's pricing unit.
+        expect(r.perHour.turnsPerHour).toBeCloseTo(4, 9);
+        expect(r.perHour.sttSecondsPerHour).toBeCloseTo(240, 9);
+        expect(r.perHour.ttsCharsPerHour).toBeCloseTo(10_000, 9);
     });
 
     it('perHour: a 10+ turn session qualifies even under 5 minutes', () => {
@@ -268,6 +273,7 @@ describe('buildUsageReport', () => {
         // Opus: 6 credits over ITS 1 h, not the window's 1.5 h.
         expect(opus.hours).toBeCloseTo(1, 9);
         expect(opus.creditsPerHour).toBeCloseTo(6, 9);
+        expect(opus.unitsPerHour).toBeCloseTo(2, 9); // 2 turns over its 1 h
         expect(flash.hours).toBeCloseTo(0.5, 9);
         expect(flash.creditsPerHour).toBeCloseTo(2, 9);
         // Overall blends both: 7 credits / 1.5 h.

@@ -39,6 +39,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     --radius: 12px;
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 17px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -47,7 +48,19 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px; }
   h1 .dot { color: var(--accent); }
   h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
-       color: var(--dim); margin: 28px 0 12px; font-weight: 600; }
+       color: var(--dim); margin: 28px 0 12px; font-weight: 600;
+       scroll-margin-top: 16px; }
+  /* Quick nav - fixed in the left gutter, only when the viewport is wide
+     enough to fit it beside the centered 980px column. */
+  #quickNav { display: none; }
+  @media (min-width: 1360px) {
+    #quickNav { display: block; position: fixed; top: 34px;
+                left: calc(50vw - 490px - 176px); width: 150px; font-size: 15px; }
+    #quickNav a { display: block; color: var(--dim); text-decoration: none;
+                  padding: 3px 0 3px 10px; border-left: 2px solid var(--line); }
+    #quickNav a:hover { color: var(--accent); border-left-color: var(--accent); }
+  }
+  #quickNav.hidden { display: none; }
   .sub { color: var(--dim); font-size: 16px; margin: 0 0 20px; }
   /* Explainer paragraphs are toggled as a group - hidden by default, revealed
      by the "Show explanations" button in the header. */
@@ -115,7 +128,17 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 </style>
 </head>
 <body class="hide-help">
-  <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button><button id="signOut" class="ghost xs hidden" type="button" style="float:right;margin-top:6px;margin-right:8px">Sign out</button></h1>
+  <nav id="quickNav" class="hidden" aria-label="Sections">
+    <a href="#sec-spend">Spend &amp; abuse</a>
+    <a href="#sec-cost">Cost attribution</a>
+    <a href="#sec-history">Over time</a>
+    <a href="#sec-free">Free credits</a>
+    <a href="#sec-pause">Pause spending</a>
+    <a href="#sec-grant">Grant credits</a>
+    <a href="#sec-retreats">Retreats</a>
+    <a href="#sec-accounts">Accounts</a>
+  </nav>
+  <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button><button id="signOut" class="ghost xs hidden" type="button" style="float:right;margin-top:6px;margin-right:8px">Sign out</button><label class="check hidden" id="liveWrap" style="float:right;margin:9px 10px 0 0;font-size:15px;font-weight:400"><input type="checkbox" id="autoRefresh"> live (60s)</label></h1>
   <p class="sub help-text">Operator console - spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
 
   <div class="card" id="authCard">
@@ -133,7 +156,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   </div>
 
   <div id="app" class="hidden">
-    <h2>Spend &amp; abuse
+    <h2 id="sec-spend">Spend &amp; abuse
       <span style="float:right;display:flex;gap:8px;align-items:center">
         <select id="metricsWindow" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="24">last 24h</option>
@@ -145,7 +168,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     </h2>
     <div class="grid" id="stats"></div>
 
-    <h2>Cost attribution
+    <h2 id="sec-cost">Cost attribution
       <span style="float:right;display:flex;gap:8px;align-items:center">
         <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="24">last 24h</option>
@@ -168,8 +191,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of real sessions (5+ min or 10+ turns) divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
       <div class="grid" id="perHourStats" style="margin-bottom:12px"></div>
       <table>
-        <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">$/hr</th><th class="num">Hours</th></tr></thead>
-        <tbody id="perHourRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
+        <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">$/hr</th><th class="num">Volume/hr</th><th class="num">Hours</th></tr></thead>
+        <tbody id="perHourRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
       </table>
     </div>
     <div class="card">
@@ -202,7 +225,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       </table>
     </div>
 
-    <h2>Usage over time
+    <h2 id="sec-history">Usage over time
       <span style="float:right;display:flex;gap:8px;align-items:center">
         <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="cost" selected>provider $</option>
@@ -235,7 +258,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
 
-    <h2>Free credits</h2>
+    <h2 id="sec-free">Free credits</h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Tune the free tier live - no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
       <div class="row">
@@ -252,7 +275,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="configMsg"></div>
     </div>
 
-    <h2>Soft launch - pause spending</h2>
+    <h2 id="sec-pause">Soft launch - pause spending</h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">While paused, signed-in users keep their credits, but a conversation turn returns a polite "come back later" message instead of a real (billed) facilitator response - so nobody spends yet, and their session still saves. Tester emails below bypass the pause so you can keep testing.</p>
       <label class="check"><input type="checkbox" id="cPaused"> <span>Pause metered usage (conversations return the canned apology)</span></label>
@@ -264,7 +287,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="pauseMsg"></div>
     </div>
 
-    <h2>Grant credits</h2>
+    <h2 id="sec-grant">Grant credits</h2>
     <div class="card">
       <div class="row">
         <div><label for="gEmail">Account email</label><input id="gEmail" placeholder="someone@example.com" autocomplete="off"></div>
@@ -274,7 +297,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
-    <h2>Retreats <button class="ghost" id="refreshRetreats" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
+    <h2 id="sec-retreats">Retreats <button class="ghost" id="refreshRetreats" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
       <div class="row">
@@ -288,7 +311,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     </div>
     <div id="retreatList"></div>
 
-    <h2>Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
+    <h2 id="sec-accounts">Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
@@ -411,16 +434,27 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       }).join('');
 
       // ---- observed per-hour burn ----
-      var ph = u.perHour || { sessions: 0, hours: 0, creditsPerHour: 0, costUsdPerHour: 0, byService: [], byModel: [] };
+      var ph = u.perHour || { sessions: 0, hours: 0, creditsPerHour: 0, costUsdPerHour: 0, turnsPerHour: 0, sttSecondsPerHour: 0, ttsCharsPerHour: 0, byService: [], byModel: [] };
       var phSvc = {};
       (ph.byService || []).forEach(function (l) { phSvc[l.kind] = l; });
       function svcRate(kind) { return phSvc[kind] ? dec1(phSvc[kind].creditsPerHour) : dec1(0); }
+      // The volume a leg's price is driven by, in the unit the estimate profile
+      // uses, so a row reads directly against pricing/estimate.ts.
+      function volume(kind, units) {
+        units = Number(units) || 0;
+        if (kind === 'llm') return num1(units) + ' turns';
+        if (kind === 'stt') return num1(units / 60) + ' min';
+        return int(Math.round(units)) + ' chars';
+      }
       var phCards = [
         ['Credits / hr', dec1(ph.creditsPerHour)],
         ['Provider $ / hr', usdp(ph.costUsdPerHour)],
         ['LLM cr/hr', svcRate('llm')],
         ['STT cr/hr', svcRate('stt')],
         ['TTS cr/hr', svcRate('tts')],
+        ['Turns / hr', num1(ph.turnsPerHour)],
+        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60)],
+        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0))],
         ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
         ['Real sessions', int(ph.sessions)],
       ];
@@ -430,8 +464,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       $('perHourRows').innerHTML = (ph.byModel || []).map(function (m) {
         return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) +
           '</code></td><td class="num">' + dec1(m.creditsPerHour) + '</td><td class="num">' + usdp(m.costUsdPerHour) +
+          '</td><td class="num">' + volume(m.kind, m.unitsPerHour) +
           '</td><td class="num">' + (Number(m.hours) || 0).toFixed(1) + '</td></tr>';
-      }).join('') || '<tr><td colspan="6" class="muted">No real sessions in this window.</td></tr>';
+      }).join('') || '<tr><td colspan="7" class="muted">No real sessions in this window.</td></tr>';
 
       // ---- LLM prompt cache breakdown ----
       var lc = u.llmCache || { freshInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheCreation1hTokens: 0, hitRatio: 0, costUsd: 0, costNoCacheUsd: 0, savedUsd: 0 };
@@ -611,10 +646,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     }
   }
 
-  function loadUsageHistory() {
+  // keepPage: auto-refresh passes true so a background tick doesn't yank the
+  // operator back to page 1 mid-browse (renderHistory clamps if out of range).
+  function loadUsageHistory(keepPage) {
     return api('/usage/history?days=' + $('historyDays').value + omitAdminParam()).then(function (h) {
       HISTORY = h.buckets || [];
-      historyPage = 0; // fresh data / new window → back to the first page
+      if (!keepPage) historyPage = 0; // fresh data / new window → first page
       renderHistory();
     });
   }
@@ -950,7 +987,30 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function setConnected(on) {
     $('authCard').classList.toggle('hidden', on);
     $('signOut').classList.toggle('hidden', !on);
+    $('quickNav').classList.toggle('hidden', !on);
+    $('liveWrap').classList.toggle('hidden', !on);
   }
+
+  // ---- auto-refresh ("live") ----------------------------------------------
+  // One 60s tick reloads the read-only dashboards. Skipped while the tab is
+  // hidden (the next visible tick catches up) and while disconnected. Errors
+  // are swallowed - a blipped background refresh shouldn't paint the auth box
+  // red; the next tick retries anyway.
+  var AUTO_MS = 60000;
+  var autoTimer = null;
+  function autoTick() {
+    if (document.hidden || $('app').classList.contains('hidden')) return;
+    Promise.all([loadMetrics(), loadUsage(), loadUsageHistory(true), loadAccounts()])
+      .catch(function () {});
+  }
+  function setAuto(on) {
+    clearInterval(autoTimer);
+    autoTimer = on ? setInterval(autoTick, AUTO_MS) : null;
+  }
+  $('autoRefresh').addEventListener('change', function () {
+    savePref('autoRefresh', $('autoRefresh').checked);
+    setAuto($('autoRefresh').checked);
+  });
 
   function boot() {
     setMsg($('authMsg'), 'Connecting…');
@@ -1078,6 +1138,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     });
     if (prefs.omitAdmin) {
       Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = true; });
+    }
+    if (prefs.autoRefresh) {
+      $('autoRefresh').checked = true;
+      setAuto(true);
     }
   })();
 
