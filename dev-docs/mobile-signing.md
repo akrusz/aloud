@@ -102,10 +102,14 @@ key; your upload key only signs uploads, so a lost upload key is recoverable.
 **Build a release bundle & upload**
 
 ```bash
-cd ts && npm run ui:build && npx cap sync android
-cd android && ./gradlew bundleRelease
+scripts/android-aab.sh   # bumps versionCode, syncs versionName from
+                         # ts/package.json, ui:build + cap sync + bundleRelease
 # → android/app/build/outputs/bundle/release/app-release.aab
 ```
+
+(`--no-bump` rebuilds the current version. Manual equivalent:
+`npm run ui:build && npx cap sync android`, then
+`cd android && ./gradlew bundleRelease`.)
 
 Upload the `.aab` to Play Console → **Testing → Internal testing** → create a
 release, add testers by email. Internal testing has no review wait. Own-billing

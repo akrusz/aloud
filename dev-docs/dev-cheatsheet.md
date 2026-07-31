@@ -228,14 +228,15 @@ reach the device through the `cap:*` scripts above.
 uploads need the signed `.aab`):
 
 ```bash
-cd ts && npm run ui:build && npx cap sync android
-cd android && ./gradlew bundleRelease
+scripts/android-aab.sh   # bump versionCode + sync versionName from package.json,
+                         # ui:build + cap sync + gradlew bundleRelease
 # → ts/android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-Bump `versionCode`/`versionName` in `android/app/build.gradle` before each
-upload; signing comes from the gitignored `android/keystore.properties`. Full
-keystore/Play App Signing detail: [mobile-signing.md](mobile-signing.md).
+Pass `--no-bump` to rebuild the current version. Signing comes from the
+gitignored `android/keystore.properties`; commit the `build.gradle` version
+bump alongside the upload. Full keystore/Play App Signing detail:
+[mobile-signing.md](mobile-signing.md).
 
 `VITE_ALOUD_CLOUD_URL` defaults from the committed `ts/ui/.env.production`
 (build-only; an env var overrides it), and the `cap:*` scripts refuse to run if
