@@ -3189,6 +3189,11 @@ html:has(.nav-brand.has-update) .update-btn {
 .buy-credits-subtitle {
     margin: 1rem 1.25rem 1rem;
 }
+/* "What are ☁️?" under the subtitle text, on its own line. */
+.buy-credits-whatare {
+    display: block;
+    margin-top: 0.6rem;
+}
 /* Live balance, tucked just under the subtitle. Emphasized by weight/color
    (not opacity), per house style. */
 .buy-credits-balance {

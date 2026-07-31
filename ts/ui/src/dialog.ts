@@ -72,7 +72,9 @@ function showDialog(
             // its cloud-glyph outline span. Same trust rule as the message.
             if (asHtml) el.innerHTML = b.label;
             else el.textContent = b.label;
-            el.className = `btn btn-small ${b.danger ? 'btn-danger' : b.action ? 'btn-begin' : 'btn-secondary'}`;
+            // btn-primary (not btn-begin): the CTA's big padding/radius read
+            // mismatched next to a btn-small sibling in the same row.
+            el.className = `btn btn-small ${b.danger ? 'btn-danger' : b.action ? 'btn-primary' : 'btn-secondary'}`;
             el.addEventListener('click', () => finish(b.value));
             if (b.action) actionBtn = el;
             btnRow.appendChild(el);

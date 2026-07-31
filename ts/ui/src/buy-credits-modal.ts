@@ -62,7 +62,8 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     <span class="voice-modal-title">${withCloudOutline(escapeHtml(options.title ?? DEFAULT_TITLE))}</span>
                     <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="Close">&times;</button>
                 </div>
-                <p class="provider-hint buy-credits-subtitle">${withCloudOutline(escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE))}</p>
+                <p class="provider-hint buy-credits-subtitle">${withCloudOutline(escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE))}
+                    <button type="button" class="btn btn-small btn-secondary buy-credits-whatare" id="buy-credits-whatare">What are ${withCloudOutline('☁️')}?</button></p>
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
                     <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">Card</button>
@@ -125,6 +126,13 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         };
 
         overlay.querySelector('#buy-credits-close')?.addEventListener('click', () => close(false));
+        // Dynamic import: clouds-explainer imports this module for its Get ☁️
+        // action, so a static import here would be a cycle. The dialog stacks
+        // above this modal (z-index 200 vs 80); its own Get ☁️ no-ops while
+        // we're open (the OVERLAY_ID guard).
+        overlay.querySelector('#buy-credits-whatare')?.addEventListener('click', () => {
+            void import('./clouds-explainer.js').then((m) => m.showCloudsExplainer());
+        });
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) close(false);
         });
