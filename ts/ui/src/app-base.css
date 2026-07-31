@@ -850,6 +850,21 @@ input[type="range"] {
     touch-action: pan-y;
 }
 
+/* The track is a shadow pseudo-element that doesn't take the cursor from the
+   host input - Firefox in particular draws the plain arrow over the bar, so it
+   doesn't read as clickable even though clicking it moves the value. Name
+   every track pseudo explicitly. (These can't be comma-joined into one rule:
+   a browser drops the whole selector list when one entry is unknown to it.) */
+input[type="range"]::-webkit-slider-runnable-track {
+    cursor: pointer;
+}
+input[type="range"]::-moz-range-track {
+    cursor: pointer;
+}
+input[type="range"]::-moz-range-progress {
+    cursor: pointer;
+}
+
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
