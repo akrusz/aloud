@@ -112,11 +112,11 @@ describe('priceTtsChars', () => {
         expect(priceTtsChars(N, { voiceId: 'en-US-Standard-B' }).providerCostUsd).toBeCloseTo(N * (4 / 1_000_000), 9);
     });
 
-    it('prices an OpenAI voice at its flat rate (~$22/1M), not the Google default', () => {
+    it('prices an OpenAI voice at its flat rate (~$19/1M), not the Google default', () => {
         // OpenAI voice ids ('coral') carry no Google tier marker — without
         // provider-aware pricing this would wrongly fall back to Chirp3-HD $30.
         const cost = priceTtsChars(N, { provider: 'openai', voiceId: 'coral' });
-        expect(cost.providerCostUsd).toBeCloseTo(N * (22 / 1_000_000), 9);
+        expect(cost.providerCostUsd).toBeCloseTo(N * (19 / 1_000_000), 9);
     });
 
     it('falls back to the Chirp3-HD default when no voice is given', () => {

@@ -359,12 +359,14 @@ export const TTS_USD_PER_CHAR = GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd; // $30/1M 
 
 /** OpenAI gpt-4o-mini-tts list price, expressed per CHARACTER to fit our meter.
  *  OpenAI bills by AUDIO OUTPUT tokens ($12/1M) plus a small text-input leg
- *  ($0.60/1M tokens), about $0.015 per minute of speech. A slow, pause-heavy
- *  meditation pace (~120 wpm ≈ 720 chars/min) puts that near $0.015/720 ≈
- *  $21/1M chars; we round UP to $22/1M so a slow delivery can never under-bill
- *  (same conservative stance as the Google tiers above) while staying under the
- *  Chirp3-HD ceiling. Verify vs openai.com/api/pricing as rates drift. */
-export const OPENAI_TTS_USD_PER_CHAR = 22 / M; // ~$22/1M (OpenAI gpt-4o-mini-tts, slow-pace estimate)
+ *  ($0.60/1M tokens), about $0.015 per minute of speech, so per-char is an
+ *  approximation of a duration price. Calibrated against the first spend
+ *  reconciliation (meditation-pal-t5ye, 2026-07-18): the initial $22/1M
+ *  slow-pace guess billed a uniform +18.3% over OpenAI's actual charges,
+ *  implying an effective ~$18.6/1M at real delivery pace. $19/1M rounds up
+ *  from measured (a slow delivery still can't under-bill) while staying under
+ *  the Chirp3-HD ceiling. Re-check against the reconciliation as rates drift. */
+export const OPENAI_TTS_USD_PER_CHAR = 19 / M; // ~$19/1M (gpt-4o-mini-tts, reconciled 2026-07)
 
 /** Per-character cost for a specific Google voice, read from its id. Google
  *  voice ids encode the tier (en-US-Chirp3-HD-Leda, en-US-Neural2-C,

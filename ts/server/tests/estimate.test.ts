@@ -91,7 +91,7 @@ describe('estimateVoices', () => {
         const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
         const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
         const openai = CURATED_VOICES.find((v) => v.provider === 'openai')!;
-        // ~$22/1M < $30/1M Chirp3-HD — stays under the cost ceiling.
+        // ~$19/1M < $30/1M Chirp3-HD — stays under the cost ceiling.
         expect(rateOf(openai.providerVoiceId)).toBeGreaterThan(0);
         expect(rateOf(openai.providerVoiceId)).toBeLessThan(rateOf(premium.providerVoiceId));
     });
