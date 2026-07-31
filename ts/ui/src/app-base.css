@@ -4839,8 +4839,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        between the tabs and the panel content. Only one of banner/header is ever
        the first row, so the adjacency rule cancels the double-gap when the
        banner is present. */
+    /* Slightly negative top margin: the 1.8rem clearance this carried predates
+       .main's 4.5rem floating-chrome reserve, which over-clears for the tab
+       bar (a control row, not a text heading). Pull the tabs back up toward
+       the chip; ~8px of air remains below it at phone widths. */
     .setup-header {
-        margin-top: 1.8rem;
+        margin-top: -0.6rem;
         margin-bottom: 1.25rem;
     }
     .continue-banner {
@@ -5013,9 +5017,32 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 
     /* Slimmer Begin bar: less chrome covering the page while the keyboard is
        up. Width/side-padding live in style.css (.setup-footer-inner .btn-begin),
-       which loads later and wins those - only trim the vertical here. */
+       which loads later and wins those - only trim the vertical here.
+       Grid: at phone widths Begin's natural width can reach the ☁️? chip's
+       fixed right-2rem slot and overlap it, so the absolute positioning is
+       swapped for a 3-column grid - Begin stays dead center, the chip centers
+       in the gap between Begin and the page edge and can never overlap. */
     .setup-footer {
         padding: 0.3rem 1.5rem;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+    }
+    .setup-footer-inner {
+        grid-column: 2;
+    }
+    .clouds-help {
+        position: static;
+        transform: none;
+        grid-column: 3;
+        justify-self: center;
+        /* Roomier hit box for thumbs. */
+        width: 2.5rem;
+        height: 2.5rem;
+        /* Cancel the footer's right padding from the centering math so the
+           chip sits midway between Begin's edge and the page edge, not the
+           narrower content box (keep in sync with .setup-footer's 1.5rem). */
+        margin-right: -1.5rem;
     }
     .setup-footer .btn-begin {
         padding-top: 0.65rem;

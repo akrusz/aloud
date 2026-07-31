@@ -190,23 +190,11 @@
     }
 }
 
-@media (max-width: 530px) {
-    /* The imported rule wraps .input-row at this width - voice-status takes a
-       full row and the timer/buttons drop below. That's right for exploration
-       (status + timer + TTS + mic + Just Listen crowd the row), but noting has
-       fewer controls and no Just Listen, so the reflow is gratuitous. Keep
-       noting on one row down to the narrowest widths; the status text just
-       flexes/shrinks beside the timer and two buttons. */
-    .input-row.input-row-noting {
-        flex-wrap: nowrap;
-    }
-    .input-row.input-row-noting .voice-status {
-        flex: 1 1 auto;
-        height: 42px;
-        min-height: 0;
-        padding: 0 1rem;
-    }
-}
+/* Noting once kept its input-row unwrapped at ≤530px (fewer controls than
+   exploration, so the reflow looked gratuitous) - but the turn cue ("Your
+   turn. Say something you notice now, 1-2 words.") then squeezes into the
+   sliver beside the timer and buttons and wraps 3+ times. Let the imported
+   rule reflow it like exploration: status full-width, controls below. */
 
 /* TTS settings row layout. The row wraps and the ElevenLabs key row is
    full-width, but where the key lands relative to the voice picker depends on
