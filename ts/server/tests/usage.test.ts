@@ -219,6 +219,74 @@ describe('buildUsageReport', () => {
         expect(all.sessions.excludedShort).toBe(0);
     });
 
+    it('perHour: divides qualifying-session spend by their summed duration', () => {
+        const events = [
+            // session 1: 30 min, 2 turns + a TTS leg, 6 credits / $0.30 total
+            ev({ sessionId: 's1', ts: 1000, kind: 'llm', providerCostUsd: 0.1, credits: 2 }),
+            ev({ sessionId: 's1', ts: 1000 + 900, kind: 'tts', providerCostUsd: 0.1, credits: 2 }),
+            ev({ sessionId: 's1', ts: 1000 + 1800, kind: 'llm', providerCostUsd: 0.1, credits: 2 }),
+            // session 2: 30 s blip — below both bars, excluded
+            ev({ sessionId: 's2', ts: 50_000, kind: 'llm', providerCostUsd: 5, credits: 100 }),
+            ev({ sessionId: 's2', ts: 50_030, kind: 'llm', providerCostUsd: 5, credits: 100 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.perHour.sessions).toBe(1);
+        expect(r.perHour.hours).toBeCloseTo(0.5, 9);
+        // 6 credits / 0.5 h = 12 cr/hr; $0.30 / 0.5 h = $0.60/hr.
+        expect(r.perHour.creditsPerHour).toBeCloseTo(12, 9);
+        expect(r.perHour.costUsdPerHour).toBeCloseTo(0.6, 9);
+        // Per-service split over the SAME denominator.
+        const svc = Object.fromEntries(r.perHour.byService.map((l) => [l.kind, l]));
+        expect(svc.llm!.creditsPerHour).toBeCloseTo(8, 9);
+        expect(svc.tts!.creditsPerHour).toBeCloseTo(4, 9);
+        expect(svc.stt!.creditsPerHour).toBe(0);
+    });
+
+    it('perHour: a 10+ turn session qualifies even under 5 minutes', () => {
+        const events = Array.from({ length: 10 }, (_, i) =>
+            ev({ ts: 1000 + i * 12, kind: 'llm', providerCostUsd: 0.01, credits: 0.2 })
+        );
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.perHour.sessions).toBe(1);
+        // 108 s = 0.03 h; 2 credits / 0.03 h.
+        expect(r.perHour.creditsPerHour).toBeCloseTo(2 / 0.03, 6);
+    });
+
+    it('perHour: per-model rows use only the hours of sessions that used the model', () => {
+        const events = [
+            // session 1 (60 min): opus only, 6 credits
+            ev({ sessionId: 's1', ts: 1000, kind: 'llm', provider: 'anthropic', model: 'claude-opus-5', credits: 3, providerCostUsd: 0.15 }),
+            ev({ sessionId: 's1', ts: 1000 + 3600, kind: 'llm', provider: 'anthropic', model: 'claude-opus-5', credits: 3, providerCostUsd: 0.15 }),
+            // session 2 (30 min, other account): flash-lite only, 1 credit
+            ev({ accountId: 'a2', sessionId: 's2', ts: 1000, kind: 'llm', credits: 0.5, providerCostUsd: 0.01 }),
+            ev({ accountId: 'a2', sessionId: 's2', ts: 1000 + 1800, kind: 'llm', credits: 0.5, providerCostUsd: 0.01 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.perHour.hours).toBeCloseTo(1.5, 9);
+        const opus = r.perHour.byModel.find((m) => m.model === 'claude-opus-5')!;
+        const flash = r.perHour.byModel.find((m) => m.model === 'gemini-2.5-flash-lite')!;
+        // Opus: 6 credits over ITS 1 h, not the window's 1.5 h.
+        expect(opus.hours).toBeCloseTo(1, 9);
+        expect(opus.creditsPerHour).toBeCloseTo(6, 9);
+        expect(flash.hours).toBeCloseTo(0.5, 9);
+        expect(flash.creditsPerHour).toBeCloseTo(2, 9);
+        // Overall blends both: 7 credits / 1.5 h.
+        expect(r.perHour.creditsPerHour).toBeCloseTo(7 / 1.5, 9);
+    });
+
+    it('perHour: ignores the minSessionTurns option', () => {
+        const events = [
+            ev({ sessionId: 's1', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's1', ts: 1000 + 600, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+        ];
+        // 2 turns: dropped from the session distributions at minTurns=4, but a
+        // 10-minute session still counts toward the burn rate.
+        const r = buildUsageReport(events, 1_000_000, 0, { minSessionTurns: 4 });
+        expect(r.sessions.count).toBe(0);
+        expect(r.perHour.sessions).toBe(1);
+        expect(r.perHour.creditsPerHour).toBeCloseTo(12, 9);
+    });
+
     it('returns zeroed aggregates for an empty window', () => {
         const r = buildUsageReport([], 2000, 1000);
         expect(r.events).toBe(0);
@@ -227,6 +295,9 @@ describe('buildUsageReport', () => {
         expect(r.sessions.costUsd.p90).toBe(0);
         expect(r.sessions.turns.max).toBe(0);
         expect(r.byService.every((s) => s.events === 0)).toBe(true);
+        expect(r.perHour.sessions).toBe(0);
+        expect(r.perHour.creditsPerHour).toBe(0);
+        expect(r.perHour.byModel).toEqual([]);
     });
 });
 

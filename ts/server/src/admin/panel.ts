@@ -165,6 +165,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost - the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
     <div class="grid" id="usageStats"></div>
     <div class="card">
+      <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of real sessions (5+ min or 10+ turns) divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
+      <div class="grid" id="perHourStats" style="margin-bottom:12px"></div>
+      <table>
+        <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">$/hr</th><th class="num">Hours</th></tr></thead>
+        <tbody id="perHourRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">LLM prompt cache - the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently - the per-provider hit rate is how you tell each path is actually caching.</p>
       <div class="grid" id="cacheStats" style="margin-bottom:12px"></div>
       <table>
@@ -401,6 +409,29 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       $('usageStats').innerHTML = cards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
       }).join('');
+
+      // ---- observed per-hour burn ----
+      var ph = u.perHour || { sessions: 0, hours: 0, creditsPerHour: 0, costUsdPerHour: 0, byService: [], byModel: [] };
+      var phSvc = {};
+      (ph.byService || []).forEach(function (l) { phSvc[l.kind] = l; });
+      function svcRate(kind) { return phSvc[kind] ? dec1(phSvc[kind].creditsPerHour) : dec1(0); }
+      var phCards = [
+        ['Credits / hr', dec1(ph.creditsPerHour)],
+        ['Provider $ / hr', usdp(ph.costUsdPerHour)],
+        ['LLM cr/hr', svcRate('llm')],
+        ['STT cr/hr', svcRate('stt')],
+        ['TTS cr/hr', svcRate('tts')],
+        ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
+        ['Real sessions', int(ph.sessions)],
+      ];
+      $('perHourStats').innerHTML = phCards.map(function (c) {
+        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
+      }).join('');
+      $('perHourRows').innerHTML = (ph.byModel || []).map(function (m) {
+        return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) +
+          '</code></td><td class="num">' + dec1(m.creditsPerHour) + '</td><td class="num">' + usdp(m.costUsdPerHour) +
+          '</td><td class="num">' + (Number(m.hours) || 0).toFixed(1) + '</td></tr>';
+      }).join('') || '<tr><td colspan="6" class="muted">No real sessions in this window.</td></tr>';
 
       // ---- LLM prompt cache breakdown ----
       var lc = u.llmCache || { freshInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheCreation1hTokens: 0, hitRatio: 0, costUsd: 0, costNoCacheUsd: 0, savedUsd: 0 };

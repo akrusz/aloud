@@ -159,6 +159,45 @@ export interface ProviderCacheAgg extends CacheAgg {
     events: number;
 }
 
+/** A session counts toward the per-hour burn rate when it spans at least this
+ *  long OR carries at least this many facilitator turns. Blips below both bars
+ *  have durations too small to divide by meaningfully; everything above them
+ *  contributes duration-weighted, so no single session can skew the rate. */
+export const PER_HOUR_MIN_MINUTES = 5;
+export const PER_HOUR_MIN_TURNS = 10;
+
+export interface PerHourLeg {
+    kind: UsageKind;
+    creditsPerHour: number;
+    costUsdPerHour: number;
+}
+
+export interface PerHourModel extends PerHourLeg {
+    provider: string;
+    model: string;
+    /** Hours in this row's denominator: total duration of qualifying sessions
+     *  that used this model/voice at least once (not the whole window's hours,
+     *  so a rarely-picked voice still shows its true burn rate). */
+    hours: number;
+}
+
+/** The observed burn rate: total spend of qualifying ("real") sessions divided
+ *  by their total wall-clock duration. The number to hold against the
+ *  advertised credits/hr estimates (pricing/estimate.ts) — same denomination,
+ *  measured instead of assumed. Duration is first→last metered event, which
+ *  slightly undercounts a session that ends in silence, so these read a touch
+ *  HIGH versus what a user experiences per sat hour. */
+export interface PerHourReport {
+    /** Sessions meeting the ≥PER_HOUR_MIN_MINUTES or ≥PER_HOUR_MIN_TURNS bar. */
+    sessions: number;
+    /** Their summed wall-clock hours: the denominator. */
+    hours: number;
+    creditsPerHour: number;
+    costUsdPerHour: number;
+    byService: PerHourLeg[];
+    byModel: PerHourModel[];
+}
+
 export interface Distribution {
     count: number;
     mean: number;
@@ -199,6 +238,8 @@ export interface UsageReport {
         /** Sessions dropped from the distributions by minSessionTurns. */
         excludedShort: number;
     };
+    /** Observed credits/hr and $/hr over real sessions, overall + per leg. */
+    perHour: PerHourReport;
 }
 
 export interface UsageReportOptions {
@@ -389,14 +430,78 @@ export function buildUsageReport(
     const sessionCosts = sessions.map((s) => s.reduce((sum, e) => sum + e.providerCostUsd, 0));
     const sessionCredits = sessions.map((s) => s.reduce((sum, e) => sum + e.credits, 0));
     const sessionTurns = sessions.map((s) => s.filter((e) => e.kind === 'llm').length);
-    const sessionDurations = sessions.map((s) => {
-        if (s.length < 2) return 0;
-        return (s[s.length - 1]!.ts - s[0]!.ts) / 60;
-    });
+    const durationMinOf = (s: UsageEvent[]): number =>
+        s.length < 2 ? 0 : (s[s.length - 1]!.ts - s[0]!.ts) / 60;
+    const sessionDurations = sessions.map(durationMinOf);
     const meanDurationMin =
         sessionDurations.length > 0
             ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length
             : 0;
+
+    // ---- observed per-hour burn (independent of minSessionTurns: the bar for
+    // "real enough to divide by" is fixed, so the rate is stable across the
+    // panel's session filter) ------------------------------------------------
+    const qualifying = allSessions.filter(
+        (s) =>
+            durationMinOf(s) >= PER_HOUR_MIN_MINUTES ||
+            s.filter((e) => e.kind === 'llm').length >= PER_HOUR_MIN_TURNS
+    );
+    const totalHours = qualifying.reduce((sum, s) => sum + durationMinOf(s), 0) / 60;
+    const rate = (x: number, hours: number): number => (hours > 0 ? x / hours : 0);
+    const phService: Record<UsageKind, { credits: number; cost: number }> = {
+        llm: { credits: 0, cost: 0 },
+        stt: { credits: 0, cost: 0 },
+        tts: { credits: 0, cost: 0 },
+    };
+    const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; credits: number; cost: number; hours: number }>();
+    let phCredits = 0;
+    let phCost = 0;
+    for (const s of qualifying) {
+        const sessionHours = durationMinOf(s) / 60;
+        const modelsInSession = new Set<string>();
+        for (const e of s) {
+            phCredits += e.credits;
+            phCost += e.providerCostUsd;
+            phService[e.kind].credits += e.credits;
+            phService[e.kind].cost += e.providerCostUsd;
+            const key = `${e.kind}:${e.provider}:${e.model}`;
+            const m = phModels.get(key) ?? {
+                kind: e.kind,
+                provider: e.provider,
+                model: e.model,
+                credits: 0,
+                cost: 0,
+                hours: 0,
+            };
+            m.credits += e.credits;
+            m.cost += e.providerCostUsd;
+            // This session's hours count once per model, not once per event.
+            if (!modelsInSession.has(key)) m.hours += sessionHours;
+            modelsInSession.add(key);
+            phModels.set(key, m);
+        }
+    }
+    const perHour: PerHourReport = {
+        sessions: qualifying.length,
+        hours: totalHours,
+        creditsPerHour: rate(phCredits, totalHours),
+        costUsdPerHour: rate(phCost, totalHours),
+        byService: (Object.keys(phService) as UsageKind[]).map((kind) => ({
+            kind,
+            creditsPerHour: rate(phService[kind].credits, totalHours),
+            costUsdPerHour: rate(phService[kind].cost, totalHours),
+        })),
+        byModel: [...phModels.values()]
+            .map((m) => ({
+                kind: m.kind,
+                provider: m.provider,
+                model: m.model,
+                creditsPerHour: rate(m.credits, m.hours),
+                costUsdPerHour: rate(m.cost, m.hours),
+                hours: m.hours,
+            }))
+            .sort((a, b) => b.costUsdPerHour - a.costUsdPerHour),
+    };
 
     const hitRatioOf = (read: number, fresh: number, create: number): number => {
         const denom = fresh + read + create;
@@ -446,6 +551,7 @@ export function buildUsageReport(
             meanDurationMin,
             excludedShort,
         },
+        perHour,
     };
 }
 
