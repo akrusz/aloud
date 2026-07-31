@@ -38,24 +38,16 @@ describe('estimateModels', () => {
 });
 
 describe('estimateStt', () => {
-    it('shows the flat advertised rates: 2☁️/hr default, 1☁️/hr gpt-transcribe', () => {
-        // Flat-priced (meter.ts priceSttSeconds): shown and billed are the same
-        // table, so these are exact whole numbers, not at-cost roundings.
-        expect(estimateStt().creditsPerHour).toBe(2); // server default gpt-4o-transcribe
-        expect(estimateStt('gpt-transcribe').creditsPerHour).toBe(1);
-        // A typical hour debits exactly the advertised number.
-        expect(estimateStt().creditsPerSession * (60 / 50)).toBeCloseTo(2, 9);
-        expect(estimateStt('gpt-transcribe').creditsPerSession * (60 / 50)).toBeCloseTo(1, 9);
-    });
-
-    it('is a small leg in PROVIDER cost relative to a premium model hour', () => {
-        const stt = estimateStt();
-        // costUsdPerHour is true upstream cost (telemetry), not the billed rate.
+    it('is a small leg for either hosted model, cheaper on gpt-transcribe', () => {
+        const stt = estimateStt(); // server default gpt-4o-transcribe
+        expect(stt.creditsPerHour).toBeGreaterThan(0);
+        // VAD-segmented speech makes STT cheap relative to a premium model hour.
         const opus = estimateModels().find((m) => m.model === 'claude-opus-5')!;
-        expect(stt.costUsdPerHour).toBeGreaterThan(0);
         expect(stt.costUsdPerHour).toBeLessThan(opus.costUsdPerHour);
-        // And the cheaper model really is cheaper upstream too.
-        expect(estimateStt('gpt-transcribe').costUsdPerHour).toBeLessThan(stt.costUsdPerHour);
+        // The newer model debits at its own (25% lower) provider cost.
+        expect(estimateStt('gpt-transcribe').creditsPerSession).toBeLessThan(
+            stt.creditsPerSession
+        );
     });
 });
 

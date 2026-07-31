@@ -239,13 +239,14 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     }
 }
 
-/** ☁️/hr badges for the hosted STT options — the flat advertised rates the
- *  server bills exactly (its pricing/providers.ts STT_MODEL_PRICING; per
- *  typical session-hour of talking, the same unit as the model/voice pickers).
+/** aloud cloud STT bills at provider cost — a flat ~1 credit/hour of speech at
+ *  a typical talk profile for either hosted model (mirrors the server's
+ *  estimateStt; the newer gpt-transcribe runs a bit under it). Shown with the
+ *  same ☁️ unit as the model/voice pickers so all three read consistently.
  *  'aloud' is the server-default model (OpenAI gpt-4o-transcribe);
  *  'aloud-gpt-transcribe' pins OpenAI's newer gpt-transcribe (July 2026),
  *  offered alongside while it's validated — it may replace the default. */
-export const CLOUD_STT_RATES = { aloud: 2, 'aloud-gpt-transcribe': 1 } as const;
+export const CLOUD_STT_CREDITS_PER_HOUR = 1;
 
 /** The hosted (credit-spending, cloud-auth) STT choices. */
 export function isHostedSttChoice(choice: SttEngineChoice): boolean {
@@ -254,9 +255,7 @@ export function isHostedSttChoice(choice: SttEngineChoice): boolean {
 
 /** ☁️/hr for a picker choice — 0 for the free local/browser engines. */
 export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
-    return choice === 'aloud' || choice === 'aloud-gpt-transcribe'
-        ? CLOUD_STT_RATES[choice]
-        : 0;
+    return isHostedSttChoice(choice) ? CLOUD_STT_CREDITS_PER_HOUR : 0;
 }
 
 /**
@@ -287,14 +286,14 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser speech recognition' });
     }
-    out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_RATES['aloud'])}` });
-    // OpenAI's gpt-transcribe on the same hosted route: cheaper and (per
-    // benchmarks) more accurate than the default's gpt-4o-transcribe. A second
-    // entry while it's validated in real sessions — it may replace the default,
-    // retiring this split.
+    out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
+    // OpenAI's gpt-transcribe on the same hosted route: cheaper upstream and
+    // (per benchmarks) more accurate than the default's gpt-4o-transcribe. A
+    // second entry while it's validated in real sessions — it may replace the
+    // default, retiring this split.
     out.push({
         value: 'aloud-gpt-transcribe',
-        label: `aloud cloud - new${rateSuffix(CLOUD_STT_RATES['aloud-gpt-transcribe'])}`,
+        label: `aloud cloud - new${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}`,
     });
     return out;
 }

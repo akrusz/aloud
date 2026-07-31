@@ -18,7 +18,7 @@ export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenl
  *  hosted (resolveSttChoice in adapters/stt-picker). */
 /** 'aloud' is hosted STT on the server-default model (OpenAI gpt-4o-transcribe);
  *  'aloud-gpt-transcribe' pins the newer/cheaper gpt-transcribe on the same
- *  hosted route (stt-picker.ts CLOUD_STT_RATES has both ☁️ rates). */
+ *  hosted route (see stt-picker.ts sttEngineOptions). */
 export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud' | 'aloud-gpt-transcribe' | 'capacitor';
 
 /** When the facilitator checks in during silence: never, after a fixed

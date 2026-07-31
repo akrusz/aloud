@@ -125,9 +125,9 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
 });
 
 describe('hosted STT options — the two cloud models', () => {
-    it('shows the flat ☁️ rates: 2☁️ default, 1☁️ for the new gpt-transcribe entry', () => {
+    it('shows the shared ~1☁️/hr rate badge on both hosted entries', () => {
         const opts = sttEngineOptions(true);
-        expect(opts.find((o) => o.value === 'aloud')!.label).toContain('2☁️');
+        expect(opts.find((o) => o.value === 'aloud')!.label).toContain('1☁️');
         expect(opts.find((o) => o.value === 'aloud-gpt-transcribe')!.label).toContain('1☁️');
     });
     it('maps the new hosted choice to the continuous PCM backend, like classic', () => {

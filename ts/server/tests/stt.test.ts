@@ -132,12 +132,12 @@ describe('POST /cloud/v1/stt', () => {
         expect(sttCalls[0]!.url).toContain('api.openai.com'); // default backend
         expect(sttCalls[0]!.hasFile).toBe(true);
         expect(sttCalls[0]!.model).toBe('gpt-4o-transcribe'); // server default
-        // Flat-priced: 2☁️ per 288 s of typical-hour speech → 10 s ≈ 0.069.
-        expect(body.creditsCharged).toBeCloseTo((10 * 2) / 288, 6);
+        // At cost: 10 s × $0.36/3600 / $0.05 per credit = 0.02 — fractional, tiny.
+        expect(body.creditsCharged).toBeCloseTo((10 * 0.36) / 3600 / 0.05, 6);
         expect(body.creditsRemaining).toBeCloseTo(20 - body.creditsCharged, 6);
     });
 
-    it('honors ?model=gpt-transcribe: forwards it upstream and bills the 1☁️ rate', async () => {
+    it("honors ?model=gpt-transcribe: forwards it upstream and bills that model's cost", async () => {
         const a = app();
         const token = await devToken(a);
         const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=gpt-transcribe', {
@@ -149,8 +149,8 @@ describe('POST /cloud/v1/stt', () => {
         const body = (await res.json()) as TranscribeResponse;
         expect(sttCalls).toHaveLength(1);
         expect(sttCalls[0]!.model).toBe('gpt-transcribe');
-        // Half the default model's flat rate: 1☁️ per 288 s.
-        expect(body.creditsCharged).toBeCloseTo(10 / 288, 6);
+        // At cost, 25% under the default: 10 s × $0.27/3600 / $0.05 per credit.
+        expect(body.creditsCharged).toBeCloseTo((10 * 0.27) / 3600 / 0.05, 6);
     });
 
     it('rejects a model outside the backend allowlist (the model keys billing)', async () => {

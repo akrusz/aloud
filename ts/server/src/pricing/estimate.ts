@@ -19,7 +19,7 @@
 import type { SessionUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
 import { priceSession, priceSttSeconds, usdToCredits } from './meter.js';
-import { DEFAULT_STT_MODEL, allowedModels, sttPricingFor, ttsRateFor } from './providers.js';
+import { DEFAULT_STT_MODEL, allowedModels, ttsRateFor } from './providers.js';
 import { CURATED_VOICES, type TtsProvider } from '../providers/voice-catalog.js';
 
 /** Representative ~50-min session, history-caching ON. See file header. */
@@ -102,15 +102,12 @@ export function estimateModels(): ModelEstimate[] {
 }
 
 /** Cloud STT leg for a hosted model (default: the server-default
- *  gpt-4o-transcribe). STT is flat-priced (meter.ts priceSttSeconds), so the
- *  per-hour credits are read straight off the advertised rate table rather than
- *  re-derived through PER_HOUR — the float round-trip could ceil an exact 2.0
- *  up to 3. Billed and shown can't drift: both come from STT_MODEL_PRICING. */
+ *  gpt-4o-transcribe), priced through the same meter code that bills. */
 export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
     const cost = priceSttSeconds(TYPICAL_SESSION.sttSeconds, model);
     return {
         creditsPerSession: cost.credits,
-        creditsPerHour: sttPricingFor(model).creditsPerTypicalHour,
+        creditsPerHour: Math.ceil(cost.credits * PER_HOUR),
         costUsdPerHour: round1(cost.providerCostUsd * PER_HOUR * 100) / 100,
     };
 }
