@@ -52,8 +52,10 @@ html { font-size: 16px; }
        with .nav's padding + brand line-height - used to keep floating modals
        from sliding up under the bar. Slightly over-reserved on purpose.
        Includes the top safe-area inset so the reserve stays correct on notched
-       phones, where .nav is taller by that inset (0 elsewhere). */
-    --nav-h: calc(64px + var(--safe-top));
+       phones, where .nav is taller by that inset (0 elsewhere). In rem, not
+       px: the bar is all rem-sized inside, so a bumped --text-scale grows it
+       (~4.5rem at every scale) and a px reserve would fall short. */
+    --nav-h: calc(4.6rem + var(--safe-top));
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -4736,7 +4738,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        bottom space clears the fixed bottom nav. */
     .main {
         padding: calc(4.5rem + var(--safe-top)) 1rem
-            calc(3.1rem + var(--safe-bottom-clear));
+            calc(4rem + var(--safe-bottom-clear));
     }
 
     /* Session page: the .main host is padding:0 by design - push the
@@ -5006,13 +5008,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         color: var(--danger, #c0503e);
     }
 
-    /* Settings + setup: fixed footers must stack above the bottom nav,
-       and forms need enough bottom padding to clear both. The bottom nav is
-       ~3.9rem + inset tall (its 22px icons don't scale with the 15px phone
-       rem), so 4rem clears it where 3.7rem tucked underneath. */
+    /* Settings + setup: fixed footers must stack above the bottom nav, and
+       forms need enough bottom padding to clear both. The nav is a hair under
+       4rem + inset tall at every text scale (its icons are sized in rem, see
+       .bottom-nav-icon), so 3.9rem lands the footer flush on it - a hair of
+       overlap rather than a gap the page can show through. */
     .settings-footer,
     .setup-footer {
-        bottom: calc(4rem + var(--safe-bottom-clear));
+        bottom: calc(3.9rem + var(--safe-bottom-clear));
     }
 
     /* Slimmer Begin bar: less chrome covering the page while the keyboard is
@@ -5120,8 +5123,15 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         color: var(--accent);
     }
 
+    /* Size the icons in rem (overriding the 22px width/height attributes in
+       index.html) so the whole nav scales with --text-scale. Its height is
+       what the fixed footers above it offset by; with px icons the nav grew
+       slower than that rem offset and the footer floated off it at large
+       text sizes / tucked under it at small ones. */
     .bottom-nav-icon {
         display: block;
+        width: 1.45rem;
+        height: 1.45rem;
     }
 
     .bottom-nav-label {
@@ -5160,6 +5170,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         flex-direction: column;
         gap: 0.25rem;
         animation: mobile-more-slide-up 0.18s ease-out;
+        /* The sheet grows with --text-scale (and gains rows mid-session or
+           when an update is waiting). Cap it at the viewport and scroll
+           rather than pushing the top rows off-screen where nothing can
+           reach them. */
+        max-height: 100dvh;
+        overflow-y: auto;
     }
 
     @keyframes mobile-more-slide-up {
