@@ -95,8 +95,10 @@ async function render(root: HTMLElement): Promise<void> {
                 }</span>
                 ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">Buy ${withCloudOutline(RATE_EMOJI)}</button>`}
             </div>
-            <p class="form-hint">${withCloudOutline('☁️ are used by aloud cloud to power three core functions: the facilitator, the voice you hear, and speech recognition.')}</p>
-            <button type="button" class="btn btn-small btn-secondary" id="acct-clouds-what">What are ${withCloudOutline(RATE_EMOJI)}?</button>
+            <p class="form-hint clouds-hint-row">
+                <span>${withCloudOutline('☁️ are used by aloud cloud to power three core functions: the facilitator, the voice you hear, and speech recognition.')}</span>
+                <button type="button" class="btn btn-small btn-secondary" id="acct-clouds-what">What are ${withCloudOutline(RATE_EMOJI)}?</button>
+            </p>
             ${connectPrompt}
         </section>
         <section class="settings-section" id="password-section">

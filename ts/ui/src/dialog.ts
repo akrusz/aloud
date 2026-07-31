@@ -98,15 +98,25 @@ export interface ConfirmOptions {
     /** Render the message AND button labels as markup - static app copy only,
      *  nothing untrusted. */
     html?: boolean;
+    /** Which button is the default (focused, Enter, primary-styled). 'ok'
+     *  unless the affirmative is a pushy upsell - then 'cancel' keeps the
+     *  quiet dismissal as the path of least resistance. */
+    primary?: 'ok' | 'cancel';
 }
 
 /** Resolves true if the user confirms, false on cancel / backdrop / Escape. */
 export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promise<boolean> {
+    const cancelIsPrimary = opts.primary === 'cancel';
     return showDialog(
         message,
         [
-            { label: opts.cancelLabel ?? 'Cancel', value: false },
-            { label: opts.okLabel ?? 'OK', value: true, action: true, danger: opts.danger ?? false },
+            { label: opts.cancelLabel ?? 'Cancel', value: false, action: cancelIsPrimary },
+            {
+                label: opts.okLabel ?? 'OK',
+                value: true,
+                action: !cancelIsPrimary,
+                danger: opts.danger ?? false,
+            },
         ],
         false,
         opts.html ?? false

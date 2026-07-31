@@ -43,6 +43,8 @@ export async function showCloudsExplainer(): Promise<void> {
     const getClouds = await confirmDialog(withCloudOutline(EXPLAINER + hint), {
         okLabel: withCloudOutline('Get ☁️'),
         cancelLabel: 'Got it',
+        // Got it is the focused primary - an explainer shouldn't upsell by default.
+        primary: 'cancel',
         html: true,
     });
     if (!getClouds) return;

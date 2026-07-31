@@ -3189,10 +3189,23 @@ html:has(.nav-brand.has-update) .update-btn {
 .buy-credits-subtitle {
     margin: 1rem 1.25rem 1rem;
 }
-/* "What are ☁️?" under the subtitle text, on its own line. */
-.buy-credits-whatare {
-    display: block;
-    margin-top: 0.6rem;
+/* A hint with its "What are ☁️?" button right-aligned beside the text (account
+   Cloud Balance, buy-credits subtitle) - the text wraps in its own column
+   rather than pushing the button to a new line. */
+.clouds-hint-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.clouds-hint-row > .btn {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* The custom-amount hint fills lazily (min/max/discount) - as an empty
+   .provider-hint it would render a bare padded bar. */
+.buy-credits-custom-hint:empty {
+    display: none;
 }
 /* Live balance, tucked just under the subtitle. Emphasized by weight/color
    (not opacity), per house style. */

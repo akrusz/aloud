@@ -62,8 +62,10 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     <span class="voice-modal-title">${withCloudOutline(escapeHtml(options.title ?? DEFAULT_TITLE))}</span>
                     <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="Close">&times;</button>
                 </div>
-                <p class="provider-hint buy-credits-subtitle">${withCloudOutline(escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE))}
-                    <button type="button" class="btn btn-small btn-secondary buy-credits-whatare" id="buy-credits-whatare">What are ${withCloudOutline('☁️')}?</button></p>
+                <p class="provider-hint buy-credits-subtitle clouds-hint-row">
+                    <span>${withCloudOutline(escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE))}</span>
+                    <button type="button" class="btn btn-small btn-secondary" id="buy-credits-whatare">What are ${withCloudOutline('☁️')}?</button>
+                </p>
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
                     <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">Card</button>
