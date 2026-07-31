@@ -1322,6 +1322,26 @@ body:has(.session-container) {
     cursor: pointer;
 }
 
+/* Grow on hover/press as a kasina-entry affordance. The independent `scale`
+   property, not transform: it composes with the breatheNav transform
+   animation instead of being overridden by it. Double-class specificity so
+   the transition list beats the later .orb rule's (whose saturation
+   transition must survive here); 1.25 keeps the grown orb inside the bar. */
+.orb.orb-nav {
+    transition: --orb-saturation 3s ease, scale 0.25s ease;
+}
+
+/* Press feedback on touch (finger down, not yet released); :hover is gated
+   behind (hover: hover) so it can't stick on after a tap on touchscreens. */
+.orb-nav:active {
+    scale: 1.25;
+}
+@media (hover: hover) {
+    .orb-nav:hover {
+        scale: 1.25;
+    }
+}
+
 .orb-bounce {
     animation: orbBounce 0.6s ease-in-out;
 }
@@ -4701,6 +4721,19 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding: 0.2rem;
         opacity: 0.9;
         backdrop-filter: blur(4px);
+    }
+
+    /* In the floating chip the orb grows down-left from its top-right corner,
+       holding both its distance to the screen top and the gap to the
+       hamburger beside it. Only while grown - transform-origin also anchors
+       the breatheNav animation, and the resting breath should stay centered. */
+    .orb-nav:active {
+        transform-origin: top right;
+    }
+    @media (hover: hover) {
+        .orb-nav:hover {
+            transform-origin: top right;
+        }
     }
 
     /* Reserve room: top space clears the floating brand/orb (chip bottom
