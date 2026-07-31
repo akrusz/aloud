@@ -73,8 +73,9 @@ function showDialog(
             if (asHtml) el.innerHTML = b.label;
             else el.textContent = b.label;
             // btn-primary (not btn-begin): the CTA's big padding/radius read
-            // mismatched next to a btn-small sibling in the same row.
-            el.className = `btn btn-small ${b.danger ? 'btn-danger' : b.action ? 'btn-primary' : 'btn-secondary'}`;
+            // mismatched next to its sibling. Full-size .btn padding, not
+            // btn-small - dialog buttons are the focal point of their surface.
+            el.className = `btn ${b.danger ? 'btn-danger' : b.action ? 'btn-primary' : 'btn-secondary'}`;
             el.addEventListener('click', () => finish(b.value));
             if (b.action) actionBtn = el;
             btnRow.appendChild(el);

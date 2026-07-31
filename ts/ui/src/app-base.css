@@ -3191,8 +3191,9 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 /* A hint with its "What are ☁️?" button right-aligned beside the text (account
    Cloud Balance, buy-credits subtitle) - the text wraps in its own column
-   rather than pushing the button to a new line. */
-.clouds-hint-row {
+   rather than pushing the button to a new line. Element-qualified: .form-hint's
+   display:block sits later in this file and would win a plain class tie. */
+p.clouds-hint-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
