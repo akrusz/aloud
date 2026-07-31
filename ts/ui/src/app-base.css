@@ -1331,7 +1331,11 @@ body:has(.session-container) {
    state is latched there so a flickering :active on touch can't interrupt
    a running transition and jitter the orb. */
 .orb.orb-nav {
-    transition: --orb-saturation 3s ease, scale 0.25s ease;
+    /* transform-origin transitions with the scale: on mobile the grown state
+       re-anchors to top right, and an instant origin flip mid-shrink would
+       teleport the still-enlarged orb before the scale-down finishes. */
+    transition: --orb-saturation 3s ease, scale 0.25s ease,
+        transform-origin 0.25s ease;
 }
 
 .orb-nav.orb-grown {
