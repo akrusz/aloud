@@ -1373,14 +1373,20 @@ body:has(.session-container) {
 }
 
 .orb-bounce {
-    animation: orbBounce 0.6s ease-in-out;
+    animation: orbBounce 0.62s;
 }
 
+/* Falls to the bottom of the nav bar, squashes on impact, and springs back to
+   rest. Per-keyframe timing functions carry the physics: ease-in accelerates
+   the fall, ease-out decelerates the rise. The squash frames add ~2px to
+   translateY so the (unshifted) transform-origin doesn't lift the orb off the
+   floor as it flattens - transform-origin can't be set here, it's mid-
+   transition on .orb.orb-nav. */
 @keyframes orbBounce {
-    0%   { transform: translateY(0); }
-    25%  { transform: translateY(-7px); }
-    50%  { transform: translateY(1px); }
-    75%  { transform: translateY(-2px); }
+    0%   { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.4); }
+    38%  { transform: translateY(14px) scale(1, 1); animation-timing-function: ease-out; }
+    45%  { transform: translateY(16px) scale(1.14, 0.86); animation-timing-function: ease-in; }
+    52%  { transform: translateY(14px) scale(1, 1); animation-timing-function: cubic-bezier(0.2, 0.6, 0.35, 1); }
     100% { transform: translateY(0); }
 }
 
