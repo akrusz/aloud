@@ -869,6 +869,13 @@
     display: flex;
     align-items: center;
     min-height: 2.75rem;
+    font-size: 0.875rem;
+}
+/* Flex makes each text run and the inline "try again" button a separate flex
+   item on one un-wrapping row, which wraps raggedly in a narrow slot. Keep the
+   message in a single child so it wraps as ordinary inline flow. */
+.model-unavailable > span {
+    display: block;
 }
 /* aloud cloud cold-start note in the model slot - matches .model-unavailable's
    height so the slot doesn't jump while the hosted service wakes. Muted via

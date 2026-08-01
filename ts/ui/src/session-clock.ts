@@ -29,7 +29,7 @@ export const SESSION_CLOCK_FLASH_MS = 8000;
 const MODE_LABELS: ReadonlyArray<[SessionClockMode, string, string]> = [
     ['elapsed', 'Time in session', 'Counts up from when you started.'],
     ['wall', 'Time of day', 'The clock on the wall, no seconds ticking.'],
-    ['timer', 'Timer', 'Counts down. No alarm: the facilitator says a word when the time is up.'],
+    ['timer', 'Timer', 'Counts down. The facilitator will tell you when the time is up.'],
 ];
 
 export interface SessionClockChoice {

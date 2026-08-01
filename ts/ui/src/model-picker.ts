@@ -384,7 +384,7 @@ export function mountModelPicker(
             providerNeedsKey(provider) && !(await hasApiKey(provider as Provider))
                 ? `Add an API key to load models.`
                 : `Couldn't load ${provider} models. Check the key or your connection.`;
-        container.innerHTML = `<p class="model-unavailable" id="model-none">${escape(reason)}</p>`;
+        container.innerHTML = `<p class="model-unavailable" id="model-none"><span>${escape(reason)}</span></p>`;
     }
 
     /** Ollama empty state: naming a model is useless when the daemon has none to
@@ -409,8 +409,8 @@ export function mountModelPicker(
     function renderCloudUnreachable(): void {
         container.innerHTML = `
             <p class="model-unavailable" id="model-cloud-down">
-                Can't reach aloud cloud. Check your connection and
-                <button type="button" class="model-retry-btn" id="model-cloud-retry">try again</button>.
+                <span>Can't reach aloud cloud. Check your connection and
+                <button type="button" class="model-retry-btn" id="model-cloud-retry">try again</button>.</span>
             </p>`;
         container
             .querySelector<HTMLButtonElement>('#model-cloud-retry')
