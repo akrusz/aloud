@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
     SessionClock,
-    SESSION_CLOCK_FLASH_MS,
+    SESSION_CLOCK_REVEAL_MS,
     clampTimerMinutes,
     clockModeLabel,
     formatDuration,
@@ -38,6 +38,7 @@ const TIMER_SETTINGS = {
     sessionClockMode: 'timer' as const,
     sessionTimerMin: 20,
     showSessionClock: true,
+    endSessionOnTimer: false,
 };
 
 describe('formatDuration', () => {
@@ -69,6 +70,12 @@ describe('clockModeLabel', () => {
         expect(clockModeLabel('elapsed', 20)).toBe('Time in session');
         expect(clockModeLabel('wall', 20)).toBe('Time of day');
         expect(clockModeLabel('timer', 20)).toBe('20 min timer');
+    });
+
+    it('says Hidden when the readout is off, but still names an armed timer', () => {
+        expect(clockModeLabel('elapsed', 20, false)).toBe('Hidden');
+        expect(clockModeLabel('wall', 20, false)).toBe('Hidden');
+        expect(clockModeLabel('timer', 20, false)).toBe('20 min timer (hidden)');
     });
 });
 
@@ -125,7 +132,7 @@ describe('SessionClock', () => {
         clock.destroy();
     });
 
-    it('flashes a hidden clock when a timer is armed, then hides it again', () => {
+    it('reveals a hidden clock when a timer is armed, then fades it away', () => {
         const el = fakeEl();
         const clock = new SessionClock(
             el,
@@ -135,24 +142,24 @@ describe('SessionClock', () => {
         );
         expect(el.classes.has('hidden')).toBe(true);
 
-        clock.applyChoice({ mode: 'timer', timerMin: 20, showClock: false });
+        clock.applyChoice({ mode: 'timer', timerMin: 20, showClock: false, endOnComplete: false });
         expect(el.classes.has('hidden')).toBe(false);
-        expect(el.classes.has('session-timer-flash')).toBe(true);
+        expect(el.classes.has('session-clock-reveal')).toBe(true);
 
-        vi.advanceTimersByTime(SESSION_CLOCK_FLASH_MS + 100);
+        vi.advanceTimersByTime(SESSION_CLOCK_REVEAL_MS + 100);
         expect(el.classes.has('hidden')).toBe(true);
-        expect(el.classes.has('session-timer-flash')).toBe(false);
+        expect(el.classes.has('session-clock-reveal')).toBe(false);
         // The timer itself is unaffected by the readout coming and going.
         vi.advanceTimersByTime(20 * 60_000);
         expect(clock.timerDue(0)).toBe('completion');
         clock.destroy();
     });
 
-    it('does not flash when the clock is already showing, or with no timer', () => {
+    it('does not reveal when the clock is already showing, or with no timer', () => {
         const shown = fakeEl();
         const a = new SessionClock(shown, Date.now(), TIMER_SETTINGS, () => undefined);
-        a.applyChoice({ mode: 'timer', timerMin: 20, showClock: true });
-        expect(shown.classes.has('session-timer-flash')).toBe(false);
+        a.applyChoice({ mode: 'timer', timerMin: 20, showClock: true, endOnComplete: false });
+        expect(shown.classes.has('session-clock-reveal')).toBe(false);
         a.destroy();
 
         const hidden = fakeEl();
@@ -162,8 +169,8 @@ describe('SessionClock', () => {
             { ...TIMER_SETTINGS, showSessionClock: false },
             () => undefined
         );
-        b.applyChoice({ mode: 'wall', timerMin: 20, showClock: false });
-        expect(hidden.classes.has('session-timer-flash')).toBe(false);
+        b.applyChoice({ mode: 'wall', timerMin: 20, showClock: false, endOnComplete: false });
+        expect(hidden.classes.has('session-clock-reveal')).toBe(false);
         expect(hidden.classes.has('hidden')).toBe(true);
         b.destroy();
     });
@@ -178,6 +185,23 @@ describe('SessionClock', () => {
         vi.advanceTimersByTime(20 * 60_000);
         expect(clock.timerDue(0)).toBe('completion');
         clock.destroy();
+    });
+
+    it('only ends the session when a timer is what is running', () => {
+        const opts = { ...TIMER_SETTINGS, endSessionOnTimer: true };
+        const timer = new SessionClock(fakeEl(), Date.now(), opts, () => undefined);
+        expect(timer.endsSessionOnComplete()).toBe(true);
+        timer.destroy();
+        // The setting persists across modes, but a clock that is only telling
+        // the time has nothing to end.
+        const wall = new SessionClock(
+            fakeEl(),
+            Date.now(),
+            { ...opts, sessionClockMode: 'wall' },
+            () => undefined
+        );
+        expect(wall.endsSessionOnComplete()).toBe(false);
+        wall.destroy();
     });
 
     it('arms nothing in the display-only modes', () => {

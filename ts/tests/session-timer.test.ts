@@ -9,6 +9,7 @@ import {
     timerApproachLeadSec,
     SESSION_TIMER_EVENT_PREFIX,
     TIMER_APPROACH_FALLBACKS,
+    TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
 } from '../src/facilitation/session-timer.js';
 import {
@@ -75,6 +76,18 @@ describe('timer event turns', () => {
         expect(buildTimerApproachEvent(200, 20)).toContain('about 3 minutes');
     });
 
+    it('tells the model whether the sit stops here', () => {
+        const open = buildTimerCompletionEvent(20);
+        const closing = buildTimerCompletionEvent(20, { endsSession: true });
+        expect(open).toMatch(/doesn't automatically close/);
+        expect(open).not.toMatch(/session ends/);
+        expect(closing).toMatch(/session ends after you speak/);
+        // Either way it is still a closing word, never a question.
+        for (const text of [open, closing]) {
+            expect(text).toMatch(/(don't|do not) ask a question/);
+        }
+    });
+
     it('mentions the stage arc only for staged modes', () => {
         expect(buildTimerApproachEvent(180, 20, { staged: true })).toContain('[NEXT]');
         expect(buildTimerApproachEvent(180, 20)).not.toContain('[NEXT]');
@@ -121,6 +134,17 @@ describe('canned fallbacks', () => {
     it('never promise the session is over, since it stays open', () => {
         for (const line of TIMER_COMPLETION_FALLBACKS) {
             expect(line.toLowerCase()).not.toContain('goodbye');
+        }
+    });
+
+    it('say the time is up in the closing pool too, not just goodbye', () => {
+        for (const line of TIMER_CLOSE_FALLBACKS) {
+            expect(line.toLowerCase()).toMatch(/time|sit/);
+        }
+        // Distinct pools: the sit ending and the sit continuing are different
+        // lines, so neither reads wrong for its case.
+        for (const line of TIMER_CLOSE_FALLBACKS) {
+            expect(TIMER_COMPLETION_FALLBACKS).not.toContain(line);
         }
     });
 });

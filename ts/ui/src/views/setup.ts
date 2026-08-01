@@ -699,11 +699,13 @@ export async function mountSetupView(
                     mode: appSettings.sessionClockMode,
                     timerMin: appSettings.sessionTimerMin,
                     showClock: appSettings.showSessionClock,
+                    endOnComplete: appSettings.endSessionOnTimer,
                 }).then((choice) => {
                     if (!choice) return;
                     appSettings.sessionClockMode = choice.mode;
                     appSettings.sessionTimerMin = choice.timerMin;
                     appSettings.showSessionClock = choice.showClock;
+                    appSettings.endSessionOnTimer = choice.endOnComplete;
                     paintClockBtns();
                     // Re-read before writing, like the voice control: another
                     // control on this page may have saved since we loaded.
@@ -713,6 +715,7 @@ export async function mountSetupView(
                             sessionClockMode: choice.mode,
                             sessionTimerMin: choice.timerMin,
                             showSessionClock: choice.showClock,
+                            endSessionOnTimer: choice.endOnComplete,
                         })
                     );
                 });

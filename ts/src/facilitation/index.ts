@@ -57,6 +57,7 @@ export {
     SESSION_TIMER_MIN_MINUTES,
     SESSION_TIMER_PRESETS,
     TIMER_APPROACH_FALLBACKS,
+    TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
     type TimerEventOptions,
 } from './session-timer.js';

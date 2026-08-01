@@ -73,6 +73,9 @@ export interface TimerEventOptions {
     /** A staged mode (felt sense): the model can move the arc with [NEXT]
      *  rather than only changing what it says. */
     staged?: boolean;
+    /** The meditator asked for the session to end when the time is up, so this
+     *  closing word is the last thing they hear - it should sound like one. */
+    endsSession?: boolean;
 }
 
 /**
@@ -109,12 +112,18 @@ export function buildTimerCompletionEvent(
     const staged = opts.staged
         ? ' You may close out the current stage rather than opening a new one.'
         : '';
+    // Whether the sit stops here changes what a good closing word is, so the
+    // model is told which it is. The one thing both share: say the time is up.
+    const ending = opts.endsSession
+        ? `The session ends after you speak - this is the last thing they will ` +
+          `hear from you, so close it properly and do not ask a question.`
+        : `The session doesn't automatically close so don't say goodbye, but ` +
+          `also don't ask a question that needs an answer.`;
     return (
         `${SESSION_TIMER_EVENT_PREFIX} the ${totalMin} minutes the meditator set ` +
         `are complete. This message is automatic; they have not spoken. Offer a ` +
-        `short closing word and let them come back in their own time. The session ` +
-        `stays open, so do not say goodbye or ask a question that needs an ` +
-        `answer.${staged}]`
+        `short closing word and let them come back in their own time. ` +
+        `${ending}${staged}]`
     );
 }
 
@@ -130,6 +139,14 @@ export const TIMER_COMPLETION_FALLBACKS: readonly string[] = [
     "That's your time. Come back whenever you're ready.",
     'The time you set is complete. Take as long as you like coming back.',
     "That's the end of your sit. No hurry.",
+];
+
+/** Spoken instead of TIMER_COMPLETION_FALLBACKS when the sit ends here: the
+ *  session is about to close, so the line has to sound like the end of it. */
+export const TIMER_CLOSE_FALLBACKS: readonly string[] = [
+    "That's your time. I'll leave you here.",
+    'The time you set is up. Stopping there.',
+    "That's the end of your sit. Take your time.",
 ];
 
 /** Pick a fallback line, varying by index so a repeat sit isn't identical. */

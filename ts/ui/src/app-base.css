@@ -1420,7 +1420,7 @@ body:has(.session-container) {
 /* Arming a timer while the clock is hidden: show it just long enough to
    confirm the setting took, then fade out rather than cutting. The fade IS the
    message here (it's leaving), not de-emphasis. */
-@keyframes session-timer-flash {
+@keyframes session-clock-reveal {
     0%,
     25% {
         opacity: 1;
@@ -1430,8 +1430,8 @@ body:has(.session-container) {
     }
 }
 
-.session-timer-flash {
-    animation: session-timer-flash 8s ease-out forwards;
+.session-clock-reveal {
+    animation: session-clock-reveal 8s ease-out forwards;
     pointer-events: none;
 }
 
@@ -1498,11 +1498,13 @@ body:has(.session-container) {
     gap: 0.4rem;
 }
 
+/* Chips, not labels: sharing --bg-card with the modal they read as text, so
+   they take --bg-surface - a step lighter than the modal in both themes. */
 .clock-preset {
     min-width: 3.4rem;
     padding: 0.55rem 0.8rem;
     font-size: 1.05rem;
-    background: none;
+    background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text-primary);
@@ -1514,6 +1516,11 @@ body:has(.session-container) {
 
 .clock-preset:hover {
     border-color: var(--accent);
+}
+
+/* The stepper sits on the same modal ground and needs the same lift. */
+.clock-custom .stepper {
+    background: var(--bg-surface);
 }
 
 .clock-preset.selected {
@@ -1556,6 +1563,16 @@ body:has(.session-container) {
     color: var(--text-primary);
     font-size: 0.9rem;
     font-variant-numeric: tabular-nums;
+}
+
+.clock-end-row {
+    margin-top: 0.7rem;
+}
+
+.clock-end-hint {
+    margin-top: 0.15rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
 }
 
 .clock-hide-row {

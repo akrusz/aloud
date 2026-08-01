@@ -65,6 +65,12 @@ export interface AppSettings {
      *  me when" is a real ask, and hiding the readout must not disarm the
      *  timer's spoken notices. */
     showSessionClock: boolean;
+    /** End the session once the timer's closing word has been spoken (default
+     *  off). Off means the timer only says the time is up and the sit stays
+     *  open, which is what a meditation timer usually means; on is for people
+     *  who want the sit to actually stop. Either way the facilitator says so
+     *  first - nothing ends the session without a spoken close. */
+    endSessionOnTimer: boolean;
     /** Keep a local log of sessions (default on). When on, every turn autosaves
      *  without an LLM summary, so a crash or going offline still leaves a
      *  recoverable transcript (the detailed summary is generated only on a clean
@@ -136,6 +142,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     sessionClockMode: 'elapsed',
     sessionTimerMin: 20,
     showSessionClock: true,
+    endSessionOnTimer: false,
     saveSessionLogs: true,
     resumeFromSummary: true,
     autoQuitAfterSilence: true,

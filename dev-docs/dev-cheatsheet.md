@@ -185,6 +185,20 @@ hot reload, so providers/modes/About/voices/STT all iterate instantly there.
 Reach for `dev-bundle.sh` only for bundle-launch-specific bugs, and GitHub RCs
 only as the final "does the signed, shipped artifact work" gate.
 
+Landing-page screenshots (`docs/assets/aloud-screen-{light,dark}.webp`) are
+generated, not hand-taken - so they're the same size and framing every time and
+cheap to redo when the setup page changes:
+
+```bash
+cd ts && npm run web:dev              # must be up: the shot needs /app/v1
+node scripts/site-screenshots.mjs     # both themes; --width 1000 by default
+```
+
+It drives headless Chrome over CDP (no npm deps), tells the web UI to dress as
+the desktop shell, and draws the macOS window chrome with ImageMagick. Change
+`--width` and update the `width`/`height` attributes on the `<img>` in
+`docs/index.html` to match what it prints.
+
 Release (bumps version, lints both stacks, tags, pushes, creates the GitHub
 release that triggers CI):
 

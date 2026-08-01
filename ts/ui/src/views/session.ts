@@ -30,6 +30,7 @@ import {
     timerApproachLeadSec,
     SESSION_TIMER_MAX_CHARS,
     TIMER_APPROACH_FALLBACKS,
+    TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
@@ -1092,6 +1093,7 @@ export async function mountSessionView(
             appSettings.sessionClockMode = choice.mode;
             appSettings.sessionTimerMin = choice.timerMin;
             appSettings.showSessionClock = choice.showClock;
+            appSettings.endSessionOnTimer = choice.endOnComplete;
             // Re-read before writing: the in-memory copy was loaded at mount
             // and must not clobber anything saved since.
             void loadAppSettings().then((s) =>
@@ -1100,6 +1102,7 @@ export async function mountSessionView(
                     sessionClockMode: choice.mode,
                     sessionTimerMin: choice.timerMin,
                     showSessionClock: choice.showClock,
+                    endSessionOnTimer: choice.endOnComplete,
                 })
             );
         }
@@ -2161,14 +2164,22 @@ export async function mountSessionView(
         activeFullAbort = myAbort;
         const total = sessionClock.timerMinutes();
         const staged = stager !== null;
+        // Opted in: this closing word is the last thing they hear, and the sit
+        // ends once it has been spoken. Never the other way round - the notice
+        // always lands before the session goes away.
+        const endsSession = kind === 'completion' && sessionClock.endsSessionOnComplete();
         const fallbackPool =
-            kind === 'approach' ? TIMER_APPROACH_FALLBACKS : TIMER_COMPLETION_FALLBACKS;
+            kind === 'approach'
+                ? TIMER_APPROACH_FALLBACKS
+                : endsSession
+                  ? TIMER_CLOSE_FALLBACKS
+                  : TIMER_COMPLETION_FALLBACKS;
         const canned = pickTimerFallback(fallbackPool, total);
         try {
             const eventText =
                 kind === 'approach'
                     ? buildTimerApproachEvent(sessionClock.remainingSec() ?? 0, total, { staged })
-                    : buildTimerCompletionEvent(total, { staged });
+                    : buildTimerCompletionEvent(total, { staged, endsSession });
             debugLog(`timer ${kind} event sent (${total}m)`);
             const { reply, usage } = await runSmartCheckin(
                 provider,
@@ -2192,16 +2203,27 @@ export async function mountSessionView(
             // why the facilitator spoke about time unprompted.
             session.addUserMessage(eventText);
             await respondWithFacilitatorLine(line);
-            restoreHoldAfterNotice();
+            if (endsSession) void closeAfterTimer();
+            else restoreHoldAfterNotice();
         } catch {
             if (!torn && myGen === turnGen && !busy) {
                 debugLog(`timer ${kind} → error (canned)`);
                 await respondWithFacilitatorLine(canned);
-                restoreHoldAfterNotice();
+                if (endsSession) void closeAfterTimer();
+                else restoreHoldAfterNotice();
             }
         } finally {
             timerNoticeInFlight = false;
         }
+    }
+
+    /** End the sit after the timer's closing word has finished speaking. Saves
+     *  on the same terms as the idle auto-quit; no confirm dialog, since the
+     *  user asked for this when they set the timer. */
+    async function closeAfterTimer(): Promise<void> {
+        if (torn) return;
+        debugLog('timer completion → ending session');
+        await endSession(undefined, !appSettings.saveSessionLogs);
     }
 
     /**

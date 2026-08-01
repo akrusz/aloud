@@ -32,9 +32,20 @@
   --text-primary:  light-dark(#1f1a18, #f5efe6);
   --text-secondary:light-dark(#5c4a44, #c4b49e);
   --text-muted:    light-dark(#756058, #b0a090);
-  --accent:        light-dark(#e71f75, #df3f88);
-  --accent-hover:  light-dark(#c01560, #c02a72);
-  --accent-glow:   light-dark(rgba(245, 206, 82, 0.45), rgba(245, 165, 47, 0.30));
+  /* Branding is shared with the app (ts/ui/src/app-base.css, dev-docs/style.md)
+     and must not drift from it - the page around it can look like a website,
+     the pink cannot look like a different pink. Same tokens, same rule: solid
+     controls take --accent-fill + --accent-ink, body-size accent text takes
+     --accent-text, plain --accent is for borders, glyphs, and large/bold text.
+     The mark itself is one pink in both themes. */
+  --accent:        #e71f75;
+  --accent-fill:   light-dark(#c01560, #a81050);
+  --accent-ink:    #ffeaf4;
+  --accent-text:   light-dark(#a81050, #f5589a);
+  --accent-text-hover: light-dark(#7d0a3c, #ffa3c8);
+  --accent-hover:  light-dark(#a81050, #c01560);
+  /* Warm orange, never yellow: yellow is the brand stroke's job. */
+  --accent-glow:   light-dark(rgba(245, 165, 47, 0.45), rgba(245, 165, 47, 0.30));
   --brand-stroke:  light-dark(#ffd820, #e8b820);
   --brand-glow:    light-dark(rgba(245, 216, 32, 0.90), rgba(255, 220, 80, 0.60));
   --warm:          light-dark(#e5a01a, #c4a850);
@@ -59,12 +70,12 @@ html, body {
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: border-color 0.15s ease, color 0.15s ease;
 }
-a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
+a:hover { color: var(--accent-text-hover); border-bottom-color: var(--accent-text-hover); }
 
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -122,7 +133,7 @@ code {
   font-size: 0.95rem;
   border-bottom: 1px solid transparent;
 }
-.nav-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.nav-link:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
 
 .theme-toggle {
   position: fixed;
@@ -218,7 +229,7 @@ code {
 .hero-pun {
   font-size: 1.2rem;
   font-style: italic;
-  color: var(--accent);
+  color: var(--accent-text);
   margin: 0 auto 2rem;
 }
 
@@ -291,35 +302,31 @@ code {
 .btn:hover { transform: translateY(-1px); border-bottom: 2px solid var(--accent-hover); }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--bg-surface);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--accent-ink);
 }
 .btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: var(--bg-surface);
+  color: var(--accent-ink);
   box-shadow: 0 0 24px var(--accent-glow);
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .btn-ghost:hover {
-  background: var(--accent);
-  color: var(--bg-surface);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--accent-ink);
 }
 
-/* Dark mode: the dark (--bg-surface) label on a pink fill is low-contrast,
-   so bold it. Single-source weight var keeps the two dark-mode entry paths
-   (forced data-theme + OS preference) from duplicating the value. */
-:root { --btn-fill-weight: 500; }
-:root[data-theme="dark"] { --btn-fill-weight: 700; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --btn-fill-weight: 700; }
-}
+/* Filled buttons carry --accent-ink on --accent-fill, which clears AA in both
+   themes at normal weight - no per-theme bolding to rescue the label. */
 .btn-primary,
-.btn-tip { font-weight: var(--btn-fill-weight); }
+.btn-tip { font-weight: 500; }
 
 /* ===== 404 ===== */
 .notfound {
@@ -430,7 +437,7 @@ code {
 }
 .provider-pill strong {
   display: block;
-  color: var(--accent);
+  color: var(--accent-text);
   margin-bottom: 0.4rem;
   font-size: 1rem;
 }
@@ -525,7 +532,7 @@ code {
   color: var(--text-muted);
 }
 .cloud-fine a { color: var(--text-muted); border-bottom: 1px solid transparent; }
-.cloud-fine a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.cloud-fine a:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
 
 @media (max-width: 720px) {
   .section-cloud { padding: 0 1rem 1.5rem; }
@@ -579,7 +586,7 @@ code {
   margin-bottom: 0.25rem;
 }
 .download-file {
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.95rem;
   margin-bottom: 0.5rem;
@@ -671,9 +678,9 @@ code {
 .btn-tip {
   padding: 0.6rem 1.25rem;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg-surface);
-  border: 2px solid var(--accent);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  border: 2px solid var(--accent-fill);
   font-size: 0.95rem;
   text-decoration: none;
   transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.15s ease;
@@ -681,7 +688,7 @@ code {
 .btn-tip:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: var(--bg-surface);
+  color: var(--accent-ink);
   box-shadow: 0 0 20px var(--accent-glow);
   transform: translateY(-1px);
 }
@@ -713,7 +720,7 @@ code {
   max-width: 570px;
 }
 .section-thanks a { color: var(--text-secondary); border-bottom: 1px solid var(--border); }
-.section-thanks a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.section-thanks a:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
 
 /* ===== faq ===== */
 .faq-list {
@@ -735,11 +742,11 @@ code {
   cursor: pointer;
   font-family: var(--font);
   font-size: 0.9rem;
-  color: var(--accent);
+  color: var(--accent-text);
   padding: 0.25rem 0.25rem;
   border-bottom: 1px solid transparent;
 }
-.faq-toggle-all:hover { border-bottom-color: var(--accent); }
+.faq-toggle-all:hover { border-bottom-color: var(--accent-text); }
 .faq-item {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -791,11 +798,11 @@ code {
   color: var(--text-secondary);
   border-bottom: 1px solid transparent;
 }
-.footer-links a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.footer-links a:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
 .footer-dot { color: var(--text-muted); }
 .footer-fine { margin: 0; font-size: 0.95rem; }
 .footer-fine a {
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
 }
-.footer-fine a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.footer-fine a:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }

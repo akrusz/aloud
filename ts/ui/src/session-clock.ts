@@ -23,8 +23,8 @@ import { manageModalFocus } from './modal-focus.js';
 const OVERLAY_ID = 'session-clock-modal-overlay';
 
 /** How long an armed-but-hidden clock stays on screen: 2s at full strength,
- *  then a 6s fade (the split lives in the session-timer-flash keyframes). */
-export const SESSION_CLOCK_FLASH_MS = 8000;
+ *  then a 6s fade (the split lives in the session-clock-reveal keyframes). */
+export const SESSION_CLOCK_REVEAL_MS = 8000;
 
 const MODE_LABELS: ReadonlyArray<[SessionClockMode, string, string]> = [
     ['elapsed', 'Time in session', 'Counts up from when you started.'],
@@ -36,6 +36,8 @@ export interface SessionClockChoice {
     mode: SessionClockMode;
     timerMin: number;
     showClock: boolean;
+    /** End the session after the closing word (timer mode only). */
+    endOnComplete: boolean;
 }
 
 function pad(n: number): string {
@@ -84,26 +86,31 @@ export class SessionClock {
     private mode: SessionClockMode;
     private timerMin: number;
     private visible: boolean;
+    private endOnComplete: boolean;
     /** Epoch ms the countdown ends, or null when no timer is armed. */
     private endsAt: number | null = null;
     /** Notices already handed to the view, so each fires once per arming. */
     private approachFired = false;
     private completionFired = false;
     private readonly tick: ReturnType<typeof setInterval>;
-    /** Mid-flash: the readout shows even though `visible` is false. */
-    private flashing = false;
-    private flashTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Mid-reveal: the readout shows even though `visible` is false. */
+    private revealing = false;
+    private revealTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(
         private readonly el: HTMLElement,
         private readonly startMs: number,
-        settings: Pick<AppSettings, 'sessionClockMode' | 'sessionTimerMin' | 'showSessionClock'>,
+        settings: Pick<
+            AppSettings,
+            'sessionClockMode' | 'sessionTimerMin' | 'showSessionClock' | 'endSessionOnTimer'
+        >,
         /** Called when the user picks a new mode/duration, to persist it. */
         private readonly onChange: (choice: SessionClockChoice) => void
     ) {
         this.mode = settings.sessionClockMode;
         this.timerMin = clampTimerMinutes(settings.sessionTimerMin);
         this.visible = settings.showSessionClock;
+        this.endOnComplete = settings.endSessionOnTimer;
         if (this.mode === 'timer') this.arm(this.timerMin);
 
         this.el.addEventListener('click', () => void this.openPicker());
@@ -130,6 +137,12 @@ export class SessionClock {
 
     timerMinutes(): number {
         return this.timerMin;
+    }
+
+    /** Whether the completion notice should be the end of the session. Read at
+     *  fire time, so changing it mid-sit takes effect. */
+    endsSessionOnComplete(): boolean {
+        return this.mode === 'timer' && this.endOnComplete;
     }
 
     /** "20 min timer" / "Time of day" - for the session info panel's row. */
@@ -172,6 +185,7 @@ export class SessionClock {
             mode: this.mode,
             timerMin: this.timerMin,
             showClock: this.visible,
+            endOnComplete: this.endOnComplete,
         });
         if (!choice) return;
         this.applyChoice(choice);
@@ -183,6 +197,7 @@ export class SessionClock {
     applyChoice(choice: SessionClockChoice): void {
         this.mode = choice.mode;
         this.visible = choice.showClock;
+        this.endOnComplete = choice.endOnComplete;
         if (choice.mode === 'timer') this.arm(choice.timerMin);
         else {
             this.timerMin = clampTimerMinutes(choice.timerMin);
@@ -191,27 +206,27 @@ export class SessionClock {
         // Setting a timer with the readout off would otherwise give no sign it
         // took, and the first confirmation would be the facilitator speaking
         // minutes later. Show the countdown briefly, then let it fade away.
-        if (choice.mode === 'timer' && !choice.showClock) this.flash();
+        if (choice.mode === 'timer' && !choice.showClock) this.reveal();
         else this.render();
     }
 
-    private flash(): void {
-        this.flashing = true;
-        this.el.classList.add('session-timer-flash');
-        if (this.flashTimer) clearTimeout(this.flashTimer);
-        this.flashTimer = setTimeout(() => {
-            this.flashTimer = null;
-            this.flashing = false;
-            this.el.classList.remove('session-timer-flash');
+    private reveal(): void {
+        this.revealing = true;
+        this.el.classList.add('session-clock-reveal');
+        if (this.revealTimer) clearTimeout(this.revealTimer);
+        this.revealTimer = setTimeout(() => {
+            this.revealTimer = null;
+            this.revealing = false;
+            this.el.classList.remove('session-clock-reveal');
             this.render();
-        }, SESSION_CLOCK_FLASH_MS);
+        }, SESSION_CLOCK_REVEAL_MS);
         this.render();
     }
 
     private render(): void {
         // Hidden by preference, but a running timer keeps counting: the notices
         // are the point, the readout is optional.
-        const showing = this.visible || this.flashing;
+        const showing = this.visible || this.revealing;
         this.el.classList.toggle('hidden', !showing);
         this.el.setAttribute('aria-label', `Session Clock: ${clockModeLabel(this.mode, this.timerMin)}`);
         if (!showing) return;
@@ -236,7 +251,7 @@ export class SessionClock {
 
     destroy(): void {
         clearInterval(this.tick);
-        if (this.flashTimer) clearTimeout(this.flashTimer);
+        if (this.revealTimer) clearTimeout(this.revealTimer);
     }
 }
 
@@ -244,6 +259,7 @@ export interface SessionClockModalConfig {
     mode: SessionClockMode;
     timerMin: number;
     showClock: boolean;
+    endOnComplete: boolean;
 }
 
 /**
@@ -260,6 +276,7 @@ export function showSessionClockModal(
         let mode = config.mode;
         let timerMin = clampTimerMinutes(config.timerMin);
         let showClock = config.showClock;
+        let endOnComplete = config.endOnComplete;
 
         const overlay = document.createElement('div');
         overlay.id = OVERLAY_ID;
@@ -299,6 +316,11 @@ export function showSessionClockModal(
                              when the sit began. This line is what says so. -->
                         <span class="clock-ends-at" id="clock-ends-at"></span>
                     </div>
+                    <label class="checkbox-label clock-end-row">
+                        <input type="checkbox" id="clock-end-on-complete">
+                        <span>End the session when the time is up</span>
+                    </label>
+                    <p class="clock-end-hint">The facilitator says the time is up either way. Off, the sit stays open.</p>
                 </div>
             </div>
             <!-- Outside the scrolling body: on a short window the mode list
@@ -316,6 +338,7 @@ export function showSessionClockModal(
 
         const minutesInput = overlay.querySelector<HTMLInputElement>('#clock-minutes')!;
         const showToggle = overlay.querySelector<HTMLInputElement>('#clock-show')!;
+        const endToggle = overlay.querySelector<HTMLInputElement>('#clock-end-on-complete')!;
         const panel = overlay.querySelector<HTMLElement>('#clock-timer-panel')!;
         const endsAt = overlay.querySelector<HTMLElement>('#clock-ends-at')!;
 
@@ -331,6 +354,7 @@ export function showSessionClockModal(
             }
             if (minutesInput.value !== String(timerMin)) minutesInput.value = String(timerMin);
             showToggle.checked = showClock;
+            endToggle.checked = endOnComplete;
             const end = new Date(Date.now() + timerMin * 60_000);
             endsAt.textContent = mode === 'timer' ? `ends ${formatWallClock(end)}` : '';
         }
@@ -390,8 +414,11 @@ export function showSessionClockModal(
         showToggle.addEventListener('change', () => {
             showClock = showToggle.checked;
         });
+        endToggle.addEventListener('change', () => {
+            endOnComplete = endToggle.checked;
+        });
         overlay.querySelector('#clock-modal-save')?.addEventListener('click', () => {
-            close({ mode, timerMin: clampTimerMinutes(timerMin), showClock });
+            close({ mode, timerMin: clampTimerMinutes(timerMin), showClock, endOnComplete });
         });
 
         sync();

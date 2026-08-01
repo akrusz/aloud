@@ -18,4 +18,6 @@ noting is a simpler mode where you speak just one or two words that describe one
 
 felt-sense mode is inspired by Gendlin's Focusing. this is a six-step method that walks you through the process of settling in, finding something that's bubbling up from inside you, allowing it to resonate, and receiving what comes up from your unconscious.
 
+any mode can be used with a set length. the optional meditation timer lets the facilitator draw smoothly toward a close near the end and tells you vocally when your time is up.
+
 aloud uses text-to-speech, speech-to-text, and AI/LLM brains for some modes; you have full choice of providers. aloud offers the "aloud cloud" that connects you to curated providers without any additional setup. this costs us money to run, so it uses credits; you get some credits free just for connecting a Google or Apple account. Or, if you have keys for OpenRouter or other providers, you can use those instead.

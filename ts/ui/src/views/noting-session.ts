@@ -18,6 +18,7 @@ import {
     timerApproachLeadSec,
     NOTING_STATIC_OPENER,
     TIMER_APPROACH_FALLBACKS,
+    TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
 } from '../../../src/facilitation/index.js';
 import { OllamaProvider, type LLMProvider } from '../../../src/llm/index.js';
@@ -276,6 +277,7 @@ export async function mountNotingSessionView(
         appSettings.sessionClockMode = choice.mode;
         appSettings.sessionTimerMin = choice.timerMin;
         appSettings.showSessionClock = choice.showClock;
+        appSettings.endSessionOnTimer = choice.endOnComplete;
         // Re-read before writing, so a stale in-memory copy can't clobber
         // settings saved elsewhere since mount.
         void loadAppSettings().then((s) =>
@@ -284,6 +286,7 @@ export async function mountNotingSessionView(
                 sessionClockMode: choice.mode,
                 sessionTimerMin: choice.timerMin,
                 showSessionClock: choice.showClock,
+                endSessionOnTimer: choice.endOnComplete,
             })
         );
     });
@@ -435,7 +438,13 @@ export async function mountNotingSessionView(
      * lands on top of a participant or the user's turn.
      */
     async function speakTimerNotice(kind: 'approach' | 'completion'): Promise<void> {
-        const pool = kind === 'approach' ? TIMER_APPROACH_FALLBACKS : TIMER_COMPLETION_FALLBACKS;
+        const ending = kind === 'completion' && sessionClock.endsSessionOnComplete();
+        const pool =
+            kind === 'approach'
+                ? TIMER_APPROACH_FALLBACKS
+                : ending
+                  ? TIMER_CLOSE_FALLBACKS
+                  : TIMER_COMPLETION_FALLBACKS;
         const text = pickTimerFallback(pool, sessionClock.timerMinutes());
         session.addAssistantMessage(text, 'Facilitator');
         appendMessage('facilitator', text, 'Facilitator');
@@ -446,13 +455,19 @@ export async function mountNotingSessionView(
     async function advanceTurn(): Promise<void> {
         if (torn || paused) return;
         // Turn boundary: the natural seam for a timer notice. The circle keeps
-        // going afterwards - completion is a word, not a stop.
+        // going afterwards - completion is a word, not a stop, unless the user
+        // asked for the sit to end, and then only after the word is spoken.
         const due = sessionClock.timerDue(
             timerApproachLeadSec(sessionClock.timerTotalSec(), null)
         );
         if (due) {
+            const ending = due === 'completion' && sessionClock.endsSessionOnComplete();
             await speakTimerNotice(due);
             if (torn || paused) return;
+            if (ending) {
+                await endSession(undefined, !appSettings.saveSessionLogs);
+                return;
+            }
         }
         currentTurn = (currentTurn + 1) % turnOrder.length;
         const turn = turnOrder[currentTurn];
