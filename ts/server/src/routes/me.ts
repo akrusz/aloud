@@ -5,6 +5,8 @@
  */
 
 import { Hono } from 'hono';
+import { ERROR_STATUS, apiError } from '../contract.js';
+import type { UpdateMeRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
@@ -40,6 +42,19 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // them. placeHold does the same on the spend path.
         await deps.ledger.releaseStaleHolds(account.id);
         return c.json(await buildAccountView(deps, account));
+    });
+
+    // Update account preferences. Today that's just the email-updates opt-in
+    // (occasional product news; strictly opt-in, the address is never shared or
+    // sold). Returns the refreshed account view.
+    app.patch('/', requireAuth(deps), async (c) => {
+        const body = (await c.req.json().catch(() => ({}))) as UpdateMeRequest;
+        if (typeof body.emailUpdates !== 'boolean') {
+            return c.json(apiError('bad_request', 'nothing to update'), ERROR_STATUS.bad_request);
+        }
+        const account = c.get('account');
+        await deps.store.setAccountEmailUpdates(account.id, body.emailUpdates);
+        return c.json(await buildAccountView(deps, { ...account, emailUpdates: body.emailUpdates }));
     });
 
     // Delete the signed-in account (meditation-pal-8jc). Soft-delete: anonymize +

@@ -202,6 +202,7 @@ export function authRoutes(deps: Deps): Hono {
                     secretHash: await hashPassword(password),
                     ...(signupIp ? { signupIp } : {}),
                     ...(linkToAccountId ? { linkToAccountId } : {}),
+                    ...(body.emailUpdates === true ? { emailUpdates: true } : {}),
                 }
             );
             return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));

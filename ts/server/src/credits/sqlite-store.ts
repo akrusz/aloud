@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS accounts (
     -- Canonical mailbox (normalizeEmail: case, +tag, Gmail dots). The
     -- one-account-per-mailbox key for sign-in linking + the duplicate guard.
     -- Backfilled and uniquely indexed (live rows only) by migrateAddCanonicalEmail.
-    canonical_email TEXT
+    canonical_email TEXT,
+    -- Opt-in to occasional product-update emails (strictly opt-in, default off).
+    email_updates INTEGER NOT NULL DEFAULT 0
 );
 -- Sign-in identities (meditation-pal-116). (provider, sub) is globally unique:
 -- one external identity → at most one account, ever. granted_credits records
@@ -188,6 +190,7 @@ function rowToAccount(r: Row): Account {
     // exactOptionalPropertyTypes: attach only when actually present.
     if (r['signup_ip'] != null) account.signupIp = String(r['signup_ip']);
     if (r['deleted_at'] != null) account.deletedAt = Number(r['deleted_at']);
+    if (Number(r['email_updates']) !== 0) account.emailUpdates = true;
     return account;
 }
 
@@ -299,6 +302,7 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddCanonicalEmail();
         this.migrateAddUsagePassId();
         this.migrateAddUsageCacheCreation1h();
+        this.migrateAddEmailUpdates();
         // Index on pass_id AFTER the column migration above: on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
         // so this can't live in SCHEMA (which runs first).
@@ -321,6 +325,14 @@ export class SqliteCreditsStore implements CreditsStore {
         const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
         if (cols.some((c) => String(c['name']) === 'pass_id')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN pass_id TEXT');
+    }
+
+    /** Add accounts.email_updates to a DB predating the update-emails opt-in.
+     *  Existing rows default to 0: nobody is opted in without checking the box. */
+    private migrateAddEmailUpdates(): void {
+        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
+        if (cols.some((c) => String(c['name']) === 'email_updates')) return;
+        this.db.exec('ALTER TABLE accounts ADD COLUMN email_updates INTEGER NOT NULL DEFAULT 0');
     }
 
     /** Add accounts.canonical_email + its live-only unique index (meditation-pal
@@ -437,8 +449,8 @@ export class SqliteCreditsStore implements CreditsStore {
     async createAccount(account: Account): Promise<void> {
         this.db
             .prepare(
-                `INSERT INTO accounts (id, email, email_verified, created_at, signup_ip, canonical_email)
-                 VALUES (?, ?, ?, ?, ?, ?)`
+                `INSERT INTO accounts (id, email, email_verified, created_at, signup_ip, canonical_email, email_updates)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`
             )
             .run(
                 account.id,
@@ -446,8 +458,15 @@ export class SqliteCreditsStore implements CreditsStore {
                 account.emailVerified ? 1 : 0,
                 account.createdAt,
                 account.signupIp ?? null,
-                normalizeEmail(account.email)
+                normalizeEmail(account.email),
+                account.emailUpdates ? 1 : 0
             );
+    }
+
+    async setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void> {
+        this.db
+            .prepare('UPDATE accounts SET email_updates = ? WHERE id = ?')
+            .run(optIn ? 1 : 0, accountId);
     }
 
     async findLiveAccountByEmail(email: string): Promise<Account | undefined> {

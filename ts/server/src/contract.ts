@@ -145,6 +145,9 @@ export interface AppleAuthRequest {
 export interface EmailAuthRequest {
     email: string;
     password: string;
+    /** Signup only: the "email me occasional updates" checkbox. Opt-in, defaults
+     *  false; ignored on login. */
+    emailUpdates?: boolean;
 }
 
 /** POST /auth/email/set-password: add or change the password on the
@@ -178,6 +181,14 @@ export interface AccountView {
      *  usage is free for the window. The UI drops the spend prompts and
      *  cloud-cost estimates these users shouldn't see. */
     retreatCovered: boolean;
+    /** Opted in to occasional product-update emails. Never shared or sold;
+     *  toggled via PATCH /cloud/v1/me. */
+    emailUpdates: boolean;
+}
+
+/** PATCH /cloud/v1/me: update account preferences. */
+export interface UpdateMeRequest {
+    emailUpdates?: boolean;
 }
 
 /** Sign-in method linked to an account (mirrors store.ts IdentityProvider). */

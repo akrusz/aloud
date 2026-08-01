@@ -6,7 +6,13 @@
  */
 
 import { detectCapabilities, watchCloudReachable } from '../capabilities.js';
-import { fetchMe, clearCloudToken, deleteAccount, setCloudPassword } from '../cloud-auth.js';
+import {
+    fetchMe,
+    clearCloudToken,
+    deleteAccount,
+    setCloudPassword,
+    setEmailUpdates,
+} from '../cloud-auth.js';
 import { clearKnownBalance } from '../cloud-balance.js';
 import { clearRetreatCovered } from '../cloud-coverage.js';
 import {
@@ -118,6 +124,16 @@ async function render(root: HTMLElement): Promise<void> {
                 }</button>
             </div>
         </section>
+        <section class="settings-section" id="email-updates-section">
+            <h2>Email updates</h2>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="acct-email-updates"${account.emailUpdates ? ' checked' : ''}>
+                    <span>Email me occasional updates about aloud</span>
+                </label>
+                <span class="form-hint">We'll never share or sell your address.</span>
+            </div>
+        </section>
         ${
             returned.length
                 ? `<section class="settings-section" id="giftable-section">
@@ -148,6 +164,7 @@ async function render(root: HTMLElement): Promise<void> {
 
     wireAccountSection(root);
     wirePasswordSection(root, hasPassword);
+    wireEmailUpdates(root);
     if (returned.length) wireGiftableList(root, returned);
     wireDangerZone(root, account.email);
 }
@@ -183,6 +200,25 @@ function wirePasswordSection(root: HTMLElement, hasPassword: boolean): void {
     btn.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') submit();
+    });
+}
+
+function wireEmailUpdates(root: HTMLElement): void {
+    const box = root.querySelector<HTMLInputElement>('#acct-email-updates');
+    box?.addEventListener('change', () => {
+        const optIn = box.checked;
+        box.disabled = true;
+        setEmailUpdates(optIn)
+            .then(() => {
+                showSuccessToast(optIn ? "You're on the list." : "You won't get update emails.");
+            })
+            .catch((err: unknown) => {
+                box.checked = !optIn; // save failed; show the stored choice
+                showErrorToast(err instanceof Error ? err.message : String(err));
+            })
+            .finally(() => {
+                box.disabled = false;
+            });
     });
 }
 

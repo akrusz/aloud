@@ -85,6 +85,17 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect('signupIp' in got!).toBe(false);
     });
 
+    it('persists the email-updates opt-in at creation and via the setter', async () => {
+        await store.createAccount({ ...ACCOUNT, emailUpdates: true });
+        expect((await store.getAccountById('acct-1'))?.emailUpdates).toBe(true);
+        await store.setAccountEmailUpdates('acct-1', false);
+        const off = await store.getAccountById('acct-1');
+        // Off reads as absent-or-false, matching a fresh account.
+        expect(off?.emailUpdates ?? false).toBe(false);
+        await store.setAccountEmailUpdates('acct-1', true);
+        expect((await store.getAccountById('acct-1'))?.emailUpdates).toBe(true);
+    });
+
     it('finds a live account by canonical mailbox (Gmail dots / +tag), excluding deleted', async () => {
         await store.createAccount({ ...ACCOUNT, id: 'gm', email: 'john.doe@gmail.com' });
         // A dot/+tag variant of the same inbox resolves to it.

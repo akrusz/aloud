@@ -35,6 +35,9 @@ export interface AccountView {
      *  so the UI drops spend prompts + cost estimates. Absent from servers
      *  deployed before retreat passes (treated as false). */
     retreatCovered?: boolean;
+    /** Opted in to occasional product-update emails. Absent from servers
+     *  deployed before the opt-in existed (treated as false). */
+    emailUpdates?: boolean;
 }
 
 export interface AuthResponse {
@@ -304,9 +307,14 @@ export function appleSignIn(idToken: string): Promise<AuthResponse> {
 }
 
 /** POST /cloud/v1/auth/email/signup. Gets NO free credits until a Google/Apple
- *  identity is connected (meditation-pal-116). */
-export function emailSignup(email: string, password: string): Promise<AuthResponse> {
-    return postAuthAndCache('/auth/email/signup', { email, password }, () =>
+ *  identity is connected (meditation-pal-116). `emailUpdates` carries the
+ *  opt-in checkbox for occasional product-update emails. */
+export function emailSignup(
+    email: string,
+    password: string,
+    emailUpdates = false
+): Promise<AuthResponse> {
+    return postAuthAndCache('/auth/email/signup', { email, password, emailUpdates }, () =>
         'Could not create the account. Please try again.'
     );
 }
@@ -329,6 +337,21 @@ export function setCloudPassword(password: string): Promise<AuthResponse> {
             ? 'Please sign in again to set a password.'
             : `Could not set the password (${status}).`
     );
+}
+
+/** PATCH /cloud/v1/me: flip the email-updates opt-in on the signed-in account.
+ *  Resolves to the refreshed account view; throws when signed out or rejected. */
+export async function setEmailUpdates(optIn: boolean): Promise<AccountView> {
+    const token = await getCloudToken();
+    if (!token) throw new CloudSignInRequiredError();
+    const res = await fetchImpl(cloudUrl('/me'), {
+        method: 'PATCH',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ emailUpdates: optIn }),
+    });
+    if (!res.ok) throw new Error(`Could not save the preference (${res.status}).`);
+    await adoptRefreshedToken(res);
+    return (await res.json()) as AccountView;
 }
 
 /**

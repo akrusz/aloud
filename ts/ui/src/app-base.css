@@ -3567,6 +3567,17 @@ p.clouds-hint-row {
 .account-password-row .signin-input {
     flex: 1 1 14rem;
 }
+/* Signup-only email-updates opt-in: the label wraps to two lines, so pin the
+   box to the first line instead of centering against the block. */
+.signin-updates-optin {
+    align-items: flex-start;
+    text-align: left;
+    font-size: 0.85rem !important;
+}
+.signin-updates-optin input[type="checkbox"] {
+    margin-top: 1px;
+}
+
 .signin-email-toggle {
     background: none;
     border: none;

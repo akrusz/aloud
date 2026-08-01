@@ -39,6 +39,10 @@ export interface ConnectOptions {
     linkToAccountId?: string;
     /** Credential to persist on the identity (password hash). OAuth omits it. */
     secretHash?: string;
+    /** The signup form's "email me occasional updates" checkbox. Only applied to
+     *  a NEWLY minted account; an existing account keeps its stored choice (the
+     *  account page is where that changes). */
+    emailUpdates?: boolean;
 }
 
 export interface ConnectResult {
@@ -125,6 +129,7 @@ export async function connectIdentity(
                 emailVerified: ident.emailVerified,
                 createdAt: now,
                 ...(opts.signupIp ? { signupIp: opts.signupIp } : {}),
+                ...(opts.emailUpdates ? { emailUpdates: true } : {}),
             };
             await deps.store.createAccount(account);
             isNewAccount = true;
@@ -245,6 +250,7 @@ export async function buildAccountView(deps: Deps, account: Account): Promise<Ac
         creditsRemaining: await deps.ledger.balance(account.id),
         providers: identities.map((i) => i.provider),
         retreatCovered: pass != null,
+        emailUpdates: account.emailUpdates === true,
     };
 }
 

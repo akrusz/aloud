@@ -69,6 +69,10 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                         autocomplete="email" required class="signin-input" />
                     <input type="password" id="signin-password" placeholder="Password"
                         autocomplete="current-password" required class="signin-input" />
+                    <label class="checkbox-label signin-updates-optin hidden" id="signin-updates-row">
+                        <input type="checkbox" id="signin-email-updates">
+                        <span>Email me occasional updates about aloud (we'll never share or sell your address)</span>
+                    </label>
                     <button type="submit" class="btn btn-primary signin-email-submit" id="signin-email-submit">
                         Sign in
                     </button>
@@ -203,6 +207,8 @@ function wireEmailForm(
     const passEl = overlay.querySelector<HTMLInputElement>('#signin-password')!;
     const submit = overlay.querySelector<HTMLButtonElement>('#signin-email-submit')!;
     const toggle = overlay.querySelector<HTMLButtonElement>('#signin-email-toggle')!;
+    const updatesRow = overlay.querySelector<HTMLElement>('#signin-updates-row')!;
+    const updatesEl = overlay.querySelector<HTMLInputElement>('#signin-email-updates')!;
     let mode: 'login' | 'signup' = 'login';
 
     toggle.addEventListener('click', () => {
@@ -211,6 +217,9 @@ function wireEmailForm(
         toggle.textContent =
             mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in';
         passEl.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+        // The updates opt-in only makes sense when creating an account; an
+        // existing account manages it from the Account page.
+        updatesRow.classList.toggle('hidden', mode !== 'signup');
         cb.clearError();
     });
 
@@ -224,7 +233,10 @@ function wireEmailForm(
             return;
         }
         submit.disabled = true;
-        const action = mode === 'login' ? emailLogin(email, password) : emailSignup(email, password);
+        const action =
+            mode === 'login'
+                ? emailLogin(email, password)
+                : emailSignup(email, password, updatesEl.checked);
         action
             .then(cb.onSignedIn)
             .catch((err: unknown) => {

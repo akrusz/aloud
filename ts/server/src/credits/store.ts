@@ -54,6 +54,10 @@ export interface Account {
      *  freed, balance zeroed, can no longer sign in. The row stays so the
      *  append-only ledger's FKs (its audit trail) survive. */
     deletedAt?: number;
+    /** Opted in to occasional product-update emails. Strictly opt-in (defaults
+     *  false), toggled at signup or on the account page; the address is never
+     *  shared or sold. */
+    emailUpdates?: boolean;
 }
 
 /** Sign-in methods an account can carry. TRUSTED providers (google, apple) are
@@ -170,6 +174,8 @@ export interface CreditsStore {
      *  one-account-per-mailbox key behind sign-in linking and the duplicate
      *  guard. Excludes tombstones, so a deleted mailbox can sign up fresh. */
     findLiveAccountByEmail(email: string): Promise<Account | undefined>;
+    /** Flip the email-updates opt-in (PATCH /me and the signup checkbox). */
+    setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void>;
 
     // ---- Identities (sign-in methods, meditation-pal-116) -------------------
     /** Look up an identity by its globally-unique (provider, sub). */
