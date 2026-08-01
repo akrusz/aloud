@@ -23,7 +23,14 @@ import {
     defaultWaitSeconds,
     runSmartCheckin,
     buildSmartCheckinEvent,
-    isSmartCheckinEvent,
+    buildTimerApproachEvent,
+    buildTimerCompletionEvent,
+    isSyntheticEventTurn,
+    pickTimerFallback,
+    timerApproachLeadSec,
+    SESSION_TIMER_MAX_CHARS,
+    TIMER_APPROACH_FALLBACKS,
+    TIMER_COMPLETION_FALLBACKS,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
@@ -82,6 +89,7 @@ import {
     QUALITY_LABELS,
 } from '../settings.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
+import { SessionClock } from '../session-clock.js';
 import { sessionStore } from '../state.js';
 import { markSessionActive, clearActiveSession } from '../active-session.js';
 import { markSessionStarted } from '../tour/index-guide.js';
@@ -448,7 +456,14 @@ export async function mountSessionView(
             { label: 'Source', value: providerLabel },
             {
                 label: 'Delivery',
-                value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
+                value: streams ? 'Speaks as it generates' : 'Waits for full reply, then speaks',
+            },
+            // Actionable: the clock can be hidden from the input row, and this
+            // is then the only way back to its settings mid-session.
+            {
+                label: 'Clock',
+                value: sessionClock.faceLabel(),
+                onClick: () => void sessionClock.openPicker(),
             }
         );
         return rows;
@@ -1059,23 +1074,53 @@ export async function mountSessionView(
         conversation.scrollTop = conversation.scrollHeight;
     }
 
-    // Session timer, counting since mount as m:ss or h:mm:ss.
     const sessionStartMs = Date.now();
 
     // Keep the screen on for the session. The wake lock module also re-acquires
     // on visibility change while body[data-session-active] is set.
     document.body.dataset['sessionActive'] = 'true';
     void acquireWakeLock();
-    function updateTimer(): void {
-        const elapsed = Math.floor((Date.now() - sessionStartMs) / 1000);
-        const h = Math.floor(elapsed / 3600);
-        const m = Math.floor((elapsed % 3600) / 60);
-        const s = elapsed % 60;
-        const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
-        timerEl.textContent = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+
+    // The clock in the input row: elapsed / time of day / countdown, switched by
+    // tapping it. The mode and any timer length persist to app settings, so a
+    // daily twenty-minute sit re-arms itself next session.
+    const sessionClock = new SessionClock(
+        timerEl,
+        sessionStartMs,
+        appSettings,
+        (choice) => {
+            appSettings.sessionClockMode = choice.mode;
+            appSettings.sessionTimerMin = choice.timerMin;
+            appSettings.showSessionClock = choice.showClock;
+            // Re-read before writing: the in-memory copy was loaded at mount
+            // and must not clobber anything saved since.
+            void loadAppSettings().then((s) =>
+                saveAppSettings({
+                    ...s,
+                    sessionClockMode: choice.mode,
+                    sessionTimerMin: choice.timerMin,
+                    showSessionClock: choice.showClock,
+                })
+            );
+        }
+    );
+
+    // Rolling mean gap between completed turns, used to size the timer's
+    // approach notice: with 90-second turns a one-minute lead can fall entirely
+    // inside a silence and never be spoken before the end lands on top of it.
+    const turnGaps: number[] = [];
+    let lastTurnEndMs = sessionStartMs;
+    const TURN_GAP_WINDOW = 4;
+    function recordTurnGap(): void {
+        const now = Date.now();
+        turnGaps.push((now - lastTurnEndMs) / 1000);
+        if (turnGaps.length > TURN_GAP_WINDOW) turnGaps.shift();
+        lastTurnEndMs = now;
     }
-    updateTimer();
-    const timerInterval = setInterval(updateTimer, 1000);
+    function avgTurnSec(): number | null {
+        if (turnGaps.length === 0) return null;
+        return turnGaps.reduce((a, b) => a + b, 0) / turnGaps.length;
+    }
 
     // Initial mic / status hint.
     if (stt === null) {
@@ -1102,8 +1147,8 @@ export async function mountSessionView(
         const oldDate = new Date(continueFrom.startTime * 1000).toLocaleString();
         insertDivider(`continuing from ${oldDate}`);
         for (const ex of continueFrom.exchanges) {
-            // Synthetic check-in event turns are model context, not speech.
-            if (ex.role === 'user' && isSmartCheckinEvent(ex.content)) continue;
+            // Synthetic check-in / timer event turns are model context, not speech.
+            if (ex.role === 'user' && isSyntheticEventTurn(ex.content)) continue;
             if (ex.role === 'user' || ex.role === 'assistant') {
                 appendMessage(ex.role, ex.content);
             }
@@ -1128,6 +1173,8 @@ export async function mountSessionView(
     // for LLM calls; auto-quit handles true walk-aways.
     let checkinInFlight = false;
     let smartCheckinStreak = 0;
+    /** Single-flight guard for the timer's approach/completion notices. */
+    let timerNoticeInFlight = false;
     const SMART_CHECKIN_MAX_STREAK = 4;
 
     // ---- Check-in debug HUD --------------------------------------------
@@ -1499,8 +1546,10 @@ export async function mountSessionView(
                 activeFullAbort = null;
                 activeTtsAbort = null;
             }
-            // A completed user turn is the activity signal for auto-quit.
+            // A completed user turn is the activity signal for auto-quit, and
+            // the sample the timer's approach notice sizes itself against.
             lastActivityAt = Date.now();
+            recordTurnGap();
             // Persist every round (user message + whatever response or error) so
             // an offline LLM call or a crash still leaves the transcript
             // recoverable. No-op unless logging is on.
@@ -2083,6 +2132,91 @@ export async function mountSessionView(
           }, CHECK_IN_POLL_MS)
         : null;
 
+    // Session-timer poll. Separate from the check-in loop and deliberately not
+    // gated on silenceCheckinsEnabled or silence mode: a timer the user set is
+    // the one thing that must land. It still waits for a turn boundary (busy),
+    // so it never speaks over the user or a response in flight - a few seconds
+    // late beats barging in.
+    const TIMER_POLL_MS = 2000;
+    const timerPoll = setInterval(() => {
+        if (torn || busy || timerNoticeInFlight) return;
+        if (whisperEngine?.userSpeechActive) return;
+        const due = sessionClock.timerDue(
+            timerApproachLeadSec(sessionClock.timerTotalSec(), avgTurnSec())
+        );
+        if (due) void respondWithTimerNotice(due);
+    }, TIMER_POLL_MS);
+
+    /**
+     * Speak the timer's approach notice or closing word. Same shape as a smart
+     * check-in (event turn → model → canned fallback), with two differences:
+     * completion may not [PASS], and neither notice is subject to the check-in
+     * streak cap, since the user explicitly asked to be told.
+     */
+    async function respondWithTimerNotice(kind: 'approach' | 'completion'): Promise<void> {
+        if (timerNoticeInFlight || busy) return;
+        timerNoticeInFlight = true;
+        const myGen = turnGen;
+        const myAbort = new AbortController();
+        activeFullAbort = myAbort;
+        const total = sessionClock.timerMinutes();
+        const staged = stager !== null;
+        const fallbackPool =
+            kind === 'approach' ? TIMER_APPROACH_FALLBACKS : TIMER_COMPLETION_FALLBACKS;
+        const canned = pickTimerFallback(fallbackPool, total);
+        try {
+            const eventText =
+                kind === 'approach'
+                    ? buildTimerApproachEvent(sessionClock.remainingSec() ?? 0, total, { staged })
+                    : buildTimerCompletionEvent(total, { staged });
+            debugLog(`timer ${kind} event sent (${total}m)`);
+            const { reply, usage } = await runSmartCheckin(
+                provider,
+                [...session.getContextMessages(), { role: 'user', content: eventText }],
+                {
+                    system: builder.buildSystemPrompt(stager?.promptSection()),
+                    signal: myAbort.signal,
+                    maxChars: SESSION_TIMER_MAX_CHARS,
+                }
+            );
+            if (torn || myGen !== turnGen || busy) return;
+            session.recordLlmUsage(usage);
+            if (reply.kind === 'pass' && kind === 'approach') {
+                debugLog('timer approach → pass');
+                pacing.onResponseEnd();
+                return;
+            }
+            const line = reply.kind === 'speak' ? reply.text : canned;
+            debugLog(`timer ${kind} → ${reply.kind === 'speak' ? 'speak' : 'canned'}`);
+            // The event turn enters history with the line, so later turns know
+            // why the facilitator spoke about time unprompted.
+            session.addUserMessage(eventText);
+            await respondWithFacilitatorLine(line);
+            restoreHoldAfterNotice();
+        } catch {
+            if (!torn && myGen === turnGen && !busy) {
+                debugLog(`timer ${kind} → error (canned)`);
+                await respondWithFacilitatorLine(canned);
+                restoreHoldAfterNotice();
+            }
+        } finally {
+            timerNoticeInFlight = false;
+        }
+    }
+
+    /**
+     * A timer notice is the one thing allowed to speak into a silence hold, but
+     * it must not END the hold: respondWithFacilitatorLine calls
+     * pacing.onResponseEnd, which drops the controller back to Listening. Put
+     * the hold back unless the meditator themselves came out of it while we
+     * were speaking.
+     */
+    function restoreHoldAfterNotice(): void {
+        if (torn || !silenceMode) return;
+        pacing.enterSilenceMode();
+        setStatus("Holding space, say when you're ready to continue");
+    }
+
     // Auto-quit-after-silence: once a session goes untouched past the configured
     // window, save (if logging is on) and end it. An open session keeps
     // listening and checking in, which slowly spends cloud credit. Settings are
@@ -2274,7 +2408,8 @@ export async function mountSessionView(
         if (checkInTimer) clearInterval(checkInTimer);
         clearInterval(idleQuitTimer);
         if (debugTimer) clearInterval(debugTimer);
-        clearInterval(timerInterval);
+        clearInterval(timerPoll);
+        sessionClock.destroy();
         pacing.endSession();
         const finalState = session.endSession();
         void stt?.stop();
@@ -2492,7 +2627,7 @@ function renderSessionHTML(): string {
                 <!-- Live cloud balance: hidden unless the user opts in
                      (Settings, "Show credit balance during sessions"). -->
                 <span class="session-balance hidden" id="session-balance" title="Cloud credits remaining"></span>
-                <span class="session-timer" id="timer">0:00</span>
+                <button type="button" class="session-timer" id="timer" title="Session clock">0:00</button>
                 <button id="tts-toggle" class="btn btn-tts active" title="Read responses aloud" aria-label="Toggle text-to-speech">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -2511,7 +2646,7 @@ function renderSessionHTML(): string {
                     </svg>
                 </button>
                 <button id="listen-btn" class="btn btn-listen"
-                    title="Hold space. The facilitator stays quiet. Anything you say resumes the conversation.">
+                    title="The facilitator stays quiet until you ask to resume.">
                     Just Listen
                 </button>
             </div>

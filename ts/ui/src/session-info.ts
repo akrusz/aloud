@@ -13,6 +13,13 @@ export interface SessionInfoRow {
     value: string;
     /** Optional sub-line under the value, e.g. a speed heads-up. */
     note?: string;
+    /**
+     * Makes the row a control rather than a fact: it renders as a button and
+     * the panel closes before this fires. Used for settings that are otherwise
+     * only reachable by tapping their in-session widget - the session clock can
+     * be hidden from the input row, and without this there'd be no way back.
+     */
+    onClick?: () => void;
 }
 
 export interface SessionInfoAction {
@@ -74,16 +81,22 @@ export function mountSessionInfoPanel(
     root.appendChild(overlay);
     const body = overlay.querySelector<HTMLElement>('#session-info-body')!;
 
+    /** Rows carrying an onClick, in render order, for the click delegate. */
+    let clickableRows: SessionInfoRow[] = [];
+
     function render(): void {
-        body.innerHTML = buildRows()
-            .map(
-                (r) => `
-                <div class="session-info-row">
-                    <span class="session-info-label">${escape(r.label)}</span>
-                    <span class="session-info-value">${escape(r.value)}</span>
-                    ${r.note ? `<span class="session-info-note">${escape(r.note)}</span>` : ''}
-                </div>`
-            )
+        const rows = buildRows();
+        clickableRows = rows.filter((r) => r.onClick);
+        body.innerHTML = rows
+            .map((r) => {
+                const inner =
+                    `<span class="session-info-label">${escape(r.label)}</span>` +
+                    `<span class="session-info-value">${escape(r.value)}</span>` +
+                    (r.note ? `<span class="session-info-note">${escape(r.note)}</span>` : '');
+                if (!r.onClick) return `<div class="session-info-row">${inner}</div>`;
+                const i = clickableRows.indexOf(r);
+                return `<button type="button" class="session-info-row session-info-row-action" data-info-row="${i}">${inner}</button>`;
+            })
             .join('');
     }
 
@@ -108,6 +121,12 @@ export function mountSessionInfoPanel(
         if (action) {
             close();
             footerActions[Number(action.dataset['infoAction'])]?.onClick();
+            return;
+        }
+        const row = el.closest<HTMLElement>('[data-info-row]');
+        if (row) {
+            close();
+            clickableRows[Number(row.dataset['infoRow'])]?.onClick?.();
         }
     });
     const onKey = (e: KeyboardEvent): void => {

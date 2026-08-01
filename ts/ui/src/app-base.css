@@ -530,7 +530,8 @@ body {
     flex: 1;
 }
 
-.setup-voice-btn {
+.setup-voice-btn,
+.setup-clock-btn {
     background: var(--bg-input);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -954,7 +955,9 @@ input[type="range"].slider-stops {
     justify-content: space-between;
     font-size: 0.875rem;
     color: var(--text-muted);
-    margin-top: 0.25rem;
+    /* Negative: the range input reserves thumb room below its track that the
+       end labels don't need to clear. */
+    margin-top: -0.35rem;
 }
 
 /* Checkbox */
@@ -1381,6 +1384,8 @@ body:has(.session-container) {
     100% { transform: translateY(0); }
 }
 
+/* The clock readout. A button since tapping it opens the mode picker, but it
+   keeps the plain-text look it had as a span. */
 .session-timer {
     font-size: 0.875rem;
     color: var(--text-muted);
@@ -1388,6 +1393,220 @@ body:has(.session-container) {
     line-height: 42px;
     height: 42px;
     margin-right: 4px;
+    background: none;
+    border: none;
+    padding: 0 2px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: color var(--transition);
+}
+
+.session-timer:hover {
+    color: var(--text-primary);
+}
+
+/* Last minute of a countdown. Colour, not opacity: the clock has to stay
+   legible exactly when it's most worth reading. */
+.session-timer-final {
+    color: var(--accent);
+}
+
+/* Arming a timer while the clock is hidden: show it just long enough to
+   confirm the setting took, then fade out rather than cutting. The fade IS the
+   message here (it's leaving), not de-emphasis. */
+@keyframes session-timer-flash {
+    0%,
+    25% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.session-timer-flash {
+    animation: session-timer-flash 8s ease-out forwards;
+    pointer-events: none;
+}
+
+/* Session clock picker (modal). Reuses the .voice-modal chrome, which has no
+   body padding of its own. Taller than a voice list's 70vh so the timer panel
+   can expand without pushing the hide-clock toggle below the fold. */
+.clock-modal {
+    max-height: 85vh;
+}
+
+.clock-modal-body {
+    padding: 0.85rem 1rem;
+    overflow-y: auto;
+}
+
+.clock-mode-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.clock-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+.clock-mode:hover {
+    border-color: var(--accent);
+}
+
+.clock-mode.selected {
+    border-color: var(--accent);
+    background: var(--bg-card);
+}
+
+.clock-mode-label {
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.clock-mode-hint {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.clock-timer-panel {
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+}
+
+.clock-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.clock-preset {
+    min-width: 2.75rem;
+    padding: 0.4rem 0.6rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: border-color var(--transition), color var(--transition);
+}
+
+.clock-preset:hover {
+    border-color: var(--accent);
+}
+
+.clock-preset.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.clock-custom {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.7rem;
+}
+
+.clock-custom label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.clock-custom input {
+    width: 6rem;
+}
+
+.clock-ends-at {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.clock-hide-row {
+    flex-shrink: 0;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.clock-modal-actions {
+    display: flex;
+    padding: 0 1rem 1rem;
+}
+
+.clock-modal-actions .btn {
+    flex: 1;
+}
+
+/* Setup: a two-up row pairing a wide unlabelled control with a normal field -
+   "Additional instructions" beside Guidance Level under Exploration, the
+   turn-cue options beside the Session clock under Noting.
+
+   Bottom-aligned: the field carries a label above its control and its wide
+   neighbour doesn't, so aligning tops would leave the two controls sitting on
+   different lines. */
+.setup-extras-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+/* Exploration: the instructions box grows when opened, so pin the row to the
+   top instead - otherwise expanding it drags the guidance slider down. */
+.setup-extras-row-top {
+    align-items: flex-start;
+}
+
+.setup-extras-row .advanced-settings,
+.setup-extras-row .noting-option-row {
+    flex: 2;
+    min-width: 0;
+}
+
+.setup-extras-row > .form-group {
+    flex: 0 0 calc((100% - 2rem) / 3);
+    min-width: 0;
+    margin: 0;
+}
+
+/* The slider sits lower in its box than a select does, so nudge the pair back
+   into line without moving the neighbouring instructions box. */
+.setup-guidance-group .range-labels {
+    margin-bottom: -0.25rem;
+}
+
+@media (max-width: 640px) {
+    .setup-extras-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .setup-extras-row .advanced-settings,
+    .setup-extras-row .noting-option-row,
+    .setup-extras-row > .form-group {
+        flex: 1 1 auto;
+        width: 100%;
+    }
+
+    /* Stacked, the growing instructions box would shove the slider down the
+       page, so put the slider above it. */
+    .setup-extras-row-top > .form-group {
+        order: -1;
+    }
 }
 
 /* Conversation */
@@ -2412,19 +2631,20 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     margin-top: 0.5rem;
 }
 
+/* Secondary by colour, never by opacity: faded text reads as disabled, and
+   "End Without Saving" needs to be legible even though it isn't the default. */
 .btn-link {
     background: none;
     border: none;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-size: 0.875rem;
     cursor: pointer;
     padding: 0.25rem 0;
-    opacity: 0.7;
-    transition: opacity 0.2s;
+    transition: color 0.2s;
 }
 
 .btn-link:hover {
-    opacity: 1;
+    color: var(--text-primary);
     text-decoration: underline;
 }
 
@@ -2741,7 +2961,7 @@ body::before {
 
 .session-summary {
     font-size: 0.875rem;
-    color: var(--text-secondary, var(--text-muted));
+    color: var(--text-secondary);
     font-style: italic;
 }
 

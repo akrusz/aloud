@@ -29,6 +29,11 @@ export type CheckinTiming = 'none' | 'simple' | 'smart';
  *  session so far (which may choose to stay quiet). */
 export type CheckinContent = 'simple' | 'smart';
 
+/** What the session clock reads out: time since the session started, the time
+ *  of day, or a countdown to a set duration ('timer'). Tapping the clock opens
+ *  the picker; the choice persists across sessions. */
+export type SessionClockMode = 'elapsed' | 'wall' | 'timer';
+
 export interface AppSettings {
     // Provider defaults for new sessions
     defaultProvider: Provider;
@@ -49,6 +54,17 @@ export interface AppSettings {
      *  ticking balance is distracting mid-meditation, and it's a tap away on the
      *  setup pill and in Settings. meditation-pal-14s. */
     showSessionBalance: boolean;
+    /** What the session clock reads out. Persists across sessions: tapping the
+     *  clock (or the Session clock button on setup) opens the picker. */
+    sessionClockMode: SessionClockMode;
+    /** Timer length in minutes, remembered so a daily 20-minute sit re-arms
+     *  itself. Only meaningful under sessionClockMode 'timer'. */
+    sessionTimerMin: number;
+    /** Show the clock readout during a session (default on). Independent of the
+     *  mode ON PURPOSE: "run a 20 minute timer with no ticking clock, just tell
+     *  me when" is a real ask, and hiding the readout must not disarm the
+     *  timer's spoken notices. */
+    showSessionClock: boolean;
     /** Keep a local log of sessions (default on). When on, every turn autosaves
      *  without an LLM summary, so a crash or going offline still leaves a
      *  recoverable transcript (the detailed summary is generated only on a clean
@@ -117,6 +133,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     textScale: 1.0,
     themeMode: 'auto',
     showSessionBalance: false,
+    sessionClockMode: 'elapsed',
+    sessionTimerMin: 20,
+    showSessionClock: true,
     saveSessionLogs: true,
     resumeFromSummary: true,
     autoQuitAfterSilence: true,

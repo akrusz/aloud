@@ -14,7 +14,11 @@ import {
     SessionManager,
     generateNotingLabel,
     generateSessionSummary,
+    pickTimerFallback,
+    timerApproachLeadSec,
     NOTING_STATIC_OPENER,
+    TIMER_APPROACH_FALLBACKS,
+    TIMER_COMPLETION_FALLBACKS,
 } from '../../../src/facilitation/index.js';
 import { OllamaProvider, type LLMProvider } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
@@ -29,7 +33,8 @@ import {
 import { showErrorToast } from '../toast.js';
 import { assetPath } from '../route-base.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
-import { loadAppSettings } from '../app-settings.js';
+import { loadAppSettings, saveAppSettings } from '../app-settings.js';
+import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import {
     createBestStt,
@@ -147,7 +152,14 @@ export async function mountNotingSessionView(
             { label: 'Source', value: providerLabel },
             {
                 label: 'Delivery',
-                value: streams ? 'Speaks as it generates' : 'Waits for the full reply, then speaks',
+                value: streams ? 'Speaks as it generates' : 'Waits for full reply, then speaks',
+            },
+            // Actionable: the clock can be hidden from the input row, and this
+            // is then the only way back to its settings mid-circle.
+            {
+                label: 'Clock',
+                value: sessionClock.faceLabel(),
+                onClick: () => void sessionClock.openPicker(),
             },
         ];
     }, 'Session', [
@@ -175,7 +187,7 @@ export async function mountNotingSessionView(
             <div class="input-area">
                 <div class="input-row input-row-noting">
                     <div id="voice-status" class="voice-status">Starting…</div>
-                    <span class="session-timer" id="timer">0:00</span>
+                    <button type="button" class="session-timer" id="timer" title="Session clock">0:00</button>
                     <button id="tts-toggle" class="btn btn-tts active" title="Read notes aloud" aria-label="Toggle text-to-speech">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -256,18 +268,25 @@ export async function mountNotingSessionView(
         }
     }
 
-    // Session timer, counting since mount as m:ss or h:mm:ss.
     const sessionStartMs = Date.now();
-    function updateTimer(): void {
-        const elapsed = Math.floor((Date.now() - sessionStartMs) / 1000);
-        const h = Math.floor(elapsed / 3600);
-        const m = Math.floor((elapsed % 3600) / 60);
-        const s = elapsed % 60;
-        const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
-        timerEl.textContent = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-    }
-    updateTimer();
-    const timerInterval = setInterval(updateTimer, 1000);
+
+    // Same clock as the exploration view: elapsed / time of day / countdown,
+    // switched by tapping it, persisted app-wide.
+    const sessionClock = new SessionClock(timerEl, sessionStartMs, appSettings, (choice) => {
+        appSettings.sessionClockMode = choice.mode;
+        appSettings.sessionTimerMin = choice.timerMin;
+        appSettings.showSessionClock = choice.showClock;
+        // Re-read before writing, so a stale in-memory copy can't clobber
+        // settings saved elsewhere since mount.
+        void loadAppSettings().then((s) =>
+            saveAppSettings({
+                ...s,
+                sessionClockMode: choice.mode,
+                sessionTimerMin: choice.timerMin,
+                showSessionClock: choice.showClock,
+            })
+        );
+    });
 
     // Floating embers + kasina gazing, shared with exploration. The
     // document-level kasina listeners (drag, outside-click) and the beforeunload
@@ -408,8 +427,33 @@ export async function mountNotingSessionView(
         return sum / userCadences.length;
     }
 
+    /**
+     * The timer's spoken notices, canned rather than LLM-written: this mode's
+     * only prose is the static opener, for the reason documented there, and a
+     * generated paragraph would break the register of a circle of one-word
+     * labels. Spoken by the facilitator voice at a turn boundary, so it never
+     * lands on top of a participant or the user's turn.
+     */
+    async function speakTimerNotice(kind: 'approach' | 'completion'): Promise<void> {
+        const pool = kind === 'approach' ? TIMER_APPROACH_FALLBACKS : TIMER_COMPLETION_FALLBACKS;
+        const text = pickTimerFallback(pool, sessionClock.timerMinutes());
+        session.addAssistantMessage(text, 'Facilitator');
+        appendMessage('facilitator', text, 'Facilitator');
+        await speakVia(setup.voice, text);
+        void autosaveSession();
+    }
+
     async function advanceTurn(): Promise<void> {
         if (torn || paused) return;
+        // Turn boundary: the natural seam for a timer notice. The circle keeps
+        // going afterwards - completion is a word, not a stop.
+        const due = sessionClock.timerDue(
+            timerApproachLeadSec(sessionClock.timerTotalSec(), null)
+        );
+        if (due) {
+            await speakTimerNotice(due);
+            if (torn || paused) return;
+        }
         currentTurn = (currentTurn + 1) % turnOrder.length;
         const turn = turnOrder[currentTurn];
         if (turn === 'user') await startUserTurn();
@@ -681,7 +725,7 @@ export async function mountNotingSessionView(
         torn = true;
         paused = true;
         clearWait();
-        clearInterval(timerInterval);
+        sessionClock.destroy();
         void stt?.stop();
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();
         if (audioCtx && audioCtx.state !== 'closed') void audioCtx.close().catch(() => {});

@@ -44,6 +44,22 @@ export {
     type SmartCheckinEventOptions,
     type SmartCheckinResult,
 } from './smart-checkin.js';
+export {
+    buildTimerApproachEvent,
+    buildTimerCompletionEvent,
+    isSessionTimerEvent,
+    isSyntheticEventTurn,
+    pickTimerFallback,
+    timerApproachLeadSec,
+    SESSION_TIMER_EVENT_PREFIX,
+    SESSION_TIMER_MAX_CHARS,
+    SESSION_TIMER_MAX_MINUTES,
+    SESSION_TIMER_MIN_MINUTES,
+    SESSION_TIMER_PRESETS,
+    TIMER_APPROACH_FALLBACKS,
+    TIMER_COMPLETION_FALLBACKS,
+    type TimerEventOptions,
+} from './session-timer.js';
 export { looksLikeTtsEcho, MIN_ECHO_WORDS } from './echo-guard.js';
 
 export {

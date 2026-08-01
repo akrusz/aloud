@@ -97,7 +97,10 @@ export type SmartCheckinReply =
  * are scrubbed mid-text, and a bare unbracketed "pass" (a small model flubbing
  * the format) counts as a pass rather than being said into the silence.
  */
-export function parseSmartCheckinReply(raw: string): SmartCheckinReply {
+export function parseSmartCheckinReply(
+    raw: string,
+    maxChars: number = SMART_CHECKIN_MAX_CHARS
+): SmartCheckinReply {
     let text = stripThinkTags(raw).trim();
     let pass = false;
     let waitSec: number | null = null;
@@ -117,10 +120,10 @@ export function parseSmartCheckinReply(raw: string): SmartCheckinReply {
     text = scrubControlTokens(text);
     if (pass || /^["']?pass[."'!]*$/i.test(text)) return { kind: 'pass', waitSec };
     if (!text) return { kind: 'fallback' };
-    if (text.length <= SMART_CHECKIN_MAX_CHARS) return { kind: 'speak', text, waitSec };
+    if (text.length <= maxChars) return { kind: 'speak', text, waitSec };
     // Too long: salvage the first sentence if it stands alone as a line.
     const sentence = /^[\s\S]*?[.!?…]+(?=\s|$)/.exec(text)?.[0]?.trim();
-    if (sentence && sentence.length <= SMART_CHECKIN_MAX_CHARS) {
+    if (sentence && sentence.length <= maxChars) {
         return { kind: 'speak', text: sentence, waitSec };
     }
     return { kind: 'fallback' };
@@ -141,7 +144,7 @@ export interface SmartCheckinResult {
 export async function runSmartCheckin(
     provider: LLMProvider,
     messages: Message[],
-    options: { system?: string; signal?: AbortSignal } = {}
+    options: { system?: string; signal?: AbortSignal; maxChars?: number } = {}
 ): Promise<SmartCheckinResult> {
     const result = await provider.complete(messages, {
         maxTokens: SMART_CHECKIN_MAX_TOKENS,
@@ -149,7 +152,7 @@ export async function runSmartCheckin(
         ...(options.signal !== undefined && { signal: options.signal }),
     });
     return {
-        reply: parseSmartCheckinReply(result.text),
+        reply: parseSmartCheckinReply(result.text, options.maxChars),
         usage: {
             tokensIn: result.inputTokens ?? null,
             tokensOut: result.outputTokens ?? null,

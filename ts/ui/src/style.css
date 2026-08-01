@@ -1024,30 +1024,66 @@
 .session-info-close:hover {
     color: var(--text-primary);
 }
+/* Label left, value right, note spanning underneath. Two columns rather than
+   the original stack: the panel holds a few more rows in the same height, and
+   it stays a scannable list once some rows are controls. */
 .session-info-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    column-gap: 0.75rem;
+    row-gap: 0.15rem;
+    width: 100%;
     padding: 0.55rem 0;
     border-top: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+    text-align: left;
 }
 .session-info-row:first-child {
     border-top: none;
 }
 .session-info-label {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--text-muted);
+    white-space: nowrap;
 }
 .session-info-value {
     font-size: 1.05rem;
     color: var(--text-primary);
+    text-align: right;
+    /* Long model ids wrap inside their column instead of widening the panel. */
+    overflow-wrap: anywhere;
 }
 .session-info-note {
+    grid-column: 2;
     font-size: 0.95rem;
     color: var(--text-muted);
-    margin-top: 0.15rem;
+    text-align: right;
+}
+
+/* A row that changes something rather than just reporting it (session clock).
+   Carries the chevron so it reads as a control, not a fact. */
+.session-info-row-action {
+    background: none;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    font: inherit;
+    cursor: pointer;
+    transition: color var(--transition);
+}
+.session-info-row-action .session-info-value::after {
+    content: ' \203A';
+    color: var(--text-muted);
+}
+.session-info-row-action:hover .session-info-value,
+.session-info-row-action:focus-visible .session-info-value {
+    color: var(--accent);
+}
+.session-info-row-action:hover .session-info-value::after,
+.session-info-row-action:focus-visible .session-info-value::after {
+    color: var(--accent);
 }
 .session-info-actions {
     display: flex;

@@ -85,6 +85,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         textScale: settings.textScale,
         themeMode: settings.themeMode,
         showSessionBalance: settings.showSessionBalance,
+        showSessionClock: settings.showSessionClock,
     };
 
     // Backs the ✘/✱ markers and the status hint, from /app/v1/providers plus
@@ -139,7 +140,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         return (
             pendingChrome.textScale !== settings.textScale ||
             pendingChrome.themeMode !== settings.themeMode ||
-            pendingChrome.showSessionBalance !== settings.showSessionBalance
+            pendingChrome.showSessionBalance !== settings.showSessionBalance ||
+            pendingChrome.showSessionClock !== settings.showSessionClock
         );
     }
 
@@ -1192,6 +1194,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             settings.textScale = pendingChrome.textScale;
             settings.themeMode = pendingChrome.themeMode;
             settings.showSessionBalance = pendingChrome.showSessionBalance;
+            settings.showSessionClock = pendingChrome.showSessionClock;
             applyChromeSettings(settings);
             persist();
             updateApplyDisplayState();
@@ -1212,6 +1215,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             balanceToggle.addEventListener('change', () => {
                 pendingChrome.showSessionBalance = balanceToggle.checked;
                 balancePreview?.classList.toggle('hidden', !balanceToggle.checked);
+                updateApplyDisplayState();
+            });
+        }
+
+        // Hides the readout only. The clock's mode and any timer length are set
+        // by tapping it (or the setup screen's Session clock button), and a
+        // hidden clock still runs its timer.
+        const clockToggle = root.querySelector<HTMLInputElement>('#s-show-session-clock');
+        if (clockToggle) {
+            clockToggle.checked = pendingChrome.showSessionClock;
+            clockToggle.addEventListener('change', () => {
+                pendingChrome.showSessionClock = clockToggle.checked;
                 updateApplyDisplayState();
             });
         }
@@ -1428,6 +1443,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             pendingChrome.textScale = settings.textScale;
             pendingChrome.themeMode = settings.themeMode;
             pendingChrome.showSessionBalance = settings.showSessionBalance;
+            pendingChrome.showSessionClock = settings.showSessionClock;
             applyChromeSettings(settings);
             void saveAppSettings(settings);
             if (revertedEl) {
@@ -1833,6 +1849,13 @@ function renderDisplaySection(s: AppSettings): string {
                         <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
                         <span>Show live credit balance during sessions (when signed in)</span>
                     </label>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-show-session-clock"${s.showSessionClock ? ' checked' : ''}>
+                        <span>Show the clock during sessions</span>
+                    </label>
+                    <span class="form-hint">A timer still speaks up when it's done, clock or no clock.</span>
                 </div>
                 <div class="display-apply-row">
                     <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>

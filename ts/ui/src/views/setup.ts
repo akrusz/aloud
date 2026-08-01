@@ -73,6 +73,7 @@ import {
 import { alertDialog } from '../dialog.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
+import { clockModeLabel, showSessionClockModal } from '../session-clock.js';
 import {
     autoStart as autoStartGuide,
     closeIfActive as closeGuideIfActive,
@@ -680,6 +681,41 @@ export async function mountSetupView(
             setup.customInstructions = customEl.value;
             persist();
         });
+
+        // Session clock. One control per mode panel, all showing the same
+        // app-level choice: picking a 20 minute timer under Exploration and
+        // then switching to Felt Sense keeps the timer.
+        const clockBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-clock-btn]')];
+        function paintClockBtns(): void {
+            const face = clockModeLabel(appSettings.sessionClockMode, appSettings.sessionTimerMin);
+            for (const b of clockBtns) b.textContent = face;
+        }
+        paintClockBtns();
+        for (const btn of clockBtns) {
+            btn.addEventListener('click', () => {
+                void showSessionClockModal({
+                    mode: appSettings.sessionClockMode,
+                    timerMin: appSettings.sessionTimerMin,
+                    showClock: appSettings.showSessionClock,
+                }).then((choice) => {
+                    if (!choice) return;
+                    appSettings.sessionClockMode = choice.mode;
+                    appSettings.sessionTimerMin = choice.timerMin;
+                    appSettings.showSessionClock = choice.showClock;
+                    paintClockBtns();
+                    // Re-read before writing, like the voice control: another
+                    // control on this page may have saved since we loaded.
+                    void loadAppSettings().then((s) =>
+                        saveAppSettings({
+                            ...s,
+                            sessionClockMode: choice.mode,
+                            sessionTimerMin: choice.timerMin,
+                            showSessionClock: choice.showClock,
+                        })
+                    );
+                });
+            });
+        }
 
         // Provider
         const providerSel = root.querySelector<HTMLSelectElement>('#provider')!;
@@ -1396,6 +1432,19 @@ function stripVoicePrefix(voice: string | null): string | null {
     return m ? (m[2] ?? null) : voice;
 }
 
+/**
+ * The Session clock control, rendered once per mode panel. The face is filled
+ * in during wiring (renderSetupHTML has no app settings), and every copy is
+ * wired together by class, so the mode tabs stay in sync.
+ */
+function renderClockButton(): string {
+    return `
+        <div class="form-group setup-clock-group">
+            <label>Session clock</label>
+            <button type="button" class="setup-clock-btn" data-clock-btn>Time in session</button>
+        </div>`;
+}
+
 function renderSetupHTML(
     byokOpts: ProviderAvailabilityOpts,
     sttSelected: SttEngineChoice
@@ -1506,16 +1555,15 @@ function renderSetupHTML(
                 </div>
             </div>
 
-            <details class="advanced-settings">
-                <summary>Additional instructions</summary>
-                <div class="form-group">
-                    <textarea id="custom-instructions" rows="3"
-                        placeholder="Any specific guidance for the facilitator…"></textarea>
-                </div>
-            </details>
-
-            <div class="form-row form-row-thirds">
-                <div class="form-group">
+            <div class="setup-extras-row setup-extras-row-top">
+                <details class="advanced-settings">
+                    <summary>Additional instructions</summary>
+                    <div class="form-group">
+                        <textarea id="custom-instructions" rows="3"
+                            placeholder="Any specific guidance for the facilitator…"></textarea>
+                    </div>
+                </details>
+                <div class="form-group setup-guidance-group">
                     <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
                     <div class="info-panel hidden" id="info-guidance">
                         <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
@@ -1527,6 +1575,10 @@ function renderSetupHTML(
                         <span>Directing</span>
                     </div>
                 </div>
+            </div>
+
+            <div class="form-row form-row-thirds">
+                ${renderClockButton()}
                 <div class="form-group">
                     <label for="verbosity">Response Length</label>
                     <select id="verbosity">${verbosityOptions}</select>
@@ -1549,13 +1601,16 @@ function renderSetupHTML(
                     title="Add another participant to the noting circle (up to 4)">+ Add participant</button>
             </div>
 
-            <div class="noting-option-row">
-                <label class="noting-option">
-                    <input type="checkbox" id="user-turn-cue">
-                    <span>Play a sound on your turn</span>
-                </label>
-                <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">Chime</button>
-                <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>
+            <div class="setup-extras-row">
+                <div class="noting-option-row">
+                    <label class="noting-option">
+                        <input type="checkbox" id="user-turn-cue">
+                        <span>Play a sound on your turn</span>
+                    </label>
+                    <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">Chime</button>
+                    <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>
+                </div>
+                ${renderClockButton()}
             </div>
         </div>
 
@@ -1586,6 +1641,7 @@ function renderSetupHTML(
                         <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
                     </div>
                 </div>
+                ${renderClockButton()}
             </div>
         </div>
 

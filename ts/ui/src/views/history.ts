@@ -7,7 +7,7 @@
 
 import {
     getMode,
-    isSmartCheckinEvent,
+    isSyntheticEventTurn,
     type SessionState,
     type Exchange,
 } from '../../../src/facilitation/index.js';
@@ -128,7 +128,7 @@ export async function mountHistoryView(
     function copyTranscript(session: SessionState, btn: HTMLButtonElement): void {
         const lines: string[] = [];
         for (const ex of session.exchanges) {
-            if (ex.role === 'user' && isSmartCheckinEvent(ex.content)) continue;
+            if (ex.role === 'user' && isSyntheticEventTurn(ex.content)) continue;
             const role = ex.name ?? (ex.role === 'assistant' ? 'Facilitator' : 'You');
             lines.push(`${role}\n${ex.content}`);
         }
@@ -267,7 +267,7 @@ function renderTranscript(exchanges: readonly Exchange[]): string {
     }
     return exchanges
         // Synthetic check-in events are model context, not the user speaking.
-        .filter((ex) => !(ex.role === 'user' && isSmartCheckinEvent(ex.content)))
+        .filter((ex) => !(ex.role === 'user' && isSyntheticEventTurn(ex.content)))
         .map((ex) => {
             const role = ex.name ?? (ex.role === 'assistant' ? 'Facilitator' : 'You');
             return `
