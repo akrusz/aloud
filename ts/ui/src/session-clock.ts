@@ -207,7 +207,7 @@ export class SessionClock {
         // are the point, the readout is optional.
         const showing = this.visible || this.flashing;
         this.el.classList.toggle('hidden', !showing);
-        this.el.setAttribute('aria-label', `Session clock: ${clockModeLabel(this.mode, this.timerMin)}`);
+        this.el.setAttribute('aria-label', `Session Clock: ${clockModeLabel(this.mode, this.timerMin)}`);
         if (!showing) return;
         if (this.mode === 'wall') {
             this.el.textContent = formatWallClock(new Date());
@@ -259,9 +259,9 @@ export function showSessionClockModal(
         overlay.id = OVERLAY_ID;
         overlay.className = 'voice-modal-overlay';
         overlay.innerHTML = `
-        <div class="voice-modal clock-modal" role="dialog" aria-modal="true" aria-label="Session clock">
+        <div class="voice-modal clock-modal" role="dialog" aria-modal="true" aria-label="Session Clock">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">Session clock</span>
+                <span class="voice-modal-title">Session Clock</span>
                 <button type="button" class="voice-modal-close" id="clock-modal-close" aria-label="Cancel">&times;</button>
             </div>
             <div class="clock-modal-body">

@@ -2444,12 +2444,6 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     font-size: 0.875rem;
 }
 
-/* The setup ☁️ legend sits below the whole AI row (it wraps ugly inside a
-   column). The form's 1rem flex gap is too airy for a footnote, so pull it
-   back up to the under-select 0.4rem. */
-#cloud-rate-legend {
-    margin-top: -0.6rem;
-}
 /* The model tier toggle lives inside the #model-picker-slot wrapper, which
    the .form-group 0.4rem gap doesn't reach - hand it the same spacing. */
 #model-picker-slot .credit-rate-legend {
@@ -4548,6 +4542,17 @@ input[type="range"].preview-range {
     line-height: 1;
     cursor: pointer;
     padding: 0;
+}
+/* An emoji fills its em box while a "?" only reaches cap height, so at one
+   font-size the mark reads as a runt beside the cloud (worst on Apple Color
+   Emoji, which is the fattest of the emoji fonts). Size the "?" up to match by
+   eye instead of shrinking the cloud. */
+.clouds-help-q {
+    font-size: 1.25em;
+    /* The emoji's ink sits high in its box while the "?" hangs to the
+       baseline, so equal-sized boxes leave the mark low and its dot below the
+       cloud. Lift it until the two overhang evenly top and bottom. */
+    margin-top: -0.05em;
 }
 .clouds-help:hover {
     border-color: var(--text-muted);

@@ -1220,7 +1220,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
 
         // Hides the readout only. The clock's mode and any timer length are set
-        // by tapping it (or the setup screen's Session clock button), and a
+        // by tapping it (or the setup screen's Session Clock button), and a
         // hidden clock still runs its timer.
         const clockToggle = root.querySelector<HTMLInputElement>('#s-show-session-clock');
         if (clockToggle) {

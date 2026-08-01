@@ -284,7 +284,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // results (same reason detectSttBackend skips it), and desktop has Whisper +
     // cloud. Not in the native app either: the plugin above is better.
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
-        out.push({ value: 'web-speech', label: 'Browser speech recognition' });
+        out.push({ value: 'web-speech', label: 'Browser' });
     }
     out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(CLOUD_STT_CREDITS_PER_HOUR)}` });
     // OpenAI's gpt-transcribe on the same hosted route: cheaper upstream and

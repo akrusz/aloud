@@ -152,7 +152,7 @@ export async function mountNotingSessionView(
             { label: 'Source', value: providerLabel },
             {
                 label: 'Delivery',
-                value: streams ? 'Speaks as it generates' : 'Waits for full reply, then speaks',
+                value: streams ? 'Speaks as it generates' : 'Speaks after receiving full reply',
             },
             // Actionable: the clock can be hidden from the input row, and this
             // is then the only way back to its settings mid-circle.
@@ -187,7 +187,7 @@ export async function mountNotingSessionView(
             <div class="input-area">
                 <div class="input-row input-row-noting">
                     <div id="voice-status" class="voice-status">Starting…</div>
-                    <button type="button" class="session-timer" id="timer" title="Session clock">0:00</button>
+                    <button type="button" class="session-timer" id="timer" title="Session Clock">0:00</button>
                     <button id="tts-toggle" class="btn btn-tts active" title="Read notes aloud" aria-label="Toggle text-to-speech">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>

@@ -423,13 +423,11 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
-        // The ☁️ legend (below the AI row) and the footer's "what are ☁️?"
-        // help button ride the same visibility: both explain badges/spend that
-        // only exist when something on the page costs credits.
-        const legend = root.querySelector<HTMLElement>('#cloud-rate-legend');
+        // The footer's "what are ☁️?" help button rides the estimate's
+        // visibility: it only explains badges/spend that exist when something
+        // on the page costs credits.
         const help = root.querySelector<HTMLElement>('#clouds-help');
         const setCloudUi = (visible: boolean): void => {
-            legend?.classList.toggle('hidden', !visible);
             help?.classList.toggle('hidden', !visible);
         };
 
@@ -1440,7 +1438,7 @@ function stripVoicePrefix(voice: string | null): string | null {
 function renderClockButton(): string {
     return `
         <div class="form-group setup-clock-group">
-            <label>Session clock</label>
+            <label>Session Clock</label>
             <button type="button" class="setup-clock-btn" data-clock-btn>Time in session</button>
         </div>`;
 }
@@ -1666,11 +1664,6 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
-        <!-- Legend for every ☁️ badge on the page (model picker, voice button,
-             Begin estimate). Below the whole AI row so it never wraps inside a
-             column; shown/hidden with the estimate pill: no cloud spend, no
-             badges, no legend. -->
-        <p class="credit-rate-legend hidden" id="cloud-rate-legend">${withCloudOutline('☁️: approximate hourly credit usage')}</p>
         <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline('AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.')}</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
@@ -1716,6 +1709,6 @@ function renderSetupHTML(
              centered column; rides the estimate pill's visibility (only shown
              when beginning would spend clouds). -->
         <button type="button" class="clouds-help hidden" id="clouds-help"
-            aria-label="What are clouds?" title="What are ☁️?">${withCloudOutline('☁️')}?</button>
+            aria-label="What are clouds?" title="What are ☁️?">${withCloudOutline('☁️')}<span class="clouds-help-q">?</span></button>
     </div>`;
 }

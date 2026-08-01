@@ -69,7 +69,7 @@ export function describeSttError(err: unknown): string {
     // Chromium build (Brave, others) where Google blocks the speech endpoint, so
     // it can never succeed - point at the paths that work.
     if (msg === 'network') {
-        return 'Browser speech recognition is blocked in this browser. Switch to aloud cloud speech, or use Chrome.';
+        return 'Browser speech recognition is blocked in this browser. Switch to aloud cloud speech, or use Chrome/Edge.';
     }
     return `Mic error: ${msg}`;
 }

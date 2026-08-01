@@ -2627,7 +2627,7 @@ function renderSessionHTML(): string {
                 <!-- Live cloud balance: hidden unless the user opts in
                      (Settings, "Show credit balance during sessions"). -->
                 <span class="session-balance hidden" id="session-balance" title="Cloud credits remaining"></span>
-                <button type="button" class="session-timer" id="timer" title="Session clock">0:00</button>
+                <button type="button" class="session-timer" id="timer" title="Session Clock">0:00</button>
                 <button id="tts-toggle" class="btn btn-tts active" title="Read responses aloud" aria-label="Toggle text-to-speech">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
