@@ -408,7 +408,7 @@
 .buy-clouds-inline {
     margin-top: 0.5rem;
     padding: 0.4rem 0.85rem;
-    background: var(--accent);
+    background: var(--accent-fill);
     color: white;
     border: 1px solid var(--accent);
     border-radius: var(--radius-sm);
@@ -455,7 +455,7 @@
     font: inherit;
 }
 #mic.listening {
-    background: var(--accent);
+    background: var(--accent-fill);
     color: white;
     border-color: var(--accent);
 }

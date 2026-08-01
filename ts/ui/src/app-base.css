@@ -25,8 +25,17 @@ html { font-size: 16px; }
     --text-primary: #f5efe6;
     --text-secondary: #c4b49e;
     --text-muted: #b0a090;
-    --accent: #df3f88;
-    --accent-dim: rgba(223, 63, 136, 0.15);
+    /* The logo pink (assets/app-icon.svg), identical in both themes - it is the
+       brand mark, so it should not drift between light and dark. Used for text,
+       borders, icons, and small indicators, never as a fill behind text: at its
+       luminance nothing reads on it (white 4.3:1, black 4.9:1). Solid buttons
+       take --accent-fill instead. */
+    --accent: #e71f75;
+    /* Fill behind white text. The logo's own shadow pink, so a filled button is
+       still a logo color - 9.8:1 with #fff, and the --accent rim keeps it
+       reading pink rather than maroon. */
+    --accent-fill: #870a3e;
+    --accent-dim: rgba(231, 31, 117, 0.15);
     --accent-glow: rgba(245, 165, 47, 0.30);
     --brand-glow: rgba(255, 220, 80, 0.55);
     --brand-stroke: #e8b820;
@@ -37,10 +46,12 @@ html { font-size: 16px; }
        on - for controls whose only edge cue is their outline (.clouds-help). */
     --hairline: rgba(245, 239, 230, 0.22);
     --danger: #c0503e;
-    --facilitator-bg: rgba(223, 63, 136, 0.06);
+    --facilitator-bg: rgba(231, 31, 117, 0.06);
     --user-bg: rgba(196, 168, 80, 0.06);
     --overlay-bg: rgba(17, 13, 8, 0.95);
-    --accent-hover: #c02a72;
+    /* Hover for --accent-fill, so it too must clear white text (7.4:1). In dark
+       a hover brightens toward the logo pink; in light it deepens away from it. */
+    --accent-hover: #a81050;
     --success: #5a9e6f;
     --radius: 12px;
     --radius-sm: 8px;
@@ -95,7 +106,9 @@ html[data-platform="android"] {
     --text-secondary: #5c4a44;
     --text-muted: #756058;
     --accent: #e71f75;
-    --accent-hover: #c01560;
+    /* Light can run the fill hotter than dark and still clear white (6.0:1). */
+    --accent-fill: #c01560;
+    --accent-hover: #a81050;
     --accent-dim: rgba(231, 31, 117, 0.10);
     --accent-glow: rgba(245, 165, 47, 0.45);
     --brand-glow: rgba(245, 216, 32, 0.85);
@@ -291,26 +304,20 @@ body {
     color: var(--accent);
 }
 
+/* Fill from --accent-fill, rim from --accent: the deeper fill is what makes the
+   label readable (9.8:1 in dark), the logo-pink rim is what keeps the button
+   reading as pink. Dark mode used to flip the ink to #1a1208 instead, but dark
+   ink on a mid-luminance pink tops out near 5:1 and muddies at small sizes. */
 .btn-primary {
-    background: var(--accent);
+    background: var(--accent-fill);
     border-color: var(--accent);
     color: #fff;
 }
 
-[data-theme="dark"] .btn-primary,
-:root:not([data-theme="light"]) .btn-primary {
-    color: #1a1208;
-}
-
 .btn-primary:hover {
     background: var(--accent-hover);
-    border-color: var(--accent-hover);
+    border-color: var(--accent);
     color: #fff;
-}
-
-[data-theme="dark"] .btn-primary:hover,
-:root:not([data-theme="light"]) .btn-primary:hover {
-    color: #1a1208;
 }
 
 .btn-secondary {
@@ -929,19 +936,6 @@ input[type="range"].slider-stops {
 }
 .reactive-slider-wrap input[type="range"].slider-stops {
     --slider-segs: 2;
-}
-
-/* A slider cluster (label, track, end captions) reads as one control - show the finger across all of it, not just the 12px track. The label
-   needs its own rule: the UA stylesheet gives <label> cursor: default,
-   which beats the inherited value. Opened info panels are reading
-   material, not a control, so they keep the normal cursor. */
-.form-group:has(> input[type="range"]),
-.form-group:has(> input[type="range"]) > label,
-.reactive-slider-wrap {
-    cursor: pointer;
-}
-.form-group:has(> input[type="range"]) .info-panel {
-    cursor: auto;
 }
 
 .range-value {
@@ -2868,8 +2862,8 @@ body::before {
 }
 
 .update-btn:hover {
-    background: var(--accent);
-    color: var(--bg-surface);
+    background: var(--accent-fill);
+    color: #fff;
     transform: translateY(-1px);
 }
 
@@ -2987,8 +2981,8 @@ html:has(.nav-brand.has-update) .update-btn {
 .about-update-btn {
     font-size: 0.95rem;
     font-weight: 600;
-    color: var(--bg-primary);
-    background: var(--accent);
+    color: #fff;
+    background: var(--accent-fill);
     border: none;
     border-radius: 999px;
     padding: 0.35rem 0.9rem;
@@ -3206,9 +3200,11 @@ html:has(.nav-brand.has-update) .update-btn {
     pointer-events: auto;
 }
 
-/* Success variant - a calm confirmation (e.g. credits added), not an alarm. */
+/* Success variant - a calm confirmation (e.g. credits added, email prefs
+ * saved), not an alarm. Carries the toast's white text, so it fills from
+ * --accent-fill like any other solid-pink control. */
 .error-toast.toast-success {
-    background: var(--accent, #4a7c59);
+    background: var(--accent-fill, #870a3e);
 }
 
 /* ---- Buy-credits modal (meditation-pal-8sj) ---- */
