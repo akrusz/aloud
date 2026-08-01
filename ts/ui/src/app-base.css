@@ -15,6 +15,13 @@ html { font-size: 16px; }
     --bg-note: #201608;
     --bg-surface: #2e2419;
     --bg-tertiary: #1e1710;
+    /* Confirm/alert dialogs (.app-dialog) run several paragraphs of body copy,
+       and --text-primary on --bg-card puts all of it at ~15:1 - heading
+       intensity for a whole block, which glares in a dark room. Lift the
+       surface and ease the ink to ~11:1: still above AAA, and inside the
+       range the setup cards use (heading 15.6:1, body 8.8:1 on --bg-note). */
+    --bg-dialog: #2a2017;
+    --text-dialog: #ded3c4;
     --text-primary: #f5efe6;
     --text-secondary: #c4b49e;
     --text-muted: #b0a090;
@@ -26,6 +33,9 @@ html { font-size: 16px; }
     --warm: #c4a850;
     --warm-dim: rgba(196, 168, 80, 0.12);
     --border: #302618;
+    /* A hairline that still reads when --border is nearly the surface it sits
+       on - for controls whose only edge cue is their outline (.clouds-help). */
+    --hairline: rgba(245, 239, 230, 0.22);
     --danger: #c0503e;
     --facilitator-bg: rgba(223, 63, 136, 0.06);
     --user-bg: rgba(196, 168, 80, 0.06);
@@ -78,6 +88,9 @@ html[data-platform="android"] {
     --bg-note: #fef9ec;
     --bg-surface: #ffffff;
     --bg-tertiary: #efe0cc;
+    /* Light needs no easing - dark ink on a light card doesn't glare. */
+    --bg-dialog: #fad8c0;
+    --text-dialog: #1f1a18;
     --text-primary: #1f1a18;
     --text-secondary: #5c4a44;
     --text-muted: #756058;
@@ -90,6 +103,8 @@ html[data-platform="android"] {
     --warm: #e5a01a;
     --warm-dim: rgba(245, 246, 0, 0.14);
     --border: #e2d0b8;
+    /* Light's --border already reads as an outline - nothing to lift. */
+    --hairline: #e2d0b8;
     --danger: #b04435;
     --success: #4a8e5f;
     --facilitator-bg: rgba(231, 31, 117, 0.06);
@@ -4299,7 +4314,9 @@ input[type="range"].preview-range {
     width: 2.2rem;
     height: 2.2rem;
     border-radius: 50%;
-    border: 1px solid var(--border);
+    /* Its round outline is the only thing that says "button" - in dark,
+       --border is close enough to the bar to disappear. */
+    border: 1px solid var(--hairline, var(--border));
     background: var(--bg-input);
     color: var(--text-secondary);
     font-size: 0.8rem;

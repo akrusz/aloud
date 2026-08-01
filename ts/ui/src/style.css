@@ -102,8 +102,8 @@
     width: 100%;
     max-width: 24rem;
     padding: 1.25rem 1.5rem;
-    background: var(--bg-card, #fff);
-    color: var(--text-primary, #1a1a1a);
+    background: var(--bg-dialog, var(--bg-card, #fff));
+    color: var(--text-dialog, var(--text-primary, #1a1a1a));
     border: 1px solid var(--border, #ccc);
     border-radius: var(--radius, 12px);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
