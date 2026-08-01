@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Re-shoot the app screenshots on the landing page (docs/assets/aloud-screen-*.webp).
+ * Re-shoot the app screenshots on the landing page: the setup screen
+ * (aloud-screen-*.webp) and an exploration session (aloud-session-*.webp),
+ * each in both themes. The site shows them as a carousel (docs/js/shots.js).
  *
  * These used to be hand-taken macOS window grabs, which meant a new pair every
  * release at whatever size the window happened to be. This drives headless
@@ -21,7 +23,11 @@
  *   node scripts/site-screenshots.mjs [--width 1000] [--url http://localhost:4649/]
  *
  * Flags: --width (output image width in CSS px, shadow margin included),
- *        --height, --url, --out <dir>, --keep (leave the intermediate PNGs).
+ *        --height, --url, --out <dir>, --only <setup|session>,
+ *        --keep (leave the intermediate PNGs).
+ *
+ * The session shot's transcript is sample copy written into the DOM, not a
+ * recorded session - see SAMPLE_TURNS. Everything else in it is the live view.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -46,6 +52,8 @@ const HEIGHT = Number(flag('height', 862));
 const URL_BASE = flag('url', 'http://localhost:4649/');
 const OUT_DIR = flag('out', join(ROOT, 'docs/assets'));
 const KEEP = args.includes('--keep');
+/** Shoot one of the SHOTS (by id) instead of all of them. */
+const ONLY = flag('only', null);
 
 /** Retina: the page renders at 2x so the webp holds up on any display. */
 const DPR = 2;
@@ -60,9 +68,38 @@ const CHROME =
     process.env['CHROME_PATH'] ??
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-const THEMES = [
-    { name: 'light', file: 'aloud-screen-light.webp' },
-    { name: 'dark', file: 'aloud-screen-dark.webp' },
+const THEMES = ['light', 'dark'];
+
+/**
+ * The exchange shown in the in-session shot. Sample copy, not a recording: a
+ * real session needs a mic, an LLM and a person, none of which a screenshot
+ * script has. Keep it the way the facilitator actually talks - short questions,
+ * no platitudes - so the picture doesn't promise a different app.
+ */
+const SAMPLE_TURNS = [
+    ['assistant', "Whenever you're ready - what's here right now?"],
+    ['user', "My chest feels tight. Like I've been holding my breath without noticing."],
+    ['assistant', 'Let the tightness be there. Does it have an edge, somewhere it stops?'],
+    ['user', "It does. About the size of my fist, sitting behind the sternum."],
+    ['assistant', 'Stay with it for a few breaths. Tell me if anything about it moves.'],
+    ['user', "It didn't move, but it got warmer when I stopped pushing at it."],
+    ['assistant', 'So it answers to being left alone. Give it more room and see what it does.'],
+];
+
+/** What gets shot, in order. Each entry writes <id>-light.webp / <id>-dark.webp
+ *  (the setup shot keeps its historic aloud-screen-* name - the README and the
+ *  site's <noscript> fallback point at it). */
+const SHOTS = [
+    {
+        id: 'setup',
+        file: (theme) => `aloud-screen-${theme}.webp`,
+        prepare: null,
+    },
+    {
+        id: 'session',
+        file: (theme) => `aloud-session-${theme}.webp`,
+        prepare: 'session',
+    },
 ];
 
 function die(msg) {
@@ -190,6 +227,115 @@ function frame(pngPath, outPath) {
     if (r.status !== 0) throw new Error('ImageMagick failed');
 }
 
+/** Load the app with a known theme and a not-a-first-run profile. */
+async function bootApp(cdp, theme) {
+    await cdp.send('Page.navigate', { url: URL_BASE });
+    await cdp.once('Page.loadEventFired');
+    // Theme is a localStorage key (theme.ts owns it), so it only takes effect
+    // on the next load. The profile is fresh every run, which also means
+    // first-run state: mark the setup tour done, or it pops its welcome card
+    // over the shot. Provider stays on the 'ollama' default - the hosted
+    // provider would gate Begin behind sign-in, and no turn is ever sent.
+    await cdp.eval(`(() => {
+        localStorage.setItem('themeMode', ${JSON.stringify(theme)});
+        localStorage.setItem('aloud:aloud-index-guide-done', '1');
+        localStorage.setItem('aloud:aloud-client-id', '1');
+        // A 20 minute timer, so the clock in the input row reads as a timer
+        // rather than a two-second elapsed count. Partial settings are merged
+        // over the defaults on load.
+        localStorage.setItem('aloud:app:settings', JSON.stringify({
+            sessionClockMode: 'timer',
+            sessionTimerMin: 20,
+            showSessionClock: true,
+        }));
+    })()`);
+    await cdp.send('Page.reload');
+    await cdp.once('Page.loadEventFired');
+}
+
+/** Poll until a selector exists - the setup catalogs arrive over fetch, and a
+ *  shot taken before them is half-empty. */
+async function waitFor(cdp, selector, tries = 100) {
+    for (let i = 0; i < tries; i++) {
+        if (await cdp.eval(`!!document.querySelector(${JSON.stringify(selector)})`)) return;
+        await sleep(100);
+    }
+    throw new Error(`never saw ${selector}`);
+}
+
+/**
+ * Begin a session and stage the transcript.
+ *
+ * The turns are written straight into the DOM rather than spoken: a real
+ * exchange needs a mic, an LLM and a person. Everything around them - the
+ * clock, the orb, the controls bar, the input row - is the live view, so only
+ * the words are staged. Whatever the session view put there on mount (an
+ * opener, or a provider error, since nothing is configured here) is cleared
+ * first.
+ */
+async function enterSession(cdp) {
+    await cdp.eval(`document.querySelector('#begin-btn').click()`);
+    await waitFor(cdp, '#conversation');
+    await sleep(1500);
+    await cdp.eval(`(() => {
+        const conv = document.querySelector('#conversation');
+        const typing = conv.querySelector('.typing-indicator, #typing-indicator');
+        // Everything but the typing indicator: bubbles from the opener, and
+        // any provider notice ("Loading <model> into memory...").
+        for (const child of [...conv.children]) if (child !== typing) child.remove();
+        for (const [role, text] of ${JSON.stringify(SAMPLE_TURNS)}) {
+            const el = document.createElement('div');
+            el.className = 'message ' + (role === 'assistant' ? 'facilitator' : 'user');
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = text;
+            el.appendChild(content);
+            if (typing) conv.insertBefore(el, typing);
+            else conv.appendChild(el);
+        }
+        if (typing) typing.classList.add('hidden');
+        conv.scrollTop = conv.scrollHeight;
+        // Nothing is generating - the app is between turns, waiting on a voice.
+        const status = document.querySelector('#voice-status');
+        if (status) status.textContent = 'Listening…';
+        // Any dialog the mountless session put up (mic, provider, credits) is
+        // noise in a screenshot.
+        for (const o of document.querySelectorAll('.voice-modal-overlay, .app-dialog-overlay, .modal-overlay')) {
+            o.remove();
+        }
+    })()`);
+}
+
+/** Last pass before the shutter: anything transient that drifted in while we
+ *  waited (toasts, dialogs) is noise in a screenshot, and the status line
+ *  should read as a session between turns rather than mid-error. */
+async function clearChrome(cdp, shot) {
+    await cdp.eval(`(() => {
+        for (const el of document.querySelectorAll(
+            '.error-toast, .voice-modal-overlay, .app-dialog-overlay, .modal-overlay'
+        )) el.remove();
+        ${
+            shot.prepare === 'session'
+                ? `const status = document.querySelector('#voice-status');
+                   if (status) status.textContent = 'Listening…';`
+                : ''
+        }
+    })()`);
+}
+
+/** Wear the desktop shell's clothes: this is what pads the brand clear of the
+ *  traffic lights drawn on in post. */
+async function dressAsDesktop(cdp, theme) {
+    await cdp.eval(`(() => {
+        const h = document.documentElement;
+        h.setAttribute('data-shell', 'tauri');
+        h.setAttribute('data-titlebar', 'overlay');
+        h.setAttribute('data-theme', ${JSON.stringify(theme)});
+        if (document.activeElement) document.activeElement.blur();
+        window.scrollTo(0, 0);
+    })()`);
+}
+
 async function main() {
     if (!existsSync(CHROME)) die(`No Chrome at ${CHROME} (set CHROME_PATH).`);
     if (spawnSync('magick', ['-version'], { stdio: 'ignore' }).status !== 0) {
@@ -214,6 +360,10 @@ async function main() {
             '--disable-extensions',
             '--no-first-run',
             '--mute-audio',
+            // Grant the mic to a fake device: without it the session view puts
+            // up a "microphone access is blocked" toast over the shot.
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
             'about:blank',
         ],
         { stdio: 'ignore' }
@@ -233,53 +383,30 @@ async function main() {
         await mkdir(OUT_DIR, { recursive: true });
 
         for (const theme of THEMES) {
-            await cdp.send('Page.navigate', { url: URL_BASE });
-            await cdp.once('Page.loadEventFired');
-            // Theme is a localStorage key (theme.ts owns it), so it only takes
-            // effect on the next load. The profile is fresh every run, which
-            // also means first-run state: mark the setup tour done, or it pops
-            // its welcome card over the shot.
-            await cdp.eval(`(() => {
-                localStorage.setItem('themeMode', ${JSON.stringify(theme.name)});
-                localStorage.setItem('aloud:aloud-index-guide-done', '1');
-                localStorage.setItem('aloud:aloud-client-id', '1');
-            })()`);
-            await cdp.send('Page.reload');
-            await cdp.once('Page.loadEventFired');
+            for (const shot of SHOTS) {
+                if (ONLY && ONLY !== shot.id) continue;
+                await bootApp(cdp, theme);
+                // The setup view is the landing view either way, and Begin
+                // lives on it.
+                await waitFor(cdp, '#begin-btn');
+                if (shot.prepare === 'session') await enterSession(cdp);
+                await dressAsDesktop(cdp, theme);
+                // Let the orb's entrance animation and the theme transition
+                // finish before the shutter.
+                await sleep(1200);
+                await clearChrome(cdp, shot);
 
-            // Wait for the setup view to actually be on screen - the catalogs
-            // arrive over fetch, and a shot taken before them is half-empty.
-            for (let i = 0; i < 100; i++) {
-                const ready = await cdp.eval(
-                    `!!document.querySelector('.nav-brand') &&
-                     !!document.querySelector('#begin-btn')`
-                );
-                if (ready) break;
-                await sleep(100);
+                const { data } = await cdp.send('Page.captureScreenshot', {
+                    format: 'png',
+                    captureBeyondViewport: false,
+                });
+                const raw = join(profile, `${shot.id}-${theme}.png`);
+                await writeFile(raw, Buffer.from(data, 'base64'));
+                const out = join(OUT_DIR, shot.file(theme));
+                frame(raw, out);
+                console.log(`${out}  ${WIDTH * DPR}x${HEIGHT * DPR}`);
+                if (KEEP) console.log(`  raw: ${raw}`);
             }
-            // Dress as the desktop shell: this is what pads the brand clear of
-            // the traffic lights we draw on afterwards.
-            await cdp.eval(`(() => {
-                const h = document.documentElement;
-                h.setAttribute('data-shell', 'tauri');
-                h.setAttribute('data-titlebar', 'overlay');
-                h.setAttribute('data-theme', ${JSON.stringify(theme.name)});
-                if (document.activeElement) document.activeElement.blur();
-                window.scrollTo(0, 0);
-            })()`);
-            // Let the orb's entrance animation and the theme transition finish.
-            await sleep(1200);
-
-            const { data } = await cdp.send('Page.captureScreenshot', {
-                format: 'png',
-                captureBeyondViewport: false,
-            });
-            const raw = join(profile, `${theme.name}.png`);
-            await writeFile(raw, Buffer.from(data, 'base64'));
-            const out = join(OUT_DIR, theme.file);
-            frame(raw, out);
-            console.log(`${out}  ${WIDTH * DPR}x${HEIGHT * DPR}`);
-            if (KEEP) console.log(`  raw: ${raw}`);
         }
     } finally {
         cdp?.close();

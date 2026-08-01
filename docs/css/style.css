@@ -422,6 +422,58 @@ code {
   height: auto;
 }
 
+/* The picture and its arrows. Its own positioning context, so the arrows
+   centre on the picture rather than on the frame - the caption below would
+   otherwise drag them low. */
+.shot-stage {
+  position: relative;
+}
+
+/* Carousel arrows, hanging over the frame's padding at each edge. */
+.shot-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0 0 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.shot-nav:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.shot-prev { left: -0.6rem; }
+.shot-next { right: -0.6rem; }
+.shot-prev:hover { transform: translateY(-50%) translateX(-2px); }
+.shot-next:hover { transform: translateY(-50%) translateX(2px); }
+
+.shot-caption {
+  margin: 0.9rem 0 0;
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+/* Narrow screens: nothing to hang off the edges, so tuck the arrows inside. */
+@media (max-width: 620px) {
+  .shot-prev { left: 0.25rem; }
+  .shot-next { right: 0.25rem; }
+}
+
 /* ===== providers ===== */
 .providers {
   display: grid;

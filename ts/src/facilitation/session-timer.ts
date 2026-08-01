@@ -96,7 +96,7 @@ export function buildTimerApproachEvent(
         `${SESSION_TIMER_EVENT_PREFIX} ${minutesPhrase(remainingSec)} remain of a ` +
         `${totalMin} minute sit. The meditator set this length in advance; this ` +
         `message is automatic and they have not spoken. If it fits, begin drawing ` +
-        `gently toward a close. Do not announce the time or count it down. ` +
+        `toward a close. Do not announce the time or count it down. ` +
         `If it would interrupt something live, reply with exactly ${PASS_PREFIX}.${staged}]`
     );
 }

@@ -185,19 +185,23 @@ hot reload, so providers/modes/About/voices/STT all iterate instantly there.
 Reach for `dev-bundle.sh` only for bundle-launch-specific bugs, and GitHub RCs
 only as the final "does the signed, shipped artifact work" gate.
 
-Landing-page screenshots (`docs/assets/aloud-screen-{light,dark}.webp`) are
-generated, not hand-taken - so they're the same size and framing every time and
-cheap to redo when the setup page changes:
+Landing-page screenshots are generated, not hand-taken - so they're the same
+size and framing every time and cheap to redo when the UI changes. Four files:
+the setup screen (`aloud-screen-{light,dark}.webp`) and an exploration session
+(`aloud-session-{light,dark}.webp`), shown as a carousel by `docs/js/shots.js`.
 
 ```bash
-cd ts && npm run web:dev              # must be up: the shot needs /app/v1
-node scripts/site-screenshots.mjs     # both themes; --width 1000 by default
+cd ts && npm run web:dev                       # must be up: the shot needs /app/v1
+node scripts/site-screenshots.mjs              # all four; --width 1000 by default
+node scripts/site-screenshots.mjs --only session
 ```
 
 It drives headless Chrome over CDP (no npm deps), tells the web UI to dress as
-the desktop shell, and draws the macOS window chrome with ImageMagick. Change
-`--width` and update the `width`/`height` attributes on the `<img>` in
-`docs/index.html` to match what it prints.
+the desktop shell, and draws the macOS window chrome with ImageMagick. The
+session shot's transcript is sample copy written into the DOM (`SAMPLE_TURNS`) -
+a real exchange needs a mic, an LLM and a person; everything around it is the
+live view. Change `--width` and update the `width`/`height` attributes on the
+`<img>` in `docs/index.html` to match what it prints.
 
 Release (bumps version, lints both stacks, tags, pushes, creates the GitHub
 release that triggers CI):

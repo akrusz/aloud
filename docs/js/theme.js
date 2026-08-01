@@ -21,21 +21,17 @@
     return osPrefersDark() ? 'dark' : 'light';
   }
 
-  var shot = document.getElementById('app-screenshot');
-
   // Show the icon for the theme you'd switch TO (sun while dark, moon while light).
   function updateIcon() {
     btn.innerHTML = effectiveTheme() === 'dark' ? SUN : MOON;
   }
 
-  // Point the screenshot at the matching theme. Only the chosen image loads.
-  function updateShot() {
-    if (!shot) return;
-    var src = shot.getAttribute(effectiveTheme() === 'dark' ? 'data-src-dark' : 'data-src-light');
-    if (src && shot.getAttribute('src') !== src) shot.setAttribute('src', src);
+  function sync() {
+    updateIcon();
+    // The screenshot carousel (js/shots.js) picks its own theme variant off
+    // this; it owns the <img> src, since which shot is showing is its business.
+    document.dispatchEvent(new CustomEvent('aloud:theme'));
   }
-
-  function sync() { updateIcon(); updateShot(); }
 
   sync();
 
