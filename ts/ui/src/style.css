@@ -20,8 +20,7 @@
    magenta ripples radiating outward so it reads as "working" while the bundle
    loads. Two staggered border-rings (transparent centers, so the orb's
    gradient shows through) scale up and fade. Magenta tracks the per-theme
-   --accent (dark #df3f88, light #e71f75) so the dark theme gets its slightly
-   more luminant accent and the ripples read clearly on both backgrounds.
+   --accent (the logo pink) so the ripples read on both backgrounds.
    Settled/faded out by app.ts:settleBootOrb on boot. */
 
 /* Keep the glow a clean soft circle. .orb-kasina carries an animated filter
@@ -165,7 +164,7 @@
 .about-crypto-addr {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.95rem;
-    color: var(--accent);
+    color: var(--accent-text);
     background: none;
     border: none;
     padding: 0;
@@ -409,7 +408,7 @@
     margin-top: 0.5rem;
     padding: 0.4rem 0.85rem;
     background: var(--accent-fill);
-    color: white;
+    color: var(--accent-ink);
     border: 1px solid var(--accent);
     border-radius: var(--radius-sm);
     font: inherit;
@@ -456,7 +455,7 @@
 }
 #mic.listening {
     background: var(--accent-fill);
-    color: white;
+    color: var(--accent-ink);
     border-color: var(--accent);
 }
 .btn-end {
@@ -740,7 +739,7 @@
 
 .ollama-tier-badge {
     font-size: 0.875rem;
-    color: var(--accent);
+    color: var(--accent-text);
     margin-left: 0.25rem;
 }
 
@@ -885,7 +884,7 @@
 /* Inline "try again" affordance inside the unreachable message. */
 .model-retry-btn {
     font: inherit;
-    color: var(--accent);
+    color: var(--accent-text);
     background: none;
     border: none;
     padding: 0;
@@ -940,7 +939,7 @@
    Quiet but legible: small + colored, not faded. */
 .session-phase {
     font-size: 0.875rem;
-    color: var(--accent);
+    color: var(--accent-text);
     line-height: 42px;
     height: 42px;
     margin-right: 4px;

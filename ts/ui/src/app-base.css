@@ -25,16 +25,20 @@ html { font-size: 16px; }
     --text-primary: #f5efe6;
     --text-secondary: #c4b49e;
     --text-muted: #b0a090;
-    /* The logo pink (assets/app-icon.svg), identical in both themes - it is the
-       brand mark, so it should not drift between light and dark. Used for text,
-       borders, icons, and small indicators, never as a fill behind text: at its
-       luminance nothing reads on it (white 4.3:1, black 4.9:1). Solid buttons
-       take --accent-fill instead. */
+    /* The logo pink (assets/app-icon.svg), same in both themes. Never put text
+       on it as a fill - at its luminance nothing reads (white 4.3:1, black
+       4.9:1); solid controls take --accent-fill + --accent-ink instead. */
     --accent: #e71f75;
-    /* Fill behind white text. The logo's own shadow pink, so a filled button is
-       still a logo color - 9.8:1 with #fff, and the --accent rim keeps it
-       reading pink rather than maroon. */
-    --accent-fill: #870a3e;
+    --accent-fill: #a81050;
+    /* Ink for --accent-fill: white pulled toward the accent hue so the label
+       shares the button's temperature. 8.6:1 on the dark fill, 5.2:1 on the
+       hotter light one, so it stays AA in both. */
+    --accent-ink: #ffeaf4;
+    /* The logo hue lifted in lightness, for --accent at body size and below,
+       where the mark itself only manages 3.7-4.5:1 on these grounds. Reads as
+       the same pink lit brighter, so it sits next to the mark without clashing.
+       Large or bold accent text stays on --accent - 3:1 is the bar there. */
+    --accent-text: #f5589a;
     --accent-dim: rgba(231, 31, 117, 0.15);
     --accent-glow: rgba(245, 165, 47, 0.30);
     --brand-glow: rgba(255, 220, 80, 0.55);
@@ -49,9 +53,8 @@ html { font-size: 16px; }
     --facilitator-bg: rgba(231, 31, 117, 0.06);
     --user-bg: rgba(196, 168, 80, 0.06);
     --overlay-bg: rgba(17, 13, 8, 0.95);
-    /* Hover for --accent-fill, so it too must clear white text (7.4:1). In dark
-       a hover brightens toward the logo pink; in light it deepens away from it. */
-    --accent-hover: #a81050;
+    /* Hover for --accent-fill, so it must clear --accent-ink too (5.2:1). */
+    --accent-hover: #c01560;
     --success: #5a9e6f;
     --radius: 12px;
     --radius-sm: 8px;
@@ -106,9 +109,12 @@ html[data-platform="android"] {
     --text-secondary: #5c4a44;
     --text-muted: #756058;
     --accent: #e71f75;
-    /* Light can run the fill hotter than dark and still clear white (6.0:1). */
+    /* Light and dark run the same two pinks, swapped: each theme fills with
+       the one that reads on its ground and hovers toward the other. */
     --accent-fill: #c01560;
     --accent-hover: #a81050;
+    --accent-ink: #ffeaf4;
+    --accent-text: #a81050;
     --accent-dim: rgba(231, 31, 117, 0.10);
     --accent-glow: rgba(245, 165, 47, 0.45);
     --brand-glow: rgba(245, 216, 32, 0.85);
@@ -235,7 +241,7 @@ body {
 }
 
 .nav-links a.nav-active {
-    color: var(--accent);
+    color: var(--accent-text);
     border-bottom-color: var(--accent);
 }
 
@@ -304,20 +310,17 @@ body {
     color: var(--accent);
 }
 
-/* Fill from --accent-fill, rim from --accent: the deeper fill is what makes the
-   label readable (9.8:1 in dark), the logo-pink rim is what keeps the button
-   reading as pink. Dark mode used to flip the ink to #1a1208 instead, but dark
-   ink on a mid-luminance pink tops out near 5:1 and muddies at small sizes. */
+/* Deep fill carries the label; the logo-pink rim is what keeps it reading pink. */
 .btn-primary {
     background: var(--accent-fill);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--accent-ink);
 }
 
 .btn-primary:hover {
     background: var(--accent-hover);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--accent-ink);
 }
 
 .btn-secondary {
@@ -398,7 +401,7 @@ body {
 }
 
 .tab-btn.active {
-    color: var(--accent);
+    color: var(--accent-text);
     border-bottom-color: var(--accent);
 }
 
@@ -430,7 +433,7 @@ body {
 
 .saved-key-hint {
     font-size: 0.875rem;
-    color: var(--accent);
+    color: var(--accent-text);
     margin-top: -0.25rem;
 }
 
@@ -487,7 +490,7 @@ body {
     display: none;
 }
 
-.api-key-paste-status.is-ok { color: var(--accent); }
+.api-key-paste-status.is-ok { color: var(--accent-text); }
 .api-key-paste-status.is-warn { color: #c87a00; }
 
 .api-key-actions.attention .api-key-paste-btn {
@@ -946,7 +949,7 @@ input[type="range"].slider-stops {
     height: 1.6rem;
     border-radius: 50%;
     background: var(--accent-dim);
-    color: var(--accent);
+    color: var(--accent-text);
     font-size: 0.875rem;
     font-weight: 600;
 }
@@ -1253,7 +1256,7 @@ input[type="range"].slider-stops {
 }
 
 .provider-hint a {
-    color: var(--accent);
+    color: var(--accent-text);
     text-decoration: none;
 }
 
@@ -2090,7 +2093,7 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 }
 
 .voice-row-check {
-    color: var(--accent);
+    color: var(--accent-text);
     font-size: 0.875rem;
     flex-shrink: 0;
 }
@@ -2138,7 +2141,7 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     animation: fadeIn 0.15s ease;
 }
 .voice-preview-tooltip a {
-    color: var(--accent);
+    color: var(--accent-text);
     text-decoration: none;
 }
 .voice-preview-tooltip a:hover {
@@ -2794,7 +2797,7 @@ body::before {
 }
 
 .transcript-role.facilitator {
-    color: var(--accent);
+    color: var(--accent-text);
 }
 
 .transcript-role.user {
@@ -2846,7 +2849,7 @@ body::before {
     padding: 0.3rem 0.7rem;
     border: 1px solid var(--accent);
     background: var(--accent-dim);
-    color: var(--accent);
+    color: var(--accent-text);
     border-radius: 999px;
     font-family: inherit;
     font-size: 0.875rem;
@@ -2863,7 +2866,7 @@ body::before {
 
 .update-btn:hover {
     background: var(--accent-fill);
-    color: #fff;
+    color: var(--accent-ink);
     transform: translateY(-1px);
 }
 
@@ -2981,7 +2984,7 @@ html:has(.nav-brand.has-update) .update-btn {
 .about-update-btn {
     font-size: 0.95rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--accent-ink);
     background: var(--accent-fill);
     border: none;
     border-radius: 999px;
@@ -3010,7 +3013,7 @@ html:has(.nav-brand.has-update) .update-btn {
 .about-update-link {
     display: block;
     margin-top: 0.35rem;
-    color: var(--accent);
+    color: var(--accent-text);
     text-decoration: none;
 }
 
@@ -3045,7 +3048,7 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 .about-links a {
-    color: var(--accent);
+    color: var(--accent-text);
     text-decoration: none;
 }
 
@@ -3054,7 +3057,7 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 .about-eth {
-    color: var(--accent);
+    color: var(--accent-text);
     cursor: pointer;
 }
 
@@ -3201,10 +3204,10 @@ html:has(.nav-brand.has-update) .update-btn {
 }
 
 /* Success variant - a calm confirmation (e.g. credits added, email prefs
- * saved), not an alarm. Carries the toast's white text, so it fills from
- * --accent-fill like any other solid-pink control. */
+ * saved), not an alarm. */
 .error-toast.toast-success {
     background: var(--accent-fill, #870a3e);
+    color: var(--accent-ink, #ffeaf4);
 }
 
 /* ---- Buy-credits modal (meditation-pal-8sj) ---- */
@@ -3755,7 +3758,7 @@ p.clouds-hint-row {
     margin-bottom: 0;
 }
 .info-panel a {
-    color: var(--accent);
+    color: var(--accent-text);
 }
 .info-panel a:hover {
     text-decoration: underline;
@@ -3976,7 +3979,7 @@ input[type="range"].preview-range {
 }
 
 .lan-url {
-    color: var(--accent);
+    color: var(--accent-text);
     text-decoration: none;
     cursor: pointer;
 }
@@ -3986,7 +3989,7 @@ input[type="range"].preview-range {
 }
 
 .form-hint a {
-    color: var(--accent);
+    color: var(--accent-text);
 }
 
 /* Ollama model tier rows */
@@ -4062,7 +4065,7 @@ input[type="range"].preview-range {
 
 .ollama-rec-badge {
     font-size: 0.875rem;
-    color: var(--accent);
+    color: var(--accent-text);
     margin-left: 0.25rem;
 }
 
@@ -4397,7 +4400,7 @@ input[type="range"].preview-range {
 }
 
 .settings-update-result a {
-    color: var(--accent);
+    color: var(--accent-text);
     text-decoration: none;
 }
 
@@ -4618,7 +4621,7 @@ input[type="range"].preview-range {
     font-size: 0.875rem;
 }
 .tour-choice a {
-    color: var(--accent);
+    color: var(--accent-text);
 }
 .tour-choice a:hover {
     text-decoration: underline;
@@ -4888,7 +4891,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         transform: translate(-50%, -50%);
         z-index: 95;
         margin-left: 0;
-        color: var(--accent);
+        color: var(--accent-text);
         border-color: var(--border);
         background: var(--bg-secondary);
         opacity: 0.9;
@@ -5185,7 +5188,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
 
     .bottom-nav-link.bottom-nav-active {
-        color: var(--accent);
+        color: var(--accent-text);
     }
 
     /* Size the icons in rem (overriding the 22px width/height attributes in
