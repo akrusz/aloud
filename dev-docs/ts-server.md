@@ -160,12 +160,13 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow) |
 | `POST /cloud/v1/auth/google/desktop` | public (optional bearer) | the desktop loopback-PKCE variant (exchanges an auth code server-side) |
 | `POST /cloud/v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
-| `POST /cloud/v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116) |
+| `POST /cloud/v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116). Optional `emailUpdates` body flag carries the signup opt-in |
 | `POST /cloud/v1/auth/email/login` | public | email/password sign-in; one generic 401 for wrong-password / unknown-email |
 | `POST /cloud/v1/auth/email/set-password` | session | add/change a password on an OAuth-created account |
 | `POST /cloud/v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
 | `GET /cloud/v1/me` | session | account + live balance |
-| `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods) |
+| `PATCH /cloud/v1/me` | session | flip the email-updates opt-in (`{emailUpdates: boolean}`); returns the updated account view |
+| `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods). Also clears the email-updates opt-in with the scrubbed address |
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
 | `POST /cloud/v1/stt` | session | metered STT: raw PCM body → Whisper (OpenAI by default) → transcript; debits by duration |

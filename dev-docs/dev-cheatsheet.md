@@ -332,6 +332,15 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
   (needs the Hono server + sign-in). So a Chrome tab works out of the box;
   Firefox needs the Hono server running + a signed-in cloud session.
 
+## Licensing & third-party code
+
+aloud is AGPL-3.0 (`LICENSE`) with an App Store distribution exception
+(`LICENSE-EXCEPTION.md`). Anything **vendored** into the repo and shipped in the
+bundles - currently the Silero VAD model at
+`ts/ui/src/assets/silero_vad_op18_ifless.onnx` (MIT; provenance + upgrade notes
+in `ts/ui/src/assets/README.md`) - needs an entry in `THIRD-PARTY-NOTICES.md`.
+Declared npm/Cargo dependencies don't; the manifests cover those.
+
 ## Landing site
 
 Static site in `docs/` (hand-written). Published to GitHub Pages as an

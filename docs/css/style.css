@@ -830,6 +830,13 @@ code {
   color: var(--text-secondary);
   line-height: 1.6;
 }
+.faq-item ul {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.faq-item li { margin: 0.2rem 0; }
 
 /* ===== footer ===== */
 .footer {

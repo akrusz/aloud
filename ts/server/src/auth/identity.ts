@@ -260,9 +260,10 @@ export async function buildAccountView(deps: Deps, account: Account): Promise<Ac
  *     refunded, so the ledger stays a complete append-only audit trail),
  *   - delete the account's identities so each (provider, sub) is free to sign in
  *     fresh later (a genuine clean start), and
- *   - anonymize + tombstone the account row (scrub email + signup IP, stamp
- *     deletedAt) so it can no longer authenticate while its ledger foreign keys
- *     still resolve. With no email, identities, or IP left, surviving
+ *   - anonymize + tombstone the account row (scrub email + signup IP, clear the
+ *     email-updates opt-in, stamp deletedAt) so it can no longer authenticate
+ *     while its ledger foreign keys still resolve. With no email, identities,
+ *     or IP left, surviving
  *     ledger/usage rows are keyed by a random UUID only, effectively anonymous
  *     (meditation-pal-9rkg).
  * The email's grant key is KEPT, so the person can return and buy credits but

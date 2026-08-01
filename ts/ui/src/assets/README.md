@@ -11,7 +11,7 @@ Silero VAD, the speech-probability model behind `adapters/silero-vad.ts`.
 | Source | https://github.com/snakers4/silero-vad/blob/v6.2.1/src/silero_vad/data/silero_vad_op18_ifless.onnx |
 | Release | v6.2.1 (2026-02-24) |
 | sha256 | `7671cd04b004e9076da0d4a7b1a5aec36adf161c39230c1cb94a4fd5db6bbd28` |
-| License | MIT (silero-vad) |
+| License | MIT (silero-vad) - full text in [THIRD-PARTY-NOTICES.md](../../../../THIRD-PARTY-NOTICES.md) |
 
 **Why the `_ifless` export and not the default `silero_vad.onnx`:** the default
 export wraps the whole network in `If` nodes (an 8k branch and a 16k branch,
@@ -28,7 +28,7 @@ It expects **576 samples** per call (64 samples of previous audio as context +
 lives in `SileroRunner` in `adapters/silero-vad.ts`.
 
 Upgrading: drop in a newer release's `silero_vad_op18_ifless.onnx`, update the
-table above, and re-check the speech/silence decisions before shipping (feed a
+table above and the version in `THIRD-PARTY-NOTICES.md`, and re-check the speech/silence decisions before shipping (feed a
 speech clip through the model chunk by chunk and compare speaking-frame counts
 against the current file - the v5.1.2 → v6.2.1 move agreed on 90-99% of frames
 across voices and levels, differing only at utterance boundaries).

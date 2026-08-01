@@ -549,7 +549,7 @@ export class SqliteCreditsStore implements CreditsStore {
     ): Promise<void> {
         this.db
             .prepare(
-                'UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0, signup_ip = NULL WHERE id = ?'
+                'UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0, signup_ip = NULL, email_updates = 0 WHERE id = ?'
             )
             .run(deletedAt, anonymizedEmail, accountId);
     }

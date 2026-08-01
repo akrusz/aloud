@@ -22,6 +22,14 @@ check each of these still reflects reality:
 - **`docs/delete-account/index.html`** - the account-deletion instructions Play
   requires (a public URL, reachable without the app). Must match what
   `identity.ts` actually does on delete, including the credit balance.
+- **`docs/js/shots.js`** - the landing carousel's captions and image `alt` text.
+  It describes the app screen by screen ("the session setup screen", "an
+  exploration session"), so a renamed or restructured screen lands here too.
+- **`docs/assets/aloud-screen-{light,dark}.webp`** + `aloud-session-{light,dark}.webp` -
+  the four landing screenshots. **Generated**, not hand-made: re-run
+  `node scripts/site-screenshots.mjs` (with `cd ts && npm run web:dev` up)
+  whenever the setup or session UI changes, or the site shows a version of the
+  app that no longer exists.
 - **`docs/assets/aloud-share.png`** + `assets/share-card.svg` - the share-card
   tagline if the positioning/tagline changed.
 - **`README.md`** - product description, modes, provider list, platform notes,
@@ -42,6 +50,8 @@ check each of these still reflects reality:
 - **App UI text** - settings labels and hints, the tour/onboarding wizard,
   check-in prompts, welcome/empty-state copy.
 - **`ts/server/.env.example`** - comments describing config keys and defaults.
+- **`THIRD-PARTY-NOTICES.md`** - if a vendored asset or bundled third-party
+  component was added, removed, or upgraded.
 - **Icons / assets** - `ts/ui/public/aloud.png` (web favicon), `assets/app-icon*.svg`,
   `aloud.icns/.ico/.png` if the orb/branding changed.
 

@@ -1440,12 +1440,19 @@ function stripVoicePrefix(voice: string | null): string | null {
 /**
  * The Session clock control, rendered once per mode panel. The face is filled
  * in during wiring (renderSetupHTML has no app settings), and every copy is
- * wired together by class, so the mode tabs stay in sync.
+ * wired together by class, so the mode tabs stay in sync. `key` keeps each
+ * copy's info panel a distinct id - toggleInfo resolves by getElementById, so
+ * three panels named `info-clock` would all open the first one, in whichever
+ * mode tab happens to be hidden.
  */
-function renderClockButton(): string {
+function renderClockButton(key: string): string {
     return `
         <div class="form-group setup-clock-group">
-            <label>Session Clock</label>
+            <label>Session Clock <button type="button" class="info-btn" data-info="clock-${key}" aria-label="About the session clock">?</button></label>
+            <div class="info-panel hidden" id="info-clock-${key}">
+                <p>A clock or a timer for the sit. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.</p>
+                <p>Hiding the readout doesn't disarm the timer; you still get the spoken close.</p>
+            </div>
             <button type="button" class="setup-clock-btn" data-clock-btn>Time in session</button>
         </div>`;
 }
@@ -1583,7 +1590,7 @@ function renderSetupHTML(
             </div>
 
             <div class="form-row form-row-thirds">
-                ${renderClockButton()}
+                ${renderClockButton('exploration')}
                 <div class="form-group">
                     <label for="verbosity">Response Length</label>
                     <select id="verbosity">${verbosityOptions}</select>
@@ -1615,7 +1622,7 @@ function renderSetupHTML(
                     <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">Chime</button>
                     <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>
                 </div>
-                ${renderClockButton()}
+                ${renderClockButton('noting')}
             </div>
         </div>
 
@@ -1646,7 +1653,7 @@ function renderSetupHTML(
                         <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
                     </div>
                 </div>
-                ${renderClockButton()}
+                ${renderClockButton('felt-sense')}
             </div>
         </div>
 
