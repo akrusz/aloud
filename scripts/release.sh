@@ -160,8 +160,10 @@ Write for users of the app, not for developers: what they can now do or what sto
 
 Keep it terse - these are read at a glance. Each bullet is one clause, ideally under 10 words, no trailing explanation of the mechanism. 'Fallback for STT when Silero fails' is the right length; a full sentence is too long.
 
+The title is the release's name, so give it some charm: cute or a little poetic, Title Case, five words at most and ideally two or three. 'Clouds, Explained' and 'The Quiet Part' are the target; 'Mic reliability and model picker improvements' is too long and too flat. Name the release's center of gravity, not every bullet in it.
+
 Output exactly this shape and nothing else:
-TITLE: <2-4 words naming the release's theme>
+TITLE: <the name>
 then a blank line, then 2-6 lines, each one short bullet starting with '- '.
 No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). Plain, concrete phrasing." </dev/null 2>/dev/null || echo "")
             SUGGESTED_NAME=$(printf '%s' "$DRAFT" | grep -m1 '^TITLE:' | sed -E 's/^TITLE: *//' || true)
