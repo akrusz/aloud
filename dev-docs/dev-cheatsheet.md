@@ -70,16 +70,24 @@ To see the **failure-to-load** state (orb pulses forever) there's no param:
 block the JS bundle in DevTools → Network → Block request URL, or set Network
 to Offline, before reloading.
 
-**Preview the "update available" flow** - `?previewUpdate` (or, handy inside the
-Tauri webview, a `localStorage` `aloud:previewUpdate` key) forces the whole
-update path without a real release: the brand lights up the nav "Update" pill +
-mobile More entry, and the About box renders the install button - a simulated,
-non-relaunching download in the desktop shell, the releases link in a browser. A
-bare flag pretends one patch above the running build; `?previewUpdate=2.0.0`
-sets the version verbatim. Unlike the params above this one is **not** DEV-gated - deliberately, so you can preview inside a bundled desktop debug build
-(`scripts/dev-bundle.sh`), which is the only place the real updater button runs.
-Clear it by dropping the param or `localStorage.removeItem('aloud:previewUpdate')`.
-Read in `about.ts` (`previewUpdateVersion`).
+**Preview the "update available" flow** - `?previewUpdate`, or (handy inside the
+Tauri webview, where there's no URL bar) Settings → Developer → **Preview update
+banner**. Either forces the whole update path without a real release: the brand
+lights up the nav "Update" pill + mobile More entry, and the About box renders
+the install button - a simulated, non-relaunching download in the desktop shell,
+the releases link in a browser. A bare flag pretends one patch above the running
+build; `?previewUpdate=2.0.0` sets the version verbatim. Unlike the params above
+this one is **not** DEV-gated - deliberately, so you can preview inside a bundled
+desktop debug build (`scripts/dev-bundle.sh`), which is the only place the real
+updater button runs.
+
+The two entry points persist differently: the URL param lands in
+**sessionStorage** (so it survives the router normalizing the query string away,
+then dies with the tab), while the settings field writes the **localStorage**
+`aloud:previewUpdate` key and sticks until you empty the field. Clear a URL-set
+preview by closing the tab (a plain reload without the param keeps it - that's
+the point of sessionStorage); `localStorage.removeItem` won't touch it. Read in
+`about.ts` (`previewUpdateVersion`).
 
 **Check-in / [WAIT] debug HUD** - `?debug=checkin` (also `1`, `pacing`) mounts a
 fixed monospace readout in the session view: active timing/content modes, the

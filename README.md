@@ -64,7 +64,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 - if speech recognition feels slow, try the `base` whisper model (faster, less accurate).
 - say something like "hold on a bit" during a session to enter silence mode. say "come back" or similar to resume.
 - say "mute" to immediately turn off the microphone. click the mic button to resume.
-- click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
+- click the orb in the nav bar - or "Kasina orb" in the More menu on mobile - to enter kasina gazing mode during a session. click away from it to exit.
 - the ember controls add floating particles. each level doubles the count and increases the size.
 - click the voice name in the controls bar to open a voice/speed picker.
 - sessions auto-save as JSON and plain text, with a short LLM-generated summary.
@@ -72,6 +72,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 - the AI can hold silence when requested - the orb dims when it's doing so. just ask it to come back when you want it to speak.
 - the AI gently checks in if you're quiet for a while. adjust timing or disable in settings.
 - one running copy of aloud can be made accessible to anyone on your local network by setting network access mode to "LAN Access" in settings
+- found a bug? "report a bug" in the about box, "Report a bug" in the More menu, or Help → Report a Bug… on desktop. the report comes pre-filled with diagnostics.
 - 🥚 there are a few easter eggs 🥚
 
 ## running from source

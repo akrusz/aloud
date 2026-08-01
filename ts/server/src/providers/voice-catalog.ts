@@ -16,7 +16,7 @@ export type TtsProvider = 'google' | 'openai';
 /** Voice quality/placement bucket (also the picker's cost-badge hint).
  *  'premium' = "Best", leads the picker, flagged recommended: Google Chirp3-HD
  *  (~$30/1M) AND the OpenAI gpt-4o-mini-tts voices (premium QUALITY at a
- *  below-Chirp3-HD ~$22/1M cost). 'value' = "Very Good", the cheaper Google
+ *  below-Chirp3-HD ~$19/1M cost). 'value' = "Very Good", the cheaper Google
  *  Neural2 (~$16/1M). The real per-char rate comes from (provider, voiceId) via
  *  the meter (pricing/providers.ttsRateFor), and the picker's concrete
  *  credits/hr keeps the burn honest regardless of bucket, so a premium-bucket
@@ -48,7 +48,7 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     { name: 'Rigel', provider: 'google', providerVoiceId: 'en-US-Neural2-J', gender: 'male', tier: 'value' },
     // OpenAI gpt-4o-mini-tts: auditioned picks (scripts/preview-voices.ts openai),
     // in the 'premium' (Best) bucket. Tier is QUALITY/placement only: these cost
-    // ~$22/1M, below Chirp3-HD's ~$30/1M, and the picker's credits/hr badge shows
+    // ~$19/1M, below Chirp3-HD's ~$30/1M, and the picker's credits/hr badge shows
     // that lower real burn. Steerable via natural-language instructions
     // (providers/tts.ts sets a calm meditation register). OpenAI's full set:
     // alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.

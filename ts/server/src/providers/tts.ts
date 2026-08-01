@@ -12,7 +12,7 @@ const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
 
 /** Instruction-steerable OpenAI TTS model (meditation-pal-b7i). Billed by audio
- *  output, ~$0.015/min; ~$22/1M chars at a slow pace (see
+ *  output, ~$0.015/min; ~$19/1M chars at real delivery pace (reconciled - see
  *  pricing/providers.OPENAI_TTS_USD_PER_CHAR). */
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 
