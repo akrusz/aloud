@@ -18,6 +18,11 @@ set -e
 # regardless of the caller's cwd.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# Model for the claude CLI calls below (release notes, pre-release check). Pinned
+# so a release doesn't depend on whatever the CLI's default happens to be;
+# 'opus' is an alias that tracks the latest Opus. Override: ALOUD_RELEASE_MODEL=…
+RELEASE_MODEL="${ALOUD_RELEASE_MODEL:-opus}"
+
 # Check for uncommitted changes before prompting for anything
 if ! git diff --quiet || ! git diff --cached --quiet; then
     echo "Error: uncommitted changes — commit or stash first" >&2
@@ -148,7 +153,7 @@ else
         STAT=$(git diff --stat "v${CURRENT}..HEAD" 2>/dev/null | tail -40)
         if [ -n "$LOG" ]; then
             echo "  Drafting release notes from ${CURRENT}..HEAD…"
-            DRAFT=$(claude -p "Draft release notes for aloud v${VERSION}, covering everything since v${CURRENT}.
+            DRAFT=$(claude --model "$RELEASE_MODEL" -p "Draft release notes for aloud v${VERSION}, covering everything since v${CURRENT}.
 
 Commits:
 ${LOG}
@@ -240,7 +245,7 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
             if command -v claude >/dev/null 2>&1; then
                 echo "  Running pre-release check via Claude (changes since v${CURRENT})…"
                 echo ""
-                CHECK_OUT=$(claude -p "Run the pre-release check. Work through dev-docs/pre-release-checklist.md against the changes since the last release — review the diff and commits in v${CURRENT}..HEAD. Report any documentation or product copy (website, README, privacy policy, store listings, settings UI text, CLAUDE.md, config comments, etc.) that has drifted out of sync with the code, plus downstream consequences. Read the actual files; don't guess. Be concise: a punch list of what needs updating. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needs updating, or 'PRERELEASE: ISSUES' if anything does." </dev/null)
+                CHECK_OUT=$(claude --model "$RELEASE_MODEL" -p "Run the pre-release check. Work through dev-docs/pre-release-checklist.md against the changes since the last release — review the diff and commits in v${CURRENT}..HEAD. Report any documentation or product copy (website, README, privacy policy, store listings, settings UI text, CLAUDE.md, config comments, etc.) that has drifted out of sync with the code, plus downstream consequences. Read the actual files; don't guess. Be concise: a punch list of what needs updating. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needs updating, or 'PRERELEASE: ISSUES' if anything does." </dev/null)
                 printf '%s\n\n' "$CHECK_OUT"
                 # Only gate if the check didn't come back explicitly clean
                 # (covers found-issues AND any inconclusive/errored output).
