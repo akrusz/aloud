@@ -57,3 +57,8 @@ echo "building $VERSION ($CODE)"
 echo
 echo "upload to Play Console -> $AAB"
 echo "(build.gradle version changes are uncommitted - commit them with the upload)"
+
+# Reveal the .aab in Finder, selected, ready to drag into the Play Console.
+if command -v open >/dev/null 2>&1 && [ -f "$AAB" ]; then
+    open -R "$AAB"
+fi
