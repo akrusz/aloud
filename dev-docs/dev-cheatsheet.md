@@ -198,6 +198,13 @@ It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
 ([pre-release-checklist.md](pre-release-checklist.md)). **Prerequisites:** clean
 tree, `gh` authenticated.
 
+Before the name prompt it drafts release notes from the commits since the last
+tag (Claude reads the log + diffstat, not the whole tree). The suggested name is
+the default at the prompt (`-` for no name), and the bullets become the release
+body unless you pick `e` to edit them or `n` to write your own in gh's editor.
+`same`/`redo` carry the published notes forward instead, since deleting and
+re-creating the release would otherwise drop them.
+
 **CI**: `tauri-release.yml` runs on `release: created` and builds the Tauri
 bundles for all three platforms via `tauri-action`, which also signs the
 self-updater artifacts and uploads a merged `latest.json`. macOS signs +

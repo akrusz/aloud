@@ -88,11 +88,24 @@ if [ "$BRANCH" != "main" ]; then
     echo "  Warning: releasing from '$BRANCH', not main"
 fi
 
+# Release notes draft, if one gets written below. When set, it's handed to
+# `gh release create --notes-file` instead of dropping into gh's editor.
+NOTES_FILE=""
+cleanup_notes() { [ -n "$NOTES_FILE" ] && rm -f "$NOTES_FILE"; return 0; }
+trap cleanup_notes EXIT
+
 if [ "$REDO" = true ]; then
     # Fetch existing release title and age from GitHub
     if command -v gh >/dev/null 2>&1; then
         TITLE=$(gh release view "v${VERSION}" --json name -q .name 2>/dev/null || echo "v${VERSION}")
-        PUBLISHED=$(gh release view "v${VERSION}" --json publishedAt -q .publishedAt 2>/dev/null || "")
+        # A redo deletes and re-creates the release, which would otherwise drop
+        # the notes on the floor. Carry the existing body over.
+        OLD_BODY=$(gh release view "v${VERSION}" --json body -q .body 2>/dev/null || echo "")
+        if [ -n "$OLD_BODY" ]; then
+            NOTES_FILE=$(mktemp -t aloud-relnotes)
+            printf '%s\n' "$OLD_BODY" > "$NOTES_FILE"
+        fi
+        PUBLISHED=$(gh release view "v${VERSION}" --json publishedAt -q .publishedAt 2>/dev/null || echo "")
         if [ -n "$PUBLISHED" ]; then
             PUB_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$PUBLISHED" +%s 2>/dev/null || date -d "$PUBLISHED" +%s 2>/dev/null || echo "0")
             NOW_EPOCH=$(date +%s)
@@ -122,12 +135,90 @@ else
     echo ""
     echo "  $CURRENT → $VERSION  (on $BRANCH)"
     echo ""
-    printf "  Release name (enter for none): "
+
+    # Draft the release notes from what actually landed since the last tag, so
+    # the name/notes prompts below aren't a memory exercise. Cheap by
+    # construction: the commit log and diffstat go in the prompt, so Claude
+    # doesn't have to go spelunking. Skipped silently if anything's missing.
+    # (Skipped for RCs - those publish with --generate-notes and never show
+    # the drafted body, so it'd be a wasted call.)
+    SUGGESTED_NAME=""
+    if [ "$PRERELEASE" = false ] && command -v claude >/dev/null 2>&1 && git rev-parse "v${CURRENT}" >/dev/null 2>&1; then
+        LOG=$(git log "v${CURRENT}..HEAD" --format='- %s%n%b' 2>/dev/null | head -300)
+        STAT=$(git diff --stat "v${CURRENT}..HEAD" 2>/dev/null | tail -40)
+        if [ -n "$LOG" ]; then
+            echo "  Drafting release notes from ${CURRENT}..HEAD…"
+            DRAFT=$(claude -p "Draft release notes for aloud v${VERSION}, covering everything since v${CURRENT}.
+
+Commits:
+${LOG}
+
+Diffstat:
+${STAT}
+
+Write for users of the app, not for developers: what they can now do or what stopped being broken. Group the user-visible work; drop pure refactors, test-only changes, and dependency bumps unless they change behavior. Read a file only if a commit message is too terse to interpret.
+
+Keep it terse - these are read at a glance. Each bullet is one clause, ideally under 10 words, no trailing explanation of the mechanism. 'Fallback for STT when Silero fails' is the right length; a full sentence is too long.
+
+Output exactly this shape and nothing else:
+TITLE: <2-4 words naming the release's theme>
+then a blank line, then 2-6 lines, each one short bullet starting with '- '.
+No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). Plain, concrete phrasing." </dev/null 2>/dev/null || echo "")
+            SUGGESTED_NAME=$(printf '%s' "$DRAFT" | grep -m1 '^TITLE:' | sed -E 's/^TITLE: *//' || true)
+            BULLETS=$(printf '%s' "$DRAFT" | grep '^- ' || true)
+            if [ -n "$BULLETS" ]; then
+                echo ""
+                if [ -n "$SUGGESTED_NAME" ]; then
+                    echo "  Suggested name: ${SUGGESTED_NAME}"
+                fi
+                printf '%s\n' "$BULLETS" | sed 's/^/  /'
+                echo ""
+                NOTES_FILE=$(mktemp -t aloud-relnotes)
+                printf '%s\n' "$BULLETS" > "$NOTES_FILE"
+            else
+                echo "  (couldn't draft notes - continuing)"
+                echo ""
+            fi
+        fi
+    fi
+
+    # 'same' also deletes and re-creates the release. With nothing new to draft
+    # from, keep the notes that are already published.
+    if [ -z "$NOTES_FILE" ] && [ "$ARG" = "same" ] && command -v gh >/dev/null 2>&1; then
+        OLD_BODY=$(gh release view "v${VERSION}" --json body -q .body 2>/dev/null || echo "")
+        if [ -n "$OLD_BODY" ]; then
+            NOTES_FILE=$(mktemp -t aloud-relnotes)
+            printf '%s\n' "$OLD_BODY" > "$NOTES_FILE"
+        fi
+    fi
+
+    if [ -n "$SUGGESTED_NAME" ]; then
+        printf "  Release name [%s] (- for none): " "$SUGGESTED_NAME"
+    else
+        printf "  Release name (enter for none): "
+    fi
     read -r RELEASE_NAME
+    if [ -z "$RELEASE_NAME" ]; then
+        RELEASE_NAME="$SUGGESTED_NAME"
+    elif [ "$RELEASE_NAME" = "-" ]; then
+        RELEASE_NAME=""
+    fi
     if [ -n "$RELEASE_NAME" ]; then
         TITLE="v${VERSION} - ${RELEASE_NAME}"
     else
         TITLE="v${VERSION}"
+    fi
+
+    # The drafted bullets become the release body unless you'd rather write
+    # them yourself. "e" opens them in $EDITOR first.
+    if [ -n "$NOTES_FILE" ]; then
+        printf "  Use these notes? [Y/e=edit/n=write in gh] "
+        read -r USE_NOTES
+        case "$USE_NOTES" in
+            n|N) rm -f "$NOTES_FILE"; NOTES_FILE="" ;;
+            e|E) "${EDITOR:-vi}" "$NOTES_FILE"
+                 [ -s "$NOTES_FILE" ] || { rm -f "$NOTES_FILE"; NOTES_FILE=""; } ;;
+        esac
     fi
 
     # Pre-release doc/copy check. Default (Enter) runs it via the headless
@@ -147,7 +238,7 @@ else
             if command -v claude >/dev/null 2>&1; then
                 echo "  Running pre-release check via Claude (changes since v${CURRENT})…"
                 echo ""
-                CHECK_OUT=$(claude -p "Run the pre-release check. Work through dev-docs/pre-release-checklist.md against the changes since the last release — review the diff and commits in v${CURRENT}..HEAD. Report any documentation or product copy (website, README, privacy policy, store listings, settings UI text, CLAUDE.md, config comments, etc.) that has drifted out of sync with the code, plus downstream consequences. Read the actual files; don't guess. Be concise: a punch list of what needs updating. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needs updating, or 'PRERELEASE: ISSUES' if anything does.")
+                CHECK_OUT=$(claude -p "Run the pre-release check. Work through dev-docs/pre-release-checklist.md against the changes since the last release — review the diff and commits in v${CURRENT}..HEAD. Report any documentation or product copy (website, README, privacy policy, store listings, settings UI text, CLAUDE.md, config comments, etc.) that has drifted out of sync with the code, plus downstream consequences. Read the actual files; don't guess. Be concise: a punch list of what needs updating. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needs updating, or 'PRERELEASE: ISSUES' if anything does." </dev/null)
                 printf '%s\n\n' "$CHECK_OUT"
                 # Only gate if the check didn't come back explicitly clean
                 # (covers found-issues AND any inconclusive/errored output).
@@ -223,7 +314,7 @@ git tag "v${VERSION}"
 # prompt-free. (The Apple flags are macOS-only; the || chain no-ops elsewhere.)
 if ! ssh-add -l >/dev/null 2>&1; then
     eval "$(ssh-agent -s)" >/dev/null 2>&1
-    trap 'ssh-agent -k >/dev/null 2>&1' EXIT
+    trap 'ssh-agent -k >/dev/null 2>&1; cleanup_notes' EXIT
     ssh-add --apple-load-keychain >/dev/null 2>&1 || true
     ssh-add -l >/dev/null 2>&1 || ssh-add --apple-use-keychain 2>/dev/null || ssh-add
 fi
@@ -251,6 +342,8 @@ if command -v gh >/dev/null 2>&1; then
         # so gh doesn't drop into its interactive flow (which is what kept
         # re-asking the prerelease question even when the flag was passed).
         gh release create "v${VERSION}" --title "$TITLE" --prerelease --generate-notes
+    elif [ -n "$NOTES_FILE" ]; then
+        gh release create "v${VERSION}" --title "$TITLE" --notes-file "$NOTES_FILE"
     else
         gh release create "v${VERSION}" --title "$TITLE"
     fi
