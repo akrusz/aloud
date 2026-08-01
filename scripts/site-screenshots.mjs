@@ -77,13 +77,11 @@ const THEMES = ['light', 'dark'];
  * no platitudes - so the picture doesn't promise a different app.
  */
 const SAMPLE_TURNS = [
-    ['assistant', "Whenever you're ready - what's here right now?"],
-    ['user', "My chest feels tight. Like I've been holding my breath without noticing."],
-    ['assistant', 'Let the tightness be there. Does it have an edge, somewhere it stops?'],
-    ['user', "It does. About the size of my fist, sitting behind the sternum."],
-    ['assistant', 'Stay with it for a few breaths. Tell me if anything about it moves.'],
-    ['user', "It didn't move, but it got warmer when I stopped pushing at it."],
-    ['assistant', 'So it answers to being left alone. Give it more room and see what it does.'],
+    ['assistant', 'Welcome. What has your attention right now?'],
+    ['user', "I've been thinking about the need to control. I'm going to internally ask myself a question. What do I need to control?"],
+    ['assistant', 'Take all the time you need with it, and just notice what answers back — words, sensations, images, whatever.'],
+    ['user', "The answer that came back right away is not joy."],
+    ['assistant', '"Not joy"... So joy gets to move freely. What happens in your body as you hear that answer?']
 ];
 
 /** What gets shot, in order. Each entry writes <id>-light.webp / <id>-dark.webp
