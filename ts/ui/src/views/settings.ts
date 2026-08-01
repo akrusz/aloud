@@ -1820,7 +1820,7 @@ function renderDisplaySection(s: AppSettings): string {
                 <div class="form-group">
                     <label>Text Size</label>
                     <div class="text-scale-control">
-                        <input type="range" id="s-text-scale" min="0.8" max="1.4" step="0.05" value="${s.textScale}">
+                        <input type="range" id="s-text-scale" class="slider-stops" min="0.8" max="1.4" step="0.05" value="${s.textScale}">
                         <span class="text-scale-value" id="s-text-scale-label">${Math.round(s.textScale * 100)}%</span>
                     </div>
                 </div>
@@ -1856,7 +1856,7 @@ function renderDisplaySection(s: AppSettings): string {
                         </div>
                         <div class="preview-field">
                             <label class="preview-field-label">Slider</label>
-                            <input type="range" class="preview-range" min="0" max="10" value="7" tabindex="-1">
+                            <input type="range" class="preview-range slider-stops" min="0" max="10" value="7" tabindex="-1">
                         </div>
                         <div class="preview-field">
                             <label class="checkbox-label preview-checkbox">

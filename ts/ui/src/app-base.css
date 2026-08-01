@@ -895,9 +895,19 @@ input[type="range"].slider-stops {
     --slider-segs: 4;
     --slider-thumb: 18px;
     --slider-dot: color-mix(in srgb, var(--text-muted) 55%, transparent);
+    /* Smaller dots suit a densely-stopped or thin track. */
+    --slider-dot-r: 2.5px;
     background-image:
-        radial-gradient(circle at 0 50%, var(--slider-dot) 2.5px, transparent 3px),
-        radial-gradient(circle at 100% 50%, var(--slider-dot) 2.5px, transparent 3px);
+        radial-gradient(
+            circle at 0 50%,
+            var(--slider-dot) var(--slider-dot-r),
+            transparent calc(var(--slider-dot-r) + 0.5px)
+        ),
+        radial-gradient(
+            circle at 100% 50%,
+            var(--slider-dot) var(--slider-dot-r),
+            transparent calc(var(--slider-dot-r) + 0.5px)
+        );
     background-size: calc((100% - var(--slider-thumb)) / var(--slider-segs)) 100%;
     background-position: calc(var(--slider-thumb) / 2) 50%;
     background-repeat: repeat-x;
@@ -2312,6 +2322,9 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     height: 8px;
     margin: 0;
     border-radius: 4px;
+    /* 60-240 wpm in steps of 10: 19 stops, 18 intervals. */
+    --slider-segs: 18;
+    --slider-dot-r: 2px;
 }
 
 /* Voice quality prompt */
@@ -3739,6 +3752,8 @@ p.clouds-hint-row {
 .text-scale-control input[type="range"] {
     flex: 1;
     max-width: 200px;
+    /* 80%-140% in 5% steps: 13 stops, 12 intervals. */
+    --slider-segs: 12;
 }
 
 .text-scale-value {
@@ -3824,8 +3839,12 @@ p.clouds-hint-row {
     width: 100%;
     font-size: 0.875em;
 }
-.preview-range {
+/* Typed selector, not a bare `.preview-range`: `input[type=range].slider-stops`
+   sets the default --slider-segs and would out-specify a lone class. */
+input[type="range"].preview-range {
     width: 100%;
+    /* 0-10 in steps of 1: 11 stops, 10 intervals. */
+    --slider-segs: 10;
 }
 .preview-checkbox {
     font-size: 0.875em;

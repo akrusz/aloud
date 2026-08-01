@@ -552,7 +552,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
         ? `
         <div class="voice-modal-footer">
             <label class="voice-modal-speed-label" for="${cfg.speedSliderId}">Speed</label>
-            <input type="range" id="${cfg.speedSliderId}" min="60" max="240"
+            <input type="range" id="${cfg.speedSliderId}" class="slider-stops" min="60" max="240"
                 value="${speedValue}" step="10">
             <span class="voice-modal-speed-value" id="${cfg.speedLabelId ?? ''}">${speedValue} wpm</span>
         </div>`
