@@ -1499,8 +1499,9 @@ body:has(.session-container) {
 }
 
 .clock-preset {
-    min-width: 2.75rem;
-    padding: 0.4rem 0.6rem;
+    min-width: 3.4rem;
+    padding: 0.55rem 0.8rem;
+    font-size: 1.05rem;
     background: none;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -1532,8 +1533,23 @@ body:has(.session-container) {
     font-size: 0.9rem;
 }
 
-.clock-custom input {
-    width: 6rem;
+.clock-custom .stepper .stepper-value {
+    width: 3rem;
+    border: none;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    text-align: center;
+    padding: 0.5rem 0;
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.clock-custom .stepper-btn {
+    width: 2rem;
+    font-size: 1rem;
 }
 
 .clock-ends-at {

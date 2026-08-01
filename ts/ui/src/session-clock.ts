@@ -64,9 +64,15 @@ export function clampTimerMinutes(min: number): number {
 }
 
 /** "20 min timer" / "Time of day" - the setup button's face and the clock's
- *  accessible name. */
-export function clockModeLabel(mode: SessionClockMode, timerMin: number): string {
-    if (mode === 'timer') return `${timerMin} min timer`;
+ *  accessible name. With the readout off there's nothing to name but the timer,
+ *  if one is armed: "20 min timer (hidden)", else just "Hidden". */
+export function clockModeLabel(
+    mode: SessionClockMode,
+    timerMin: number,
+    showClock = true
+): string {
+    if (mode === 'timer') return `${timerMin} min timer${showClock ? '' : ' (hidden)'}`;
+    if (!showClock) return 'Hidden';
     return mode === 'wall' ? 'Time of day' : 'Time in session';
 }
 
@@ -128,7 +134,7 @@ export class SessionClock {
 
     /** "20 min timer" / "Time of day" - for the session info panel's row. */
     faceLabel(): string {
-        return clockModeLabel(this.mode, this.timerMin);
+        return clockModeLabel(this.mode, this.timerMin, this.visible);
     }
 
     /** Seconds until the countdown ends, or null when no timer is armed. */
@@ -283,8 +289,12 @@ export function showSessionClockModal(
                     </div>
                     <div class="clock-custom">
                         <label for="clock-minutes">Minutes</label>
-                        <input type="number" id="clock-minutes" inputmode="numeric"
-                            min="${SESSION_TIMER_MIN_MINUTES}" max="${SESSION_TIMER_MAX_MINUTES}" step="1">
+                        <div class="stepper">
+                            <button type="button" class="stepper-btn stepper-dec" aria-label="Decrease">&minus;</button>
+                            <input type="number" id="clock-minutes" class="stepper-value" inputmode="numeric"
+                                min="${SESSION_TIMER_MIN_MINUTES}" max="${SESSION_TIMER_MAX_MINUTES}" step="1">
+                            <button type="button" class="stepper-btn stepper-inc" aria-label="Increase">+</button>
+                        </div>
                         <!-- Set mid-session, a duration counts from now, not from
                              when the sit began. This line is what says so. -->
                         <span class="clock-ends-at" id="clock-ends-at"></span>
@@ -367,6 +377,14 @@ export function showSessionClockModal(
         // Normalize an out-of-range or empty entry once the user leaves the field.
         minutesInput.addEventListener('change', () => {
             timerMin = clampTimerMinutes(Number(minutesInput.value));
+            sync();
+        });
+        overlay.querySelector('.stepper-dec')?.addEventListener('click', () => {
+            timerMin = clampTimerMinutes(timerMin - 1);
+            sync();
+        });
+        overlay.querySelector('.stepper-inc')?.addEventListener('click', () => {
+            timerMin = clampTimerMinutes(timerMin + 1);
             sync();
         });
         showToggle.addEventListener('change', () => {

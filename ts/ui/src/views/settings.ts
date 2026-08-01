@@ -1747,7 +1747,7 @@ function renderLanguageSection(s: AppSettings): string {
                     <option value="medium">Medium</option>
                     <option value="large">Large (most accurate)</option>
                 </select>
-                <span class="form-hint">Larger = more accurate but slower. Downloads on first use.</span>
+                <span class="form-hint">Larger = more accurate but slower. Downloads on use.</span>
                 <div class="whisper-model-actions">
                     <button type="button" class="btn btn-small btn-secondary hidden" id="s-whisper-model-action"></button>
                     <span class="form-hint hidden" id="s-whisper-model-status"></span>

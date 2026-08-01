@@ -685,7 +685,11 @@ export async function mountSetupView(
         // then switching to Felt Sense keeps the timer.
         const clockBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-clock-btn]')];
         function paintClockBtns(): void {
-            const face = clockModeLabel(appSettings.sessionClockMode, appSettings.sessionTimerMin);
+            const face = clockModeLabel(
+                appSettings.sessionClockMode,
+                appSettings.sessionTimerMin,
+                appSettings.showSessionClock
+            );
             for (const b of clockBtns) b.textContent = face;
         }
         paintClockBtns();
@@ -1498,11 +1502,11 @@ function renderSetupHTML(
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
                 <p><strong>exploration</strong>: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.</p>
-                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> (body, emotions, parts work) with <strong>vibes</strong> (playful, compassionate, loving, spacious, effortless, feel-good) to build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
+                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
                 <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
             </div>
             <div data-method="noting" class="hidden">
-                <p><strong>noting</strong>: you specify what participants you'd like, if any: AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing my cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
+                <p><strong>noting</strong>: you specify what participants you'd like, if any: AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. this process can be helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing the cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
                 <p>thanks to <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> and again to <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for inspiration.</p>
             </div>
             <div data-method="felt_sense" class="hidden">
