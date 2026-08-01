@@ -3207,6 +3207,13 @@ html:has(.nav-brand.has-update) .update-btn {
     margin-left: 1.25rem;
     margin-right: 1.25rem;
 }
+/* --bg-tertiary is a tan a shade off the peach --bg-card these modals are
+   built on, so the note boxes read as a smudge rather than a surface. Use the
+   same lifted note surface the setup cards use (.modifier-toggle), which
+   separates cleanly from the card in both themes. */
+.buy-credits-modal .provider-hint {
+    background: var(--bg-note);
+}
 /* The buy flow stacks more than the 70vh shared cap allows (subtitle, balance,
    two tab rows, pack list, custom-amount row, notes - and the gift flow adds a
    recipient field + note), so let the whole modal scroll instead of clipping.
