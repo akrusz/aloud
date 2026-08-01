@@ -15,7 +15,7 @@ import { withTimeout } from './net-timeout.js';
 
 const EXPLAINER =
     '<strong>☁️ are aloud cloud credits.</strong>\n\n' +
-    'aloud cloud uses selected providers for AI models powering three core functions: the facilitator, high-quality voices, and speech recognition.\n\n' +
+    'aloud cloud uses selected providers for three core functions: facilitator intelligence, high-quality voices, and speech recognition.\n\n' +
     'the ☁️ badge on a model or voice shows roughly how many credits it uses per hour. this will vary depending on factors such as talking speed, response length, and session length.\n\n' +
     'options that use ☁️ are clearly labeled, and deduct ☁️ only as you use them. you may use other providers for these functions, such as your device\'s speech recognition or your own API keys; these do not use any ☁️.\n\n';
 
