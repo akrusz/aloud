@@ -45,11 +45,17 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     font: 17px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif;
     padding: 24px; max-width: 980px; margin-inline: auto;
   }
-  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px;
+       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   h1 .dot { color: var(--accent); }
   h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
        color: var(--dim); margin: 28px 0 12px; font-weight: 600;
-       scroll-margin-top: 16px; }
+       scroll-margin-top: 16px;
+       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* Control clusters that sit at the right edge of a heading and drop onto
+     their own line when the viewport is too narrow to share it. */
+  .controls { margin-left: auto; display: flex; gap: 8px; align-items: center;
+              flex-wrap: wrap; text-transform: none; letter-spacing: normal; }
   /* Quick nav - fixed in the left gutter, only when the viewport is wide
      enough to fit it beside the centered 980px column. */
   #quickNav { display: none; }
@@ -122,6 +128,18 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   .modal { background: var(--panel); border: 1px solid var(--line);
            border-radius: var(--radius); padding: 20px; max-width: 560px; width: 100%;
            max-height: 80vh; overflow: auto; }
+  @media (max-width: 720px) {
+    body { padding: 14px; }
+    .card { padding: 13px 14px; }
+    /* Two stat cells per row on a phone: narrower minimum + smaller numbers. */
+    .grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .stat { padding: 9px 10px; }
+    .stat .k { font-size: 13px; }
+    .stat .v { font-size: 17px; }
+    th, td { padding: 7px 8px; }
+    .modal-bg { padding: 10px; }
+    .modal { padding: 16px; max-height: 90vh; }
+  }
   .modal h3 { margin: 0 0 2px; font-size: 16px; }
   .x { float: right; background: none; border: none; color: var(--dim);
        font-size: 22px; cursor: pointer; padding: 0; line-height: 1; }
@@ -138,7 +156,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <a href="#sec-retreats">Retreats</a>
     <a href="#sec-accounts">Accounts</a>
   </nav>
-  <h1>aloud<span class="dot">.</span> admin <button id="toggleHelp" class="ghost xs" type="button" style="float:right;margin-top:6px">Show explanations</button><button id="signOut" class="ghost xs hidden" type="button" style="float:right;margin-top:6px;margin-right:8px">Sign out</button><label class="check hidden" id="liveWrap" style="float:right;margin:9px 10px 0 0;font-size:15px;font-weight:400"><input type="checkbox" id="autoRefresh"> live (60s)</label></h1>
+  <h1><span>aloud<span class="dot">.</span> admin</span><span class="controls"><label class="check hidden" id="liveWrap" style="font-size:15px;font-weight:400"><input type="checkbox" id="autoRefresh"> live (60s)</label><button id="signOut" class="ghost xs hidden" type="button">Sign out</button><button id="toggleHelp" class="ghost xs" type="button">Show explanations</button></span></h1>
   <p class="sub help-text">Operator console - spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
 
   <div class="card" id="authCard">
@@ -157,7 +175,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
   <div id="app" class="hidden">
     <h2 id="sec-spend">Spend &amp; abuse
-      <span style="float:right;display:flex;gap:8px;align-items:center">
+      <span class="controls">
         <select id="metricsWindow" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
@@ -169,7 +187,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <div class="grid" id="stats"></div>
 
     <h2 id="sec-cost">Cost attribution
-      <span style="float:right;display:flex;gap:8px;align-items:center">
+      <span class="controls">
         <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
@@ -190,43 +208,43 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of real sessions (5+ min or 10+ turns) divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
       <div class="grid" id="perHourStats" style="margin-bottom:12px"></div>
-      <table>
+      <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">$/hr</th><th class="num">Volume/hr</th><th class="num">Hours</th></tr></thead>
         <tbody id="perHourRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">LLM prompt cache - the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently - the per-provider hit rate is how you tell each path is actually caching.</p>
       <div class="grid" id="cacheStats" style="margin-bottom:12px"></div>
-      <table>
+      <div class="table-wrap"><table>
         <thead><tr><th>Provider</th><th class="num">Hit</th><th class="num">Fresh tok</th><th class="num">Read tok</th><th class="num">Write tok</th><th class="num">Cost $</th><th class="num">Saved $</th></tr></thead>
         <tbody id="cacheProviderRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">Cost split by service - what drives the bill.</p>
-      <table>
+      <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th class="num">Provider $</th><th class="num">Share</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageServiceRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">Per-model / per-voice cost, biggest first.</p>
-      <table>
+      <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageModelRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 10px">Per-session distribution - sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
-      <table>
+      <div class="table-wrap"><table>
         <thead><tr><th>Metric</th><th class="num">Median</th><th class="num">p90</th><th class="num">Max</th><th class="num">Mean</th></tr></thead>
         <tbody id="usageSessionRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
 
     <h2 id="sec-history">Usage over time
-      <span style="float:right;display:flex;gap:8px;align-items:center">
+      <span class="controls">
         <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:16px">
           <option value="cost" selected>provider $</option>
           <option value="margin">revenue vs cost</option>
@@ -251,10 +269,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div id="historyChart"><p class="muted" style="margin:0">Connect to load.</p></div>
     </div>
     <div class="card">
-      <table>
+      <div class="table-wrap"><table>
         <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Accounts</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Revenue $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
         <tbody id="historyRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
-      </table>
+      </table></div>
       <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
 
@@ -297,7 +315,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
-    <h2 id="sec-retreats">Retreats <button class="ghost" id="refreshRetreats" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
+    <h2 id="sec-retreats">Retreats <span class="controls"><button class="ghost" id="refreshRetreats" style="padding:4px 10px;font-size:16px">refresh</button></span></h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
       <div class="row">
@@ -311,7 +329,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     </div>
     <div id="retreatList"></div>
 
-    <h2 id="sec-accounts">Accounts <button class="ghost" id="refreshAccts" style="float:right;padding:4px 10px;font-size:16px">refresh</button></h2>
+    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts" style="padding:4px 10px;font-size:16px">refresh</button></span></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
@@ -911,8 +929,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           '<div class="stat"><div class="k">Calls</div><div class="v">' + int(p.spend.events) + '</div></div>' +
           '<div class="stat"><div class="k">Attendees</div><div class="v">' + int(p.members.length) + '</div></div>' +
         '</div>' +
-        '<table><thead><tr><th>Attendee</th><th class="num">Provider $</th><th class="num">Bill</th></tr></thead>' +
-          '<tbody>' + memberRows + '</tbody></table>' +
+        '<div class="table-wrap"><table><thead><tr><th>Attendee</th><th class="num">Provider $</th><th class="num">Bill</th></tr></thead>' +
+          '<tbody>' + memberRows + '</tbody></table></div>' +
         pending +
         '<div class="row" style="margin-top:12px"><div><input data-email="' + p.id + '" placeholder="attendee@example.com" autocomplete="off"></div>' +
           '<button class="ghost xs" data-add="' + p.id + '">Add attendee</button></div>' +
