@@ -294,15 +294,10 @@ body {
     color: var(--text-primary);
     font-family: var(--font);
     font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all var(--transition);
     text-decoration: none;
-}
-
-/* Dark mode dims the contrast on button labels, so bump the weight for legibility. */
-[data-theme="dark"] .btn,
-:root:not([data-theme="light"]) .btn {
-    font-weight: 600;
 }
 
 .btn:hover {
@@ -1286,13 +1281,6 @@ option.provider-unavailable {
     font-size: 1rem;
     border-radius: var(--radius);
     transition: opacity 0.2s;
-}
-
-/* Dark mode: dark text on pink bg reads thin; bolding lifts contrast
-   without brightening the background. */
-[data-theme="dark"] .btn-begin,
-:root:not([data-theme="light"]) .btn-begin {
-    font-weight: 600;
 }
 
 .btn-begin:disabled {
