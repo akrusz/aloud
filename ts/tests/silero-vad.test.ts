@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { SileroFrameVad, type SileroModel } from '../ui/src/adapters/silero-vad.js';
+import { SileroFrameVad, SileroRunner, type SileroModel } from '../ui/src/adapters/silero-vad.js';
 
 function fakeModel(probFor: (chunkIndex: number) => number): SileroModel & {
     chunks: Float32Array[];
@@ -99,6 +99,78 @@ describe('SileroFrameVad', () => {
         vad.feed(new Float32Array(513), 16_000);
         await vad.release();
         expect(model.chunks.length).toBe(2);
+    });
+
+    it('drops chunks instead of queueing unboundedly when inference stalls', () => {
+        const stalled: SileroModel = {
+            process: () => new Promise(() => {}), // never resolves
+            reset_state() {},
+            release: async () => {},
+        };
+        const vad = new SileroFrameVad(stalled);
+        // 64 chunks' worth at 16 kHz; the queue caps at 32 in flight.
+        vad.feed(new Float32Array(64 * 512 + 1), 16_000);
+        expect(vad.droppedChunks).toBe(32);
+    });
+});
+
+interface Run {
+    input: Float32Array;
+    state: Float32Array;
+}
+
+/** A stand-in for ort + an InferenceSession, recording what each run is fed.
+ *  stateN comes back filled with the run number so state chaining is visible. */
+function fakeRunner(): { runner: SileroRunner; runs: Run[] } {
+    const runs: Run[] = [];
+    class FakeTensor {
+        constructor(
+            public type: string,
+            public data: Float32Array | bigint[],
+            public dims?: number[]
+        ) {}
+    }
+    let n = 0;
+    const session = {
+        async run(feeds: Record<string, FakeTensor>) {
+            runs.push({
+                input: feeds['input']!.data as Float32Array,
+                state: feeds['state']!.data as Float32Array,
+            });
+            n++;
+            return {
+                output: { data: [0.5] },
+                stateN: new FakeTensor('float32', new Float32Array(256).fill(n), [2, 1, 128]),
+            };
+        },
+        async release() {},
+    };
+    return { runner: new SileroRunner({ Tensor: FakeTensor } as never, session as never), runs };
+}
+
+describe('SileroRunner', () => {
+    it('carries 64 samples of audio context between model calls', async () => {
+        const { runner, runs } = fakeRunner();
+        const first = Float32Array.from({ length: 512 }, (_, i) => i + 1);
+        const second = Float32Array.from({ length: 512 }, () => -1);
+
+        await runner.process(first);
+        expect(runs[0]!.input.length).toBe(576);
+        // Cold start: the context ahead of the first chunk is silence.
+        expect(Array.from(runs[0]!.input.slice(0, 64))).toEqual(Array(64).fill(0));
+        expect(runs[0]!.input[64]).toBe(1);
+
+        await runner.process(second);
+        // Second call sees the tail of the first chunk as its context.
+        expect(Array.from(runs[1]!.input.slice(0, 64))).toEqual(Array.from(first.slice(448)));
+        expect(runs[1]!.input[64]).toBe(-1);
+        // State chains: the second call is fed what the first returned.
+        expect(runs[1]!.state[0]).toBe(1);
+
+        runner.reset_state();
+        await runner.process(second);
+        expect(Array.from(runs[2]!.input.slice(0, 64))).toEqual(Array(64).fill(0));
+        expect(runs[2]!.state[0]).toBe(0);
     });
 
     it('drops chunks instead of queueing unboundedly when inference stalls', () => {

@@ -6,11 +6,11 @@
  * stt-picker.ts). Universal fallback where Web Speech doesn't reach (Firefox,
  * Safari).
  *
- * Silero v5 (silero-vad.ts) is the speech signal; RMS energy is demoted to the
+ * Silero (silero-vad.ts) is the speech signal; RMS energy is demoted to the
  * echo reference, since Silero scores the facilitator's own TTS echo as speech.
- * If Silero's ONNX session can't be created on this machine (an ort-web graph
- * bug class that varies by webview - 6z11), the engine degrades to the energy
- * speech decision (FALLBACK_ENERGY_THRESHOLD) instead of losing the mic.
+ * If Silero's ONNX session still can't be created on some machine, the engine
+ * degrades to the energy speech decision (FALLBACK_ENERGY_THRESHOLD) instead of
+ * losing the mic.
  * Capture (stream, context, callback) runs continuously for the engine's
  * lifetime - only stop() tears it down - so the onset pre-buffer stays warm and
  * a barge-in's first word isn't clipped. A short pause fires a speculative pass

@@ -1,5 +1,5 @@
 /**
- * Silero VAD (v5) frame classifier - a small neural net (~2 MB ONNX, MIT) run
+ * Silero VAD frame classifier - a small neural net (~3 MB ONNX, MIT) run
  * client-side over onnxruntime-web's WASM backend. Replaces the absolute
  * RMS-energy thresholds in whisper-pcm-stt.ts as the "is the user speaking"
  * signal: a per-~32ms speech probability, robust to quiet mics, soft trailing
@@ -9,6 +9,10 @@
  * mic scores high, so echo rejection stays energy-based (the measured echo gate
  * in whisper-pcm-stt.ts) layered on top.
  *
+ * The model is upstream's control-flow-free export, NOT the default one: ONNX
+ * `If` nodes are where ort-web's session create dies on some webviews, taking
+ * the mic with it (6z11). See assets/README.md before swapping the file.
+ *
  * No server involvement - model + ort WASM ship as static assets (Vite `?url`
  * imports) and inference runs on-device. Loaded lazily so the ort runtime stays
  * out of the main bundle, then held as an app-lifetime singleton
@@ -17,15 +21,19 @@
  */
 
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
-import modelUrl from '@ricky0123/vad-web/dist/silero_vad_v5.onnx?url';
+import modelUrl from '../assets/silero_vad_op18_ifless.onnx?url';
 import type { InferenceSession, Tensor } from 'onnxruntime-web';
 
 type Ort = typeof import('onnxruntime-web/wasm');
 
-/** Samples per model invocation at 16 kHz (~32 ms) - fixed by Silero v5. */
+/** Samples per model invocation at 16 kHz (~32 ms) - fixed by Silero. */
 const CHUNK_SAMPLES = 512;
+/** Samples of the *previous* chunk the model sees ahead of each new chunk. The
+ *  default Silero export concatenates this internally; the control-flow-free
+ *  one we ship (see assets/README.md) expects the caller to do it. */
+const CONTEXT_SAMPLES = 64;
 const MODEL_SAMPLE_RATE = 16_000;
-// Speech-probability hysteresis (vad-web's defaults): enter "speaking" at ON,
+// Speech-probability hysteresis (Silero's defaults): enter "speaking" at ON,
 // leave below OFF, hold in between. The band is what keeps soft trailing speech
 // (which hovers mid-probability) from reading as silence.
 const SPEECH_ON = 0.5;
@@ -34,28 +42,28 @@ const SPEECH_OFF = 0.35;
 // queue unboundedly. Costs a little state continuity, not memory.
 const MAX_PENDING_CHUNKS = 32;
 
-/** The slice of vad-web's Model interface we use (see models/common.d.ts). */
+/** What SileroFrameVad needs of the model; the ONNX runner below is the only
+ *  real implementation (tests inject fakes). */
 export interface SileroModel {
     process(audioFrame: Float32Array): Promise<{ isSpeech: number; notSpeech: number }>;
     reset_state(): void;
     release(): Promise<void>;
 }
 
-/** Fresh RNN state: [2, 1, 128] zeros, matching vad-web's SileroV5. */
+/** Fresh RNN state: [2, 1, 128] zeros. */
 function zeroState(ort: Ort): Tensor {
     return new ort.Tensor('float32', new Float32Array(2 * 128), [2, 1, 128]);
 }
 
 /**
- * vad-web's SileroV5 runner, reimplemented so WE create the ort session:
- * `SileroV5.new` calls `InferenceSession.create(model)` with no options, and
- * some webviews need the graph-optimizer fallback in `create()` below - its
- * session create dies with "Could not find OrtValue with name
- * '.../stft/padding/Constant_output_0'" (an ort-web If-branch-inlining bug),
- * which read as a completely deaf desktop app. Inference math is unchanged.
+ * One ort session driven as a stateful stream: the RNN state and the 64-sample
+ * audio context both carry from call to call, so chunks must be fed in order
+ * and reset_state() must clear both.
  */
-class SileroV5Model implements SileroModel {
+export class SileroRunner implements SileroModel {
     private state: Tensor;
+    private context = new Float32Array(CONTEXT_SAMPLES);
+    private readonly frame = new Float32Array(CONTEXT_SAMPLES + CHUNK_SAMPLES);
     private readonly sr: Tensor;
 
     constructor(
@@ -67,7 +75,12 @@ class SileroV5Model implements SileroModel {
     }
 
     async process(audioFrame: Float32Array): Promise<{ isSpeech: number; notSpeech: number }> {
-        const input = new this.ort.Tensor('float32', audioFrame, [1, audioFrame.length]);
+        this.frame.set(this.context);
+        this.frame.set(audioFrame, CONTEXT_SAMPLES);
+        this.context = audioFrame.slice(audioFrame.length - CONTEXT_SAMPLES);
+        // Copy: ort keeps the backing buffer alive for the async run, and
+        // `frame` is reused by the next chunk.
+        const input = new this.ort.Tensor('float32', this.frame.slice(), [1, this.frame.length]);
         const out = await this.session.run({ input, state: this.state, sr: this.sr });
         const stateN = out['stateN'];
         if (!stateN) throw new Error('Silero returned no state');
@@ -79,6 +92,7 @@ class SileroV5Model implements SileroModel {
 
     reset_state(): void {
         this.state = zeroState(this.ort);
+        this.context = new Float32Array(CONTEXT_SAMPLES);
     }
 
     async release(): Promise<void> {
@@ -109,7 +123,7 @@ export class SileroFrameVad {
 
     constructor(private readonly model: SileroModel) {}
 
-    /** Load ort (WASM backend) + the v5 model. Throws on any failure. */
+    /** Load ort (WASM backend) + the model. Throws on any failure. */
     static async create(): Promise<SileroFrameVad> {
         const ort = await import('onnxruntime-web/wasm');
         // Single-threaded WASM: plenty for this model, and it sidesteps the
@@ -126,9 +140,10 @@ export class SileroFrameVad {
         try {
             session = await ort.InferenceSession.create(modelBytes);
         } catch (optErr) {
-            // The If-branch-inlining failure described on SileroV5Model. The
-            // model is a tiny RNN, so running unoptimized is imperceptible -
-            // far better than losing the mic entirely.
+            // Kept as a belt-and-braces retry: the graph optimizer is where
+            // ort-web's webview-specific session-create failures have come from
+            // (6z11), and this model is a tiny RNN, so running it unoptimized is
+            // imperceptible - far better than losing the mic entirely.
             console.warn(
                 '[vad] silero session create failed - retrying with graph optimization disabled:',
                 optErr
@@ -148,7 +163,7 @@ export class SileroFrameVad {
                 );
             }
         }
-        return new SileroFrameVad(new SileroV5Model(ort, session));
+        return new SileroFrameVad(new SileroRunner(ort, session));
     }
 
     /**
