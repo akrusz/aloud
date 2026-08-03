@@ -35,8 +35,9 @@ import type { SttEngineChoice } from '../app-settings.js';
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
  *  capture-device pick and the local-Whisper model params. Only the PCM
  *  engines (Whisper / aloud cloud) consume micDeviceId - Web Speech and the
- *  native recognizer own their capture; whisperModelSize/language reach only
- *  the LOCAL Whisper engine (the cloud endpoint picks its own model). */
+ *  native recognizer own their capture. `language` reaches the local Whisper
+ *  engine (model params) AND, as a BCP-47 tag, the Web Speech / native
+ *  recognizers; only the cloud endpoint ignores it (its models auto-detect). */
 type VadOpts = Partial<
     Pick<
         PacingConfig,
@@ -168,6 +169,21 @@ export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | 
     }
 }
 
+/**
+ * The 2-letter Language setting as a BCP-47 tag with its likely region
+ * (es -> es-ES, ja -> ja-JP), which is what both recognizers document.
+ * Intl.Locale's likely-subtags data does the mapping; a code it can't expand
+ * passes through bare, which the recognizers treat as a base tag.
+ */
+export function sttLangTag(lang: string): string {
+    try {
+        const region = new Intl.Locale(lang).maximize().region;
+        return region ? `${lang}-${region}` : lang;
+    } catch {
+        return lang;
+    }
+}
+
 /** Map the VAD pause settings onto Web Speech's submit-delay options (Chrome
  *  otherwise submits the instant it detects a pause). Mirrors the
  *  server-Whisper adaptive ramp: base + speech×ramp, capped at max. */
@@ -176,6 +192,9 @@ function webSpeechOpts(vadOpts: VadOpts): WebSpeechSttEngineOptions {
     if (vadOpts.silenceBaseMs !== undefined) opts.submitDelayMs = vadOpts.silenceBaseMs;
     if (vadOpts.silenceMaxMs !== undefined) opts.submitMaxDelayMs = vadOpts.silenceMaxMs;
     if (vadOpts.silenceRampRate !== undefined) opts.submitRampRate = vadOpts.silenceRampRate;
+    // Without this the recognizer falls back to the page's hardcoded lang="en"
+    // and the Language setting is a no-op on web.
+    if (vadOpts.language) opts.lang = sttLangTag(vadOpts.language);
     return opts;
 }
 
@@ -187,6 +206,7 @@ function capacitorOpts(vadOpts: VadOpts): CapacitorSttEngineOptions {
     if (vadOpts.silenceBaseMs !== undefined) opts.submitDelayMs = vadOpts.silenceBaseMs;
     if (vadOpts.silenceMaxMs !== undefined) opts.submitMaxDelayMs = vadOpts.silenceMaxMs;
     if (vadOpts.silenceRampRate !== undefined) opts.submitRampRate = vadOpts.silenceRampRate;
+    if (vadOpts.language) opts.language = sttLangTag(vadOpts.language);
     return opts;
 }
 

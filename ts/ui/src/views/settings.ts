@@ -1744,7 +1744,7 @@ function renderLanguageSection(s: AppSettings): string {
             <div class="form-group">
                 <label for="s-language">Language</label>
                 <select id="s-language" name="language">${langOptions}</select>
-                <span class="form-hint">Affects speech recognition and voice previews</span>
+                <span class="form-hint">The language you'll speak - sets up speech recognition</span>
             </div>
             <div class="form-group slot-hidden" id="s-mic-device-group">
                 <label for="s-mic-device">Microphone</label>
@@ -1869,7 +1869,7 @@ function renderDisplaySection(s: AppSettings): string {
                 <div class="form-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
-                        <span>Show live credit balance during sessions (when signed in)</span>
+                        <span>Show live balance during sessions that use credits</span>
                     </label>
                 </div>
                 <div class="form-group">
@@ -1877,7 +1877,7 @@ function renderDisplaySection(s: AppSettings): string {
                         <input type="checkbox" id="s-show-session-clock"${s.showSessionClock ? ' checked' : ''}>
                         <span>Show the clock during sessions</span>
                     </label>
-                    <span class="form-hint">A timer still speaks up when it's done, clock or no clock.</span>
+                    <span class="form-hint">Timers always speak up when finished.</span>
                 </div>
                 <div class="display-apply-row">
                     <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>

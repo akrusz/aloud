@@ -19,6 +19,7 @@ import {
     defaultSttChoice,
     resolveSttChoice,
     sttBackendForChoice,
+    sttLangTag,
 } from '../ui/src/adapters/stt-picker.js';
 import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
 
@@ -161,5 +162,17 @@ describe('resolveSttChoice', () => {
         // Whisper stored but viewed in a browser (not offered) → hosted default.
         isTauriMock.mockReturnValue(false);
         expect(resolveSttChoice('whisper', false)).toBe('aloud');
+    });
+});
+
+describe('sttLangTag - the Language setting as a recognizer BCP-47 tag', () => {
+    it('expands a bare code with its likely region', () => {
+        expect(sttLangTag('en')).toBe('en-US');
+        expect(sttLangTag('es')).toBe('es-ES');
+        expect(sttLangTag('ja')).toBe('ja-JP');
+        expect(sttLangTag('zh')).toBe('zh-CN');
+    });
+    it('passes through what it cannot expand', () => {
+        expect(sttLangTag('not a tag')).toBe('not a tag');
     });
 });
