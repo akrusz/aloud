@@ -45,18 +45,31 @@ client secrets) out of git - see the checklist at the end.
 **External testers** (up to 10,000) need a one-time lightweight **Beta App
 Review** - this is the "in beta for N weeks" gate. Internal testing does not.
 
-**CLI / CI path** (once the GUI works and you want to automate):
+**CLI path** (proven 2026-08-03; works with ZERO registered iOS devices).
+With no devices on the team, Xcode can't mint a *development* profile, so a
+normal signed archive fails ("Your team has no devices"). The workaround:
+archive **unsigned**, then let the export step do App Store distribution
+signing, which needs no device. `-allowProvisioningUpdates` (with Xcode signed
+in to the Apple ID) auto-creates the distribution cert + profile and even
+enables the Sign in with Apple capability on the App ID from App.entitlements.
 
 ```bash
-xcodebuild -workspace ios/App/App.xcworkspace -scheme App \
-  -configuration Release -archivePath build/App.xcarchive archive
-xcodebuild -exportArchive -archivePath build/App.xcarchive \
-  -exportOptionsPlist ExportOptions.plist -exportPath build/
-xcrun notarytool ... / xcrun altool --upload-app ...   # or Transporter, or Fastlane `pilot`
+cd ts && VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run cap:sync
+cd ios/App
+xcodebuild archive -workspace App.xcworkspace -scheme App \
+  -destination "generic/platform=iOS" -archivePath /tmp/App.xcarchive \
+  CODE_SIGNING_ALLOWED=NO
+xcodebuild -exportArchive -archivePath /tmp/App.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates
 ```
 
+ExportOptions.plist: `method` = `app-store-connect`, `signingStyle` =
+`automatic`, `teamID` = the team id, `destination` = `upload` (or `export`
+for a local .ipa dry-run first). Bump `CURRENT_PROJECT_VERSION` in
+`project.pbxproj` every upload; `MARKETING_VERSION` tracks the app version.
+
 [Fastlane](https://fastlane.tools) (`fastlane pilot upload`) is the usual way to
-script the archive→upload→TestFlight loop for CI.
+script the archive→upload→TestFlight loop for CI, if this ever needs CI.
 
 ---
 

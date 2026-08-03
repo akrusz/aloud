@@ -14,6 +14,8 @@ PODS:
     - RecaptchaInterop (~> 101.0)
   - Capacitor (8.3.4):
     - CapacitorCordova
+  - CapacitorApp (8.1.1):
+    - Capacitor
   - CapacitorBrowser (8.0.3):
     - Capacitor
   - CapacitorCommunityKeepAwake (7.1.0):
@@ -52,6 +54,7 @@ PODS:
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
   - "CapacitorCommunityKeepAwake (from `../../node_modules/@capacitor-community/keep-awake`)"
   - "CapacitorCommunitySpeechRecognition (from `../../node_modules/@capacitor-community/speech-recognition`)"
@@ -75,6 +78,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorApp:
+    :path: "../../node_modules/@capacitor/app"
   CapacitorBrowser:
     :path: "../../node_modules/@capacitor/browser"
   CapacitorCommunityKeepAwake:
@@ -93,6 +98,7 @@ SPEC CHECKSUMS:
   AppAuth: ef4da5a3fc2e10b90c09a0a94a9baeaedc0341d5
   AppCheckCore: 214137f5c378d1dec88a68425c467fe65aaff637
   Capacitor: d13cad5fa09155679672808cc4ca9fbc2997e1b4
+  CapacitorApp: 305bd13c44f6f9d164e2ee66a4faa956ed8c0e06
   CapacitorBrowser: c987c73d09d8bd3b5ec13f06338b1e14d5d2be69
   CapacitorCommunityKeepAwake: 05c75aab989f60e621870cf03b24a144a5544c30
   CapacitorCommunitySpeechRecognition: 3e03566c44c2bb3b52391a33d4518b1adbdeb38f
@@ -107,6 +113,6 @@ SPEC CHECKSUMS:
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
 
-PODFILE CHECKSUM: a9ee58bc60df2ac45ef5008ae271f17aef937ab8
+PODFILE CHECKSUM: c4e74f9c90ae31dec8dc0fc19dd609a06e2226d2
 
 COCOAPODS: 1.16.2
