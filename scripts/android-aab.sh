@@ -9,6 +9,9 @@
 #   2. verifies VITE_ALOUD_CLOUD_URL is supplied (env var or ui/.env.production)
 #   3. ui:build + cap sync android
 #   4. gradlew bundleRelease, signed with android/keystore.properties
+#   5. commits the build.gradle version change (only after a successful build,
+#      so a failed run leaves nothing durable; only that file, so other
+#      in-flight work stays out of it)
 #
 # Usage: scripts/android-aab.sh [--no-bump]
 #
@@ -54,9 +57,15 @@ echo "building $VERSION ($CODE)"
 (cd ts && npm run cap:require-cloud-url && npm run ui:build && npx cap sync android)
 (cd ts/android && ./gradlew bundleRelease)
 
+# Commit the version bump now that there's a bundle worth uploading - a failed
+# build leaves it uncommitted, exactly as before. Pathspec commit: only this
+# file, so other in-flight work can't get swept in.
+if ! git diff --quiet -- "$GRADLE_FILE"; then
+    git commit -m "android: versionCode $CODE (v$VERSION)" -- "$GRADLE_FILE"
+fi
+
 echo
 echo "upload to Play Console -> $AAB"
-echo "(build.gradle version changes are uncommitted - commit them with the upload)"
 
 # Reveal the .aab in Finder, selected, ready to drag into the Play Console.
 if command -v open >/dev/null 2>&1 && [ -f "$AAB" ]; then
