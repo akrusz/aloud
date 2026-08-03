@@ -369,8 +369,11 @@ function waitForCondition(test: () => boolean, cb: () => void): void {
 // ---- Step 2: Voice ----
 
 function getVoiceSection(): HTMLElement | null {
-    const sel = document.getElementById('s-tts-engine');
-    return sel ? sel.closest<HTMLElement>('.settings-section') : null;
+    // Anchor on the voice button, not the engine select: on web the select
+    // renders inside the collapsed Advanced shelf, so it would spotlight (and
+    // scroll to) a hidden control in the wrong section.
+    const btn = document.getElementById('s-voice-btn');
+    return btn ? btn.closest<HTMLElement>('.settings-section') : null;
 }
 
 function showVoiceStep(): void {

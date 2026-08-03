@@ -1595,7 +1595,7 @@ function renderSetupHTML(
                     <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
                     <div class="info-panel hidden" id="info-guidance">
                         <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
-                        <p>If the <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>Check-In Timing</strong></a> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
+                        <p>If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
                     </div>
                     <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2">
                     <div class="range-labels">
