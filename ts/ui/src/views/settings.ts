@@ -1959,7 +1959,7 @@ function renderDisplaySection(s: AppSettings): string {
                         <input type="checkbox" id="s-show-session-clock"${s.showSessionClock ? ' checked' : ''}>
                         <span>Show the clock during sessions</span>
                     </label>
-                    <span class="form-hint">Timers always speak up when finished.</span>
+                    <span class="form-hint">Timers speak up when finished, even if hidden.</span>
                 </div>
                 <div class="display-apply-row">
                     <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>
@@ -2073,6 +2073,10 @@ function renderPacingSection(s: AppSettings): string {
                 <select id="s-pause-preset">${presetOpts}</select>
                 <span class="form-hint">How long a pause in your speech ends your turn. Exact values under Advanced.</span>
             </div>
+            <!-- Empty slot: keeps the select at half width on wide layouts
+                 (a lone flex child stretches to the full row); collapses once
+                 the row stacks. Same trick as the mic/whisper columns. -->
+            <div class="form-group form-group-half slot-hidden" aria-hidden="true"></div>
         </div>
         <h3 class="pacing-subhead" id="settings-checkins">Check-Ins After Silence (Exploration Mode)</h3>
         <div class="form-row">
@@ -2085,16 +2089,17 @@ function renderPacingSection(s: AppSettings): string {
                     <div class="radio-inline">
                         <label class="radio-label">
                             <input type="radio" name="s-checkin-mode" value="simple"${s.checkinTiming === 'simple' ? ' checked' : ''}>
-                            <span>Every (s)</span>
+                            <span>Every</span>
+                            ${stepperHTML('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
+                            <span>seconds</span>
                         </label>
-                        ${stepperHTML('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
                     </div>
                     <label class="radio-label">
                         <input type="radio" name="s-checkin-mode" value="smart"${s.checkinTiming === 'smart' ? ' checked' : ''}>
                         <span>Smart</span>
                     </label>
                 </div>
-                <span class="form-hint">Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the model pick the timing and the words, biased by your guidance level.</span>
+                <span class="form-hint">Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the AI pick the timing and the words, as per the session's guidance level.</span>
             </div>
         </div>
         <div class="form-row">

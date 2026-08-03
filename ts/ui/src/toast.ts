@@ -8,6 +8,26 @@
 const TOAST_DURATION_MS = 5000;
 const FADE_MS = 300;
 
+/**
+ * Inline `bottom` that clears any visible fixed bottom bar (settings/setup
+ * footer, mobile bottom nav) - the CSS default (2rem) straddles them halfway.
+ * Empty string when no bar is up, letting the stylesheet default apply.
+ * Measured per show: bars differ per view and layout size, and a toast is too
+ * short-lived to need resize tracking.
+ */
+function bottomClearingBars(): string {
+    let barTop = Infinity;
+    const bars = document.querySelectorAll<HTMLElement>(
+        '.settings-footer, .setup-footer, .bottom-nav'
+    );
+    for (const el of bars) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && r.top < window.innerHeight) barTop = Math.min(barTop, r.top);
+    }
+    if (barTop === Infinity) return '';
+    return `${Math.round(window.innerHeight - barTop) + 12}px`;
+}
+
 export function showErrorToast(message: string): void {
     showToast(message, 'error');
 }
@@ -35,6 +55,7 @@ export function showSavedTick(message = 'Saved!'): void {
         document.body.appendChild(savedEl);
     }
     savedEl.textContent = message;
+    savedEl.style.bottom = bottomClearingBars();
     void savedEl.offsetHeight;
     savedEl.classList.add('visible');
     clearTimeout(savedHideTimer);
@@ -56,6 +77,7 @@ function showToast(message: string, variant: 'error' | 'success'): void {
     toast.className = variant === 'success' ? 'error-toast toast-success' : 'error-toast';
     toast.setAttribute('role', variant === 'success' ? 'status' : 'alert');
     toast.textContent = message;
+    toast.style.bottom = bottomClearingBars();
     document.body.appendChild(toast);
 
     let removed = false;

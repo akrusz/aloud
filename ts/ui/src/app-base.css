@@ -3450,6 +3450,7 @@ html:has(.nav-brand.has-update) .update-btn {
     padding: 0.75rem 1.5rem;
     border-radius: var(--radius-sm);
     font-size: 0.9rem;
+    font-weight: 500;
     z-index: 85;
     opacity: 0;
     transition: opacity 0.3s ease;
