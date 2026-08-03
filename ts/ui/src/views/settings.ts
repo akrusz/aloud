@@ -1934,7 +1934,7 @@ function renderPacingSection(s: AppSettings): string {
         <h3 class="pacing-subhead">Pause before submitting user response (non-streaming providers)</h3>
         <p class="form-hint pacing-subhead-note">For providers that don't send a response until fully generated - currently just Claude subscriptions. Lower delay recommended because responses are slower.</p>
         ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
-        <h3 class="pacing-subhead">Check-Ins After Silence</h3>
+        <h3 class="pacing-subhead" id="settings-checkins">Check-Ins After Silence (Exploration Mode)</h3>
         <div class="form-row">
             <div class="form-group form-group-half" id="s-checkin-timing-group">
                 <label>Timing</label>

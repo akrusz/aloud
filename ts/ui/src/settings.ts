@@ -136,6 +136,13 @@ export interface SessionSetup {
      * <-> attentive), never directiveness, which the felt-sense protocol owns.
      */
     feltSensePaceStep: number;
+    /**
+     * Felt sense's "Check in if I'm quiet" toggle. Felt sense owns its own
+     * check-in timing rather than deferring to the app-level Check-In Timing
+     * setting (which isn't reachable from the setup page): on = smart timing
+     * paced by feltSensePaceStep, off = no silence check-ins at all.
+     */
+    feltSenseCheckins: boolean;
     verbosity: Verbosity;
     customInstructions: string;
     provider: Provider;
@@ -255,6 +262,7 @@ export const defaultSetup: SessionSetup = {
     qualities: ['feeling_good'],
     dirStep: 2,
     feltSensePaceStep: 1,
+    feltSenseCheckins: true,
     verbosity: 'medium',
     customInstructions: '',
     provider: 'ollama',

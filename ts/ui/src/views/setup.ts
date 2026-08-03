@@ -663,6 +663,22 @@ export async function mountSetupView(
             setup.feltSensePaceStep = Number(paceSlider.value);
             persist();
         });
+        // Felt sense owns whether silence check-ins happen at all, rather than
+        // deferring to the Settings-page Check-In Timing radio (unreachable from
+        // here). Off greys the pace slider out.
+        const checkinToggle = root.querySelector<HTMLInputElement>('#checkin-enabled')!;
+        const paceControl = root.querySelector<HTMLElement>('#checkin-pace-control')!;
+        function syncCheckinToggle(): void {
+            checkinToggle.checked = setup.feltSenseCheckins;
+            paceControl.classList.toggle('is-disabled', !setup.feltSenseCheckins);
+            paceSlider.disabled = !setup.feltSenseCheckins;
+        }
+        syncCheckinToggle();
+        checkinToggle.addEventListener('change', () => {
+            setup.feltSenseCheckins = checkinToggle.checked;
+            syncCheckinToggle();
+            persist();
+        });
 
         // Verbosity
         const verbositySel = root.querySelector<HTMLSelectElement>('#verbosity')!;
@@ -1579,7 +1595,7 @@ function renderSetupHTML(
                     <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
                     <div class="info-panel hidden" id="info-guidance">
                         <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
-                        <p>If the <strong>Check-In Timing</strong> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
+                        <p>If the <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>Check-In Timing</strong></a> setting is set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
                     </div>
                     <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2">
                     <div class="range-labels">
@@ -1635,15 +1651,14 @@ function renderSetupHTML(
 
             <div class="form-row form-row-thirds" id="felt-sense-voice-row">
                 <div class="form-group">
-                    <label for="checkin-pace">Check-In Pace <button type="button" class="info-btn" data-info="checkin-pace" aria-label="About check-in pace">?</button></label>
-                    <div class="info-panel hidden" id="info-checkin-pace">
-                        <p>How present the facilitator is during your silences. It never changes how the practice itself is guided - the felt-sense process always leads.</p>
-                        <p>If the <strong>Check-In Timing</strong> setting is set to Smart, Patient waits ~20 minutes before a gentle check-in; Attentive checks in within a minute.</p>
-                    </div>
-                    <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
-                    <div class="range-labels">
-                        <span>Patient</span>
-                        <span>Attentive</span>
+                    <label class="checkin-pace-label" for="checkin-enabled">Check in if I'm quiet
+                        <input type="checkbox" id="checkin-enabled" checked></label>
+                    <div class="slider-control" id="checkin-pace-control">
+                        <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
+                        <div class="range-labels">
+                            <span>Patient</span>
+                            <span>Attentive</span>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">

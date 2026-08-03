@@ -89,7 +89,12 @@ import {
     FOCUS_LABELS,
     QUALITY_LABELS,
 } from '../settings.js';
-import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
+import {
+    loadAppSettings,
+    saveAppSettings,
+    type AppSettings,
+    type SttEngineChoice,
+} from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { sessionStore } from '../state.js';
 import { markSessionActive, clearActiveSession } from '../active-session.js';
@@ -280,6 +285,19 @@ export async function mountSessionView(
     const directiveness = mode.checkinPaceSlider
         ? dirStepToBackend(setup.feltSensePaceStep)
         : dirStepToBackend(setup.dirStep);
+    // Those modes also own their check-ins entirely: their setup panel has its
+    // own toggle + pace slider, so the Settings-page Check-In radios (which the
+    // panel can't show) don't apply. Content is always smart there - a line
+    // generated under the mode's own prompt stays in-stance in a way the canned
+    // pool can't, and it degrades to that pool on any failure anyway.
+    const checkinTiming: AppSettings['checkinTiming'] = mode.checkinPaceSlider
+        ? setup.feltSenseCheckins
+            ? 'smart'
+            : 'none'
+        : appSettings.checkinTiming;
+    const checkinContent: AppSettings['checkinContent'] = mode.checkinPaceSlider
+        ? 'smart'
+        : appSettings.checkinContent;
     const builder = new PromptBuilder({
         config: {
             focuses: setup.focuses,
@@ -287,7 +305,7 @@ export async function mountSessionView(
             directiveness,
             verbosity: setup.verbosity,
             customInstructions: setup.customInstructions,
-            waitSignal: appSettings.checkinTiming === 'smart',
+            waitSignal: checkinTiming === 'smart',
         },
         mode,
     });
@@ -377,7 +395,7 @@ export async function mountSessionView(
         ...defaultPacingConfig,
         responseDelayMs: appSettings.responseDelayMs,
         silenceCheckinSec: appSettings.silenceCheckinSec,
-        silenceCheckinsEnabled: appSettings.checkinTiming !== 'none',
+        silenceCheckinsEnabled: checkinTiming !== 'none',
         silenceModeEnabled: appSettings.silenceModeEnabled,
         silenceBaseMs,
         silenceMaxMs,
@@ -388,7 +406,7 @@ export async function mountSessionView(
     // (20m/8m/5m/90s/30s across the stops) - guidance level, or in
     // checkinPaceSlider modes the check-in pace (already folded into
     // `directiveness` above).
-    if (appSettings.checkinTiming === 'smart') {
+    if (checkinTiming === 'smart') {
         pacing.setCheckinInterval(defaultWaitSeconds(directiveness));
     }
 
@@ -447,7 +465,9 @@ export async function mountSessionView(
         } else if (mode.checkinPaceSlider) {
             rows.push({
                 label: 'Check-in pace',
-                value: CHECKIN_PACE_LABELS[setup.feltSensePaceStep] ?? 'Patient',
+                value: setup.feltSenseCheckins
+                    ? (CHECKIN_PACE_LABELS[setup.feltSensePaceStep] ?? 'Patient')
+                    : 'Off',
             });
         }
         if (mode.composes?.verbosity !== false) {
@@ -1176,9 +1196,14 @@ export async function mountSessionView(
     // for LLM calls; auto-quit handles true walk-aways.
     let checkinInFlight = false;
     let smartCheckinStreak = 0;
+    /** Consecutive [PASS] replies in this silence stretch. A user who asked for
+     *  check-ins shouldn't get silence because the model keeps declining, so
+     *  past the budget the next one speaks a canned line instead of asking. */
+    let smartCheckinPasses = 0;
     /** Single-flight guard for the timer's approach/completion notices. */
     let timerNoticeInFlight = false;
     const SMART_CHECKIN_MAX_STREAK = 4;
+    const SMART_CHECKIN_MAX_PASSES = 2;
 
     // ---- Check-in debug HUD --------------------------------------------
     // Dev tool: fixed monospace readout of [WAIT]/check-in traffic - active
@@ -1201,10 +1226,10 @@ export async function mountSessionView(
         if (!debugPanel) return;
         const over = pacing.hasCheckinOverride() ? ' (wait)' : '';
         debugPanel.textContent = [
-            `timing ${appSettings.checkinTiming} · content ${appSettings.checkinContent}`,
+            `timing ${checkinTiming} · content ${checkinContent}`,
             `interval ${pacing.getCheckinInterval()}s${over} · next ${Math.round(
                 pacing.getCheckinEtaSec()
-            )}s · streak ${smartCheckinStreak}/${SMART_CHECKIN_MAX_STREAK}`,
+            )}s · streak ${smartCheckinStreak}/${SMART_CHECKIN_MAX_STREAK} · pass ${smartCheckinPasses}/${SMART_CHECKIN_MAX_PASSES}`,
             ...debugLogLines,
         ].join('\n');
     }
@@ -1383,6 +1408,7 @@ export async function mountSessionView(
             pacing.onSpeechEnd();
             pacing.onTranscription(userText);
             smartCheckinStreak = 0;
+            smartCheckinPasses = 0;
             if (silenceMode) {
                 silenceMode = false;
                 setHolding(false);
@@ -1470,11 +1496,11 @@ export async function mountSessionView(
             // Smart timing: [WAIT:Nm] sets when the next check-in may fire
             // (sticky across turns, clamped by the controller).
             if (!ephemeral && waitSec !== null) {
-                if (appSettings.checkinTiming === 'smart') {
+                if (checkinTiming === 'smart') {
                     pacing.setCheckinInterval(waitSec);
                     debugLog(`turn [WAIT] ${waitSec}s → interval ${pacing.getCheckinInterval()}s`);
                 } else {
-                    debugLog(`turn [WAIT] ${waitSec}s ignored (timing ${appSettings.checkinTiming})`);
+                    debugLog(`turn [WAIT] ${waitSec}s ignored (timing ${checkinTiming})`);
                 }
             }
 
@@ -2126,7 +2152,7 @@ export async function mountSessionView(
               if (whisperEngine?.userSpeechActive) return;
               const decision = pacing.shouldRespond();
               if (decision !== TurnDecision.CheckIn) return;
-              if (appSettings.checkinContent === 'smart') {
+              if (checkinContent === 'smart') {
                   void respondWithSmartCheckIn();
               } else {
                   debugLog('canned check-in');
@@ -2298,6 +2324,16 @@ export async function mountSessionView(
             pacing.onResponseEnd();
             return;
         }
+        // Spent the pass budget: speak a canned line rather than give the model
+        // another chance to stay quiet. Still counts as a check-in (streak), so
+        // the cap above remains the walk-away backstop.
+        if (smartCheckinPasses >= SMART_CHECKIN_MAX_PASSES) {
+            smartCheckinStreak++;
+            smartCheckinPasses = 0;
+            debugLog('canned check-in (pass budget)');
+            await respondWithFacilitatorLine(builder.getCheckInPrompt());
+            return;
+        }
         checkinInFlight = true;
         // Don't own the turn (no turnGen bump): a real utterance arriving
         // mid-call must win. Registering our abort as the active one lets
@@ -2308,7 +2344,7 @@ export async function mountSessionView(
         activeFullAbort = myAbort;
         try {
             smartCheckinStreak++;
-            const smartTiming = appSettings.checkinTiming === 'smart';
+            const smartTiming = checkinTiming === 'smart';
             const eventText = buildSmartCheckinEvent(
                 pacing.getSilenceDuration(),
                 smartCheckinStreak,
@@ -2344,10 +2380,12 @@ export async function mountSessionView(
                     ? ` [WAIT] ${reply.waitSec}s`
                     : '';
             if (reply.kind === 'pass') {
+                smartCheckinPasses++;
                 debugLog(`→ pass${waitNote}`);
                 pacing.onResponseEnd();
                 return;
             }
+            smartCheckinPasses = 0;
             if (reply.kind === 'speak') {
                 debugLog(`→ speak "${reply.text.slice(0, 40)}"${waitNote}`);
                 // Event turn enters history only when the model speaks, so

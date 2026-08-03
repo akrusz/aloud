@@ -421,9 +421,25 @@ body {
 }
 
 .form-group.is-disabled,
+.slider-control.is-disabled,
 .stepper.is-disabled {
     opacity: 0.45;
     pointer-events: none;
+}
+
+/* Slider + its end labels, grouped so a toggle can disable the control without
+   greying its own label. */
+.slider-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.checkin-pace-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
 }
 
 .saved-key-hint {
@@ -742,7 +758,8 @@ body {
     color: var(--text-secondary);
     cursor: pointer;
 }
-.noting-option input[type="checkbox"] {
+.noting-option input[type="checkbox"],
+.checkin-pace-label input[type="checkbox"] {
     -webkit-appearance: none;
     appearance: none;
     width: 16px;
@@ -754,12 +771,14 @@ body {
     position: relative;
 }
 
-.noting-option input[type="checkbox"]:checked {
+.noting-option input[type="checkbox"]:checked,
+.checkin-pace-label input[type="checkbox"]:checked {
     background: var(--accent);
     border-color: var(--accent);
 }
 
-.noting-option input[type="checkbox"]:checked::after {
+.noting-option input[type="checkbox"]:checked::after,
+.checkin-pace-label input[type="checkbox"]:checked::after {
     content: '';
     position: absolute;
     left: 3px;
@@ -3942,6 +3961,8 @@ p.clouds-hint-row {
     font-weight: 600;
     color: var(--text-primary);
     margin: var(--space-sm) 0 2px;
+    /* A subhead can be a data-nav-anchor target too; clear the fixed top bar. */
+    scroll-margin-top: var(--nav-h);
 }
 .settings-section .pacing-subhead-note {
     margin: 0 0 var(--space-xs);
@@ -5236,11 +5257,13 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 
     /* Noting tab: parallel to .modifier-toggle, bump the inline checkbox
        and surrounding controls so they're thumb-tappable. */
-    .noting-option input[type="checkbox"] {
+    .noting-option input[type="checkbox"],
+    .checkin-pace-label input[type="checkbox"] {
         width: 20px;
         height: 20px;
     }
-    .noting-option input[type="checkbox"]:checked::after {
+    .noting-option input[type="checkbox"]:checked::after,
+    .checkin-pace-label input[type="checkbox"]:checked::after {
         left: 5px;
         top: 1px;
         width: 6px;
