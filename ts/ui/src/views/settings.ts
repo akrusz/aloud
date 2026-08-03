@@ -186,7 +186,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wirePacingSection();
         wireSessionLogsSection();
         wireUpdatesSection();
-        wireByokReveal();
         wireAdvancedReveal();
         wireDeveloperSection();
         wireFooter();
@@ -1474,20 +1473,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
     }
 
-    // ---- Advanced (BYOK reveal, web provider section) ------------------
-    // The BYOK toggle itself is wired in wireProviderSection (by id); here we
-    // just expand/collapse the section.
-    function wireByokReveal(): void {
-        const toggle = root.querySelector<HTMLButtonElement>('#advanced-toggle');
-        const advBody = root.querySelector<HTMLElement>('#advanced-body');
-        toggle?.addEventListener('click', () => {
-            const shown = advBody?.classList.toggle('hidden') === false;
-            toggle.textContent = shown ? 'Hide advanced settings' : 'Show advanced settings';
-            toggle.setAttribute('aria-expanded', String(shown));
-        });
-    }
-
-    // ---- Advanced section (expert toggles shelf) -----------------------
+    // ---- Advanced section (expert controls shelf) ----------------------
     // Same reveal pattern; the controls inside are wired by their own sections.
     function wireAdvancedReveal(): void {
         const toggle = root.querySelector<HTMLButtonElement>('#s-advanced-toggle');
@@ -1726,22 +1712,7 @@ function renderProviderSection(s: AppSettings): string {
                 <label>Default Model</label>
                 <div id="s-model-slot"></div>
             </div>
-            ${
-                // Web only. A label-height spacer lines the button up with the
-                // dropdowns (top-packed, so the model column's caption can't
-                // drag it down); matching the select padding gives it the same
-                // height. meditation-pal-8jc.
-                isWebMode()
-                    ? `<div class="form-group provider-advanced-col">
-                <label class="form-label-spacer" aria-hidden="true">&nbsp;</label>
-                <button type="button" class="btn btn-secondary settings-advanced-toggle" id="advanced-toggle"
-                    aria-expanded="false" aria-controls="advanced-body">Show advanced settings</button>
-            </div>`
-                    : ''
-            }
         </div>
-
-        ${isWebMode() ? renderAdvancedBody(s) : ''}
 
         ${keyRows}
 
@@ -1754,13 +1725,12 @@ function renderProviderSection(s: AppSettings): string {
     </section>`;
 }
 
-// Collapsed BYOK opt-in body (web build only), revealed by the inline "Show
-// advanced settings" toggle. Device-scoped keys and a footgun, so it stays
-// tucked away by default. The checkbox is wired in wireProviderSection by id.
-// meditation-pal-8jc.
-function renderAdvancedBody(s: AppSettings): string {
+// Web-only BYOK opt-in: device-scoped keys and a footgun, so it lives in the
+// collapsed Advanced shelf (renderAdvancedSettingsSection - it used to have
+// its own reveal in the provider row, which made two identical "Show advanced
+// settings" buttons). The checkbox is wired in wireProviderSection by id.
+function renderByokOptIn(s: AppSettings): string {
     return `
-        <div class="settings-advanced-body hidden" id="advanced-body">
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
@@ -1771,8 +1741,7 @@ function renderAdvancedBody(s: AppSettings): string {
                         ? ''
                         : ' The downloadable desktop app calls every provider directly.'
                 }</span>
-            </div>
-        </div>`;
+            </div>`;
 }
 
 function renderLanguageSection(s: AppSettings): string {
@@ -2158,11 +2127,14 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                 ${pauseGroupHTML('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
             </div>
             ${
-                // Desktop's engine selector does real management (Piper installs,
-                // macOS voice settings) and stays in the TTS section; on web it
-                // only swaps hints + the ElevenLabs key row, so it shelves here.
+                // Web-only shelf residents: the BYOK opt-in (was its own reveal
+                // in the provider section) and the TTS engine selector, which
+                // on web only swaps hints + the ElevenLabs key row. Desktop's
+                // selector does real management (Piper installs, macOS voice
+                // settings) and stays in the TTS section.
                 isWebMode()
-                    ? `<div class="form-row form-row-tts">${renderTtsEngineControls(s)}</div>`
+                    ? `${renderByokOptIn(s)}
+            <div class="form-row form-row-tts">${renderTtsEngineControls(s)}</div>`
                     : ''
             }
             <div class="form-row">
