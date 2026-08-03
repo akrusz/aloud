@@ -17,6 +17,39 @@ export function showSuccessToast(message: string): void {
     showToast(message, 'success');
 }
 
+// One shared element for the auto-save tick: rapid settings tweaks retrigger
+// it (text swap + timer reset) instead of stacking banners, and it lives
+// briefly - it's an acknowledgment, not an announcement.
+const SAVED_TICK_MS = 1500;
+let savedEl: HTMLDivElement | null = null;
+let savedHideTimer: number | undefined;
+
+/** Small transient "Saved!" acknowledgment for auto-applying forms. */
+export function showSavedTick(message = 'Saved!'): void {
+    if (typeof document === 'undefined') return;
+    if (!savedEl || !savedEl.isConnected) {
+        savedEl = document.createElement('div');
+        savedEl.className = 'error-toast toast-success';
+        savedEl.setAttribute('role', 'status');
+        savedEl.addEventListener('click', () => hideSavedTick());
+        document.body.appendChild(savedEl);
+    }
+    savedEl.textContent = message;
+    void savedEl.offsetHeight;
+    savedEl.classList.add('visible');
+    clearTimeout(savedHideTimer);
+    savedHideTimer = window.setTimeout(hideSavedTick, SAVED_TICK_MS);
+}
+
+function hideSavedTick(): void {
+    clearTimeout(savedHideTimer);
+    if (!savedEl) return;
+    const el = savedEl;
+    savedEl = null;
+    el.classList.remove('visible');
+    setTimeout(() => el.remove(), FADE_MS);
+}
+
 function showToast(message: string, variant: 'error' | 'success'): void {
     if (typeof document === 'undefined') return;
     const toast = document.createElement('div');

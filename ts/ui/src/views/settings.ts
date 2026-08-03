@@ -63,6 +63,7 @@ import {
 import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
 import { confirmDialog, alertDialog } from '../dialog.js';
+import { showSavedTick } from '../toast.js';
 
 export interface SettingsViewHandle {
     show(): Promise<void>;
@@ -118,9 +119,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // loadVoiceCatalog doesn't mutate settings.
     const baseline = undoSnapshot();
 
+    // Everything auto-applies, and nothing used to SAY so - people hunted for
+    // a Save button. A debounced tick acknowledges each settled change; it
+    // stays quiet during mount/refresh (self-repair persists aren't the user
+    // saving anything) and during Display Apply, which has its own flash.
+    let announceSaves = false;
+    let savedTickTimer: number | undefined;
+
     function persist(): void {
         void saveAppSettings(settings);
         updateUndoState();
+        if (announceSaves) {
+            clearTimeout(savedTickTimer);
+            savedTickTimer = window.setTimeout(() => showSavedTick(), 400);
+        }
     }
 
     /** Has anything Undo reverts drifted from the entry snapshot? */
@@ -152,11 +164,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     async function refresh(): Promise<void> {
+        announceSaves = false;
         root.innerHTML = renderHTML(settings);
         wire();
         await loadVoiceCatalog();
         await refreshApiKeyRows();
         await refreshProviderMarkers();
+        // The grace period covers stragglers like the browser-voices repair
+        // (async, can persist() after this resolves) so view-open self-repairs
+        // never toast.
+        setTimeout(() => {
+            announceSaves = true;
+        }, 1000);
     }
 
     function wire(): void {
@@ -1198,7 +1217,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             settings.showSessionBalance = pendingChrome.showSessionBalance;
             settings.showSessionClock = pendingChrome.showSessionClock;
             applyChromeSettings(settings);
+            // The "Applied" flash below is this button's acknowledgment; the
+            // auto-save tick on top would be a double signal.
+            const announce = announceSaves;
+            announceSaves = false;
             persist();
+            announceSaves = announce;
             updateApplyDisplayState();
             if (appliedEl) {
                 appliedEl.classList.remove('hidden');
@@ -1256,13 +1280,48 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     function wirePacingSection(): void {
+        // The named-stop preset and the Advanced steppers edit the SAME pair,
+        // so each side reflects the other: a stepper tweak flips the preset to
+        // "Custom (…)", a preset pick rewrites the stepper values.
+        const presetSel = root.querySelector<HTMLSelectElement>('#s-pause-preset');
+        const syncPausePreset = (): void => {
+            if (!presetSel) return;
+            presetSel.querySelector('option[value="custom"]')?.remove();
+            const match = matchPausePreset(settings);
+            if (match) {
+                presetSel.value = match;
+            } else {
+                presetSel.insertAdjacentHTML(
+                    'beforeend',
+                    `<option value="custom">${customPauseLabel(settings)}</option>`
+                );
+                presetSel.value = 'custom';
+            }
+        };
+        presetSel?.addEventListener('change', () => {
+            const pick = PAUSE_PRESETS[presetSel.value as PausePresetKey] as
+                | (typeof PAUSE_PRESETS)[PausePresetKey]
+                | undefined;
+            if (!pick) return; // "custom" is a state, not a command
+            settings.silenceBaseMs = pick.baseMs;
+            settings.silenceMaxMs = pick.maxMs;
+            const baseInput = root.querySelector<HTMLInputElement>('#s-silence-base');
+            const maxInput = root.querySelector<HTMLInputElement>('#s-silence-max');
+            if (baseInput) baseInput.value = String(pick.baseMs / 1000);
+            if (maxInput) maxInput.value = String(pick.maxMs / 1000);
+            persist();
+            syncPausePreset(); // drops a stale Custom entry
+        });
+
         wireStepper('s-silence-base', settings.silenceBaseMs / 1000, (v) => {
             settings.silenceBaseMs = Math.round(v * 1000);
             persist();
+            syncPausePreset();
         });
         wireStepper('s-silence-max', settings.silenceMaxMs / 1000, (v) => {
             settings.silenceMaxMs = Math.round(v * 1000);
             persist();
+            syncPausePreset();
         });
         wireStepper('s-nonstream-base', settings.nonStreamingSilenceBaseMs / 1000, (v) => {
             settings.nonStreamingSilenceBaseMs = Math.round(v * 1000);
@@ -1779,7 +1838,10 @@ function renderLanguageSection(s: AppSettings): string {
     </section>`;
 }
 
-function renderTtsSection(s: AppSettings): string {
+/** The engine selector + ElevenLabs key row. Inlined in the TTS section on
+ *  desktop (where the selector manages real installs); shelved under Advanced
+ *  on web (renderAdvancedSettingsSection). One source, so ids/wiring match. */
+function renderTtsEngineControls(s: AppSettings): string {
     // aloud cloud is on every platform; macOS `say` and Piper live in the
     // desktop shell's loopback backend - offering them anywhere else (web,
     // phone) gives a silent voice. Mirrors sttEngineOptions' platform gating.
@@ -1801,20 +1863,6 @@ function renderTtsSection(s: AppSettings): string {
         )
         .join('');
     return `
-    <section class="settings-section" id="settings-tts">
-        <h2>Text-to-Speech <button type="button" class="info-btn" id="tts-info-btn" aria-label="TTS engine info">?</button></h2>
-        <div class="info-panel hidden" id="tts-info-panel">
-            <p><strong>aloud cloud</strong> - Natural hosted voices, metered from your credit balance. No setup.</p>
-            ${
-                isTauri()
-                    ? `<p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
-            <p><strong>Piper</strong> - Fast local neural TTS, ~60–100 MB per voice.</p>`
-                    : ''
-            }
-            <p><strong>Browser</strong> - Uses your browser's speechSynthesis. No install needed.</p>
-            <p><strong>ElevenLabs</strong> - Cloud TTS with the most natural voices. Requires an API key.</p>
-        </div>
-        <div class="form-row form-row-tts">
             <div class="form-group form-group-half" id="s-tts-engine-group">
                 <label for="s-tts-engine">Manage TTS Engines</label>
                 <select id="s-tts-engine" name="tts_engine">${opts}</select>
@@ -1829,7 +1877,41 @@ function renderTtsSection(s: AppSettings): string {
                     <span class="optional api-key-status"></span>
                 </label>
                 <input type="password" id="s-elevenlabs-key" placeholder="sk_..." autocomplete="off">
+            </div>`;
+}
+
+function renderTtsSection(s: AppSettings): string {
+    // Web: no local engines to install or manage, so the one decision that
+    // matters - the voice - is the whole section. The engine selector lives
+    // under Advanced (renderAdvancedSettingsSection).
+    if (isWebMode()) {
+        return `
+    <section class="settings-section" id="settings-tts">
+        <h2>Text-to-Speech</h2>
+        <div class="form-row form-row-tts">
+            <div class="form-group form-group-half" id="s-voice-group">
+                <label>Manage Voices</label>
+                <button type="button" id="s-voice-btn" class="setup-voice-btn">Choose voice</button>
             </div>
+        </div>
+    </section>`;
+    }
+    return `
+    <section class="settings-section" id="settings-tts">
+        <h2>Text-to-Speech <button type="button" class="info-btn" id="tts-info-btn" aria-label="TTS engine info">?</button></h2>
+        <div class="info-panel hidden" id="tts-info-panel">
+            <p><strong>aloud cloud</strong> - Natural hosted voices, metered from your credit balance. No setup.</p>
+            ${
+                isTauri()
+                    ? `<p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
+            <p><strong>Piper</strong> - Fast local neural TTS, ~60–100 MB per voice.</p>`
+                    : ''
+            }
+            <p><strong>Browser</strong> - Uses your browser's speechSynthesis. No install needed.</p>
+            <p><strong>ElevenLabs</strong> - Cloud TTS with the most natural voices. Requires an API key.</p>
+        </div>
+        <div class="form-row form-row-tts">
+            ${renderTtsEngineControls(s)}
             <div class="form-group form-group-half" id="s-voice-group">
                 <label>Manage Voices</label>
                 <button type="button" id="s-voice-btn" class="setup-voice-btn">Choose voice</button>
@@ -1923,43 +2005,74 @@ function renderDisplaySection(s: AppSettings): string {
     </section>`;
 }
 
-function renderPacingSection(s: AppSettings): string {
-    const stepper = (id: string, value: number, min: number, max: number, step: number) => `
+function stepperHTML(id: string, value: number, min: number, max: number, step: number): string {
+    return `
         <div class="stepper">
             <button type="button" class="stepper-btn stepper-dec" data-target="${id}" aria-label="Decrease">−</button>
             <input type="number" id="${id}" class="stepper-value" min="${min}" max="${max}" step="${step}" value="${value}">
             <button type="button" class="stepper-btn stepper-inc" data-target="${id}" aria-label="Increase">+</button>
         </div>`;
-    const pauseGroup = (
-        prefix: string,
-        base: number,
-        max: number
-    ) => `
+}
+
+function pauseGroupHTML(prefix: string, base: number, max: number): string {
+    return `
         <div class="form-row">
             <div class="form-group form-group-half">
                 <label>Minimum Pause (s)</label>
-                ${stepper(`${prefix}-base`, base, 1, 15, 0.5)}
+                ${stepperHTML(`${prefix}-base`, base, 1, 15, 0.5)}
                 <span class="form-hint">Pause before your speech is submitted.</span>
             </div>
             <div class="form-group form-group-half">
                 <label>Extended Pause (s)</label>
-                ${stepper(`${prefix}-max`, max, 1, 20, 0.5)}
+                ${stepperHTML(`${prefix}-max`, max, 1, 20, 0.5)}
                 <span class="form-hint">Pause tolerance after longer speech.</span>
             </div>
         </div>`;
+}
+
+/** Named stops for the pause-before-submit pair. Robin thinks "it cuts me
+ *  off" / "it waits too long", not in milliseconds; the exact steppers live
+ *  under Advanced. 'relaxed' is the shipped default pair. */
+const PAUSE_PRESETS = {
+    quick: { label: 'Quick', baseMs: 2000, maxMs: 3500 },
+    relaxed: { label: 'Relaxed', baseMs: 3000, maxMs: 5000 },
+    spacious: { label: 'Spacious', baseMs: 5000, maxMs: 8000 },
+} as const;
+type PausePresetKey = keyof typeof PAUSE_PRESETS;
+
+function matchPausePreset(s: AppSettings): PausePresetKey | null {
+    for (const [key, p] of Object.entries(PAUSE_PRESETS) as [
+        PausePresetKey,
+        (typeof PAUSE_PRESETS)[PausePresetKey],
+    ][]) {
+        if (s.silenceBaseMs === p.baseMs && s.silenceMaxMs === p.maxMs) return key;
+    }
+    return null;
+}
+
+function customPauseLabel(s: AppSettings): string {
+    return `Custom (${s.silenceBaseMs / 1000}s / ${s.silenceMaxMs / 1000}s)`;
+}
+
+function renderPacingSection(s: AppSettings): string {
+    const active = matchPausePreset(s);
+    const presetOpts =
+        (Object.entries(PAUSE_PRESETS) as [PausePresetKey, (typeof PAUSE_PRESETS)[PausePresetKey]][])
+            .map(
+                ([key, p]) =>
+                    `<option value="${key}"${key === active ? ' selected' : ''}>${p.label} (${p.baseMs / 1000}s)</option>`
+            )
+            .join('') +
+        (active ? '' : `<option value="custom" selected>${customPauseLabel(s)}</option>`);
     return `
     <section class="settings-section">
         <h2>Pacing</h2>
-        <h3 class="pacing-subhead">Pause before submitting user response</h3>
-        ${pauseGroup('s-silence', s.silenceBaseMs / 1000, s.silenceMaxMs / 1000)}
-        <!-- The non-streaming pair applies to exactly one provider (the Claude
-             subscription can't speak until fully generated), so it only shows
-             while that provider is the default - jargon-free page for everyone
-             else. Kept in the DOM so the steppers stay wired across toggles. -->
-        <div id="s-nonstream-group"${s.defaultProvider === 'claude_proxy' ? '' : ' class="hidden"'}>
-            <h3 class="pacing-subhead">Pause before submitting (Anthropic subscription)</h3>
-            <p class="form-hint pacing-subhead-note">This provider doesn't stream, so a shorter pause cuts latency.</p>
-            ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label for="s-pause-preset">Pause before responding</label>
+                <select id="s-pause-preset">${presetOpts}</select>
+                <span class="form-hint">How long a pause in your speech ends your turn. Exact values under Advanced.</span>
+            </div>
         </div>
         <h3 class="pacing-subhead" id="settings-checkins">Check-Ins After Silence (Exploration Mode)</h3>
         <div class="form-row">
@@ -1974,7 +2087,7 @@ function renderPacingSection(s: AppSettings): string {
                             <input type="radio" name="s-checkin-mode" value="simple"${s.checkinTiming === 'simple' ? ' checked' : ''}>
                             <span>Every (s)</span>
                         </label>
-                        ${stepper('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
+                        ${stepperHTML('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
                     </div>
                     <label class="radio-label">
                         <input type="radio" name="s-checkin-mode" value="smart"${s.checkinTiming === 'smart' ? ' checked' : ''}>
@@ -1990,7 +2103,7 @@ function renderPacingSection(s: AppSettings): string {
                     <input type="checkbox" id="s-auto-quit"${s.autoQuitAfterSilence ? ' checked' : ''}>
                     <span>Auto-save and quit after silence (min)</span>
                 </label>
-                ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
+                ${stepperHTML('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
                 <span class="form-hint">An open session keeps listening and checking in, which can slowly consume cloud credits if in use.</span>
             </div>
         </div>
@@ -1998,12 +2111,6 @@ function renderPacingSection(s: AppSettings): string {
 }
 
 function renderSessionLogsSection(s: AppSettings): string {
-    const stepper = (id: string, value: number, min: number, max: number, step: number) => `
-        <div class="stepper">
-            <button type="button" class="stepper-btn stepper-dec" data-target="${id}" aria-label="Decrease">−</button>
-            <input type="number" id="${id}" class="stepper-value" min="${min}" max="${max}" step="${step}" value="${value}">
-            <button type="button" class="stepper-btn stepper-inc" data-target="${id}" aria-label="Increase">+</button>
-        </div>`;
     return `
     <section class="settings-section">
         <h2>Session History</h2>
@@ -2020,10 +2127,12 @@ function renderSessionLogsSection(s: AppSettings): string {
 }
 
 /**
- * Collapsed shelf for the rarely-touched expert toggles, so the main page
- * stays readable ("the settings screen is quite complex" - field feedback).
- * The controls keep their ids: their wiring (wirePacingSection /
- * wireSessionLogsSection) finds them here just the same.
+ * Collapsed shelf for the rarely-touched expert controls, so the main page
+ * stays readable ("the settings screen is quite complex" - field feedback):
+ * the exact pause steppers behind the Pacing preset, the web build's TTS
+ * engine selector (no install work to manage there, unlike desktop), and the
+ * expert toggles. Controls keep their ids: their wiring (wirePacingSection /
+ * wireTtsSection / wireSessionLogsSection) finds them here just the same.
  */
 function renderAdvancedSettingsSection(s: AppSettings): string {
     return `
@@ -2032,6 +2141,25 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
         <button type="button" class="btn btn-secondary settings-advanced-toggle" id="s-advanced-toggle"
             aria-expanded="false" aria-controls="s-advanced-body">Show advanced settings</button>
         <div class="settings-advanced-body hidden" id="s-advanced-body">
+            <h3 class="pacing-subhead">Pause before submitting user response</h3>
+            ${pauseGroupHTML('s-silence', s.silenceBaseMs / 1000, s.silenceMaxMs / 1000)}
+            <!-- The non-streaming pair applies to exactly one provider (the
+                 Claude subscription can't speak until fully generated), so it
+                 only shows while that provider is the default. Kept in the DOM
+                 so the steppers stay wired across toggles. -->
+            <div id="s-nonstream-group"${s.defaultProvider === 'claude_proxy' ? '' : ' class="hidden"'}>
+                <h3 class="pacing-subhead">Pause before submitting (Anthropic subscription)</h3>
+                <p class="form-hint pacing-subhead-note">This provider doesn't stream, so a shorter pause cuts latency.</p>
+                ${pauseGroupHTML('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
+            </div>
+            ${
+                // Desktop's engine selector does real management (Piper installs,
+                // macOS voice settings) and stays in the TTS section; on web it
+                // only swaps hints + the ElevenLabs key row, so it shelves here.
+                isWebMode()
+                    ? `<div class="form-row form-row-tts">${renderTtsEngineControls(s)}</div>`
+                    : ''
+            }
             <div class="form-row">
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
