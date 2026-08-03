@@ -1682,7 +1682,7 @@ function renderProviderSection(s: AppSettings): string {
     const keyRows = ALL_PROVIDERS.filter((p) => p.needsKey)
         .map(
             (p) => `
-        <div class="form-group api-key-group" id="s-key-row-${p.value}" hidden>
+        <div class="form-group api-key-group hidden" id="s-key-row-${p.value}">
             <label for="s-key-${p.value}">${escape(p.label)} API Key
                 <span class="optional api-key-status"></span>
             </label>
