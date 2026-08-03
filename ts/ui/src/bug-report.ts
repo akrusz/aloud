@@ -45,6 +45,7 @@ async function sttDiagnostics(): Promise<string[]> {
     } catch {
         // settings unreadable - skip
     }
+    let whisperReady = false;
     if (isTauri()) {
         try {
             const res = await withTimeout(
@@ -65,6 +66,7 @@ async function sttDiagnostics(): Promise<string[]> {
             }
             const w = info.whisper;
             if (w) {
+                whisperReady = w.ready === true;
                 lines.push(
                     `Whisper backend: ${w.ready ? 'ready' : w.error ? `failed (${w.error})` : 'loading'}`
                 );
@@ -72,6 +74,39 @@ async function sttDiagnostics(): Promise<string[]> {
         } catch (err) {
             const detail = err instanceof Error ? err.message : String(err);
             lines.push(`Whisper backend: unreachable (${detail})`);
+        }
+        // "ready" means the model FILE loaded - it has produced a size-correct
+        // but content-bad model before (d30z: transcription dead until a manual
+        // delete + re-download). Half a second of silence through the real
+        // endpoint proves the whole path decodes.
+        if (whisperReady) {
+            try {
+                const t0 = performance.now();
+                const res = await withTimeout(
+                    fetch(appUrl('/stt/whisper?sample_rate=16000'), {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/octet-stream' },
+                        body: new Float32Array(8000).buffer,
+                    }),
+                    10_000,
+                    'timed out'
+                );
+                const ms = Math.round(performance.now() - t0);
+                if (!res.ok) {
+                    const detail = (await res.text().catch(() => '')).slice(0, 120);
+                    lines.push(`Whisper roundtrip: failed (${res.status}${detail ? `: ${detail}` : ''})`);
+                } else {
+                    const data = (await res.json()) as { text?: string; error?: string };
+                    lines.push(
+                        data.error === undefined
+                            ? `Whisper roundtrip: ok (${ms}ms, silence -> "${(data.text ?? '').trim()}")`
+                            : `Whisper roundtrip: failed (${data.error})`
+                    );
+                }
+            } catch (err) {
+                const detail = err instanceof Error ? err.message : String(err);
+                lines.push(`Whisper roundtrip: failed (${detail})`);
+            }
         }
     }
     try {
@@ -90,8 +125,20 @@ async function sttDiagnostics(): Promise<string[]> {
     // round-trip and three.
     const vadMod = await import('./adapters/silero-vad.js');
     try {
-        await withTimeout(vadMod.loadSileroVad(), 5000, 'load timed out');
-        lines.push('VAD: ok');
+        const vad = await withTimeout(vadMod.loadSileroVad(), 5000, 'load timed out');
+        // Loading only proves the ONNX session CREATES; the 6z11 bug class can
+        // also fail at inference, which is invisible in a session (the engine
+        // falls back to energy) - so actually run the model here.
+        try {
+            const prob = await withTimeout(vad.probe(), 3000, 'inference timed out');
+            const health = vad.runFailures
+                ? `, ${vad.runFailures} run failures this session (last: ${vad.lastRunError})`
+                : '';
+            lines.push(`VAD: ok (probe prob=${prob.toFixed(3)}${health})`);
+        } catch (err) {
+            const detail = err instanceof Error ? err.message : String(err);
+            lines.push(`VAD: loads but inference FAILS (${detail})`);
+        }
     } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
         // The recorded load error carries both create attempts' messages and

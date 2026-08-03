@@ -245,6 +245,12 @@ export class WhisperPcmSttEngine implements SttEngine {
         try {
             const { loadSileroVad } = await import('./silero-vad.js');
             const vad = await loadSileroVad();
+            // Loaded but inference doesn't run on this machine (silero-vad.ts
+            // `broken`): treat like a load failure - energy decision.
+            if (vad.broken) {
+                this.silero = null;
+                return;
+            }
             if (this.silero !== vad) {
                 vad.reset();
                 this.silero = vad;
@@ -314,6 +320,14 @@ export class WhisperPcmSttEngine implements SttEngine {
         const now = performance.now();
 
         this.levelListener?.(energy);
+
+        // Inference stopped working mid-stream (repeated run() failures -
+        // silero-vad.ts): drop the model NOW rather than at the next start(),
+        // or `speaking` stays false and this utterance is deaf.
+        if (this.silero?.broken) {
+            console.warn('[vad] silero broken mid-stream - using the energy speech decision');
+            this.silero = null;
+        }
 
         // Feed the neural VAD every frame, capturing or not - its recurrent
         // state assumes an unbroken stream, and classifying during idle keeps

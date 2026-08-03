@@ -41,6 +41,13 @@ const SPEECH_OFF = 0.35;
 // Once inference is this many chunks (~1s) behind realtime, drop rather than
 // queue unboundedly. Costs a little state continuity, not memory.
 const MAX_PENDING_CHUNKS = 32;
+// Session create succeeding doesn't prove run() does - the 6z11 ort-web bug
+// class is machine-specific and can surface at inference time instead, where
+// the per-chunk catch used to swallow it silently: `speaking` stayed false
+// forever and the app sat deaf with `VAD: ok` in the diagnostics. After this
+// many consecutive run failures (~⅓s of audio) the instance declares itself
+// broken so the engine drops to the energy speech decision.
+const BROKEN_AFTER_FAILURES = 10;
 
 /** What SileroFrameVad needs of the model; the ONNX runner below is the only
  *  real implementation (tests inject fakes). */
@@ -107,6 +114,14 @@ export class SileroFrameVad {
     speaking = false;
     /** Latest raw speech probability (diagnostics / tuning). */
     lastProb = 0;
+    /** run() has failed BROKEN_AFTER_FAILURES times in a row - `speaking` can
+     *  no longer be trusted and the engine should fall back to energy. */
+    broken = false;
+    /** Total run() failures this instance (diagnostics). */
+    runFailures = 0;
+    /** Most recent run() failure message (diagnostics). */
+    lastRunError: string | null = null;
+    private consecutiveFailures = 0;
 
     // Streaming resampler state: unconsumed native-rate residue and the
     // fractional read position into it, carried across feed() calls so
@@ -209,13 +224,27 @@ export class SileroFrameVad {
         this.queue = this.queue
             .then(() => this.model.process(chunk))
             .then((p) => {
+                this.consecutiveFailures = 0;
                 this.lastProb = p.isSpeech;
                 if (p.isSpeech >= SPEECH_ON) this.speaking = true;
                 else if (p.isSpeech < SPEECH_OFF) this.speaking = false;
             })
-            .catch(() => {
+            .catch((err) => {
                 // A single failed inference shouldn't kill the chain; the next
-                // chunk proceeds with slightly stale state.
+                // chunk proceeds with slightly stale state. But an unbroken run
+                // of failures means inference doesn't work on this machine at
+                // all - record it (console.error lands in the bug-report error
+                // log) and flag `broken` so the engine stops trusting us.
+                this.runFailures++;
+                this.lastRunError = errText(err);
+                if (++this.consecutiveFailures >= BROKEN_AFTER_FAILURES && !this.broken) {
+                    this.broken = true;
+                    this.speaking = false;
+                    console.error(
+                        '[vad] silero inference keeps failing - falling back to energy:',
+                        this.lastRunError
+                    );
+                }
             })
             .finally(() => {
                 this.pending--;
@@ -236,6 +265,22 @@ export class SileroFrameVad {
         this.queue = this.queue
             .then(() => this.model.reset_state())
             .catch(() => {});
+    }
+
+    /**
+     * One direct inference over a silence chunk - the bug report's "does run()
+     * actually work" check, since create() succeeding doesn't prove it (6z11).
+     * Serialized behind the live queue so it can't interleave with a streaming
+     * chunk; the one silence chunk barely perturbs the recurrent state.
+     * Resolves with the speech probability; rejects with the run error.
+     */
+    probe(): Promise<number> {
+        const run = this.queue.then(() => this.model.process(new Float32Array(CHUNK_SAMPLES)));
+        this.queue = run.then(
+            () => undefined,
+            () => undefined
+        );
+        return run.then((p) => p.isSpeech);
     }
 
     /** Drain in-flight inference and free the ort session. */

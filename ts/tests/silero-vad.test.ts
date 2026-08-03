@@ -112,6 +112,64 @@ describe('SileroFrameVad', () => {
         vad.feed(new Float32Array(64 * 512 + 1), 16_000);
         expect(vad.droppedChunks).toBe(32);
     });
+
+    it('declares itself broken after 10 consecutive inference failures', async () => {
+        const failing: SileroModel = {
+            async process() {
+                throw new Error('Could not find OrtValue');
+            },
+            reset_state() {},
+            release: async () => {},
+        };
+        const vad = new SileroFrameVad(failing);
+        vad.feed(new Float32Array(10 * 512 + 1), 16_000);
+        await vad.release();
+        expect(vad.broken).toBe(true);
+        expect(vad.speaking).toBe(false);
+        expect(vad.runFailures).toBe(10);
+        expect(vad.lastRunError).toContain('OrtValue');
+    });
+
+    it('a success resets the consecutive-failure count', async () => {
+        // Alternate fail/succeed: failures never accumulate to the limit.
+        let calls = 0;
+        const flaky: SileroModel = {
+            async process() {
+                if (calls++ % 2 === 0) throw new Error('transient');
+                return { isSpeech: 0.9, notSpeech: 0.1 };
+            },
+            reset_state() {},
+            release: async () => {},
+        };
+        const vad = new SileroFrameVad(flaky);
+        vad.feed(new Float32Array(30 * 512 + 1), 16_000);
+        await vad.release();
+        expect(vad.broken).toBe(false);
+        expect(vad.runFailures).toBe(15);
+        expect(vad.speaking).toBe(true);
+    });
+
+    it('probe runs one real inference and resolves with the probability', async () => {
+        const model = fakeModel(() => 0.7);
+        const vad = new SileroFrameVad(model);
+        await expect(vad.probe()).resolves.toBeCloseTo(0.7, 6);
+        expect(model.chunks).toHaveLength(1);
+        expect(model.chunks[0]!.length).toBe(512);
+    });
+
+    it('probe rejects with the inference error', async () => {
+        const failing: SileroModel = {
+            async process() {
+                throw new Error('graph output does not exist');
+            },
+            reset_state() {},
+            release: async () => {},
+        };
+        const vad = new SileroFrameVad(failing);
+        await expect(vad.probe()).rejects.toThrow('graph output does not exist');
+        // The chain survives a failed probe: a later chunk still classifies.
+        await vad.release();
+    });
 });
 
 interface Run {
