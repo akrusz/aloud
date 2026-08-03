@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meditation Pal. the CLI era</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --ground: #d9dbd7;
+    --panel: #eceeea;
+    --ink: #1b1e1c;
+    --ink-soft: #4e5551;
+    --ink-faint: #6d7570;
+    --accent: #3f6b60;
+    --rule: #bcc0bb;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #14171a;
+      --panel: #1c2023;
+      --ink: #e7eae7;
+      --ink-soft: #a9b2ad;
+      --ink-faint: #7d8783;
+      --accent: #7fb3a3;
+      --rule: #2d3336;
+      color-scheme: dark;
+    }
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: clamp(28px, 6vw, 72px) clamp(18px, 5vw, 40px) 72px;
+  }
+
+  .standfirst code, .caption code {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    color: var(--accent);
+  }
+
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+  }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  h1 {
+    font-size: clamp(26px, 4.4vw, 38px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: 16.5px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  /* --- Terminal.app window --- */
+  .shot { display: flex; flex-direction: column; gap: 12px; }
+
+  .window {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.16), 0 22px 48px -12px rgba(0,0,0,0.42);
+    max-width: 100%;
+  }
+
+  .titlebar {
+    background: linear-gradient(#e4e4e4, #d3d3d3);
+    border-bottom: 1px solid #b4b4b4;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    position: relative;
+  }
+  .lights { display: flex; gap: 8px; z-index: 1; }
+  .light { width: 12px; height: 12px; border-radius: 50%; }
+  .light.r { background: #ff5f57; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.14); }
+  .light.y { background: #febc2e; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.14); }
+  .light.g { background: #28c840; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.14); }
+  .wtitle {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: #4a4a4a;
+    pointer-events: none;
+    padding: 0 90px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  /* screen colors are the Terminal profile: edit these two to reskin the shot */
+  .screen {
+    background: #27341a;
+    color: #c0e1ce;
+    padding: 10px 12px 16px;
+    overflow-x: auto;
+  }
+  .screen pre {
+    margin: 0;
+    font-family: Menlo, ui-monospace, "SF Mono", SFMono-Regular, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    white-space: pre;
+    tab-size: 8;
+  }
+  .cursor {
+    display: inline-block;
+    width: 7.5px;
+    height: 15px;
+    background: #c0e1ce;
+    vertical-align: -3px;
+    animation: blink 1.06s steps(1, end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .cursor { animation: none; }
+  }
+
+  .caption {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-faint);
+    max-width: 72ch;
+    margin: 0;
+  }
+
+  /* --- provenance --- */
+  .facts {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 10px 22px;
+    font-size: 14px;
+    align-items: baseline;
+  }
+  @media (max-width: 520px) {
+    .facts { grid-template-columns: 1fr; gap: 3px 0; }
+    .facts dd { margin-bottom: 10px; }
+  }
+  .facts dt {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .facts dd { margin: 0; color: var(--ink); }
+  .facts .dim { color: var(--ink-faint); }
+  .facts code {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-faint);
+    max-width: 68ch;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Reconstruction · not a real capture</p>
+    <h1>Meditation Pal, before it had a screen</h1>
+    <p class="standfirst">
+      For its first three weeks, aloud was a voice CLI you ran with <code>python -m src</code> and talked to.
+      No one ever screenshotted it. This is what it printed, rebuilt from the source.
+    </p>
+  </header>
+
+  <div class="shot">
+    <div class="window">
+      <div class="titlebar">
+        <div class="lights"><span class="light r"></span><span class="light y"></span><span class="light g"></span></div>
+        <div class="wtitle">meditation-pal — python -m src — 80×24</div>
+      </div>
+      <div class="screen">
+<pre>akrusz@Alexs-MacBook-Pro meditation-pal % python -m src
+
+============================================================
+  Somatic Exploration Meditation Facilitator
+============================================================
+
+Initializing...
+Listening... (Ctrl+C to end session)
+
+
+Facilitator: Taking a moment to arrive... what do you notice?
+(listening...)
+
+Meditator: there's a tightness in my chest, kind of high up
+
+Facilitator: Mmm. Can you stay with that tightness a moment? Does it
+have edges?
+(listening...)
+
+Meditator: it's more like a band. it softens a little when I breathe out
+
+Facilitator: Nice noticing. Let the out-breath do that on its own.
+
+Facilitator: Still here with you.
+(listening...)
+
+Meditator: I want to just sit with this for a while
+
+Facilitator: Going quiet with you.
+
+^C
+
+Ending session...
+
+Session saved to: sessions/2026-02-09T18-42-11.json
+
+Session ended. Be well.
+
+akrusz@Alexs-MacBook-Pro meditation-pal % <span class="cursor"></span></pre>
+      </div>
+    </div>
+    <p class="caption">
+      Every fixed string above - the banner, <code>(listening...)</code>, the role labels, the save path,
+      the sign-off - is a literal from <code>src/main.py</code> and <code>src/facilitation/prompts.py</code>.
+      The meditator's speech and the facilitator's two generated replies are invented; the rest of the
+      dialogue is drawn from the canned pools.
+    </p>
+  </div>
+
+  <dl class="facts">
+    <dt>Named</dt>
+    <dd>Jan 31 - Feb 19, 2026 <span class="dim">(19 days)</span></dd>
+
+    <dt>Source</dt>
+    <dd><code>5d6b8dd</code> - the last commit before the web UI took over the README</dd>
+
+    <dt>Renamed by</dt>
+    <dd><code>16c1887</code> "new name! glooow" - which later became aloud</dd>
+
+    <dt>Stack</dt>
+    <dd>Python, Whisper STT, macOS <code>say</code> / Piper TTS, Claude proxy</dd>
+  </dl>
+
+  <footer>
+    "Gently coming back... taking your time." was hardcoded here - no model, no timer, just the last
+    thing printed before the process exited. That instinct survived every rewrite: it's the session
+    timer's spoken closing word now.
+  </footer>
+</div>
+
+</body>
+</html>
