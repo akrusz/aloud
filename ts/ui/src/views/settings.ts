@@ -1862,6 +1862,9 @@ function renderTtsSection(s: AppSettings): string {
                 <label>Manage Voices</label>
                 <button type="button" id="s-voice-btn" class="setup-voice-btn">Choose voice</button>
             </div>
+            <!-- Empty slot: a lone flex child stretches to the full row.
+                 Collapses when the row stacks (mobile). -->
+            <div class="form-group form-group-half slot-hidden" aria-hidden="true"></div>
         </div>
     </section>`;
     }
