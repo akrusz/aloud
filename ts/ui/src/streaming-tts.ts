@@ -19,6 +19,7 @@ import {
     NEXT_PREFIX,
     BACK_PREFIX,
     WAIT_PREFIX,
+    findRoleLeak,
     matchWaitToken,
     parseTurnSignals,
     scrubControlTokens,
@@ -243,6 +244,17 @@ export async function streamCompletionWithChunkedTts(
             // Hold speech until the prefix decision lands, so a partial "[HOL"
             // or "[NE" is never voiced.
             if (!prefixChecked) continue;
+
+            // Checked against fullText, not the pending buffer: the leak's
+            // anchor is the sentence end before it, which a sentence split has
+            // usually already handed to TTS.
+            const leak = findRoleLeak(fullText);
+            if (leak >= 0) {
+                const keep = leak - (fullText.length - pendingTtsText.length);
+                enqueueSpeak(pendingTtsText.slice(0, Math.max(0, keep)));
+                pendingTtsText = '';
+                break; // stop consuming; the caller re-parses fullText anyway
+            }
 
             const split = splitOffSentences(pendingTtsText);
             for (const sentence of split.complete) {

@@ -83,6 +83,8 @@ export {
     parseTurnSignals,
     matchWaitToken,
     scrubControlTokens,
+    findRoleLeak,
+    stripRoleLeak,
     StagedModeController,
     EXPLORATION_MODE,
     NOTING_MODE,

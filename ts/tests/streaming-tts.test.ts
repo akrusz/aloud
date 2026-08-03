@@ -452,3 +452,45 @@ describe('streamCompletionWithChunkedTts', () => {
         expect(deltas).toEqual(['Hello', 'Hello there.']);
     });
 });
+
+describe('role-leak guard in the streaming path', () => {
+    it('never speaks a fabricated turn, and stops consuming the stream', async () => {
+        const tts = new RecordingTts();
+        // Chunked so the leak lands mid-stream, after a sentence already went
+        // to TTS - the case the pending-buffer index math has to get right.
+        const provider = new FakeStreamingProvider([
+            "What's the skeptical part",
+            ' saying as it comes back?',
+            ' user I have this suspicion',
+            " that I don't want to notice anything.",
+            " assistant So there's a wanting to skip ahead.",
+        ]);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'the skeptical part came back' },
+        ]);
+        await result.ttsDone;
+
+        expect(tts.spoken).toEqual(["What's the skeptical part saying as it comes back?"]);
+        expect(tts.spoken.join(' ')).not.toMatch(/suspicion|skip ahead/);
+        // Stream stopped at the leak rather than draining every chunk.
+        expect(result.text).not.toContain('skip ahead');
+    });
+
+    it('leaves a clean reply alone', async () => {
+        const tts = new RecordingTts();
+        const provider = new FakeStreamingProvider([
+            'What does that',
+            ' feel like in your nervous system?',
+            ' Take your time.',
+        ]);
+        const result = await streamCompletionWithChunkedTts(provider, tts, [
+            { role: 'user', content: 'tense' },
+        ]);
+        await result.ttsDone;
+        expect(result.text).toBe('What does that feel like in your nervous system? Take your time.');
+        expect(tts.spoken).toEqual([
+            'What does that feel like in your nervous system?',
+            'Take your time.',
+        ]);
+    });
+});

@@ -198,6 +198,36 @@ const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad)\b[^>]*>[\s\S]
 const XML_TAG_RE = /<\/?[a-z][\w.:-]*(?:\s[^<>]*?)?\/?>/gi;
 
 /**
+ * Where a reply stops being the reply and starts being a fabricated transcript:
+ * the model continuing past its own turn to write the meditator's next line
+ * (seen in the wild from Opus via a role-labeled example block since removed
+ * from BASE_SYSTEM_PROMPT). Left in, it gets spoken AND stored, and the stored
+ * copy re-teaches the pattern for the rest of the session.
+ *
+ * Deliberately narrow, since a false positive truncates a real reply mid-sit:
+ * a chat delimiter, a line-start "Role:", or a bare lowercase user/assistant
+ * that opens a new sentence. Only those two role words match bare - "human" and
+ * "system" are ordinary meditation words ("nervous system").
+ */
+const ROLE_LEAK_RE =
+    /<\|[a-z_]+\|>|^[ \t]*(?:user|assistant|human|system)[ \t]*:|(?:[.!?…"']\s+|\n\s*)(user|assistant)\s+(?=["'“]?[A-Z])/im;
+
+/** Index where a role leak starts, or -1. Exported for the streaming path. */
+export function findRoleLeak(text: string): number {
+    const m = ROLE_LEAK_RE.exec(text);
+    if (!m) return -1;
+    // Group 1 is the bare-word form; cut at the word, keeping the sentence that
+    // ends just before it (that part is the genuine reply).
+    return m[1] === undefined ? m.index : m.index + m[0].indexOf(m[1]);
+}
+
+/** Truncate at a role leak, or return `text` unchanged. */
+export function stripRoleLeak(text: string): string {
+    const at = findRoleLeak(text);
+    return at < 0 ? text : text.slice(0, at).trimEnd();
+}
+
+/**
  * Remove control tokens ANYWHERE in text about to be spoken. Small models
  * misplace them mid-reply ("Sure. [HOLD] Want some quiet?"); a misplaced token
  * is never honored (signals parse leading-only) but would otherwise be read
@@ -262,7 +292,9 @@ export function parseTurnSignals(response: string): TurnSignals {
         else if (named.name === 'BACK') { if (stage === 'none') stage = 'back'; }
         text = text.slice(named.length).trimStart();
     }
-    return { hold, stage, waitSec, cleanText: scrubControlTokens(text) };
+    // Truncate before scrubbing: whatever follows a leak is transcript, not
+    // reply, and this is the path whose output reaches history.
+    return { hold, stage, waitSec, cleanText: scrubControlTokens(stripRoleLeak(text)) };
 }
 
 // Staged-mode controller

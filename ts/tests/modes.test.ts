@@ -10,6 +10,7 @@ import {
     NEXT_PREFIX,
     BACK_PREFIX,
     type ModeSpec,
+    stripRoleLeak,
 } from '../src/facilitation/modes.js';
 import { FELT_SENSE_MODE } from '../src/facilitation/felt-sense.js';
 import { BASE_SYSTEM_PROMPT, PromptBuilder } from '../src/facilitation/prompts.js';
@@ -365,5 +366,38 @@ describe('PromptBuilder with a mode', () => {
         expect(bare).toContain('Attention focus');
         expect(bare).toContain('Facilitator vibe');
         expect(bare).toContain('Additional instructions from the meditator:\nextra');
+    });
+});
+
+describe('stripRoleLeak', () => {
+    // The actual leak from the field report (Opus, exploration mode).
+    const REAL = `What's the skeptical part saying as it comes back? user I have this suspicion that I don't want to notice anything, that I somehow want to just get past it. assistant So there's a wanting to skip ahead, past the noticing.`;
+
+    it('truncates the field-report leak at the fabricated turn', () => {
+        expect(stripRoleLeak(REAL)).toBe(
+            "What's the skeptical part saying as it comes back?"
+        );
+    });
+
+    it.each([
+        ['chat delimiter', 'Resting here.<|im_start|>user\nokay', 'Resting here.'],
+        ['line-start label', 'Just be with it.\nAssistant: What now?', 'Just be with it.'],
+        ['newline-separated bare word', 'What do you notice?\n\nuser "I feel warm"', 'What do you notice?'],
+    ])('truncates a %s', (_name, input, want) => {
+        expect(stripRoleLeak(input)).toBe(want);
+    });
+
+    // False positives truncate a real reply mid-sit, so these matter more than
+    // catching every leak.
+    it.each([
+        'What does that feel like in your nervous system?',
+        'Something human is happening there. Can you stay with it?',
+        'Notice the user of that thought. Who is noticing?',
+        'You are the assistant to your own attention here.',
+        "There's tension in my shoulders. Users of this practice often find that.",
+        'Just letting that continue, however it wants to.',
+        'What would you say to that part? "I see you," maybe.',
+    ])('leaves ordinary facilitation untouched: %s', (text) => {
+        expect(stripRoleLeak(text)).toBe(text);
     });
 });
