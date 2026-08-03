@@ -163,13 +163,15 @@ ${STAT}
 
 Write for users of the app, not for developers: what they can now do or what stopped being broken. Group the user-visible work; drop pure refactors, test-only changes, and dependency bumps unless they change behavior. Read a file only if a commit message is too terse to interpret.
 
+This is a brief overview of what's new, not detailed patch notes. About five lines is the target - fewer is better, and a release with one real change gets one bullet. Fold related work into a single bullet and leave out the small stuff rather than listing everything.
+
 Keep it terse - these are read at a glance. Each bullet is one clause, ideally under 10 words, no trailing explanation of the mechanism. 'Fallback for STT when Silero fails' is the right length; a full sentence is too long.
 
 The title is the release's name, so give it some charm: cute or a little poetic, Title Case, five words at most and ideally two to four. 'Clouds, Explained' and 'The Quiet Part' are good; 'Mic reliability and various model picker improvements' is too long and too flat. Name the release's center of gravity, not every bullet in it.
 
 Output exactly this shape and nothing else:
 TITLE: <the name>
-then a blank line, then 2-6 lines, each one short bullet starting with '- '.
+then a blank line, then 1-5 lines, each one short bullet starting with '- '.
 No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). Plain, concrete phrasing." </dev/null 2>/dev/null || echo "")
             SUGGESTED_NAME=$(printf '%s' "$DRAFT" | grep -m1 '^TITLE:' | sed -E 's/^TITLE: *//' || true)
             BULLETS=$(printf '%s' "$DRAFT" | grep '^- ' || true)
