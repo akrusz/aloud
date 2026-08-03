@@ -48,6 +48,8 @@ const MAX_PENDING_CHUNKS = 32;
 // many consecutive run failures (~⅓s of audio) the instance declares itself
 // broken so the engine drops to the energy speech decision.
 const BROKEN_AFTER_FAILURES = 10;
+/** ort's numeric log severity for "error and above" (0 verbose … 4 fatal). */
+const SEVERITY_ERROR = 3;
 
 /** What SileroFrameVad needs of the model; the ONNX runner below is the only
  *  real implementation (tests inject fakes). */
@@ -148,12 +150,19 @@ export class SileroFrameVad {
         // The /wasm entry is the *bundle* build (JS loader inlined), so the
         // .wasm binary is the only runtime asset ort needs to locate.
         ort.env.wasm.wasmPaths = { wasm: new URL(wasmUrl, location.href).href };
+        // The graph optimizer warns (via console.error, ANSI-coloured) about
+        // every unused initializer in the Silero model on each load. Harmless,
+        // but it lands in the bug-report error log and crowds out real lines.
+        // Errors still get through; create failures throw regardless.
+        ort.env.logLevel = 'error';
         const res = await fetch(modelUrl);
         if (!res.ok) throw new Error(`Silero model fetch failed: ${res.status}`);
         const modelBytes = await res.arrayBuffer();
         let session: InferenceSession;
         try {
-            session = await ort.InferenceSession.create(modelBytes);
+            session = await ort.InferenceSession.create(modelBytes, {
+                logSeverityLevel: SEVERITY_ERROR,
+            });
         } catch (optErr) {
             // Kept as a belt-and-braces retry: the graph optimizer is where
             // ort-web's webview-specific session-create failures have come from
@@ -166,6 +175,7 @@ export class SileroFrameVad {
             try {
                 session = await ort.InferenceSession.create(modelBytes, {
                     graphOptimizationLevel: 'disabled',
+                    logSeverityLevel: SEVERITY_ERROR,
                 });
             } catch (unoptErr) {
                 // Surface BOTH failures: this bug class varies by machine
