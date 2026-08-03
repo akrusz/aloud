@@ -12,6 +12,7 @@ import {
     defaultWaitSeconds,
     parseHoldSignal,
 } from '../src/facilitation/prompts.js';
+import { listModes } from '../src/facilitation/modes.js';
 
 const DETERMINISTIC_RNG = () => 0; // always picks the first element
 
@@ -178,5 +179,45 @@ describe('PromptBuilder.getCheckInPrompt', () => {
     it('returns a non-empty phrase from the pool', () => {
         const builder = new PromptBuilder({ random: DETERMINISTIC_RNG });
         expect(builder.getCheckInPrompt()).toBe(CHECK_IN_PROMPTS[0]);
+    });
+});
+
+/**
+ * A system prompt must never contain a role-labeled transcript. Turn boundaries
+ * belong to the protocol; demonstrating them in prompt text invites the model to
+ * continue the alternation past its own turn and write the meditator's next line
+ * (which then lands in history and re-teaches the pattern). Cost us a real
+ * session: an "Example exchanges: / User: … / Assistant: …" block in
+ * BASE_SYSTEM_PROMPT. Examples are fine - the labeled transcript SHAPE is not.
+ */
+describe('no role-labeled transcripts in assembled prompts', () => {
+    const ROLE_LABEL_LINE = /^\s*(?:user|assistant|human|system)\s*:/im;
+
+    const everySection = [
+        ...Object.values(FOCUS_PROMPTS),
+        ...Object.values(QUALITY_PROMPTS),
+        ...Object.values(DIRECTIVENESS_ADDITIONS),
+        BASE_SYSTEM_PROMPT,
+        DIMENSIONS_PREAMBLE,
+        WAIT_SIGNAL_FRAGMENT,
+    ].filter((s): s is string => typeof s === 'string');
+
+    it.each(everySection.map((s, i) => [i, s]))('section %i is clean', (_i, section) => {
+        expect(section).not.toMatch(ROLE_LABEL_LINE);
+    });
+
+    it.each(listModes().map((m) => [m.id, m]))('mode %s composes clean', (_id, mode) => {
+        const builder = new PromptBuilder({
+            mode,
+            config: {
+                focuses: ['body', 'emotions', 'parts', 'open_awareness'],
+                qualities: Object.keys(QUALITY_PROMPTS) as never,
+                directiveness: 7,
+                verbosity: 'high',
+                waitSignal: true,
+                customInstructions: 'be gentle',
+            },
+        });
+        expect(builder.buildSystemPrompt()).not.toMatch(ROLE_LABEL_LINE);
     });
 });

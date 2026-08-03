@@ -140,21 +140,12 @@ Sometimes meditation naturally deepens into states of absorption, flow, or jhana
 
 ${REALTIME_VOICE_FRAGMENT}
 
-Example exchanges:
-User: "There's some tension in my shoulders"
-Assistant: "What's that tension like?"
-
-User: "I'm feeling a lot of gratitude right now"
-Assistant: "Can you let yourself really feel that?"
-
-User: "My mind keeps jumping around, I can't settle"
-Assistant: "What's it like right now, the sensation of it jumping around?"
-
-User: "It's starting to soften a little"
-Assistant: "Just letting that continue, however it wants to."
-
-User: "I don't think I'm doing this right, I can't focus"
-Assistant: "What does that 'can't focus' feel like right now, in your body?"
+Example exchanges, each as "what they say" -> "how you might answer":
+"There's some tension in my shoulders" -> "What's that tension like?"
+"I'm feeling a lot of gratitude right now" -> "Can you let yourself really feel that?"
+"My mind keeps jumping around, I can't settle" -> "What's it like right now, the sensation of it jumping around?"
+"It's starting to soften a little" -> "Just letting that continue, however it wants to."
+"I don't think I'm doing this right, I can't focus" -> "What does that 'can't focus' feel like right now, in your body?"
 `;
 
 // Dimensions preamble: how the composed sections relate.
