@@ -1,7 +1,7 @@
 /**
  * Settings view: LLM provider + BYOK keys, language & speech recognition,
- * text-to-speech, display, pacing, session history, updates, and a
- * dev-mode-only Developer section.
+ * text-to-speech, display, pacing, session history, a collapsed Advanced shelf
+ * for expert toggles, updates, and a dev-mode-only Developer section.
  *
  * Every control auto-applies and persists (Display is the exception - see
  * wireDisplaySection). Keys persist into the same api-keys store the setup
@@ -167,7 +167,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wirePacingSection();
         wireSessionLogsSection();
         wireUpdatesSection();
-        wireAdvancedSection();
+        wireByokReveal();
+        wireAdvancedReveal();
         wireDeveloperSection();
         wireFooter();
     }
@@ -193,6 +194,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             void refreshApiKeyRows();
             void modelPicker.refresh(settings.defaultProvider);
             syncOllamaSection();
+            updateNonstreamVisibility();
             // Markers don't change on a mere selection, but the status hint
             // tracks the newly-selected provider.
             updateProviderStatusHint();
@@ -1243,6 +1245,16 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     // ---- Pacing --------------------------------------------------------
 
+    /** The non-streaming pause pair is Claude-subscription plumbing; showing
+     *  it to everyone else is pure noise. Render gates it; this keeps it live
+     *  when the default provider changes without a re-render. */
+    function updateNonstreamVisibility(): void {
+        root.querySelector<HTMLElement>('#s-nonstream-group')?.classList.toggle(
+            'hidden',
+            settings.defaultProvider !== 'claude_proxy'
+        );
+    }
+
     function wirePacingSection(): void {
         wireStepper('s-silence-base', settings.silenceBaseMs / 1000, (v) => {
             settings.silenceBaseMs = Math.round(v * 1000);
@@ -1265,11 +1277,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             persist();
         });
 
-        // The interval stepper only means anything for 'simple' timing, so it
-        // greys out on the other picks.
-        const timingRadios = Array.from(
-            root.querySelectorAll<HTMLInputElement>('input[name="s-checkin-timing"]')
-        );
+        // One three-way control writing BOTH stored halves: timing follows the
+        // pick, and content matches it ('simple' interval says the stock
+        // phrase, Smart writes the line too). The stored fields stay split for
+        // the session code; the mixed combos just aren't offered - two radio
+        // groups and two hints was expert-matrix territory (field feedback).
+        // The interval stepper only means anything for 'simple', so it greys
+        // out on the other picks.
         const checkinWrap = root
             .querySelector<HTMLInputElement>('#s-silence-sec')
             ?.closest<HTMLElement>('.stepper');
@@ -1284,21 +1298,16 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 });
         };
         syncCheckinStepper();
-        for (const radio of timingRadios) {
-            radio.addEventListener('change', () => {
-                if (!radio.checked) return;
-                settings.checkinTiming = radio.value as AppSettings['checkinTiming'];
-                persist();
-                syncCheckinStepper();
-            });
-        }
         for (const radio of root.querySelectorAll<HTMLInputElement>(
-            'input[name="s-checkin-content"]'
+            'input[name="s-checkin-mode"]'
         )) {
             radio.addEventListener('change', () => {
                 if (!radio.checked) return;
-                settings.checkinContent = radio.value as AppSettings['checkinContent'];
+                const mode = radio.value as AppSettings['checkinTiming'];
+                settings.checkinTiming = mode;
+                if (mode !== 'none') settings.checkinContent = mode;
                 persist();
+                syncCheckinStepper();
             });
         }
         const silenceModeEnabled = root.querySelector<HTMLInputElement>('#s-silence-mode-enabled');
@@ -1406,14 +1415,26 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
     }
 
-    // ---- Advanced (BYOK reveal) ----------------------------------------
+    // ---- Advanced (BYOK reveal, web provider section) ------------------
     // The BYOK toggle itself is wired in wireProviderSection (by id); here we
     // just expand/collapse the section.
-    function wireAdvancedSection(): void {
+    function wireByokReveal(): void {
         const toggle = root.querySelector<HTMLButtonElement>('#advanced-toggle');
         const advBody = root.querySelector<HTMLElement>('#advanced-body');
         toggle?.addEventListener('click', () => {
             const shown = advBody?.classList.toggle('hidden') === false;
+            toggle.textContent = shown ? 'Hide advanced settings' : 'Show advanced settings';
+            toggle.setAttribute('aria-expanded', String(shown));
+        });
+    }
+
+    // ---- Advanced section (expert toggles shelf) -----------------------
+    // Same reveal pattern; the controls inside are wired by their own sections.
+    function wireAdvancedReveal(): void {
+        const toggle = root.querySelector<HTMLButtonElement>('#s-advanced-toggle');
+        const body = root.querySelector<HTMLElement>('#s-advanced-body');
+        toggle?.addEventListener('click', () => {
+            const shown = body?.classList.toggle('hidden') === false;
             toggle.textContent = shown ? 'Hide advanced settings' : 'Show advanced settings';
             toggle.setAttribute('aria-expanded', String(shown));
         });
@@ -1563,6 +1584,7 @@ function renderHTML(s: AppSettings): string {
             ${renderDisplaySection(s)}
             ${renderPacingSection(s)}
             ${renderSessionLogsSection(s)}
+            ${renderAdvancedSettingsSection(s)}
             ${
                 // The auto-updater only applies to desktop / self-host builds.
                 isWebMode() ? '' : renderUpdatesSection(s)
@@ -1928,48 +1950,38 @@ function renderPacingSection(s: AppSettings): string {
     return `
     <section class="settings-section">
         <h2>Pacing</h2>
-        <h3 class="pacing-subhead">Pause before submitting user response (streaming providers)</h3>
-        <p class="form-hint pacing-subhead-note">For providers that return text in realtime. Most providers do this.</p>
+        <h3 class="pacing-subhead">Pause before submitting user response</h3>
         ${pauseGroup('s-silence', s.silenceBaseMs / 1000, s.silenceMaxMs / 1000)}
-        <h3 class="pacing-subhead">Pause before submitting user response (non-streaming providers)</h3>
-        <p class="form-hint pacing-subhead-note">For providers that don't send a response until fully generated - currently just Claude subscriptions. Lower delay recommended because responses are slower.</p>
-        ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
+        <!-- The non-streaming pair applies to exactly one provider (the Claude
+             subscription can't speak until fully generated), so it only shows
+             while that provider is the default - jargon-free page for everyone
+             else. Kept in the DOM so the steppers stay wired across toggles. -->
+        <div id="s-nonstream-group"${s.defaultProvider === 'claude_proxy' ? '' : ' class="hidden"'}>
+            <h3 class="pacing-subhead">Pause before submitting (Anthropic subscription)</h3>
+            <p class="form-hint pacing-subhead-note">This provider doesn't stream, so a shorter pause cuts latency.</p>
+            ${pauseGroup('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
+        </div>
         <h3 class="pacing-subhead" id="settings-checkins">Check-Ins After Silence (Exploration Mode)</h3>
         <div class="form-row">
-            <div class="form-group form-group-half" id="s-checkin-timing-group">
-                <label>Timing</label>
+            <div class="form-group" id="s-checkin-timing-group">
                 <div class="radio-group">
                     <label class="radio-label">
-                        <input type="radio" name="s-checkin-timing" value="none"${s.checkinTiming === 'none' ? ' checked' : ''}>
-                        <span>None</span>
+                        <input type="radio" name="s-checkin-mode" value="none"${s.checkinTiming === 'none' ? ' checked' : ''}>
+                        <span>Off</span>
                     </label>
                     <div class="radio-inline">
                         <label class="radio-label">
-                            <input type="radio" name="s-checkin-timing" value="simple"${s.checkinTiming === 'simple' ? ' checked' : ''}>
-                            <span>Simple (s)</span>
+                            <input type="radio" name="s-checkin-mode" value="simple"${s.checkinTiming === 'simple' ? ' checked' : ''}>
+                            <span>Every (s)</span>
                         </label>
                         ${stepper('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
                     </div>
                     <label class="radio-label">
-                        <input type="radio" name="s-checkin-timing" value="smart"${s.checkinTiming === 'smart' ? ' checked' : ''}>
+                        <input type="radio" name="s-checkin-mode" value="smart"${s.checkinTiming === 'smart' ? ' checked' : ''}>
                         <span>Smart</span>
                     </label>
                 </div>
-                <span class="form-hint">When to speak up during silence. Smart lets the model set the wait each turn, biased by your guidance level.</span>
-            </div>
-            <div class="form-group form-group-half" id="s-checkin-content-group">
-                <label>Content</label>
-                <div class="radio-group">
-                    <label class="radio-label">
-                        <input type="radio" name="s-checkin-content" value="simple"${s.checkinContent === 'simple' ? ' checked' : ''}>
-                        <span>Simple</span>
-                    </label>
-                    <label class="radio-label">
-                        <input type="radio" name="s-checkin-content" value="smart"${s.checkinContent === 'smart' ? ' checked' : ''}>
-                        <span>Smart</span>
-                    </label>
-                </div>
-                <span class="form-hint">Simple says a stock phrase. Smart asks the model for a line that fits the session, or stays quiet.</span>
+                <span class="form-hint">Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the model pick the timing and the words, biased by your guidance level.</span>
             </div>
         </div>
         <div class="form-row">
@@ -1980,13 +1992,6 @@ function renderPacingSection(s: AppSettings): string {
                 </label>
                 ${stepper('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
                 <span class="form-hint">An open session keeps listening and checking in, which can slowly consume cloud credits if in use.</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
-                    <span>Enable holding-space mode</span>
-                </label>
-                <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
             </div>
         </div>
     </section>`;
@@ -2010,13 +2015,39 @@ function renderSessionLogsSection(s: AppSettings): string {
               </label>
               <span class="form-hint">A local transcript of each session, autosaved every turn. When off, nothing's saved unless you save it from the end dialog.</span>
           </div>
-          <div class="form-group">
-              <label class="checkbox-label">
-                  <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
-                  <span>Resume long sessions from a recap</span>
-              </label>
-              <span class="form-hint">Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.</span>
-          </div>
+        </div>
+    </section>`;
+}
+
+/**
+ * Collapsed shelf for the rarely-touched expert toggles, so the main page
+ * stays readable ("the settings screen is quite complex" - field feedback).
+ * The controls keep their ids: their wiring (wirePacingSection /
+ * wireSessionLogsSection) finds them here just the same.
+ */
+function renderAdvancedSettingsSection(s: AppSettings): string {
+    return `
+    <section class="settings-section">
+        <h2>Advanced</h2>
+        <button type="button" class="btn btn-secondary settings-advanced-toggle" id="s-advanced-toggle"
+            aria-expanded="false" aria-controls="s-advanced-body">Show advanced settings</button>
+        <div class="settings-advanced-body hidden" id="s-advanced-body">
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
+                        <span>Enable holding-space mode</span>
+                    </label>
+                    <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
+                </div>
+                <div class="form-group form-group-half">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
+                        <span>Resume long sessions from a recap</span>
+                    </label>
+                    <span class="form-hint">Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.</span>
+                </div>
+            </div>
         </div>
     </section>`;
 }
