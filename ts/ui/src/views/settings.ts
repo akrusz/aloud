@@ -1857,7 +1857,10 @@ function renderTtsSection(s: AppSettings): string {
         return `
     <section class="settings-section" id="settings-tts">
         <h2>Text-to-Speech</h2>
-        <div class="form-row form-row-tts">
+        <!-- Plain form-row, NOT form-row-tts: its order rules place
+             #s-voice-group after the (unordered) spacer, i.e. after a blank
+             half-row. With one real child there's nothing to order. -->
+        <div class="form-row">
             <div class="form-group form-group-half" id="s-voice-group">
                 <label>Manage Voices</label>
                 <button type="button" id="s-voice-btn" class="setup-voice-btn">Choose voice</button>
