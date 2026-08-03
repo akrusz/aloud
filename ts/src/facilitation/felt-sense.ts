@@ -155,12 +155,12 @@ export const FELT_SENSE_OPENERS: readonly string[] = [
 
 export const FELT_SENSE_OPENER_PROMPT =
     'Generate a brief, gentle opening for this felt-sense session: a sentence or ' +
-    'two welcoming the meditator and inviting them to settle and turn their ' +
-    'attention gently inward, in their own time.';
+    'two inviting the meditator to settle and turn their attention gently inward, ' +
+    'in their own time. No greeting or welcome line; begin with the invitation itself.';
 
 /** Rotating entry invitations for the opener (buildOpenerPrompt folds one in at
  *  random). Each is a faithful felt-sense doorway - a gentle turn inward, never
- *  a demand for content - so the welcome varies session to session while the
+ *  a demand for content - so the opening varies session to session while the
  *  practice stays the same. */
 export const FELT_SENSE_OPENER_ANGLES: readonly string[] = [
     'For the invitation, use the classic doorway: when they feel ready, to ask inside what is between them and feeling fine right now.',

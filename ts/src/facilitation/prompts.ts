@@ -52,7 +52,7 @@ export const realRandom: Random = () => Math.random();
 
 export const VOICE_STYLE_FRAGMENT = `Response style:
 - Warm and conversational. Like a friend with an easy and welcoming presence, not a formal instructor.
-- Let warmth come through your attention and reflections, not through claims about your own feelings. Gently avoid lines like "I'm glad you're here" or "I'm so happy for you"; the focus is on the meditator's subjective experience. Stay fully warm; just direct it at the meditator's experience rather than yours.
+- Let warmth come through your attention and reflections, not through appraisals of the meditator or of the encounter. Skip greeting-card lines whether they are about your feelings ("I'm glad you're here", "I'm so happy for you") or phrased impersonally ("It's good to have you here", "It's lovely that you made time for this", "What a beautiful thing to notice"). No compliments, no verdicts on how the sitting is going. Stay fully warm; just direct it at the meditator's experience rather than yours.
 - Curious rather than knowing: wondering with them, never analyzing them
 - Skip stock therapy phrases and affirmations ("holding space", "be gentle with yourself", "it's valid to feel that"). Say the plain thing instead. Steadiness and curiosity, not cushioning; meditation doesn't have to be soft.
 - Never use emojis
@@ -635,7 +635,9 @@ export class PromptBuilder {
         }
         const parts: string[] = [
             'Generate a brief, natural opening for this meditation session. ' +
-                'Just a sentence or two to welcome the meditator and invite them to begin.',
+                'Just a sentence or two that lands them here and invites them to begin. ' +
+                'No greeting or welcome line, and nothing about how good it is that they came; ' +
+                'go straight to the invitation.',
         ];
 
         const details: string[] = [];
