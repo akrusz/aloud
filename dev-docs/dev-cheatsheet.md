@@ -231,6 +231,14 @@ body unless you pick `e` to edit them or `n` to write your own in gh's editor.
 `same`/`redo` carry the published notes forward instead, since deleting and
 re-creating the release would otherwise drop them.
 
+The pre-release check fixes conservative drift itself and commits it as
+`docs: pre-release sync` - dev-docs, README, CLAUDE.md, code/config comments,
+perfunctory legal pages. Anything user-facing (app UI copy, marketing site
+pages, LLM prompts) it only reports; at the gate, `f` opens an interactive
+claude session in the same terminal with the punch list preloaded - fix and
+commit together, then exit to resume the release. The script refuses to
+proceed over an unclean tree, so a bailed-out fix can't ship half-done.
+
 **CI**: `tauri-release.yml` runs on `release: created` and builds the Tauri
 bundles for all three platforms via `tauri-action`, which also signs the
 self-updater artifacts and uploads a merged `latest.json`. macOS signs +

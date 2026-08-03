@@ -231,9 +231,13 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
     fi
 
     # Pre-release doc/copy check. Default (Enter) runs it via the headless
-    # claude CLI (read-only review); "n" skips; "q" bails. If the check finds
-    # anything (or is inconclusive), it asks to continue; a clean check proceeds
-    # silently. Past that point the script bumps, commits, tags, and pushes.
+    # claude CLI; "n" skips; "q" bails. The check fixes CONSERVATIVE drift
+    # itself (dev-docs, README, comments, perfunctory legal pages) and commits
+    # those; anything user-facing - app UI copy, marketing/site pages, LLM
+    # prompts - it only reports. Remaining items gate below: [f] opens an
+    # interactive claude session in this terminal with the punch list
+    # preloaded (fix together, commit, exit to resume the release), [c]
+    # continues without fixing.
     printf "  Run the pre-release check? [Y/n/q] "
     read -r PRECHECK
     case "$PRECHECK" in
@@ -247,15 +251,36 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
             if command -v claude >/dev/null 2>&1; then
                 echo "  Running pre-release check via Claude (changes since v${CURRENT})…"
                 echo ""
-                CHECK_OUT=$(claude --model "$RELEASE_MODEL" -p "Run the pre-release check. Work through dev-docs/pre-release-checklist.md against the changes since the last release — review the diff and commits in v${CURRENT}..HEAD. Report any documentation or product copy (website, README, privacy policy, store listings, settings UI text, CLAUDE.md, config comments, etc.) that has drifted out of sync with the code, plus downstream consequences. Read the actual files; don't guess. Be concise: a punch list of what needs updating. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needs updating, or 'PRERELEASE: ISSUES' if anything does." </dev/null)
+                CHECK_OUT=$(claude --model "$RELEASE_MODEL" --permission-mode acceptEdits \
+                    --allowedTools "Bash(git add:*),Bash(git commit:*)" \
+                    -p "Run the pre-release check. Work through dev-docs/pre-release-checklist.md against the changes since the last release - review the diff and commits in v${CURRENT}..HEAD. Find documentation or product copy (website, README, privacy policy, store listings, settings UI text, CLAUDE.md, config comments, etc.) that has drifted out of sync with the code, plus downstream consequences. Read the actual files; don't guess.
+
+Fix what you find ONLY when it's safely developer-facing or mechanical: dev-docs/, README.md, CLAUDE.md, code and config comments, and perfunctory legal pages (privacy policy, terms). HOLD OFF and report instead when a change would face a user in the app (settings/UI copy, toasts, store listings), a non-perfunctory website page (landing, FAQ, anything marketing-toned), or an internal LLM prompt (the facilitation prompts) - the developer words those himself. Commit only the files you fixed, message 'docs: pre-release sync'.
+
+Be concise: what you fixed (one line each), then a punch list of anything left for the developer. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needed changing, 'PRERELEASE: FIXED' if you fixed everything you found, or 'PRERELEASE: ISSUES' if anything still needs the developer." </dev/null)
                 printf '%s\n\n' "$CHECK_OUT"
-                # Only gate if the check didn't come back explicitly clean
-                # (covers found-issues AND any inconclusive/errored output).
-                if ! printf '%s' "$CHECK_OUT" | grep -q 'PRERELEASE: CLEAN'; then
-                    printf "  Check flagged items above (or was inconclusive). Continue anyway? [y/N] "
+                if printf '%s' "$CHECK_OUT" | grep -q 'PRERELEASE: CLEAN'; then
+                    : # clean - proceed silently
+                elif printf '%s' "$CHECK_OUT" | grep -q 'PRERELEASE: FIXED'; then
+                    printf "  Doc fixes committed (above). Continue? [Y/n] "
                     read -r CONT
                     case "$CONT" in
-                        y|Y) ;;
+                        n|N) echo "  Aborted."; exit 0 ;;
+                    esac
+                else
+                    # Found items needing a human, or inconclusive output.
+                    printf "  Items remain. [f=fix here/c=continue anyway/N=abort] "
+                    read -r CONT
+                    case "$CONT" in
+                        f|F)
+                            # Interactive session, punch list preloaded: the
+                            # release resumes when you exit it.
+                            claude --model "$RELEASE_MODEL" --permission-mode acceptEdits \
+                                "A release of aloud (v${VERSION}) is paused mid-script on its pre-release doc check, output below. Help me apply the remaining fixes - propose wording for user-facing copy and let me adjust it. Commit the fixes themselves (NOT a version bump; the release script does that after I exit). The tree must be clean when we're done or the script will stop.
+
+${CHECK_OUT}"
+                            ;;
+                        c|C) ;;
                         *) echo "  Aborted."; exit 0 ;;
                     esac
                 fi
@@ -265,6 +290,15 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
             fi
             ;;
     esac
+
+    # The check or fix session may have left edits uncommitted (or you bailed
+    # out of one mid-fix). The bump commit must not sweep those up, and nothing
+    # half-fixed should ship under the tag.
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo ""
+        echo "Error: uncommitted changes after the pre-release check - commit or stash, then rerun." >&2
+        exit 1
+    fi
 fi
 
 # Bump the version across the TS/Rust stack. tauri.conf.json is the source of
