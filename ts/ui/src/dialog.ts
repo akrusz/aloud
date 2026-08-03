@@ -8,20 +8,36 @@
  * desktop shell. Styling in ui/src/style.css (.app-dialog*).
  */
 
-interface ButtonSpec {
+interface ButtonSpec<T> {
     label: string;
-    value: boolean;
+    value: T;
     /** The affirmative action: focused on open, triggered by Enter. */
     action?: boolean;
     danger?: boolean;
 }
 
-function showDialog(
+interface DialogExtras {
+    asHtml?: boolean;
+    /** Content between the message and the buttons. */
+    extra?: HTMLElement | undefined;
+    /** Content below the buttons: a caller-built secondary route, subordinate
+     *  to the main action by position. Its own controls don't settle the
+     *  dialog. */
+    footer?: HTMLElement | undefined;
+    /** Render a top-right × (like the About modal) that dismisses. For dialogs
+     *  whose "no thanks" doesn't earn a place in the button row. */
+    closeX?: boolean;
+    /** Center the button row instead of the right-aligned default, which reads
+     *  better when there's a single action rather than a choice pair. */
+    centerButtons?: boolean;
+}
+
+function showDialog<T>(
     message: string,
-    buttons: ButtonSpec[],
-    dismissValue: boolean,
-    asHtml = false
-): Promise<boolean> {
+    buttons: ButtonSpec<T>[],
+    dismissValue: T,
+    { asHtml = false, extra, footer, closeX = false, centerButtons = false }: DialogExtras = {}
+): Promise<T> {
     return new Promise((resolve) => {
         if (typeof document === 'undefined') {
             resolve(dismissValue);
@@ -42,12 +58,13 @@ function showDialog(
         if (asHtml) msg.innerHTML = message;
         else msg.textContent = message;
         box.appendChild(msg);
+        if (extra) box.appendChild(extra);
 
         const btnRow = document.createElement('div');
-        btnRow.className = 'app-dialog-buttons';
+        btnRow.className = centerButtons ? 'app-dialog-buttons is-centered' : 'app-dialog-buttons';
 
         let settled = false;
-        const finish = (v: boolean): void => {
+        const finish = (v: T): void => {
             if (settled) return;
             settled = true;
             document.removeEventListener('keydown', onKey, true);
@@ -60,9 +77,22 @@ function showDialog(
                 finish(dismissValue);
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                finish(buttons.find((b) => b.action)?.value ?? dismissValue);
+                const action = buttons.find((b) => b.action);
+                finish(action ? action.value : dismissValue);
             }
         };
+
+        if (closeX) {
+            box.classList.add('has-close');
+            const x = document.createElement('button');
+            x.type = 'button';
+            // Same face as the About / voice modal close.
+            x.className = 'app-dialog-close voice-modal-close';
+            x.innerHTML = '&times;';
+            x.setAttribute('aria-label', 'Close');
+            x.addEventListener('click', () => finish(dismissValue));
+            box.prepend(x);
+        }
 
         let actionBtn: HTMLButtonElement | null = null;
         for (const b of buttons) {
@@ -81,6 +111,7 @@ function showDialog(
             btnRow.appendChild(el);
         }
         box.appendChild(btnRow);
+        if (footer) box.appendChild(footer);
         backdrop.appendChild(box);
         backdrop.addEventListener('click', (e) => {
             if (e.target === backdrop) finish(dismissValue);
@@ -120,7 +151,7 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
             },
         ],
         false,
-        opts.html ?? false
+        { asHtml: opts.html ?? false }
     );
 }
 
@@ -135,8 +166,55 @@ export function alertDialog(
         message,
         [{ label: okLabel, value: true, action: true }],
         true,
-        opts.html ?? false
+        { asHtml: opts.html ?? false }
     ).then(() => undefined);
+}
+
+export interface ChoiceSpec {
+    label: string;
+    /** Returned when picked. */
+    value: string;
+    /** The default: focused on open, triggered by Enter, styled primary. */
+    action?: boolean;
+}
+
+export interface ChoiceOptions {
+    cancelLabel?: string;
+    /** Dismiss with a top-right × instead of a Cancel button, keeping the
+     *  button row to the real choices. */
+    closeX?: boolean;
+    /** Content between the message and the buttons. */
+    extra?: HTMLElement;
+    /** Content below the buttons: a secondary route the caller wires itself
+     *  (it doesn't resolve the dialog). */
+    footer?: HTMLElement;
+    /** Center the button row rather than right-aligning it. */
+    centerButtons?: boolean;
+}
+
+/**
+ * More than two ways forward. Resolves to the picked `value`, or null on
+ * dismissal (Cancel / × / backdrop / Escape).
+ */
+export function choiceDialog(
+    message: string,
+    choices: ChoiceSpec[],
+    opts: ChoiceOptions = {}
+): Promise<string | null> {
+    const cancel: ButtonSpec<string | null>[] = opts.closeX
+        ? []
+        : [{ label: opts.cancelLabel ?? 'Cancel', value: null }];
+    return showDialog<string | null>(
+        message,
+        [...cancel, ...choices],
+        null,
+        {
+            extra: opts.extra,
+            footer: opts.footer,
+            closeX: opts.closeX ?? false,
+            centerButtons: opts.centerButtons ?? false,
+        }
+    );
 }
 
 export interface ConfirmTypedOptions {

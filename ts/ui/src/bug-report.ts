@@ -1,7 +1,9 @@
 /**
- * "Report a bug" and "Report AI content": open the mail composer prefilled
- * with a diagnostics block (version, platform, mode, speech/mic health, user
- * agent) so a reply doesn't start by asking "which version? what device?".
+ * "Report a bug" and "Report AI content": hand the user a report prefilled with
+ * a diagnostics block (version, platform, mode, speech/mic health, user agent)
+ * so a reply doesn't start by asking "which version? what device?". They choose
+ * the mail composer or the clipboard - a machine with no mail client wired up
+ * silently swallows `mailto:`, and the copy path is the way out.
  *
  * Reached from the in-session ⓘ info panel (desktop) and the mobile More
  * sheet. The AI-content report also satisfies Google Play's AI-Generated
@@ -18,6 +20,7 @@ import { loadAppSettings } from './app-settings.js';
 import { resolveSttChoice } from './adapters/stt-picker.js';
 import { withTimeout } from './net-timeout.js';
 import { recentErrors } from './error-log.js';
+import { choiceDialog } from './dialog.js';
 
 /** Same inbox as the About "kind words" / privacy contact. */
 const SUPPORT_EMAIL = 'lexkrusz@gmail.com';
@@ -178,17 +181,29 @@ async function diagnostics(extra: string[] = []): Promise<string> {
     ].join('\n');
 }
 
-function mailtoHref(subject: string, body: string): string {
-    return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+interface Report {
+    subject: string;
+    body: string;
 }
 
-/** A `mailto:` link prefilled with the report template + diagnostics. */
-export async function bugReportMailtoHref(): Promise<string> {
-    const body =
-        'What happened?\n\n\n' +
-        'What did you expect instead?\n\n\n' +
-        `. . .\n${await diagnostics()}`;
-    return mailtoHref(`aloud bug report (v${__APP_VERSION__})`, body);
+function mailtoHref(r: Report): string {
+    return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(r.subject)}&body=${encodeURIComponent(r.body)}`;
+}
+
+/** What the copy path puts on the clipboard: the mail composer's fields as
+ *  plain text, so it can be pasted into any mail client or message. */
+function reportText(r: Report): string {
+    return `To: ${SUPPORT_EMAIL}\nSubject: ${r.subject}\n\n${r.body}`;
+}
+
+async function bugReport(): Promise<Report> {
+    return {
+        subject: `aloud bug report (v${__APP_VERSION__})`,
+        body:
+            'What happened?\n\n\n' +
+            'What did you expect instead?\n\n\n' +
+            `. . .\n${await diagnostics()}`,
+    };
 }
 
 export interface AiReportContext {
@@ -199,17 +214,18 @@ export interface AiReportContext {
     ownProvider: boolean;
 }
 
-/** A `mailto:` link for flagging an inappropriate facilitator response. */
-export async function aiContentReportMailtoHref(ctx: AiReportContext): Promise<string> {
+async function aiContentReport(ctx: AiReportContext): Promise<Report> {
     const ownNote = ctx.ownProvider
         ? `Note: this session's responses came from your own AI source (${ctx.sourceLabel}), not aloud cloud. We can still review how aloud instructs the model.\n\n`
         : '';
-    const body =
-        'What did the facilitator say? (paste or describe the response)\n\n\n' +
-        'Why was it inappropriate or concerning?\n\n\n' +
-        ownNote +
-        `. . .\n${await diagnostics([`AI source: ${ctx.sourceLabel}`])}`;
-    return mailtoHref(`aloud AI content report (v${__APP_VERSION__})`, body);
+    return {
+        subject: `aloud AI content report (v${__APP_VERSION__})`,
+        body:
+            'What did the facilitator say? (paste or describe the response)\n\n\n' +
+            'Why was it inappropriate or concerning?\n\n\n' +
+            ownNote +
+            `. . .\n${await diagnostics([`AI source: ${ctx.sourceLabel}`])}`,
+    };
 }
 
 /**
@@ -225,8 +241,93 @@ async function openMailto(href: string): Promise<void> {
     window.location.href = href;
 }
 
+/** execCommand path for webviews without an async clipboard (or without a
+ *  secure context): a machine that can't open `mailto:` is exactly the machine
+ *  that may not have `navigator.clipboard` either. */
+function legacyCopy(text: string): boolean {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    try {
+        ta.select();
+        return document.execCommand('copy');
+    } catch {
+        return false;
+    } finally {
+        ta.remove();
+    }
+}
+
+/** Returns false when neither clipboard path worked. */
+async function copyText(text: string): Promise<boolean> {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        return legacyCopy(text);
+    }
+}
+
+/** A copy button whose label reports back in place, so the footer needs no
+ *  toast of its own. */
+function copyButton(label: string, text: () => string): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-small btn-secondary';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+        void copyText(text()).then((ok) => {
+            btn.textContent = ok ? 'Copied' : "Couldn't copy";
+        });
+    });
+    return btn;
+}
+
+/**
+ * The manual route, under the main button: the address (selectable - the
+ * desktop shell sets user-select: none app-wide, so it needs saying) and
+ * buttons for the two things they'd otherwise retype. Stays open after a copy,
+ * since one click here rarely finishes the job.
+ */
+function manualRow(r: Report): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'app-dialog-footer';
+    const note = document.createElement('p');
+    note.className = 'app-dialog-note';
+    note.append('Alternatively, send an email to ');
+    const addr = document.createElement('span');
+    addr.className = 'app-dialog-selectable';
+    addr.textContent = SUPPORT_EMAIL;
+    note.append(addr, ' and paste the report in.');
+    const actions = document.createElement('div');
+    actions.className = 'app-dialog-footer-actions';
+    actions.append(
+        copyButton('Copy address', () => SUPPORT_EMAIL),
+        copyButton('Copy report text', () => reportText(r))
+    );
+    row.append(note, actions);
+    return row;
+}
+
+/**
+ * Offer both routes rather than assuming a working mail client: `mailto:` does
+ * nothing on a machine with no mail app configured, which leaves the report
+ * unsendable and looks like a broken button.
+ */
+async function offerReport(r: Report): Promise<void> {
+    const pick = await choiceDialog(
+        'A report has been created with details about your setup to help solve the problem.',
+        [{ label: 'Send report via email', value: 'mail', action: true }],
+        { footer: manualRow(r), closeX: true, centerButtons: true }
+    );
+    if (pick === 'mail') await openMailto(mailtoHref(r));
+}
+
 export async function openBugReport(): Promise<void> {
-    await openMailto(await bugReportMailtoHref());
+    await offerReport(await bugReport());
 }
 
 /** Desktop: the native Help > "Report a Bug…" menu item (src-tauri lib.rs)
@@ -241,5 +342,5 @@ export function initNativeBugReportMenu(): void {
 }
 
 export async function openAiContentReport(ctx: AiReportContext): Promise<void> {
-    await openMailto(await aiContentReportMailtoHref(ctx));
+    await offerReport(await aiContentReport(ctx));
 }

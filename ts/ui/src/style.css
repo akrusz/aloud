@@ -107,10 +107,53 @@
     border-radius: var(--radius, 12px);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
 }
+.app-dialog.has-close {
+    position: relative;
+}
+.app-dialog-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.6rem;
+}
 .app-dialog-message {
     margin: 0 0 1.25rem;
     line-height: 1.45;
     white-space: pre-line;
+}
+/* Keep the copy clear of the × sitting over the corner. */
+.app-dialog.has-close .app-dialog-message {
+    padding-right: 1.25rem;
+}
+/* The secondary route below the buttons (bug report: write the mail yourself).
+   Set apart by a rule and smaller type so the main action stays the main
+   action. */
+.app-dialog-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+.app-dialog-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+.app-dialog-note {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    text-align: center;
+    color: var(--text-secondary);
+}
+.app-dialog-selectable {
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: text;
+    word-break: break-all;
 }
 .app-dialog-input {
     width: 100%;
@@ -129,8 +172,13 @@
 }
 .app-dialog-buttons {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     justify-content: flex-end;
+}
+/* Single-action dialogs: a lone right-aligned button looks stranded. */
+.app-dialog-buttons.is-centered {
+    justify-content: center;
 }
 
 /* The "aloud." glyph in the mobile More sheet should use the brand face,
