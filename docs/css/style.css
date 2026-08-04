@@ -467,7 +467,7 @@ code {
   to   { transform: rotate(0deg); }
 }
 .settle-in {
-  animation: settle var(--settle-dur, 0.6s) ease-out var(--settle-delay, 0s) both;
+  animation: settle var(--settle-dur, 0.4s) ease-out var(--settle-delay, 0s) both;
 }
 @media (prefers-reduced-motion: reduce) {
   .settle-in { animation: none; }
