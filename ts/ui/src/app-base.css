@@ -146,7 +146,7 @@ html[data-platform="android"] {
     --danger: #b04435;
     --success: #4a8e5f;
     /* Pigmented below the ground, mirroring dark's raised-above. */
-    --facilitator-bg: #f5dade;
+    --facilitator-bg: #f3e0de;
     --user-bg: #f6e2a5;
     --overlay-bg: rgba(253, 244, 234, 0.95);
 }
