@@ -42,12 +42,14 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 ### Light mode
 
 ```
---bg-primary:    #fffae0   /* warm cream */
---bg-secondary:  #f5efd7
---bg-card:       #fad8c0
+--bg-primary:    #f2e9cd   /* deep paper - the body ground */
+--bg-secondary:  #faf4de   /* one step RAISED from the ground (nav, base buttons) -
+                              same direction as dark mode; pre-zine light had
+                              secondary below primary, backwards from dark */
+--bg-card:       #f9d0ae
 --bg-input:      #fffaf2
 --bg-surface:    #ffffff
---bg-tertiary:   #efe0cc
+--bg-tertiary:   #e9dab9
 --text-primary:  #1f1a18   /* warm near-black */
 --text-secondary:#5c4a44
 --text-muted:    #756058
@@ -57,7 +59,7 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 --brand-stroke:  #ffee25   /* bright sunny yellow */
 --brand-glow:    rgba(245, 216, 32, 0.85)
 --warm:          #e5a01a
---border:        #e2d0b8
+--border:        #d9c3a2
 ```
 
 ### Dark mode
