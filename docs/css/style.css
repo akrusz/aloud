@@ -266,28 +266,6 @@ code {
   display: flex;
   justify-content: center;
   margin-bottom: 1rem;
-  position: relative;
-}
-
-/* Little four-point sparks around the orb, twinkling out of phase. Yellow and
-   pink only - the two wordmark colors. */
-.spark {
-  position: absolute;
-  color: var(--brand-stroke);
-  animation: twinkle 3.2s ease-in-out infinite;
-  pointer-events: none;
-  line-height: 1;
-}
-.spark-1 { top: 8%;  left: calc(50% - 150px); font-size: 1.5rem; }
-.spark-2 { top: 68%; left: calc(50% + 128px); font-size: 1.1rem; color: var(--accent); animation-delay: 1.1s; animation-duration: 4.1s; }
-.spark-3 { top: -4%; left: calc(50% + 108px); font-size: 0.9rem; color: var(--accent); animation-delay: 2s; animation-duration: 3.7s; }
-.spark-4 { top: 82%; left: calc(50% - 135px); font-size: 1.15rem; animation-delay: 0.6s; animation-duration: 4.6s; }
-@keyframes twinkle {
-  0%, 100% { opacity: 0.25; transform: scale(0.8) rotate(-8deg); }
-  50%      { opacity: 1;    transform: scale(1.15) rotate(8deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .spark { animation: none; opacity: 0.7; }
 }
 .orb {
   width: 180px;
@@ -404,13 +382,13 @@ code {
   font-weight: 700;
 }
 
-/* Highlighter swipe behind section titles - a fat marker stroke under the
-   lower half of the text, slightly angled at the ends so it reads hand-drawn. */
+/* Highlighter stroke under section titles - a marker line riding low across
+   the baseline, so it underscores the words without dimming the letterforms. */
 .hl {
   background-image: linear-gradient(100deg,
       transparent 0.5%, var(--mark) 4%, var(--mark) 96%, transparent 99.5%);
-  background-size: 100% 0.52em;
-  background-position: 0 74%;
+  background-size: 100% 0.3em;
+  background-position: 0 92%;
   background-repeat: no-repeat;
   padding: 0.05em 0.35em;
   -webkit-box-decoration-break: clone;
@@ -435,24 +413,36 @@ code {
   justify-self: center;
 }
 /* Each card wears one band of the orb gradient - yellow, orange, pink - as a
-   hand-cut sticker: uneven corners, a slight tilt, and a solid offset shadow
-   in its band color. Tilts straighten on hover. */
+   hand-cut sticker: squashed corners (every corner uneven the same way) and a
+   solid offset shadow in its band color. */
 .mode-card {
   background: var(--bg-secondary);
   border: 2px solid var(--card-band, var(--border));
-  border-radius: 24px 14px 28px 12px / 14px 26px 12px 30px;
+  border-radius: 26px / 15px;
   padding: 1.75rem;
   box-shadow: 6px 6px 0 var(--card-band, var(--border));
-  transform: rotate(var(--card-tilt, 0deg));
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .mode-card:hover {
-  transform: rotate(0deg) translate(-2px, -2px);
+  transform: translate(-2px, -2px);
   box-shadow: 9px 9px 0 var(--card-band, var(--border));
 }
-.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --card-tilt: -0.5deg; border-radius: 16px 30px 14px 26px / 28px 14px 30px 12px; }
-.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --card-tilt: 0.7deg; }
-.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --card-tilt: -0.6deg; border-radius: 14px 26px 22px 16px / 24px 12px 28px 14px; }
+.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -0.8deg; }
+.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 1deg; }
+.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -0.9deg; }
+
+/* Cards land crooked and settle: js/settle.js tags .settle elements with
+   .settle-in the first time they scroll into view, which runs a half-second
+   straighten from each element's --tilt. At rest everything is square - the
+   wonk is a moment, not a reading condition. */
+@keyframes settle {
+  from { transform: rotate(var(--tilt, -1deg)); }
+  to   { transform: rotate(0deg); }
+}
+.settle-in { animation: settle 0.55s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .settle-in { animation: none; }
+}
 .mode-card h3 {
   margin: 0 0 0.75rem;
   font-size: 1.25rem;
@@ -474,9 +464,9 @@ code {
   padding: 1.5rem;
   background: var(--bg-card);
   border: 2px solid var(--border);
-  border-radius: 26px 16px 30px 14px / 16px 28px 14px 30px;
+  border-radius: 28px / 17px;
   box-shadow: 8px 8px 0 var(--brand-stroke);
-  transform: rotate(-0.4deg);
+  --tilt: -0.5deg;
 }
 .screenshot-frame img {
   display: block;
@@ -545,15 +535,14 @@ code {
 .provider-pill {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 18px 10px 20px 9px / 10px 18px 9px 20px;
+  border-radius: 18px / 11px;
   padding: 1.25rem;
   text-align: center;
   box-shadow: 4px 4px 0 var(--border);
-  transform: rotate(var(--pill-tilt, 0deg));
 }
-.providers .provider-pill:nth-child(1) { --pill-tilt: -0.6deg; }
-.providers .provider-pill:nth-child(2) { --pill-tilt: 0.5deg; border-radius: 10px 18px 9px 20px / 18px 10px 20px 9px; }
-.providers .provider-pill:nth-child(3) { --pill-tilt: -0.4deg; }
+.providers .provider-pill:nth-child(1) { --tilt: -0.8deg; }
+.providers .provider-pill:nth-child(2) { --tilt: 0.7deg; }
+.providers .provider-pill:nth-child(3) { --tilt: -0.6deg; }
 .provider-pill strong {
   display: block;
   color: var(--accent-text);
@@ -591,12 +580,12 @@ code {
   margin: 0 auto;
   background: var(--bg-card);
   border: 2px solid var(--accent);
-  border-radius: 28px 16px 30px 14px / 16px 30px 14px 28px;
+  border-radius: 28px / 17px;
   padding: 1.5rem 1.75rem;
   position: relative;
   overflow: hidden;
   box-shadow: 7px 7px 0 var(--brand-stroke);
-  transform: rotate(0.4deg);
+  --tilt: 0.5deg;
 }
 .cloud-card::before {
   content: '';
@@ -686,7 +675,6 @@ code {
   border-radius: 999px;
   padding: 0.15rem 0.75rem;
   box-shadow: 2px 2px 0 var(--border);
-  transform: rotate(-1deg);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.9em;
   color: var(--text-secondary);
@@ -701,20 +689,19 @@ code {
 .download-card {
   background: var(--bg-surface);
   border: 2px solid var(--border);
-  border-radius: 22px 12px 24px 11px / 12px 22px 11px 24px;
+  border-radius: 22px / 13px;
   padding: 1.5rem;
   text-align: center;
   color: var(--text-primary);
   box-shadow: 5px 5px 0 var(--border);
-  transform: rotate(var(--dl-tilt, 0deg));
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
-.download-grid .download-card:nth-child(1) { --dl-tilt: -0.5deg; }
-.download-grid .download-card:nth-child(2) { --dl-tilt: 0.4deg; border-radius: 12px 22px 11px 24px / 22px 12px 24px 11px; }
-.download-grid .download-card:nth-child(3) { --dl-tilt: -0.4deg; }
+.download-grid .download-card:nth-child(1) { --tilt: -0.7deg; }
+.download-grid .download-card:nth-child(2) { --tilt: 0.6deg; }
+.download-grid .download-card:nth-child(3) { --tilt: -0.5deg; }
 .download-card:hover {
   border-color: var(--accent);
-  transform: rotate(0deg) translate(-2px, -2px);
+  transform: translate(-2px, -2px);
   box-shadow: 8px 8px 0 var(--brand-stroke);
   color: var(--text-primary);
 }
@@ -761,13 +748,13 @@ code {
   margin: 0 auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 16px 30px 14px 28px / 30px 14px 28px 16px;
+  border-radius: 28px / 17px;
   padding: 1.75rem 1.75rem;
   text-align: center;
   position: relative;
   overflow: hidden;
   box-shadow: 6px 6px 0 var(--orb-orange);
-  transform: rotate(-0.4deg);
+  --tilt: -0.5deg;
 }
 .tip-card::before {
   content: '';
@@ -895,11 +882,10 @@ code {
 .faq-item {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 16px 9px 18px 8px / 9px 16px 8px 18px;
+  border-radius: 16px / 10px;
   padding: 0 1.25rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.faq-list .faq-item:nth-child(even) { border-radius: 9px 16px 8px 18px / 16px 9px 18px 8px; }
 .faq-item[open] {
   border-color: var(--accent);
   box-shadow: 4px 4px 0 var(--brand-stroke);
