@@ -107,6 +107,16 @@ Box-shadow halos: orange inner (`var(--accent-glow)` ≈ `#f5a52f`) + pink outer
 
 **Don't touch** the rainbow easter-egg orb (`.orb-rainbow`) - it's deliberately a multi-color cycle.
 
+## Zine treatment (2026-08-03, `zine-restyle` branch)
+
+The wordmark is hand-painted pop; the chrome around it leans the same way. Three moves, shared between the landing page (`docs/css/style.css`) and the app (`app-base.css`):
+
+- **Squashed corners**: one ellipse per element, horizontal wider than vertical, identical on all four corners - hand-cut, not machine-rounded. In the app this rides the radius tokens: `--radius: 14px / 9px`, `--radius-sm: 10px / 7px`. The `h / v` value substitutes textually into `border-radius: var(--radius)` - **never wrap these tokens in `calc()`** (it can't divide an ellipse; use the other token instead).
+- **Sticker shadows**: solid offset shadows (no blur) in `--brand-stroke` under filled pink controls - the wordmark's pink-on-yellow story as a control. App: 2px on `.btn-primary`, 3px on `.btn-begin` (kept inside the `btn-dirty-pulse` keyframes, since animating `box-shadow` replaces the whole list). Site: 3px buttons, 5-8px cards.
+- **Orb bands as mode colors**: `--orb-yellow` / `--orb-orange` / `--accent` color-code the three modes everywhere they appear - exploration yellow, noting orange, felt sense pink (site mode cards; app mode-tab underline). Dark values stay in the approved gold/burnt family.
+
+Landing-page-only flourishes: marker underline on section titles (`.hl` - a thin stroke riding the baseline, never over the letterforms), settle-in entrance (cards land ~1° crooked and straighten; square at rest), scalloped download-band edge. **No tilted or settling elements in the app** - the app is where people read and act; playful geometry stays on containers and entrances, not on working surfaces.
+
 ## Tour popup styling
 
 Two visual modes:
