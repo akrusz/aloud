@@ -146,8 +146,8 @@ html[data-platform="android"] {
     --danger: #b04435;
     --success: #4a8e5f;
     /* Pigmented below the ground, mirroring dark's raised-above. */
-    --facilitator-bg: #f3e0de;
-    --user-bg: #f6e2a5;
+    --facilitator-bg: #f6e3da;
+    --user-bg: #f6e9b5;
     --overlay-bg: rgba(253, 244, 234, 0.95);
 }
 
@@ -2528,6 +2528,15 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 .voice-row-cost-premium {
     color: #d9a23f;
     background: rgba(245, 165, 47, 0.14);
+}
+/* Deeper inks in light - the dark-tuned green/amber wash out on warm paper. */
+[data-theme="light"] .voice-row-cost-value {
+    color: #2f6f45;
+    background: rgba(90, 158, 111, 0.18);
+}
+[data-theme="light"] .voice-row-cost-premium {
+    color: #8a5c00;
+    background: rgba(245, 165, 47, 0.22);
 }
 
 /* The "1☁️ ≈ 1 credit/hour" legend under a credit-spending picker (voice list,
