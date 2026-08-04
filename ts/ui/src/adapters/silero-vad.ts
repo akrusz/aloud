@@ -109,6 +109,27 @@ export class SileroRunner implements SileroModel {
     }
 }
 
+/** Create an ort session and prove run() works on it with one silence chunk -
+ *  create() succeeding doesn't (6z11 can surface only at inference). The probe
+ *  failure path releases the session; the success path resets the state the
+ *  probe touched. */
+async function probedRunner(
+    ort: Ort,
+    modelBytes: ArrayBuffer,
+    opts: InferenceSession.SessionOptions
+): Promise<SileroRunner> {
+    const session = await ort.InferenceSession.create(modelBytes, opts);
+    const runner = new SileroRunner(ort, session);
+    try {
+        await runner.process(new Float32Array(CHUNK_SAMPLES));
+    } catch (err) {
+        await runner.release().catch(() => {});
+        throw err;
+    }
+    runner.reset_state();
+    return runner;
+}
+
 export class SileroFrameVad {
     /** Latest hysteresis-debounced speech state, read per audio frame by the
      *  caller. Updated as chunks clear inference (sub-ms each, so at most one
@@ -158,22 +179,23 @@ export class SileroFrameVad {
         const res = await fetch(modelUrl);
         if (!res.ok) throw new Error(`Silero model fetch failed: ${res.status}`);
         const modelBytes = await res.arrayBuffer();
-        let session: InferenceSession;
+        let runner: SileroRunner;
         try {
-            session = await ort.InferenceSession.create(modelBytes, {
-                logSeverityLevel: SEVERITY_ERROR,
-            });
+            runner = await probedRunner(ort, modelBytes, { logSeverityLevel: SEVERITY_ERROR });
         } catch (optErr) {
-            // Kept as a belt-and-braces retry: the graph optimizer is where
-            // ort-web's webview-specific session-create failures have come from
-            // (6z11), and this model is a tiny RNN, so running it unoptimized is
-            // imperceptible - far better than losing the mic entirely.
+            // The graph optimizer is where ort-web's webview-specific failures
+            // come from (6z11) - sometimes at create(), sometimes only at run()
+            // ("Could not find OrtValue with name 'input'": the optimized graph
+            // loses its feed mapping while create() reports success, which is
+            // why probedRunner runs a chunk before trusting a session). This
+            // model is a tiny RNN, so running it unoptimized is imperceptible -
+            // far better than degrading to the energy speech decision.
             console.warn(
-                '[vad] silero session create failed - retrying with graph optimization disabled:',
+                '[vad] silero optimized session failed - retrying with graph optimization disabled:',
                 optErr
             );
             try {
-                session = await ort.InferenceSession.create(modelBytes, {
+                runner = await probedRunner(ort, modelBytes, {
                     graphOptimizationLevel: 'disabled',
                     logSeverityLevel: SEVERITY_ERROR,
                 });
@@ -183,12 +205,12 @@ export class SileroFrameVad {
                 // find OrtValue" on another - 6z11) and the first error is
                 // what an upstream report needs.
                 throw new Error(
-                    `ort session create failed - optimized: ${errText(optErr)}; ` +
+                    `ort session failed - optimized: ${errText(optErr)}; ` +
                         `unoptimized: ${errText(unoptErr)}`
                 );
             }
         }
-        return new SileroFrameVad(new SileroRunner(ort, session));
+        return new SileroFrameVad(runner);
     }
 
     /**
