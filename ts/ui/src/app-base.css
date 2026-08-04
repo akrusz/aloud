@@ -151,8 +151,9 @@ html[data-platform="android"] {
     --orb-orange: #ed7326;
     --danger: #b04435;
     --success: #4a8e5f;
-    --facilitator-bg: #fbe7ee;
-    --user-bg: #fdf2cd;
+    /* Pigmented below the ground, mirroring dark's raised-above. */
+    --facilitator-bg: #f8d3e0;
+    --user-bg: #f6e2a5;
     --overlay-bg: rgba(253, 244, 234, 0.95);
 }
 
