@@ -1636,7 +1636,12 @@ export async function mountSessionView(
                             // Don't preview our own echo as the user's words: a
                             // partial bubble showing the facilitator's sentence
                             // breaks immersion even when the final is dropped.
-                            if (isEcho(event.text, event.startedDuringTts)) {
+                            // Same for non-speech markers ("[NOISES]"): the
+                            // final would be dropped, so don't flash the bubble.
+                            if (
+                                isEcho(event.text, event.startedDuringTts) ||
+                                isNonSpeechOnly(event.text)
+                            ) {
                                 currentPartial?.remove();
                                 currentPartial = null;
                                 continue;
