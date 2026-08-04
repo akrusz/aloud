@@ -133,7 +133,7 @@ html[data-platform="android"] {
     --accent-dim: rgba(231, 31, 117, 0.10);
     --accent-glow: rgba(245, 165, 47, 0.45);
     --brand-glow: rgba(245, 216, 32, 0.85);
-    --brand-stroke: #ffee25;
+    --brand-stroke: #ffd820;
     --warm: #e5a01a;
     --warm-dim: rgba(245, 246, 0, 0.14);
     /* A step deeper than before: on the #f7efd6 ground the old #e2d0b8 nearly

@@ -62,7 +62,7 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 --accent-text:   #a81050
 --accent-hover:  #a81050
 --accent-glow:   rgba(245, 165, 47, 0.45)   /* orange */
---brand-stroke:  #ffee25   /* bright sunny yellow */
+--brand-stroke:  #ffd820   /* sunny yellow - matches the site (was #ffee25, lemony) */
 --brand-glow:    rgba(245, 216, 32, 0.85)
 --warm:          #e5a01a
 --border:        #d9c3a2
