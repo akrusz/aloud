@@ -275,8 +275,10 @@ scripts/android-aab.sh   # bump versionCode + sync versionName from package.json
 ```
 
 Pass `--no-bump` to rebuild the current version. Signing comes from the
-gitignored `android/keystore.properties`; commit the `build.gradle` version
-bump alongside the upload. Full keystore/Play App Signing detail:
+gitignored `android/keystore.properties`; the script commits the `build.gradle`
+version bump itself once the bundle builds (pathspec commit - a failed build
+leaves it uncommitted), and prints the latest stable release's notes for Play's
+"What's new" box. Full keystore/Play App Signing detail:
 [mobile-signing.md](mobile-signing.md).
 
 `VITE_ALOUD_CLOUD_URL` defaults from the committed `ts/ui/.env.production`

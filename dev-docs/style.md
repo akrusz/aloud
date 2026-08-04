@@ -31,8 +31,11 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 
 | Token | Purpose |
 |---|---|
-| `--accent` | Primary brand color (pink). Borders, button fills, focus, active states. |
-| `--accent-hover` | Darker pink for hover/pressed. |
+| `--accent` | Primary brand color (pink) - the logo pink, the same value in both themes. Borders, glyphs, focus rings, large/bold accent text. **Never a fill under text**: nothing reads on it. |
+| `--accent-fill` | The pink solid controls fill with, paired with `--accent-ink` for the label. Light and dark run the same two pinks, swapped. |
+| `--accent-ink` | Label color on `--accent-fill` - white pulled toward the accent hue; AA on both fills. |
+| `--accent-text` | `--accent` lifted (dark) or deepened (light) for accent text at body size and below. |
+| `--accent-hover` | Hover/pressed pink for `--accent-fill` (each theme hovers toward the other's fill). |
 | `--accent-dim` | Accent at low alpha - backgrounds for accent-tinted areas. |
 | `--accent-glow` | Halo color for tour spotlights, button hover halos, orb breathing, focus rings. **Orange**, not yellow - yellow at low alpha against dim backgrounds blends perceptually toward green. |
 | `--brand-stroke` | Yellow used for the logo's outline stroke and the tour-overlay-flat tint. |
@@ -53,8 +56,11 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 --text-primary:  #1f1a18   /* warm near-black */
 --text-secondary:#5c4a44
 --text-muted:    #756058
---accent:        #e71f75   /* hot pink */
---accent-hover:  #c01560
+--accent:        #e71f75   /* hot pink - the logo pink, shared with dark */
+--accent-fill:   #c01560
+--accent-ink:    #ffeaf4
+--accent-text:   #a81050
+--accent-hover:  #a81050
 --accent-glow:   rgba(245, 165, 47, 0.45)   /* orange */
 --brand-stroke:  #ffee25   /* bright sunny yellow */
 --brand-glow:    rgba(245, 216, 32, 0.85)
@@ -76,8 +82,11 @@ The dark-mode backgrounds are **neutral-warm browns**, not pink-tinted. We tried
 --text-primary:  #f5efe6   /* warm off-white */
 --text-secondary:#c4b49e
 --text-muted:    #b0a090
---accent:        #df3f88   /* pink, tuned for legibility on dark */
---accent-hover:  #c02a72
+--accent:        #e71f75   /* the same logo pink as light */
+--accent-fill:   #a81050
+--accent-ink:    #ffeaf4
+--accent-text:   #f5589a
+--accent-hover:  #c01560
 --accent-glow:   rgba(245, 165, 47, 0.30)   /* same orange, lower alpha */
 --brand-stroke:  #e8b820   /* warmer gold */
 --brand-glow:    rgba(255, 220, 80, 0.55)
@@ -117,7 +126,7 @@ The wordmark is hand-painted pop; the chrome around it leans the same way. Three
 - **Sticker shadows**: solid offset shadows (no blur) in `--brand-stroke` under filled pink controls - the wordmark's pink-on-yellow story as a control. App: 2px on `.btn-primary`, 3px on `.btn-begin` (kept inside the `btn-dirty-pulse` keyframes, since animating `box-shadow` replaces the whole list). Site: 3px buttons, 5-8px cards.
 - **Orb bands as mode colors**: `--orb-yellow` / `--orb-orange` / `--accent` color-code the three modes everywhere they appear - exploration yellow, noting orange, felt sense pink (site mode cards; app mode-tab underline). Dark values stay in the approved gold/burnt family.
 
-Landing-page-only flourishes: marker underline on section titles (`.hl` - a thin stroke riding the baseline, never over the letterforms), settle-in entrance (cards land ~1° crooked and straighten; square at rest), scalloped download-band edge. **No tilted or settling elements in the app** - the app is where people read and act; playful geometry stays on containers and entrances, not on working surfaces.
+Landing-page-only flourishes: marker underline on section titles (`.hl` - a thin stroke riding the baseline, never over the letterforms), settle-in entrance (the three practice cards - and only those - land ~2° crooked, desynced by per-card `--tilt` and `--settle-delay`, then straighten over a uniform 0.4s; square at rest), scalloped download-band edge. **No tilted or settling elements in the app** - the app is where people read and act; playful geometry stays on containers and entrances, not on working surfaces.
 
 ## Tour popup styling
 

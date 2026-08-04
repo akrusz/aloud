@@ -1,4 +1,4 @@
-// Cards land slightly crooked and straighten out over half a second the first
+// Cards land slightly crooked and straighten out over ~0.4s the first
 // time they scroll into view (the `settle` keyframes in style.css, driven by
 // each element's --tilt). At rest everything is square; the wonk is only an
 // entrance. Elements opt in with the .settle class.

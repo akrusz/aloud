@@ -13,8 +13,9 @@ When the product's features, providers, platforms, branding, or behavior change,
 check each of these still reflects reality:
 
 - **`docs/index.html`** - hero copy, the modes section, provider list, the
-  hero tagline/pun, **OG/Twitter metadata** (title, description, image), and the
-  "iOS and Android coming soon" platform lines.
+  hero tagline/pun, **OG/Twitter metadata** (title, description, image - the
+  meta description carries its own tagline, so it drifts from the hero), and the
+  mobile-status platform line ("iOS and Android are in closed beta").
 - **`docs/privacy/index.html`** - data-flow descriptions, provider examples,
   on-device claims, "last updated" date.
 - **`docs/terms/index.html`** - anything the product now does with money or
@@ -45,8 +46,9 @@ check each of these still reflects reality:
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
 - **`dev-docs/dev-cheatsheet.md`, `desktop.md`, `voice-barge-in.md`** - dev/build/feature docs.
-- **`CLAUDE.md`** - the architecture section (commands, modules, data flow,
-  pacing/check-in behavior) and any conventions.
+- **`CLAUDE.md`** + **`AGENTS.md`** - the architecture section (commands, modules,
+  data flow, pacing/check-in behavior) and any conventions. They're separate
+  files, not symlinked: mirror substantive edits across both.
 - **App UI text** - settings labels and hints, the tour/onboarding wizard,
   check-in prompts, welcome/empty-state copy.
 - **`ts/server/.env.example`** - comments describing config keys and defaults.

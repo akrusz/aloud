@@ -63,15 +63,21 @@ Services ID to create for the app (the Services ID is only for the *web* Apple
 flow, which you already have). The `App.entitlements` file is already in the
 project requesting this capability.
 
-## 3. Info.plist - paste the reversed client id
+## 3. Info.plist - add the reversed client id
 
-In `ts/ios/App/App/Info.plist`, replace the placeholder:
+`ts/ios/App/App/Info.plist` ships with **no** `CFBundleURLTypes` block - App
+Store Connect rejects a placeholder scheme (underscores are invalid,
+ITMS-90158). Add the block once the real reversed iOS client id from step 1
+exists, next to the comment that marks the spot:
 
+```xml
+<key>CFBundleURLTypes</key>
+<array><dict><key>CFBundleURLSchemes</key>
+  <array><string>com.googleusercontent.apps.1234567890-abcdef</string></array>
+</dict></array>
 ```
-com.googleusercontent.apps.REPLACE_WITH_REVERSED_IOS_CLIENT_ID
-```
 
-with your real reversed iOS client id from step 1. (Apple needs no URL scheme.)
+(Apple needs no URL scheme.)
 
 ## 4. Build-time env
 

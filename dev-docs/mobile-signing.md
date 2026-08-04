@@ -116,7 +116,8 @@ key; your upload key only signs uploads, so a lost upload key is recoverable.
 
 ```bash
 scripts/android-aab.sh   # bumps versionCode, syncs versionName from
-                         # ts/package.json, ui:build + cap sync + bundleRelease
+                         # ts/package.json, ui:build + cap sync + bundleRelease,
+                         # commits the build.gradle bump, prints release notes
 # → android/app/build/outputs/bundle/release/app-release.aab
 ```
 

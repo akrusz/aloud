@@ -120,7 +120,7 @@ the moment the plugin asks for the mic, rather than showing a prompt:
 <key>NSMicrophoneUsageDescription</key>
 <string>aloud listens while you speak so it can respond in your practice.</string>
 <key>NSSpeechRecognitionUsageDescription</key>
-<string>aloud transcribes your speech on your device to understand what you share.</string>
+<string>aloud transcribes your speech to understand what you share.</string>
 ```
 
 (These are visible user-facing copy - keep them honest and warm, and mind the

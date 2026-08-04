@@ -136,7 +136,7 @@ html[data-platform="android"] {
     --brand-stroke: #ffee25;
     --warm: #e5a01a;
     --warm-dim: rgba(245, 246, 0, 0.14);
-    /* A step deeper than before: on the #f2e9cd ground the old #e2d0b8 nearly
+    /* A step deeper than before: on the #f7efd6 ground the old #e2d0b8 nearly
        vanished, and the border is what separates input-on-secondary. */
     --border: #d9c3a2;
     /* Light's --border already reads as an outline - nothing to lift. */
