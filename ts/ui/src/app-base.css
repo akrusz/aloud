@@ -1490,9 +1490,11 @@ body:has(.session-container) {
     border-color: var(--accent);
 }
 
+/* Not --bg-card: that's the modal's own ground, so the fill would vanish.
+   The accent tint is the same selected idiom as .voice-row.selected. */
 .clock-mode.selected {
     border-color: var(--accent);
-    background: var(--bg-card);
+    background: var(--accent-dim);
 }
 
 .clock-mode-label {
