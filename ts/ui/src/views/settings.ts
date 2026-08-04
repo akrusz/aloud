@@ -1739,7 +1739,7 @@ function renderByokOptIn(s: AppSettings): string {
                 <span class="form-hint">Enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Keys are stored only on this device and never saved on our servers. Most providers are called directly; Anthropic blocks direct browser calls, so those requests (key included) relay through our servers.${
                     isCapacitor()
                         ? ''
-                        : ' The downloadable desktop app calls every provider directly.'
+                        : ' The downloadable desktop app calls every provider directly. It can also help you install your own AI and speech software, enabling completely free and private sessions.'
                 }</span>
             </div>`;
 }
