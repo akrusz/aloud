@@ -2140,7 +2140,12 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                 // settings) and stays in the TTS section.
                 isWebMode()
                     ? `${renderByokOptIn(s)}
-            <div class="form-row form-row-tts">${renderTtsEngineControls(s)}</div>`
+            <div class="form-row form-row-tts">${renderTtsEngineControls(s)}
+                <!-- Empty slot: without a row-mate the selector stretches to
+                     full width. Dropped by CSS while the ElevenLabs key row is
+                     showing, since that's the real row-mate. -->
+                <div class="form-group form-group-half slot-hidden" id="s-tts-engine-slot" aria-hidden="true"></div>
+            </div>`
                     : ''
             }
             <div class="form-row">

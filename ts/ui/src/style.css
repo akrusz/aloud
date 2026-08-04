@@ -278,6 +278,17 @@
     }
 }
 
+/* Advanced (web) has no voice picker in this row, so without a row-mate the
+   engine selector stretches full width - hence the placeholder slot. While the
+   ElevenLabs key is showing it IS the row-mate, so the slot would add a third
+   column: drop it. */
+.form-row-tts > #s-tts-engine-slot {
+    order: 4;
+}
+#s-elevenlabs-key-row:not(.hidden) ~ #s-tts-engine-slot {
+    display: none;
+}
+
 /* The ElevenLabs key field uses a single-column internal grid: label, then a
    full-width input, then the Get-a-key / Paste actions on their own line below
    (the same shape app-base.css gives every key row on mobile). The id scope
