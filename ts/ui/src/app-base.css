@@ -46,18 +46,29 @@ html { font-size: 16px; }
     --warm: #c4a850;
     --warm-dim: rgba(196, 168, 80, 0.12);
     --border: #302618;
+    /* Zine treatment (shared with the landing page): the orb gradient's yellow
+       and orange bands, used to color-code the three modes alongside --accent
+       (exploration yellow, noting orange, felt sense pink), and as sticker-
+       shadow accents. Dark values sit in the approved gold family. */
+    --orb-yellow: #e8b820;
+    --orb-orange: #d4692a;
     /* A hairline that still reads when --border is nearly the surface it sits
        on - for controls whose only edge cue is their outline (.clouds-help). */
     --hairline: rgba(245, 239, 230, 0.22);
     --danger: #c0503e;
-    --facilitator-bg: rgba(231, 31, 117, 0.06);
-    --user-bg: rgba(196, 168, 80, 0.06);
+    /* Opaque raised surfaces, not washes - pink facilitator, gold user. */
+    --facilitator-bg: #2e1720;
+    --user-bg: #2b2312;
     --overlay-bg: rgba(17, 13, 8, 0.95);
     /* Hover for --accent-fill, so it must clear --accent-ink too (5.2:1). */
     --accent-hover: #c01560;
     --success: #5a9e6f;
-    --radius: 12px;
-    --radius-sm: 8px;
+    /* Squashed corners (zine treatment): one ellipse, horizontal wider than
+       vertical, identical on all four corners - hand-cut, not machine-rounded.
+       Substituted textually into border-radius, so keep the "h / v" form;
+       never wrap these in calc(). */
+    --radius: 14px / 9px;
+    --radius-sm: 10px / 7px;
     /* Safe-area insets. Android WebViews don't reliably surface
        env(safe-area-inset-*) to CSS; Capacitor 8 injects the real values as
        --safe-area-inset-* inline on <html> (Android 15+ edge-to-edge), so
@@ -95,15 +106,19 @@ html[data-platform="android"] {
 }
 
 [data-theme="light"] {
-    --bg-primary: #fffae0;
-    --bg-secondary: #f5efd7;
-    --bg-card: #fad8c0;
+    /* Ladder, brightest to deepest: surface > input > note > secondary (nav,
+       base buttons) > primary (ground) > tertiary; card is the peach family.
+       Secondary sits RAISED from the ground, same direction as dark mode -
+       keep every rung a visible step or fields sink into the ground. */
+    --bg-primary: #f7efd6;
+    --bg-secondary: #fcf7e6;
+    --bg-card: #f9d0ae;
     --bg-input: #fffaf2;
     --bg-note: #fef9ec;
     --bg-surface: #ffffff;
-    --bg-tertiary: #efe0cc;
+    --bg-tertiary: #e9dab9;
     /* Light needs no easing - dark ink on a light card doesn't glare. */
-    --bg-dialog: #fad8c0;
+    --bg-dialog: #f9d0ae;
     --text-dialog: #1f1a18;
     --text-primary: #1f1a18;
     --text-secondary: #5c4a44;
@@ -121,13 +136,18 @@ html[data-platform="android"] {
     --brand-stroke: #ffee25;
     --warm: #e5a01a;
     --warm-dim: rgba(245, 246, 0, 0.14);
-    --border: #e2d0b8;
+    /* A step deeper than before: on the #f2e9cd ground the old #e2d0b8 nearly
+       vanished, and the border is what separates input-on-secondary. */
+    --border: #d9c3a2;
     /* Light's --border already reads as an outline - nothing to lift. */
-    --hairline: #e2d0b8;
+    --hairline: #d9c3a2;
+    --orb-yellow: #f5d820;
+    --orb-orange: #ed7326;
     --danger: #b04435;
     --success: #4a8e5f;
-    --facilitator-bg: rgba(231, 31, 117, 0.06);
-    --user-bg: rgba(229, 160, 26, 0.08);
+    /* Pigmented below the ground, mirroring dark's raised-above. */
+    --facilitator-bg: #f6e3da;
+    --user-bg: #f6e9b5;
     --overlay-bg: rgba(253, 244, 234, 0.95);
 }
 
@@ -305,17 +325,25 @@ body {
     color: var(--accent);
 }
 
-/* Deep fill carries the label; the logo-pink rim is what keeps it reading pink. */
+/* Deep fill carries the label; the logo-pink rim is what keeps it reading pink.
+   The solid yellow offset is the wordmark's pink-on-yellow story as a control
+   (sticker treatment, shared with the landing page). */
 .btn-primary {
     background: var(--accent-fill);
     border-color: var(--accent);
     color: var(--accent-ink);
+    box-shadow: 2px 2px 0 var(--brand-stroke);
 }
 
 .btn-primary:hover {
     background: var(--accent-hover);
     border-color: var(--accent);
     color: var(--accent-ink);
+    box-shadow: 3px 3px 0 var(--brand-stroke);
+}
+
+.btn-primary:disabled {
+    box-shadow: none;
 }
 
 .btn-secondary {
@@ -383,7 +411,7 @@ body {
 .tab-btn {
     background: none;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     color: var(--text-secondary);
     font-size: 1rem;
     padding: 0.5rem 1.5rem;
@@ -395,10 +423,14 @@ body {
     color: var(--text-primary);
 }
 
+/* The active tab's underline wears its mode's orb band - the same yellow /
+   orange / pink coding the landing page gives the three practice cards. */
 .tab-btn.active {
     color: var(--accent-text);
     border-bottom-color: var(--accent);
 }
+.tab-btn.active[data-tab="exploration"] { border-bottom-color: var(--orb-yellow); }
+.tab-btn.active[data-tab="noting"]      { border-bottom-color: var(--orb-orange); }
 
 .tab-panel {
     display: flex;
@@ -1302,21 +1334,29 @@ option.provider-unavailable {
     padding: 0.9rem;
     font-size: 1rem;
     border-radius: var(--radius);
-    transition: opacity 0.2s;
+    box-shadow: 3px 3px 0 var(--brand-stroke);
+    transition: opacity 0.2s, box-shadow 0.2s;
+}
+
+.btn-begin:hover:not(:disabled) {
+    box-shadow: 4px 4px 0 var(--brand-stroke);
 }
 
 .btn-begin:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .btn-begin.btn-dirty {
     animation: btn-dirty-pulse 2s ease-in-out infinite;
 }
 
+/* Keep the sticker offset in both keyframes - animating box-shadow replaces
+   the whole list, so dropping it would make the button flicker flat. */
 @keyframes btn-dirty-pulse {
-    0%, 100% { box-shadow: none; }
-    50% { box-shadow: 0 0 10px var(--accent-glow, rgba(212, 135, 58, 0.4)); }
+    0%, 100% { box-shadow: 3px 3px 0 var(--brand-stroke); }
+    50% { box-shadow: 3px 3px 0 var(--brand-stroke), 0 0 10px var(--accent-glow, rgba(212, 135, 58, 0.4)); }
 }
 
 /* ============================================
@@ -2489,6 +2529,15 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     color: #d9a23f;
     background: rgba(245, 165, 47, 0.14);
 }
+/* Deeper inks in light - the dark-tuned green/amber wash out on warm paper. */
+[data-theme="light"] .voice-row-cost-value {
+    color: #2f6f45;
+    background: rgba(90, 158, 111, 0.18);
+}
+[data-theme="light"] .voice-row-cost-premium {
+    color: #8a5c00;
+    background: rgba(245, 165, 47, 0.22);
+}
 
 /* The "1☁️ ≈ 1 credit/hour" legend under a credit-spending picker (voice list,
    hosted model select). Quiet - it explains the badge without competing. */
@@ -3402,7 +3451,7 @@ html:has(.nav-brand.has-update) .update-btn {
     overflow-y: auto;
     padding: 0.5rem;
     background: var(--bg-surface);
-    border-radius: calc(var(--radius) / 2);
+    border-radius: var(--radius-sm);
     margin-bottom: 0.5rem;
 }
 

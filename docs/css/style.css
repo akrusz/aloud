@@ -25,9 +25,13 @@
 
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 
-  --bg-primary:    light-dark(#fffae0, #110d08);
-  --bg-secondary:  light-dark(#f5efd7, #1a1410);
-  --bg-card:       light-dark(#fad8c0, #221a13);
+  /* Light ground: warm paper-white rather than cream. Dark mode works because
+     the ground is nearly valueless and the accents glow against it; light gets
+     the same physics inverted - brighter paper, deeper section bands, and the
+     peach cards a touch more saturated so they read as colored paper cutouts. */
+  --bg-primary:    light-dark(#fffdf2, #110d08);
+  --bg-secondary:  light-dark(#f2e9cd, #1a1410);
+  --bg-card:       light-dark(#f9d0ae, #221a13);
   --bg-surface:    light-dark(#ffffff, #2e2419);
   --text-primary:  light-dark(#1f1a18, #f5efe6);
   --text-secondary:light-dark(#5c4a44, #c4b49e);
@@ -50,6 +54,13 @@
   --brand-glow:    light-dark(rgba(245, 216, 32, 0.90), rgba(255, 220, 80, 0.60));
   --warm:          light-dark(#e5a01a, #c4a850);
   --border:        light-dark(#e2d0b8, #302618);
+
+  /* Zine treatment: the orb's three gradient bands, borrowed as card accents,
+     plus the highlighter swipe behind section titles. Sticker shadows reuse
+     --brand-stroke so cards echo the wordmark's pink-on-yellow story. */
+  --orb-yellow:    light-dark(#f5d820, #e8b820);
+  --orb-orange:    light-dark(#ed7326, #d4692a);
+  --mark:          light-dark(rgba(255, 216, 32, 0.55), rgba(232, 184, 32, 0.30));
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -214,7 +225,7 @@ code {
 }
 
 .hero-tagline {
-  font-size: 1.35rem;
+  font-size: 1.20rem;
   color: var(--text-primary);
   margin: 0.5rem auto 1.25rem;
   max-width: 620px;
@@ -301,16 +312,41 @@ code {
 }
 .btn:hover { transform: translateY(-1px); border-bottom: 2px solid var(--accent-hover); }
 
+/* Filled buttons are stickers too: pink pill on a solid yellow offset - the
+   wordmark's two-color story as a control. Hover lifts toward the light. */
 .btn-primary {
   background: var(--accent-fill);
   border-color: var(--accent-fill);
   color: var(--accent-ink);
+  box-shadow: 3px 3px 0 var(--brand-stroke);
 }
 .btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   color: var(--accent-ink);
-  box-shadow: 0 0 24px var(--accent-glow);
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--brand-stroke), 0 0 24px var(--accent-glow);
+}
+
+/* The hero's three CTAs wear the orb bands like the three mode cards do:
+   pink, orange, yellow - but only "open web app" gets the solid primary fill
+   (it's the path most people take). The other two stay ghost-weight: band-
+   colored outline, neutral label (band-colored text can't pass contrast in
+   light mode), filling with their band on hover. */
+.btn-orb-orange,
+.btn-orb-yellow {
+  background: transparent;
+  border-color: var(--band);
+  color: var(--text-primary);
+}
+.btn-orb-orange { --band: var(--orb-orange); }
+.btn-orb-yellow { --band: var(--orb-yellow); }
+.btn-orb-orange:hover,
+.btn-orb-yellow:hover {
+  background: var(--band);
+  border-color: var(--band);
+  border-bottom: 2px solid var(--band);
+  color: #1f1a18;
 }
 
 .btn-ghost {
@@ -368,7 +404,20 @@ code {
   font-size: 1.75rem;
   margin: 0 0 1.5rem;
   text-align: center;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+/* Highlighter stroke under section titles - a marker line riding low across
+   the baseline, so it underscores the words without dimming the letterforms. */
+.hl {
+  background-image: linear-gradient(100deg,
+      transparent 0.5%, var(--mark) 4%, var(--mark) 96%, transparent 99.5%);
+  background-size: 100% 0.3em;
+  background-position: 0 92%;
+  background-repeat: no-repeat;
+  padding: 0.05em 0.35em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .section-lead {
   text-align: center;
@@ -388,11 +437,40 @@ code {
   width: min(100%, 680px);
   justify-self: center;
 }
+/* Each card wears one band of the orb gradient - yellow, orange, pink - as a
+   hand-cut sticker: squashed corners (every corner uneven the same way) and a
+   solid offset shadow in its band color. */
 .mode-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  border: 2px solid var(--card-band, var(--border));
+  border-radius: 26px / 15px;
   padding: 1.75rem;
+  box-shadow: 6px 6px 0 var(--card-band, var(--border));
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mode-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 9px 9px 0 var(--card-band, var(--border));
+}
+.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -2deg; }
+.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 2.4deg;  --settle-delay: 0.28s; }
+.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -1.7deg; --settle-delay: 0.12s; }
+
+/* The practice cards (only - everything settling became annoying) land
+   crooked and straighten: js/settle.js tags .settle elements with .settle-in
+   the first time they scroll into view. Angles and start delays differ per
+   card - desynced the same way the tilts are - but every card settles over
+   the same duration. At rest everything is square; the wonk is a moment, not
+   a reading condition. `both` holds the tilt through each card's delay. */
+@keyframes settle {
+  from { transform: rotate(var(--tilt, -2deg)); }
+  to   { transform: rotate(0deg); }
+}
+.settle-in {
+  animation: settle var(--settle-dur, 0.4s) ease-out var(--settle-delay, 0s) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settle-in { animation: none; }
 }
 .mode-card h3 {
   margin: 0 0 0.75rem;
@@ -414,7 +492,9 @@ code {
   margin: 0 auto;
   padding: 1.5rem;
   background: var(--bg-card);
-  border-radius: 16px;
+  border: 2px solid var(--border);
+  border-radius: 28px / 17px;
+  box-shadow: 8px 8px 0 var(--brand-stroke);
 }
 .screenshot-frame img {
   display: block;
@@ -483,9 +563,10 @@ code {
 .provider-pill {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px / 11px;
   padding: 1.25rem;
   text-align: center;
+  box-shadow: 4px 4px 0 var(--border);
 }
 .provider-pill strong {
   display: block;
@@ -523,11 +604,12 @@ code {
   max-width: 640px;
   margin: 0 auto;
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  border: 2px solid var(--accent);
+  border-radius: 28px / 17px;
   padding: 1.5rem 1.75rem;
   position: relative;
   overflow: hidden;
+  box-shadow: 7px 7px 0 var(--brand-stroke);
 }
 .cloud-card::before {
   content: '';
@@ -593,7 +675,21 @@ code {
 }
 
 /* ===== download ===== */
-.section-download { background: var(--bg-secondary); max-width: none; padding: 2rem 1.5rem 3rem; }
+.section-download { background: var(--bg-secondary); max-width: none; padding: 2rem 1.5rem 3rem; position: relative; }
+/* Scalloped top edge - semicircle bumps of the band color rising into the
+   section above, so the download band reads as a cut-paper strip. */
+.section-download::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: radial-gradient(circle at 50% 100%, var(--bg-secondary) 8px, transparent 9px);
+  background-size: 28px 12px;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
 .section-download > * { max-width: 880px; margin-left: auto; margin-right: auto; }
 
 .version-chip {
@@ -602,6 +698,7 @@ code {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.15rem 0.75rem;
+  box-shadow: 2px 2px 0 var(--border);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.9em;
   color: var(--text-secondary);
@@ -616,21 +713,22 @@ code {
 .download-card {
   background: var(--bg-surface);
   border: 2px solid var(--border);
-  border-radius: 16px;
+  border-radius: 22px / 13px;
   padding: 1.5rem;
   text-align: center;
   color: var(--text-primary);
+  box-shadow: 5px 5px 0 var(--border);
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
 .download-card:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px var(--accent-glow);
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 var(--brand-stroke);
   color: var(--text-primary);
 }
 .download-card[data-detected="true"] {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-glow);
+  box-shadow: 5px 5px 0 var(--brand-stroke);
 }
 .download-os {
   font-size: 1.3rem;
@@ -671,11 +769,12 @@ code {
   margin: 0 auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 28px / 17px;
   padding: 1.75rem 1.75rem;
   text-align: center;
   position: relative;
   overflow: hidden;
+  box-shadow: 6px 6px 0 var(--orb-orange);
 }
 .tip-card::before {
   content: '';
@@ -735,14 +834,15 @@ code {
   border: 2px solid var(--accent-fill);
   font-size: 0.95rem;
   text-decoration: none;
+  box-shadow: 3px 3px 0 var(--brand-stroke);
   transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.15s ease;
 }
 .btn-tip:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   color: var(--accent-ink);
-  box-shadow: 0 0 20px var(--accent-glow);
-  transform: translateY(-1px);
+  box-shadow: 5px 5px 0 var(--brand-stroke), 0 0 20px var(--accent-glow);
+  transform: translate(-1px, -1px);
 }
 
 .btn-tip-ghost {
@@ -802,8 +902,13 @@ code {
 .faq-item {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px / 10px;
   padding: 0 1.25rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.faq-item[open] {
+  border-color: var(--accent);
+  box-shadow: 4px 4px 0 var(--brand-stroke);
 }
 .faq-item summary {
   list-style: none;
