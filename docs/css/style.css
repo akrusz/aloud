@@ -452,9 +452,9 @@ code {
   transform: translate(-2px, -2px);
   box-shadow: 9px 9px 0 var(--card-band, var(--border));
 }
-.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -2deg; }
-.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 2.4deg;  --settle-delay: 0.28s; }
-.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -1.7deg; --settle-delay: 0.12s; }
+.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -1deg; }
+.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 1.5deg; --settle-delay: 0.28s; }
+.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -2deg;  --settle-delay: 0.12s; }
 
 /* The practice cards (only - everything settling became annoying) land
    crooked and straighten: js/settle.js tags .settle elements with .settle-in
