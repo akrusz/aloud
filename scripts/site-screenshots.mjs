@@ -79,7 +79,7 @@ const THEMES = ['light', 'dark'];
 const SAMPLE_TURNS = [
     ['assistant', 'Welcome. What has your attention right now?'],
     ['user', "I've been thinking about the need to control. I'm going to internally ask myself a question. What do I need to control?"],
-    ['assistant', 'Take all the time you need with it, and just notice what answers back - words, sensations, images, whatever.'],
+    ['assistant', 'Take all the time you need with it, and just notice what answers back — words, sensations, images, whatever.'],
     ['user', "The answer that came back right away is not joy."],
     ['assistant', '"Not joy"... So joy gets to move freely. What happens in your body as you hear that answer?']
 ];
