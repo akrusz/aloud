@@ -50,6 +50,13 @@
   --brand-glow:    light-dark(rgba(245, 216, 32, 0.90), rgba(255, 220, 80, 0.60));
   --warm:          light-dark(#e5a01a, #c4a850);
   --border:        light-dark(#e2d0b8, #302618);
+
+  /* Zine treatment: the orb's three gradient bands, borrowed as card accents,
+     plus the highlighter swipe behind section titles. Sticker shadows reuse
+     --brand-stroke so cards echo the wordmark's pink-on-yellow story. */
+  --orb-yellow:    light-dark(#f5d820, #e8b820);
+  --orb-orange:    light-dark(#ed7326, #d4692a);
+  --mark:          light-dark(rgba(255, 216, 32, 0.55), rgba(232, 184, 32, 0.30));
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -259,6 +266,28 @@ code {
   display: flex;
   justify-content: center;
   margin-bottom: 1rem;
+  position: relative;
+}
+
+/* Little four-point sparks around the orb, twinkling out of phase. Yellow and
+   pink only - the two wordmark colors. */
+.spark {
+  position: absolute;
+  color: var(--brand-stroke);
+  animation: twinkle 3.2s ease-in-out infinite;
+  pointer-events: none;
+  line-height: 1;
+}
+.spark-1 { top: 8%;  left: calc(50% - 150px); font-size: 1.5rem; }
+.spark-2 { top: 68%; left: calc(50% + 128px); font-size: 1.1rem; color: var(--accent); animation-delay: 1.1s; animation-duration: 4.1s; }
+.spark-3 { top: -4%; left: calc(50% + 108px); font-size: 0.9rem; color: var(--accent); animation-delay: 2s; animation-duration: 3.7s; }
+.spark-4 { top: 82%; left: calc(50% - 135px); font-size: 1.15rem; animation-delay: 0.6s; animation-duration: 4.6s; }
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8) rotate(-8deg); }
+  50%      { opacity: 1;    transform: scale(1.15) rotate(8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spark { animation: none; opacity: 0.7; }
 }
 .orb {
   width: 180px;
@@ -301,16 +330,20 @@ code {
 }
 .btn:hover { transform: translateY(-1px); border-bottom: 2px solid var(--accent-hover); }
 
+/* Filled buttons are stickers too: pink pill on a solid yellow offset - the
+   wordmark's two-color story as a control. Hover lifts toward the light. */
 .btn-primary {
   background: var(--accent-fill);
   border-color: var(--accent-fill);
   color: var(--accent-ink);
+  box-shadow: 3px 3px 0 var(--brand-stroke);
 }
 .btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   color: var(--accent-ink);
-  box-shadow: 0 0 24px var(--accent-glow);
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--brand-stroke), 0 0 24px var(--accent-glow);
 }
 
 .btn-ghost {
@@ -368,7 +401,20 @@ code {
   font-size: 1.75rem;
   margin: 0 0 1.5rem;
   text-align: center;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+/* Highlighter swipe behind section titles - a fat marker stroke under the
+   lower half of the text, slightly angled at the ends so it reads hand-drawn. */
+.hl {
+  background-image: linear-gradient(100deg,
+      transparent 0.5%, var(--mark) 4%, var(--mark) 96%, transparent 99.5%);
+  background-size: 100% 0.52em;
+  background-position: 0 74%;
+  background-repeat: no-repeat;
+  padding: 0.05em 0.35em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .section-lead {
   text-align: center;
@@ -388,12 +434,25 @@ code {
   width: min(100%, 680px);
   justify-self: center;
 }
+/* Each card wears one band of the orb gradient - yellow, orange, pink - as a
+   hand-cut sticker: uneven corners, a slight tilt, and a solid offset shadow
+   in its band color. Tilts straighten on hover. */
 .mode-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  border: 2px solid var(--card-band, var(--border));
+  border-radius: 24px 14px 28px 12px / 14px 26px 12px 30px;
   padding: 1.75rem;
+  box-shadow: 6px 6px 0 var(--card-band, var(--border));
+  transform: rotate(var(--card-tilt, 0deg));
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+.mode-card:hover {
+  transform: rotate(0deg) translate(-2px, -2px);
+  box-shadow: 9px 9px 0 var(--card-band, var(--border));
+}
+.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --card-tilt: -0.5deg; border-radius: 16px 30px 14px 26px / 28px 14px 30px 12px; }
+.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --card-tilt: 0.7deg; }
+.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --card-tilt: -0.6deg; border-radius: 14px 26px 22px 16px / 24px 12px 28px 14px; }
 .mode-card h3 {
   margin: 0 0 0.75rem;
   font-size: 1.25rem;
@@ -414,7 +473,10 @@ code {
   margin: 0 auto;
   padding: 1.5rem;
   background: var(--bg-card);
-  border-radius: 16px;
+  border: 2px solid var(--border);
+  border-radius: 26px 16px 30px 14px / 16px 28px 14px 30px;
+  box-shadow: 8px 8px 0 var(--brand-stroke);
+  transform: rotate(-0.4deg);
 }
 .screenshot-frame img {
   display: block;
@@ -483,10 +545,15 @@ code {
 .provider-pill {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px 10px 20px 9px / 10px 18px 9px 20px;
   padding: 1.25rem;
   text-align: center;
+  box-shadow: 4px 4px 0 var(--border);
+  transform: rotate(var(--pill-tilt, 0deg));
 }
+.providers .provider-pill:nth-child(1) { --pill-tilt: -0.6deg; }
+.providers .provider-pill:nth-child(2) { --pill-tilt: 0.5deg; border-radius: 10px 18px 9px 20px / 18px 10px 20px 9px; }
+.providers .provider-pill:nth-child(3) { --pill-tilt: -0.4deg; }
 .provider-pill strong {
   display: block;
   color: var(--accent-text);
@@ -523,11 +590,13 @@ code {
   max-width: 640px;
   margin: 0 auto;
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  border: 2px solid var(--accent);
+  border-radius: 28px 16px 30px 14px / 16px 30px 14px 28px;
   padding: 1.5rem 1.75rem;
   position: relative;
   overflow: hidden;
+  box-shadow: 7px 7px 0 var(--brand-stroke);
+  transform: rotate(0.4deg);
 }
 .cloud-card::before {
   content: '';
@@ -593,7 +662,21 @@ code {
 }
 
 /* ===== download ===== */
-.section-download { background: var(--bg-secondary); max-width: none; padding: 2rem 1.5rem 3rem; }
+.section-download { background: var(--bg-secondary); max-width: none; padding: 2rem 1.5rem 3rem; position: relative; }
+/* Scalloped top edge - semicircle bumps of the band color rising into the
+   section above, so the download band reads as a cut-paper strip. */
+.section-download::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: radial-gradient(circle at 50% 100%, var(--bg-secondary) 8px, transparent 9px);
+  background-size: 28px 12px;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
 .section-download > * { max-width: 880px; margin-left: auto; margin-right: auto; }
 
 .version-chip {
@@ -602,6 +685,8 @@ code {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.15rem 0.75rem;
+  box-shadow: 2px 2px 0 var(--border);
+  transform: rotate(-1deg);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.9em;
   color: var(--text-secondary);
@@ -616,21 +701,26 @@ code {
 .download-card {
   background: var(--bg-surface);
   border: 2px solid var(--border);
-  border-radius: 16px;
+  border-radius: 22px 12px 24px 11px / 12px 22px 11px 24px;
   padding: 1.5rem;
   text-align: center;
   color: var(--text-primary);
+  box-shadow: 5px 5px 0 var(--border);
+  transform: rotate(var(--dl-tilt, 0deg));
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
+.download-grid .download-card:nth-child(1) { --dl-tilt: -0.5deg; }
+.download-grid .download-card:nth-child(2) { --dl-tilt: 0.4deg; border-radius: 12px 22px 11px 24px / 22px 12px 24px 11px; }
+.download-grid .download-card:nth-child(3) { --dl-tilt: -0.4deg; }
 .download-card:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px var(--accent-glow);
+  transform: rotate(0deg) translate(-2px, -2px);
+  box-shadow: 8px 8px 0 var(--brand-stroke);
   color: var(--text-primary);
 }
 .download-card[data-detected="true"] {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-glow);
+  box-shadow: 5px 5px 0 var(--brand-stroke);
 }
 .download-os {
   font-size: 1.3rem;
@@ -671,11 +761,13 @@ code {
   margin: 0 auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px 30px 14px 28px / 30px 14px 28px 16px;
   padding: 1.75rem 1.75rem;
   text-align: center;
   position: relative;
   overflow: hidden;
+  box-shadow: 6px 6px 0 var(--orb-orange);
+  transform: rotate(-0.4deg);
 }
 .tip-card::before {
   content: '';
@@ -735,14 +827,15 @@ code {
   border: 2px solid var(--accent-fill);
   font-size: 0.95rem;
   text-decoration: none;
+  box-shadow: 3px 3px 0 var(--brand-stroke);
   transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.15s ease;
 }
 .btn-tip:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   color: var(--accent-ink);
-  box-shadow: 0 0 20px var(--accent-glow);
-  transform: translateY(-1px);
+  box-shadow: 5px 5px 0 var(--brand-stroke), 0 0 20px var(--accent-glow);
+  transform: translate(-1px, -1px);
 }
 
 .btn-tip-ghost {
@@ -802,8 +895,14 @@ code {
 .faq-item {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px 9px 18px 8px / 9px 16px 8px 18px;
   padding: 0 1.25rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.faq-list .faq-item:nth-child(even) { border-radius: 9px 16px 8px 18px / 16px 9px 18px 8px; }
+.faq-item[open] {
+  border-color: var(--accent);
+  box-shadow: 4px 4px 0 var(--brand-stroke);
 }
 .faq-item summary {
   list-style: none;
