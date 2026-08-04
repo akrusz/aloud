@@ -56,8 +56,9 @@ html { font-size: 16px; }
        on - for controls whose only edge cue is their outline (.clouds-help). */
     --hairline: rgba(245, 239, 230, 0.22);
     --danger: #c0503e;
-    --facilitator-bg: rgba(231, 31, 117, 0.06);
-    --user-bg: rgba(196, 168, 80, 0.06);
+    /* Opaque raised surfaces, not washes - pink facilitator, gold user. */
+    --facilitator-bg: #2e1720;
+    --user-bg: #2b2312;
     --overlay-bg: rgba(17, 13, 8, 0.95);
     /* Hover for --accent-fill, so it must clear --accent-ink too (5.2:1). */
     --accent-hover: #c01560;
@@ -150,8 +151,8 @@ html[data-platform="android"] {
     --orb-orange: #ed7326;
     --danger: #b04435;
     --success: #4a8e5f;
-    --facilitator-bg: rgba(231, 31, 117, 0.06);
-    --user-bg: rgba(229, 160, 26, 0.08);
+    --facilitator-bg: #fbe7ee;
+    --user-bg: #fdf2cd;
     --overlay-bg: rgba(253, 244, 234, 0.95);
 }
 
