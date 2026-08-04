@@ -452,19 +452,23 @@ code {
   transform: translate(-2px, -2px);
   box-shadow: 9px 9px 0 var(--card-band, var(--border));
 }
-.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -0.8deg; }
-.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 1deg; }
-.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -0.9deg; }
+.modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -2deg; }
+.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 2.4deg;  --settle-delay: 0.14s; --settle-dur: 0.7s; }
+.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -1.7deg; --settle-delay: 0.05s; --settle-dur: 0.5s; }
 
-/* Cards land crooked and settle: js/settle.js tags .settle elements with
-   .settle-in the first time they scroll into view, which runs a half-second
-   straighten from each element's --tilt. At rest everything is square - the
-   wonk is a moment, not a reading condition. */
+/* The practice cards (only - everything settling became annoying) land
+   crooked and straighten: js/settle.js tags .settle elements with .settle-in
+   the first time they scroll into view. Angles, delays, and durations all
+   differ per card, desynced the same way the tilts are - uniformity is the
+   enemy here. At rest everything is square; the wonk is a moment, not a
+   reading condition. `both` holds the tilt through each card's delay. */
 @keyframes settle {
-  from { transform: rotate(var(--tilt, -1deg)); }
+  from { transform: rotate(var(--tilt, -2deg)); }
   to   { transform: rotate(0deg); }
 }
-.settle-in { animation: settle 0.55s ease-out; }
+.settle-in {
+  animation: settle var(--settle-dur, 0.6s) ease-out var(--settle-delay, 0s) both;
+}
 @media (prefers-reduced-motion: reduce) {
   .settle-in { animation: none; }
 }
@@ -491,7 +495,6 @@ code {
   border: 2px solid var(--border);
   border-radius: 28px / 17px;
   box-shadow: 8px 8px 0 var(--brand-stroke);
-  --tilt: -0.5deg;
 }
 .screenshot-frame img {
   display: block;
@@ -565,9 +568,6 @@ code {
   text-align: center;
   box-shadow: 4px 4px 0 var(--border);
 }
-.providers .provider-pill:nth-child(1) { --tilt: -0.8deg; }
-.providers .provider-pill:nth-child(2) { --tilt: 0.7deg; }
-.providers .provider-pill:nth-child(3) { --tilt: -0.6deg; }
 .provider-pill strong {
   display: block;
   color: var(--accent-text);
@@ -610,7 +610,6 @@ code {
   position: relative;
   overflow: hidden;
   box-shadow: 7px 7px 0 var(--brand-stroke);
-  --tilt: 0.5deg;
 }
 .cloud-card::before {
   content: '';
@@ -721,9 +720,6 @@ code {
   box-shadow: 5px 5px 0 var(--border);
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
-.download-grid .download-card:nth-child(1) { --tilt: -0.7deg; }
-.download-grid .download-card:nth-child(2) { --tilt: 0.6deg; }
-.download-grid .download-card:nth-child(3) { --tilt: -0.5deg; }
 .download-card:hover {
   border-color: var(--accent);
   transform: translate(-2px, -2px);
@@ -779,7 +775,6 @@ code {
   position: relative;
   overflow: hidden;
   box-shadow: 6px 6px 0 var(--orb-orange);
-  --tilt: -0.5deg;
 }
 .tip-card::before {
   content: '';
