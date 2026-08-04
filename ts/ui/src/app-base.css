@@ -106,18 +106,12 @@ html[data-platform="android"] {
 }
 
 [data-theme="light"] {
-    /* Deep-paper ground (zine-restyle): dark mode works because the ground
-       sits far below every surface and the accents glow; light now runs the
-       same ladder inverted. Body is --bg-primary, so the ground goes DEEP and
-       everything on it is a lighter raise - which also matches dark mode's
-       logic, where --bg-secondary is one step up from the ground (the old
-       light theme had secondary below primary, backwards from dark). Ladder,
-       brightest to deepest: surface #ffffff > input #fffaf2 > note #fef9ec >
-       secondary #faf4de (nav, base buttons) > primary #f2e9cd (ground) >
-       tertiary #e9dab9, with the peach card family (#f9d0ae) saturated apart
-       from all of them. */
-    --bg-primary: #f2e9cd;
-    --bg-secondary: #faf4de;
+    /* Ladder, brightest to deepest: surface > input > note > secondary (nav,
+       base buttons) > primary (ground) > tertiary; card is the peach family.
+       Secondary sits RAISED from the ground, same direction as dark mode -
+       keep every rung a visible step or fields sink into the ground. */
+    --bg-primary: #f7efd6;
+    --bg-secondary: #fcf7e6;
     --bg-card: #f9d0ae;
     --bg-input: #fffaf2;
     --bg-note: #fef9ec;
@@ -152,7 +146,7 @@ html[data-platform="android"] {
     --danger: #b04435;
     --success: #4a8e5f;
     /* Pigmented below the ground, mirroring dark's raised-above. */
-    --facilitator-bg: #f5dae2;
+    --facilitator-bg: #f5dade;
     --user-bg: #f6e2a5;
     --overlay-bg: rgba(253, 244, 234, 0.95);
 }

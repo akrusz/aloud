@@ -42,8 +42,8 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 ### Light mode
 
 ```
---bg-primary:    #f2e9cd   /* deep paper - the body ground */
---bg-secondary:  #faf4de   /* one step RAISED from the ground (nav, base buttons) -
+--bg-primary:    #f7efd6   /* warm paper - the body ground */
+--bg-secondary:  #fcf7e6   /* one step RAISED from the ground (nav, base buttons) -
                               same direction as dark mode; pre-zine light had
                               secondary below primary, backwards from dark */
 --bg-card:       #f9d0ae
