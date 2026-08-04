@@ -325,25 +325,24 @@ code {
 }
 
 /* The hero's three CTAs wear the orb bands like the three mode cards do:
-   pink (primary), orange, yellow. Dark ink on the two lighter fills - band-
-   colored outlines can't pass contrast in light mode, solid fills can. Sticker
-   colors rotate one band over so no button sits on its own color. */
+   pink, orange, yellow - but only "open web app" gets the solid primary fill
+   (it's the path most people take). The other two stay ghost-weight: band-
+   colored outline, neutral label (band-colored text can't pass contrast in
+   light mode), filling with their band on hover. */
 .btn-orb-orange,
 .btn-orb-yellow {
-  border-color: transparent;
-  color: #1f1a18;
-  box-shadow: 3px 3px 0 var(--sticker, var(--brand-stroke));
+  background: transparent;
+  border-color: var(--band);
+  color: var(--text-primary);
 }
-.btn-orb-orange { background: var(--orb-orange); --sticker: var(--brand-stroke); }
-.btn-orb-yellow { background: var(--orb-yellow); --sticker: var(--accent); }
+.btn-orb-orange { --band: var(--orb-orange); }
+.btn-orb-yellow { --band: var(--orb-yellow); }
 .btn-orb-orange:hover,
 .btn-orb-yellow:hover {
-  border-color: transparent;
-  border-bottom: 2px solid transparent;
+  background: var(--band);
+  border-color: var(--band);
+  border-bottom: 2px solid var(--band);
   color: #1f1a18;
-  transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0 var(--sticker), 0 0 24px var(--accent-glow);
-  filter: brightness(0.97);
 }
 
 .btn-ghost {
