@@ -1,4 +1,7 @@
 {
-  "database": "beads.db",
-  "jsonl_export": "issues.jsonl"
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "meditation_pal",
+  "project_id": "ce84e170-676a-41d6-952d-80bba25051b9"
 }
