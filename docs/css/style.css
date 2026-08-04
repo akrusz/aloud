@@ -453,15 +453,15 @@ code {
   box-shadow: 9px 9px 0 var(--card-band, var(--border));
 }
 .modes .mode-card:nth-child(1) { --card-band: var(--orb-yellow); --tilt: -2deg; }
-.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 2.4deg;  --settle-delay: 0.14s; --settle-dur: 0.7s; }
-.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -1.7deg; --settle-delay: 0.05s; --settle-dur: 0.5s; }
+.modes .mode-card:nth-child(2) { --card-band: var(--orb-orange); --tilt: 2.4deg;  --settle-delay: 0.28s; }
+.modes .mode-card:nth-child(3) { --card-band: var(--accent);     --tilt: -1.7deg; --settle-delay: 0.12s; }
 
 /* The practice cards (only - everything settling became annoying) land
    crooked and straighten: js/settle.js tags .settle elements with .settle-in
-   the first time they scroll into view. Angles, delays, and durations all
-   differ per card, desynced the same way the tilts are - uniformity is the
-   enemy here. At rest everything is square; the wonk is a moment, not a
-   reading condition. `both` holds the tilt through each card's delay. */
+   the first time they scroll into view. Angles and start delays differ per
+   card - desynced the same way the tilts are - but every card settles over
+   the same duration. At rest everything is square; the wonk is a moment, not
+   a reading condition. `both` holds the tilt through each card's delay. */
 @keyframes settle {
   from { transform: rotate(var(--tilt, -2deg)); }
   to   { transform: rotate(0deg); }
