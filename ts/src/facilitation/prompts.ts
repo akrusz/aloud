@@ -31,6 +31,9 @@ export interface PromptConfig {
     /** Smart check-in timing: teach the model the [WAIT:Nm] signal
      *  (WAIT_SIGNAL_FRAGMENT). Off by default. */
     waitSignal: boolean;
+    /** Silence mode: teach the model the [HOLD] signal (HOLD_SIGNAL_FRAGMENT).
+     *  On by default; mirrors AppSettings.silenceModeEnabled. */
+    holdSignal: boolean;
 }
 
 export const defaultPromptConfig: PromptConfig = {
@@ -40,6 +43,7 @@ export const defaultPromptConfig: PromptConfig = {
     verbosity: 'low',
     customInstructions: '',
     waitSignal: false,
+    holdSignal: true,
 };
 
 /** Returns a number in [0, 1). Injectable so randomness is testable. */
@@ -601,6 +605,18 @@ export class PromptBuilder {
     buildSystemPrompt(stageSection?: string): string {
         const composes = this.mode?.composes;
         const parts: string[] = [this.mode?.basePrompt ?? BASE_SYSTEM_PROMPT];
+
+        // Silence mode off: take the [HOLD] instructions back out (gg50).
+        // Without this the model still bids "Would you like me to be quiet for
+        // a bit?" (the token is stripped, so the meditator just sees a promise)
+        // and the client drops the bid, leaving the facilitator talking through
+        // a silence it agreed to. Cut from the base prompt rather than composed
+        // in, because the fragment reads in place among the other voice rules,
+        // and the on path - the default - has to stay byte-identical or every
+        // session pays a prompt-cache miss.
+        if (!this.config.holdSignal) {
+            parts[0] = parts[0]!.replace(`${HOLD_SIGNAL_FRAGMENT}\n\n`, '');
+        }
 
         if (stageSection) parts.push(stageSection);
 

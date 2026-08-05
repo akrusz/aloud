@@ -6,6 +6,7 @@ import {
     DIMENSIONS_PREAMBLE,
     DIRECTIVENESS_ADDITIONS,
     FOCUS_PROMPTS,
+    HOLD_SIGNAL_FRAGMENT,
     PromptBuilder,
     QUALITY_PROMPTS,
     WAIT_SIGNAL_FRAGMENT,
@@ -66,6 +67,24 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         expect(
             new PromptBuilder({ config: { waitSignal: true } }).buildSystemPrompt()
         ).toContain(WAIT_SIGNAL_FRAGMENT);
+    });
+
+    // Off, the client ignores a [HOLD] bid, so the model must not make one:
+    // otherwise it promises silence it can't deliver (gg50).
+    it('drops the [HOLD] fragment when holdSignal is off, in every mode', () => {
+        expect(new PromptBuilder().buildSystemPrompt()).toContain(HOLD_SIGNAL_FRAGMENT);
+        for (const mode of listModes()) {
+            const prompt = new PromptBuilder({ config: { holdSignal: false }, mode }).buildSystemPrompt();
+            expect(prompt).not.toContain(HOLD_SIGNAL_FRAGMENT);
+            expect(prompt).not.toContain('[HOLD]');
+            expect(prompt.trim().length).toBeGreaterThan(0);
+        }
+    });
+
+    it('leaves the prompt byte-identical when holdSignal is on', () => {
+        expect(new PromptBuilder({ config: { holdSignal: true } }).buildSystemPrompt()).toBe(
+            new PromptBuilder().buildSystemPrompt()
+        );
     });
 
     it('biases the [WAIT] default by guidance level (20m/8m/5m/90s/30s)', () => {

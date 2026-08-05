@@ -316,6 +316,7 @@ export async function mountSessionView(
             verbosity: setup.verbosity,
             customInstructions: setup.customInstructions,
             waitSignal: checkinTiming === 'smart',
+            holdSignal: appSettings.silenceModeEnabled,
         },
         mode,
     });
