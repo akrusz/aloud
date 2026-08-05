@@ -11,11 +11,11 @@ It ships three ways:
 - **Desktop app** — a Tauri (Rust) shell, distributed as DMG / MSI / AppImage.
 - **Mobile (beta)** — a Capacitor wrapper around the same web UI. `ts/ios/` and `ts/android/` are committed native projects (icons, signing, native STT/sign-in adapters); Android is headed for Play internal testing. See `dev-docs/mobile.md` + `dev-docs/store-submission-checklist.md`.
 
-The codebase is a **TypeScript + Rust stack** under `ts/`. (It was migrated from a Python/Flask app, removed in meditation-pal-sk8 — if old docs or commits reference `src/web` or `uv run python -m src.web`, that code is gone.) **All work happens in `ts/`.**
+The codebase is a **TypeScript + Rust stack** under `ts/`, and **all work happens there**. The Python/Flask original is gone (meditation-pal-sk8), so old references to `src/web` or `uv run python -m src.web` are dead.
 
 ## Source of truth
 
-**`dev-docs/dev-cheatsheet.md`** is the authoritative, maintained reference for structure, running, testing, and releasing. Read it first. This file is orientation + the rules that override defaults; the cheatsheet has the detail.
+**`dev-docs/dev-cheatsheet.md`** is the maintained reference for structure, running, testing, and releasing — read it first. This file is orientation plus the rules that override defaults.
 
 ## Architecture (the short version)
 
@@ -36,7 +36,7 @@ Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, or browser Sp
 
 ## Commands
 
-All `npm` commands run from `ts/`. Full list + ports in the cheatsheet.
+All `npm` commands run from `ts/` - or `npm --prefix ts <script>` from the repo root, which survives a reset shell cwd. Full list + ports in the cheatsheet.
 
 ```bash
 cd ts && npm run tauri:dev     # desktop shell + Vite UI on :4649 (primary dev target)
@@ -51,12 +51,12 @@ cargo check --manifest-path ts/src-tauri/Cargo.toml   # Rust shell
 
 CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + server tests).
 
-## Key patterns (the core engine, now in `ts/src/`)
+## Key patterns (core engine, `ts/src/`)
 
 - **Protocol/adapter-based providers**: LLM and TTS providers implement a shared interface; add one by implementing it and registering in the factory.
 - **Composable prompts**: system prompts are assembled from orthogonal dimensions — focuses (body, emotions, parts, open awareness), qualities (playful, compassionate, spacious, …), directiveness, verbosity.
 - **ModeSpec registry** (`modes.ts`): meditation modes are data, not forks — base prompt, which user dimensions compose, opener/check-in pools, and (for staged modes like felt sense, `felt-sense.ts`) an ordered phase arc. The active phase rides on the system prompt; the LLM signals movement with `[NEXT]`/`[BACK]`, parsed like `[HOLD]` (`parseTurnSignals`), clamped + persisted by `StagedModeController` and `SessionState.modePhase`.
-- **`[HOLD]` signal**: the LLM can prefix a response with `[HOLD]` to enter silence mode; it's stripped on parse. `parseTurnSignals` also truncates role leaks (`findRoleLeak`/`stripRoleLeak`, `modes.ts`) before scrubbing control tokens — a model that starts writing the meditator's turn gets cut at the leak, and since this is the path that feeds history, the leak never enters the transcript. While holding, speech doesn't auto-resume — each utterance is buffered and a lightweight resume-intent classifier (`resume-intent.ts`) decides whether the user means to continue, then submits the buffered turn.
+- **`[HOLD]` signal**: the LLM prefixes `[HOLD]` to ask for silence mode; it's stripped on parse, after `parseTurnSignals` truncates role leaks (`findRoleLeak`/`stripRoleLeak`, `modes.ts`) — since this path feeds history, a model that starts writing the meditator's turn never reaches the transcript. The token is a *bid*, not the entry: small models emit it far too eagerly, so the facilitator asks "shall I be quiet?" and the app judges the reply. Three one-utterance, no-history classifiers in `resume-intent.ts` gate the silence — `classifyHoldConfirm` on the way in, `classifyResumeIntent` on each buffered utterance while held (biased hard toward staying: thinking out loud is not a call back), and `classifyHoldRequest` for the minute after one ends, which takes "no, stay quiet" back under with a canned line (`HOLD_REENTRY_LINES`) instead of a facilitation turn. `routeUtterance` (`silence-dispatch.ts`) owns the precedence between them. With silence mode off, `HOLD_SIGNAL_FRAGMENT` leaves the system prompt, so the facilitator can't promise a silence the app won't deliver.
 - **Pacing state machine**: IDLE → LISTENING → PROCESSING → RESPONDING → SILENT_HOLD; a check-in fires after a silence interval and the timer resets. Check-in content and timing are settings: content is a canned (non-LLM) phrase or "smart" (`smart-checkin.ts`) — the LLM gets the session plus a bracketed silence-event turn and offers one short line in context or replies `[PASS]` to keep quiet, unusable replies falling back to the canned pool; timing is a fixed interval or "smart" — the LLM prefixes `[WAIT:Nm]` (parsed with the other turn signals) to set how long the next silence stays protected, clamped and held by `PacingController.setCheckinInterval`, with the default wait biased by the guidance slider (`waitBiasFragment`/`defaultWaitSeconds`: 20m/8m/5m/90s/30s across the five stops, high guidance = short waits and substantive check-ins). Two guards on the smart path: after `SMART_CHECKIN_MAX_PASSES` (2) consecutive `[PASS]`es the next due check-in speaks a canned line instead of giving the model another chance to stay quiet, and the streak cap (`SMART_CHECKIN_MAX_STREAK`) remains the walk-away backstop.
 - **Modes can own their check-ins**: a `checkinPaceSlider` mode (felt sense) has its own toggle + pace slider in the setup panel (`SessionSetup.feltSenseCheckins`, default on), so `views/session.ts` derives timing from those (`smart` / `none`) and forces content to `smart`, ignoring the app-level `checkinTiming`/`checkinContent`. The pace step also stands in for directiveness in those modes, since the guidance slider is hidden.
 - **Session timer** (`session-timer.ts`, UI clock in `ui/src/session-clock.ts`): the countdown is UI; what makes it a *meditation* timer is that the facilitator lands it in voice. Two synthetic `[Timer: …]` event turns ride the smart-check-in path (event turn → one short reply → canned fallback): an approach notice, whose lead (`timerApproachLeadSec`) scales with the sit and with the running average turn length so it can't fall inside a silence, and a completion notice. The model may `[PASS]` on approach, never on completion. The completion notice is the one thing that fires **inside `[HOLD]`** — and puts the hold back afterwards (`restoreHoldAfterNotice`), since a timer that silence mode can suppress isn't one. Both wait for a turn boundary rather than barging in. `isSyntheticEventTurn` keeps event turns out of transcripts; `parseSmartCheckinReply`/`runSmartCheckin` take a `maxChars` so a closing word can run longer than a check-in. Settings: `sessionClockMode` / `sessionTimerMin` / `showSessionClock` / `endSessionOnTimer` — hiding the readout never disarms the timer, and `endSessionOnTimer` (default off) ends the sit only *after* the closing word has been spoken.
@@ -74,6 +74,7 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 - **No git push access** — Claude Code is not configured to push. End sessions with `git commit` only; the user pushes.
 - **Pre-release check** — when asked, or before a release, work through `dev-docs/pre-release-checklist.md`: verify docs/copy still match the code and flag downstream consequences.
 - **Docs reference code by file + symbol, not line numbers** — line numbers rot; a `file.ts` path plus a function/constant name stays greppable.
+- **Friction log** — `dev-docs/friction.md` collects repo/tooling friction worth fixing. Append when something slows you down and the fix isn't yours to make in passing; promote real items to beads and delete them from the file.
 
 ## Issue tracking
 
