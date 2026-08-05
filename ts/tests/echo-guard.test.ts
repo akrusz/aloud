@@ -50,6 +50,31 @@ describe('looksLikeTtsEcho', () => {
         expect(looksLikeTtsEcho('one two three four five', 'one two three')).toBe(false);
     });
 
+    // meditation-pal-oxmt: a phone loudspeaker leaking into the recognizer
+    // comes back close to the spoken text but rarely verbatim.
+    it('catches echo the recognizer mangled a word or two', () => {
+        const spoken =
+            'Notice where the breath meets the body, and let your attention rest there.';
+        expect(
+            looksLikeTtsEcho('notice where the breath meets your body and let attention rest there', spoken)
+        ).toBe(true);
+    });
+
+    it('catches echo with a dropped word and a stray filler', () => {
+        const spoken = 'Take a slow breath and let the belly soften as you exhale.';
+        expect(looksLikeTtsEcho('take a slow breath let the belly soften uh as you exhale', spoken)).toBe(
+            true
+        );
+    });
+
+    it('does not fuzzy-match words scattered across the whole tail', () => {
+        const spoken =
+            'Take a slow breath. Notice the tightness in your shoulders. ' +
+            'Is there a softness anywhere? Let the belly settle as you exhale.';
+        expect(looksLikeTtsEcho('the tightness in my shoulders feels like a knot', spoken)).toBe(false);
+        expect(looksLikeTtsEcho('I noticed a softness in the belly as I breathe', spoken)).toBe(false);
+    });
+
     it('handles empty inputs', () => {
         expect(looksLikeTtsEcho('', 'whatever was spoken here today')).toBe(false);
         expect(looksLikeTtsEcho('some words were said here', '')).toBe(false);
