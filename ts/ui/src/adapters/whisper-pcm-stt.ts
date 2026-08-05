@@ -196,6 +196,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // typical echo-cancelled level so the gate is sane from the first frame.
     private ttsActive = false;
     private echoFloor = 0.005;
+    // Per-playback echo stats, logged when playback ends (setTtsActive). Null
+    // between replies. Diagnostic only - nothing reads it.
+    private echoWatch: { frames: number; overGate: number; peak: number; sum: number } | null =
+        null;
     // The shared Silero VAD (loadSileroVad), acquired by prime()/start(). Null
     // while capturing means the load failed and the energy fallback is the
     // speech signal (isSpeechFrame).
@@ -341,6 +345,14 @@ export class WhisperPcmSttEngine implements SttEngine {
             ? Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX)
             : 0;
 
+        if (this.echoWatch) {
+            const w = this.echoWatch;
+            w.frames++;
+            w.sum += energy;
+            w.peak = Math.max(w.peak, energy);
+            if (energy > Math.max(echoGate, BARGE_IN_THRESHOLD)) w.overGate++;
+        }
+
         // Barge-in: watch this stream for the user's voice. Runs in BOTH idle
         // and capturing states - continuous capture keeps the mic armed across
         // turns, so a barge-in can arrive with capturing=true. Fires once per
@@ -354,6 +366,15 @@ export class WhisperPcmSttEngine implements SttEngine {
             if (energy > Math.max(BARGE_IN_THRESHOLD, echoGate) && isSpeechLike) {
                 if (++this.bargeInChunks >= BARGE_IN_REQUIRED_CHUNKS) {
                     this.bargeInFired = true;
+                    // tts=true here means the facilitator was audible when this
+                    // fired, i.e. it may be the facilitator interrupting itself
+                    // rather than the user (meditation-pal-oxmt).
+                    console.info(
+                        `[vad] barge-in energy=${energy.toFixed(4)} ` +
+                            `gate=${echoGate.toFixed(4)} echoFloor=${this.echoFloor.toFixed(4)} ` +
+                            `prob=${this.silero ? this.silero.lastProb.toFixed(2) : 'n/a'} ` +
+                            `tts=${this.ttsActive}`
+                    );
                     this.bargeInHandler();
                 }
             } else {
@@ -664,6 +685,25 @@ export class WhisperPcmSttEngine implements SttEngine {
      * interrupt at the normal threshold.
      */
     setTtsActive(active: boolean): void {
+        if (active === this.ttsActive) return;
+        if (active) {
+            this.echoWatch = { frames: 0, overGate: 0, peak: 0, sum: 0 };
+        } else if (this.echoWatch) {
+            // The decisive measurement for meditation-pal-oxmt: how loud this
+            // device's echo actually was against the gates that are supposed to
+            // reject it. On a working AEC peak sits near echoFloor and overGate
+            // is 0; on a phone loudspeaker with no usable AEC, peak lands in
+            // real-speech territory and overGate counts the frames that leaked.
+            const w = this.echoWatch;
+            this.echoWatch = null;
+            const gate = Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX);
+            console.info(
+                `[vad] tts window: frames=${w.frames} ` +
+                    `peak=${w.peak.toFixed(4)} mean=${(w.frames ? w.sum / w.frames : 0).toFixed(4)} ` +
+                    `overGate=${w.overGate} gate=${gate.toFixed(4)} ` +
+                    `echoFloor=${this.echoFloor.toFixed(4)} bargeIn=${BARGE_IN_THRESHOLD}`
+            );
+        }
         this.ttsActive = active;
     }
 
