@@ -20,6 +20,7 @@ import {
     classifyResumeIntent,
     classifyHoldRequest,
     routeUtterance,
+    isMuteCommand,
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
     defaultPacingConfig,
@@ -1767,6 +1768,13 @@ export async function mountSessionView(
                     lastMicErrorToast = null;
                     clearSttTrouble();
                     const text = finalText.trim();
+                    // "mute" outranks every route below, silence mode included:
+                    // it's the one thing you say when you want the app to stop
+                    // hearing you, so it must not become a turn or wake a hold.
+                    if (isMuteCommand(text)) {
+                        setMuted(true);
+                        break;
+                    }
                     // Precedence between the silence handlers lives in
                     // routeUtterance, where it can be tested without a mic.
                     switch (
@@ -1888,9 +1896,16 @@ export async function mountSessionView(
         micMeter = null;
     }
 
-    micBtn.addEventListener('click', () => {
-        if (!stt) return;
-        if (muted) {
+    /** Mic on/off. Unmuting is button-only - a muted mic hears no way back. */
+    function setMuted(next: boolean): void {
+        if (!stt || next === muted) return;
+        if (next) {
+            muted = true;
+            void stt.stop();
+            stopMeter();
+            setMicButtonState();
+            setStatus('Muted');
+        } else {
             muted = false;
             setMicButtonState();
             // The listen loop resumes without re-announcing, so clear the
@@ -1904,14 +1919,10 @@ export async function mountSessionView(
             );
             startMeter();
             void listenLoop();
-        } else {
-            muted = true;
-            void stt.stop();
-            stopMeter();
-            setMicButtonState();
-            setStatus('Muted');
         }
-    });
+    }
+
+    micBtn.addEventListener('click', () => setMuted(!muted));
 
     // TTS toggle: when off, cancel in-flight speech and skip later speak()
     // calls. The .active class shows the wave icons; without it, the mute-line.
