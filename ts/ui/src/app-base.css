@@ -5386,8 +5386,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         justify-content: center;
         background: none;
         border: none;
-        padding: 0.25rem;
-        margin-left: 0.25rem;
+        /* Hitbox, not layout: the negative margins cancel the extra padding, so
+           the tap target grows to ~40px while the glyph and the orb beside it
+           stay exactly where they were. */
+        padding: 0.6rem;
+        margin-left: -0.1rem;
+        margin-right: -0.35rem;
         color: var(--text-primary);
         cursor: pointer;
         border-radius: var(--radius-sm);
