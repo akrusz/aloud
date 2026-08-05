@@ -61,7 +61,6 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 ## tips
 
-- if speech recognition feels slow, try the `base` whisper model (faster, less accurate).
 - say something like "hold on a bit" during a session to enter silence mode. say "come back" or similar to resume.
 - say "mute" to immediately turn off the microphone. click the mic button to resume.
 - click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
