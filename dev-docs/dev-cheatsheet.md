@@ -9,7 +9,9 @@ server, [ts-server.md](ts-server.md).
 
 ## Running
 
-All `npm` commands run from `ts/`.
+All `npm` commands run from `ts/`. The root `package.json` delegates the common
+ones, so `npm test`, `npm run typecheck`, `npm run ui:dev`, `npm run web:dev`,
+`npm run tauri:dev`, and `npm run test:server` also work from the repo root.
 
 ### Desktop app (Tauri) - the primary dev target
 

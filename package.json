@@ -1,0 +1,16 @@
+{
+  "name": "aloud-root",
+  "private": true,
+  "description": "Delegates the common scripts to ts/ so they work from the repo root. The real package.json is ts/package.json.",
+  "scripts": {
+    "test": "npm --prefix ts test",
+    "test:server": "npm --prefix ts/server test",
+    "typecheck": "npm --prefix ts run typecheck",
+    "build": "npm --prefix ts run build",
+    "ui:dev": "npm --prefix ts run ui:dev",
+    "ui:build": "npm --prefix ts run ui:build",
+    "web:dev": "npm --prefix ts run web:dev",
+    "tauri:dev": "npm --prefix ts run tauri:dev",
+    "server:dev": "npm --prefix ts/server run dev"
+  }
+}

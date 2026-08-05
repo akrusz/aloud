@@ -36,7 +36,7 @@ Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, or browser Sp
 
 ## Commands
 
-All `npm` commands run from `ts/` - or `npm --prefix ts <script>` from the repo root, which survives a reset shell cwd. Full list + ports in the cheatsheet.
+All `npm` commands run from `ts/`. The root `package.json` delegates the common ones (`test`, `typecheck`, `ui:dev`, `web:dev`, `tauri:dev`, `test:server`, …), so `npm test` from the repo root works too and survives a reset shell cwd; anything else is `npm --prefix ts <script>`. Full list + ports in the cheatsheet.
 
 ```bash
 cd ts && npm run tauri:dev     # desktop shell + Vite UI on :4649 (primary dev target)
@@ -79,6 +79,8 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 ## Issue tracking
 
 This project uses **Beads** (`.beads/`). Use `bd create`, `bd list`, `bd update`, `bd close`, `bd sync`.
+
+`bd create` prints no ID; `bd --json create ...` does (the flag goes *before* the subcommand), so use that whenever you need the ID back to link or close.
 
 For a **readable backlog** (the CLI is rough for browsing): `python3 scripts/bd-board.py`
 writes a self-contained, filterable HTML board of all tickets — open it in a browser.

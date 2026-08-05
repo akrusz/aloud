@@ -1,6 +1,11 @@
 .DS_Store
 sessions/
 
+# The root package.json only delegates to ts/ - `npm install` here would
+# install nothing, but npm still leaves these behind.
+/node_modules/
+/package-lock.json
+
 # Generated icon set (scripts/generate-icon.sh)
 *.iconset
 
