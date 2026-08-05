@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
-import { classifyResumeIntent, classifyHoldConfirm } from '../src/facilitation/resume-intent.js';
+import {
+    classifyResumeIntent,
+    classifyHoldConfirm,
+    classifyHoldRequest,
+} from '../src/facilitation/resume-intent.js';
 import {
     RESUME_INTENT_SYSTEM_PROMPT,
     HOLD_CONFIRM_SYSTEM_PROMPT,
+    HOLD_REQUEST_SYSTEM_PROMPT,
 } from '../src/facilitation/prompts.js';
 import type { LLMProvider, CompletionResult, Message, CompletionOptions } from '../src/llm/index.js';
 
@@ -18,6 +23,21 @@ class StubProvider implements LLMProvider {
         this.seenSystem = options.system;
         this.seenMaxTokens = options.maxTokens;
         if (this.response instanceof Error) throw this.response;
+        return { text: this.response, finishReason: 'stop', tokensUsed: null };
+    }
+}
+
+/** Fails the first N calls, then answers - a transient provider blip. */
+class FlakyProvider implements LLMProvider {
+    readonly model = 'stub';
+    calls = 0;
+    constructor(
+        private readonly failures: number,
+        private readonly response: string
+    ) {}
+    async complete(_messages: Message[], _options: CompletionOptions = {}): Promise<CompletionResult> {
+        this.calls++;
+        if (this.calls <= this.failures) throw new Error('overloaded');
         return { text: this.response, finishReason: 'stop', tokensUsed: null };
     }
 }
@@ -66,6 +86,42 @@ describe('classifyResumeIntent', () => {
             await classifyResumeIntent(provider, 'ready', { onUsage: () => (reported = true) })
         ).toBe('error');
         expect(reported).toBe(false);
+    });
+
+    // A one-off 429/overloaded shouldn't drop the meditator out of the hold
+    // (the caller fails open on 'error'), so the classifier retries once.
+    it('retries once, so a single transient failure still yields a verdict', async () => {
+        const provider = new FlakyProvider(1, 'NO');
+        expect(await classifyResumeIntent(provider, 'a warmth in my chest')).toBe('stay');
+        expect(provider.calls).toBe(2);
+    });
+
+    it('gives up after the retry', async () => {
+        const provider = new FlakyProvider(2, 'NO');
+        expect(await classifyResumeIntent(provider, 'ready')).toBe('error');
+        expect(provider.calls).toBe(2);
+    });
+});
+
+describe('classifyHoldRequest', () => {
+    it('returns true on a clear request to go back to silence', async () => {
+        expect(await classifyHoldRequest(new StubProvider('YES'), 'no, stay quiet')).toBe(true);
+    });
+
+    // A false quiet talks over someone who wanted to talk; a miss is just an
+    // ordinary turn, which is what would have happened anyway.
+    it('fails closed (false, ordinary turn) on a no or an error', async () => {
+        expect(await classifyHoldRequest(new StubProvider('NO'), 'my chest feels tight')).toBe(
+            false
+        );
+        expect(await classifyHoldRequest(new StubProvider(new Error('429')), 'quiet')).toBe(false);
+    });
+
+    it('uses the hold-request system prompt with a tiny token budget', async () => {
+        const provider = new StubProvider('YES');
+        await classifyHoldRequest(provider, 'shh');
+        expect(provider.seenSystem).toBe(HOLD_REQUEST_SYSTEM_PROMPT);
+        expect(provider.seenMaxTokens).toBe(10);
     });
 });
 

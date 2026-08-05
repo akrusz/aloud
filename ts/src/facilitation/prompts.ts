@@ -59,8 +59,8 @@ export const VOICE_STYLE_FRAGMENT = `Response style:
 - Avoid filler sounds like "mmm", "hmmm", "ahh"; they sound unnatural through text-to-speech. Instead use short phrases like "Yes...", "I see...", "Right...", or just go straight to your response.`;
 
 export const HOLD_SIGNAL_FRAGMENT = `Silence mode, the [HOLD] signal:
-When the meditator seems to want silence (e.g. "I need some quiet", "hold on a minute"), prefix your reply with [HOLD] and ask them, warmly and briefly, whether they'd like you to be quiet for a while (e.g. "[HOLD] Would you like me to be quiet for a bit?"). The app takes their answer from there and handles the silence. You do NOT go quiet yourself; one [HOLD] per request is enough.
-Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence. When in doubt, simply keep facilitating and do NOT use [HOLD].
+When the meditator seems to want silence (e.g. "I need some quiet", "hold on a minute", "just listen for a while", "I'm going to do another practice and I'll call you back"), prefix your reply with [HOLD] and ask them, warmly and briefly, whether they'd like you to be quiet for a while (e.g. "[HOLD] Would you like me to be quiet for a bit?"). The app takes their answer from there and handles the silence if necessary. You do NOT go quiet yourself; one [HOLD] per request is enough.
+Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence. If there's any doubt, simply keep facilitating and do NOT use [HOLD].
 When the silence ends, you'll receive everything they said while you were quiet.`;
 
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
@@ -416,21 +416,93 @@ const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
     ],
 };
 
-// Resume intent classification prompt
+// Silence-mode classifiers: leaving a hold, asking for one back, confirming one.
+//
+// Few-shot examples on all three: small local models drift into "The answer is
+// YES"-style replies, which the startsWith parse reads as NO. Examples plus
+// "exactly one word" keep the weakest models on format.
 
-// Few-shot examples on both classifiers: small local models drift into "The
-// answer is YES"-style replies, which the startsWith parse reads as NO, and for
-// resume intent a false NO is the trapping direction. Examples plus "exactly one
-// word" keep the weakest models on format.
+/**
+ * Judges one utterance spoken during a held silence: are they calling the
+ * facilitator back? Biased hard toward NO (tv9u). The first version asked only
+ * whether they wanted to end the silence, so any substantive reflection read as
+ * an offer to the facilitator and a third of realistic think-out-loud utterances
+ * came back YES on Haiku. The "another recording" sentence is load-bearing:
+ * narrating a teacher's instructions was the most reliable false positive.
+ *
+ * Deliberately disagrees with HOLD_REQUEST_SYSTEM_PROMPT on phrases like
+ * "let's keep going" - a call back here, a continuation there. Tune the pair
+ * together.
+ */
 export const RESUME_INTENT_SYSTEM_PROMPT =
-    'A meditator is in a period of held silence during a meditation session. ' +
-    'Evaluate whether their statement indicates they want to end the silence ' +
-    'and resume the conversation. Reply with exactly one word: YES or NO.\n' +
+    'A meditator asked a meditation facilitator to stay silent. They are now ' +
+    'thinking out loud, and the facilitator stays quiet unless they are clearly ' +
+    'being called back.\n' +
+    'Decide whether this statement is addressed TO the facilitator, asking it to ' +
+    'speak again. Default to NO: describing experience, narrating, wondering, ' +
+    'reacting, or working something out aloud is NOT a call to return, however ' +
+    'substantive or conversational it sounds. They may be narrating another ' +
+    'recording, practice, or teacher they are following; that is still NO. ' +
+    'Answer YES only for an explicit invitation to speak or an unmistakable ' +
+    '"I am done with the silence".\n' +
+    'Reply with exactly one word: YES or NO.\n' +
     'Examples:\n' +
     '"Okay, I\'m back." -> YES\n' +
     '"Let\'s keep going." -> YES\n' +
+    '"You can talk now." -> YES\n' +
+    '"What do you think about that?" -> YES\n' +
+    '"I\'d like to pick up where we left off." -> YES\n' +
     '"There\'s a warmth in my chest." -> NO\n' +
-    '"Hm. Interesting." -> NO';
+    '"Hm. Interesting." -> NO\n' +
+    '"I think there\'s something about not wanting to be seen." -> NO\n' +
+    '"Part of me wants to run away from this feeling." -> NO\n' +
+    '"Okay, so now she\'s telling me to scan down my body." -> NO\n' +
+    '"That\'s interesting, it moved when I looked at it." -> NO';
+
+/**
+ * Spoken when the meditator asks for quiet again just after a hold ended, in
+ * place of the model's [HOLD] bid: the app has already decided to go back under,
+ * so the usual "would you like me to be quiet?" is a question nobody will
+ * answer. Canned because the app, not the model, is what knows a silence just
+ * ended. Keep additions short enough to land before the silence, and closed
+ * enough that no answer is expected.
+ */
+export const HOLD_REENTRY_LINES: readonly string[] = [
+    'Going quiet again.',
+    "Okay. I'll be here.",
+    "I'll just listen for now, let me know when to return.",
+    'Take all the time you need.',
+    "Okay. When you want me to come back just say the word."
+];
+
+/**
+ * Judges an utterance in the window just after a hold ended: are they asking to
+ * go back under? Runs INSTEAD of a facilitation turn (tv9u), so a yes never
+ * generates a reply the app would talk over. Fails toward NO - a miss is one
+ * ordinary turn, a false yes goes quiet on someone who wanted to talk.
+ *
+ * Runs on the same utterances as RESUME_INTENT_SYSTEM_PROMPT but from the
+ * opposite side of the silence, so a few examples appear in both with opposite
+ * verdicts. That's intended; tune the pair together.
+ */
+export const HOLD_REQUEST_SYSTEM_PROMPT =
+    'A meditation facilitator has just started speaking again after a period of ' +
+    'silence. Evaluate whether the meditator is asking it to go back to being ' +
+    'quiet. Answer YES for a clear request for silence, and also when they are ' +
+    'saying the facilitator spoke by mistake - that it misread them and they ' +
+    'were not calling it back. Describing their experience, answering the ' +
+    'facilitator, or thinking out loud is NO.\n' +
+    'Reply with exactly one word: YES or NO.\n' +
+    'Examples:\n' +
+    '"No, stay quiet." -> YES\n' +
+    '"Please, I wasn\'t done - keep holding the silence." -> YES\n' +
+    '"Shh, not yet." -> YES\n' +
+    '"Sorry, I wasn\'t talking to you." -> YES\n' +
+    '"There\'s a tightness in my chest." -> NO\n' +
+    '"Yes, that\'s exactly it." -> NO\n' +
+    '"Sorry, what was that?" -> NO\n' +
+    '"Let\'s keep going." -> NO\n' +
+    '"I was just thinking out loud." -> NO';
 
 /** Judges the reply to the facilitator's "shall I go quiet?", so the client,
  *  not the model, decides whether to enter silence (rlgm). Mirrors the
@@ -670,5 +742,10 @@ export class PromptBuilder {
     /** Pick a gentle check-in phrase for long silences. */
     getCheckInPrompt(): string {
         return choice(this.mode?.checkIns?.length ? this.mode.checkIns : CHECK_IN_PROMPTS, this.random);
+    }
+
+    /** Pick the line spoken while dropping straight back into a silence. */
+    getHoldReentryLine(): string {
+        return choice(HOLD_REENTRY_LINES, this.random);
     }
 }

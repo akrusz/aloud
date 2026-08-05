@@ -8,7 +8,11 @@
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
-import { RESUME_INTENT_SYSTEM_PROMPT, HOLD_CONFIRM_SYSTEM_PROMPT } from './prompts.js';
+import {
+    RESUME_INTENT_SYSTEM_PROMPT,
+    HOLD_CONFIRM_SYSTEM_PROMPT,
+    HOLD_REQUEST_SYSTEM_PROMPT,
+} from './prompts.js';
 import type { LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
@@ -51,6 +55,11 @@ export type ResumeVerdict = 'resume' | 'stay' | 'error';
 /**
  * Shared yes/no classifier: one utterance, no history, tiny token budget.
  * Never throws; a provider failure returns 'error' for the caller to handle.
+ *
+ * One retry, because both callers treat 'error' as a decision, not a no-op: a
+ * single overloaded/429 blip would otherwise drop the meditator out of a hold
+ * they never asked to leave (tv9u). Two attempts, no backoff - the meditator is
+ * waiting on this before the next utterance is judged.
  */
 async function classifyYesNo(
     provider: LLMProvider,
@@ -59,13 +68,16 @@ async function classifyYesNo(
     options: ClassifyResumeIntentOptions
 ): Promise<'yes' | 'no' | 'error'> {
     const messages: Message[] = [{ role: 'user', content: text }];
-    try {
-        const result = await provider.complete(messages, { system, maxTokens: 10 });
-        options.onUsage?.(resultUsage(result));
-        return stripThinkTags(result.text).trim().toUpperCase().startsWith('YES') ? 'yes' : 'no';
-    } catch {
-        return 'error';
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const result = await provider.complete(messages, { system, maxTokens: 10 });
+            options.onUsage?.(resultUsage(result));
+            return stripThinkTags(result.text).trim().toUpperCase().startsWith('YES') ? 'yes' : 'no';
+        } catch {
+            /* retry once, then surface 'error' */
+        }
     }
+    return 'error';
 }
 
 /**
@@ -80,6 +92,21 @@ export async function classifyResumeIntent(
 ): Promise<ResumeVerdict> {
     const verdict = await classifyYesNo(provider, text, RESUME_INTENT_SYSTEM_PROMPT, options);
     return verdict === 'yes' ? 'resume' : verdict === 'no' ? 'stay' : 'error';
+}
+
+/**
+ * Just after a hold ended: are they asking to go back under? Runs in place of
+ * the facilitation turn inside the re-entry window (tv9u), so a yes never
+ * generates a reply the app would speak over. False on a classifier error, like
+ * classifyHoldConfirm: the fallback is an ordinary turn, which is what would
+ * have happened anyway.
+ */
+export async function classifyHoldRequest(
+    provider: LLMProvider,
+    text: string,
+    options: ClassifyResumeIntentOptions = {}
+): Promise<boolean> {
+    return (await classifyYesNo(provider, text, HOLD_REQUEST_SYSTEM_PROMPT, options)) === 'yes';
 }
 
 /**

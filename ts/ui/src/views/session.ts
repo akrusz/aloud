@@ -18,6 +18,9 @@ import {
     generateSessionSummary,
     buildResumeContext,
     classifyResumeIntent,
+    classifyHoldRequest,
+    routeUtterance,
+    HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
     defaultPacingConfig,
     defaultWaitSeconds,
@@ -1232,8 +1235,18 @@ export async function mountSessionView(
     function renderCheckinDebug(): void {
         if (!debugPanel) return;
         const over = pacing.hasCheckinOverride() ? ' (wait)' : '';
+        // Hold state is otherwise invisible: the re-entry window is a timestamp
+        // with no UI, so testing it meant guessing at the clock.
+        const sinceHold = Date.now() - leftHoldAt;
+        const hold = silenceMode
+            ? 'held'
+            : awaitingHoldConfirm
+              ? 'awaiting confirm'
+              : sinceHold < HOLD_REENTRY_GRACE_MS
+                ? `re-entry ${Math.ceil((HOLD_REENTRY_GRACE_MS - sinceHold) / 1000)}s`
+                : 'off';
         debugPanel.textContent = [
-            `timing ${checkinTiming} · content ${checkinContent}`,
+            `timing ${checkinTiming} · content ${checkinContent} · hold ${hold}`,
             `interval ${pacing.getCheckinInterval()}s${over} · next ${Math.round(
                 pacing.getCheckinEtaSec()
             )}s · streak ${smartCheckinStreak}/${SMART_CHECKIN_MAX_STREAK} · pass ${smartCheckinPasses}/${SMART_CHECKIN_MAX_PASSES}`,
@@ -1249,6 +1262,9 @@ export async function mountSessionView(
         renderCheckinDebug();
     }
     let silenceMode = false;
+    // When the last hold ended, for the re-entry grace window below. 0 = never
+    // held this session, which reads as "long ago" and needs no special case.
+    let leftHoldAt = 0;
     // Require-confirm handshake for a model-initiated [HOLD] (rlgm). Small
     // models especially emit [HOLD] far too eagerly, often off a truncated
     // fragment, and going silent on that one token can strand the session. So a
@@ -1375,6 +1391,33 @@ export async function mountSessionView(
         }
     }
 
+    // An utterance in the window just after a hold ended. The app already knows
+    // a silence just broke - the model doesn't - so it decides here rather than
+    // asking for a reply and then talking over it (tv9u). A yes speaks one
+    // canned line and drops straight back under, skipping both the facilitation
+    // turn and the "shall I be quiet?" handshake: the meditator confirmed that
+    // once already, and they're usually only back here because the resume
+    // classifier misread them. Anything else runs as an ordinary turn.
+    async function handleReHoldRequest(userText: string): Promise<void> {
+        if (isNonSpeechOnly(userText)) return;
+        const asking = await classifyHoldRequest(utilityProvider, userText, {
+            onUsage: (u) => session.recordLlmUsage(u),
+        });
+        if (torn) return;
+        if (!asking) {
+            await respondTo(userText);
+            return;
+        }
+        // Recorded, unlike the hold-confirm yes: the canned line goes into
+        // history, so without the request the model later reads itself saying
+        // "going quiet" with nothing that asked for it.
+        appendMessage('user', userText);
+        session.addUserMessage(userText);
+        await respondWithFacilitatorLine(builder.getHoldReentryLine());
+        if (torn) return;
+        enterHold();
+    }
+
     async function respondTo(
         userText: string,
         opts: { skipUserBubble?: boolean } = {}
@@ -1418,6 +1461,7 @@ export async function mountSessionView(
             smartCheckinPasses = 0;
             if (silenceMode) {
                 silenceMode = false;
+                leftHoldAt = Date.now();
                 setHolding(false);
             }
             // On a resume from silence the buffered utterances are already on
@@ -1526,6 +1570,8 @@ export async function mountSessionView(
             // quiet. Don't go silent here - the meditator's next utterance is
             // classified for a yes (rlgm). When silenceModeEnabled is false,
             // [HOLD] is ignored entirely.
+            // (Re-entry right after a hold never reaches here: handleReHoldRequest
+            // takes that turn before the model is asked for a reply.)
             awaitingHoldConfirm =
                 !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
             setStatus(stt ? 'Listening…' : 'Mic unavailable');
@@ -1681,8 +1727,9 @@ export async function mountSessionView(
                 }
                 // Transcript-level echo guard (meditation-pal-p8lx): our own TTS
                 // leaking back through the mic must not take a turn, wake a
-                // silence hold, or answer a hold-confirm question. One choke
-                // point covering all three dispatch paths below.
+                // silence hold, answer a hold-confirm question, or read as a
+                // request to go back under. One choke point covering every
+                // dispatch path below.
                 if (finalText.trim() && isEcho(finalText.trim(), finalStartedDuringTts)) {
                     console.info(`[echo-guard] dropped TTS echo: "${finalText.trim()}"`);
                     finalText = '';
@@ -1699,21 +1746,37 @@ export async function mountSessionView(
                 if (finalText.trim()) {
                     lastMicErrorToast = null;
                     clearSttTrouble();
-                    // During a silence hold, utterances are buffered and judged
-                    // for resume intent rather than each taking a turn.
-                    if (silenceMode) {
-                        await handleSilenceUtterance(finalText.trim());
-                    } else if (awaitingHoldConfirm) {
-                        // Facilitator just asked "shall I be quiet?": judge this
-                        // reply for a yes before it can take a normal turn.
-                        await handleHoldConfirm(finalText.trim());
-                    } else if (continuousCapture) {
-                        // Don't block the mic on the response; keep capturing so
-                        // an interrupting utterance is caught. respondTo
-                        // supersedes any in-flight turn itself.
-                        void respondTo(finalText.trim());
-                    } else {
-                        await respondTo(finalText.trim());
+                    const text = finalText.trim();
+                    // Precedence between the silence handlers lives in
+                    // routeUtterance, where it can be tested without a mic.
+                    switch (
+                        routeUtterance({
+                            silenceMode,
+                            awaitingHoldConfirm,
+                            silenceModeEnabled: pacingConfig.silenceModeEnabled,
+                            msSinceHoldEnded: Date.now() - leftHoldAt,
+                        })
+                    ) {
+                        case 'silence':
+                            await handleSilenceUtterance(text);
+                            break;
+                        case 'hold-confirm':
+                            await handleHoldConfirm(text);
+                            break;
+                        case 'rehold':
+                            await handleReHoldRequest(text);
+                            break;
+                        case 'normal':
+                            if (continuousCapture) {
+                                // Don't block the mic on the response; keep
+                                // capturing so an interrupting utterance is
+                                // caught. respondTo supersedes any in-flight
+                                // turn itself.
+                                void respondTo(text);
+                            } else {
+                                await respondTo(text);
+                            }
+                            break;
                     }
                 } else if (micError) {
                     setStatus(micError);
@@ -1844,6 +1907,7 @@ export async function mountSessionView(
     listenBtn.addEventListener('click', () => {
         if (silenceMode) {
             silenceMode = false;
+            leftHoldAt = Date.now();
             pacing.exitSilenceMode();
             setHolding(false);
             setStatus(stt ? 'Listening…' : 'Ready');

@@ -30,7 +30,9 @@ export {
     type ResumeMessage,
     type ResumeContextOptions,
 } from './resume.js';
-export { classifyResumeIntent, classifyHoldConfirm } from './resume-intent.js';
+export { classifyResumeIntent, classifyHoldConfirm, classifyHoldRequest } from './resume-intent.js';
+export { routeUtterance, HOLD_REENTRY_GRACE_MS } from './silence-dispatch.js';
+export type { UtteranceRoute, SilenceDispatchState } from './silence-dispatch.js';
 export {
     runSmartCheckin,
     parseSmartCheckinReply,
@@ -129,6 +131,8 @@ export {
     VERBOSITY_ADDITIONS,
     CHECK_IN_PROMPTS,
     RESUME_INTENT_SYSTEM_PROMPT,
+    HOLD_REQUEST_SYSTEM_PROMPT,
+    HOLD_REENTRY_LINES,
     type PromptConfig,
     type PromptBuilderOptions,
     type Focus,
