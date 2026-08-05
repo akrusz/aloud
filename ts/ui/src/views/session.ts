@@ -622,16 +622,19 @@ export async function mountSessionView(
             ({ engine } = await createTtsForVoice(voiceId, ttsOpts));
         }
         // The barge-in wrapper opens a PARALLEL getUserMedia stream during every
-        // speak(). On Android's WebView that misfires two ways: its
-        // echoCancellation isn't honored, so the facilitator's own voice trips
-        // the energy detector and cancels its own TTS (only the first sentence of
-        // a reply plays - each sentence is a separate speak() with its own
-        // listener); and the extra mic stream contends with the native
-        // SpeechRecognizer, so the next start() hangs (the ~2.5s startup-watchdog
-        // relaunches in the logs). Native STT already pauses capture while busy,
-        // so skip the wrapper there. Barge-in stays on web-speech (real Chrome
-        // honors EC) and server-whisper drives its own. See meditation-pal-x4h4.
-        const wrapBargeIn = !engineDrivenBargeIn && sttBackend !== 'capacitor';
+        // speak(). On a phone that misfires two ways: echoCancellation can't
+        // cope with the device's own loudspeaker, so the facilitator's voice
+        // trips the energy detector and cancels its own TTS (only the first
+        // sentence of a reply plays - each sentence is a separate speak() with
+        // its own listener); and the extra mic stream contends with the single
+        // recognizer the platform allows, so the next start() hangs (the ~2.5s
+        // startup-watchdog relaunches in the logs). First seen in Android's
+        // WebView (meditation-pal-x4h4), then in mobile Chrome on the web build
+        // (meditation-pal-oxmt) - it's the speaker, not the wrapper. Capture
+        // already pauses while busy on both, so skip the wrapper on any phone;
+        // desktop browsers honor EC, and server-whisper drives its own.
+        const wrapBargeIn =
+            !engineDrivenBargeIn && sttBackend !== 'capacitor' && !isSingleOwnerMicPlatform();
         return wrapBargeIn
             ? wrapTtsWithBargeIn(engine, { onBargeIn, micDeviceId: appSettings.micDeviceId })
             : engine;
@@ -694,6 +697,11 @@ export async function mountSessionView(
     /** Echo can only arrive while audio plays or shortly after (capture +
      *  transcription latency stretch "shortly" to a few seconds). */
     const ECHO_TEXT_WINDOW_MS = 4000;
+    /** How long a paused recognizer waits after playback before reopening the
+     *  mic. cancel() and the audio element both leave a tail, and a phone
+     *  speaker leaves reverb on top of it; anything heard in that window is
+     *  ours, not the user's. Short enough not to clip a prompt reply. */
+    const MIC_RESUME_COOLDOWN_MS = 700;
     function inEchoWindow(): boolean {
         return ttsSpeakingDepth > 0 || Date.now() - lastTtsEndedAt < ECHO_TEXT_WINDOW_MS;
     }
@@ -1669,6 +1677,17 @@ export async function mountSessionView(
                     !muted
                 ) {
                     await new Promise<void>((r) => setTimeout(r, 100));
+                }
+                // Then let the last of the facilitator's audio die away before
+                // reopening the mic - the acoustic half of the echo guard, and
+                // the only half that works when the recognizer mangles what it
+                // leaked (meditation-pal-oxmt).
+                while (!continuousCapture && !torn && !muted) {
+                    const since = Date.now() - lastTtsEndedAt;
+                    if (ttsSpeakingDepth === 0 && since >= MIC_RESUME_COOLDOWN_MS) break;
+                    await new Promise<void>((r) =>
+                        setTimeout(r, Math.max(50, MIC_RESUME_COOLDOWN_MS - since))
+                    );
                 }
                 if (torn || muted) break;
 
