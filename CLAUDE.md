@@ -36,16 +36,16 @@ Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, or browser Sp
 
 ## Commands
 
-All `npm` commands run from `ts/`. The root `package.json` delegates the common ones (`test`, `typecheck`, `ui:dev`, `web:dev`, `tauri:dev`, `test:server`, …), so `npm test` from the repo root works too and survives a reset shell cwd; anything else is `npm --prefix ts <script>`. Full list + ports in the cheatsheet.
+The real scripts live in `ts/package.json`; the root `package.json` delegates the common ones, so the block below runs from the repo root and survives a reset shell cwd. Anything not delegated is `npm --prefix ts <script>`. Full list + ports in the cheatsheet.
 
 ```bash
-cd ts && npm run tauri:dev     # desktop shell + Vite UI on :4649 (primary dev target)
-cd ts && npm run web:dev       # browser preview: Vite UI (:4649) + Hono (:8787) together
-cd ts && npm run ui:dev        # UI only on :4649 (pair with the Hono server below)
-cd ts/server && npm run dev    # aloud cloud (Hono) on :8787
-cd ts && npm test              # core + UI vitest
-cd ts && npm run typecheck
-cd ts/server && npm test       # hosted server vitest
+npm run tauri:dev     # desktop shell + Vite UI on :4649 (primary dev target)
+npm run web:dev       # browser preview: Vite UI (:4649) + Hono (:8787) together
+npm run ui:dev        # UI only on :4649 (pair with the Hono server below)
+npm run server:dev    # aloud cloud (Hono) on :8787
+npm test              # core + UI vitest
+npm run typecheck
+npm run test:server   # hosted server vitest
 cargo check --manifest-path ts/src-tauri/Cargo.toml   # Rust shell
 ```
 
