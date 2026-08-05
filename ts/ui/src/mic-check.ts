@@ -22,6 +22,7 @@
  */
 
 import { ensureMicPermission } from './mic-permission.js';
+import { isTauri, isCapacitor } from './is-desktop.js';
 
 export type MicStatus =
     /** A stream is available, or nothing we can check says otherwise. */
@@ -164,6 +165,19 @@ export function describeMicProblem(status: MicStatus): string | null {
         case 'ok':
             return null;
         case 'no-api':
+            // Three different causes wear this one status, and only one of them
+            // is the browser's fault. Naming the wrong one sends people to a
+            // fix that can't work: a packaged app can't switch browsers, and no
+            // browser exposes a mic over a non-secure origin.
+            if (isTauri() || isCapacitor()) {
+                // Most likely a webview without media support (Linux WebKitGTK
+                // varies by build). Nothing the user can toggle, so don't
+                // pretend otherwise.
+                return "aloud can't reach a microphone on this device.";
+            }
+            if (typeof window !== 'undefined' && window.isSecureContext === false) {
+                return 'A microphone needs a secure connection. Open aloud over https.';
+            }
             return "This browser can't reach a microphone. Try Chrome, Edge, or Safari.";
         case 'no-device':
             return 'No microphone found. Connect one, then reload.';

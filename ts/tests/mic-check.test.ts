@@ -180,6 +180,26 @@ describe('describeMicProblem', () => {
         expect(describeMicProblem('ok')).toBeNull();
     });
 
+    // 'no-api' has three causes and only one is the browser's fault. Sending a
+    // packaged-app user to "try another browser", or blaming the browser when
+    // the origin is plain http, is advice that cannot work.
+    it('blames the browser only in a browser, on a secure origin', () => {
+        vi.stubGlobal('window', { isSecureContext: true });
+        expect(describeMicProblem('no-api')).toMatch(/Try Chrome/);
+    });
+
+    it('points at https on a non-secure origin', () => {
+        vi.stubGlobal('window', { isSecureContext: false });
+        expect(describeMicProblem('no-api')).toMatch(/https/);
+        expect(describeMicProblem('no-api')).not.toMatch(/Try Chrome/);
+    });
+
+    it('names the device, not a browser, inside the packaged apps', () => {
+        vi.stubGlobal('window', { isSecureContext: true, __TAURI_INTERNALS__: {} });
+        expect(describeMicProblem('no-api')).toMatch(/this device/);
+        expect(describeMicProblem('no-api')).not.toMatch(/Try Chrome/);
+    });
+
     it('gives every failure an actionable line', () => {
         for (const status of ['no-api', 'no-device', 'denied', 'error'] as const) {
             const msg = describeMicProblem(status);
