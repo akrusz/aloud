@@ -90,6 +90,52 @@ describe('sttEngineOptions — Web Speech gating', () => {
     });
 });
 
+describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', () => {
+    // iOS 14.5+ DOES expose webkitSpeechRecognition, but it needs Dictation on,
+    // ignores `continuous`, and won't restart outside a user gesture, so the
+    // listen loop only produced mic-error toasts (meditation-pal-j8k1).
+    beforeEach(() => {
+        (globalThis as unknown as { window: unknown }).window = {
+            webkitSpeechRecognition: class {},
+        };
+        vi.stubGlobal('navigator', { userAgent: 'iPhone', platform: 'iPhone' });
+    });
+    afterEach(() => {
+        delete (globalThis as unknown as { window?: unknown }).window;
+        vi.unstubAllGlobals();
+    });
+
+    it('does not offer web-speech on an iPhone', () => {
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+    });
+    it('defaults an iPhone to aloud cloud, not the browser recognizer', () => {
+        expect(defaultSttChoice(true)).toBe('aloud');
+    });
+    it('drops a web-speech pick stored before this gate', () => {
+        expect(resolveSttChoice('web-speech', true)).toBe('aloud');
+    });
+    it('also covers iPadOS desktop-mode Safari (MacIntel + touch)', () => {
+        vi.stubGlobal('navigator', {
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+            platform: 'MacIntel',
+            maxTouchPoints: 5,
+        });
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+    });
+    it('leaves a real Mac (no touch) on the browser recognizer', () => {
+        vi.stubGlobal('navigator', {
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+            platform: 'MacIntel',
+            maxTouchPoints: 0,
+        });
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual([
+            'web-speech',
+            'aloud',
+            'aloud-gpt-transcribe',
+        ]);
+    });
+});
+
 describe('sttEngineOptions — native mobile (Capacitor)', () => {
     // The native app always runs in web mode. The platform recognizer leads and
     // becomes the default; the flaky WebView web-speech is not offered.

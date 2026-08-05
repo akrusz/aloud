@@ -25,6 +25,8 @@ import { detectCapabilities } from './capabilities.js';
 import { isCloudBuild } from './cloud-base.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
+import { acquireMicOnce, describeMicRequirement } from './mic-check.js';
+import { alertDialog } from './dialog.js';
 import { consumePurchaseReturn } from './cloud-billing.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import { showErrorToast, showSuccessToast } from './toast.js';
@@ -416,6 +418,7 @@ async function goSession(
     continueFrom: SessionState | null = null
 ): Promise<void> {
     setActiveNav('setup'); // session is still under Setup tab conceptually
+    if (!(await ensureMicAvailable())) return;
     // Pre-flight hosted sign-in: if this session will hit a credit-metered cloud
     // service (hosted LLM, Cloud STT/TTS - all gated on a session token) and
     // we're not signed in, prompt now rather than failing on the first
@@ -440,8 +443,28 @@ async function goSession(
     );
 }
 
+/**
+ * Mic gate, ahead of everything else a session start does.
+ *
+ * aloud has no text-only mode, so no mic means no sit: better to say that on
+ * setup than to drop the user into a session that can't hear them (the main
+ * view sat on "Mic unavailable"; noting quietly skipped every one of the user's
+ * turns - meditation-pal-j8k1).
+ *
+ * Runs FIRST so a blocked mic isn't discovered after asking someone to sign in,
+ * and runs before the first await in the start path so the permission prompt
+ * still carries the Begin click's user gesture (WebKit requires it).
+ */
+async function ensureMicAvailable(): Promise<boolean> {
+    const problem = describeMicRequirement(await acquireMicOnce());
+    if (!problem) return true;
+    await alertDialog(problem);
+    return false;
+}
+
 async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<void> {
     setActiveNav('setup');
+    if (!(await ensureMicAvailable())) return;
     // Same sign-in pre-flight as goSession; 'noting' so participant voices
     // count toward the cloud-usage decision.
     if (!(await ensureCloudAccess(setup, await loadAppSettings(), 'noting'))) return;

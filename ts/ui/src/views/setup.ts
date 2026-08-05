@@ -59,6 +59,7 @@ import {
     sttBackendForChoice,
     cloudSttCreditsPerHour,
 } from '../adapters/stt-picker.js';
+import { probeMic, describeMicRequirement, type MicStatus } from '../mic-check.js';
 import { sessionStore } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
@@ -197,6 +198,14 @@ export async function mountSetupView(
                    engine to the energy speech decision (6z11) */
             });
     }
+    // Silent mic probe, in parallel with the rest of setup. Optimistic until it
+    // answers, so the notice can only appear (never flash away) and Begin isn't
+    // disabled during the check.
+    let micStatus: MicStatus = 'ok';
+    void probeMic().then((status) => {
+        micStatus = status;
+        renderMicNotice();
+    });
     // Lazy-loaded; the setup form is interactive while voices fetch.
     let scoredVoices: ScoredVoice[] = [];
 
@@ -364,7 +373,9 @@ export async function mountSetupView(
         renderParticipantList();
         // Zero usable voices means TTS needs fixing. Checked only after the
         // catalog resolves so the banner doesn't flash during the load.
-        root.querySelectorAll<HTMLElement>('.no-voices-banner').forEach((banner) => {
+        // [data-no-voices], not the bare class: the no-mic notice borrows the
+        // same styling and must not be toggled by the voice catalog.
+        root.querySelectorAll<HTMLElement>('[data-no-voices]').forEach((banner) => {
             banner.classList.toggle('hidden', scoredVoices.length > 0);
         });
     }
@@ -895,9 +906,24 @@ export async function mountSetupView(
     function updateBeginButton(): void {
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
         if (!beginBtn) return;
-        const disabled = needsLLM() && !providerAvailable();
+        // A known-bad mic blocks Begin outright: aloud has no text-only mode, so
+        // there's nothing to start. Only the certain cases reach here (see
+        // probeMic); the rest are caught by the Begin handler's own check.
+        const disabled = (needsLLM() && !providerAvailable()) || micStatus !== 'ok';
         beginBtn.disabled = disabled;
         beginBtn.classList.toggle('btn-disabled', disabled);
+    }
+
+    /** Paint the no-mic notice + Begin state from the silent probe. */
+    function renderMicNotice(): void {
+        const banner = root.querySelector<HTMLElement>('#setup-no-mic');
+        const text = root.querySelector<HTMLElement>('#setup-no-mic-text');
+        const problem = describeMicRequirement(micStatus);
+        if (banner && text) {
+            banner.classList.toggle('hidden', !problem);
+            text.textContent = problem ?? '';
+        }
+        updateBeginButton();
     }
 
     /**
@@ -1614,7 +1640,7 @@ function renderSetupHTML(
                 <div class="form-group">
                     <label>Voice</label>
                     <button type="button" id="setup-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
-                    <div id="setup-no-voices" class="no-voices-banner inline hidden" role="alert">
+                    <div id="setup-no-voices" class="no-voices-banner inline hidden" role="alert" data-no-voices>
                         <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
                     </div>
                 </div>
@@ -1664,7 +1690,7 @@ function renderSetupHTML(
                 <div class="form-group">
                     <label>Voice</label>
                     <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
-                    <div class="no-voices-banner inline hidden" role="alert">
+                    <div class="no-voices-banner inline hidden" role="alert" data-no-voices>
                         <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
                     </div>
                 </div>
@@ -1693,7 +1719,13 @@ function renderSetupHTML(
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
             </div>
         </div>
-        <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline('AI uses fewer ☁️ in noting mode. Participants speak brief labels, not full sentences.')}</p>
+        <!-- No-mic notice. Painted by probeMic() only when it's certain (it
+             never prompts, so it stays silent on browsers that hide the answer);
+             Begin's acquireMicOnce is the definitive check. -->
+        <div id="setup-no-mic" class="no-voices-banner inline hidden" role="alert">
+            <p id="setup-no-mic-text"></p>
+        </div>
+        <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline('Noting mode uses fewer ☁️. Participants speak brief labels, not full sentences.')}</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
 

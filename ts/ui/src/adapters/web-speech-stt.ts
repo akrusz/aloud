@@ -8,14 +8,20 @@
  *                                       speech endpoint for non-Chrome Chromium,
  *                                       so it only ever errors `network`)
  *   - Desktop Safari (Sequoia+):    partial - requires on-device dictation
- *   - iOS Safari, iOS Capacitor:    ✗ (Apple doesn't expose SpeechRecognition;
- *                                       use a Capacitor speech plugin instead)
+ *   - iOS/iPadOS (any browser):     ✗ (WebKit HAS exposed webkitSpeechRecognition
+ *                                       since iOS 14.5, but it needs Dictation
+ *                                       enabled, ignores `continuous`, and won't
+ *                                       restart outside a user gesture - so the
+ *                                       listen loop only produces mic errors.
+ *                                       Reported unsupported; see isIosWeb)
  *
  * Bridges the event-callback API to AsyncIterable via a small internal queue,
  * resuming the iterator each time the recognizer emits.
  */
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
+
+import { isIosWeb } from '../is-desktop.js';
 
 // `SpeechRecognition` / `webkitSpeechRecognition` aren't in lib.dom - declare
 // just enough surface for the adapter.
@@ -76,6 +82,10 @@ function isBrave(): boolean {
 
 export function isWebSpeechSupported(): boolean {
     if (isBrave()) return false;
+    // iOS/iPadOS exposes the API and cannot use it the way this app needs to
+    // (see the header). Same shape as the Brave gate: report unsupported so the
+    // picker lands on aloud cloud instead of a mic that only errors.
+    if (isIosWeb()) return false;
     return getSpeechRecognitionCtor() !== null;
 }
 

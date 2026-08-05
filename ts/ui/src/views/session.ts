@@ -1760,8 +1760,8 @@ export async function mountSessionView(
     // pulses while nothing is transcribed (the android-chrome-speech-display
     // bug). Skip the meter there - recognition beats a cosmetic ring, and Web
     // Speech gives us no stream to share. Android Chrome is confirmed; iOS/iPadOS
-    // Safari is gated defensively, since a future iOS exposing Web Speech would
-    // hit the identical single-owner bug.
+    // stays in the gate defensively, though it no longer reaches this path (the
+    // picker keeps Web Speech off iOS entirely - meditation-pal-j8k1).
     let micMeter: MicMeter | null = null;
     let engineMeterOn = false;
     function startMeter(): void {

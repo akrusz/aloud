@@ -52,10 +52,11 @@ export function describeSttError(err: unknown): string {
     }
     // `service-not-allowed` is a blocked *service*, not a denied mic. On
     // Windows/Edge it's usually the OS "online speech recognition" privacy
-    // toggle or an enterprise policy: the recognizer can't work until that
-    // changes, so point at the in-session switch to aloud cloud.
+    // toggle or an enterprise policy; on Apple platforms it's Dictation being
+    // off. Either way the recognizer can't work until that changes, so name
+    // both and point at the in-session switch to aloud cloud.
     if (msg === 'service-not-allowed') {
-        return "This browser is blocking its speech recognition (on Windows, turn on Settings → Privacy → Speech). Or switch to aloud cloud speech - it doesn't need it.";
+        return "This browser is blocking its speech recognition (Windows: Settings → Privacy → Speech; Mac: turn on Dictation). Or switch to aloud cloud speech - it doesn't need it.";
     }
     // Web Speech's own denied-permission code is the hyphenated `not-allowed`
     // (distinct from getUserMedia's `NotAllowedError`, matched below).

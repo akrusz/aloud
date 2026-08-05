@@ -4,13 +4,16 @@
  *   1. Capacitor native plugin   - best on iOS/Android. The PLATFORM's
  *                                  recognizer, so not necessarily on-device:
  *                                  Android's may send audio to Google
- *   2. Web Speech API            - Chrome / Edge / Android Chrome
+ *   2. Web Speech API            - Chrome / Edge / Android Chrome. NOT iOS,
+ *                                  which exposes the API but can only error on
+ *                                  it (isWebSpeechSupported)
  *   3. Server Whisper            - covers Firefox, Safari, and anywhere else
  *                                  Web Speech doesn't, given a reachable
  *                                  endpoint (the desktop Rust shell's
  *                                  /app/v1/stt/whisper), so it's the reliable
  *                                  desktop path
- *   4. null                      - text-only mode
+ *   4. null                      - no mic (app.ts blocks the start; aloud
+ *                                  has no text-only mode)
  *
  * Detection is async (Capacitor + server probe); the result is cached.
  */
@@ -302,7 +305,9 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // Browser speech needs a recognizer that actually works. Not under Tauri:
     // the macOS WKWebView exposes webkitSpeechRecognition but never returns
     // results (same reason detectSttBackend skips it), and desktop has Whisper +
-    // cloud. Not in the native app either: the plugin above is better.
+    // cloud. Not in the native app either: the plugin above is better. And not
+    // on iOS/iPadOS, where isWebSpeechSupported reports false for a recognizer
+    // that's present but unusable - those browsers default to aloud cloud.
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser' });
     }

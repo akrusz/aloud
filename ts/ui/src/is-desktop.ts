@@ -63,23 +63,33 @@ export function capacitorPlatform(): 'ios' | 'android' | 'web' {
 }
 
 /**
+ * UA/platform sniff for iOS/iPadOS. Every browser there is WebKit, so this is a
+ * statement about the engine, not about Safari: Chrome and Firefox on an iPhone
+ * inherit the same speech recognizer and the same single-owner mic.
+ *
+ * iPadOS 13+ Safari masquerades as desktop Mac, so it's caught via touch points
+ * rather than the UA string (Macs aren't touchscreens).
+ */
+export function isIosWeb(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    if (/iPhone|iPad|iPod/i.test(ua) || /iPhone|iPad|iPod/i.test(platform)) return true;
+    // iPadOS desktop-mode Safari reports as "MacIntel" but exposes touch.
+    return /Mac/i.test(platform) && (navigator.maxTouchPoints ?? 0) > 1;
+}
+
+/**
  * UA/platform sniff for Android + iOS/iPadOS, where the mic goes to exactly one
  * consumer (desktop browsers let captures share it). A second `getUserMedia`
  * capture, e.g. the cosmetic mic-level meter, starves the Web Speech recognizer
  * and it silently returns nothing: the mic ring pulses, nothing transcribes.
  * startMeter() (views/session.ts) skips the meter on the Web Speech path.
- *
- * iPadOS 13+ Safari masquerades as desktop Mac, so it's caught via touch points
- * rather than the UA string (Macs aren't touchscreens).
  */
 export function isSingleOwnerMicPlatform(): boolean {
     if (typeof navigator === 'undefined') return false;
-    const ua = navigator.userAgent || '';
-    const platform = navigator.platform || '';
-    if (/Android/i.test(ua)) return true;
-    if (/iPhone|iPad|iPod/i.test(ua) || /iPhone|iPad|iPod/i.test(platform)) return true;
-    // iPadOS desktop-mode Safari reports as "MacIntel" but exposes touch.
-    return /Mac/i.test(platform) && (navigator.maxTouchPoints ?? 0) > 1;
+    if (/Android/i.test(navigator.userAgent || '')) return true;
+    return isIosWeb();
 }
 
 let cached: boolean | null = null;

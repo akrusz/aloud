@@ -37,11 +37,8 @@ import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { loadAppSettings, saveAppSettings } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
-import {
-    createBestStt,
-    detectSttBackend,
-    invalidateSttBackendCache,
-} from '../adapters/stt-picker.js';
+import { createSttForChoice, resolveSttChoice } from '../adapters/stt-picker.js';
+import { isWebMode } from '../app-mode.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
@@ -333,20 +330,26 @@ export async function mountNotingSessionView(
     }
 
     // ---- audio: STT, per-participant TTS, chime cue ----
-    invalidateSttBackendCache();
-    const sttBackend = await detectSttBackend();
-    const stt: SttEngine | null = await createBestStt({
-        micDeviceId: appSettings.micDeviceId,
-        whisperModelSize: appSettings.sttWhisperModel,
-        language: appSettings.language,
-        silenceBaseMs: 1200,
-        silenceMaxMs: 6000,
-        silenceRampRate: 1,
-        // Notes are SHORT ("warmth", "tension"), so keep the min-speech gate low
-        // or the server-Whisper VAD discards a quick word and the turn sticks
-        // re-listening.
-        minSpeechDurationMs: 150,
-    });
+    // The Settings pick, same as views/session.ts - NOT an auto-detect. The
+    // start gate (ensureCloudAccess) already pre-flights sign-in against this
+    // resolved choice, so detecting separately here made the two disagree:
+    // a browser with no Web Speech was asked to sign in for cloud STT and then
+    // handed a mic-less session anyway (meditation-pal-j8k1).
+    const stt: SttEngine | null = await createSttForChoice(
+        resolveSttChoice(appSettings.sttEngine, isWebMode()),
+        {
+            micDeviceId: appSettings.micDeviceId,
+            whisperModelSize: appSettings.sttWhisperModel,
+            language: appSettings.language,
+            silenceBaseMs: 1200,
+            silenceMaxMs: 6000,
+            silenceRampRate: 1,
+            // Notes are SHORT ("warmth", "tension"), so keep the min-speech gate
+            // low or the server-Whisper VAD discards a quick word and the turn
+            // sticks re-listening.
+            minSpeechDurationMs: 150,
+        }
+    );
 
     // One TTS engine per distinct voice id (participants + narrator).
     const ttsCache = new Map<string, TtsEngine>();
@@ -530,7 +533,8 @@ export async function mountNotingSessionView(
         userTurnStart = Date.now();
 
         if (!stt) {
-            // No mic backend, so no user turn; move on after a beat.
+            // Unreachable: the circle doesn't start without an engine (below).
+            // Kept so a future path into here can't hang the turn loop.
             scheduleNextTurn(DEFAULT_CADENCE_MS);
             return;
         }
@@ -785,17 +789,21 @@ export async function mountNotingSessionView(
 
     // ---- kick off ----
     setMicButtonState();
-    if (sttBackend === 'none') {
+    if (!stt) {
+        // app.ts gates every session start on a working mic, so this is a
+        // can't-happen. If it happens anyway, don't run a circle whose every
+        // user turn would be skipped - say why and leave it unstarted.
         setStatus('No microphone available. Noting needs a mic for your turns.');
+    } else {
+        void (async () => {
+            // Prime the STT capture graph before the opener so its onset
+            // pre-buffer fills during the opening line; otherwise a barge-in on
+            // the first turn has an empty buffer and clips the opening word (d35).
+            await stt.prime?.();
+            await speakOpener();
+            if (!torn) void advanceTurn();
+        })();
     }
-    void (async () => {
-        // Prime the STT capture graph before the opener so its onset pre-buffer
-        // fills during the opening line; otherwise a barge-in on the first turn
-        // has an empty buffer and clips the opening word (d35).
-        await stt?.prime?.();
-        await speakOpener();
-        if (!torn) void advanceTurn();
-    })();
 
     return {
         teardown(): void {
