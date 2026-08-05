@@ -32,6 +32,20 @@ import {
     type AppMode,
 } from '../app-mode.js';
 import { isDevMode, getCheckinDebugSetting, setCheckinDebug } from '../dev-mode.js';
+import {
+    CLOUD_FAULT_NAMES,
+    STT_FAULTS,
+    getCloudFault,
+    setCloudFault,
+    getSttFault,
+    setSttFault,
+    getNoVoices,
+    setNoVoices,
+    renderSimBanner,
+    type CloudFault,
+    type SttFault,
+} from '../dev-sim.js';
+import { MIC_SIM_STATUSES, getSimMic, setSimMic, type MicStatus } from '../mic-check.js';
 import { appUrl } from '../app-base.js';
 import { openAbout, PREVIEW_UPDATE_KEY } from '../about.js';
 import {
@@ -1470,6 +1484,27 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
             const bypass = root.querySelector<HTMLInputElement>('#s-dev-cloud-bypass');
             bypass?.addEventListener('change', () => devSetCloudBypass(bypass.checked));
+
+            const mic = root.querySelector<HTMLSelectElement>('#s-dev-sim-mic');
+            mic?.addEventListener('change', () => {
+                setSimMic((mic.value || null) as MicStatus | null);
+                renderSimBanner();
+            });
+            const stt = root.querySelector<HTMLSelectElement>('#s-dev-sim-stt');
+            stt?.addEventListener('change', () => {
+                setSttFault((stt.value || null) as SttFault | null);
+                renderSimBanner();
+            });
+            const cloud = root.querySelector<HTMLSelectElement>('#s-dev-sim-cloud');
+            cloud?.addEventListener('change', () => {
+                setCloudFault((cloud.value || null) as CloudFault | null);
+                renderSimBanner();
+            });
+            const noVoices = root.querySelector<HTMLInputElement>('#s-dev-sim-no-voices');
+            noVoices?.addEventListener('change', () => {
+                setNoVoices(noVoices.checked);
+                renderSimBanner();
+            });
         }
     }
 
@@ -2201,6 +2236,52 @@ function renderDeveloperSection(): string {
                     <span>Cloud sign-in bypass</span>
                 </label>
                 <span class="form-hint">Same as ?dev. Uses the local /auth/dev account; reload to apply.</span>
+            </div>
+        </div>
+        <h3 class="settings-subhead">Simulate failures</h3>
+        <p class="form-hint">States that are painful to reach on purpose. Each one travels the real code path, so the handling under test is the shipping handling. Session-scoped: all four reset when the tab closes, and a banner shows while any is on.</p>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label for="s-dev-sim-mic">Microphone</label>
+                <select id="s-dev-sim-mic">
+                    <option value="">working</option>
+                    ${MIC_SIM_STATUSES.map(
+                        (v) =>
+                            `<option value="${v}"${getSimMic() === v ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                </select>
+                <span class="form-hint">Blocks Begin with the setup notice. 'error' is invisible until Begin, like the real thing. Same as ?nomic=.</span>
+            </div>
+            <div class="form-group form-group-half">
+                <label for="s-dev-sim-stt">Speech recognition</label>
+                <select id="s-dev-sim-stt">
+                    <option value="">working</option>
+                    ${STT_FAULTS.map(
+                        (v) =>
+                            `<option value="${v}"${getSttFault() === v ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                </select>
+                <span class="form-hint">Every capture errors: status line, toast, and the trouble banner after two.</span>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label for="s-dev-sim-cloud">aloud cloud</label>
+                <select id="s-dev-sim-cloud">
+                    <option value="">working</option>
+                    ${CLOUD_FAULT_NAMES.map(
+                        (v) =>
+                            `<option value="${v}"${getCloudFault() === v ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                </select>
+                <span class="form-hint">Fails the LLM and TTS legs both. insufficient_credits drives the spoken apology and buy prompt.</span>
+            </div>
+            <div class="form-group form-group-half">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-dev-sim-no-voices"${getNoVoices() ? ' checked' : ''}>
+                    <span>Empty voice catalog</span>
+                </label>
+                <span class="form-hint">Raises the no-voices banners. Reload to apply.</span>
             </div>
         </div>`
         : '';

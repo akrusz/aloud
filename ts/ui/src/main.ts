@@ -7,6 +7,7 @@ import { isTauri, capacitorPlatform } from './is-desktop.js';
 import { initTauriWindowDrag } from './tauri-chrome.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
+import { adoptSimulationParams, renderSimBanner } from './dev-sim.js';
 import { initAndroidBack } from './android-back.js';
 import { initSliderTouchGuard } from './slider-touch.js';
 import { installErrorLog } from './error-log.js';
@@ -21,6 +22,10 @@ initNativeBugReportMenu();
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.
 initAppMode();
+// Same reason, same moment: ?sim= / ?nomic= must be read before the router
+// rewrites the URL. Both are no-ops outside a dev build.
+adoptSimulationParams();
+renderSimBanner();
 
 // Stamp the native platform on <html> for CSS that differs per OS - e.g.
 // Android reserves the full bottom safe-area inset (system nav bar) where

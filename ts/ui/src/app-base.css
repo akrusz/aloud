@@ -4007,8 +4007,9 @@ p.clouds-hint-row {
 }
 
 /* Sub-group heading within a settings section (e.g. Pacing's Streaming /
-   Non-streaming provider groups). */
-.settings-section .pacing-subhead {
+   Non-streaming provider groups; Developer's Simulate failures). */
+.settings-section .pacing-subhead,
+.settings-section .settings-subhead {
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -5765,4 +5766,27 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding-top: 0.35rem; /* 0.5rem */
         padding-bottom: 0.35rem;
     }
+}
+
+/* Dev-build-only "a failure is being simulated" banner (dev-sim.ts). Deliberately
+   loud and pinned above everything: a toggle left on from an earlier tab reads as
+   a real bug otherwise. Never present in a release bundle. */
+#dev-sim-banner {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    padding: 2px 10px;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    background: var(--danger, #c0503e);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

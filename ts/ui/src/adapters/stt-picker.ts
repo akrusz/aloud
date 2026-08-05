@@ -33,6 +33,7 @@ import { cloudUrl } from '../cloud-base.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
+import { simulateSttFault } from '../dev-sim.js';
 import type { SttEngineChoice } from '../app-settings.js';
 
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
@@ -220,6 +221,16 @@ function capacitorOpts(vadOpts: VadOpts): CapacitorSttEngineOptions {
  * mic-unavailable state.
  */
 export async function createSttForChoice(
+    choice: SttEngineChoice,
+    vadOpts: VadOpts = {}
+): Promise<SttEngine | null> {
+    // Dev-build simulation hook (no-op everywhere else). A recognizer that only
+    // errors is otherwise reachable only on the specific browser/OS that breaks
+    // it, which is exactly why those bugs reach users.
+    return simulateSttFault(await buildSttForChoice(choice, vadOpts));
+}
+
+async function buildSttForChoice(
     choice: SttEngineChoice,
     vadOpts: VadOpts = {}
 ): Promise<SttEngine | null> {

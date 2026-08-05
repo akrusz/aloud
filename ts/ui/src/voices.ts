@@ -5,6 +5,7 @@
  */
 
 import { appUrl } from './app-base.js';
+import { simulateVoiceCatalog } from './dev-sim.js';
 
 export type VoiceSource = 'browser' | 'server';
 
@@ -99,7 +100,9 @@ export function invalidateServerVoices(): void {
 /** Combined catalog - browser voices first (always present), then server. */
 export async function allVoices(): Promise<VoiceEntry[]> {
     const [server] = await Promise.all([serverVoices()]);
-    return [...browserVoices(), ...server];
+    // Dev-build simulation hook (no-op everywhere else): an empty catalog is
+    // otherwise only reachable by breaking TTS for real.
+    return simulateVoiceCatalog([...browserVoices(), ...server]);
 }
 
 export function findVoice(voices: readonly VoiceEntry[], id: string | null): VoiceEntry | null {

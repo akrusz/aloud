@@ -75,6 +75,7 @@ import {
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
 import { describeCloudError, describeSttError } from '../stt-errors.js';
+import { simulateLlmFault } from '../dev-sim.js';
 import { isCheckinDebugOn } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
@@ -138,6 +139,12 @@ const ANTHROPIC_PROXY_URL = appUrl('/llm/anthropic/messages');
 const OLLAMA_PROXY_URL = '/ollama';
 
 export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
+    // Dev-build simulation hook (no-op everywhere else): draining a real
+    // balance to see the out-of-credits apology is not a repeatable test.
+    return simulateLlmFault(await buildRealProvider(setup));
+}
+
+async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
     const modelOpt = setup.model ? { model: setup.model } : {};
     switch (setup.provider) {
         case 'aloud': {

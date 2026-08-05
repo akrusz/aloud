@@ -13,6 +13,7 @@ import { allVoices, findVoice, type VoiceEntry } from '../voices.js';
 import { BrowserTtsEngine } from './browser-tts.js';
 import { CloudTtsEngine } from './cloud-tts.js';
 import { cloudUrl } from '../cloud-base.js';
+import { simulateTtsFault } from '../dev-sim.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 
 export interface CreateTtsResult {
@@ -68,6 +69,17 @@ export function createCloudAloudPreviewTts(voice: string): TtsEngine {
  * An empty suffix, or no prefix at all, means the browser default.
  */
 export async function createTtsForVoice(
+    voiceId: string | null,
+    options: CreateTtsOptions = {}
+): Promise<CreateTtsResult> {
+    const result = await buildTtsForVoice(voiceId, options);
+    // Dev-build simulation hook (no-op everywhere else): hosted TTS billing and
+    // auth failures are handled separately from the LLM leg (handleTtsError),
+    // so they need their own way in.
+    return { ...result, engine: simulateTtsFault(result.engine) };
+}
+
+async function buildTtsForVoice(
     voiceId: string | null,
     options: CreateTtsOptions = {}
 ): Promise<CreateTtsResult> {
