@@ -699,10 +699,9 @@ export async function mountSessionView(
      *  transcription latency stretch "shortly" to a few seconds). */
     const ECHO_TEXT_WINDOW_MS = 4000;
     /** How long a paused recognizer waits after playback before reopening the
-     *  mic. cancel() and the audio element both leave a tail, and a phone
-     *  speaker leaves reverb on top of it; anything heard in that window is
-     *  ours, not the user's. Short enough not to clip a prompt reply. */
+     *  mic, so a phone speaker's reverb isn't heard as the user. */
     const MIC_RESUME_COOLDOWN_MS = 700;
+    const micCooldown = isSingleOwnerMicPlatform();
     function inEchoWindow(): boolean {
         return ttsSpeakingDepth > 0 || Date.now() - lastTtsEndedAt < ECHO_TEXT_WINDOW_MS;
     }
@@ -1682,8 +1681,10 @@ export async function mountSessionView(
                 // Then let the last of the facilitator's audio die away before
                 // reopening the mic - the acoustic half of the echo guard, and
                 // the only half that works when the recognizer mangles what it
-                // leaked (meditation-pal-oxmt).
-                while (!continuousCapture && !torn && !muted) {
+                // leaked (meditation-pal-oxmt). Phones only: it's their speaker
+                // that reverberates, and the wait costs the start of a barge-in,
+                // which on desktop reopens the mic mid-sentence.
+                while (micCooldown && !continuousCapture && !torn && !muted) {
                     const since = Date.now() - lastTtsEndedAt;
                     if (ttsSpeakingDepth === 0 && since >= MIC_RESUME_COOLDOWN_MS) break;
                     await new Promise<void>((r) =>
