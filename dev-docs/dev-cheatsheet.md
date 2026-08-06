@@ -61,6 +61,8 @@ deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
 | `?mode=local` | Force **local** mode: every provider (Ollama + claude-proxy + BYOK + aloud cloud). | `app-mode.ts` |
 | `?mode=auto` | Clear the override, back to the build default. (Overrides persist in sessionStorage, so they survive navigation until cleared.) | `app-mode.ts` |
 | `?slowboot=<ms>` | Hold the boot orb on screen `<ms>` *before* the first view mounts, so you can eyeball the real loading state (static nav + orb, empty content). On localhost boot is otherwise a blink. | `bootApp` in `app.ts` |
+| `?nomic=<status>` | Simulate a broken mic - `denied`, `no-device`, `no-api`, or `error`. Sticky for the tab; `?nomic=off` clears it. Same switch as Settings → Developer → **Simulate failures → Microphone**. | `mic-check.ts` |
+| `?sim=<fault>` | The rest of the simulated failures: a cloud error code (`insufficient_credits`, `unauthenticated`, `email_unverified`, `quota_exceeded`), a recognizer fault (`service-not-allowed`, `network`, `not-allowed`, `whisper-503`), or `no-voices`. `?sim=off` clears all four (mic included). | `dev-sim.ts` |
 
 The mode build-default keys off the *environment*, **not** whether a cloud URL
 was baked in - aloud cloud ships in every build, so its presence can't signal
@@ -107,6 +109,18 @@ check-in debug HUD toggle and the update-preview banner everywhere, plus - in
 dev builds only, same compile-time gate as the params - the `?mode=` override
 and the `?dev` cloud sign-in bypass. Invisible to anyone who just installed
 the app.
+
+#### Simulate failures (dev builds)
+
+The same section carries four switches for states that are painful to reach on
+purpose - a broken **microphone** (`mic-check.ts`, also `?nomic=`), a
+**speech recognizer** that only errors, an **aloud cloud** that fails the LLM
+and TTS legs (including `insufficient_credits`, which drives the spoken apology
+and buy prompt), and an **empty voice catalog**. Each is injected at the real
+seam (`dev-sim.ts`, wired in `stt-picker.ts` / `tts-picker.ts` / `voices.ts` /
+`buildProvider`), so the handling under test is the shipping handling. All four
+live in sessionStorage, reset when the tab closes, and raise a banner while any
+is on.
 
 ### Hosted server (Hono)
 
@@ -342,7 +356,10 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
   "Whisper (on this device)" under Tauri (`isTauri()` gate in `stt-picker.ts`).
   In a browser, STT falls to **web-speech** (Chrome/Edge only) or **aloud cloud**
   (needs the Hono server + sign-in). So a Chrome tab works out of the box;
-  Firefox needs the Hono server running + a signed-in cloud session.
+  Firefox needs the Hono server running + a signed-in cloud session. Not iOS
+  either: WebKit exposes `webkitSpeechRecognition` but can't drive the listen
+  loop with it, so `isWebSpeechSupported` reports false there
+  (`isIosWeb`, `is-desktop.ts`) and every iOS browser lands on aloud cloud.
 
 ## Licensing & third-party code
 

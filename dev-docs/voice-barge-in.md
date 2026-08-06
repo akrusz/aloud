@@ -17,12 +17,25 @@ The path is chosen by STT backend (`ts/ui/src/views/session.ts`,
    **pre-buffer** (`PRE_BUFFER_MS`, 2000ms ring) so the first word(s) spoken over
    the facilitator survive into the captured utterance - **no re-speak needed.**
 
-2. **Generic wrapper (Web Speech, Capacitor, any non-self-detecting engine)** - `ts/ui/src/barge-in.ts` (`wrapTtsWithBargeIn` / `BargeInListener`). During each
+2. **Generic wrapper (Web Speech and any other non-self-detecting engine, desktop only)** - `ts/ui/src/barge-in.ts` (`wrapTtsWithBargeIn` / `BargeInListener`). During each
    `speak()` it opens a *parallel* echo-cancelled mic stream and watches RMS
    energy. It does **not** capture the triggering audio; once TTS is cancelled the
    normal listen loop wakes (busy → false as the `speak()` promise resolves) and
    captures the user's next words. In practice users pause ~300ms after
    interrupting, which the listen loop more than makes up.
+
+3. **None (phones)** - `session.ts` skips the wrapper entirely on the Capacitor
+   plugin and on any single-owner-mic platform (`isSingleOwnerMicPlatform`). A
+   phone's loudspeaker defeats echo cancellation, so the parallel stream hears
+   the facilitator and cancels its own TTS (only the first sentence of a reply
+   plays), and the extra capture starves the one recognizer the platform allows.
+   First seen in Android's WebView (meditation-pal-x4h4), then in mobile Chrome
+   on the web build (meditation-pal-oxmt) - it's the speaker, not the wrapper.
+   Capture already pauses while busy on both, so nothing is lost but the
+   interruption. Those platforms also hold the mic shut for
+   `MIC_RESUME_COOLDOWN_MS` (700ms, `session.ts`) after playback ends before
+   reopening it, so the speaker's decay isn't transcribed as the user; desktop
+   skips the wait, which would cost the start of a real barge-in.
 
 ## Detection
 
@@ -63,6 +76,19 @@ environments where AEC is imperfect - notably some WebViews and speaker-heavy
 setups. If false barge-ins recur, suspect AEC not being honored on that
 platform.
 
+### Transcript echo guard (last line of defense)
+
+What the acoustic gates miss still must not take a turn, wake a silence hold, or
+answer a hold-confirm question, so `session.ts` funnels every finished utterance
+through `looksLikeTtsEcho` (`ts/src/facilitation/echo-guard.ts`) when it landed
+during playback or within `ECHO_TEXT_WINDOW_MS` (4s) of it. Two matchers against
+the text just spoken: an exact contiguous run of 4+ normalized words, and a
+fuzzy pass for 6+ words that recovers 80% of the utterance as an in-order
+subsequence of a tight window of the spoken text - recognizers mangle leaked
+speaker audio, so exact runs miss most real phone echo
+(meditation-pal-oxmt). Short utterances and paraphrases are never dropped:
+meditators do legitimately repeat the facilitator back.
+
 ## What happens on trigger
 
 1. The detector calls `tts.cancel()`, which stops the underlying playback
@@ -97,5 +123,6 @@ and no watchdog/cooldown machinery is needed.
 | `ts/ui/src/barge-in.ts` | `BargeInListener` + `wrapTtsWithBargeIn` - the generic parallel-stream detector |
 | `ts/ui/src/adapters/whisper-pcm-stt.ts` | Engine-driven barge-in on the continuous stream + onset pre-buffer |
 | `ts/ui/src/adapters/silero-vad.ts` | The speech-probability model behind `isSpeechLike` (onnxruntime-web; model + provenance in [`ts/ui/src/assets/README.md`](../ts/ui/src/assets/README.md)) |
-| `ts/ui/src/views/session.ts` | Picks the pathway (`engineDrivenBargeIn`), wires `onBargeIn` / `setBargeInHandler` |
+| `ts/ui/src/views/session.ts` | Picks the pathway (`engineDrivenBargeIn`), wires `onBargeIn` / `setBargeInHandler`, owns the phone mic cooldown + the echo-window check |
+| `ts/src/facilitation/echo-guard.ts` | `looksLikeTtsEcho` - the transcript-level backstop |
 | `ts/tests/barge-in.test.ts` | Detector unit tests |

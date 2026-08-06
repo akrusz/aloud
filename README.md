@@ -61,7 +61,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 ## tips
 
-- say something like "hold on a bit" during a session to enter silence mode. say "come back" or similar to resume.
+- say something like "hold on a bit" during a session and the facilitator will offer to go quiet; say yes and it holds the silence. say "come back" or similar to resume, and if it comes back too early, just tell it to stay quiet.
 - say "mute" to immediately turn off the microphone. click the mic button to resume.
 - click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
 - the ember controls add floating particles. just for cozy.

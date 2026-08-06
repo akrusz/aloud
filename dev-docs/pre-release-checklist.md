@@ -46,6 +46,8 @@ check each of these still reflects reality:
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
 - **`dev-docs/dev-cheatsheet.md`, `desktop.md`, `voice-barge-in.md`** - dev/build/feature docs.
+  The cheatsheet's **dev URL params** table and **Developer mode** section drift
+  fastest: a new `?param` or Settings → Developer switch belongs in both.
 - **`CLAUDE.md`** + **`AGENTS.md`** - the architecture section (commands, modules,
   data flow, pacing/check-in behavior) and any conventions. They're separate
   files, not symlinked: mirror substantive edits across both.
