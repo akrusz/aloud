@@ -73,6 +73,15 @@ fi
 perl -pi -e "s/^(\s*)versionName \".*\"$/\${1}versionName \"$VERSION\"/" "$GRADLE_FILE"
 echo "building $VERSION ($CODE)"
 
+# release.sh bumps ts/package.json, so building before cutting the release
+# stamps the PREVIOUS versionName - Play then shows an old number on code
+# that's current (happened for 2.6.2). Cut the release first, then build.
+if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" != "v$VERSION" ]; then
+    echo
+    echo "warning: versionName $VERSION, but the latest release tag is $LAST_TAG."
+    echo "Play will show $VERSION for code released as $LAST_TAG."
+fi
+
 (cd ts && npm run cap:require-cloud-url && npm run ui:build && npx cap sync android)
 (cd ts/android && ./gradlew bundleRelease)
 
