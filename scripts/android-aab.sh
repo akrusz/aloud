@@ -2,6 +2,8 @@
 # Build the signed Android release bundle (.aab) for Play Console uploads.
 #
 # Does the whole dance from dev-docs/mobile-signing.md in one shot:
+#   0. warns (doesn't block) if HEAD is ahead of the last release tag, since
+#      Android ships separately and can drift ahead of the other platforms
 #   1. syncs versionName in android/app/build.gradle to ts/package.json's
 #      version and bumps versionCode by 1 (Play rejects reused versionCodes;
 #      pass --no-bump to rebuild the same version, e.g. after a web-only fix
@@ -35,6 +37,23 @@ fi
 JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 if [ -z "${JAVA_HOME:-}" ] && [ -d "$JBR" ]; then
     export JAVA_HOME="$JBR"
+fi
+
+# Android ships on its own cadence, so this bundle can quietly carry code the
+# other platforms' release tag doesn't have. Warn, don't block - shipping ahead
+# of a tag is sometimes the point. Own versionCode commits don't count.
+LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+if [ -n "$LAST_TAG" ]; then
+    AHEAD=$(git rev-list --count "$LAST_TAG"..HEAD -- . ":(exclude)$GRADLE_FILE")
+    if [ "$AHEAD" -gt 0 ]; then
+        echo
+        echo "warning: $AHEAD commit(s) since $LAST_TAG - this bundle ships code no other"
+        echo "platform has released. Cut a release first if they should match."
+        git log --oneline "$LAST_TAG"..HEAD -- . ":(exclude)$GRADLE_FILE" \
+            | head -10 | sed 's/^/  /'
+        if [ "$AHEAD" -gt 10 ]; then echo "  ... and $((AHEAD - 10)) more"; fi
+        echo
+    fi
 fi
 
 # Version: versionName tracks ts/package.json, versionCode must go up each upload.
