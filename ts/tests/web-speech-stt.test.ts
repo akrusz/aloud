@@ -1,6 +1,8 @@
 /**
- * Web Speech transcript assembly. Desktop Chrome replaces the interim result at
- * the tail; Android appends each one and keeps the old (meditation-pal-oxmt).
+ * Web Speech transcript assembly. Both Chromes emit several interim results:
+ * desktop's are separate chunks, Android's are growing prefixes of one utterance
+ * (meditation-pal-oxmt). Dropping desktop's earlier interims strands the live
+ * bubble on the last word or two - keep that case covered.
  * Node has no window, so the engine picks up a fake recognizer off the global.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -79,6 +81,15 @@ describe('WebSpeechSttEngine transcript assembly', () => {
             { text: "yeah I'm just", final: false },
             { text: "yeah I'm just settling in", final: false },
             { text: "yeah I'm just settling in feeling a little tightness", final: false },
+        ]);
+        expect(text).toBe("Yeah I'm just settling in feeling a little tightness");
+    });
+
+    it("keeps every one of desktop Chrome's interim chunks", async () => {
+        const text = await transcriptFor([
+            { text: 'yeah I\'m just settling in', final: false },
+            { text: 'feeling a little', final: false },
+            { text: 'tightness', final: false },
         ]);
         expect(text).toBe("Yeah I'm just settling in feeling a little tightness");
     });

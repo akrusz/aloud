@@ -195,26 +195,29 @@ export class WebSpeechSttEngine implements SttEngine {
         };
 
         recognition.onresult = (event) => {
-            // Finals plus only the LAST interim. Android Chrome appends each
-            // interim as its own entry instead of replacing the tail, so
-            // joining the whole list stutters growing prefixes back
-            // ("yeah I'm just settling in yeah I'm just settling in feeling…",
-            // meditation-pal-oxmt). Desktop reads the same either way.
+            // Join every segment, but let one that EXTENDS the interim before it
+            // replace that one. Both Chromes emit several interim entries;
+            // desktop's hold separate chunks (drop any and the live bubble loses
+            // words) while Android's are growing prefixes of one utterance, which
+            // concatenate into "yeah I'm just settling in yeah I'm just settling
+            // in feeling…" (meditation-pal-oxmt). Only interims are superseded -
+            // a final never grows.
             const parts: string[] = [];
-            let interim = '';
+            let prevFinal = true;
             let isFinal = false;
             for (let i = 0; i < event.results.length; i++) {
                 const result = event.results[i];
                 if (!result || !result[0]) continue;
                 const text = result[0].transcript.trim();
-                if (result.isFinal) {
-                    parts.push(text);
-                    isFinal = true;
+                if (!text) continue;
+                if (!prevFinal && extendsPrefix(text, parts[parts.length - 1]!)) {
+                    parts[parts.length - 1] = text;
                 } else {
-                    interim = text;
+                    parts.push(text);
                 }
+                prevFinal = result.isFinal;
+                if (result.isFinal) isFinal = true;
             }
-            if (interim) parts.push(interim);
             const transcript = tidyTranscript(parts.join(' '));
             latestTranscript = transcript;
 
@@ -296,6 +299,14 @@ export class WebSpeechSttEngine implements SttEngine {
  * restore punctuation, just to read less like a jumble. (Server Whisper already
  * returns cased, punctuated text and skips this.)
  */
+/** Does `next` continue `prev` - same words plus more? Case/punctuation-blind. */
+function extendsPrefix(next: string, prev: string): boolean {
+    const bare = (s: string): string => s.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    const a = bare(prev);
+    const b = bare(next);
+    return a !== '' && b.length > a.length && b.startsWith(a);
+}
+
 function tidyTranscript(text: string): string {
     const collapsed = text.replace(/\s+/g, ' ').trim();
     if (!collapsed) return '';
