@@ -64,9 +64,8 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 - say something like "hold on a bit" during a session to enter silence mode. say "come back" or similar to resume.
 - say "mute" to immediately turn off the microphone. click the mic button to resume.
 - click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
-- the ember controls add floating particles. each level doubles the count and increases the size.
+- the ember controls add floating particles. just for cozy.
 - click the voice name in the controls bar to open a voice/speed picker.
-- sessions auto-save as JSON and plain text, with a short LLM-generated summary.
 - you can continue any past session or access the saved sessions folder from the history page.
 - the AI gently checks in if you're quiet for a while. adjust timing or disable in settings.
 - you can change the clock style (session time, clock time, timer with spoken notification) in session setup, or by tapping it in session.
