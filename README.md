@@ -43,9 +43,9 @@ grab the latest release for your platform below, or from [releases](https://gith
 
 | platform | download |
 |----------|----------|
-| **macOS** | [`aloud_2.6.2_aarch64.dmg`](https://github.com/akrusz/aloud/releases/download/v2.6.2/aloud_2.6.2_aarch64.dmg) - open the DMG, drag aloud to Applications |
-| **Windows** | [`aloud_2.6.2_x64-setup.exe`](https://github.com/akrusz/aloud/releases/download/v2.6.2/aloud_2.6.2_x64-setup.exe) - run the installer |
-| **Linux** | [`aloud_2.6.2_amd64.AppImage`](https://github.com/akrusz/aloud/releases/download/v2.6.2/aloud_2.6.2_amd64.AppImage) - `chmod +x`, double-click or run from terminal |
+| **macOS** | [`aloud_2.6.3_aarch64.dmg`](https://github.com/akrusz/aloud/releases/download/v2.6.3/aloud_2.6.3_aarch64.dmg) - open the DMG, drag aloud to Applications |
+| **Windows** | [`aloud_2.6.3_x64-setup.exe`](https://github.com/akrusz/aloud/releases/download/v2.6.3/aloud_2.6.3_x64-setup.exe) - run the installer |
+| **Linux** | [`aloud_2.6.3_amd64.AppImage`](https://github.com/akrusz/aloud/releases/download/v2.6.3/aloud_2.6.3_amd64.AppImage) - `chmod +x`, double-click or run from terminal |
 
 all settings (LLM provider, voice, microphone, whisper model, display) are configurable from the settings page inside the app. a whisper model downloads automatically on first launch; the settings page shows which model sizes are on your device and lets you download or remove them (changing size or language also downloads on demand). the app checks for updates on startup and will prompt you when a new version is available.
 
