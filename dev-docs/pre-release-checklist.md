@@ -34,7 +34,10 @@ check each of these still reflects reality:
 - **`docs/assets/aloud-share.png`** + `assets/share-card.svg` - the share-card
   tagline if the positioning/tagline changed.
 - **`README.md`** - product description, modes, provider list, platform notes,
-  tips, install instructions, screenshot reference.
+  tips, install instructions, screenshot reference. The **download links are
+  expected to name the last published release**, not the one being cut - they're
+  bumped after the release ships and its assets exist. A version behind is
+  correct here; don't report it.
 - **App Store / Play listings** - name, subtitle, description, keywords; especially
   the provider/feature claims and the mobile-provider caveat. The **draft copy is
   tracked** in `dev-docs/store-descriptions.md`; the live listings are in the
@@ -48,9 +51,10 @@ check each of these still reflects reality:
 - **`dev-docs/dev-cheatsheet.md`, `desktop.md`, `voice-barge-in.md`** - dev/build/feature docs.
   The cheatsheet's **dev URL params** table and **Developer mode** section drift
   fastest: a new `?param` or Settings → Developer switch belongs in both.
-- **`CLAUDE.md`** + **`AGENTS.md`** - the architecture section (commands, modules,
-  data flow, pacing/check-in behavior) and any conventions. They're separate
-  files, not symlinked: mirror substantive edits across both.
+- **`CLAUDE.md`** - the architecture section (commands, modules, data flow,
+  pacing/check-in behavior) and any conventions. It's the only agent-instruction
+  file; if `bd` regenerates an `AGENTS.md`, that's tool scaffolding, not a
+  surface to keep in sync.
 - **App UI text** - settings labels and hints, the tour/onboarding wizard,
   check-in prompts, welcome/empty-state copy.
 - **`ts/server/.env.example`** - comments describing config keys and defaults.
