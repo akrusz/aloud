@@ -195,16 +195,26 @@ export class WebSpeechSttEngine implements SttEngine {
         };
 
         recognition.onresult = (event) => {
-            // Join every result segment with spaces, not just the latest -
-            // otherwise the live bubble shows only the last word or two.
+            // Finals plus only the LAST interim. Android Chrome appends each
+            // interim as its own entry instead of replacing the tail, so
+            // joining the whole list stutters growing prefixes back
+            // ("yeah I'm just settling in yeah I'm just settling in feeling…",
+            // meditation-pal-oxmt). Desktop reads the same either way.
             const parts: string[] = [];
+            let interim = '';
             let isFinal = false;
             for (let i = 0; i < event.results.length; i++) {
                 const result = event.results[i];
                 if (!result || !result[0]) continue;
-                parts.push(result[0].transcript.trim());
-                if (result.isFinal) isFinal = true;
+                const text = result[0].transcript.trim();
+                if (result.isFinal) {
+                    parts.push(text);
+                    isFinal = true;
+                } else {
+                    interim = text;
+                }
             }
+            if (interim) parts.push(interim);
             const transcript = tidyTranscript(parts.join(' '));
             latestTranscript = transcript;
 
