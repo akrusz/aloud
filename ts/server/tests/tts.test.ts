@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import type { AuthResponse } from '../src/contract.js';
+import { MAX_TTS_CHARS, type AuthResponse } from '../src/contract.js';
 
 // MP3 bytes Google would return, base64-encoded as audioContent.
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
@@ -108,6 +108,18 @@ describe('POST /cloud/v1/tts', () => {
             body: JSON.stringify({ text: '   ' }),
         });
         expect(res.status).toBe(400);
+    });
+
+    it('400s over the char cap without spending or calling the provider', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'a'.repeat(MAX_TTS_CHARS + 1) }),
+        });
+        expect(res.status).toBe(400);
+        expect(googleCalls).toHaveLength(0);
     });
 
     it('reports provider_error without a TTS key', async () => {
@@ -319,7 +331,8 @@ describe('POST /cloud/v1/tts — up-front cost gate', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'so long, and thanks for all the breaths. '.repeat(200) }),
+            // Under MAX_TTS_CHARS (that's a separate 400) but far past a dust balance.
+            body: JSON.stringify({ text: 'so long, and thanks for all the breaths. '.repeat(20) }),
         });
         expect(res.status).toBe(402);
         const body = (await res.json()) as { error: { code: string } };

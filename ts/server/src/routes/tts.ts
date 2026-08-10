@@ -11,7 +11,7 @@
  */
 
 import { Hono } from 'hono';
-import { ERROR_STATUS, apiError, type SpeakRequest } from '../contract.js';
+import { ERROR_STATUS, MAX_TTS_CHARS, apiError, type SpeakRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
@@ -141,6 +141,15 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const text = (body.text ?? '').trim();
         if (!text) {
             return c.json(apiError('bad_request', 'text required'), ERROR_STATUS.bad_request);
+        }
+        // Refuse before pricing/synthesis: a facilitation turn is never this
+        // long, so anything over the cap is a client bug, and the balance gate
+        // below would happily spend on it.
+        if (text.length > MAX_TTS_CHARS) {
+            return c.json(
+                apiError('bad_request', `text too long (${text.length} chars; max ${MAX_TTS_CHARS})`),
+                ERROR_STATUS.bad_request
+            );
         }
 
         // Resolve once and reuse for synthesis, pricing (the rate is
