@@ -57,7 +57,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       # The site tree (marketing pages, CNAME, 404 redirect) from the trigger.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Fail loudly instead of shipping a build where sign-in/credits silently
       # don't work: with no VITE_ALOUD_CLOUD_URL baked in, the hosted app has
@@ -88,7 +88,7 @@ jobs:
           echo "Building docs/app from $ref"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.appref.outputs.ref }}
           path: app-src

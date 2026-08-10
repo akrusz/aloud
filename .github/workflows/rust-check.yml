@@ -22,7 +22,7 @@ jobs:
     # 24.04 to match tauri-release.yml (WebKitGTK 4.1 packages).
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
 
       # Subset of tauri-release.yml's apt step: the -dev packages Tauri 2's
