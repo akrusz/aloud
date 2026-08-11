@@ -74,15 +74,14 @@ describe('Opus 5 (anthropic)', () => {
         expect(p!.cacheCreation1h).toBeCloseTo(10 / M, 12);
         expect(p!.default).toBe(true);
 
-        // Opus 4.8 and Sonnet 4.6 were swapped out for their same-price
+        // Opus 4.8 and Opus 4.5 were swapped out for their same-price
         // successors, then deliberately RE-ADDED as expanded-tier (July 2026,
         // "older personalities speak differently, not worse"). They must bill
-        // at the same rates as their successors and stay behind the picker's
+        // at the same rates as their successor and stay behind the picker's
         // "Show all available models" toggle.
         for (const [model, successor] of [
             ['claude-opus-4-8', 'claude-opus-5'],
             ['claude-opus-4-5', 'claude-opus-5'], // oldest Opus at the $5/$25 tier
-            ['claude-sonnet-4-6', 'claude-sonnet-5'],
         ] as const) {
             const legacy = pricingFor('anthropic', model);
             const current = pricingFor('anthropic', successor)!;
@@ -93,6 +92,27 @@ describe('Opus 5 (anthropic)', () => {
             expect(legacy!.output).toBeCloseTo(current.output, 12);
             expect(legacy!.cacheRead).toBeCloseTo(current.cacheRead, 12);
         }
+    });
+
+    it('bills Sonnet 5 at the permanent $2/$10, leaving 4.6 dearer at $3/$15', () => {
+        // The $2/$10 launch rate was promotional through 2026-08-31; Anthropic
+        // made it permanent (2026-08-10), so it is now the list price. Credits
+        // debit at cost, so a stale $3/$15 here is a silent 1.5x on every
+        // Sonnet 5 turn.
+        const s5 = pricingFor('anthropic', 'claude-sonnet-5')!;
+        expect(s5.input).toBeCloseTo(2 / M, 12);
+        expect(s5.output).toBeCloseTo(10 / M, 12);
+        expect(s5.cacheRead).toBeCloseTo(0.2 / M, 12);
+        expect(s5.cacheCreation).toBeCloseTo(2.5 / M, 12);
+        expect(s5.cacheCreation1h).toBeCloseTo(4 / M, 12);
+
+        // The cut was Sonnet 5 only. 4.6 is the one legacy entry that outprices
+        // its successor - it must NOT be quietly dragged down to match.
+        const s46 = pricingFor('anthropic', 'claude-sonnet-4-6')!;
+        expect(s46.expanded).toBe(true);
+        expect(s46.input).toBeCloseTo(3 / M, 12);
+        expect(s46.output).toBeCloseTo(15 / M, 12);
+        expect(s46.input).toBeGreaterThan(s5.input);
     });
 });
 

@@ -159,28 +159,39 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
-    // Sonnet 5 (replaced Sonnet 4.6 here, July 2026): same $3/$15 sticker and
-    // cache multipliers as 4.6, near-Opus quality. Two notes: (1) newer tokenizer
-    // (~30% more tokens for the same text than 4.6), which inflates token COUNTS,
-    // not these per-token rates, so no adjustment here (same stance as Fable
-    // above); (2) Anthropic runs intro pricing ($2/$10) through 2026-08-31 - we
-    // bill at the LIST rates below and simply pay less until then, so nothing to
-    // revisit on Sept 1. The core AnthropicProvider sends an explicit
+    // Sonnet 5 (replaced Sonnet 4.6 here, July 2026): near-Opus quality at
+    // $2/$10. That WAS a promotional rate through 2026-08-31, above a $3/$15
+    // list, and this table carried the list price on the reasoning that we'd
+    // simply pay less until then. Anthropic made the intro rate permanent
+    // (announced 2026-08-10), so the list price is gone and $2/$10 IS the
+    // price. Rates below are the real ones: since credits debit at cost
+    // (meter.ts priceLlmTurn), billing the old sticker would have quietly taken
+    // an extra ~1.5x on every Sonnet turn, forever rather than for three weeks.
+    // The docs pricing table still showed the Sept 1 step-up when this landed -
+    // it lags the announcement; verify there before assuming a regression.
+    // Sonnet 4.6 below stays at $3/$15: the change is Sonnet 5 only, so the
+    // legacy entry is now DEARER than its successor.
+    //
+    // Newer tokenizer (~30% more tokens for the same text than 4.6) inflates
+    // token COUNTS, not these per-token rates, so no adjustment here (same
+    // stance as Fable above). The core AnthropicProvider sends an explicit
     // thinking-disabled for this model (adaptive thinking is otherwise ON by
     // default), so no thinking tokens accrue on the metered path.
     'anthropic:claude-sonnet-5': {
         provider: 'anthropic',
         model: 'claude-sonnet-5',
-        input: 3 / M,
-        output: 15 / M,
-        cacheRead: 0.3 / M,
-        cacheCreation: 3.75 / M, // 5m write, 1.25x input
-        cacheCreation1h: 6 / M, // 1h write, 2x input
+        input: 2 / M,
+        output: 10 / M,
+        cacheRead: 0.2 / M,
+        cacheCreation: 2.5 / M, // 5m write, 1.25x input
+        cacheCreation1h: 4 / M, // 1h write, 2x input
     },
     // Sonnet 4.6, RE-ADDED as expanded-tier (July 2026): same re-add logic as
     // Opus 4.8 above (served here until Sonnet 5 replaced it in e851420, so
-    // production-proven; distinct voice, not a downgrade). Same $3/$15 sticker
-    // and cache multipliers as Sonnet 5, older tokenizer (fewer tokens for the
+    // production-proven; distinct voice, not a downgrade). Still $3/$15, which
+    // since Sonnet 5's permanent price cut makes this the pricier of the pair -
+    // it's the one legacy entry that costs MORE than its successor, so the
+    // picker shows it at a higher rate. Older tokenizer (fewer tokens for the
     // same text, so if anything it estimates slightly cheap). Thinking off by
     // default. Same retirement caveat as 4.8.
     'anthropic:claude-sonnet-4-6': {

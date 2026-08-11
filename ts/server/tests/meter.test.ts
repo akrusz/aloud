@@ -11,13 +11,13 @@ import {
 
 describe('llmCostUsd', () => {
     it('prices input, output, and cache-read separately (never summed)', () => {
-        // sonnet: 3/M in, 15/M out, 0.3/M cache-read
+        // sonnet 5: 2/M in, 10/M out, 0.2/M cache-read
         const cost = llmCostUsd('anthropic', 'claude-sonnet-5', {
             tokensIn: 1_000_000,
             tokensOut: 1_000_000,
             cacheRead: 1_000_000,
         });
-        expect(cost).toBeCloseTo(3 + 15 + 0.3, 6);
+        expect(cost).toBeCloseTo(2 + 10 + 0.2, 6);
     });
 
     it('prices the 1h cache anchor at 2x and the rest of cache-creation at 5m (1.25x)', () => {
@@ -53,7 +53,7 @@ describe('llmCostUsd', () => {
         expect(llmCostUsd('anthropic', 'claude-sonnet-5', {})).toBe(0);
         expect(
             llmCostUsd('anthropic', 'claude-sonnet-5', { tokensIn: null, tokensOut: 1000 })
-        ).toBeCloseTo(1000 * (15 / 1_000_000), 9);
+        ).toBeCloseTo(1000 * (10 / 1_000_000), 9);
     });
 });
 
@@ -63,7 +63,7 @@ describe('priceLlmTurn', () => {
             tokensIn: 1000,
             tokensOut: 500,
         });
-        const expectedUsd = (1000 * 3 + 500 * 15) / 1_000_000; // raw provider cost
+        const expectedUsd = (1000 * 2 + 500 * 10) / 1_000_000; // raw provider cost
         expect(turn.providerCostUsd).toBeCloseTo(expectedUsd, 9);
         // Credits are cost / USD_PER_CREDIT — margin is NOT applied here, and the
         // exact fraction is debited (rounding a turn up would over-charge cheap
