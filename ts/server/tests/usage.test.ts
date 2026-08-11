@@ -247,6 +247,40 @@ describe('buildUsageReport', () => {
         expect(r.perHour.ttsCharsPerHour).toBeCloseTo(10_000, 9);
     });
 
+    it('perHour: token volume comes from qualifying sessions only', () => {
+        const events = [
+            // Qualifying: 30 min, two LLM turns carrying tokens.
+            ev({
+                sessionId: 's1', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05,
+                tokensIn: 100, tokensOut: 200, cacheRead: 3000, cacheCreation: 400,
+                cacheCreation1h: 150,
+            }),
+            ev({
+                sessionId: 's1', ts: 1000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05,
+                tokensIn: 100, tokensOut: 200, cacheRead: 3000, cacheCreation: 400,
+                cacheCreation1h: 150,
+            }),
+            // A 30-second blip with huge token counts: excluded from the rate,
+            // though the window-wide llmCache aggregate still sees it.
+            ev({
+                sessionId: 's2', ts: 50_000, kind: 'llm', credits: 50, providerCostUsd: 2,
+                tokensIn: 999_999, tokensOut: 999_999, cacheRead: 999_999,
+            }),
+            ev({ sessionId: 's2', ts: 50_030, kind: 'llm', credits: 50, providerCostUsd: 2 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        // 0.5 h of qualifying session: totals double into a per-hour rate.
+        const t = r.perHour.tokensPerHour;
+        expect(t.input).toBeCloseTo(400, 9);
+        expect(t.output).toBeCloseTo(800, 9);
+        expect(t.cacheRead).toBeCloseTo(12_000, 9);
+        expect(t.cacheCreation).toBeCloseTo(1600, 9);
+        expect(t.cacheCreation1h).toBeCloseTo(600, 9);
+        // The excluded blip is exactly why these can't be derived from
+        // llmCache, which counts every event in the window.
+        expect(r.llmCache.freshInputTokens).toBe(1_000_199);
+    });
+
     it('perHour: a 10+ turn session qualifies even under 5 minutes', () => {
         const events = Array.from({ length: 10 }, (_, i) =>
             ev({ ts: 1000 + i * 12, kind: 'llm', providerCostUsd: 0.01, credits: 0.2 })

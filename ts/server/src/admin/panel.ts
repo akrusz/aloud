@@ -18,11 +18,32 @@
  * origins" on that client in the Google Cloud console.
  */
 
+import { TYPICAL_SESSION, TYPICAL_SESSION_MINUTES } from '../pricing/estimate.js';
+
 export function renderAdminPanel(googleClientId?: string): string {
     return ADMIN_PANEL_TEMPLATE.replace(
         '"__GOOGLE_CLIENT_ID__"',
         JSON.stringify(googleClientId ?? '')
-    );
+    ).replace('"__ESTIMATE_PROFILE__"', JSON.stringify(assumedPerHour()));
+}
+
+/**
+ * What pricing/estimate.ts ASSUMES per hour, injected so the per-hour cards can
+ * print measured-vs-assumed side by side. Derived from TYPICAL_SESSION rather
+ * than copied: the whole point of the panel's calibration row is to catch that
+ * profile drifting, which a second hardcoded copy of it would hide.
+ */
+function assumedPerHour(): Record<string, number> {
+    const perHour = 60 / TYPICAL_SESSION_MINUTES;
+    return {
+        turns: TYPICAL_SESSION.llmCalls * perHour,
+        sttSeconds: TYPICAL_SESSION.sttSeconds * perHour,
+        ttsChars: TYPICAL_SESSION.ttsChars * perHour,
+        input: TYPICAL_SESSION.llmTokensIn * perHour,
+        output: TYPICAL_SESSION.llmTokensOut * perHour,
+        cacheRead: TYPICAL_SESSION.llmCacheRead * perHour,
+        cacheCreation: TYPICAL_SESSION.llmCacheCreation * perHour,
+    };
 }
 
 const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
@@ -121,6 +142,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   .msg.ok { color: var(--good); }
   .msg.err { color: var(--bad); }
   .muted { color: var(--dim); }
+  /* The "/ assumed" half of a measured-vs-assumed card: same size and weight,
+     a step down in color only. */
+  .assumed { color: var(--dim); }
   .hidden { display: none; }
   code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 15px; }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6);
@@ -350,6 +374,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   var KEY = 'aloud-admin-token';
   // Injected by renderAdminPanel (panel.ts); '' when sign-in is not configured.
   var GOOGLE_CLIENT_ID = "__GOOGLE_CLIENT_ID__";
+  // What pricing/estimate.ts assumes per hour (server-injected from
+  // TYPICAL_SESSION). The per-hour cards print measured / assumed.
+  var EST = "__ESTIMATE_PROFILE__";
   var $ = function (id) { return document.getElementById(id); };
   var token = '';
 
@@ -470,12 +497,27 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['LLM cr/hr', svcRate('llm')],
         ['STT cr/hr', svcRate('stt')],
         ['TTS cr/hr', svcRate('tts')],
-        ['Turns / hr', num1(ph.turnsPerHour)],
-        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60)],
-        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0))],
+        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">/ ' + num1(EST.turns) + '</span>'],
+        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60) + ' <span class="assumed">/ ' + num1(EST.sttSeconds / 60) + '</span>'],
+        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0)) + ' <span class="assumed">/ ' + int(Math.round(EST.ttsChars)) + '</span>'],
         ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
         ['Real sessions', int(ph.sessions)],
       ];
+      // Token volume per hour over the same qualifying sessions: what
+      // pricing/estimate.ts assumes, measured. Each card prints actual vs
+      // assumed, so a drifted profile is visible without opening the code -
+      // these four drive the credits/hr badges more than turns or chars do.
+      var tph = ph.tokensPerHour || { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      function vsAssumed(actual, assumed) {
+        return int(Math.round(Number(actual) || 0)) +
+          ' <span class="assumed">/ ' + int(Math.round(assumed)) + '</span>';
+      }
+      phCards = phCards.concat([
+        ['Fresh in tok/hr', vsAssumed(tph.input, EST.input)],
+        ['Output tok/hr', vsAssumed(tph.output, EST.output)],
+        ['Cache read tok/hr', vsAssumed(tph.cacheRead, EST.cacheRead)],
+        ['Cache write tok/hr', vsAssumed(tph.cacheCreation, EST.cacheCreation)],
+      ]);
       $('perHourStats').innerHTML = phCards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
       }).join('');

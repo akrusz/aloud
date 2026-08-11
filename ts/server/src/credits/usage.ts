@@ -206,6 +206,20 @@ export interface PerHourReport {
     sttSecondsPerHour: number;
     /** Cloud-TTS characters per hour. Estimate band assumes 6k–19.2k. */
     ttsCharsPerHour: number;
+    /** LLM token volume per hour, over the same qualifying sessions. These are
+     *  what actually drive the credits/hr badge on this cache-heavy workload
+     *  (~45:1 input:output, most of it re-sent prefix), so they're the fields to
+     *  reseed TYPICAL_SESSION (pricing/estimate.ts) from. Scale by
+     *  TYPICAL_SESSION_MINUTES/60 to compare per-session. The estimate currently
+     *  assumes, per hour: 4.8k fresh input, 3.24k output, 138k cache read, 9k
+     *  cache creation. */
+    tokensPerHour: {
+        input: number;
+        output: number;
+        cacheRead: number;
+        cacheCreation: number;
+        cacheCreation1h: number;
+    };
     byService: PerHourLeg[];
     byModel: PerHourModel[];
 }
@@ -471,6 +485,11 @@ export function buildUsageReport(
     let phTurns = 0;
     let phSttSeconds = 0;
     let phTtsChars = 0;
+    // LLM token volume over the SAME qualifying sessions, so every field here
+    // shares one denominator. The window-wide llmCache aggregate below can't
+    // stand in: it counts every event, including the blips excluded above, and
+    // never sums output tokens.
+    const phTokens = { in: 0, out: 0, cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0 };
     // The volume a leg's pricing is driven by: turns for LLM, audio seconds for
     // STT, characters for TTS.
     const unitsOf = (e: UsageEvent): number =>
@@ -483,8 +502,14 @@ export function buildUsageReport(
             phCost += e.providerCostUsd;
             phService[e.kind].credits += e.credits;
             phService[e.kind].cost += e.providerCostUsd;
-            if (e.kind === 'llm') phTurns += 1;
-            else if (e.kind === 'stt') phSttSeconds += e.seconds;
+            if (e.kind === 'llm') {
+                phTurns += 1;
+                phTokens.in += e.tokensIn;
+                phTokens.out += e.tokensOut;
+                phTokens.cacheRead += e.cacheRead;
+                phTokens.cacheCreation += e.cacheCreation;
+                phTokens.cacheCreation1h += e.cacheCreation1h;
+            } else if (e.kind === 'stt') phSttSeconds += e.seconds;
             else phTtsChars += e.chars;
             const key = `${e.kind}:${e.provider}:${e.model}`;
             const m = phModels.get(key) ?? {
@@ -513,6 +538,13 @@ export function buildUsageReport(
         turnsPerHour: rate(phTurns, totalHours),
         sttSecondsPerHour: rate(phSttSeconds, totalHours),
         ttsCharsPerHour: rate(phTtsChars, totalHours),
+        tokensPerHour: {
+            input: rate(phTokens.in, totalHours),
+            output: rate(phTokens.out, totalHours),
+            cacheRead: rate(phTokens.cacheRead, totalHours),
+            cacheCreation: rate(phTokens.cacheCreation, totalHours),
+            cacheCreation1h: rate(phTokens.cacheCreation1h, totalHours),
+        },
         byService: (Object.keys(phService) as UsageKind[]).map((kind) => ({
             kind,
             creditsPerHour: rate(phService[kind].credits, totalHours),
