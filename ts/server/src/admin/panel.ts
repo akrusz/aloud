@@ -498,8 +498,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['STT cr/hr', svcRate('stt')],
         ['TTS cr/hr', svcRate('tts')],
         ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">/ ' + num1(EST.turns) + '</span>'],
-        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60) + ' <span class="assumed">/ ' + num1(EST.sttSeconds / 60) + '</span>'],
-        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0)) + ' <span class="assumed">/ ' + int(Math.round(EST.ttsChars)) + '</span>'],
+        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60)],
+        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0))],
         ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
         ['Real sessions', int(ph.sessions)],
       ];
@@ -512,7 +512,16 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         return int(Math.round(Number(actual) || 0)) +
           ' <span class="assumed">/ ' + int(Math.round(assumed)) + '</span>';
       }
+      // STT and TTS get a second card each, over the hours of sessions that
+      // actually used that leg. Only these are comparable to the estimate
+      // profile, which assumes both are in play; the totals above are diluted
+      // by every local-voice and on-device-Whisper session.
+      var att = ph.attributed || { sttSecondsPerHour: 0, ttsCharsPerHour: 0 };
       phCards = phCards.concat([
+        ['STT min / cloud hr', num1((Number(att.sttSecondsPerHour) || 0) / 60) +
+          ' <span class="assumed">/ ' + num1(EST.sttSeconds / 60) + '</span>'],
+        ['TTS chars / voice hr', int(Math.round(Number(att.ttsCharsPerHour) || 0)) +
+          ' <span class="assumed">/ ' + int(Math.round(EST.ttsChars)) + '</span>'],
         ['Fresh in tok/hr', vsAssumed(tph.input, EST.input)],
         ['Output tok/hr', vsAssumed(tph.output, EST.output)],
         ['Cache read tok/hr', vsAssumed(tph.cacheRead, EST.cacheRead)],

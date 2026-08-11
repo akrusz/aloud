@@ -41,7 +41,7 @@ describe('GET /cloud/v1/me/models', () => {
         // Unrounded, like the model rates: it composes into the setup footer's
         // session total before anything rounds.
         expect(body.sttCreditsPerHour).toBeGreaterThan(0);
-        expect(body.sttCreditsPerHour).toBeLessThan(1);
+        expect(Number.isInteger(body.sttCreditsPerHour)).toBe(false);
     });
 
     it('flags exactly one default model, Opus 5 (the picker pre-selection)', async () => {

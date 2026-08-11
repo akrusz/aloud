@@ -95,6 +95,47 @@ function ensureInit(): Promise<SocialLogin> {
     return initPromise;
 }
 
+/**
+ * Plugin rejections arrive as Error-ish values whose `message` is often empty
+ * (or "[object Object]" once stringified), with the only real signal in a
+ * numeric `code`. Passed straight to the modal's showError that paints a blank
+ * line, so a hard failure looks like the button doing nothing: Android status
+ * 10 is a package + signing-cert mismatch against the OAuth client, and it cost
+ * a day of guessing on a Play-signed build. Always return something sayable and
+ * keep the code in it.
+ *
+ * Server-side auth errors (googleSignIn/appleSignIn) are NOT routed through
+ * here: postAuthAndCache already throws a self-contained message.
+ *
+ * Returns null when the person just backed out of the account picker, which
+ * isn't worth painting as an error.
+ */
+export function nativeAuthErrorMessage(err: unknown, provider: string): string | null {
+    const src = (typeof err === 'object' && err !== null ? err : {}) as {
+        message?: unknown;
+        errorMessage?: unknown;
+        code?: unknown;
+    };
+    const found = [src.message, src.errorMessage].find(
+        (v) => typeof v === 'string' && v.trim() !== ''
+    );
+    let text = typeof found === 'string' ? found.trim() : '';
+    if (text.startsWith('[object')) text = '';
+    const code =
+        typeof src.code === 'string' || typeof src.code === 'number' ? String(src.code).trim() : '';
+
+    // Deliberately narrow. Only an explicit cancellation stays silent, because
+    // the codes that look cancel-adjacent aren't: GMS CANCELED (16) is also
+    // what a missing Google account on the device surfaces as, and swallowing
+    // that recreates the silent failure this function exists to end.
+    if (/cancel|dismiss|abort/i.test(text) || code === '12501' || code === '1001') return null;
+
+    if (text) return code && !text.includes(code) ? `${text} (code ${code})` : text;
+    return code
+        ? `${provider} sign-in failed (code ${code}). Try again, or use email below.`
+        : `${provider} sign-in failed. Try again, or use email below.`;
+}
+
 function makeButton(label: string, extraClass: string): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -121,18 +162,25 @@ async function runNativeGoogle(btn: HTMLButtonElement, handlers: SignInHandlers)
     btn.disabled = true;
     btn.textContent = 'Signing in…';
     try {
-        const SocialLogin = await ensureInit();
-        // No explicit scopes: both platforms default to email/profile/openid,
-        // and passing ANY scopes on Android trips the plugin's "modify the
-        // main activity" guard (custom scopes need onActivityResult wiring in
-        // MainActivity; the defaults don't).
-        const { result } = await SocialLogin.login({
-            provider: 'google',
-            options: {},
-        });
-        // Online mode returns idToken; we never hit the offline branch
-        // (serverAuthCode) because we initialize with mode:'online'.
-        const idToken = 'idToken' in result ? result.idToken : null;
+        let idToken: string | null;
+        try {
+            const SocialLogin = await ensureInit();
+            // No explicit scopes: both platforms default to email/profile/openid,
+            // and passing ANY scopes on Android trips the plugin's "modify the
+            // main activity" guard (custom scopes need onActivityResult wiring in
+            // MainActivity; the defaults don't).
+            const { result } = await SocialLogin.login({
+                provider: 'google',
+                options: {},
+            });
+            // Online mode returns idToken; we never hit the offline branch
+            // (serverAuthCode) because we initialize with mode:'online'.
+            idToken = 'idToken' in result ? result.idToken : null;
+        } catch (err) {
+            const msg = nativeAuthErrorMessage(err, 'Google');
+            if (msg) handlers.onError?.(new Error(msg));
+            return;
+        }
         if (!idToken) throw new Error('Google sign-in did not return an ID token.');
         handlers.onSignedIn(await googleSignIn(idToken));
     } catch (err) {
@@ -161,13 +209,21 @@ async function runNativeApple(btn: HTMLButtonElement, handlers: SignInHandlers):
     btn.disabled = true;
     btn.textContent = 'Signing in…';
     try {
-        const SocialLogin = await ensureInit();
-        const { result } = await SocialLogin.login({
-            provider: 'apple',
-            options: { scopes: ['email', 'name'] },
-        });
-        if (!result.idToken) throw new Error('Apple sign-in did not return an identity token.');
-        handlers.onSignedIn(await appleSignIn(result.idToken));
+        let idToken: string | null | undefined;
+        try {
+            const SocialLogin = await ensureInit();
+            const { result } = await SocialLogin.login({
+                provider: 'apple',
+                options: { scopes: ['email', 'name'] },
+            });
+            idToken = result.idToken;
+        } catch (err) {
+            const msg = nativeAuthErrorMessage(err, 'Apple');
+            if (msg) handlers.onError?.(new Error(msg));
+            return;
+        }
+        if (!idToken) throw new Error('Apple sign-in did not return an identity token.');
+        handlers.onSignedIn(await appleSignIn(idToken));
     } catch (err) {
         handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {

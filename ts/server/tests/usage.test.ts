@@ -247,6 +247,30 @@ describe('buildUsageReport', () => {
         expect(r.perHour.ttsCharsPerHour).toBeCloseTo(10_000, 9);
     });
 
+    it('perHour: attributed STT/TTS rates divide by the hours that used the leg', () => {
+        const events = [
+            // Session 1 (30 min): cloud STT + cloud voice.
+            ev({ sessionId: 's1', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's1', ts: 1000 + 900, kind: 'stt', seconds: 300 }),
+            ev({ sessionId: 's1', ts: 1000 + 900, kind: 'tts', chars: 6000 }),
+            ev({ sessionId: 's1', ts: 1000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            // Session 2 (30 min): local voice, cloud STT. Halves the global TTS
+            // rate while saying nothing about what a cloud voice costs.
+            ev({ sessionId: 's2', ts: 5000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's2', ts: 5000 + 900, kind: 'stt', seconds: 300 }),
+            ev({ sessionId: 's2', ts: 5000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.perHour.hours).toBeCloseTo(1, 9);
+        // Global: 6000 chars over both hours-worth of session.
+        expect(r.perHour.ttsCharsPerHour).toBeCloseTo(6000, 9);
+        // Attributed: over the 0.5 h that actually used a cloud voice.
+        expect(r.perHour.attributed.ttsCharsPerHour).toBeCloseTo(12_000, 9);
+        // STT ran in both, so the two agree.
+        expect(r.perHour.sttSecondsPerHour).toBeCloseTo(600, 9);
+        expect(r.perHour.attributed.sttSecondsPerHour).toBeCloseTo(600, 9);
+    });
+
     it('perHour: token volume comes from qualifying sessions only', () => {
         const events = [
             // Qualifying: 30 min, two LLM turns carrying tokens.

@@ -273,8 +273,8 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     }
 }
 
-/** aloud cloud STT bills at provider cost — ~0.6 credits/hour of speech at a
- *  typical talk profile for either hosted model. UNROUNDED, like the server's
+/** aloud cloud STT bills at provider cost — ~0.6 credits/hour of speech at the
+ *  assumed talk profile, for either hosted model. UNROUNDED, like the server's
  *  model/voice rates: it badges as "1☁️" on its own but composes honestly into
  *  the setup footer's session total.
  *

@@ -14,6 +14,31 @@
  *   - Input:output volume is ~45:1, so cache pricing, not output, drives cost.
  * One data point, so these are order-of-magnitude (±~35%). Refine as telemetry
  * accumulates; the shape (heavy cached input, modest output) is the durable part.
+ *
+ * FIRST CALIBRATION LOOK, Aug 2026 (23 qualifying sessions / 19.2 hours, admin
+ * per-hour report). NOTHING was reseeded from it, because the sample doesn't
+ * support it: nearly all the hours are one person's, and the qualifying bar
+ * (>=5 min OR >=10 turns) admits short trial sits, which are not the practice
+ * this profile is meant to describe. A number fit to that sample would be a
+ * different guess, not a measurement. What it's good for is direction:
+ *   - turns look right: 40.9 measured vs 39.6 assumed.
+ *   - sttSeconds looks ~4x low: 20.2 billed min/hr vs 4.8 assumed. Big if it
+ *     survives a real sample - it would make STT the second-largest leg - and
+ *     meditation-pal-0uw7 asks first whether it's talking or VAD padding.
+ *   - TTS says nothing yet: minutes-long per-voice samples, and the two voices
+ *     disagree 2.4x in a way that looks like mode (noting speaks labels, not
+ *     sentences), which MODE_RATE_MULTIPLIER already models separately.
+ *   - the four token fields are unmeasured - the report only started carrying
+ *     them in this same pass. cacheRead is the one that matters, being ~90% of
+ *     the LLM cost basis.
+ * Before the next pass, restrict the window to real sits and check how many
+ * accounts are behind it (meditation-pal-bv9p).
+ *
+ * What this profile still does NOT model: the utility LLM. Hosted sessions run
+ * a second metered model (Haiku, via buildUtilityProvider) for the silence
+ * classifiers, noting labels, and summaries - measured at ~0.4 credits/hr in
+ * every session, on top of whichever model the badge names
+ * (meditation-pal-nrj6).
  */
 
 import type { SessionUsage } from '@aloud/core/facilitation';
@@ -31,6 +56,11 @@ export const TYPICAL_SESSION: SessionUsage = {
     llmTokensOut: 2_700, // facilitator speech (~10k chars)
     llmCacheRead: 115_000, // re-sent prefix, cached at ~0.1x
     llmCacheCreation: 7_500, // unique content written to cache once
+    // UNVALIDATED and suspected ~4x low: the Aug 2026 telemetry measured 20.2
+    // billed min/hr against the 4.8 this implies. Deliberately NOT reseeded on
+    // that - see the calibration note in the header for why the sample can't
+    // carry it yet, and meditation-pal-0uw7 for whether the measured figure is
+    // real talking or VAD padding in the first place.
     sttSeconds: 240, // ~4 min of actual user speech (VAD-segmented)
     ttsChars: 10_000, // facilitator speech, if spoken by cloud TTS
 };

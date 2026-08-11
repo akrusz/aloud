@@ -174,10 +174,15 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
 });
 
 describe('hosted STT options — the two cloud models', () => {
-    it('shows the shared ~1☁️/hr rate badge on both hosted entries', () => {
+    it('shows the same rate badge on both hosted entries, and only those', () => {
+        // Both bill the same leg at the same profile, so the badge must match;
+        // the exact number tracks the measured STT profile and moves with it.
         const opts = sttEngineOptions(true);
-        expect(opts.find((o) => o.value === 'aloud')!.label).toContain('1☁️');
-        expect(opts.find((o) => o.value === 'aloud-gpt-transcribe')!.label).toContain('1☁️');
+        const badgeOf = (v: string) => opts.find((o) => o.value === v)!.label.match(/\((.*)\)/)?.[1];
+        expect(badgeOf('aloud')).toMatch(/☁️$/);
+        expect(badgeOf('aloud-gpt-transcribe')).toBe(badgeOf('aloud'));
+        // Free engines carry no badge at all.
+        expect(opts.find((o) => o.value === 'whisper')?.label ?? '').not.toContain('☁️');
     });
     it('maps the new hosted choice to the continuous PCM backend, like classic', () => {
         expect(sttBackendForChoice('aloud-gpt-transcribe')).toBe('server-whisper');
@@ -228,7 +233,6 @@ describe('sttLangTag - the Language setting as a recognizer BCP-47 tag', () => {
 describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', () => {
     it('is a small nonzero rate for hosted choices and zero for free ones', () => {
         expect(cloudSttCreditsPerHour('aloud')).toBeGreaterThan(0);
-        expect(cloudSttCreditsPerHour('aloud')).toBeLessThan(1);
         expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(
             cloudSttCreditsPerHour('aloud')
         );

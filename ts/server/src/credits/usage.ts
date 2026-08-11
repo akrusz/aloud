@@ -200,12 +200,19 @@ export interface PerHourReport {
     costUsdPerHour: number;
     /** Facilitator turns (LLM calls) per hour. Estimate assumes ~40. */
     turnsPerHour: number;
-    /** Billed STT audio seconds per hour. Estimate assumes ~288 (4.8 min);
-     *  well above that means either chattier users or VAD padding billing
-     *  silence as audio. */
+    /** Billed STT audio seconds per hour. Well above the estimate's assumption
+     *  means either chattier users or VAD padding billing silence as audio. */
     sttSecondsPerHour: number;
-    /** Cloud-TTS characters per hour. Estimate band assumes 6k–19.2k. */
+    /** Cloud-TTS characters per hour. */
     ttsCharsPerHour: number;
+    /** The same two volumes over only the hours of sessions that USED that leg.
+     *  Compare these, not the two above, against the estimate profile: it
+     *  assumes a cloud voice and cloud STT, while the totals above divide by
+     *  every qualifying hour including the local-Whisper and device-voice
+     *  sessions. With most sits on a free local voice the global TTS figure runs
+     *  an order of magnitude under the profile and means nothing. Same
+     *  per-session-attribution rule as byModel.hours. */
+    attributed: { sttSecondsPerHour: number; ttsCharsPerHour: number };
     /** LLM token volume per hour, over the same qualifying sessions. These are
      *  what actually drive the credits/hr badge on this cache-heavy workload
      *  (~45:1 input:output, most of it re-sent prefix), so they're the fields to
@@ -494,8 +501,14 @@ export function buildUsageReport(
     // STT, characters for TTS.
     const unitsOf = (e: UsageEvent): number =>
         e.kind === 'llm' ? 1 : e.kind === 'stt' ? e.seconds : e.chars;
+    // Hours of sessions that used each metered leg at least once — the honest
+    // denominator for "how much STT/TTS does a session that uses it consume".
+    let sttHours = 0;
+    let ttsHours = 0;
     for (const s of qualifying) {
         const sessionHours = durationMinOf(s) / 60;
+        if (s.some((e) => e.kind === 'stt')) sttHours += sessionHours;
+        if (s.some((e) => e.kind === 'tts')) ttsHours += sessionHours;
         const modelsInSession = new Set<string>();
         for (const e of s) {
             phCredits += e.credits;
@@ -538,6 +551,10 @@ export function buildUsageReport(
         turnsPerHour: rate(phTurns, totalHours),
         sttSecondsPerHour: rate(phSttSeconds, totalHours),
         ttsCharsPerHour: rate(phTtsChars, totalHours),
+        attributed: {
+            sttSecondsPerHour: rate(phSttSeconds, sttHours),
+            ttsCharsPerHour: rate(phTtsChars, ttsHours),
+        },
         tokensPerHour: {
             input: rate(phTokens.in, totalHours),
             output: rate(phTokens.out, totalHours),
