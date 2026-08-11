@@ -79,6 +79,11 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // Credits debit at provider COST; margin is added at purchase.
             usdPerCredit: USD_PER_CREDIT,
             packMarkup: PACK_MARKUP,
+            // The hosted STT leg rides along: it has no catalog of its own (the
+            // choices are static client-side), but the setup footer composes
+            // model + stt + voice, and a client-side copy of this number drifts
+            // the moment STT pricing moves. Unrounded, like the model rates.
+            sttCreditsPerHour: estimateStt().creditsPerHour,
             models: deps.liveness.liveModels().map((m) => ({
                 ...m,
                 creditsPerHour: ratePerHour.get(`${m.provider}:${m.model}`) ?? null,

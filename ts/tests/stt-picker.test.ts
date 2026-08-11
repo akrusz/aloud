@@ -20,6 +20,8 @@ import {
     resolveSttChoice,
     sttBackendForChoice,
     sttLangTag,
+    cloudSttCreditsPerHour,
+    setCloudSttCreditsPerHour,
 } from '../ui/src/adapters/stt-picker.js';
 import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
 
@@ -220,5 +222,33 @@ describe('sttLangTag - the Language setting as a recognizer BCP-47 tag', () => {
     });
     it('passes through what it cannot expand', () => {
         expect(sttLangTag('not a tag')).toBe('not a tag');
+    });
+});
+
+describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', () => {
+    it('is a small nonzero rate for hosted choices and zero for free ones', () => {
+        expect(cloudSttCreditsPerHour('aloud')).toBeGreaterThan(0);
+        expect(cloudSttCreditsPerHour('aloud')).toBeLessThan(1);
+        expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(
+            cloudSttCreditsPerHour('aloud')
+        );
+        expect(cloudSttCreditsPerHour('whisper')).toBe(0);
+        expect(cloudSttCreditsPerHour('web-speech')).toBe(0);
+        expect(cloudSttCreditsPerHour('capacitor')).toBe(0);
+    });
+
+    it('adopts the server rate from /me/models over the built-in seed', () => {
+        setCloudSttCreditsPerHour(0.42);
+        expect(cloudSttCreditsPerHour('aloud')).toBe(0.42);
+    });
+
+    it('keeps the last good rate when the server sends nothing usable', () => {
+        // An older server, a trimmed payload, or a zero must never make a paid
+        // leg read as free.
+        setCloudSttCreditsPerHour(0.42);
+        for (const bad of [undefined, null, 0, -1, NaN]) {
+            setCloudSttCreditsPerHour(bad);
+            expect(cloudSttCreditsPerHour('aloud')).toBe(0.42);
+        }
     });
 });

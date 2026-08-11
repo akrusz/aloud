@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import { estimateModels } from '../src/pricing/estimate.js';
+import { estimateModels, estimateStt } from '../src/pricing/estimate.js';
 
 describe('GET /cloud/v1/me/models', () => {
     it('tags every allowed model with its typical creditsPerHour', async () => {
@@ -31,6 +31,17 @@ describe('GET /cloud/v1/me/models', () => {
         // model (Opus) costs more per hour than a value one (Gemini Flash-Lite).
         const rateOf = (model: string) => body.models.find((m) => m.model === model)!.creditsPerHour!;
         expect(rateOf('claude-opus-5')).toBeGreaterThan(rateOf('gemini-2.5-flash-lite'));
+    });
+
+    it('carries the hosted STT rate, so the client keeps no copy of its own', async () => {
+        const app = createApp(buildDeps(loadConfig({})));
+        const res = await app.request('/cloud/v1/me/models');
+        const body = (await res.json()) as { sttCreditsPerHour: number };
+        expect(body.sttCreditsPerHour).toBe(estimateStt().creditsPerHour);
+        // Unrounded, like the model rates: it composes into the setup footer's
+        // session total before anything rounds.
+        expect(body.sttCreditsPerHour).toBeGreaterThan(0);
+        expect(body.sttCreditsPerHour).toBeLessThan(1);
     });
 
     it('flags exactly one default model, Opus 5 (the picker pre-selection)', async () => {

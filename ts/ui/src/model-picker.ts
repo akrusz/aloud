@@ -14,6 +14,7 @@ import { appUrl } from './app-base.js';
 import { getApiKey, hasApiKey } from './api-keys.js';
 import { probeOllamaDirect } from './ollama-direct.js';
 import { rateSuffix } from './credit-rate.js';
+import { setCloudSttCreditsPerHour } from './adapters/stt-picker.js';
 import { loadAppSettings, saveAppSettings } from './app-settings.js';
 import type { Provider } from './settings.js';
 
@@ -184,6 +185,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             const resp = await fetch(cloudUrl('/me/models'));
             if (!resp.ok) return null;
             const data = (await resp.json()) as {
+                sttCreditsPerHour?: number | null;
                 models?: Array<{
                     provider: string;
                     model: string;
@@ -193,6 +195,10 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 }>;
             };
             if (!data.models?.length) return null;
+            // The hosted STT leg rides on this payload (it has no catalog of
+            // its own) so the setup footer's model + stt + voice sum uses the
+            // server's rate, not a client-side copy that drifts.
+            setCloudSttCreditsPerHour(data.sttCreditsPerHour);
             // Hosted models cost credits, so the label carries the cloud-rate
             // badge ("N☁️") - the only provider where the picker shows it.
             const opts: ModelOption[] = data.models.map((m) => ({
