@@ -36,13 +36,15 @@ export function creditAmount(credits: number, digits = 1): string {
     return `${credits.toFixed(digits)}${RATE_EMOJI}`;
 }
 
-/** Whole emoji-units for a credits/hr rate. Rounds DOWN, since the estimates run
- *  high and flooring keeps the badge from overstating, but never below 1 for a
- *  paid option, so a cheap-but-not-free choice can't read as free. Zero or
- *  negative (local/BYOK) returns 0. */
+/** Whole emoji-units for a credits/hr rate, rounded to NEAREST. This is the only
+ *  place a rate rounds: the server sends unrounded per-hour figures precisely so
+ *  a model + voice + STT sum can be composed first and rounded once, and the
+ *  badges add up to the session pill. A positive rate under 0.5 returns 0 here -
+ *  callers must not read that as free; rateBadge renders it "<1☁️". Zero or
+ *  negative (local/BYOK) also returns 0, which IS free. */
 export function rateUnits(creditsPerHour: number | null | undefined): number {
     if (!creditsPerHour || creditsPerHour <= 0) return 0;
-    return Math.max(1, Math.floor(creditsPerHour / CREDITS_PER_EMOJI));
+    return Math.round(creditsPerHour / CREDITS_PER_EMOJI);
 }
 
 /** Per-mode estimate multiplier. Noting mode speaks short labels, not full
@@ -58,10 +60,13 @@ export const MODE_RATE_MULTIPLIER: Record<'exploration' | 'noting' | 'felt_sense
     felt_sense: 1,
 };
 
-/** Badge text for a rate, e.g. "3☁️". Empty string when free (0). */
+/** Badge text for a rate, e.g. "3☁️". A paid option too cheap to round to a
+ *  whole credit reads "<1☁️" rather than "1☁️" (overstating by up to 12x at the
+ *  Flash Lite end) or "" (which means free). Empty string only when free. */
 export function rateBadge(creditsPerHour: number | null | undefined): string {
+    if (!creditsPerHour || creditsPerHour <= 0) return '';
     const n = rateUnits(creditsPerHour);
-    return n > 0 ? `${n}${RATE_EMOJI}` : '';
+    return n > 0 ? `${n}${RATE_EMOJI}` : `<1${RATE_EMOJI}`;
 }
 
 /** Suffix for a dropdown <option> label, e.g. " (3☁️)". Empty when free. */

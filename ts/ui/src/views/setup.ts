@@ -46,7 +46,7 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, rateUnits, RATE_EMOJI, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
+import { rateBadge, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
 import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
@@ -468,7 +468,7 @@ export async function mountSetupView(
         }
         el.classList.remove('hidden');
         setCloudUi(true);
-        const rate = `≈ ${rateUnits(total)}${RATE_EMOJI}/hr`;
+        const rate = `≈ ${rateBadge(total)}/hr`;
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
         el.innerHTML = withCloudOutline(rate);

@@ -273,14 +273,16 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     }
 }
 
-/** aloud cloud STT bills at provider cost — a flat ~1 credit/hour of speech at
- *  a typical talk profile for either hosted model (mirrors the server's
- *  estimateStt; the newer gpt-transcribe runs a bit under it). Shown with the
- *  same ☁️ unit as the model/voice pickers so all three read consistently.
- *  'aloud' is the server-default model (OpenAI gpt-4o-transcribe);
- *  'aloud-gpt-transcribe' pins OpenAI's newer gpt-transcribe (July 2026),
- *  offered alongside while it's validated — it may replace the default. */
-export const CLOUD_STT_CREDITS_PER_HOUR = 1;
+/** aloud cloud STT bills at provider cost — 0.58 credits/hour of speech at a
+ *  typical talk profile for either hosted model (mirrors the server's
+ *  estimateStt; the newer gpt-transcribe runs a bit under it). UNROUNDED, like
+ *  the server's model/voice rates: it badges as "1☁️" on its own but composes
+ *  honestly into the setup footer's session total. Hardcoded because the STT
+ *  leg has no /me endpoint of its own — recheck against estimateStt when STT
+ *  pricing moves. 'aloud' is the server-default model (OpenAI
+ *  gpt-4o-transcribe); 'aloud-gpt-transcribe' pins OpenAI's newer
+ *  gpt-transcribe (July 2026), offered alongside while it's validated. */
+export const CLOUD_STT_CREDITS_PER_HOUR = 0.58;
 
 /** The hosted (credit-spending, cloud-auth) STT choices. */
 export function isHostedSttChoice(choice: SttEngineChoice): boolean {

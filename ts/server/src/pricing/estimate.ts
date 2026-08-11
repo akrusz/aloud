@@ -56,6 +56,16 @@ function round1(n: number): number {
     return Math.round(n * 10) / 10;
 }
 
+/**
+ * Per-hour credits for a per-session figure, at 2dp. UNROUNDED to whole credits
+ * on purpose: rounding belongs at the badge (ui/credit-rate.ts rateUnits), once,
+ * so legs stay addable. Rounding here too meant a voice badge and the session
+ * pill disagreed - the badge floored 3.8 to "3☁️" while the pill summed the 3.8.
+ */
+function creditsPerHour(creditsPerSession: number): number {
+    return Math.round(creditsPerSession * PER_HOUR * 100) / 100;
+}
+
 export interface LegEstimate {
     creditsPerSession: number;
     creditsPerHour: number;
@@ -95,7 +105,7 @@ export function estimateModels(): ModelEstimate[] {
             provider: m.provider,
             model: m.model,
             creditsPerSession: cost.credits,
-            creditsPerHour: Math.ceil(cost.credits * PER_HOUR),
+            creditsPerHour: creditsPerHour(cost.credits),
             costUsdPerHour: round1(cost.providerCostUsd * PER_HOUR * 100) / 100,
         };
     });
@@ -107,17 +117,17 @@ export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
     const cost = priceSttSeconds(TYPICAL_SESSION.sttSeconds, model);
     return {
         creditsPerSession: cost.credits,
-        creditsPerHour: Math.ceil(cost.credits * PER_HOUR),
+        creditsPerHour: creditsPerHour(cost.credits),
         costUsdPerHour: round1(cost.providerCostUsd * PER_HOUR * 100) / 100,
     };
 }
 
 /** Typical-profile credits/hr for a voice id: the "how fast does this burn my
  *  credits" number the picker shows, computed from the SAME rate the meter bills
- *  with (so it can't drift). One decimal. */
+ *  with (so it can't drift). Two decimals, unrounded - see creditsPerHour(). */
 export function voiceCreditsPerHourTypical(provider: TtsProvider, voiceId: string): number {
     const usdPerHour = TTS_CHAR_PROFILES.typical * ttsRateFor(provider, voiceId) * PER_HOUR;
-    return Math.round(usdToCredits(usdPerHour) * 10) / 10;
+    return Math.round(usdToCredits(usdPerHour) * 100) / 100;
 }
 
 /** A free local voice line (device/OS speechSynthesis). Bills zero, shown so the
@@ -156,8 +166,7 @@ export function estimateVoices(): VoiceEstimate[] {
     ];
     const cloud = CURATED_VOICES.map((v): VoiceEstimate => {
         const rate = ttsRateFor(v.provider, v.providerVoiceId);
-        const perHour = (chars: number): number =>
-            Math.ceil(usdToCredits(chars * rate) * PER_HOUR);
+        const perHour = (chars: number): number => creditsPerHour(usdToCredits(chars * rate));
         return {
             voiceId: v.providerVoiceId,
             label: `Cloud voice - ${v.name} (${voiceEngineLabel(v)})`,

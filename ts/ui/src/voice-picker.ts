@@ -356,7 +356,7 @@ function appendRow(
         cost.innerHTML = withCloudOutline(rateText);
         const tierWord =
             entry.costTier === 'premium' ? 'Premium' : entry.costTier === 'value' ? 'Value' : 'Cloud';
-        cost.title = `${tierWord} voice · est. ≈ ${entry.creditsPerHour} credits/hour at a concise (exploration) pace (noting mode uses fewer)`;
+        cost.title = `${tierWord} voice · est. ≈ ${entry.creditsPerHour!.toFixed(1)} credits/hour at a concise (exploration) pace (noting mode uses fewer)`;
         nameSpan.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {
