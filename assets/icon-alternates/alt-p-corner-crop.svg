@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="orb" cx="45%" cy="45%" r="78%">
+      <stop offset="0" stop-color="#fff4c0"/>
+      <stop offset="0.18" stop-color="#f8f288"/>
+      <stop offset="0.38" stop-color="#f5d820"/>
+      <stop offset="0.49" stop-color="#ffb805"/>
+      <stop offset="0.65" stop-color="#ed7326"/>
+      <stop offset="0.71" stop-color="#e71f75"/>
+      <stop offset="0.76" stop-color="#870a3e"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0.5" stop-color="#e71f75" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#870a3e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="ringglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="27"/>
+    </filter>
+    <clipPath id="tile">
+      <rect x="100" y="100" width="824" height="824" rx="184"/>
+    </clipPath>
+  </defs>
+
+  <rect x="100" y="116" width="824" height="824" rx="184" fill="#000000" opacity="0.35" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="#110d08"/>
+
+  <g clip-path="url(#tile)">
+    <circle cx="512" cy="512" r="372" fill="url(#glow)"/>
+    <circle cx="512" cy="512" r="334" fill="none" stroke="#e71f75" stroke-width="54.0" opacity="0.174" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="334" fill="none" stroke="#e71f75" stroke-width="9.0" opacity="0.580"/>
+    <circle cx="512" cy="512" r="430" fill="none" stroke="#e71f75" stroke-width="45.0" opacity="0.108" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="430" fill="none" stroke="#e71f75" stroke-width="7.5" opacity="0.360"/>
+    <circle cx="512" cy="512" r="535" fill="none" stroke="#e71f75" stroke-width="36.0" opacity="0.072" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="535" fill="none" stroke="#e71f75" stroke-width="6.0" opacity="0.240"/>
+    <circle cx="512" cy="512" r="262" fill="url(#orb)"/>
+  </g>
+</svg>

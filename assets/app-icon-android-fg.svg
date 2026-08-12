@@ -16,8 +16,25 @@
       <stop offset="0.5" stop-color="#e71f75" stop-opacity="0.35"/>
       <stop offset="1" stop-color="#870a3e" stop-opacity="0"/>
     </radialGradient>
+    <filter id="ringglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
   </defs>
 
-  <circle cx="216" cy="216" r="150" fill="url(#glow)"/>
-  <circle cx="216" cy="216" r="112" fill="url(#orb)"/>
+  <!-- Same ripple figure as app-icon.svg, scaled to a 136px half-width so the
+       whole thing - outermost ring included - stays inside the 66dp safe zone
+       (r132 + stroke). A launcher's circular mask would cut a ring clean away
+       rather than crop it the way the desktop tile's corners do, so nothing
+       here is allowed past that line.
+       Ratios as elsewhere: orb 0.53, rings 0.68 / 0.83 / 0.97. -->
+  <circle cx="216" cy="216" r="109" fill="url(#glow)"/>
+
+  <circle cx="216" cy="216" r="92" fill="none" stroke="#e71f75" stroke-width="18" opacity="0.174" filter="url(#ringglow)"/>
+  <circle cx="216" cy="216" r="92" fill="none" stroke="#e71f75" stroke-width="3" opacity="0.58"/>
+  <circle cx="216" cy="216" r="112" fill="none" stroke="#e71f75" stroke-width="15" opacity="0.108" filter="url(#ringglow)"/>
+  <circle cx="216" cy="216" r="112" fill="none" stroke="#e71f75" stroke-width="2.5" opacity="0.36"/>
+  <circle cx="216" cy="216" r="132" fill="none" stroke="#e71f75" stroke-width="12" opacity="0.066" filter="url(#ringglow)"/>
+  <circle cx="216" cy="216" r="132" fill="none" stroke="#e71f75" stroke-width="2" opacity="0.22"/>
+
+  <circle cx="216" cy="216" r="73" fill="url(#orb)"/>
 </svg>
