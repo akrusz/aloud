@@ -141,7 +141,11 @@ Endpoints (served at `/app/v1/*`):
   bundle ID); window 1000×820, min 480×600.
 - **Bundle art**: the app icon set (`src-tauri/icons/`) is generated from
   `assets/app-icon.svg` via `npx tauri icon` (dark `#110d08` rounded tile so it
-  doesn't render as a "fried egg" on a transparent fill). The DMG uses Tauri's
+  doesn't render as a "fried egg" on a transparent fill), then
+  `scripts/generate-app-icons.sh` - which re-renders everything under 512px from
+  `app-icon-small.svg` (heavier ring strokes, since a hairline ring doesn't
+  survive the downscale) and covers the `.icns`/`.ico`/store/mobile rasters too.
+  Run both, in that order, after any icon change. The DMG uses Tauri's
   default window layout (light background, readable labels). A custom wordmark
   background is parked in `assets/dmg-background.svg` (regen command in its header)
   but **not currently wired** - a dark bundle background made the Finder icon

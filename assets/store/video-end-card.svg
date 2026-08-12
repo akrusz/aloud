@@ -14,9 +14,32 @@
     <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="34"/>
     </filter>
+    <filter id="ringglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6.1"/>
+    </filter>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.26" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.36" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.51" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.56" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="ringmask">
+      <rect width="1080" height="1920" fill="url(#fade)"/>
+    </mask>
   </defs>
 
   <rect width="1080" height="1920" fill="#110d08"/>
+
+  <!-- ripple rings, as on share-card.svg and the app icon: radii 1.27 / 1.82 /
+       2.44 times the orb's, faded out before the type. -->
+  <g mask="url(#ringmask)">
+    <circle cx="540" cy="820" r="153" fill="none" stroke="#e71f75" stroke-width="12.3" opacity="0.248" filter="url(#ringglow)"/>
+    <circle cx="540" cy="820" r="153" fill="none" stroke="#e71f75" stroke-width="4.1" opacity="0.55"/>
+    <circle cx="540" cy="820" r="218" fill="none" stroke="#e71f75" stroke-width="10.2" opacity="0.126" filter="url(#ringglow)"/>
+    <circle cx="540" cy="820" r="218" fill="none" stroke="#e71f75" stroke-width="3.4" opacity="0.28"/>
+    <circle cx="540" cy="820" r="293" fill="none" stroke="#e71f75" stroke-width="8.1" opacity="0.068" filter="url(#ringglow)"/>
+    <circle cx="540" cy="820" r="293" fill="none" stroke="#e71f75" stroke-width="2.7" opacity="0.15"/>
+  </g>
 
   <circle cx="540" cy="820" r="130" fill="#e71f75" opacity="0.42" filter="url(#glow)"/>
   <circle cx="540" cy="820" r="120" fill="url(#orb)"/>

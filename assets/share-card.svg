@@ -14,28 +14,57 @@
     <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="46"/>
     </filter>
+    <filter id="ringglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <!-- The rings are cut off above the tagline and below the url so no line of
+         type ever sits on a stroke. Keep these stops in step with the type
+         positions if either moves. -->
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.02" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.22" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.74" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.92" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="ringmask">
+      <rect width="1200" height="630" fill="url(#fade)"/>
+    </mask>
   </defs>
 
   <!-- dark brand background -->
   <rect width="1200" height="630" fill="#110d08"/>
 
+  <!-- ripple rings: the boot throbber's pulse (ui/src/style.css, #boot-orb)
+       held still. Radii are 1.27 / 1.82 / 2.44 times the orb's, strokes and
+       opacity falling off as they travel - the same figure the app icon wears. -->
+  <g mask="url(#ringmask)">
+    <circle cx="600" cy="315" r="224" fill="none" stroke="#e71f75" stroke-width="18" opacity="0.248" filter="url(#ringglow)"/>
+    <circle cx="600" cy="315" r="224" fill="none" stroke="#e71f75" stroke-width="6" opacity="0.55"/>
+    <circle cx="600" cy="315" r="320" fill="none" stroke="#e71f75" stroke-width="15" opacity="0.126" filter="url(#ringglow)"/>
+    <circle cx="600" cy="315" r="320" fill="none" stroke="#e71f75" stroke-width="5" opacity="0.28"/>
+    <circle cx="600" cy="315" r="430" fill="none" stroke="#e71f75" stroke-width="12" opacity="0.068" filter="url(#ringglow)"/>
+    <circle cx="600" cy="315" r="430" fill="none" stroke="#e71f75" stroke-width="4" opacity="0.15"/>
+  </g>
+
+  <!-- tagline overhead, so the orb can sit on the canvas centre line -->
+  <text x="600" y="75" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
+        font-size="44" fill="#f5e8e6">a voice-based meditation facilitator</text>
+
   <!-- soft pink halo behind the orb -->
-  <circle cx="600" cy="248" r="188" fill="#e71f75" opacity="0.45" filter="url(#glow)"/>
+  <circle cx="600" cy="315" r="188" fill="#e71f75" opacity="0.4" filter="url(#glow)"/>
 
   <!-- orb -->
-  <circle cx="600" cy="248" r="176" fill="url(#orb)"/>
+  <circle cx="600" cy="315" r="176" fill="url(#orb)"/>
 
   <!-- wordmark over the orb: black outline (back) + yellow stroke + pink fill (front) -->
   <g font-family="Knewave" font-size="150" text-anchor="middle" letter-spacing="4">
-    <text x="600" y="300" fill="#000000" stroke="#000000" stroke-width="24"
+    <text x="600" y="367" fill="#000000" stroke="#000000" stroke-width="24"
           stroke-linejoin="round" paint-order="stroke">aloud.</text>
-    <text x="600" y="300" fill="#e71f75" stroke="#ffd820" stroke-width="14"
+    <text x="600" y="367" fill="#e71f75" stroke="#ffd820" stroke-width="14"
           stroke-linejoin="round" paint-order="stroke">aloud.</text>
   </g>
 
-  <!-- tagline + url -->
-  <text x="600" y="488" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
-        font-size="44" fill="#f5e8e6">a voice-based meditation facilitator</text>
-  <text x="600" y="536" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
-        font-size="40" fill="#d4b880" letter-spacing="1">aloud.rest</text>
+  <!-- url -->
+  <text x="600" y="575" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
+        font-size="42" fill="#d4b880" letter-spacing="1">aloud.rest</text>
 </svg>

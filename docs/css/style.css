@@ -272,6 +272,7 @@ code {
   margin-bottom: 1rem;
 }
 .orb {
+  position: relative;
   width: 180px;
   height: 180px;
   border-radius: 50%;
@@ -293,8 +294,40 @@ code {
   0%, 100% { transform: scale(1);    box-shadow: 0 0 60px var(--accent-glow), 0 0 100px rgba(231, 31, 117, 0.32), 0 0 160px rgba(231, 31, 117, 0.22); }
   50%      { transform: scale(1.04); box-shadow: 0 0 80px var(--accent-glow), 0 0 130px rgba(231, 31, 117, 0.40), 0 0 200px rgba(231, 31, 117, 0.28); }
 }
+
+/* Three ripples on load, then the orb settles into its breathing - the same
+   figure the app icon wears statically and the boot orb pulses forever
+   (ui/src/style.css, #boot-orb). Slower here at 1.8s: the boot orb's 1.2s is
+   reporting work, this one is only saying hello.
+   Two rings covering three emissions: ::before goes twice, ::after once in
+   the gap between them. Both start at opacity 0, so nothing lingers after
+   the last one finishes at ~3.6s. */
+.orb::before,
+.orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 24px 4px color-mix(in srgb, var(--accent) 28%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  animation: orbRipple 1.8s ease-out 2;
+}
+.orb::after {
+  animation-delay: 0.9s;
+  animation-iteration-count: 1;
+}
+@keyframes orbRipple {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { opacity: 0.14; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .orb { animation: none; }
+  .orb::before,
+  .orb::after { animation: none; }
 }
 
 /* ===== buttons ===== */

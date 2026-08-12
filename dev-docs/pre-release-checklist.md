@@ -32,7 +32,9 @@ check each of these still reflects reality:
   whenever the setup or session UI changes, or the site shows a version of the
   app that no longer exists.
 - **`docs/assets/aloud-share.png`** + `assets/share-card.svg` - the share-card
-  tagline if the positioning/tagline changed.
+  tagline if the positioning/tagline changed. The PNGs are **generated**:
+  `scripts/generate-share-cards.sh` re-renders the share card, the Play feature
+  graphic and both video cards from their SVGs (needs Knewave installed).
 - **`README.md`** - product description, modes, provider list, platform notes,
   tips, install instructions, screenshot reference. The **download links are
   expected to name the last published release**, not the one being cut - they're
