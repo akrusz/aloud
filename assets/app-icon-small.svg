@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- SMALL-SIZE SIBLING of app-icon.svg: identical geometry and
+       opacity, ring strokes +22%. Below ~256px a hairline ring stops being a
+       ring and becomes a smudge, so renders under 512px come from this file
+       instead (see scripts/generate-app-icons.sh). Keep the two in sync. -->
+  <defs>
+    <radialGradient id="orb" cx="45%" cy="45%" r="78%">
+      <stop offset="0" stop-color="#fff4c0"/>
+      <stop offset="0.18" stop-color="#f8f288"/>
+      <stop offset="0.38" stop-color="#f5d820"/>
+      <stop offset="0.49" stop-color="#ffb805"/>
+      <stop offset="0.65" stop-color="#ed7326"/>
+      <stop offset="0.71" stop-color="#e71f75"/>
+      <stop offset="0.76" stop-color="#870a3e"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0.5" stop-color="#e71f75" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#870a3e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <!-- Each ripple ring is drawn twice: a wide faint stroke through this blur
+         (its glow) and a crisp stroke on top. The glow reach is deliberate -
+         at half this blur the rings sit *on* the tile instead of in their own
+         light. -->
+    <filter id="ringglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="27"/>
+    </filter>
+    <clipPath id="tile">
+      <rect x="100" y="100" width="824" height="824" rx="184"/>
+    </clipPath>
+  </defs>
+
+  <!-- macOS-style rounded-rect tile, inset with a soft drop shadow so it sits
+       like a native Mac icon. (iOS uses the full-bleed square variant instead.) -->
+  <rect x="100" y="116" width="824" height="824" rx="184" fill="#000000" opacity="0.35" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="#110d08"/>
+
+  <!-- Orb + ripple rings, echoing the app's boot throbber (ui/src/style.css
+       #boot-orb) so the mark says "out loud" and not just "glow".
+       Geometry as fractions of the tile's half-width (412px from centre), which
+       is what makes the same figure portable to the iOS and Android variants:
+       orb 0.53, rings 0.68 / 0.83 / 0.97, strokes 0.022 / 0.018 / 0.015.
+       Rings are clipped to the tile but sized to stay inside its flat edges -
+       the outermost clears the edge by 12px. -->
+  <g clip-path="url(#tile)">
+    <circle cx="512" cy="512" r="330" fill="url(#glow)"/>
+
+    <circle cx="512" cy="512" r="280" fill="none" stroke="#e71f75" stroke-width="66" opacity="0.174" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="280" fill="none" stroke="#e71f75" stroke-width="11" opacity="0.58"/>
+    <circle cx="512" cy="512" r="340" fill="none" stroke="#e71f75" stroke-width="57" opacity="0.108" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="340" fill="none" stroke="#e71f75" stroke-width="9.5" opacity="0.36"/>
+    <circle cx="512" cy="512" r="400" fill="none" stroke="#e71f75" stroke-width="48" opacity="0.066" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="400" fill="none" stroke="#e71f75" stroke-width="8" opacity="0.22"/>
+
+    <circle cx="512" cy="512" r="220" fill="url(#orb)"/>
+  </g>
+</svg>

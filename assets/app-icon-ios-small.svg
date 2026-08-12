@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- SMALL-SIZE SIBLING of app-icon-ios.svg: identical geometry and
+       opacity, ring strokes +22%. Below ~256px a hairline ring stops being a
+       ring and becomes a smudge, so renders under 512px come from this file
+       instead (see scripts/generate-app-icons.sh). Keep the two in sync. -->
+  <defs>
+    <radialGradient id="orb" cx="45%" cy="45%" r="78%">
+      <stop offset="0" stop-color="#fff4c0"/>
+      <stop offset="0.18" stop-color="#f8f288"/>
+      <stop offset="0.38" stop-color="#f5d820"/>
+      <stop offset="0.49" stop-color="#ffb805"/>
+      <stop offset="0.65" stop-color="#ed7326"/>
+      <stop offset="0.71" stop-color="#e71f75"/>
+      <stop offset="0.76" stop-color="#870a3e"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0.5" stop-color="#e71f75" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#870a3e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="ringglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="33.6"/>
+    </filter>
+  </defs>
+
+  <!-- Full-bleed opaque square: iOS masks the corners and rejects alpha.
+       Orb kept centered with margin so the corner mask never clips it. -->
+  <rect x="0" y="0" width="1024" height="1024" fill="#110d08"/>
+
+  <!-- Same ripple figure as app-icon.svg, scaled to this frame's half-width
+       (512 here vs the tile's 412): orb 0.53, rings 0.68 / 0.83 / 0.97.
+       The outermost ring clears the edge by 15px, and sits well inside the
+       corner mask on the diagonal. -->
+  <circle cx="512" cy="512" r="410" fill="url(#glow)"/>
+
+  <circle cx="512" cy="512" r="348" fill="none" stroke="#e71f75" stroke-width="82" opacity="0.174" filter="url(#ringglow)"/>
+  <circle cx="512" cy="512" r="348" fill="none" stroke="#e71f75" stroke-width="13.7" opacity="0.58"/>
+  <circle cx="512" cy="512" r="423" fill="none" stroke="#e71f75" stroke-width="70.8" opacity="0.108" filter="url(#ringglow)"/>
+  <circle cx="512" cy="512" r="423" fill="none" stroke="#e71f75" stroke-width="11.8" opacity="0.36"/>
+  <circle cx="512" cy="512" r="497" fill="none" stroke="#e71f75" stroke-width="55.8" opacity="0.066" filter="url(#ringglow)"/>
+  <circle cx="512" cy="512" r="497" fill="none" stroke="#e71f75" stroke-width="9.3" opacity="0.22"/>
+
+  <circle cx="512" cy="512" r="273" fill="url(#orb)"/>
+</svg>

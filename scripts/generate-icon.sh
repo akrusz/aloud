@@ -23,15 +23,25 @@ fi
 mkdir -p "$ICONSET"
 mkdir -p "$(dirname "$ICNS")"
 
+# Renders below 512px come from the small sibling (same figure, ring strokes
+# +22%) - a hairline ring turns to smudge on the way down. See its header.
+SMALL_SVG="$PROJECT_DIR/assets/app-icon-small.svg"
+
+render() {  # render <pixels> <output>
+    local src="$SVG"
+    [ "$1" -lt 512 ] && src="$SMALL_SVG"
+    rsvg-convert -w "$1" -h "$1" "$src" -o "$2"
+}
+
 # Generate all required sizes for macOS icon
 for size in 16 32 64 128 256 512; do
-    rsvg-convert -w "$size" -h "$size" "$SVG" -o "$ICONSET/icon_${size}x${size}.png"
+    render "$size" "$ICONSET/icon_${size}x${size}.png"
 done
 
 # Retina variants (e.g., icon_16x16@2x.png is 32px)
 for size in 16 32 128 256 512; do
     double=$((size * 2))
-    rsvg-convert -w "$double" -h "$double" "$SVG" -o "$ICONSET/icon_${size}x${size}@2x.png"
+    render "$double" "$ICONSET/icon_${size}x${size}@2x.png"
 done
 
 iconutil -c icns "$ICONSET" -o "$ICNS"
