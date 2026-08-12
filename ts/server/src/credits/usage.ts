@@ -212,6 +212,25 @@ export interface PerHourReport {
      *  an order of magnitude under the profile and means nothing. Same
      *  per-session-attribution rule as byModel.hours. */
     attributed: { sttSecondsPerHour: number; ttsCharsPerHour: number };
+    /** STT shape, not just volume (meditation-pal-0uw7). The billed minutes
+     *  alone can't say WHY they're 4x the assumption, but these three can:
+     *  callsPerTurn near 1 with a big medianSeconds means each utterance is
+     *  padded (the 2s pre-buffer + the 3-6s adaptive silence window the VAD
+     *  keeps in the payload); callsPerTurn well above 1 means the same audio is
+     *  billed twice or more, since the speculative preview pass POSTs the whole
+     *  buffer from utterance start and the server bills every POST. */
+    stt: {
+        /** Billed STT requests per hour, over the hours of sessions using it. */
+        callsPerHour: number;
+        /** Billed STT requests per facilitator turn, over the sessions that used
+         *  cloud STT. Unweighted (it's a ratio within a session, not a rate). */
+        callsPerTurn: number;
+        /** Billed audio seconds in a single request. The estimate profile
+         *  implies ~6s of speech per turn; anything much above that is payload
+         *  padding or a re-sent buffer. */
+        medianSeconds: number;
+        p90Seconds: number;
+    };
     /** LLM token volume per hour, over the same qualifying sessions. These are
      *  what actually drive the credits/hr badge on this cache-heavy workload
      *  (~45:1 input:output, most of it re-sent prefix), so they're the fields to
@@ -556,12 +575,25 @@ export function buildUsageReport(
     // denominator for "how much STT/TTS does a session that uses it consume".
     let sttHours = 0;
     let ttsHours = 0;
+    // STT call shape (0uw7): counted only over sessions that used cloud STT, so
+    // local-Whisper and Web-Speech sits don't dilute the ratio to zero.
+    let sttCalls = 0;
+    let sttSessionTurns = 0;
+    const sttCallSeconds: number[] = [];
     for (const s of qualifying) {
         const sessionHours = durationMinOf(s) / 60;
         const usedStt = s.some((e) => e.kind === 'stt');
         const usedTts = s.some((e) => e.kind === 'tts');
         if (usedStt) sttHours += sessionHours;
         if (usedTts) ttsHours += sessionHours;
+        if (usedStt) {
+            for (const e of s) {
+                if (e.kind === 'stt') {
+                    sttCalls += 1;
+                    sttCallSeconds.push(e.seconds);
+                } else if (e.kind === 'llm') sttSessionTurns += 1;
+            }
+        }
         // Sessions cluster per account, so the first event names the owner.
         const accountId = s[0]!.accountId;
         bumpAccount(accountId, sessionHours, s.reduce((sum, e) => sum + e.providerCostUsd, 0));
@@ -578,7 +610,10 @@ export function buildUsageReport(
                 addToAccount(accountId, 'tokRead', e.cacheRead);
                 addToAccount(accountId, 'tokCreate', e.cacheCreation);
                 addToAccount(accountId, 'tokCreate1h', e.cacheCreation1h);
-            } else if (e.kind === 'stt') addToAccount(accountId, 'sttSeconds', e.seconds);
+            } else if (e.kind === 'stt') {
+                addToAccount(accountId, 'sttSeconds', e.seconds);
+                addToAccount(accountId, 'sttCalls', 1);
+            }
             else addToAccount(accountId, 'ttsChars', e.chars);
             addToAccount(accountId, `svc:${e.kind}`, e.credits);
             addToAccount(accountId, `svcCost:${e.kind}`, e.providerCostUsd);
@@ -601,6 +636,7 @@ export function buildUsageReport(
             phModels.set(key, m);
         }
     }
+    const sttSecondsSorted = [...sttCallSeconds].sort((a, b) => a - b);
     const sttHoursOf = (a: { sums: Map<string, number> }): number => a.sums.get('sttHours') ?? 0;
     const ttsHoursOf = (a: { sums: Map<string, number> }): number => a.sums.get('ttsHours') ?? 0;
     const perHour: PerHourReport = {
@@ -615,6 +651,12 @@ export function buildUsageReport(
         attributed: {
             sttSecondsPerHour: weightedRate('sttSeconds', sttHoursOf),
             ttsCharsPerHour: weightedRate('ttsChars', ttsHoursOf),
+        },
+        stt: {
+            callsPerHour: weightedRate('sttCalls', sttHoursOf),
+            callsPerTurn: sttSessionTurns > 0 ? sttCalls / sttSessionTurns : 0,
+            medianSeconds: percentile(sttSecondsSorted, 0.5),
+            p90Seconds: percentile(sttSecondsSorted, 0.9),
         },
         tokensPerHour: {
             input: weightedRate('tokIn'),

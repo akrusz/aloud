@@ -248,6 +248,28 @@ export async function buildUtilityProvider(
     }
 }
 
+/**
+ * The utility model for the IN-SESSION recap refreshes only (nrj6). Those send
+ * the whole transcript every SUMMARY_MIN_NEW_EXCHANGES and are most of the
+ * utility leg's cost - several thousand input tokens a call, a few times an
+ * hour, against the classifiers' handful of tokens. Flash Lite is ~10x cheaper
+ * per input token and the recap is throwaway: it's background context for
+ * summary-based resume, replaced by the next refresh, and superseded at the end
+ * by the Haiku end-of-session summary that's actually shown in history. The
+ * user-facing one stays on Haiku.
+ *
+ * Hosted only. Everywhere else the utility provider already is the facilitation
+ * provider (or a local one), and there's nothing to save.
+ */
+export async function buildRecapProvider(
+    setup: SessionSetup,
+    utility: LLMProvider
+): Promise<LLMProvider> {
+    if (setup.provider !== 'aloud') return utility;
+    await ensureCloudToken();
+    return new CloudLlmProvider({ provider: 'google', model: 'gemini-2.5-flash-lite' });
+}
+
 
 export interface SessionViewHandle {
     /** Tear down the running session and release resources. */
@@ -430,6 +452,14 @@ export async function mountSessionView(
         utilityProvider = await buildUtilityProvider(setup, provider);
     } catch {
         utilityProvider = provider;
+    }
+    // Background recaps run cheaper still (buildRecapProvider); same
+    // never-block-the-session fallback.
+    let recapProvider = utilityProvider;
+    try {
+        recapProvider = await buildRecapProvider(setup, utilityProvider);
+    } catch {
+        recapProvider = utilityProvider;
     }
 
     // Session facts live behind the nav "ⓘ" button rather than in the always-on
@@ -2701,7 +2731,8 @@ export async function mountSessionView(
     /**
      * Refresh `currentSummary` in the background, throttled. Generating a recap
      * is an LLM call, so it only runs once SUMMARY_MIN_NEW_EXCHANGES have landed
-     * since the last one. It reuses the warm prompt cache (the facilitation
+     * since the last one, on the cheapest utility model we have
+     * (buildRecapProvider). It reuses the warm prompt cache (the facilitation
      * system prompt) so the transcript reads at ~0.1x, making an in-session
      * refresh cheap. Never runs mid-turn (busy) or into a torn-down view; its
      * token cost folds into the session tally.
@@ -2716,7 +2747,7 @@ export async function mountSessionView(
         if (exCount - summaryAtExchangeCount < SUMMARY_MIN_NEW_EXCHANGES) return;
         summaryRefreshing = true;
         try {
-            const recap = await generateSessionSummary(utilityProvider, state.exchanges, {
+            const recap = await generateSessionSummary(recapProvider, state.exchanges, {
                 systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
                 onUsage: (u) => session.recordLlmUsage(u),
             });

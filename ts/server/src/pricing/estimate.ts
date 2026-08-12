@@ -38,7 +38,10 @@
  * a second metered model (Haiku, via buildUtilityProvider) for the silence
  * classifiers, noting labels, and summaries - measured at ~0.4 credits/hr in
  * every session, on top of whichever model the badge names
- * (meditation-pal-nrj6).
+ * (meditation-pal-nrj6). Most of that was the in-session recap refresh, which
+ * now runs on Flash Lite instead (ui/views/session.ts buildRecapProvider), so
+ * expect the next measurement well under 0.4 - re-measure before deciding how
+ * to carry the leg in the badges.
  */
 
 import type { SessionUsage } from '@aloud/core/facilitation';

@@ -427,6 +427,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // Counts that can be fractional means (turns/session) - up to one decimal, no
   // forced trailing zero, so a clean integer median still reads as "6".
   function num1(n) { return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }); }
+  // Ratios where the interesting range is around 1 (STT calls per turn): one
+  // decimal would round 1.4 and 1.04 to the same reading.
+  function dec2(n) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
   // History buckets are UTC days - label them in UTC so a bar's date matches
   // its bucket (a local-time label reads a full day early west of Greenwich).
@@ -528,11 +531,21 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       // profile, which assumes both are in play; the totals above are diluted
       // by every local-voice and on-device-Whisper session.
       var att = ph.attributed || { sttSecondsPerHour: 0, ttsCharsPerHour: 0 };
+      var sttd = ph.stt || { callsPerHour: 0, callsPerTurn: 0, medianSeconds: 0, p90Seconds: 0 };
       phCards = phCards.concat([
         ['STT min / cloud hr', num1((Number(att.sttSecondsPerHour) || 0) / 60) +
           ' <span class="assumed">/ ' + num1(EST.sttSeconds / 60) + '</span>'],
         ['TTS chars / voice hr', int(Math.round(Number(att.ttsCharsPerHour) || 0)) +
           ' <span class="assumed">/ ' + int(Math.round(EST.ttsChars)) + '</span>'],
+        // Why the STT minutes are what they are (0uw7). Calls/turn much above 1
+        // means we bill the same audio more than once (the speculative preview
+        // pass re-sends the whole buffer); a big median with calls/turn near 1
+        // means each payload carries the pre-buffer and the trailing silence
+        // window. Both, and it's both.
+        ['STT calls / turn', dec2(sttd.callsPerTurn)],
+        ['STT calls / cloud hr', num1(sttd.callsPerHour)],
+        ['STT sec / call (p50)', num1(sttd.medianSeconds)],
+        ['STT sec / call (p90)', num1(sttd.p90Seconds)],
         ['Fresh in tok/hr', vsAssumed(tph.input, EST.input)],
         ['Output tok/hr', vsAssumed(tph.output, EST.output)],
         ['Cache read tok/hr', vsAssumed(tph.cacheRead, EST.cacheRead)],

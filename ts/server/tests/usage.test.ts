@@ -271,6 +271,35 @@ describe('buildUsageReport', () => {
         expect(r.perHour.attributed.sttSecondsPerHour).toBeCloseTo(600, 9);
     });
 
+    it('perHour: STT call shape counts only sessions that used cloud STT', () => {
+        const events = [
+            // Session 1 (30 min): four turns, six billed STT calls - two turns
+            // paid for twice, which is the 0uw7 signature.
+            ev({ sessionId: 's1', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's1', ts: 1100, kind: 'stt', seconds: 4 }),
+            ev({ sessionId: 's1', ts: 1100, kind: 'stt', seconds: 12 }),
+            ev({ sessionId: 's1', ts: 1200, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's1', ts: 1300, kind: 'stt', seconds: 8 }),
+            ev({ sessionId: 's1', ts: 1400, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's1', ts: 1500, kind: 'stt', seconds: 10 }),
+            ev({ sessionId: 's1', ts: 1600, kind: 'stt', seconds: 30 }),
+            ev({ sessionId: 's1', ts: 1700, kind: 'stt', seconds: 6 }),
+            ev({ sessionId: 's1', ts: 1000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            // Session 2 (30 min): on-device STT, so it bills none. Its turns
+            // must not drag the calls-per-turn ratio down.
+            ev({ sessionId: 's2', ts: 5000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 's2', ts: 5000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        // 6 calls over session 1's 4 turns; session 2 contributes neither.
+        expect(r.perHour.stt.callsPerTurn).toBeCloseTo(1.5, 9);
+        // Over the 0.5 h that used cloud STT, not the full measured hour.
+        expect(r.perHour.stt.callsPerHour).toBeCloseTo(12, 9);
+        // Sorted: 4, 6, 8, 10, 12, 30 - nearest-rank p50/p90.
+        expect(r.perHour.stt.medianSeconds).toBe(8);
+        expect(r.perHour.stt.p90Seconds).toBe(30);
+    });
+
     it('perHour: token volume comes from qualifying sessions only', () => {
         const events = [
             // Qualifying: 30 min, two LLM turns carrying tokens.
