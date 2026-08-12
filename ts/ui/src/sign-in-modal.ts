@@ -81,6 +81,7 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                     </button>
                 </form>
                 <div class="provider-hint signin-modal-error hidden" id="signin-modal-error"></div>
+                <p class="provider-hint signin-oauth-hint hidden" id="signin-oauth-hint"></p>
             </div>`;
         document.body.appendChild(overlay);
         // Focus into the dialog now, restore on close; Tab cycles inside.
@@ -105,6 +106,7 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             el.classList.remove('hidden');
         };
         const clearError = (): void => {
+            overlay.querySelector('#signin-oauth-hint')?.classList.add('hidden');
             overlay.querySelector('#signin-modal-error')?.classList.add('hidden');
         };
         const onSignedIn = (auth: AuthResponse): void => {
@@ -242,8 +244,34 @@ function wireEmailForm(
             .catch((err: unknown) => {
                 submit.disabled = false;
                 cb.showError(err instanceof Error ? err.message : String(err));
+                showOauthHint(overlay);
             });
     });
+}
+
+/**
+ * Shown only after an email attempt has already failed. An account created
+ * through Google or Apple holds no password, so "incorrect email or password"
+ * is true but unhelpful and "an account with this email already exists" is a
+ * dead end - the pair reads as a lockout (a beta tester hit exactly that).
+ *
+ * Purely navigational: it points at the buttons that DID render and never
+ * suggests making a password, since federated sign-in is the better default
+ * for most people. It also keys off nothing but the fact that an attempt
+ * failed, so it can't become the account-enumeration oracle that the server's
+ * deliberately generic message exists to avoid.
+ */
+function showOauthHint(overlay: HTMLElement): void {
+    const el = overlay.querySelector<HTMLElement>('#signin-oauth-hint');
+    if (!el) return;
+    const names: string[] = [];
+    if (overlay.querySelector('#signin-google-button')) names.push('Google');
+    if (overlay.querySelector('#signin-apple-button')) names.push('Apple');
+    if (names.length === 0) return; // email is the only way in; nothing to point at
+    el.textContent = `Signed up with ${names.join(' or ')}? Use the ${
+        names.length > 1 ? 'buttons' : 'button'
+    } above.`;
+    el.classList.remove('hidden');
 }
 
 function escapeHtml(s: string): string {
