@@ -92,6 +92,23 @@ const INCOMPLETE_CLAUSE_EXTRA_MS = 4000;
 const TAIL_RETRANSCRIBE_PROB = 0.4;
 const TAIL_RETRANSCRIBE_ENERGY = 0.015;
 
+// Audio (ms) kept after the last even-slightly-speech-like frame before the
+// final payload is POSTed (meditation-pal-0uw7). The submit fires only after
+// silenceBaseMs..silenceMaxMs of silence (+INCOMPLETE_CLAUSE_EXTRA_MS on a
+// dangling clause), and every one of those frames is in the buffer, so we were
+// paying the cloud to transcribe several seconds of known quiet per turn.
+// The cut uses the TAIL_RETRANSCRIBE_* bar, not the VAD's own gate: that's the
+// threshold the tail-recovery path already trusts to mean "there might be a
+// soft word here", so anything it would have rescued survives - plus a full
+// second after it. ⭐ TWEAK ME (up) if trailing words ever go missing.
+const TAIL_KEEP_MS = 1000;
+// Speculative passes allowed per utterance. Each one re-sends the WHOLE buffer
+// from utterance start and the server bills every POST, so an utterance with
+// many phrase-pauses bills superlinearly. Past the first few the preview has
+// served its purpose (the user has seen their words land); the final pass still
+// transcribes everything.
+const MAX_SPECULATIVE_PASSES = 3;
+
 /** The subset of PacingConfig fields the VAD here cares about. */
 type VadFields = Pick<
     PacingConfig,
@@ -186,6 +203,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // show what the detector heard during the trailing "silence" (soft speech
     // vs breath vs true quiet), which is the whole tuning question.
     private energyHistory: { t: number; e: number; p: number }[] = [];
+    // Chunk count as of the last frame that looked even slightly speech-like
+    // (TAIL_RETRANSCRIBE_* bar). The trailing quiet past it is trimmed off the
+    // billed payload - see TAIL_KEEP_MS and submitPayload().
+    private lastHintChunk = 0;
     // Barge-in detection on the continuous (echo-cancelled) idle stream.
     private bargeInHandler: (() => void) | null = null;
     private bargeInChunks = 0;
@@ -297,6 +318,30 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (this.preBuffer.length > this.preBufferFrames) this.preBuffer.shift();
     }
 
+    /** Append a captured frame to the utterance, remembering where the last
+     *  possible speech was so submitPayload() can cut the quiet after it. */
+    private keepChunk(frame: Float32Array, energy: number): void {
+        this.chunks.push(frame);
+        const prob = this.silero ? this.silero.lastProb : -1;
+        if (energy >= TAIL_RETRANSCRIBE_ENERGY || prob >= TAIL_RETRANSCRIBE_PROB) {
+            this.lastHintChunk = this.chunks.length;
+        }
+    }
+
+    /**
+     * The utterance's frames with the trailing silence cut (TAIL_KEEP_MS). The
+     * buffer itself is never mutated: a reopened utterance (rcdz) has to stay
+     * contiguous, and the tail we drop from the payload is exactly the tail the
+     * next pass would want back if the user turns out to still be speaking.
+     */
+    private submitPayload(): readonly Float32Array[] {
+        const rate = this.context?.sampleRate;
+        if (!rate || this.lastHintChunk <= 0) return this.chunks;
+        const keepFrames = Math.ceil(((TAIL_KEEP_MS / 1000) * rate) / FRAME_SIZE);
+        const keep = this.lastHintChunk + keepFrames;
+        return keep >= this.chunks.length ? this.chunks : this.chunks.slice(0, keep);
+    }
+
     /** Per-frame speech decision. With the model up: Silero's debounced
      *  verdict, plus barge-in-grade energy while TTS plays (echo IS speech to
      *  Silero, so speaker separation needs the energy reference - 8h1x).
@@ -401,7 +446,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 this.lastSpeechMs = now;
                 this.peakEnergy = Math.max(this.peakEnergy, energy);
             }
-            this.chunks.push(frame);
+            this.keepChunk(frame, energy);
             this.pushPre(frame);
             return;
         }
@@ -430,9 +475,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             }
             this.lastSpeechMs = now;
             this.peakEnergy = Math.max(this.peakEnergy, energy);
-            this.chunks.push(frame);
+            this.keepChunk(frame, energy);
         } else if (this.speechStarted) {
-            this.chunks.push(frame);
+            this.keepChunk(frame, energy);
             // Adaptive silence: each ms of speech buys silenceRampRate ms of
             // additional patience, capped at silenceMaxMs.
             const speechDur = this.lastSpeechMs - this.speechStartMs;
@@ -732,6 +777,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.postSubmitSpeech = false;
         this.peakEnergy = 0;
         this.energyHistory = [];
+        this.lastHintChunk = 0;
         this.partialIncomplete = false;
         this.specInFlight = false;
         // Re-arm barge-in for the next idle period.
@@ -843,6 +889,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             // pass when no further speech arrives so a single-pause turn doesn't
             // re-transcribe the identical buffer (m56t).
             let lastSpecResult: { text: string; seconds: number } | null = null;
+            // Speculative passes so far (MAX_SPECULATIVE_PASSES).
+            let specPasses = 0;
             // Loop, not a straight line: debounced speech AFTER the submit
             // decision (postSubmitSpeech - the user was still talking when the
             // adaptive window closed) REOPENS the utterance so the continuing
@@ -858,9 +906,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                     if (
                         silence >= SPECULATIVE_SILENCE_MS &&
                         !this.specInFlight &&
-                        this.lastSpeechMs !== lastSpecSpeechMs
+                        this.lastSpeechMs !== lastSpecSpeechMs &&
+                        specPasses < MAX_SPECULATIVE_PASSES
                     ) {
                         this.specInFlight = true;
+                        specPasses += 1;
                         lastSpecSpeechMs = this.lastSpeechMs;
                         lastSpecAt = performance.now();
                         const result = await transcribeChunks(this.chunks.slice());
@@ -917,7 +967,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 const result: Awaited<ReturnType<typeof transcribeChunks>> =
                     lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints
                         ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
-                        : await transcribeChunks(this.chunks);
+                        : await transcribeChunks(this.submitPayload());
                 if (tailHasSpeechHints && lastSpecResult) {
                     console.info('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
                 }
