@@ -65,8 +65,11 @@ xcodebuild -exportArchive -archivePath /tmp/App.xcarchive \
 
 ExportOptions.plist: `method` = `app-store-connect`, `signingStyle` =
 `automatic`, `teamID` = the team id, `destination` = `upload` (or `export`
-for a local .ipa dry-run first). Bump `CURRENT_PROJECT_VERSION` in
-`project.pbxproj` every upload; `MARKETING_VERSION` tracks the app version.
+for a local .ipa dry-run first). Build numbers are auto-assigned at export
+(`manageAppVersionAndBuildNumber` defaults to true), so re-uploading never
+collides - no need to touch `CURRENT_PROJECT_VERSION`. Keep
+`MARKETING_VERSION` in `project.pbxproj` matched to the app version
+(`ts/package.json`) before archiving.
 
 [Fastlane](https://fastlane.tools) (`fastlane pilot upload`) is the usual way to
 script the archive→upload→TestFlight loop for CI, if this ever needs CI.
