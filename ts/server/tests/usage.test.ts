@@ -334,8 +334,14 @@ describe('buildUsageReport', () => {
         expect(opus.unitsPerHour).toBeCloseTo(2, 9); // 2 turns over its 1 h
         expect(flash.hours).toBeCloseTo(0.5, 9);
         expect(flash.creditsPerHour).toBeCloseTo(2, 9);
-        // Overall blends both: 7 credits / 1.5 h.
-        expect(r.perHour.creditsPerHour).toBeCloseTo(7 / 1.5, 9);
+        // The overall rate is a sqrt-of-spend weighted mean ACROSS THE TWO
+        // ACCOUNTS, not 7 credits / 1.5 h. a1 burns 6 cr/hr on $0.30 of spend,
+        // a2 burns 2 cr/hr on $0.02: the heavier user leads, but the lighter
+        // one still moves the number well above a straight total/total (4.67).
+        const w1 = Math.sqrt(0.3);
+        const w2 = Math.sqrt(0.02);
+        expect(r.perHour.creditsPerHour).toBeCloseTo((w1 * 6 + w2 * 2) / (w1 + w2), 9);
+        expect(r.perHour.accounts).toBe(2);
     });
 
     it('perHour: ignores the minSessionTurns option', () => {
@@ -467,5 +473,55 @@ describe('buildProviderDailyCosts', () => {
     it('ignores events outside the window', () => {
         const events = [ev({ ts: 50 * DAY, provider: 'anthropic', providerCostUsd: 99 })];
         expect(buildProviderDailyCosts(events, NOW, 7)).toEqual([]);
+    });
+});
+
+describe('buildUsageReport - real-sit filter and account weighting', () => {
+    it('one account: weighting is a no-op, so the rate is the plain total', () => {
+        const events = [
+            ev({ sessionId: 's1', ts: 1000, kind: 'llm', credits: 3, providerCostUsd: 0.15 }),
+            ev({ sessionId: 's1', ts: 1000 + 3600, kind: 'llm', credits: 3, providerCostUsd: 0.15 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.perHour.accounts).toBe(1);
+        expect(r.perHour.creditsPerHour).toBeCloseTo(6, 9);
+    });
+
+    it('caps how far one heavy account can pull the rate', () => {
+        // One account with 100x the spend of nine others, burning 10x the rate.
+        // Unweighted this lands near 10; one-account-one-vote would land near
+        // 1.9; sqrt sits between, closer to the crowd than to the whale.
+        const events = [
+            ev({ accountId: 'whale', sessionId: 'w', ts: 1000, kind: 'llm', credits: 100, providerCostUsd: 5 }),
+            ev({ accountId: 'whale', sessionId: 'w', ts: 1000 + 3600, kind: 'llm', credits: 0, providerCostUsd: 0 }),
+            ...Array.from({ length: 9 }, (_, i) => [
+                ev({ accountId: `u${i}`, sessionId: `s${i}`, ts: 1000, kind: 'llm', credits: 10, providerCostUsd: 0.5 }),
+                ev({ accountId: `u${i}`, sessionId: `s${i}`, ts: 1000 + 3600, kind: 'llm', credits: 0, providerCostUsd: 0 }),
+            ]).flat(),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.perHour.accounts).toBe(10);
+        expect(r.perHour.creditsPerHour).toBeGreaterThan(10);
+        expect(r.perHour.creditsPerHour).toBeLessThan(40);
+    });
+
+    it('the real-sit bar is configurable, and a zero disables that criterion', () => {
+        const events = [
+            // 40 min, 2 turns: a long quiet sit.
+            ev({ sessionId: 'long', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ sessionId: 'long', ts: 1000 + 2400, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            // 3 min, 12 turns: a chatty trial run.
+            ...Array.from({ length: 12 }, (_, i) =>
+                ev({ sessionId: 'trial', ts: 90_000 + i * 15, kind: 'llm', credits: 1, providerCostUsd: 0.05 })
+            ),
+        ];
+        // Default (5 min OR 10 turns) admits both.
+        expect(buildUsageReport(events, 1_000_000, 0).perHour.sessions).toBe(2);
+        // Real sits only: 25 minutes, no turn-count escape hatch.
+        const strict = buildUsageReport(events, 1_000_000, 0, {
+            realSit: { minMinutes: 25, minTurns: 0 },
+        });
+        expect(strict.perHour.sessions).toBe(1);
+        expect(strict.perHour.turnsPerHour).toBeCloseTo(3, 9); // 2 turns / 0.667 h
     });
 });

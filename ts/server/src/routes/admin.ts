@@ -144,11 +144,22 @@ export function adminRoutes(deps: Deps): Hono {
         // Sessions with fewer LLM turns than this drop out of the per-session
         // distributions; drive-by sessions skew the medians.
         const minSessionTurns = Math.max(0, Number(c.req.query('minTurns') ?? 0) || 0);
+        // What counts as a real sit for the per-hour block, so the calibration
+        // numbers can be read off actual practice instead of trial runs.
+        // Absent → DEFAULT_REAL_SIT; a 0 disables that criterion outright.
+        const realSit = {
+            ...(c.req.query('sitMinutes') != null
+                ? { minMinutes: Math.max(0, Number(c.req.query('sitMinutes')) || 0) }
+                : {}),
+            ...(c.req.query('sitTurns') != null
+                ? { minTurns: Math.max(0, Number(c.req.query('sitTurns')) || 0) }
+                : {}),
+        };
         const now = Date.now() / 1000;
         const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
 
         const events = await usageEvents(c, deps);
-        return c.json(buildUsageReport(events, now, windowSinceTs, { minSessionTurns }));
+        return c.json(buildUsageReport(events, now, windowSinceTs, { minSessionTurns, realSit }));
     });
 
     // Daily usage history for the trend charts: sessions, turns, spend, duration

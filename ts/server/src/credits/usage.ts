@@ -159,12 +159,6 @@ export interface ProviderCacheAgg extends CacheAgg {
     events: number;
 }
 
-/** A session counts toward the per-hour burn rate when it spans at least this
- *  long OR carries at least this many facilitator turns. Blips below both bars
- *  have durations too small to divide by meaningfully; everything above them
- *  contributes duration-weighted, so no single session can skew the rate. */
-export const PER_HOUR_MIN_MINUTES = 5;
-export const PER_HOUR_MIN_TURNS = 10;
 
 export interface PerHourLeg {
     kind: UsageKind;
@@ -192,8 +186,13 @@ export interface PerHourModel extends PerHourLeg {
  *  slightly undercounts a session that ends in silence, so these read a touch
  *  HIGH versus what a user experiences per sat hour. */
 export interface PerHourReport {
-    /** Sessions meeting the ≥PER_HOUR_MIN_MINUTES or ≥PER_HOUR_MIN_TURNS bar. */
+    /** Sessions meeting the real-sit bar (RealSit / DEFAULT_REAL_SIT). */
     sessions: number;
+    /** Distinct accounts behind them. The rates below are a sqrt-of-spend
+     *  weighted mean ACROSS these accounts, so read this first: at 1, every
+     *  number here describes one person's habits, whatever the session count
+     *  says. */
+    accounts: number;
     /** Their summed wall-clock hours: the denominator. */
     hours: number;
     creditsPerHour: number;
@@ -282,7 +281,28 @@ export interface UsageReportOptions {
      *  Totals and the service/model/cache aggregates still cover every event;
      *  only the `sessions` block is filtered. */
     minSessionTurns?: number;
+    /** Override what counts as a real sit for the per-hour block. */
+    realSit?: Partial<RealSit>;
 }
+
+/**
+ * What counts as a real sit — a session substantial enough to calibrate the
+ * credit estimates against. One definition, so "credits/hr" and "turns/hr"
+ * and the token volumes all describe the same population; raise the bar in the
+ * panel to exclude trial runs and read the profile off actual practice.
+ *
+ * A session qualifies if it clears EITHER bar. A zero disables that criterion
+ * rather than admitting everything, so `{minMinutes: 25, minTurns: 0}` means
+ * "25 minutes, no exceptions".
+ */
+export interface RealSit {
+    minMinutes: number;
+    minTurns: number;
+}
+
+/** Long enough to divide by, or talkative enough to be deliberate. Low, so the
+ *  default view stays inclusive; the panel can raise it. */
+export const DEFAULT_REAL_SIT: RealSit = { minMinutes: 5, minTurns: 10 };
 
 /** One day of aggregated usage for the admin trend charts. */
 export interface UsageHistoryBucket {
@@ -471,32 +491,63 @@ export function buildUsageReport(
             ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length
             : 0;
 
-    // ---- observed per-hour burn (independent of minSessionTurns: the bar for
-    // "real enough to divide by" is fixed, so the rate is stable across the
-    // panel's session filter) ------------------------------------------------
-    const qualifying = allSessions.filter(
-        (s) =>
-            durationMinOf(s) >= PER_HOUR_MIN_MINUTES ||
-            s.filter((e) => e.kind === 'llm').length >= PER_HOUR_MIN_TURNS
-    );
+    // ---- observed per-hour burn, over real sits only, averaged across
+    // accounts (independent of minSessionTurns, which filters the per-session
+    // distributions above) ---------------------------------------------------
+    const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
+    const isRealSit = (s: UsageEvent[]): boolean =>
+        (realSit.minMinutes > 0 && durationMinOf(s) >= realSit.minMinutes) ||
+        (realSit.minTurns > 0 && s.filter((e) => e.kind === 'llm').length >= realSit.minTurns);
+    const qualifying = allSessions.filter(isRealSit);
     const totalHours = qualifying.reduce((sum, s) => sum + durationMinOf(s), 0) / 60;
     const rate = (x: number, hours: number): number => (hours > 0 ? x / hours : 0);
-    const phService: Record<UsageKind, { credits: number; cost: number }> = {
-        llm: { credits: 0, cost: 0 },
-        stt: { credits: 0, cost: 0 },
-        tts: { credits: 0, cost: 0 },
+
+    /**
+     * Per-hour rates are a mean ACROSS ACCOUNTS, each weighted by the square
+     * root of its spend — not a straight total/total, which is really "the
+     * heaviest user's habits" whenever one account dominates the window (as one
+     * did the first time these numbers were read for calibration, at ~93% of
+     * measured hours).
+     *
+     * Sqrt, rather than one-account-one-vote: a user with 40 sits has genuinely
+     * seen more of the product than someone with one, and should count for
+     * more — just not 40x more. Beyond ~4x spend the extra influence tapers
+     * hard, so a single power user shifts the number without setting it.
+     *
+     * With one account in the window this is identical to the unweighted rate,
+     * so nothing changes until there's a population to average over.
+     */
+    const accountOf = new Map<string, { weightBasis: number; hours: number; sums: Map<string, number> }>();
+    const bumpAccount = (accountId: string, hours: number, spendUsd: number): void => {
+        const a = accountOf.get(accountId) ?? { weightBasis: 0, hours: 0, sums: new Map() };
+        a.hours += hours;
+        a.weightBasis += spendUsd;
+        accountOf.set(accountId, a);
+    };
+    const addToAccount = (accountId: string, key: string, value: number): void => {
+        const a = accountOf.get(accountId);
+        if (!a) return;
+        a.sums.set(key, (a.sums.get(key) ?? 0) + value);
+    };
+    /** Sqrt-of-spend weighted mean of each account's own per-hour rate. */
+    const weightedRate = (key: string, hoursOf: (a: { hours: number }) => number = (a) => a.hours): number => {
+        let num = 0;
+        let den = 0;
+        for (const a of accountOf.values()) {
+            const hours = hoursOf(a);
+            if (hours <= 0) continue;
+            const w = Math.sqrt(a.weightBasis);
+            if (w <= 0) continue;
+            num += w * ((a.sums.get(key) ?? 0) / hours);
+            den += w;
+        }
+        return den > 0 ? num / den : 0;
     };
     const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; credits: number; cost: number; hours: number; units: number }>();
-    let phCredits = 0;
-    let phCost = 0;
-    let phTurns = 0;
-    let phSttSeconds = 0;
-    let phTtsChars = 0;
-    // LLM token volume over the SAME qualifying sessions, so every field here
-    // shares one denominator. The window-wide llmCache aggregate below can't
-    // stand in: it counts every event, including the blips excluded above, and
-    // never sums output tokens.
-    const phTokens = { in: 0, out: 0, cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0 };
+    // Token volume rides the same per-account accumulators as everything else,
+    // so it shares one population and one weighting. The window-wide llmCache
+    // aggregate can't stand in: it counts every event, including the sessions
+    // the real-sit bar excluded, and never sums output tokens.
     // The volume a leg's pricing is driven by: turns for LLM, audio seconds for
     // STT, characters for TTS.
     const unitsOf = (e: UsageEvent): number =>
@@ -507,23 +558,30 @@ export function buildUsageReport(
     let ttsHours = 0;
     for (const s of qualifying) {
         const sessionHours = durationMinOf(s) / 60;
-        if (s.some((e) => e.kind === 'stt')) sttHours += sessionHours;
-        if (s.some((e) => e.kind === 'tts')) ttsHours += sessionHours;
+        const usedStt = s.some((e) => e.kind === 'stt');
+        const usedTts = s.some((e) => e.kind === 'tts');
+        if (usedStt) sttHours += sessionHours;
+        if (usedTts) ttsHours += sessionHours;
+        // Sessions cluster per account, so the first event names the owner.
+        const accountId = s[0]!.accountId;
+        bumpAccount(accountId, sessionHours, s.reduce((sum, e) => sum + e.providerCostUsd, 0));
+        if (usedStt) addToAccount(accountId, 'sttHours', sessionHours);
+        if (usedTts) addToAccount(accountId, 'ttsHours', sessionHours);
         const modelsInSession = new Set<string>();
         for (const e of s) {
-            phCredits += e.credits;
-            phCost += e.providerCostUsd;
-            phService[e.kind].credits += e.credits;
-            phService[e.kind].cost += e.providerCostUsd;
+            addToAccount(accountId, 'credits', e.credits);
+            addToAccount(accountId, 'cost', e.providerCostUsd);
             if (e.kind === 'llm') {
-                phTurns += 1;
-                phTokens.in += e.tokensIn;
-                phTokens.out += e.tokensOut;
-                phTokens.cacheRead += e.cacheRead;
-                phTokens.cacheCreation += e.cacheCreation;
-                phTokens.cacheCreation1h += e.cacheCreation1h;
-            } else if (e.kind === 'stt') phSttSeconds += e.seconds;
-            else phTtsChars += e.chars;
+                addToAccount(accountId, 'turns', 1);
+                addToAccount(accountId, 'tokIn', e.tokensIn);
+                addToAccount(accountId, 'tokOut', e.tokensOut);
+                addToAccount(accountId, 'tokRead', e.cacheRead);
+                addToAccount(accountId, 'tokCreate', e.cacheCreation);
+                addToAccount(accountId, 'tokCreate1h', e.cacheCreation1h);
+            } else if (e.kind === 'stt') addToAccount(accountId, 'sttSeconds', e.seconds);
+            else addToAccount(accountId, 'ttsChars', e.chars);
+            addToAccount(accountId, `svc:${e.kind}`, e.credits);
+            addToAccount(accountId, `svcCost:${e.kind}`, e.providerCostUsd);
             const key = `${e.kind}:${e.provider}:${e.model}`;
             const m = phModels.get(key) ?? {
                 kind: e.kind,
@@ -543,30 +601,36 @@ export function buildUsageReport(
             phModels.set(key, m);
         }
     }
+    const sttHoursOf = (a: { sums: Map<string, number> }): number => a.sums.get('sttHours') ?? 0;
+    const ttsHoursOf = (a: { sums: Map<string, number> }): number => a.sums.get('ttsHours') ?? 0;
     const perHour: PerHourReport = {
         sessions: qualifying.length,
+        accounts: accountOf.size,
         hours: totalHours,
-        creditsPerHour: rate(phCredits, totalHours),
-        costUsdPerHour: rate(phCost, totalHours),
-        turnsPerHour: rate(phTurns, totalHours),
-        sttSecondsPerHour: rate(phSttSeconds, totalHours),
-        ttsCharsPerHour: rate(phTtsChars, totalHours),
+        creditsPerHour: weightedRate('credits'),
+        costUsdPerHour: weightedRate('cost'),
+        turnsPerHour: weightedRate('turns'),
+        sttSecondsPerHour: weightedRate('sttSeconds'),
+        ttsCharsPerHour: weightedRate('ttsChars'),
         attributed: {
-            sttSecondsPerHour: rate(phSttSeconds, sttHours),
-            ttsCharsPerHour: rate(phTtsChars, ttsHours),
+            sttSecondsPerHour: weightedRate('sttSeconds', sttHoursOf),
+            ttsCharsPerHour: weightedRate('ttsChars', ttsHoursOf),
         },
         tokensPerHour: {
-            input: rate(phTokens.in, totalHours),
-            output: rate(phTokens.out, totalHours),
-            cacheRead: rate(phTokens.cacheRead, totalHours),
-            cacheCreation: rate(phTokens.cacheCreation, totalHours),
-            cacheCreation1h: rate(phTokens.cacheCreation1h, totalHours),
+            input: weightedRate('tokIn'),
+            output: weightedRate('tokOut'),
+            cacheRead: weightedRate('tokRead'),
+            cacheCreation: weightedRate('tokCreate'),
+            cacheCreation1h: weightedRate('tokCreate1h'),
         },
-        byService: (Object.keys(phService) as UsageKind[]).map((kind) => ({
+        byService: (['llm', 'stt', 'tts'] as UsageKind[]).map((kind) => ({
             kind,
-            creditsPerHour: rate(phService[kind].credits, totalHours),
-            costUsdPerHour: rate(phService[kind].cost, totalHours),
+            creditsPerHour: weightedRate(`svc:${kind}`),
+            costUsdPerHour: weightedRate(`svcCost:${kind}`),
         })),
+        // Unweighted, unlike the rates above: a per-model row already divides
+        // by only the hours that used that model, and is read as "what this
+        // model costs when chosen", not as a population average.
         byModel: [...phModels.values()]
             .map((m) => ({
                 kind: m.kind,

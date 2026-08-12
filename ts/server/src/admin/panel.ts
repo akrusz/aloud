@@ -223,6 +223,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="4" selected>4+ turn sessions</option>
           <option value="0">all sessions</option>
         </select>
+        <select id="realSit" style="width:auto;padding:4px 8px;font-size:16px" title="What counts as a real sit for the per-hour rates below - raise it to read the estimate profile off actual practice instead of trial runs">
+          <option value="5:10" selected>sits: 5min or 10 turns</option>
+          <option value="15:0">sits: 15min+</option>
+          <option value="25:0">sits: 25min+</option>
+          <option value="40:0">sits: 40min+</option>
+        </select>
         <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
         <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
       </span>
@@ -460,7 +466,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     return cb && cb.checked ? '&excludeAdmin=1' : '';
   }
   function loadUsage() {
-    return api('/usage?sinceHours=' + $('usageWindow').value + '&minTurns=' + $('usageMinTurns').value + omitAdminParam()).then(function (u) {
+    var sit = $('realSit').value.split(':');
+    return api('/usage?sinceHours=' + $('usageWindow').value + '&minTurns=' + $('usageMinTurns').value +
+      '&sitMinutes=' + sit[0] + '&sitTurns=' + sit[1] + omitAdminParam()).then(function (u) {
       var s = u.sessions;
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
@@ -502,6 +510,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0))],
         ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
         ['Real sessions', int(ph.sessions)],
+        // Rates below are a sqrt-of-spend weighted mean across accounts. At 1,
+        // every per-hour number here is one person's habits.
+        ['Accounts behind them', int(ph.accounts)],
       ];
       // Token volume per hour over the same qualifying sessions: what
       // pricing/estimate.ts assumes, measured. Each card prints actual vs
@@ -1157,6 +1168,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('usageMinTurns').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
+  $('realSit').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (cb) {
     cb.addEventListener('change', function () {
@@ -1196,7 +1208,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // auto-connect below so the restored selections drive the initial loads.
   (function () {
     var prefs = loadPrefs();
-    ['metricsWindow', 'usageWindow', 'usageMinTurns', 'historyMetric', 'historyDays'].forEach(function (id) {
+    ['metricsWindow', 'usageWindow', 'usageMinTurns', 'realSit', 'historyMetric', 'historyDays'].forEach(function (id) {
       var el = $(id);
       if (prefs[id] != null) {
         var prev = el.value;
