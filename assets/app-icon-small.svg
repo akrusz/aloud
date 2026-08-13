@@ -41,19 +41,21 @@
        #boot-orb) so the mark says "out loud" and not just "glow".
        Geometry as fractions of the tile's half-width (412px from centre), which
        is what makes the same figure portable to the iOS and Android variants:
-       orb 0.53, rings 0.68 / 0.83 / 0.97, strokes 0.022 / 0.018 / 0.015.
+       orb 0.64, rings 0.75 / 0.86 / 0.97, strokes 0.022 / 0.018 / 0.015.
        Rings are clipped to the tile but sized to stay inside its flat edges -
-       the outermost clears the edge by 12px. -->
+       the outermost clears the edge by 12px. The orb takes the space it wants
+       and the inner rings divide what's left evenly; the floor is a gap of
+       roughly 4x the stroke, below which the rings merge when downscaled. -->
   <g clip-path="url(#tile)">
-    <circle cx="512" cy="512" r="330" fill="url(#glow)"/>
+    <circle cx="512" cy="512" r="374" fill="url(#glow)"/>
 
-    <circle cx="512" cy="512" r="280" fill="none" stroke="#e71f75" stroke-width="66" opacity="0.174" filter="url(#ringglow)"/>
-    <circle cx="512" cy="512" r="280" fill="none" stroke="#e71f75" stroke-width="11" opacity="0.58"/>
-    <circle cx="512" cy="512" r="340" fill="none" stroke="#e71f75" stroke-width="57" opacity="0.108" filter="url(#ringglow)"/>
-    <circle cx="512" cy="512" r="340" fill="none" stroke="#e71f75" stroke-width="9.5" opacity="0.36"/>
+    <circle cx="512" cy="512" r="309" fill="none" stroke="#e71f75" stroke-width="66" opacity="0.174" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="309" fill="none" stroke="#e71f75" stroke-width="11" opacity="0.58"/>
+    <circle cx="512" cy="512" r="355" fill="none" stroke="#e71f75" stroke-width="57" opacity="0.108" filter="url(#ringglow)"/>
+    <circle cx="512" cy="512" r="355" fill="none" stroke="#e71f75" stroke-width="9.5" opacity="0.36"/>
     <circle cx="512" cy="512" r="400" fill="none" stroke="#e71f75" stroke-width="48" opacity="0.066" filter="url(#ringglow)"/>
     <circle cx="512" cy="512" r="400" fill="none" stroke="#e71f75" stroke-width="8" opacity="0.22"/>
 
-    <circle cx="512" cy="512" r="220" fill="url(#orb)"/>
+    <circle cx="512" cy="512" r="264" fill="url(#orb)"/>
   </g>
 </svg>

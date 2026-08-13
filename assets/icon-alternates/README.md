@@ -6,8 +6,15 @@ revisited without redoing the exploration. **Nothing here is built or shipped** 
 the live sources are `assets/app-icon.svg`, `app-icon-ios.svg`,
 `app-icon-android-fg.svg`, all rendered by `scripts/generate-app-icons.sh`.
 
-What shipped is **U**: orb r220, rings r280 / 340 / 400, strokes 9 / 7.5 / 6,
-opacity 0.58 / 0.36 / 0.22 - even 60px spacing, and the airiest of the set.
+What shipped is **U with the orb grown 20%**: orb r264, rings r309 / 355 / 400,
+strokes 9 / 7.5 / 6, opacity 0.58 / 0.36 / 0.22. U's own geometry was orb r220
+with rings at 280 / 340 / 400; the outer ring is pinned (it's what clears the
+tile edge), so growing the orb compresses the gaps from 60px to 45px - which
+reads better at 64px than the original did, not worse.
+
+The floor there is a gap of roughly **4&times; the stroke**. At +30% the gaps hit
+38px against a 9px stroke and the inner two rings touch once downscaled; the
+same growth applied to the heavier small-size sources fails sooner still.
 
 Every file below is a full 1024px tile, so `rsvg-convert -w 512 <file> -o out.png`
 is enough to look at one. Radii are on that 1024 canvas, where the tile's flat

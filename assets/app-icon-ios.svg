@@ -23,17 +23,17 @@
   <rect x="0" y="0" width="1024" height="1024" fill="#110d08"/>
 
   <!-- Same ripple figure as app-icon.svg, scaled to this frame's half-width
-       (512 here vs the tile's 412): orb 0.53, rings 0.68 / 0.83 / 0.97.
+       (512 here vs the tile's 412): orb 0.64, rings 0.75 / 0.86 / 0.97.
        The outermost ring clears the edge by 15px, and sits well inside the
        corner mask on the diagonal. -->
-  <circle cx="512" cy="512" r="410" fill="url(#glow)"/>
+  <circle cx="512" cy="512" r="465" fill="url(#glow)"/>
 
-  <circle cx="512" cy="512" r="348" fill="none" stroke="#e71f75" stroke-width="67.2" opacity="0.174" filter="url(#ringglow)"/>
-  <circle cx="512" cy="512" r="348" fill="none" stroke="#e71f75" stroke-width="11.2" opacity="0.58"/>
-  <circle cx="512" cy="512" r="423" fill="none" stroke="#e71f75" stroke-width="56" opacity="0.108" filter="url(#ringglow)"/>
-  <circle cx="512" cy="512" r="423" fill="none" stroke="#e71f75" stroke-width="9.3" opacity="0.36"/>
+  <circle cx="512" cy="512" r="384" fill="none" stroke="#e71f75" stroke-width="67.2" opacity="0.174" filter="url(#ringglow)"/>
+  <circle cx="512" cy="512" r="384" fill="none" stroke="#e71f75" stroke-width="11.2" opacity="0.58"/>
+  <circle cx="512" cy="512" r="441" fill="none" stroke="#e71f75" stroke-width="56" opacity="0.108" filter="url(#ringglow)"/>
+  <circle cx="512" cy="512" r="441" fill="none" stroke="#e71f75" stroke-width="9.3" opacity="0.36"/>
   <circle cx="512" cy="512" r="497" fill="none" stroke="#e71f75" stroke-width="44.8" opacity="0.066" filter="url(#ringglow)"/>
   <circle cx="512" cy="512" r="497" fill="none" stroke="#e71f75" stroke-width="7.5" opacity="0.22"/>
 
-  <circle cx="512" cy="512" r="273" fill="url(#orb)"/>
+  <circle cx="512" cy="512" r="328" fill="url(#orb)"/>
 </svg>
