@@ -145,7 +145,13 @@ Endpoints (served at `/app/v1/*`):
   `scripts/generate-app-icons.sh` - which re-renders everything under 512px from
   `app-icon-small.svg` (heavier ring strokes, since a hairline ring doesn't
   survive the downscale) and covers the `.icns`/`.ico`/store/mobile rasters too.
-  Run both, in that order, after any icon change. The DMG uses Tauri's
+  Run both, in that order, after any icon change. `build.rs` marks `icons/` and
+  `Info.plist` as build inputs so `tauri:dev` rebuilds when either changes -
+  without that, a dev run keeps yesterday's icon set and yesterday's usage
+  strings (the merged plist is embedded in the binary, which is what macOS reads
+  when dev runs it unbundled) with nothing to say the edit hadn't landed.
+  `tauri:build` was never affected: the bundler reads both at bundle time.
+  The DMG uses Tauri's
   default window layout (light background, readable labels). A custom wordmark
   background is parked in `assets/dmg-background.svg` (regen command in its header)
   but **not currently wired** - a dark bundle background made the Finder icon
