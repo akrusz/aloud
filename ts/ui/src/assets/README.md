@@ -27,6 +27,13 @@ It expects **576 samples** per call (64 samples of previous audio as context +
 512 new) - the context concat that the default export does internally. That
 lives in `SileroRunner` in `adapters/silero-vad.ts`.
 
+**Graph optimization is disabled** at session create for the same reason the
+ifless export exists: ort-web's optimizer is the other place the 6z11 failures
+come from, including one that passes a load-time probe and then kills OrtRun
+mid-stream (`Could not find OrtValue with name 'input'`, macOS 14 webview,
+2.6.3 field report). On this model the optimizer is pure risk: benchmarked
+identical inference (0.16ms/chunk vs a ~32ms budget) and 6ms vs 114ms create.
+
 Upgrading: drop in a newer release's `silero_vad_op18_ifless.onnx`, update the
 table above and the version in `THIRD-PARTY-NOTICES.md`, and re-check the speech/silence decisions before shipping (feed a
 speech clip through the model chunk by chunk and compare speaking-frame counts

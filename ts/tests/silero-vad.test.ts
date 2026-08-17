@@ -130,46 +130,6 @@ describe('SileroFrameVad', () => {
         expect(vad.lastRunError).toContain('OrtValue');
     });
 
-    it('a mid-stream break on the optimized graph marks the machine unoptimized', async () => {
-        // The 6z11 variant that passes the load probe: persistence is what
-        // keeps every later launch (and the singleton rebuild) off the
-        // optimized graph.
-        const store = new Map<string, string>();
-        const fakeStorage = {
-            getItem: (k: string) => store.get(k) ?? null,
-            setItem: (k: string, v: string) => void store.set(k, v),
-        };
-        Object.defineProperty(globalThis, 'localStorage', {
-            value: fakeStorage,
-            configurable: true,
-        });
-        const failing = (): SileroModel => ({
-            async process() {
-                throw new Error('Could not find OrtValue');
-            },
-            reset_state() {},
-            release: async () => {},
-        });
-        try {
-            const optimized = new SileroFrameVad(failing());
-            optimized.feed(new Float32Array(10 * 512 + 1), 16_000);
-            await optimized.release();
-            expect(optimized.broken).toBe(true);
-            expect(store.get('aloud-vad-unoptimized-graph')).toBe('1');
-
-            // An unoptimized session breaking is the end of the line - it
-            // must not (re)write the flag.
-            store.clear();
-            const unopt = new SileroFrameVad(failing(), true);
-            unopt.feed(new Float32Array(10 * 512 + 1), 16_000);
-            await unopt.release();
-            expect(unopt.broken).toBe(true);
-            expect(store.size).toBe(0);
-        } finally {
-            delete (globalThis as { localStorage?: unknown }).localStorage;
-        }
-    });
-
     it('a success resets the consecutive-failure count', async () => {
         // Alternate fail/succeed: failures never accumulate to the limit.
         let calls = 0;

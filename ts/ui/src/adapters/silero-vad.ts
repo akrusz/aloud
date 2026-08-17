@@ -50,28 +50,6 @@ const MAX_PENDING_CHUNKS = 32;
 const BROKEN_AFTER_FAILURES = 10;
 /** ort's numeric log severity for "error and above" (0 verbose … 4 fatal). */
 const SEVERITY_ERROR = 3;
-// Machines where the optimized graph has failed (at load OR mid-stream) skip
-// straight to the unoptimized one on every later create. Persisted because the
-// mid-stream variant of 6z11 *passes* the load probe - without memory, every
-// launch would re-pick the optimized graph and break minutes into a sit.
-const UNOPTIMIZED_FLAG_KEY = 'aloud-vad-unoptimized-graph';
-
-function needsUnoptimizedGraph(): boolean {
-    try {
-        return localStorage.getItem(UNOPTIMIZED_FLAG_KEY) === '1';
-    } catch {
-        return false;
-    }
-}
-
-function rememberUnoptimizedGraph(): void {
-    try {
-        localStorage.setItem(UNOPTIMIZED_FLAG_KEY, '1');
-    } catch {
-        // No storage (tests, private webview): the in-memory rebuild still
-        // covers this app life.
-    }
-}
 
 /** What SileroFrameVad needs of the model; the ONNX runner below is the only
  *  real implementation (tests inject fakes). */
@@ -181,12 +159,7 @@ export class SileroFrameVad {
     private pending = 0;
     private dropped = 0;
 
-    constructor(
-        private readonly model: SileroModel,
-        /** Session was built with graph optimization disabled - a mid-stream
-         *  break on it has no further fallback (loadSileroVad checks this). */
-        readonly unoptimized = false
-    ) {}
+    constructor(private readonly model: SileroModel) {}
 
     /** Load ort (WASM backend) + the model. Throws on any failure. */
     static async create(): Promise<SileroFrameVad> {
@@ -206,47 +179,17 @@ export class SileroFrameVad {
         const res = await fetch(modelUrl);
         if (!res.ok) throw new Error(`Silero model fetch failed: ${res.status}`);
         const modelBytes = await res.arrayBuffer();
-        const unoptimizedOpts: InferenceSession.SessionOptions = {
+        // Graph optimization stays DISABLED: ort-web's optimizer is where the
+        // 6z11 webview failures live ("graph output does not exist" at create
+        // on one machine, "Could not find OrtValue with name 'input'" at run -
+        // sometimes only mid-stream, past any probe - on another), and on this
+        // model it buys nothing: benchmarked at 0.16ms/chunk either way
+        // (budget ~32ms), with create 6ms unoptimized vs 114ms optimized.
+        const runner = await probedRunner(ort, modelBytes, {
             graphOptimizationLevel: 'disabled',
             logSeverityLevel: SEVERITY_ERROR,
-        };
-        if (needsUnoptimizedGraph()) {
-            // This machine has already broken an optimized session (possibly
-            // mid-stream in a previous launch, past the load probe): don't
-            // give the optimizer another chance.
-            return new SileroFrameVad(await probedRunner(ort, modelBytes, unoptimizedOpts), true);
-        }
-        let runner: SileroRunner;
-        try {
-            runner = await probedRunner(ort, modelBytes, { logSeverityLevel: SEVERITY_ERROR });
-            return new SileroFrameVad(runner);
-        } catch (optErr) {
-            // The graph optimizer is where ort-web's webview-specific failures
-            // come from (6z11) - sometimes at create(), sometimes only at run()
-            // ("Could not find OrtValue with name 'input'": the optimized graph
-            // loses its feed mapping while create() reports success, which is
-            // why probedRunner runs a chunk before trusting a session). This
-            // model is a tiny RNN, so running it unoptimized is imperceptible -
-            // far better than degrading to the energy speech decision.
-            console.warn(
-                '[vad] silero optimized session failed - retrying with graph optimization disabled:',
-                optErr
-            );
-            try {
-                runner = await probedRunner(ort, modelBytes, unoptimizedOpts);
-            } catch (unoptErr) {
-                // Surface BOTH failures: this bug class varies by machine
-                // ("graph output does not exist" on one webview, "Could not
-                // find OrtValue" on another - 6z11) and the first error is
-                // what an upstream report needs.
-                throw new Error(
-                    `ort session failed - optimized: ${errText(optErr)}; ` +
-                        `unoptimized: ${errText(unoptErr)}`
-                );
-            }
-            rememberUnoptimizedGraph();
-            return new SileroFrameVad(runner, true);
-        }
+        });
+        return new SileroFrameVad(runner);
     }
 
     /**
@@ -312,12 +255,6 @@ export class SileroFrameVad {
                         '[vad] silero inference keeps failing - falling back to energy:',
                         this.lastRunError
                     );
-                    // The mid-stream variant of 6z11: the load probe passed but
-                    // the optimized graph fell apart under the real stream.
-                    // Mark the machine so the rebuild (loadSileroVad) - and
-                    // every later launch - goes straight to the unoptimized
-                    // graph instead of failing the same way again.
-                    if (!this.unoptimized) rememberUnoptimizedGraph();
                 }
             })
             .finally(() => {
@@ -372,32 +309,15 @@ function errText(err: unknown): string {
 // on the promise so concurrent callers (setup preload + the session's prime())
 // share one load; cleared on failure so a later session retries.
 let pendingLoad: Promise<SileroFrameVad> | null = null;
-// The resolved instance, so loadSileroVad can see a mid-stream break and
-// rebuild instead of serving the broken singleton forever.
-let current: SileroFrameVad | null = null;
 // Last load failure, kept for the bug-report diagnostics: its VAD probe can
 // time out before the real error lands, and this is the machine-specific
 // string an ort-web bug report needs.
 let lastLoadError: string | null = null;
 
 export function loadSileroVad(): Promise<SileroFrameVad> {
-    if (current?.broken && !current.unoptimized) {
-        // An optimized session broke mid-stream (past the load probe - the
-        // 6z11 variant this user's webview has): rebuild with the unoptimized
-        // graph, which the break flagged via rememberUnoptimizedGraph(). Any
-        // engine still holding the old instance drops it on its own `broken`
-        // check; release() here waits out its in-flight chunks first. An
-        // unoptimized session that breaks stays cached - there's no further
-        // fallback, and energy takes over.
-        current.release().catch(() => {});
-        current = null;
-        pendingLoad = null;
-        console.warn('[vad] rebuilding silero with the unoptimized graph after mid-stream break');
-    }
     pendingLoad ??= SileroFrameVad.create().then(
         (vad) => {
             lastLoadError = null;
-            current = vad;
             return vad;
         },
         (err) => {
