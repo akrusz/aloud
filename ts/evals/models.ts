@@ -63,6 +63,13 @@ export const ROSTER: EvalModel[] = [
         note: 'Strongest non-Anthropic entry already wired. GPT-5.6 shipped 2026-07-09.',
     },
     {
+        id: 'gpt-5-nano',
+        model: 'gpt-5-nano',
+        provider: 'openai',
+        shipped: true,
+        note: 'Added 2026-08-13 as the price floor and the recap engine (utility flag). Shipped for summarization, NOT ear-tested as a facilitator - this run is the first look at whether it could ever hold the slot. Reasoning model pinned to effort minimal; watch latency and control tokens.',
+    },
+    {
         id: 'gemini-2.5-flash-lite',
         model: 'gemini-2.5-flash-lite',
         provider: 'google',

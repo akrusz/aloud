@@ -48,6 +48,15 @@ export interface ModelPricing extends TokenRates {
      *  variants of a listed sibling, so new users see a short curated list.
      *  Billing and forwarding ignore it - an expanded model is fully served. */
     expanded?: boolean;
+    /** The model background utility work runs on - currently the in-session
+     *  recap refresh (ui/views/session.ts buildRecapProvider), which reads it
+     *  off /me/models rather than pinning an id in the view. Exactly one entry
+     *  should carry it; callers fall back to the utility provider (Haiku) when
+     *  none does. Deliberately a FLAG, not "whichever model is cheapest":
+     *  recaps seed summary-based resume, so letting a future budget entry
+     *  silently inherit the job would quietly change what the facilitator
+     *  believes about a past sit. */
+    utility?: boolean;
 }
 
 const M = 1_000_000;
@@ -257,6 +266,35 @@ const MODELS: Record<string, ModelPricing> = {
         cacheRead: 0.01 / M, // Google list price for cached-input read (text), ~90% off input
         cacheCreation: 0.1 / M,
         cacheCreation1h: 0.1 / M, // no 1h write on automatic caching; never accrues
+    },
+    // The floor, and the recap engine (`utility` above). $0.05/$0.40/$0.005
+    // cached (Aug 2026) - cheaper per session than Flash Lite on this shape
+    // (estimate.ts: ~$0.0028/hr vs ~$0.0041/hr) despite a higher sticker, since
+    // the cached read is half Flash Lite's. Taken over Flash Lite for the recap
+    // job on CACHE CERTAINTY, not price: OpenAI automatic caching reports
+    // cached_tokens and discounts them, while meditation-pal-1etx is open on
+    // whether Gemini's implicit-cache discount is actually being applied to the
+    // bill. Recaps lean hardest on that assumption (whole transcript, several
+    // times a session), so they're the wrong place to carry the doubt.
+    //
+    // GPT-5 family, NOT 5.6: no cache-write reporting, so cacheCreation sits at
+    // the input rate as a never-accrues placeholder (like gpt-5.4/5.5, unlike
+    // gpt-5.6-sol's real 1.25x). Reasoning model, but ts/src/llm/openai.ts
+    // handles it - REASONING_MODEL_RE matches ^gpt-5 and lowestReasoningEffort
+    // pins the bare family to 'minimal', so no always-on thinking delay.
+    //
+    // NOT ear-tested as a FACILITATOR (checklist item 5) - it's expanded-tier
+    // and unproven on the control tokens. The recap job doesn't emit any.
+    'openai:gpt-5-nano': {
+        provider: 'openai',
+        model: 'gpt-5-nano',
+        expanded: true,
+        utility: true,
+        input: 0.05 / M,
+        output: 0.4 / M,
+        cacheRead: 0.005 / M,
+        cacheCreation: 0.05 / M,
+        cacheCreation1h: 0.05 / M, // no 1h write on automatic caching; never accrues
     },
     // OpenAI's current flagship (GA July 2026), the GPT counterpart to Opus: the
     // top "Sol" tier of the 5.6 family (Terra/Luna are the mid/value tiers we

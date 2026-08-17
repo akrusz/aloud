@@ -4,7 +4,7 @@
  * Guards the exact pinned ids the picker and the debit math both key on.
  */
 import { describe, it, expect } from 'vitest';
-import { pricingFor, isModelAllowed } from '../src/pricing/providers.js';
+import { pricingFor, isModelAllowed, allowedModels } from '../src/pricing/providers.js';
 import { OPENROUTER_FALLBACKS } from '../src/providers/forward.js';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
@@ -60,6 +60,29 @@ describe('GPT-5.6 Sol (openai)', () => {
 
         // The bare family id isn't servable — only the pinned tier.
         expect(isModelAllowed('openai', 'gpt-5.6')).toBe(false);
+    });
+});
+
+describe('GPT-5 Nano (openai)', () => {
+    it('is allowlisted at the nano rates, with cache writes as a never-accrues placeholder', () => {
+        const p = pricingFor('openai', 'gpt-5-nano');
+        expect(p).toBeDefined();
+        expect(p!.input).toBeCloseTo(0.05 / M, 12);
+        expect(p!.output).toBeCloseTo(0.4 / M, 12);
+        expect(p!.cacheRead).toBeCloseTo(0.005 / M, 12);
+        // GPT-5 family, not 5.6: no cache-write reporting, so this sits at the
+        // input rate and never accrues. Guards against someone copying the
+        // 1.25x from the gpt-5.6-sol entry above.
+        expect(p!.cacheCreation).toBeCloseTo(0.05 / M, 12);
+        expect(p!.expanded).toBe(true);
+    });
+
+    it('is the one model flagged for background utility work', () => {
+        // buildRecapProvider (ui/views/session.ts) picks the flagged entry off
+        // /me/models. Two would make which-one-wins depend on object order.
+        const flagged = allowedModels().filter((m) => m.utility);
+        expect(flagged).toHaveLength(1);
+        expect(flagged[0]!.model).toBe('gpt-5-nano');
     });
 });
 

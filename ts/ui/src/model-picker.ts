@@ -37,6 +37,7 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-sonnet-4-6': 'Claude Sonnet 4.6',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
     'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
+    'gpt-5-nano': 'GPT-5 Nano',
     'gpt-5.6-sol': 'GPT-5.6 Sol',
     'gpt-5.5': 'GPT-5.5',
     'gpt-5.4': 'GPT-5.4',
@@ -150,6 +151,10 @@ interface ModelOption {
     /** Expanded-tier (aloud cloud only): hidden until the user opts into "Show
      *  all available models". Older and niche models with distinct voices. */
     expanded?: boolean;
+    /** Flagged server-side as the background-utility model (recap refreshes).
+     *  Not a picker concern - it rides this payload so the choice stays in the
+     *  pricing table. See cloudUtilityModel below. */
+    utility?: boolean;
 }
 
 /** The "Show all available models" state, shared by every mounted picker
@@ -192,6 +197,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                     creditsPerHour?: number | null;
                     default?: boolean;
                     expanded?: boolean;
+                    utility?: boolean;
                 }>;
             };
             if (!data.models?.length) return null;
@@ -207,6 +213,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 creditsPerHour: m.creditsPerHour ?? null,
                 isDefault: m.default ?? false,
                 expanded: m.expanded ?? false,
+                utility: m.utility ?? false,
             }));
             cache.set(provider, opts);
             return opts;
@@ -244,6 +251,24 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
     } catch {
         return null;
     }
+}
+
+/**
+ * The hosted model the server flags for background utility work (`utility` in
+ * server/src/pricing/providers.ts). Reuses the cached /me/models payload the
+ * picker already fetches, so a billed call's model lives in the pricing table
+ * rather than pinned in a view.
+ *
+ * Null when the catalog is unreachable or no entry carries the flag - callers
+ * fall back to the ordinary utility provider, which costs more and still works.
+ */
+export async function cloudUtilityModel(): Promise<{ provider: string; model: string } | null> {
+    const hit = (await fetchModels('aloud'))?.find((o) => o.utility);
+    // `value` is "provider/model" and model ids can themselves contain slashes
+    // (openrouter), so split on the FIRST separator only.
+    const slash = hit?.value.indexOf('/') ?? -1;
+    if (!hit || slash < 0) return null;
+    return { provider: hit.value.slice(0, slash), model: hit.value.slice(slash + 1) };
 }
 
 async function fetchProviderStatus(): Promise<typeof providerStatusCache | null> {

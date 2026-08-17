@@ -59,6 +59,7 @@ import {
     nearestSubscriptionModel,
     probeClaudeProxyModel,
     prettyModelName,
+    cloudUtilityModel,
     SLOW_MODEL_NOTE,
 } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
@@ -260,14 +261,25 @@ export async function buildUtilityProvider(
  *
  * Hosted only. Everywhere else the utility provider already is the facilitation
  * provider (or a local one), and there's nothing to save.
+ *
+ * WHICH cheap model is the server's call, not this view's: it's the entry
+ * flagged `utility` in server/src/pricing/providers.ts, read off the same
+ * /me/models payload the picker caches. Moving the job is a one-line flag move
+ * there. If the catalog can't be reached we fall back to `utility` (Haiku) -
+ * dearer, but a recap that costs more beats one that doesn't happen.
  */
 export async function buildRecapProvider(
     setup: SessionSetup,
     utility: LLMProvider
 ): Promise<LLMProvider> {
     if (setup.provider !== 'aloud') return utility;
+    const flagged = await cloudUtilityModel();
+    if (!flagged) return utility;
     await ensureCloudToken();
-    return new CloudLlmProvider({ provider: 'google', model: 'gemini-2.5-flash-lite' });
+    return new CloudLlmProvider({
+        provider: flagged.provider as CloudProviderId,
+        model: flagged.model,
+    });
 }
 
 
