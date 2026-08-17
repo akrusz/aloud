@@ -137,7 +137,8 @@ async function sttDiagnostics(): Promise<string[]> {
             const health = vad.runFailures
                 ? `, ${vad.runFailures} run failures this session (last: ${vad.lastRunError})`
                 : '';
-            lines.push(`VAD: ok (probe prob=${prob.toFixed(3)}${health})`);
+            const graph = vad.unoptimized ? ', unoptimized graph' : '';
+            lines.push(`VAD: ok (probe prob=${prob.toFixed(3)}${health}${graph})`);
         } catch (err) {
             const detail = err instanceof Error ? err.message : String(err);
             lines.push(`VAD: loads but inference FAILS (${detail})`);
