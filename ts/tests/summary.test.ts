@@ -78,4 +78,35 @@ describe('generateSessionSummary', () => {
         };
         expect(await generateSessionSummary(provider, realSession)).toBe('');
     });
+
+    // Models sometimes announce the recap despite "output only the recap".
+    // Measured on gpt-5-nano; the label would otherwise show in the history list.
+    describe('leading meta-label', () => {
+        const BODY = 'Explored an unnamed heaviness in the chest; left unresolved.';
+
+        it.each([
+            'Brief recap: ',
+            'Recap: ',
+            'Summary: ',
+            'Session summary: ',
+            'Note to self: ',
+            '**Recap:** ',
+            'RECAP: ',
+        ])('strips %j', async (label) => {
+            const { provider } = fakeProvider(label + BODY);
+            expect(await generateSessionSummary(provider, realSession)).toBe(BODY);
+        });
+
+        // The guard that keeps the rule safe: it matches a closed vocabulary,
+        // not "any word before a colon", so real recap prose survives intact.
+        it.each([
+            'Today: heaviness in the chest, left unnamed.',
+            'One thread stayed open: the heaviness never resolved.',
+            'She said it plainly: it is not sadness.',
+            'Recapturing the thread: the chest stayed heavy.',
+        ])('leaves %j alone', async (text) => {
+            const { provider } = fakeProvider(text);
+            expect(await generateSessionSummary(provider, realSession)).toBe(text);
+        });
+    });
 });

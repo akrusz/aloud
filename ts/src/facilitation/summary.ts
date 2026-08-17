@@ -62,6 +62,18 @@ const SUMMARY_USER_PROMPT =
  */
 const MIN_USER_TURNS_FOR_SUMMARY = 2;
 
+/**
+ * A leading meta-label the model sometimes writes despite "output only the
+ * recap" (measured on gpt-5-nano: "Brief recap: The meditator explored..."). It
+ * lands verbatim in the history label, so strip it.
+ *
+ * Deliberately a CLOSED vocabulary rather than "any short prefix before a
+ * colon": a recap legitimately opens "Today: heaviness in the chest", and a
+ * general rule would eat it. Nothing here can appear at the start of a real
+ * recap, since the model is writing the note, not announcing it.
+ */
+const RECAP_LABEL_RE = /^\**\s*(?:brief |short |session )?(?:recap|summary|note to self)\s*\**\s*:\s*\**\s*/i;
+
 export interface GenerateSummaryOptions {
     /** Override the max-tokens hint. Defaults to room for ~2-3 sentences. */
     maxTokens?: number;
@@ -99,7 +111,7 @@ export async function generateSessionSummary(
             maxTokens: options.maxTokens ?? 200,
         });
         options.onUsage?.(resultUsage(result));
-        return stripThinkTags(result.text).trim();
+        return stripThinkTags(result.text).trim().replace(RECAP_LABEL_RE, '');
     } catch (err) {
         // A failed recap falls back to the intention/label, indistinguishable
         // from a short-session skip. Surface why.
