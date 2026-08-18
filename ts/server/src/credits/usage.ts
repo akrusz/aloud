@@ -536,7 +536,16 @@ export function buildUsageReport(
      * With one account in the window this is identical to the unweighted rate,
      * so nothing changes until there's a population to average over.
      */
-    const accountOf = new Map<string, { weightBasis: number; hours: number; sums: Map<string, number> }>();
+    /** Per-account accumulators behind every weighted per-hour rate. Named
+     *  rather than spelled inline because weightedRate's hoursOf callback is
+     *  handed a whole accumulator: some denominators are a.hours, others read
+     *  a leg's own hours back out of a.sums. */
+    interface AccountAcc {
+        weightBasis: number;
+        hours: number;
+        sums: Map<string, number>;
+    }
+    const accountOf = new Map<string, AccountAcc>();
     const bumpAccount = (accountId: string, hours: number, spendUsd: number): void => {
         const a = accountOf.get(accountId) ?? { weightBasis: 0, hours: 0, sums: new Map() };
         a.hours += hours;
@@ -549,7 +558,7 @@ export function buildUsageReport(
         a.sums.set(key, (a.sums.get(key) ?? 0) + value);
     };
     /** Sqrt-of-spend weighted mean of each account's own per-hour rate. */
-    const weightedRate = (key: string, hoursOf: (a: { hours: number }) => number = (a) => a.hours): number => {
+    const weightedRate = (key: string, hoursOf: (a: AccountAcc) => number = (a) => a.hours): number => {
         let num = 0;
         let den = 0;
         for (const a of accountOf.values()) {
@@ -637,8 +646,8 @@ export function buildUsageReport(
         }
     }
     const sttSecondsSorted = [...sttCallSeconds].sort((a, b) => a - b);
-    const sttHoursOf = (a: { sums: Map<string, number> }): number => a.sums.get('sttHours') ?? 0;
-    const ttsHoursOf = (a: { sums: Map<string, number> }): number => a.sums.get('ttsHours') ?? 0;
+    const sttHoursOf = (a: AccountAcc): number => a.sums.get('sttHours') ?? 0;
+    const ttsHoursOf = (a: AccountAcc): number => a.sums.get('ttsHours') ?? 0;
     const perHour: PerHourReport = {
         sessions: qualifying.length,
         accounts: accountOf.size,
