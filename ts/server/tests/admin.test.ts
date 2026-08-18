@@ -191,7 +191,8 @@ describe('admin routes — data', () => {
             seconds: 0, chars: 400, providerCostUsd: 0.012, credits: 0.24,
         });
 
-        const res = await h.app.request('/cloud/v1/admin/usage?sinceHours=1000000', { headers: authed() });
+        // all=1: a 10-second 1-turn cluster is under the real-session bar.
+        const res = await h.app.request('/cloud/v1/admin/usage?sinceHours=1000000&all=1', { headers: authed() });
         expect(res.status).toBe(200);
         const body = (await res.json()) as {
             events: number;

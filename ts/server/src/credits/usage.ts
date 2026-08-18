@@ -286,7 +286,8 @@ export interface UsageReport {
         turns: Distribution;
         /** Mean wall-clock minutes per session (first→last event). */
         meanDurationMin: number;
-        /** Sessions dropped from the distributions by minSessionTurns. */
+        /** Sessions under the real-session bar, dropped from the session-level
+         *  numbers (0 with allSessions). */
         excludedShort: number;
     };
     /** Observed credits/hr and $/hr over real sessions, overall + per leg. */
@@ -294,34 +295,32 @@ export interface UsageReport {
 }
 
 export interface UsageReportOptions {
-    /** Drop sessions with fewer than this many LLM turns from the per-session
-     *  distributions: a drive-by "opened the app, said one thing" session drags
-     *  the medians down and isn't what estimates should calibrate against.
-     *  Totals and the service/model/cache aggregates still cover every event;
-     *  only the `sessions` block is filtered. */
-    minSessionTurns?: number;
-    /** Override what counts as a real sit for the per-hour block. */
+    /** Skip the real-session filter entirely: distributions and the per-hour
+     *  block cover every session, drive-bys included. Default is to filter both
+     *  on the SAME bar (RealSit), so all the session-level numbers describe one
+     *  population. Totals and the service/model/cache aggregates always cover
+     *  every event either way. */
+    allSessions?: boolean;
+    /** Override what counts as a real session. */
     realSit?: Partial<RealSit>;
 }
 
 /**
- * What counts as a real sit — a session substantial enough to calibrate the
- * credit estimates against. One definition, so "credits/hr" and "turns/hr"
- * and the token volumes all describe the same population; raise the bar in the
- * panel to exclude trial runs and read the profile off actual practice.
+ * What counts as a real session — substantial enough to calibrate the credit
+ * estimates against. ONE definition panel-wide: the per-session distributions
+ * and the per-hour block filter on the same bar (or not at all, via
+ * allSessions), so every session-level number describes the same population.
  *
- * A session qualifies if it clears EITHER bar. A zero disables that criterion
- * rather than admitting everything, so `{minMinutes: 25, minTurns: 0}` means
- * "25 minutes, no exceptions".
+ * A session must clear BOTH bars: long enough to divide by AND talkative
+ * enough to be deliberate. A zero disables that criterion, so
+ * `{minMinutes: 25, minTurns: 0}` means "25 minutes, turns don't matter".
  */
 export interface RealSit {
     minMinutes: number;
     minTurns: number;
 }
 
-/** Long enough to divide by, or talkative enough to be deliberate. Low, so the
- *  default view stays inclusive; the panel can raise it. */
-export const DEFAULT_REAL_SIT: RealSit = { minMinutes: 5, minTurns: 10 };
+export const DEFAULT_REAL_SIT: RealSit = { minMinutes: 5, minTurns: 5 };
 
 /** One day of aggregated usage for the admin trend charts. */
 export interface UsageHistoryBucket {
@@ -494,31 +493,28 @@ export function buildUsageReport(
     }
 
     const allSessions = clusterSessions(inWindow);
-    const minTurns = Math.max(0, opts.minSessionTurns ?? 0);
-    const sessions = allSessions.filter(
-        (s) => s.filter((e) => e.kind === 'llm').length >= minTurns
-    );
+    const durationMinOf = (s: UsageEvent[]): number =>
+        s.length < 2 ? 0 : (s[s.length - 1]!.ts - s[0]!.ts) / 60;
+    // One bar for everything session-level below: distributions and per-hour
+    // rates describe the SAME population.
+    const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
+    const isRealSit = (s: UsageEvent[]): boolean =>
+        (realSit.minMinutes <= 0 || durationMinOf(s) >= realSit.minMinutes) &&
+        (realSit.minTurns <= 0 || s.filter((e) => e.kind === 'llm').length >= realSit.minTurns);
+    const sessions = opts.allSessions ? allSessions : allSessions.filter(isRealSit);
     const excludedShort = allSessions.length - sessions.length;
     const sessionCosts = sessions.map((s) => s.reduce((sum, e) => sum + e.providerCostUsd, 0));
     const sessionCredits = sessions.map((s) => s.reduce((sum, e) => sum + e.credits, 0));
     const sessionTurns = sessions.map((s) => s.filter((e) => e.kind === 'llm').length);
-    const durationMinOf = (s: UsageEvent[]): number =>
-        s.length < 2 ? 0 : (s[s.length - 1]!.ts - s[0]!.ts) / 60;
     const sessionDurations = sessions.map(durationMinOf);
     const meanDurationMin =
         sessionDurations.length > 0
             ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length
             : 0;
 
-    // ---- observed per-hour burn, over real sits only, averaged across
-    // accounts (independent of minSessionTurns, which filters the per-session
-    // distributions above) ---------------------------------------------------
-    const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
-    const isRealSit = (s: UsageEvent[]): boolean =>
-        (realSit.minMinutes > 0 && durationMinOf(s) >= realSit.minMinutes) ||
-        (realSit.minTurns > 0 && s.filter((e) => e.kind === 'llm').length >= realSit.minTurns);
-    const qualifying = allSessions.filter(isRealSit);
-    const totalHours = qualifying.reduce((sum, s) => sum + durationMinOf(s), 0) / 60;
+    // ---- observed per-hour burn, over the same session population, averaged
+    // across accounts --------------------------------------------------------
+    const totalHours = sessions.reduce((sum, s) => sum + durationMinOf(s), 0) / 60;
     const rate = (x: number, hours: number): number => (hours > 0 ? x / hours : 0);
 
     /**
@@ -589,7 +585,7 @@ export function buildUsageReport(
     let sttCalls = 0;
     let sttSessionTurns = 0;
     const sttCallSeconds: number[] = [];
-    for (const s of qualifying) {
+    for (const s of sessions) {
         const sessionHours = durationMinOf(s) / 60;
         const usedStt = s.some((e) => e.kind === 'stt');
         const usedTts = s.some((e) => e.kind === 'tts');
@@ -649,7 +645,7 @@ export function buildUsageReport(
     const sttHoursOf = (a: AccountAcc): number => a.sums.get('sttHours') ?? 0;
     const ttsHoursOf = (a: AccountAcc): number => a.sums.get('ttsHours') ?? 0;
     const perHour: PerHourReport = {
-        sessions: qualifying.length,
+        sessions: sessions.length,
         accounts: accountOf.size,
         hours: totalHours,
         creditsPerHour: weightedRate('credits'),

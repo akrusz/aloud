@@ -148,7 +148,7 @@ describe('buildUsageReport', () => {
             // session 2: after a gap > SESSION_GAP_SEC
             ev({ ts: 1000 + SESSION_GAP_SEC + 60, providerCostUsd: 0.3, credits: 6 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { allSessions: true });
         expect(r.sessions.count).toBe(2);
         expect(r.sessions.costUsd.max).toBeCloseTo(0.3, 9);
         // session 1 summed to 0.3 too; both sessions cost 0.3, so p50/max = 0.3.
@@ -161,7 +161,7 @@ describe('buildUsageReport', () => {
             ev({ accountId: 'a1', ts: 1000, providerCostUsd: 0.2 }),
             ev({ accountId: 'a2', ts: 1000, providerCostUsd: 0.2 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { allSessions: true });
         expect(r.sessions.count).toBe(2);
     });
 
@@ -172,7 +172,7 @@ describe('buildUsageReport', () => {
             ev({ sessionId: 's1', ts: 1000 }),
             ev({ sessionId: 's1', ts: 1000 + SESSION_GAP_SEC * 5 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { allSessions: true });
         expect(r.sessions.count).toBe(1);
     });
 
@@ -187,36 +187,38 @@ describe('buildUsageReport', () => {
             // session 2 (after a gap): a single LLM turn
             ev({ ts: 1000 + SESSION_GAP_SEC + 60, kind: 'llm' }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { allSessions: true });
         expect(r.sessions.count).toBe(2);
         // turns per session: [3, 1] → max 3, p50 (nearest-rank of [1,3]) = 3, min reflected in mean 2
         expect(r.sessions.turns.max).toBe(3);
         expect(r.sessions.turns.mean).toBeCloseTo(2, 9);
     });
 
-    it('minSessionTurns drops short sessions from the distributions, not the totals', () => {
+    it('the real-session bar drops drive-bys from the distributions, not the totals', () => {
         const events = [
-            // session 1: 4 LLM turns, $0.40
+            // session 1: 5 LLM turns across 5.3 min, $0.50 - clears both bars
             ev({ ts: 1000, kind: 'llm', providerCostUsd: 0.1 }),
-            ev({ ts: 1010, kind: 'llm', providerCostUsd: 0.1 }),
-            ev({ ts: 1020, kind: 'llm', providerCostUsd: 0.1 }),
-            ev({ ts: 1030, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1080, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1160, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1240, kind: 'llm', providerCostUsd: 0.1 }),
+            ev({ ts: 1320, kind: 'llm', providerCostUsd: 0.1 }),
             // session 2 (after a gap): a 1-turn drive-by, $0.01
-            ev({ ts: 1000 + SESSION_GAP_SEC + 60, kind: 'llm', providerCostUsd: 0.01 }),
+            ev({ ts: 1320 + SESSION_GAP_SEC + 60, kind: 'llm', providerCostUsd: 0.01 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0, { minSessionTurns: 4 });
+        const r = buildUsageReport(events, 1_000_000, 0);
         // Totals still cover every event.
-        expect(r.totals.providerCostUsd).toBeCloseTo(0.41, 9);
-        expect(r.events).toBe(5);
-        // Distributions only see the 4-turn session; the drive-by is counted out.
+        expect(r.totals.providerCostUsd).toBeCloseTo(0.51, 9);
+        expect(r.events).toBe(6);
+        // Distributions only see the real session; the drive-by is counted out.
         expect(r.sessions.count).toBe(1);
         expect(r.sessions.excludedShort).toBe(1);
-        expect(r.sessions.turns.mean).toBeCloseTo(4, 9);
-        expect(r.sessions.costUsd.mean).toBeCloseTo(0.4, 9);
-        // Default keeps everything.
-        const all = buildUsageReport(events, 1_000_000, 0);
+        expect(r.sessions.turns.mean).toBeCloseTo(5, 9);
+        expect(r.sessions.costUsd.mean).toBeCloseTo(0.5, 9);
+        // allSessions disables the bar everywhere.
+        const all = buildUsageReport(events, 1_000_000, 0, { allSessions: true });
         expect(all.sessions.count).toBe(2);
         expect(all.sessions.excludedShort).toBe(0);
+        expect(all.perHour.sessions).toBe(2);
     });
 
     it('perHour: divides qualifying-session spend by their summed duration', () => {
@@ -230,7 +232,7 @@ describe('buildUsageReport', () => {
             ev({ sessionId: 's2', ts: 50_000, kind: 'llm', providerCostUsd: 5, credits: 100 }),
             ev({ sessionId: 's2', ts: 50_030, kind: 'llm', providerCostUsd: 5, credits: 100 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.sessions).toBe(1);
         expect(r.perHour.hours).toBeCloseTo(0.5, 9);
         // 6 credits / 0.5 h = 12 cr/hr; $0.30 / 0.5 h = $0.60/hr.
@@ -260,7 +262,7 @@ describe('buildUsageReport', () => {
             ev({ sessionId: 's2', ts: 5000 + 900, kind: 'stt', seconds: 300 }),
             ev({ sessionId: 's2', ts: 5000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.hours).toBeCloseTo(1, 9);
         // Global: 6000 chars over both hours-worth of session.
         expect(r.perHour.ttsCharsPerHour).toBeCloseTo(6000, 9);
@@ -290,7 +292,7 @@ describe('buildUsageReport', () => {
             ev({ sessionId: 's2', ts: 5000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
             ev({ sessionId: 's2', ts: 5000 + 1800, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         // 6 calls over session 1's 4 turns; session 2 contributes neither.
         expect(r.perHour.stt.callsPerTurn).toBeCloseTo(1.5, 9);
         // Over the 0.5 h that used cloud STT, not the full measured hour.
@@ -321,7 +323,7 @@ describe('buildUsageReport', () => {
             }),
             ev({ sessionId: 's2', ts: 50_030, kind: 'llm', credits: 50, providerCostUsd: 2 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         // 0.5 h of qualifying session: totals double into a per-hour rate.
         const t = r.perHour.tokensPerHour;
         expect(t.input).toBeCloseTo(400, 9);
@@ -334,13 +336,15 @@ describe('buildUsageReport', () => {
         expect(r.llmCache.freshInputTokens).toBe(1_000_199);
     });
 
-    it('perHour: a 10+ turn session qualifies even under 5 minutes', () => {
+    it('perHour: turns alone do not qualify - a chatty 2-minute burst is still a trial', () => {
         const events = Array.from({ length: 10 }, (_, i) =>
             ev({ ts: 1000 + i * 12, kind: 'llm', providerCostUsd: 0.01, credits: 0.2 })
         );
-        const r = buildUsageReport(events, 1_000_000, 0);
+        // 10 turns in 108 s: fails the minutes bar, so it is not a real session.
+        expect(buildUsageReport(events, 1_000_000, 0).perHour.sessions).toBe(0);
+        // Disable the minutes criterion and turns carry it.
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minMinutes: 0 } });
         expect(r.perHour.sessions).toBe(1);
-        // 108 s = 0.03 h; 2 credits / 0.03 h.
         expect(r.perHour.creditsPerHour).toBeCloseTo(2 / 0.03, 6);
     });
 
@@ -353,7 +357,7 @@ describe('buildUsageReport', () => {
             ev({ accountId: 'a2', sessionId: 's2', ts: 1000, kind: 'llm', credits: 0.5, providerCostUsd: 0.01 }),
             ev({ accountId: 'a2', sessionId: 's2', ts: 1000 + 1800, kind: 'llm', credits: 0.5, providerCostUsd: 0.01 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.hours).toBeCloseTo(1.5, 9);
         const opus = r.perHour.byModel.find((m) => m.model === 'claude-opus-5')!;
         const flash = r.perHour.byModel.find((m) => m.model === 'gemini-2.5-flash-lite')!;
@@ -373,16 +377,22 @@ describe('buildUsageReport', () => {
         expect(r.perHour.accounts).toBe(2);
     });
 
-    it('perHour: ignores the minSessionTurns option', () => {
+    it('distributions and perHour share the one bar', () => {
         const events = [
-            ev({ sessionId: 's1', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
-            ev({ sessionId: 's1', ts: 1000 + 600, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            // 5 turns over 10 minutes: clears both bars, appears in the
+            // distributions AND the burn rate.
+            ...Array.from({ length: 5 }, (_, i) =>
+                ev({ sessionId: 's1', ts: 1000 + i * 150, kind: 'llm', credits: 0.4, providerCostUsd: 0.02 })
+            ),
+            // 2 turns over 10 minutes: real minutes, too few turns - in neither.
+            ev({ accountId: 'a2', sessionId: 's2', ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
+            ev({ accountId: 'a2', sessionId: 's2', ts: 1000 + 600, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
         ];
-        // 2 turns: dropped from the session distributions at minTurns=4, but a
-        // 10-minute session still counts toward the burn rate.
-        const r = buildUsageReport(events, 1_000_000, 0, { minSessionTurns: 4 });
-        expect(r.sessions.count).toBe(0);
+        const r = buildUsageReport(events, 1_000_000, 0);
+        expect(r.sessions.count).toBe(1);
+        expect(r.sessions.excludedShort).toBe(1);
         expect(r.perHour.sessions).toBe(1);
+        // 2 credits over 600 s = 12 cr/hr.
         expect(r.perHour.creditsPerHour).toBeCloseTo(12, 9);
     });
 
@@ -511,7 +521,7 @@ describe('buildUsageReport - real-sit filter and account weighting', () => {
             ev({ sessionId: 's1', ts: 1000, kind: 'llm', credits: 3, providerCostUsd: 0.15 }),
             ev({ sessionId: 's1', ts: 1000 + 3600, kind: 'llm', credits: 3, providerCostUsd: 0.15 }),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.accounts).toBe(1);
         expect(r.perHour.creditsPerHour).toBeCloseTo(6, 9);
     });
@@ -528,7 +538,7 @@ describe('buildUsageReport - real-sit filter and account weighting', () => {
                 ev({ accountId: `u${i}`, sessionId: `s${i}`, ts: 1000 + 3600, kind: 'llm', credits: 0, providerCostUsd: 0 }),
             ]).flat(),
         ];
-        const r = buildUsageReport(events, 1_000_000, 0);
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.accounts).toBe(10);
         expect(r.perHour.creditsPerHour).toBeGreaterThan(10);
         expect(r.perHour.creditsPerHour).toBeLessThan(40);
@@ -544,9 +554,10 @@ describe('buildUsageReport - real-sit filter and account weighting', () => {
                 ev({ sessionId: 'trial', ts: 90_000 + i * 15, kind: 'llm', credits: 1, providerCostUsd: 0.05 })
             ),
         ];
-        // Default (5 min OR 10 turns) admits both.
-        expect(buildUsageReport(events, 1_000_000, 0).perHour.sessions).toBe(2);
-        // Real sits only: 25 minutes, no turn-count escape hatch.
+        // Default (5+ turns AND 5+ min) admits neither: the quiet sit is too
+        // few turns, the chatty burst too short.
+        expect(buildUsageReport(events, 1_000_000, 0).perHour.sessions).toBe(0);
+        // Zero disables a criterion: minutes-only admits the long quiet sit.
         const strict = buildUsageReport(events, 1_000_000, 0, {
             realSit: { minMinutes: 25, minTurns: 0 },
         });

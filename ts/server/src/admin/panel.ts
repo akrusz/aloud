@@ -219,15 +219,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="8760">last year</option>
           <option value="1000000">all time</option>
         </select>
-        <select id="usageMinTurns" style="width:auto;padding:4px 8px;font-size:16px">
-          <option value="4" selected>4+ turn sessions</option>
-          <option value="0">all sessions</option>
-        </select>
-        <select id="realSit" style="width:auto;padding:4px 8px;font-size:16px" title="What counts as a real sit for the per-hour rates below - raise it to read the estimate profile off actual practice instead of trial runs">
-          <option value="5:10" selected>sits: 5min or 10 turns</option>
-          <option value="15:0">sits: 15min+</option>
-          <option value="25:0">sits: 25min+</option>
-          <option value="40:0">sits: 40min+</option>
+        <select id="realSit" style="width:auto;padding:4px 8px;font-size:16px" title="One bar for every session-level number in this section - real sessions only (5+ turns and 5+ min), or everything unfiltered">
+          <option value="real" selected>real sessions (5+ turns and 5+ min)</option>
+          <option value="all">all sessions</option>
         </select>
         <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
         <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
@@ -236,7 +230,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost - the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
     <div class="grid" id="usageStats"></div>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of real sessions (5+ min or 10+ turns) divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of the sessions above divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
       <div class="grid" id="perHourStats" style="margin-bottom:12px"></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">$/hr</th><th class="num">Volume/hr</th><th class="num">Hours</th></tr></thead>
@@ -469,9 +463,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     return cb && cb.checked ? '&excludeAdmin=1' : '';
   }
   function loadUsage() {
-    var sit = $('realSit').value.split(':');
-    return api('/usage?sinceHours=' + $('usageWindow').value + '&minTurns=' + $('usageMinTurns').value +
-      '&sitMinutes=' + sit[0] + '&sitTurns=' + sit[1] + omitAdminParam()).then(function (u) {
+    var allParam = $('realSit').value === 'all' ? '&all=1' : '';
+    return api('/usage?sinceHours=' + $('usageWindow').value + allParam + omitAdminParam()).then(function (u) {
       var s = u.sessions;
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
@@ -1180,7 +1173,6 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('metricsWindow').addEventListener('change', function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
-  $('usageMinTurns').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('realSit').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
   Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (cb) {
@@ -1221,7 +1213,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // auto-connect below so the restored selections drive the initial loads.
   (function () {
     var prefs = loadPrefs();
-    ['metricsWindow', 'usageWindow', 'usageMinTurns', 'realSit', 'historyMetric', 'historyDays'].forEach(function (id) {
+    ['metricsWindow', 'usageWindow', 'realSit', 'historyMetric', 'historyDays'].forEach(function (id) {
       var el = $(id);
       if (prefs[id] != null) {
         var prev = el.value;
