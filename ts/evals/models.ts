@@ -141,6 +141,15 @@ export const ROSTER: EvalModel[] = [
         shipped: false,
         note: 'Thinking Machines, released 2026-07-15. Unknown quantity - worth one pass precisely because nobody has characterized its conversational register yet.',
     },
+
+    // --- Candidates: local (Ollama desktop tiers) ---------------------------
+    {
+        id: 'qwen3.8-27b',
+        model: 'qwen3.8:27b',
+        provider: 'ollama',
+        shipped: false,
+        note: "Released 2026-08-13. Tests the gemma4:31b slot in DEFAULT_TIERS (providers.rs) - the only tier it can take, being dense 27B / ~18GB. Its headline gains are coding + long-horizon agentic, which is orthogonal to facilitation tone, so the hypothesis is narrow: does a day-one Ollama quant hold the control tokens as well as gemma4? Pull it first (`ollama pull qwen3.8:27b`); the provider sends think:false.",
+    },
 ];
 
 export const SHIPPED = ROSTER.filter((m) => m.shipped);

@@ -32,6 +32,7 @@ import {
     OpenAIProvider,
     GoogleProvider,
     OpenRouterProvider,
+    OllamaProvider,
     type LLMProvider,
     type Message,
 } from '@aloud/core/llm';
@@ -56,6 +57,10 @@ function buildProvider(m: EvalModel): LLMProvider {
             return new GoogleProvider({ apiKey: need('GOOGLE_API_KEY'), model: m.model });
         case 'openrouter':
             return new OpenRouterProvider({ apiKey: need('OPENROUTER_API_KEY'), model: m.model });
+        case 'ollama':
+            // No key: local daemon. maxTokens matches runTrial's per-call cap so
+            // a local candidate isn't scored on a shorter leash than the rest.
+            return new OllamaProvider({ model: m.model, maxTokens: 400 });
         default:
             throw new Error(`no eval wiring for provider ${m.provider}`);
     }
