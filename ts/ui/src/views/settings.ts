@@ -557,9 +557,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             whisper: 'Transcribed on this device. Free and private.',
             capacitor: 'Transcribed on your phone. Free, and your speech stays on the device.',
             'web-speech': "Uses your browser's built-in speech recognition. Free.",
-            aloud: "Audio is transcribed by aloud's selected provider and spends credits.",
             'aloud-gpt-transcribe':
-                "Audio is transcribed by aloud's newest hosted model and spends credits.",
+                "Audio is transcribed by aloud's hosted provider and spends credits.",
+            aloud: "The previous hosted model. Use it only if the current one misheard you.",
         };
         hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
     }

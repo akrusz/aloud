@@ -282,9 +282,9 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  estimateStt figure and setCloudSttCreditsPerHour overwrites this the moment
  *  the model catalog loads. It only renders when the picker paints before (or
  *  without) a reachable cloud, so it should stay roughly right but can't drift
- *  into a real charge. 'aloud' is the server-default model (OpenAI
- *  gpt-4o-transcribe); 'aloud-gpt-transcribe' pins OpenAI's newer
- *  gpt-transcribe (July 2026), offered alongside while it's validated. */
+ *  into a real charge. 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe and
+ *  is what the picker calls "aloud cloud"; 'aloud' is the older
+ *  gpt-4o-transcribe (the server default), kept as "aloud cloud - old". */
 const FALLBACK_STT_CREDITS_PER_HOUR = 0.58;
 
 let sttCreditsPerHour = FALLBACK_STT_CREDITS_PER_HOUR;
@@ -336,15 +336,18 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser' });
     }
-    out.push({ value: 'aloud', label: `aloud cloud${rateSuffix(sttCreditsPerHour)}` });
-    // OpenAI's gpt-transcribe on the same hosted route: cheaper upstream and
-    // (per benchmarks) more accurate than the default's gpt-4o-transcribe. A
-    // second entry while it's validated in real sessions — it may replace the
-    // default, retiring this split.
+    // OpenAI's gpt-transcribe: cheaper upstream and (per benchmarks) more
+    // accurate than gpt-4o-transcribe, and validated enough in real sessions to
+    // be what "aloud cloud" means. First of the two, so it's what the hosted
+    // default resolves to.
     out.push({
         value: 'aloud-gpt-transcribe',
-        label: `aloud cloud - new${rateSuffix(sttCreditsPerHour)}`,
+        label: `aloud cloud${rateSuffix(sttCreditsPerHour)}`,
     });
+    // gpt-4o-transcribe, the previous default. Kept offered so anyone who
+    // reports a regression on the new model has somewhere to land; due for
+    // removal (meditation-pal-vazw).
+    out.push({ value: 'aloud', label: `aloud cloud - old${rateSuffix(sttCreditsPerHour)}` });
     return out;
 }
 

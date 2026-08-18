@@ -35,33 +35,33 @@ beforeEach(() => {
 
 describe('sttEngineOptions — browser (non-Tauri; no Web Speech in Node)', () => {
     it('local mode offers only the hosted option — no on-device Whisper in a browser', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
     });
     it('web mode offers only the hosted option', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
     });
 });
 
 describe('sttEngineOptions — desktop (Tauri)', () => {
     beforeEach(() => isTauriMock.mockReturnValue(true));
     it('local mode offers Whisper then the hosted option', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe', 'aloud']);
     });
     it('web mode still hides Whisper (local-only)', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
     });
 });
 
 describe('defaultSttChoice = first option in flow order', () => {
     it('browser local mode defaults to the hosted option', () => {
-        expect(defaultSttChoice(false)).toBe('aloud');
+        expect(defaultSttChoice(false)).toBe('aloud-gpt-transcribe');
     });
     it('desktop local mode defaults to Whisper', () => {
         isTauriMock.mockReturnValue(true);
         expect(defaultSttChoice(false)).toBe('whisper');
     });
     it('web mode defaults to the hosted option', () => {
-        expect(defaultSttChoice(true)).toBe('aloud');
+        expect(defaultSttChoice(true)).toBe('aloud-gpt-transcribe');
     });
 });
 
@@ -78,13 +78,13 @@ describe('sttEngineOptions — Web Speech gating', () => {
     });
 
     it('offers web-speech in a browser that exposes the API', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud-gpt-transcribe', 'aloud']);
     });
     it('hides web-speech under Tauri even though the WKWebView exposes the API', () => {
         // Recognition silently never returns results in the embedded webview —
         // offering it gives a pulsing mic that can't transcribe.
         isTauriMock.mockReturnValue(true);
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe', 'aloud']);
     });
     it('a web-speech pick stored before the Tauri gate resolves to the desktop default', () => {
         isTauriMock.mockReturnValue(true);
@@ -108,13 +108,13 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
     });
 
     it('does not offer web-speech on an iPhone', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
     });
     it('defaults an iPhone to aloud cloud, not the browser recognizer', () => {
-        expect(defaultSttChoice(true)).toBe('aloud');
+        expect(defaultSttChoice(true)).toBe('aloud-gpt-transcribe');
     });
     it('drops a web-speech pick stored before this gate', () => {
-        expect(resolveSttChoice('web-speech', true)).toBe('aloud');
+        expect(resolveSttChoice('web-speech', true)).toBe('aloud-gpt-transcribe');
     });
     it('also covers iPadOS desktop-mode Safari (MacIntel + touch)', () => {
         vi.stubGlobal('navigator', {
@@ -122,7 +122,7 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
             platform: 'MacIntel',
             maxTouchPoints: 5,
         });
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
     });
     it('leaves a real Mac (no touch) on the browser recognizer', () => {
         vi.stubGlobal('navigator', {
@@ -132,8 +132,8 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
         });
         expect(sttEngineOptions(true).map((o) => o.value)).toEqual([
             'web-speech',
-            'aloud',
             'aloud-gpt-transcribe',
+            'aloud',
         ]);
     });
 });
@@ -144,7 +144,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     beforeEach(() => isCapacitorMock.mockReturnValue(true));
 
     it('offers the built-in recognizer first, then aloud cloud', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe', 'aloud']);
     });
 
     // No privacy promise: it's the PLATFORM's recognizer and Android's routes to
@@ -162,7 +162,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         (globalThis as unknown as { window: unknown }).window = {
             webkitSpeechRecognition: class {},
         };
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe', 'aloud']);
         delete (globalThis as unknown as { window?: unknown }).window;
     });
     it('resolveSttChoice honors a stored on-device pick', () => {
@@ -195,14 +195,14 @@ describe('hosted STT options — the two cloud models', () => {
 
 describe('resolveSttChoice', () => {
     it('uses the flow default when nothing is stored', () => {
-        expect(resolveSttChoice(null, false)).toBe('aloud'); // browser
+        expect(resolveSttChoice(null, false)).toBe('aloud-gpt-transcribe'); // browser
         isTauriMock.mockReturnValue(true);
         expect(resolveSttChoice(null, false)).toBe('whisper'); // desktop
     });
     it('a capacitor pick outside the native app falls back to the mode default', () => {
         // Stored 'capacitor' but not in the native app (isCapacitor=false) → not
         // offered → hosted default, never a dead native plugin.
-        expect(resolveSttChoice('capacitor', true)).toBe('aloud');
+        expect(resolveSttChoice('capacitor', true)).toBe('aloud-gpt-transcribe');
     });
     it('honors a stored pick that is offered in this mode', () => {
         isTauriMock.mockReturnValue(true);
@@ -211,10 +211,10 @@ describe('resolveSttChoice', () => {
     it('falls back to the default when the stored pick is not offered here', () => {
         // Whisper carried into web mode → hosted default.
         isTauriMock.mockReturnValue(true);
-        expect(resolveSttChoice('whisper', true)).toBe('aloud');
+        expect(resolveSttChoice('whisper', true)).toBe('aloud-gpt-transcribe');
         // Whisper stored but viewed in a browser (not offered) → hosted default.
         isTauriMock.mockReturnValue(false);
-        expect(resolveSttChoice('whisper', false)).toBe('aloud');
+        expect(resolveSttChoice('whisper', false)).toBe('aloud-gpt-transcribe');
     });
 });
 
