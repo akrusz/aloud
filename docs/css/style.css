@@ -213,6 +213,7 @@ code {
      min() picks whichever is smaller: fill-the-viewport vs. the 900px ceiling.
      9rem ≈ nav height; svh avoids the mobile URL-bar resize jump. */
   min-height: min(calc(100svh - 9rem), 900px);
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -359,6 +360,48 @@ code {
   .orb { animation: none; }
   .orb::before,
   .orb::after { animation: none; }
+}
+
+/* ===== scroll cue =====
+   Parked absolutely at the foot of the hero rather than added to the flex
+   stack: the hero is centred, so a flow child would ride up with everything
+   else instead of filling the slack that is the whole problem. Absolute keeps
+   the centring intact and puts the caret in the dead space.
+   No JS to dismiss it - it lives inside the hero, so it scrolls away by
+   itself the moment it has done its job.
+   The rhythm is the point: same 6s ease-in-out as the orb's breathe, a
+   quarter-cycle behind, so it reads as the same organism exhaling downward
+   rather than a generic bouncing arrow. */
+.scroll-cue {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  padding: 0.5rem 0.9rem;
+  color: var(--accent);
+  border: none;
+  line-height: 0;
+  animation: cue-breathe 6s ease-in-out 1.5s infinite;
+}
+.scroll-cue:hover {
+  color: var(--accent-hover);
+  border: none;
+}
+.scroll-cue svg { display: block; }
+@keyframes cue-breathe {
+  0%, 100% { transform: translate(-50%, 0);      opacity: 0.55; }
+  50%      { transform: translate(-50%, 0.45rem); opacity: 1; }
+}
+
+/* Only where the hero actually has slack to fill. Below these the content
+   reaches the fold on its own and the caret would crowd the beta line. */
+@media (min-width: 641px) and (min-height: 800px) {
+  .scroll-cue { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue { animation: none; }
 }
 
 /* ===== buttons ===== */
@@ -770,7 +813,11 @@ code {
 
 .download-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, ...), not 1fr: a plain 1fr floors each track at min-content, and
+     the longest release filename (the .AppImage) is wide enough that between
+     ~740 and ~890px the three tracks outgrew the container and pushed Linux off
+     the right edge. Zero-min tracks shrink; the filename wraps instead. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   margin: 2rem auto;
 }
@@ -802,6 +849,8 @@ code {
 .download-file {
   color: var(--accent-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* No spaces in a release filename, so only `anywhere` will break it. */
+  overflow-wrap: anywhere;
   font-size: 0.95rem;
   margin-bottom: 0.5rem;
 }
@@ -820,6 +869,15 @@ code {
   color: var(--text-muted);
   font-size: 0.95rem;
   margin-top: 1.5rem;
+}
+
+/* The band where three cards still fit but only just: trade card padding and a
+   little type size for the filenames' single line, so they wrap mid-token only
+   on the longest one. */
+@media (min-width: 721px) and (max-width: 900px) {
+  .download-card { padding: 1.25rem 0.9rem; }
+  .download-file { font-size: 0.85rem; }
+  .download-note { font-size: 0.8rem; }
 }
 
 @media (max-width: 720px) {
