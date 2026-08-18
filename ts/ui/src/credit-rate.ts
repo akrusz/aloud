@@ -6,9 +6,10 @@
  * voice list carries the "≈ ☁️ per hour" legend; on the setup page the badges
  * are explained by the footer's "what are ☁️?" help button (#clouds-help).
  *
- * Rates are ESTIMATES calibrated on exploration mode talking as concisely as
- * possible, a near-floor: real use drifts up with how much gets said, and noting
- * mode uses fewer ☁️ for voices. The "≈" and RATE_LEGEND_TITLE carry that caveat.
+ * Rates are ESTIMATES seeded from real hosted-session telemetry (Aug 2026,
+ * pricing/estimate.ts) at a mid-band talk profile: real use swings both ways
+ * with how much gets said, and noting mode uses fewer ☁️ for voices. The "≈"
+ * and RATE_LEGEND_TITLE carry that caveat.
  *
  * Badges appear ONLY on hosted options; BYOK / local / Ollama are free.
  *
@@ -29,7 +30,7 @@ export const RATE_LEGEND = `≈ ${RATE_EMOJI} per hour`;
 
 /** Fuller caveat for the legend's title/tooltip. */
 export const RATE_LEGEND_TITLE =
-    'Rough estimate, calibrated for concise exploration-mode talking. Actual ☁️ use rises the more is said; noting mode uses fewer for voices.';
+    'Rough estimate from typical measured use. Actual ☁️ varies with how much is said; noting mode uses fewer for voices.';
 
 /** A credit balance/amount as currency, e.g. "13.7☁️". */
 export function creditAmount(credits: number, digits = 1): string {

@@ -178,6 +178,22 @@ let providerStatusCache: Record<string, { available: boolean; models?: string[] 
 
 /** Fetch model options for a provider. Null when the endpoint isn't reachable
  *  (e.g. no app backend), so callers can render an empty state. */
+/** ☁️/hr the background-assistant leg (Haiku classifiers/summaries + the Flash
+ *  Lite recap) adds to every aloud-cloud session, on top of the picked model's
+ *  badge. Seed matches the server's UTILITY_CREDITS_PER_HOUR; /me/models
+ *  overwrites it when the catalog loads, so it can't drift into a real charge. */
+const FALLBACK_UTILITY_CREDITS_PER_HOUR = 0.3;
+
+let utilityCreditsPerHour = FALLBACK_UTILITY_CREDITS_PER_HOUR;
+
+/** The background leg for the composed session estimate. Only aloud-cloud
+ *  sessions are metered for it - BYOK/subscription/local run the utility model
+ *  on their own key or reuse the facilitation model - so callers gate on the
+ *  provider being 'aloud'. */
+export function cloudUtilityCreditsPerHour(): number {
+    return utilityCreditsPerHour;
+}
+
 export async function fetchModels(provider: string): Promise<ModelOption[] | null> {
     if (cache.has(provider)) return cache.get(provider)!;
 
@@ -191,6 +207,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             if (!resp.ok) return null;
             const data = (await resp.json()) as {
                 sttCreditsPerHour?: number | null;
+                utilityCreditsPerHour?: number | null;
                 models?: Array<{
                     provider: string;
                     model: string;
@@ -205,6 +222,9 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             // its own) so the setup footer's model + stt + voice sum uses the
             // server's rate, not a client-side copy that drifts.
             setCloudSttCreditsPerHour(data.sttCreditsPerHour);
+            if (typeof data.utilityCreditsPerHour === 'number' && data.utilityCreditsPerHour > 0) {
+                utilityCreditsPerHour = data.utilityCreditsPerHour;
+            }
             // Hosted models cost credits, so the label carries the cloud-rate
             // badge ("N☁️") - the only provider where the picker shows it.
             const opts: ModelOption[] = data.models.map((m) => ({

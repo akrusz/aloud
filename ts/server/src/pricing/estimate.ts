@@ -34,14 +34,26 @@
  * Before the next pass, restrict the window to real sits and check how many
  * accounts are behind it (meditation-pal-bv9p).
  *
- * What this profile still does NOT model: the utility LLM. Hosted sessions run
- * a second metered model (Haiku, via buildUtilityProvider) for the silence
- * classifiers, noting labels, and summaries - measured at ~0.4 credits/hr in
- * every session, on top of whichever model the badge names
- * (meditation-pal-nrj6). Most of that was the in-session recap refresh, which
- * now runs on Flash Lite instead (ui/views/session.ts buildRecapProvider), so
- * expect the next measurement well under 0.4 - re-measure before deciding how
- * to carry the leg in the badges.
+ * SECOND LOOK, Aug 18 2026 (34.6 hours, 30 real sessions): TENTATIVE reseed of
+ * the two legs the first look flagged, deliberately NOT a full refit - the
+ * hours are still dominated by one (returning, paying) user, so this is
+ * "measured for that practice style", not "typical". Re-estimate periodically
+ * as the account mix widens (bv9p).
+ *   - sttSeconds 240 → 1,000: billed STT held at ~20-25 min/hr across both
+ *     looks (0uw7's talking-vs-VAD-padding question is still open, but the
+ *     BILLED figure is what the badge should predict either way).
+ *   - TTS band halved-ish: measured cloud-voice chars/hr ran 1.3k-7.5k/hr
+ *     (≈1k-6.2k/session), all below the old "typical" 10k. Facilitator
+ *     terseness + held silence beat the Gemma-seeded profile.
+ *   - LLM token fields and turn count left alone: per-model turn rates ranged
+ *     10-51/hr in ways that track user style, and no per-model sample is big
+ *     enough to beat the seed.
+ *
+ * The utility LLM (Haiku via buildUtilityProvider, plus the Flash Lite recap)
+ * is carried as its own flat leg, UTILITY_CREDITS_PER_HOUR below - it rides
+ * every HOSTED session regardless of which model the badge names
+ * (meditation-pal-nrj6), so it belongs in the composed session estimate, not
+ * in any one badge.
  */
 
 import type { SessionUsage } from '@aloud/core/facilitation';
@@ -59,12 +71,10 @@ export const TYPICAL_SESSION: SessionUsage = {
     llmTokensOut: 2_700, // facilitator speech (~10k chars)
     llmCacheRead: 115_000, // re-sent prefix, cached at ~0.1x
     llmCacheCreation: 7_500, // unique content written to cache once
-    // UNVALIDATED and suspected ~4x low: the Aug 2026 telemetry measured 20.2
-    // billed min/hr against the 4.8 this implies. Deliberately NOT reseeded on
-    // that - see the calibration note in the header for why the sample can't
-    // carry it yet, and meditation-pal-0uw7 for whether the measured figure is
-    // real talking or VAD padding in the first place.
-    sttSeconds: 240, // ~4 min of actual user speech (VAD-segmented)
+    // Reseeded Aug 18 2026 from ~20-25 BILLED min/hr, stable across both
+    // calibration looks (header). Whether that's talking or VAD padding is
+    // still 0uw7's question, but it's what the meter charges.
+    sttSeconds: 1_000, // ~17 min billed audio per 50-min session (~20 min/hr)
     ttsChars: 10_000, // facilitator speech, if spoken by cloud TTS
 };
 
@@ -72,13 +82,14 @@ export const TYPICAL_SESSION: SessionUsage = {
  * TTS chars per ~50-min session is a band, not a number: driven by facilitator
  * verbosity, how much the user shares (the facilitator mirrors length), and the
  * model (smaller open models run chattier; Claude models stay terser at the same
- * setting). The measured 10k sits at "typical" (Gemma at default verbosity, an
- * engaged user). So the UI shows a RANGE per voice, not a worst case.
+ * setting). Reseeded Aug 18 2026 (header): measured cloud-voice sessions ran
+ * ≈1k-6.2k chars/session, all under the original Gemma-seeded 10k "typical".
+ * So the UI shows a RANGE per voice, not a worst case.
  */
 export const TTS_CHAR_PROFILES = {
-    spacious: 5_000, // terser model / low verbosity / lots of held silence
-    typical: 10_000, // the measured session
-    engaged: 16_000, // chatty session, long user shares mirrored back
+    spacious: 1_200, // terse model / low verbosity / lots of held silence
+    typical: 3_500, // mid of the measured band
+    engaged: 7_500, // chattiest measured voice-hour, plus headroom
 } as const;
 
 export type TtsProfile = keyof typeof TTS_CHAR_PROFILES;
@@ -143,6 +154,19 @@ export function estimateModels(): ModelEstimate[] {
         };
     });
 }
+
+/** The background-assistant leg of a HOSTED session: Haiku for the silence
+ *  classifiers, noting labels, and end-of-session summary, Flash Lite for the
+ *  in-session recap refresh (ui/views/session.ts buildUtilityProvider /
+ *  buildRecapProvider). Metered only when the facilitation provider is 'aloud'
+ *  - BYOK Anthropic runs Haiku on the user's own key, claude_proxy on their
+ *  subscription, and everything else reuses the facilitation model - so the
+ *  client adds this to the composed estimate only for aloud-cloud sessions.
+ *  Aug 2026 telemetry: Haiku measured ~0.3 cr/hr riding effectively all hours
+ *  (34.5 of 34.6), part of which was the recap before its Flash Lite move;
+ *  0.3 keeps a little headroom over the post-move mix. Not per-badge: it's the
+ *  same flat leg whichever facilitation model is picked (nrj6). */
+export const UTILITY_CREDITS_PER_HOUR = 0.3;
 
 /** Cloud STT leg for a hosted model (default: the server-default
  *  gpt-4o-transcribe), priced through the same meter code that bills. */

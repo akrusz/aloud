@@ -285,7 +285,7 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  into a real charge. 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe and
  *  is what the picker calls "aloud cloud"; 'aloud' is the older
  *  gpt-4o-transcribe (the server default), kept as "aloud cloud - old". */
-const FALLBACK_STT_CREDITS_PER_HOUR = 0.58;
+const FALLBACK_STT_CREDITS_PER_HOUR = 2.4;
 
 let sttCreditsPerHour = FALLBACK_STT_CREDITS_PER_HOUR;
 

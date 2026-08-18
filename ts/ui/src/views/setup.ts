@@ -50,7 +50,7 @@ import { rateBadge, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rat
 import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
-import { mountModelPicker } from '../model-picker.js';
+import { mountModelPicker, cloudUtilityCreditsPerHour } from '../model-picker.js';
 import { assetPath } from '../route-base.js';
 import { hasApiKey } from '../api-keys.js';
 import {
@@ -456,8 +456,13 @@ export async function mountSetupView(
         const llm = setup.provider === 'aloud' ? getModelRate() : 0;
         const stt = cloudSttCreditsPerHour(sttChoice as SttEngineChoice);
         const tts = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
+        // The background-assistant leg (classifiers, summaries, recap) rides
+        // every aloud-cloud session on top of the picked model's badge - so the
+        // pill runs a touch above the badges' sum, which its title explains.
+        // Outside the mode multiplier: noting leans on it MORE, not less.
+        const util = setup.provider === 'aloud' ? cloudUtilityCreditsPerHour() : 0;
         // Noting mode burns far less than the exploration-calibrated legs imply.
-        const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1);
+        const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1) + util;
 
         // All-local/BYOK: hide the pill rather than show a bare "0☁️".
         if (total <= 0) {
@@ -469,6 +474,9 @@ export async function mountSetupView(
         el.classList.remove('hidden');
         setCloudUi(true);
         const rate = `≈ ${rateBadge(total)}/hr`;
+        el.title = util > 0
+            ? 'Rough estimate. Includes a small background model for summaries and quick decisions, so it can sit above the badges combined.'
+            : 'Rough estimate; varies with how much is said.';
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
         el.innerHTML = withCloudOutline(rate);
