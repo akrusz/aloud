@@ -61,6 +61,10 @@
   --orb-yellow:    light-dark(#f5d820, #e8b820);
   --orb-orange:    light-dark(#ed7326, #d4692a);
   --mark:          light-dark(rgba(255, 216, 32, 0.55), rgba(232, 184, 32, 0.30));
+  /* Near-black with the page's warmth in it - the hero mark's outer keyline
+     where it crosses the orb. Same value in both themes: it reads against the
+     orb, not against the page. */
+  --mark-keyline:  #1a0f06;
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -214,14 +218,40 @@ code {
   justify-content: center;
 }
 
+/* The mark rides the orb rather than sitting under it: the wordmark is a
+   sticker slapped over the glow, which is both the stronger image and ~7rem
+   of hero height back. The orb keeps the flow (it sets the block's height);
+   the title is lifted out of it and centred on top. */
+.hero-mark {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
 .hero-title {
-  margin: 1.5rem 0 1rem;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  margin: 0;
   font-size: 4.5rem;
   line-height: 1;
 }
+/* Over the orb the yellow stroke has nothing to push against - it's the same
+   family as what's behind it. So the mark gains a third layer outside the
+   yellow: four zero-blur drop-shadows (each applies to the accumulated result,
+   so the diagonals fill in) draw a dark keyline around the whole silhouette,
+   and a soft shadow underneath lifts it off the glow. */
 .hero-title .brand-mark {
   font-size: 1em;
   -webkit-text-stroke-width: 5px;
+  filter:
+    drop-shadow(2px 0 0 var(--mark-keyline))
+    drop-shadow(-2px 0 0 var(--mark-keyline))
+    drop-shadow(0 2px 0 var(--mark-keyline))
+    drop-shadow(0 -2px 0 var(--mark-keyline))
+    drop-shadow(0 4px 10px rgba(26, 15, 6, 0.45));
 }
 
 .hero-tagline {
@@ -266,6 +296,7 @@ code {
 /* ===== orb =====
    Same radial gradient as the app's .orb / .orb-kasina (style.md).
    Three stacked box-shadow halos: orange inner, pink mid, pink outer. */
+/* Bare orb, no mark over it - the 404 page. */
 .orb-wrap {
   display: flex;
   justify-content: center;
@@ -1003,3 +1034,45 @@ code {
   border-bottom: 1px solid var(--border);
 }
 .footer-fine a:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
+
+/* ===== mobile density =====
+   Desktop breathes at 4rem between sections; on a phone that reads as scroll
+   tax, since a section already fills the width. This block only closes gaps -
+   type sizes and every horizontal measure stay as they are. Last in the file
+   so it wins over the per-section mobile rules above. */
+@media (max-width: 640px) {
+  .section { padding: 2.25rem 1.25rem; }
+  .section-title { margin-bottom: 1.1rem; }
+  .section-lead { margin-bottom: 1.75rem; }
+
+  .hero { padding: 0.5rem 1.5rem 1.25rem; }
+  /* Half the height the wordmark used to occupy, given back around the orb:
+     the tagline sat inside the glow's falloff without it. */
+  .hero-mark { margin-top: 1.5rem; margin-bottom: 2.75rem; }
+  .hero-tagline { margin-bottom: 1rem; }
+  .hero-pun { margin-bottom: 1.5rem; }
+  .hero-cta { margin-bottom: 1rem; }
+  .hero-platforms { margin-top: 0.6rem; }
+
+  .modes { gap: 1rem; }
+  .mode-card { padding: 1.35rem; }
+  .mode-card p { margin-bottom: 0.6rem; }
+
+  .section-shot { padding: 0.75rem 1.25rem; }
+  .screenshot-frame { padding: 0.85rem; }
+
+  /* These four set all four sides: the generic .section rule above would
+     otherwise re-open the tops that the pairings above deliberately squeeze. */
+  .section-models { padding-bottom: 0.5rem; }
+  .section-cloud { padding: 0 1rem 1rem; }
+  .section-tip { padding: 1.25rem 1rem 1rem; }
+  .section-download { padding: 1.5rem 1.25rem 2rem; }
+
+  .faq-controls { margin-bottom: 0.75rem; }
+  .faq-list { gap: 0.5rem; }
+
+  .section-thanks { padding: 1.5rem 1.5rem 0.5rem; }
+  .footer { padding: 1.75rem 1.5rem 2.5rem; }
+  .footer-brand { margin-bottom: 0.75rem; }
+  .footer-links { margin-bottom: 0.75rem; }
+}
