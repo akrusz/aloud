@@ -58,6 +58,16 @@ export interface MetricsReport {
 
 const CLUSTER_THRESHOLD = 3;
 
+/** Gift accepts/claims land as `purchase` entries (`gift_accepted:` /
+ *  `gift_claimed:` reasons, credits/gifts.ts) so the recipient's balance and
+ *  converter status are right — but the money was the BUYER's, paid at gift
+ *  checkout with no ledger entry of its own. Excluded from revenue so an
+ *  accept doesn't book dollars on the accept date (gift revenue is currently
+ *  uncounted, not double-counted). */
+function isGiftGrant(e: LedgerEntry): boolean {
+    return e.reason.startsWith('gift_');
+}
+
 function debitMagnitude(e: LedgerEntry): number {
     return e.kind === 'debit' ? -e.amount : 0; // debits are negative
 }
@@ -85,7 +95,7 @@ export function buildMetrics(
         if (e.kind === 'signup_grant') creditsGranted += e.amount;
         else if (e.kind === 'purchase') {
             creditsPurchased += e.amount;
-            grossRevenueCents += centsForCredits(e.amount);
+            if (!isGiftGrant(e)) grossRevenueCents += centsForCredits(e.amount);
             purchasedAccounts.add(e.accountId);
         } else if (e.kind === 'debit') {
             const mag = -e.amount;
@@ -178,7 +188,7 @@ export function buildDailyRevenue(
 
     const revenue = new Map<number, number>();
     for (const e of entries) {
-        if (e.kind !== 'purchase') continue;
+        if (e.kind !== 'purchase' || isGiftGrant(e)) continue;
         if (e.createdAt < firstDay || e.createdAt >= todayStart + DAY_SEC) continue;
         const day = Math.floor(e.createdAt / DAY_SEC) * DAY_SEC;
         revenue.set(day, (revenue.get(day) ?? 0) + centsForCredits(e.amount) / 100);

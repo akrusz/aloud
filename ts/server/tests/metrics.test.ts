@@ -36,6 +36,19 @@ describe('buildMetrics', () => {
         expect(m.totals.freeBurnUsd).toBeCloseTo(8 * USD_PER_CREDIT, 6);
     });
 
+    it('counts a gift accept as purchased credits + converter, but not revenue', () => {
+        const accounts = [account('buyer', inWin), account('recip', inWin)];
+        const entries: LedgerEntry[] = [
+            entry('buyer', 'purchase', 110, inWin),
+            { ...entry('recip', 'purchase', 88, inWin), reason: 'gift_accepted:g1' },
+            entry('recip', 'debit', -10, inWin), // funded by the gift → not free burn
+        ];
+        const m = buildMetrics(accounts, entries, now, since);
+        expect(m.totals.creditsPurchased).toBe(198);
+        expect(m.totals.estGrossRevenueUsd).toBeCloseTo(centsForCredits(110) / 100, 6);
+        expect(m.totals.freeBurnUsd).toBe(0);
+    });
+
     it('flags IP clusters (mass-account velocity)', () => {
         const accounts = [
             account('a', inWin, '9.9.9.9'),
@@ -82,5 +95,14 @@ describe('buildDailyRevenue', () => {
         expect(rev.get(100 * DAY)).toBeCloseTo(perPack, 9);
         expect(rev.has(50 * DAY)).toBe(false);
         expect(rev.has(98 * DAY)).toBe(false); // no purchases → no key
+    });
+
+    it('excludes gift accepts (purchase kind, gift_ reason) from revenue', () => {
+        const gift: LedgerEntry = {
+            ...entry('r', 'purchase', 88, 99 * DAY + 500),
+            reason: 'gift_accepted:g1',
+        };
+        const rev = buildDailyRevenue([gift, entry('a', 'purchase', 550, 99 * DAY)], NOW, 7);
+        expect(rev.get(99 * DAY)).toBeCloseTo(centsForCredits(550) / 100, 9);
     });
 });
