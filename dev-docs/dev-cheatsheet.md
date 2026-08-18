@@ -163,9 +163,13 @@ admin surface: [ts-server.md](ts-server.md).
 ## Tests & checks
 
 ```bash
+# Everything CI gates, from the repo root
+npm run typecheck                     # core + UI *and* the server (see below)
+npm test && npm run ui:build && npm run test:server
+
 # TS core + UI (vitest) and typecheck
 cd ts && npm test
-cd ts && npm run typecheck            # tsc over src/ + ui/
+cd ts && npm run typecheck            # tsc over src/ + ui/ ONLY - not the server
 
 # Hosted server
 cd ts/server && npm test

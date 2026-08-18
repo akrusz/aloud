@@ -5,7 +5,7 @@
   "scripts": {
     "test": "npm --prefix ts test",
     "test:server": "npm --prefix ts/server test",
-    "typecheck": "npm --prefix ts run typecheck",
+    "typecheck": "npm --prefix ts run typecheck && npm --prefix ts/server run typecheck",
     "build": "npm --prefix ts run build",
     "ui:dev": "npm --prefix ts run ui:dev",
     "ui:build": "npm --prefix ts run ui:build",
