@@ -559,7 +559,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             'web-speech': "Uses your browser's built-in speech recognition. Free.",
             'aloud-gpt-transcribe':
                 "Audio is transcribed by aloud's hosted provider and spends credits.",
-            aloud: "The previous hosted model. Use it only if the current one misheard you.",
+            aloud: "The previous hosted model. Slightly more expensive and less accurate.",
         };
         hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
     }
