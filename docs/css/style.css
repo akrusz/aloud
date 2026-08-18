@@ -379,13 +379,13 @@ code {
   transform: translateX(-50%);
   display: none;
   padding: 0.5rem 0.9rem;
-  color: var(--accent);
+  color: var(--orb-orange);
   border: none;
   line-height: 0;
   animation: cue-breathe 6s ease-in-out 1.5s infinite;
 }
 .scroll-cue:hover {
-  color: var(--accent-hover);
+  color: var(--accent);
   border: none;
 }
 .scroll-cue svg { display: block; }
