@@ -1,6 +1,6 @@
 /**
  * Whisper-over-HTTP STT: captures mic audio, VADs it client-side, POSTs 16 kHz
- * Float32 PCM to a Whisper endpoint, emits `final` on transcription. Endpoint-
+ * Int16 PCM (format=i16) to a Whisper endpoint, emits `final` on transcription. Endpoint-
  * agnostic - the same pipeline drives desktop Whisper (/app/v1/stt/whisper) and
  * aloud cloud (/cloud/v1/stt); only the URL + optional bearer token differ (see
  * stt-picker.ts). Universal fallback where Web Speech doesn't reach (Firefox,
@@ -42,7 +42,7 @@ const SPECULATIVE_SILENCE_MS = 750;
 // ⭐ TWEAK ME if a barge-in clips the first word(s): pre-speech audio (ms) kept
 // so a word's onset survives, covering the gap between speaking over the
 // facilitator and barge-in flipping capture on. Bigger = more onset captured
-// (plus harmless leading near-silence sent to Whisper).
+// (the quiet part is trimmed back out of the billed payload - LEAD_KEEP_MS).
 const PRE_BUFFER_MS = 2000;
 // Barge-in runs on THIS (continuous, echo-cancelled) stream, not a second
 // getUserMedia stream: on macOS the hardware AEC attaches to only one input, so
@@ -102,6 +102,14 @@ const TAIL_RETRANSCRIBE_ENERGY = 0.015;
 // soft word here", so anything it would have rescued survives - plus a full
 // second after it. ⭐ TWEAK ME (up) if trailing words ever go missing.
 const TAIL_KEEP_MS = 1000;
+// Audio (ms) kept BEFORE the first speech-hint frame of the prepended onset
+// pre-buffer. PRE_BUFFER_MS is sized for the barge-in gap (2s), but on an
+// ordinary turn most of it is room tone we were paying the cloud to
+// transcribe; the same TAIL_RETRANSCRIBE_* bar the tail cut trusts finds where
+// speech could plausibly start, and this margin also covers Silero's trigger
+// debounce when the prefix has no hint at all. ⭐ TWEAK ME (up) if a first word
+// ever clips.
+const LEAD_KEEP_MS = 500;
 // Speculative passes allowed per utterance. Each one re-sends the WHOLE buffer
 // from utterance start and the server bills every POST, so an utterance with
 // many phrase-pauses bills superlinearly. Past the first few the preview has
@@ -207,6 +215,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // (TAIL_RETRANSCRIBE_* bar). The trailing quiet past it is trimmed off the
     // billed payload - see TAIL_KEEP_MS and submitPayload().
     private lastHintChunk = 0;
+    // How many of chunks' leading frames came from the onset pre-buffer,
+    // recorded when speech starts. Only that prefix is scanned for the leading
+    // quiet cut (LEAD_KEEP_MS) - everything after it is VAD-vetted.
+    private prependedPreFrames = 0;
     // Barge-in detection on the continuous (echo-cancelled) idle stream.
     private bargeInHandler: (() => void) | null = null;
     private bargeInChunks = 0;
@@ -329,17 +341,45 @@ export class WhisperPcmSttEngine implements SttEngine {
     }
 
     /**
-     * The utterance's frames with the trailing silence cut (TAIL_KEEP_MS). The
-     * buffer itself is never mutated: a reopened utterance (rcdz) has to stay
-     * contiguous, and the tail we drop from the payload is exactly the tail the
+     * The utterance's frames with the leading and trailing quiet cut. Tail:
+     * everything past the last speech-hint chunk + TAIL_KEEP_MS. Lead: the
+     * prepended pre-buffer keeps only LEAD_KEEP_MS before its first
+     * speech-hint frame (energy only - Silero probs aren't retained for the
+     * prefix, but leading room tone vs speech is the easy case). The buffer
+     * itself is never mutated: a reopened utterance (rcdz) has to stay
+     * contiguous, and the quiet we drop from the payload is exactly what the
      * next pass would want back if the user turns out to still be speaking.
      */
     private submitPayload(): readonly Float32Array[] {
         const rate = this.context?.sampleRate;
-        if (!rate || this.lastHintChunk <= 0) return this.chunks;
-        const keepFrames = Math.ceil(((TAIL_KEEP_MS / 1000) * rate) / FRAME_SIZE);
-        const keep = this.lastHintChunk + keepFrames;
-        return keep >= this.chunks.length ? this.chunks : this.chunks.slice(0, keep);
+        if (!rate) return this.chunks;
+        let end = this.chunks.length;
+        if (this.lastHintChunk > 0) {
+            const keepFrames = Math.ceil(((TAIL_KEEP_MS / 1000) * rate) / FRAME_SIZE);
+            end = Math.min(end, this.lastHintChunk + keepFrames);
+        }
+        let start = 0;
+        const prefix = Math.min(this.prependedPreFrames, end);
+        if (prefix > 0) {
+            const leadKeep = Math.ceil(((LEAD_KEEP_MS / 1000) * rate) / FRAME_SIZE);
+            // No hint anywhere in the prefix: speech began right where the VAD
+            // tripped (prefix end), so keep only the onset margin before it.
+            let firstHint = prefix;
+            for (let i = 0; i < prefix; i++) {
+                if (frameRms(this.chunks[i]!) >= TAIL_RETRANSCRIBE_ENERGY) {
+                    firstHint = i;
+                    break;
+                }
+            }
+            start = Math.max(0, firstHint - leadKeep);
+        }
+        if (start === 0 && end >= this.chunks.length) return this.chunks;
+        const secs = (frames: number) => ((frames * FRAME_SIZE) / rate).toFixed(1);
+        console.info(
+            `[stt-cost] trim lead=${secs(start)}s tail=${secs(this.chunks.length - end)}s ` +
+                `payload=${secs(end - start)}s of ${secs(this.chunks.length)}s buffered`
+        );
+        return this.chunks.slice(start, end);
     }
 
     /** Per-frame speech decision. With the model up: Silero's debounced
@@ -363,9 +403,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (this.stopRequested) return;
         const data = e.inputBuffer.getChannelData(0);
         const frame = new Float32Array(data);
-        let sum = 0;
-        for (let i = 0; i < frame.length; i++) sum += frame[i]! * frame[i]!;
-        const energy = Math.sqrt(sum / frame.length);
+        const energy = frameRms(frame);
         const now = performance.now();
 
         this.levelListener?.(energy);
@@ -471,6 +509,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 this.speechStartMs = now;
                 // Prepend the retained onset ramp, then clear it.
                 for (const f of this.preBuffer) this.chunks.push(f);
+                this.prependedPreFrames = this.preBuffer.length;
                 this.preBuffer.length = 0;
             }
             this.lastSpeechMs = now;
@@ -778,6 +817,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.peakEnergy = 0;
         this.energyHistory = [];
         this.lastHintChunk = 0;
+        this.prependedPreFrames = 0;
         this.partialIncomplete = false;
         this.specInFlight = false;
         // Re-arm barge-in for the next idle period.
@@ -786,9 +826,12 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.capturing = true;
 
         // Transcribe a snapshot of captured frames - used by both the
-        // speculative interim passes and the final submission.
+        // speculative interim passes and the final submission. `label` feeds
+        // the [stt-cost] telemetry: every POST here is billed cloud seconds,
+        // and spec-vs-final is invisible server-side.
         const transcribeChunks = async (
-            frames: readonly Float32Array[]
+            frames: readonly Float32Array[],
+            label: 'spec' | 'final'
         ): Promise<
             { ok: true; text: string; seconds: number } | { ok: false; error: unknown }
         > => {
@@ -801,6 +844,14 @@ export class WhisperPcmSttEngine implements SttEngine {
             // before any frame accumulates (or just after a barge-in clears
             // them); POSTing an empty body just earns a 400 from the endpoint.
             if (downsampled.length === 0) return { ok: true, text: '', seconds: 0 };
+            // Int16 on the wire (format=i16): both endpoints re-encode to
+            // 16-bit for their backends anyway, so the extra Float32 precision
+            // was discarded server-side - this halves the upload for free.
+            const pcm16 = new Int16Array(downsampled.length);
+            for (let i = 0; i < downsampled.length; i++) {
+                const s = Math.max(-1, Math.min(1, downsampled[i]!));
+                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
             try {
                 // Tag with the session group when one is active (cloud cost
                 // report). The desktop STT ignores it.
@@ -822,14 +873,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                         if (token) headers['authorization'] = `Bearer ${token}`;
                     }
                     return this.opts.fetchImpl(
-                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}${sessionParam}${modelParam}${cloudModelParam}`,
+                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${sessionParam}${modelParam}${cloudModelParam}`,
                         {
                             method: 'POST',
                             headers,
-                            body: downsampled.buffer.slice(
-                                downsampled.byteOffset,
-                                downsampled.byteOffset + downsampled.byteLength
-                            ) as ArrayBuffer,
+                            body: pcm16.buffer as ArrayBuffer,
                         }
                     );
                 };
@@ -857,10 +905,12 @@ export class WhisperPcmSttEngine implements SttEngine {
                 }
                 const data = (await response.json()) as { text?: string; error?: string };
                 if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
+                const seconds = downsampled.length / TARGET_SAMPLE_RATE;
+                console.info(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
                 return {
                     ok: true,
                     text: (data.text ?? '').trim(),
-                    seconds: downsampled.length / TARGET_SAMPLE_RATE,
+                    seconds,
                 };
             } catch (err) {
                 return { ok: false, error: err };
@@ -913,7 +963,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                         specPasses += 1;
                         lastSpecSpeechMs = this.lastSpeechMs;
                         lastSpecAt = performance.now();
-                        const result = await transcribeChunks(this.chunks.slice());
+                        // submitPayload, not the raw buffer: the leading
+                        // pre-buffer quiet bills on every spec pass too, and
+                        // at spec time (750ms pause < TAIL_KEEP_MS) the tail
+                        // cut keeps everything, so this is purely a lead trim.
+                        const result = await transcribeChunks(this.submitPayload(), 'spec');
                         this.specInFlight = false;
                         // Drop the preview if the turn ended while it was in flight
                         // (the final pass will emit the authoritative text).
@@ -964,10 +1018,13 @@ export class WhisperPcmSttEngine implements SttEngine {
                             t > lastSpecAt &&
                             (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
                     );
-                const result: Awaited<ReturnType<typeof transcribeChunks>> =
-                    lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints
-                        ? { ok: true as const, text: lastSpecResult.text, seconds: lastSpecResult.seconds }
-                        : await transcribeChunks(this.submitPayload());
+                let result: Awaited<ReturnType<typeof transcribeChunks>>;
+                if (lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints) {
+                    console.info('[stt-cost] final reused the speculative transcript - 0s billed');
+                    result = { ok: true, text: lastSpecResult.text, seconds: lastSpecResult.seconds };
+                } else {
+                    result = await transcribeChunks(this.submitPayload(), 'final');
+                }
                 if (tailHasSpeechHints && lastSpecResult) {
                     console.info('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
                 }
@@ -1064,6 +1121,12 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.stream = null;
         }
     }
+}
+
+function frameRms(frame: Float32Array): number {
+    let sum = 0;
+    for (let i = 0; i < frame.length; i++) sum += frame[i]! * frame[i]!;
+    return Math.sqrt(sum / frame.length);
 }
 
 function concatFloat32(chunks: Float32Array[]): Float32Array {

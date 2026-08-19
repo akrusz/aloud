@@ -8,7 +8,8 @@
 //! rebinding/localhost-fetching websites can't drive it either.
 //!
 //! Whisper STT (`POST /app/v1/stt/whisper`) runs on whisper.cpp via whisper-rs:
-//! raw little-endian f32 mono PCM in the body plus a `?sample_rate=` query,
+//! raw little-endian mono PCM in the body (i16 with `?format=i16`, f32
+//! otherwise) plus a `?sample_rate=` query,
 //! returning `{text,language,duration}`, or 503 while the model is loading.
 
 use std::path::{Path, PathBuf};
@@ -645,10 +646,13 @@ struct SttQuery {
     /// 2-letter language (Settings). Picks .en vs multilingual model files and
     /// steers transcription.
     lang: Option<String>,
+    /// PCM wire format: "i16" (current clients; half the bytes) or absent/"f32"
+    /// (older clients).
+    format: Option<String>,
 }
 
-/// Transcribe raw f32 mono PCM. Body and response match the
-/// CloudWhisperSttEngine adapter.
+/// Transcribe raw mono PCM (i16 or f32 per `format`). Body and response match
+/// the CloudWhisperSttEngine adapter.
 async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
@@ -688,17 +692,23 @@ async fn stt_whisper(
     if body.is_empty() {
         return err(StatusCode::BAD_REQUEST, "Empty request body.");
     }
-    if body.len() % 4 != 0 {
+    let is_i16 = q.format.as_deref() == Some("i16");
+    if body.len() % (if is_i16 { 2 } else { 4 }) != 0 {
         return err(
             StatusCode::BAD_REQUEST,
-            "Body length not aligned to float32 frames.",
+            "Body length not aligned to PCM frames.",
         );
     }
 
-    let samples: Vec<f32> = body
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-        .collect();
+    let samples: Vec<f32> = if is_i16 {
+        body.chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0)
+            .collect()
+    } else {
+        body.chunks_exact(4)
+            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+            .collect()
+    };
     if samples.is_empty() {
         return (StatusCode::OK, Json(json!({ "text": "" })));
     }

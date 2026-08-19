@@ -18,6 +18,14 @@ export interface SttBackend {
     model: string;
 }
 
+/** Widen Int16 PCM to the Float32 [-1, 1] the rest of the pipeline speaks.
+ *  (encodeWav narrows it right back; the round trip is within 1 LSB.) */
+export function int16ToFloat32(samples: Int16Array): Float32Array {
+    const out = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) out[i] = samples[i]! / 0x8000;
+    return out;
+}
+
 /** Encode mono Float32 PCM in [-1, 1] as a 16-bit little-endian WAV. */
 export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array {
     const dataBytes = samples.length * 2;

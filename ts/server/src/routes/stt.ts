@@ -1,6 +1,7 @@
 /**
- * POST /v1/stt, metered speech-to-text. Body is raw mono Float32 PCM, sample
- * rate in the `sample_rate` query param. Forwards to the configured Whisper
+ * POST /v1/stt, metered speech-to-text. Body is raw mono PCM - Int16 with
+ * `format=i16` (current clients; half the bytes of the same audio), Float32
+ * otherwise (older clients) - sample rate in the `sample_rate` query param. Forwards to the configured Whisper
  * backend (OpenAI by default, Groq/custom via env; config.ts resolveSttConfig),
  * debits fractional credits by audio duration, returns the transcript.
  *
@@ -18,7 +19,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
-import { transcribeWhisper } from '../providers/stt.js';
+import { int16ToFloat32, transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
 
 /** Sample rates a client legitimately records at (mic captures + the common
@@ -58,11 +59,19 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
         const model = requestedModel || stt.model;
 
-        const raw = await c.req.arrayBuffer();
-        if (raw.byteLength === 0 || raw.byteLength % 4 !== 0) {
-            return c.json(apiError('bad_request', 'body must be non-empty Float32 PCM'), ERROR_STATUS.bad_request);
+        // Wire format: i16 halves the upload; f32 is the legacy default so old
+        // clients keep working. Bytes-per-sample keys BOTH the alignment check
+        // and the billed duration, so an unknown value is a 400, not a guess.
+        const format = c.req.query('format') ?? 'f32';
+        if (format !== 'f32' && format !== 'i16') {
+            return c.json(apiError('bad_request', 'unknown pcm format'), ERROR_STATUS.bad_request);
         }
-        const samples = new Float32Array(raw);
+        const raw = await c.req.arrayBuffer();
+        const bytesPerSample = format === 'i16' ? 2 : 4;
+        if (raw.byteLength === 0 || raw.byteLength % bytesPerSample !== 0) {
+            return c.json(apiError('bad_request', 'body must be non-empty PCM'), ERROR_STATUS.bad_request);
+        }
+        const samples = format === 'i16' ? int16ToFloat32(new Int16Array(raw)) : new Float32Array(raw);
         const seconds = samples.length / sampleRate;
 
         // A retreat pass (meditation-pal-414) covers this leg: transcribe with

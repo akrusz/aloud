@@ -473,7 +473,7 @@ export async function mountSetupView(
         }
         el.classList.remove('hidden');
         setCloudUi(true);
-        const rate = `≈ ${rateBadge(total)}/hr`;
+        const rate = `≈${rateBadge(total)}/hr`;
         el.title = util > 0
             ? 'Rough estimate. Includes a small background model for summaries and quick decisions, so it can sit above the badges combined.'
             : 'Rough estimate; varies with how much is said.';

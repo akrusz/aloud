@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { loadConfig, resolveSttConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import { encodeWav } from '../src/providers/stt.js';
+import { encodeWav, int16ToFloat32 } from '../src/providers/stt.js';
 import type { AuthResponse, TranscribeResponse } from '../src/contract.js';
 
 // Stub global fetch so the route's STT call never hits the network. Returns a
@@ -43,6 +43,11 @@ function pcmBody(seconds: number, rate = 16_000): ArrayBuffer {
     return new Float32Array(Math.round(seconds * rate)).buffer;
 }
 
+/** The same silence as Int16 bytes (the format=i16 wire current clients send). */
+function pcm16Body(seconds: number, rate = 16_000): ArrayBuffer {
+    return new Int16Array(Math.round(seconds * rate)).buffer;
+}
+
 describe('encodeWav', () => {
     it('writes a 44-byte RIFF/WAVE header and 16-bit samples', () => {
         const wav = encodeWav(new Float32Array([0, 1, -1]), 16_000);
@@ -54,6 +59,16 @@ describe('encodeWav', () => {
         expect(wav.length).toBe(44 + 3 * 2);
         expect(dv.getInt16(44 + 2, true)).toBe(0x7fff); // +1.0 → max
         expect(dv.getInt16(44 + 4, true)).toBe(-0x8000); // -1.0 → min
+    });
+});
+
+describe('int16ToFloat32', () => {
+    it('maps the i16 range onto [-1, 1)', () => {
+        const out = int16ToFloat32(new Int16Array([0, 0x7fff, -0x8000, 0x4000]));
+        expect(out[0]).toBe(0);
+        expect(out[1]!).toBeCloseTo(1, 3);
+        expect(out[2]).toBe(-1);
+        expect(out[3]).toBe(0.5);
     });
 });
 
@@ -135,6 +150,45 @@ describe('POST /cloud/v1/stt', () => {
         // At cost: 10 s × $0.36/3600 / $0.05 per credit = 0.02 — fractional, tiny.
         expect(body.creditsCharged).toBeCloseTo((10 * 0.36) / 3600 / 0.05, 6);
         expect(body.creditsRemaining).toBeCloseTo(20 - body.creditsCharged, 6);
+    });
+
+    it('accepts format=i16 and bills the same duration as the f32 equivalent', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i16', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcm16Body(10),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(body.text).toBe('hello world');
+        // Half the bytes of the f32 body, identical billed seconds.
+        expect(body.creditsCharged).toBeCloseTo((10 * 0.36) / 3600 / 0.05, 6);
+    });
+
+    it('rejects an unknown format (it keys alignment and billed duration)', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i32', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+            body: pcm16Body(1),
+        });
+        expect(res.status).toBe(400);
+        expect(sttCalls).toHaveLength(0);
+    });
+
+    it('rejects an i16 body misaligned to 2 bytes', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i16', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+            body: new Uint8Array([1, 2, 3]).buffer,
+        });
+        expect(res.status).toBe(400);
+        expect(sttCalls).toHaveLength(0);
     });
 
     it("honors ?model=gpt-transcribe: forwards it upstream and bills that model's cost", async () => {
