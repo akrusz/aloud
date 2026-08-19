@@ -144,11 +144,9 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     }))
 }
 
-/// The error string of a failed (non-zero exit) CLI run. Usually stderr - but
-/// with `--output-format json` the CLI reports usage limits, expired OAuth
-/// tokens, and API errors as a JSON `result` on STDOUT and exits 1 with
-/// stderr empty, which used to reach the user as "claude CLI failed (exit
-/// status: 1):" with nothing after the colon (Robin's 2.6.3 report).
+/// Error string of a failed CLI run: stderr, or when that's empty (with
+/// `--output-format json` the CLI puts usage-limit/auth/API errors in a JSON
+/// `result` on stdout) the stdout result.
 fn cli_failure_detail(output: &std::process::Output) -> String {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stderr = stderr.trim();

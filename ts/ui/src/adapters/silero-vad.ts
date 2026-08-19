@@ -179,12 +179,10 @@ export class SileroFrameVad {
         const res = await fetch(modelUrl);
         if (!res.ok) throw new Error(`Silero model fetch failed: ${res.status}`);
         const modelBytes = await res.arrayBuffer();
-        // Graph optimization stays DISABLED: ort-web's optimizer is where the
-        // 6z11 webview failures live ("graph output does not exist" at create
-        // on one machine, "Could not find OrtValue with name 'input'" at run -
-        // sometimes only mid-stream, past any probe - on another), and on this
-        // model it buys nothing: benchmarked at 0.16ms/chunk either way
-        // (budget ~32ms), with create 6ms unoptimized vs 114ms optimized.
+        // Graph optimization DISABLED: ort-web's optimizer is where the 6z11
+        // webview failures live (at create on some machines, mid-stream past
+        // any probe on others) and benchmarks show it buys nothing on this
+        // model. Details in assets/README.md.
         const runner = await probedRunner(ort, modelBytes, {
             graphOptimizationLevel: 'disabled',
             logSeverityLevel: SEVERITY_ERROR,
