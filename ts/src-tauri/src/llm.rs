@@ -108,10 +108,9 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     };
 
     if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
         return Err(ProxyError::new(
             500,
-            format!("claude CLI failed (exit {}): {}", output.status, err.trim()),
+            format!("claude CLI failed ({}): {}", output.status, cli_failure_detail(&output)),
         ));
     }
 
@@ -143,6 +142,27 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
         "finish_reason": finish_reason,
         "tokens_used": tokens_used,
     }))
+}
+
+/// The error string of a failed (non-zero exit) CLI run. Usually stderr - but
+/// with `--output-format json` the CLI reports usage limits, expired OAuth
+/// tokens, and API errors as a JSON `result` on STDOUT and exits 1 with
+/// stderr empty, which used to reach the user as "claude CLI failed (exit
+/// status: 1):" with nothing after the colon (Robin's 2.6.3 report).
+fn cli_failure_detail(output: &std::process::Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = stderr.trim();
+    if !stderr.is_empty() {
+        return stderr.to_string();
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = stdout.trim();
+    if let Ok(v) = serde_json::from_str::<Value>(stdout) {
+        if let Some(result) = v.get("result").and_then(Value::as_str) {
+            return result.to_string();
+        }
+    }
+    stdout.chars().take(400).collect()
 }
 
 /// Encode multi-turn history as the single prompt string the `claude` CLI
@@ -265,7 +285,7 @@ async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
         }
         return ProbeStatus::Available;
     }
-    classify_probe_detail(&String::from_utf8_lossy(&output.stderr))
+    classify_probe_detail(&cli_failure_detail(&output))
 }
 
 /// Map a CLI error string to a verdict. Only a clear model-availability signal
@@ -373,6 +393,40 @@ mod tests {
             msg("user", "more"),
         ]);
         assert_eq!(h, "User: hi\n\nAssistant: hello\n\nUser: more");
+    }
+
+    #[cfg(unix)]
+    fn failed_output(stdout: &str, stderr: &str) -> std::process::Output {
+        use std::os::unix::process::ExitStatusExt;
+        std::process::Output {
+            status: std::process::ExitStatus::from_raw(256), // exit code 1
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: stderr.as_bytes().to_vec(),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_failure_detail_prefers_stderr() {
+        let out = failed_output("{\"result\": \"ignored\"}", "spawn error\n");
+        assert_eq!(cli_failure_detail(&out), "spawn error");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_failure_detail_reads_json_result_from_stdout() {
+        let out = failed_output(
+            "{\"is_error\": true, \"result\": \"Claude usage limit reached\"}",
+            "",
+        );
+        assert_eq!(cli_failure_detail(&out), "Claude usage limit reached");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_failure_detail_falls_back_to_raw_stdout() {
+        let out = failed_output("not json at all", "  ");
+        assert_eq!(cli_failure_detail(&out), "not json at all");
     }
 
     /// Real `claude` CLI round-trip. Needs the authenticated CLI and spends
