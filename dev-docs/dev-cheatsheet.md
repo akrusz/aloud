@@ -182,6 +182,10 @@ cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips ar
 
 # Model evals (by hand, NOT in CI - real API calls; see ts/evals/README.md)
 cd ts && npx tsx evals/protocol-eval.ts
+
+# Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
+# sessions; see dev-docs/soak-harness.md). Run before a release.
+npm run soak                          # all scenarios; report in ts/soak-runs/
 ```
 
 ## Building & releasing

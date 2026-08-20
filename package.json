@@ -11,6 +11,7 @@
     "ui:build": "npm --prefix ts run ui:build",
     "web:dev": "npm --prefix ts run web:dev",
     "tauri:dev": "npm --prefix ts run tauri:dev",
-    "server:dev": "npm --prefix ts/server run dev"
+    "server:dev": "npm --prefix ts/server run dev",
+    "soak": "npm --prefix ts run soak"
   }
 }

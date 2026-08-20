@@ -18,10 +18,11 @@
     "scripts": {
         "postinstall": "patch-package",
         "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p ui/tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p ui/tsconfig.json && tsc --noEmit -p soak/tsconfig.json",
         "test": "vitest run",
         "test:watch": "vitest",
         "cli": "tsx src/cli.ts",
+        "soak": "tsx soak/run.ts",
         "ui:dev": "vite --config ui/vite.config.ts",
         "ui:build": "vite build --config ui/vite.config.ts",
         "ui:build:hosted": "ALOUD_HOSTED=1 vite build --config ui/vite.config.ts",

@@ -12,3 +12,6 @@ coverage/
 # `cap sync` updates them without churn. Regenerate ONLY with
 # `--packagemanager CocoaPods` on iOS (SPM drops the STT plugin) — see
 # dev-docs/mobile.md.
+
+# Soak-harness run output (npm run soak)
+soak-runs/

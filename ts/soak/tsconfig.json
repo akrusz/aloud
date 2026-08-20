@@ -1,0 +1,12 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        // Typecheck only; tsx runs the source directly. rootDir dropped so the
+        // harness typechecks alongside the core it imports (as ui/tsconfig).
+        "noEmit": true,
+        "rootDir": "..",
+        "types": ["node"]
+    },
+    "include": ["./**/*", "../src/**/*"],
+    "exclude": ["node_modules"]
+}
