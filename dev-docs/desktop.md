@@ -69,7 +69,8 @@ Endpoints (served at `/app/v1/*`):
 - ✅ `/app/v1/system-info` - platform + tool availability (`which`).
 - ✅ `/app/v1/stt/whisper` - local Whisper via `whisper-rs` (whisper.cpp). The
   request's `model_size`/`lang` params pick the model file (see first-run notes
-  above).
+  above). Body is raw mono PCM: Int16 with `?format=i16` (what current clients
+  send - half the bytes), Float32 otherwise.
 - ✅ `/app/v1/stt/whisper/warm` - the session-start probe: GET with the
   session's `model_size`/`lang` proves the route exists (web Hono 404s) and
   starts loading that model during setup, so the first utterance never 503s.

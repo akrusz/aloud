@@ -21,7 +21,9 @@ Smoke-test a running instance:
 
 ```bash
 curl localhost:8787/health                # {"ok":true,"providers":[...],"billing":bool}
-curl localhost:8787/cloud/v1/me/models    # public: models, per-token cost, usdPerCredit, packMarkup
+curl localhost:8787/cloud/v1/me/models    # public: models, per-token cost, usdPerCredit, packMarkup,
+                                          #   plus the sttCreditsPerHour / utilityCreditsPerHour legs
+                                          #   the setup footer composes with a model's rate
 curl localhost:8787/cloud/v1/me/estimates # public: credit-use bands per model/STT/voice
 curl localhost:8787/cloud/v1/me/packs     # public: credit packs for sale
 ```
@@ -63,7 +65,7 @@ load logic is `loadConfig` in `config.ts`.
 | `APPLE_CLIENT_IDS` | Apple sign-in | comma-sep Services ID (web) / bundle id (native); empty disables Apple. Email/password needs no config (meditation-pal-s75) |
 | `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client |
 | `GEMINI_API_KEY` | value-tier LLM (Gemini direct) | Google AI Studio key; powers `gemini-2.5-flash-lite` without OpenRouter's fee |
-| `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/cloud/v1/stt` (Whisper; `gpt-4o-transcribe`, ≈ $0.36/hr), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
+| `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/cloud/v1/stt` (Whisper; server default `gpt-4o-transcribe`, ≈ $0.36/hr - though the app's "aloud cloud" STT choice now asks for the cheaper `gpt-transcribe` per call), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup - once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
@@ -169,7 +171,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods). Also clears the email-updates opt-in with the scrubbed address |
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
-| `POST /cloud/v1/stt` | session | metered STT: raw PCM body → Whisper (OpenAI by default) → transcript; debits by duration |
+| `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
 | `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
@@ -178,7 +180,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
 | `GET /cloud/v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
 | `GET /cloud/v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
-| `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&minTurns=&excludeAdmin=1`) |
+| `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together) |
 | `GET /cloud/v1/admin/usage/history` | admin | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
 | `GET /cloud/v1/admin/usage/provider-daily` | admin | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
 | `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |

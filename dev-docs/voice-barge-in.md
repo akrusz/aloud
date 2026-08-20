@@ -115,6 +115,7 @@ and no watchdog/cooldown machinery is needed.
 | `ECHO_GATE_MARGIN` | 2.0 | `whisper-pcm-stt.ts` | Multiplier on the measured echo floor while TTS is audible |
 | `ECHO_GATE_MAX` | 0.035 | `whisper-pcm-stt.ts` | Cap on that gate, kept below real-speech level |
 | `PRE_BUFFER_MS` | 2000 | `whisper-pcm-stt.ts` | Onset retained so a barge-in's first word survives |
+| `LEAD_KEEP_MS` | 500 | `whisper-pcm-stt.ts` | How much of that onset survives the pre-POST quiet trim (`submitPayload`), so the retained ramp isn't billed as room tone. Raise if a first word ever clips |
 
 ## Key files
 

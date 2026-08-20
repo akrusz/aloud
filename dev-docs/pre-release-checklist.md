@@ -62,8 +62,15 @@ check each of these still reflects reality:
 - **`ts/server/.env.example`** - comments describing config keys and defaults.
 - **`THIRD-PARTY-NOTICES.md`** - if a vendored asset or bundled third-party
   component was added, removed, or upgraded.
-- **Icons / assets** - `ts/ui/public/aloud.png` (web favicon), `assets/app-icon*.svg`,
-  `aloud.icns/.ico/.png` if the orb/branding changed.
+- **Icons / assets** - `assets/app-icon*.svg` (each has a `-small` sibling; keep
+  the pair in sync) and every raster off them. The rasters are **generated**:
+  `cd ts && npx tauri icon ../assets/app-icon.svg`, then
+  `scripts/generate-app-icons.sh` (`.icns`/`.ico`/`.png`, the Play + iOS store
+  icons, the Android launcher set, and the sub-512px Tauri renders).
+  **Four favicon copies are NOT covered by that script and are hand-copied**:
+  `ts/ui/public/aloud.png` + `ts/ui/public/favicon.ico` (the app's favicon /
+  apple-touch icon) and `docs/assets/aloud.png` + `docs/favicon.ico` (the
+  site's). Check their dates against `assets/aloud.png` after any icon change.
 
 ## Part B - change → consequence matrix
 
@@ -83,6 +90,11 @@ check each of these still reflects reality:
   that quotes the value.
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
+- **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a
+  model's rates, a new metered leg) → the ☁️ badges and the setup footer's
+  session pill, the "what are ☁️?" explainer (`ui/src/clouds-explainer.ts`),
+  the rate caveats in `ui/src/credit-rate.ts`, and any doc or site copy quoting
+  a per-hour figure.
 
 ## Part C - keep this list current
 

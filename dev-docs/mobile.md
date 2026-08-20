@@ -216,8 +216,9 @@ device/simulator and are tracked separately:
   to cloud. Full manual-validation matrix (buckets, test cases, default-by-
   category-and-cost logic) in
   [mobile-device-validation.md](mobile-device-validation.md). Beads `0ao`
-  (STT), `g0ox` (TTS). If native cuts off, the cloud fallbacks (`aloud` STT /
-  cloud voices) already work on mobile.
+  (STT), `g0ox` (TTS). If native cuts off, the cloud fallbacks
+  (`aloud-gpt-transcribe` STT - the choice labelled "aloud cloud" - / cloud
+  voices) already work on mobile.
 - **Keep-awake** actually holding the screen on across a full session.
 - **Native Google/Apple sign-in** - app-side is wired (`native-signin.ts`);
   needs the Google/Apple console setup + build-time client ids above, then a
