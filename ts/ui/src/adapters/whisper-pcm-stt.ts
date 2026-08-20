@@ -39,6 +39,19 @@ const TRANSCRIBE_TIMEOUT_MS = 45_000;
 // preview). 750 (not 500) trims false trips on between-phrase breaths while
 // staying well inside the 3s+ submit window (pacing silenceBaseMs).
 const SPECULATIVE_SILENCE_MS = 750;
+// Past this much buffered audio, a speculative pass waits until the adaptive
+// submit window is nearly closed (needed - SPEC_TERMINAL_LEAD_MS) instead of
+// firing at 750ms. Every pass re-sends the whole buffer, so on a long rambling
+// turn the early trigger transcribed the opening once per phrase-pause -
+// measured at 76% of a session's STT spend (2.85x speech). Mid-thought pauses
+// rarely outlast the late trigger, so passes land mostly on the TERMINAL
+// pause, where the final reuses them: near-1x billing AND the transcription
+// overlaps the silence window. The preview just arrives later on long turns.
+const SPEC_EARLY_MAX_BUFFER_MS = 12_000;
+// How far before the submit decision the late pass fires. Big enough for the
+// round-trip to finish first (specInFlight holds the submit anyway, and the
+// dangling verdict must land before the window closes).
+const SPEC_TERMINAL_LEAD_MS = 1500;
 // ⭐ TWEAK ME if a barge-in clips the first word(s): pre-speech audio (ms) kept
 // so a word's onset survives, covering the gap between speaking over the
 // facilitator and barge-in flipping capture on. Bigger = more onset captured
@@ -110,12 +123,17 @@ const TAIL_KEEP_MS = 1000;
 // debounce when the prefix has no hint at all. ⭐ TWEAK ME (up) if a first word
 // ever clips.
 const LEAD_KEEP_MS = 500;
-// Speculative passes allowed per utterance. Each one re-sends the WHOLE buffer
-// from utterance start and the server bills every POST, so an utterance with
-// many phrase-pauses bills superlinearly. Past the first few the preview has
-// served its purpose (the user has seen their words land); the final pass still
-// transcribes everything.
-const MAX_SPECULATIVE_PASSES = 3;
+// Speculative passes allowed per utterance. Each one re-sends the (trimmed)
+// buffer from utterance start and the server bills every POST, so an utterance
+// with many phrase-pauses bills superlinearly - this caps the worst case. But
+// a pass during the utterance's LAST pause is roughly free: the final submit
+// reuses its transcript instead of re-transcribing, so that pass costs what
+// the final would have and overlaps the silence window instead of following
+// it. A cap the mid-turn pauses exhaust therefore pushes a long turn's whole
+// transcription AFTER submit (measured: ~20s payloads transcribed while the
+// user waits) and leaves a stale dangling-clause verdict extending the window.
+// 6 keeps the runaway guard while making exhaustion rare in real turns.
+const MAX_SPECULATIVE_PASSES = 6;
 
 /** The subset of PacingConfig fields the VAD here cares about. */
 type VadFields = Pick<
@@ -514,6 +532,13 @@ export class WhisperPcmSttEngine implements SttEngine {
             }
             this.lastSpeechMs = now;
             this.peakEnergy = Math.max(this.peakEnergy, energy);
+            // A dangling-clause verdict describes the transcript as of its spec
+            // pass; new speech supersedes it. Without this, a turn that spends
+            // its spec passes early carries a STALE dangling=true into its real
+            // ending and waits INCOMPLETE_CLAUSE_EXTRA_MS over dead silence
+            // (measured: 9s needed against an 8s-quiet tail). The next spec
+            // pass re-evaluates on the fresh transcript.
+            this.partialIncomplete = false;
             this.keepChunk(frame, energy);
         } else if (this.speechStarted) {
             this.keepChunk(frame, energy);
@@ -907,6 +932,12 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
                 const seconds = downsampled.length / TARGET_SAMPLE_RATE;
                 console.info(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
+                // Provenance for transcript anomalies (local console only): a
+                // user turn with no matching [stt-text] line did NOT come from
+                // the mic - it was injected somewhere downstream.
+                if (label === 'final') {
+                    console.info(`[stt-text] "${(data.text ?? '').trim()}"`);
+                }
                 return {
                     ok: true,
                     text: (data.text ?? '').trim(),
@@ -953,8 +984,25 @@ export class WhisperPcmSttEngine implements SttEngine {
                     if (this.utteranceDone || this.stopRequested) break;
                     if (!this.speechStarted) continue;
                     const silence = performance.now() - this.lastSpeechMs;
+                    // Late trigger on long buffers (SPEC_EARLY_MAX_BUFFER_MS):
+                    // mirror the audio callback's adaptive `needed` so the pass
+                    // fires just ahead of the submit decision.
+                    const bufferedMs = (this.chunks.length * FRAME_SIZE * 1000) / nativeRate;
+                    let specAfterMs = SPECULATIVE_SILENCE_MS;
+                    if (bufferedMs > SPEC_EARLY_MAX_BUFFER_MS) {
+                        const speechDur = this.lastSpeechMs - this.speechStartMs;
+                        const needed =
+                            Math.min(
+                                this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
+                                this.opts.silenceMaxMs
+                            ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
+                        specAfterMs = Math.max(
+                            SPECULATIVE_SILENCE_MS,
+                            needed - SPEC_TERMINAL_LEAD_MS
+                        );
+                    }
                     if (
-                        silence >= SPECULATIVE_SILENCE_MS &&
+                        silence >= specAfterMs &&
                         !this.specInFlight &&
                         this.lastSpeechMs !== lastSpecSpeechMs &&
                         specPasses < MAX_SPECULATIVE_PASSES
@@ -1021,6 +1069,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 let result: Awaited<ReturnType<typeof transcribeChunks>>;
                 if (lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints) {
                     console.info('[stt-cost] final reused the speculative transcript - 0s billed');
+                    console.info(`[stt-text] "${lastSpecResult.text}"`);
                     result = { ok: true, text: lastSpecResult.text, seconds: lastSpecResult.seconds };
                 } else {
                     result = await transcribeChunks(this.submitPayload(), 'final');
