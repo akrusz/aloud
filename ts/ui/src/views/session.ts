@@ -1650,14 +1650,22 @@ export async function mountSessionView(
                 // that will never answer.
                 const swapped = await tryFallbackSubscriptionModel();
                 if (!swapped) {
-                    // A genuine stall. Apologize in the session voice (local
-                    // Piper/say, so it works offline) and toast it; the loop
-                    // resumes listening so the user can retry by speaking again.
-                    // No "Claude" in the spoken line - it's the facilitator's
-                    // voice mid-session, so keep it non-technical.
-                    const apology =
-                        "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
-                    showErrorToast(apology);
+                    // Spoken apology stays non-technical (facilitator's voice,
+                    // local TTS so it works offline); the toast names the cause
+                    // when the CLI gave an actionable one - retrying can't fix
+                    // a spent usage limit or an expired login.
+                    const limit = /usage limit|rate limit/i.test(msg);
+                    const auth = /oauth|authentication|api key|log ?in/i.test(msg);
+                    const apology = limit
+                        ? "Sorry, looks like I've hit a usage limit. Let's pick this up later."
+                        : "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
+                    showErrorToast(
+                        limit
+                            ? 'Claude subscription usage limit reached. It resets after a few hours, or pick another model in Settings.'
+                            : auth
+                              ? 'Claude sign-in expired. Run `claude` in a terminal to log in again.'
+                              : apology
+                    );
                     void tts.speak(apology, { rate: setup.ttsRate });
                 }
             } else {
