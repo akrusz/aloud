@@ -205,12 +205,18 @@ const XML_TAG_RE = /<\/?[a-z][\w.:-]*(?:\s[^<>]*?)?\/?>/gi;
  * copy re-teaches the pattern for the rest of the session.
  *
  * Deliberately narrow, since a false positive truncates a real reply mid-sit:
- * a chat delimiter, a line-start "Role:", or a bare lowercase user/assistant
- * that opens a new sentence. Only those two role words match bare - "human" and
- * "system" are ordinary meditation words ("nervous system").
+ * a chat delimiter, a line-start "Role:", or a bare LOWERCASE user/assistant
+ * after a sentence end. Only those two role words match bare - "human" and
+ * "system" are ordinary meditation words ("nervous system") - and the bare
+ * match is case-sensitive: template markers are lowercase, while prose "Users
+ * of this practice" / "The Assistant" capitalizes at a sentence start. The
+ * marker may be FUSED to its neighbors with no whitespace at all
+ * ("need?usernothing is coming up" - the Aug 2026 Opus 4.5 leak, which the old
+ * \s+-separated pattern missed and which put a fabricated meditator turn into
+ * history), so the joints are \s* with the glued residue caught by lookahead.
  */
 const ROLE_LEAK_RE =
-    /<\|[a-z_]+\|>|^[ \t]*(?:user|assistant|human|system)[ \t]*:|(?:[.!?…"']\s+|\n\s*)(user|assistant)\s+(?=["'“]?[A-Z])/im;
+    /<\|[a-z_]+\|>|^[ \t]*(?:[Uu]ser|[Aa]ssistant|[Hh]uman|[Ss]ystem)[ \t]*:|(?:[.!?…"']\s*|\n\s*|^)(user|assistant)(?:[ \t]*\n|[ \t]+(?=\S)|(?=[A-Za-z]))/m;
 
 /** Index where a role leak starts, or -1. Exported for the streaming path. */
 export function findRoleLeak(text: string): number {

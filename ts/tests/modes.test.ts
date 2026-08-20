@@ -383,6 +383,20 @@ describe('stripRoleLeak', () => {
         ['chat delimiter', 'Resting here.<|im_start|>user\nokay', 'Resting here.'],
         ['line-start label', 'Just be with it.\nAssistant: What now?', 'Just be with it.'],
         ['newline-separated bare word', 'What do you notice?\n\nuser "I feel warm"', 'What do you notice?'],
+        // The Aug 2026 Opus 4.5 leak: markers fused to their neighbors with no
+        // whitespace, which the old \s+-separated pattern let straight through
+        // into the transcript AND history.
+        [
+            'fused marker',
+            'If that twinge could answer — what does it need?usernothing is coming up.',
+            'If that twinge could answer — what does it need?',
+        ],
+        [
+            'fused marker before a capital',
+            "Yeah, so let's just be with that.assistant Yes. Just letting it be here.",
+            "Yeah, so let's just be with that.",
+        ],
+        ['marker alone on a line', 'What does it need?\nuser\nnothing is coming up', 'What does it need?'],
     ])('truncates a %s', (_name, input, want) => {
         expect(stripRoleLeak(input)).toBe(want);
     });
