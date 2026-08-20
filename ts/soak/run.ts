@@ -24,6 +24,7 @@ import { runChecks } from './checks.js';
 import { judgeSession } from './judge.js';
 import { getScenarios, SCENARIOS } from './scenarios.js';
 import { writeRunReports, type RunMeta } from './report.js';
+import type { LLMProvider } from '../src/llm/index.js';
 import type { Scenario, SessionReport } from './types.js';
 
 const DEFAULTS = {
@@ -36,6 +37,7 @@ const DEFAULTS = {
 interface Job {
     scenario: Scenario;
     runIndex: number;
+    facilitator: { spec: string; provider: LLMProvider };
 }
 
 async function pool<T>(jobs: (() => Promise<T>)[], size: number): Promise<T[]> {
@@ -76,7 +78,8 @@ async function main(): Promise<void> {
 Options:
   --scenarios=<a,b|all>   which scenarios to run (default: all; see --list)
   --sessions=<n>          runs per scenario (default: 1)
-  --facilitator=<spec>    provider[:model] under test (default: ${DEFAULTS.facilitator})
+  --facilitator=<a,b>     provider[:model] under test; a comma list compares
+                          models head-to-head (default: ${DEFAULTS.facilitator})
   --user=<spec>           simulated meditator (default: ${DEFAULTS.user})
   --utility=<spec>        silence classifiers (default: ${DEFAULTS.utility})
   --judge=<spec>          judge model (default: ${DEFAULTS.judge}); --no-judge to skip
@@ -100,7 +103,8 @@ Options:
     const concurrency = Math.max(1, Number.parseInt(values.concurrency ?? '2', 10) || 1);
     const judgeSpec = values['no-judge'] ? null : (values.judge as string);
 
-    const facilitator = buildProviderFromSpec(values.facilitator as string);
+    const facilitatorSpecs = (values.facilitator as string).split(',').map((f) => f.trim()).filter(Boolean);
+    const facilitators = facilitatorSpecs.map((spec) => ({ spec, provider: buildProviderFromSpec(spec) }));
     const utility = buildProviderFromSpec(values.utility as string);
     const userProvider = buildProviderFromSpec(values.user as string);
     const judgeProvider = judgeSpec ? buildProviderFromSpec(judgeSpec) : null;
@@ -114,23 +118,28 @@ Options:
             startedAt.toISOString().replace(/[:.]/g, '-').slice(0, 19)
         );
 
-    const jobs: Job[] = scenarios.flatMap((scenario) =>
-        Array.from({ length: sessions }, (_, runIndex) => ({ scenario, runIndex }))
+    const jobs: Job[] = facilitators.flatMap((facilitator) =>
+        scenarios.flatMap((scenario) =>
+            Array.from({ length: sessions }, (_, runIndex) => ({ scenario, runIndex, facilitator }))
+        )
     );
     console.log(
-        `Soak: ${jobs.length} session(s) across ${scenarios.length} scenario(s), facilitator ${facilitator.model}, concurrency ${concurrency}.\nOutput: ${outDir}\n`
+        `Soak: ${jobs.length} session(s) across ${scenarios.length} scenario(s), facilitator${facilitators.length > 1 ? 's' : ''} ${facilitators.map((f) => f.provider.model).join(' vs ')}, concurrency ${concurrency}.\nOutput: ${outDir}\n`
     );
 
     const t0 = Date.now();
     const reports = await pool<SessionReport>(
-        jobs.map(({ scenario, runIndex }) => async () => {
-            const tag = sessions > 1 ? `${scenario.id}#${runIndex + 1}` : scenario.id;
+        jobs.map(({ scenario, runIndex, facilitator }) => async () => {
+            const parts = [scenario.id];
+            if (facilitators.length > 1) parts.push(facilitator.provider.model);
+            if (sessions > 1) parts.push(`#${runIndex + 1}`);
+            const tag = parts.join(' ');
             const log = (line: string): void => console.log(`[${tag}] ${line}`);
             log(`starting (${scenario.fakeMinutes} sim min, persona ${scenario.persona.id})`);
             const result = await runSoakSession({
                 scenario,
                 runIndex,
-                facilitator,
+                facilitator: facilitator.provider,
                 utility,
                 simUser: new LlmSimUser(userProvider, scenario.persona),
                 log,
@@ -157,10 +166,10 @@ Options:
 
     const meta: RunMeta = {
         startedAt: startedAt.toISOString(),
-        facilitatorSpec: values.facilitator as string,
-        userSpec: values.user as string,
-        utilitySpec: values.utility as string,
-        judgeSpec,
+        facilitatorSpecs: facilitators.map((f) => `${f.spec} (${f.provider.model})`),
+        userSpec: `${values.user} (${userProvider.model})`,
+        utilitySpec: `${values.utility} (${utility.model})`,
+        judgeSpec: judgeSpec && judgeProvider ? `${judgeSpec} (${judgeProvider.model})` : null,
         wallClockMs: Date.now() - t0,
     };
     writeRunReports(outDir, meta, reports);

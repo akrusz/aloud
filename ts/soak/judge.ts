@@ -70,7 +70,9 @@ export function parseJudgeReply(raw: string): JudgeVerdict {
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start === -1 || end <= start) throw new Error('no JSON object in judge reply');
-    const parsed = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+    // Models drop trailing commas into otherwise-valid JSON; forgive them.
+    const jsonText = text.slice(start, end + 1).replace(/,\s*([}\]])/g, '$1');
+    const parsed = JSON.parse(jsonText) as Record<string, unknown>;
     const dims: Record<string, number | null> = {};
     const rawDims = (parsed.dimensions ?? {}) as Record<string, unknown>;
     for (const [k, v] of Object.entries(rawDims)) dims[k] = clampScore(v);

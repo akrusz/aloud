@@ -14,6 +14,8 @@ npm run soak -- --list                              # what's in the matrix
 npm run soak -- --scenarios=silence,timer-hold      # a slice
 npm run soak -- --sessions=3 --concurrency=3        # more samples per scenario
 npm run soak -- --facilitator=ollama:qwen3 --no-judge
+npm run soak -- --facilitator=anthropic,openai,groq   # model comparison: same
+                                # scenarios, same blind judge, per-model table
 ```
 
 Keys come from the environment or `ts/server/.env` (`soak/env.ts`). Defaults:
@@ -62,7 +64,13 @@ shared types breaks the build.
 in isolated probes - cheap, per-model, disqualifying. The soak harness asks
 "does a whole session hold together?" with one model in the facilitator seat.
 Run evals when choosing a model; run soak when changing the engine or prompts.
-The judge rubric here and `evals/rubric.md` should converge over time.
+`--facilitator=<a,b,c>` bridges the two: the same scenarios under each model,
+scored by the same judge (which never sees the model's name), aggregated into
+a per-model comparison table - effectively evals phase 2 with whole sessions
+instead of isolated probes. Caveats: judge scores compare within a run, not
+across judge models, and single sessions are noisy - use `--sessions=3`+ for a
+decision. The judge rubric here and `evals/rubric.md` should converge over
+time.
 
 ## Tiers 2 and 3 (beads meditation-pal-eldj.2 / .3)
 

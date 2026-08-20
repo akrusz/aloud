@@ -11,6 +11,7 @@ import type { CompletionResult, LLMProvider, Message } from '../src/llm/index.js
 import { runSoakSession } from '../soak/orchestrator.js';
 import { parseSimReply, type SimAction, type SimUser, type SimView } from '../soak/sim-user.js';
 import { runChecks } from '../soak/checks.js';
+import { parseJudgeReply } from '../soak/judge.js';
 import type { Scenario } from '../soak/types.js';
 
 function completion(text: string): CompletionResult {
@@ -95,6 +96,22 @@ describe('parseSimReply', () => {
         expect(parseSimReply('no wait line at all').waitSec).toBe(60);
         expect(parseSimReply('WAIT: 60\n*breathes deeply*\n(settles)').text).toBeNull();
         expect(parseSimReply('WAIT: 60\n"quoted speech"').text).toBe('quoted speech');
+    });
+
+    it('keeps only the first move when a model scripts ahead with inline WAITs', () => {
+        const a = parseSimReply('WAIT: 10\nYes, please. WAIT: 420 Hm, tingling. WAIT: 8 Okay, I am back.');
+        expect(a.waitSec).toBe(10);
+        expect(a.text).toBe('Yes, please.');
+    });
+});
+
+describe('parseJudgeReply', () => {
+    it('forgives trailing commas and code fences', () => {
+        const v = parseJudgeReply(
+            '```json\n{"overall": 7, "dimensions": {"tone": 8,}, "wince_moments": [], "notes": "ok",}\n```'
+        );
+        expect(v.overall).toBe(7);
+        expect(v.dimensions.tone).toBe(8);
     });
 });
 

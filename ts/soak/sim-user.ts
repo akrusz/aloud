@@ -44,12 +44,13 @@ function buildSystemPrompt(persona: Persona): string {
 Who you are this session:
 ${persona.description}${arc}
 
-Each message shows the session transcript so far. Decide your next move and answer in EXACTLY this format:
+Each message shows the session transcript so far. Decide your SINGLE next move and answer in EXACTLY this format:
 
 WAIT: <seconds>
 <what you say out loud, or leave empty to keep sitting in silence>
 
 Rules:
+- One move per answer: at most one WAIT line and one utterance. Never script several moves ahead; you will be asked again after each thing that happens.
 - WAIT is how many seconds you stay quiet before speaking (or before checking back in with the test if you say nothing). Meditation is slow: waits of 60-600 seconds are normal, and longer is fine when you're settled.
 - A spoken line must read like real transcribed speech: first person, plain words, no stage directions, no asterisks, no quotation marks around it, no describing your own actions. Only words you would actually say aloud, as one utterance.
 - Never speak as the facilitator or continue their lines.
@@ -117,9 +118,16 @@ export function parseSimReply(raw: string): SimAction {
         }
         spoken.push(line);
     }
+    // A model scripting several moves ahead ("yes WAIT: 420 hm... WAIT: 8 ok
+    // I'm back") fuses its plan into one line; keep only the first move.
+    let text = cleanUtterance(spoken);
+    if (text !== null) {
+        const inline = /\bWAIT\s*:\s*\d+/.exec(text);
+        if (inline) text = text.slice(0, inline.index).trim() || null;
+    }
     return {
         waitSec: Math.min(SIM_WAIT_MAX_SEC, Math.max(SIM_WAIT_MIN_SEC, waitSec ?? 60)),
-        text: cleanUtterance(spoken),
+        text,
         end,
         raw,
     };
