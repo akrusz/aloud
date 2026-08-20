@@ -383,9 +383,8 @@ describe('stripRoleLeak', () => {
         ['chat delimiter', 'Resting here.<|im_start|>user\nokay', 'Resting here.'],
         ['line-start label', 'Just be with it.\nAssistant: What now?', 'Just be with it.'],
         ['newline-separated bare word', 'What do you notice?\n\nuser "I feel warm"', 'What do you notice?'],
-        // The Aug 2026 Opus 4.5 leak: markers fused to their neighbors with no
-        // whitespace, which the old \s+-separated pattern let straight through
-        // into the transcript AND history.
+        // The Opus 4.5 leak: markers fused to their neighbors, which the old
+        // \s+-separated pattern let into the transcript and history.
         [
             'fused marker',
             'If that twinge could answer — what does it need?usernothing is coming up.',

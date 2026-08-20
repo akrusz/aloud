@@ -205,15 +205,12 @@ const XML_TAG_RE = /<\/?[a-z][\w.:-]*(?:\s[^<>]*?)?\/?>/gi;
  * copy re-teaches the pattern for the rest of the session.
  *
  * Deliberately narrow, since a false positive truncates a real reply mid-sit:
- * a chat delimiter, a line-start "Role:", or a bare LOWERCASE user/assistant
- * after a sentence end. Only those two role words match bare - "human" and
- * "system" are ordinary meditation words ("nervous system") - and the bare
- * match is case-sensitive: template markers are lowercase, while prose "Users
- * of this practice" / "The Assistant" capitalizes at a sentence start. The
- * marker may be FUSED to its neighbors with no whitespace at all
- * ("need?usernothing is coming up" - the Aug 2026 Opus 4.5 leak, which the old
- * \s+-separated pattern missed and which put a fabricated meditator turn into
- * history), so the joints are \s* with the glued residue caught by lookahead.
+ * a chat delimiter, a line-start "Role:", or a bare user/assistant after a
+ * sentence end. Only those two role words match bare ("human"/"system" are
+ * ordinary meditation words), case-sensitively: template markers are
+ * lowercase, prose "Users of this practice" capitalizes. The joints are \s*
+ * because markers can arrive FUSED to their neighbors ("need?usernothing" -
+ * an Opus 4.5 leak the old \s+ pattern let into history).
  */
 const ROLE_LEAK_RE =
     /<\|[a-z_]+\|>|^[ \t]*(?:[Uu]ser|[Aa]ssistant|[Hh]uman|[Ss]ystem)[ \t]*:|(?:[.!?…"']\s*|\n\s*|^)(user|assistant)(?:[ \t]*\n|[ \t]+(?=\S)|(?=[A-Za-z]))/m;

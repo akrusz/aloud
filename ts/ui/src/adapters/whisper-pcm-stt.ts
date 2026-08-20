@@ -39,18 +39,14 @@ const TRANSCRIBE_TIMEOUT_MS = 45_000;
 // preview). 750 (not 500) trims false trips on between-phrase breaths while
 // staying well inside the 3s+ submit window (pacing silenceBaseMs).
 const SPECULATIVE_SILENCE_MS = 750;
-// Past this much buffered audio, a speculative pass waits until the adaptive
-// submit window is nearly closed (needed - SPEC_TERMINAL_LEAD_MS) instead of
-// firing at 750ms. Every pass re-sends the whole buffer, so on a long rambling
-// turn the early trigger transcribed the opening once per phrase-pause -
-// measured at 76% of a session's STT spend (2.85x speech). Mid-thought pauses
-// rarely outlast the late trigger, so passes land mostly on the TERMINAL
-// pause, where the final reuses them: near-1x billing AND the transcription
-// overlaps the silence window. The preview just arrives later on long turns.
+// Past this much buffered audio, a speculative pass fires just before the
+// submit window closes (needed - SPEC_TERMINAL_LEAD_MS) instead of at 750ms.
+// Every pass re-sends the whole buffer, so early passes on a long rambly turn
+// re-billed its opening once per phrase-pause (measured: 76% of a session's
+// STT spend). Mid-thought pauses rarely outlast the late trigger, so the pass
+// lands on the terminal pause, where the final reuses it for free.
 const SPEC_EARLY_MAX_BUFFER_MS = 12_000;
-// How far before the submit decision the late pass fires. Big enough for the
-// round-trip to finish first (specInFlight holds the submit anyway, and the
-// dangling verdict must land before the window closes).
+// Lead before the submit decision, enough for the round-trip to land first.
 const SPEC_TERMINAL_LEAD_MS = 1500;
 // ⭐ TWEAK ME if a barge-in clips the first word(s): pre-speech audio (ms) kept
 // so a word's onset survives, covering the gap between speaking over the
@@ -115,24 +111,16 @@ const TAIL_RETRANSCRIBE_ENERGY = 0.015;
 // soft word here", so anything it would have rescued survives - plus a full
 // second after it. ⭐ TWEAK ME (up) if trailing words ever go missing.
 const TAIL_KEEP_MS = 1000;
-// Audio (ms) kept BEFORE the first speech-hint frame of the prepended onset
-// pre-buffer. PRE_BUFFER_MS is sized for the barge-in gap (2s), but on an
-// ordinary turn most of it is room tone we were paying the cloud to
-// transcribe; the same TAIL_RETRANSCRIBE_* bar the tail cut trusts finds where
-// speech could plausibly start, and this margin also covers Silero's trigger
-// debounce when the prefix has no hint at all. ⭐ TWEAK ME (up) if a first word
-// ever clips.
+// Audio (ms) kept before the pre-buffer's first speech-hint frame (same
+// TAIL_RETRANSCRIBE_* bar as the tail cut). On an ordinary turn most of the 2s
+// pre-buffer is billed room tone; this also covers Silero's trigger debounce
+// when the prefix has no hint. ⭐ TWEAK ME (up) if a first word ever clips.
 const LEAD_KEEP_MS = 500;
-// Speculative passes allowed per utterance. Each one re-sends the (trimmed)
-// buffer from utterance start and the server bills every POST, so an utterance
-// with many phrase-pauses bills superlinearly - this caps the worst case. But
-// a pass during the utterance's LAST pause is roughly free: the final submit
-// reuses its transcript instead of re-transcribing, so that pass costs what
-// the final would have and overlaps the silence window instead of following
-// it. A cap the mid-turn pauses exhaust therefore pushes a long turn's whole
-// transcription AFTER submit (measured: ~20s payloads transcribed while the
-// user waits) and leaves a stale dangling-clause verdict extending the window.
-// 6 keeps the runaway guard while making exhaustion rare in real turns.
+// Speculative passes allowed per utterance - a runaway guard, and every pass
+// bills. Keep it loose: the terminal pause's pass is roughly free (the final
+// reuses it, and the transcription overlaps the silence window), so a cap the
+// mid-turn pauses exhaust pushes a long turn's whole transcription AFTER
+// submit, right where the user is waiting.
 const MAX_SPECULATIVE_PASSES = 6;
 
 /** The subset of PacingConfig fields the VAD here cares about. */
@@ -359,14 +347,11 @@ export class WhisperPcmSttEngine implements SttEngine {
     }
 
     /**
-     * The utterance's frames with the leading and trailing quiet cut. Tail:
-     * everything past the last speech-hint chunk + TAIL_KEEP_MS. Lead: the
-     * prepended pre-buffer keeps only LEAD_KEEP_MS before its first
-     * speech-hint frame (energy only - Silero probs aren't retained for the
-     * prefix, but leading room tone vs speech is the easy case). The buffer
-     * itself is never mutated: a reopened utterance (rcdz) has to stay
-     * contiguous, and the quiet we drop from the payload is exactly what the
-     * next pass would want back if the user turns out to still be speaking.
+     * The utterance's frames with the leading and trailing quiet cut: the tail
+     * past the last speech-hint chunk + TAIL_KEEP_MS, the pre-buffer before
+     * its first hint + LEAD_KEEP_MS (energy-only - Silero probs aren't
+     * retained for the prefix). Never mutates the buffer: a reopened utterance
+     * (rcdz) has to stay contiguous.
      */
     private submitPayload(): readonly Float32Array[] {
         const rate = this.context?.sampleRate;
@@ -532,12 +517,10 @@ export class WhisperPcmSttEngine implements SttEngine {
             }
             this.lastSpeechMs = now;
             this.peakEnergy = Math.max(this.peakEnergy, energy);
-            // A dangling-clause verdict describes the transcript as of its spec
-            // pass; new speech supersedes it. Without this, a turn that spends
-            // its spec passes early carries a STALE dangling=true into its real
-            // ending and waits INCOMPLETE_CLAUSE_EXTRA_MS over dead silence
-            // (measured: 9s needed against an 8s-quiet tail). The next spec
-            // pass re-evaluates on the fresh transcript.
+            // New speech supersedes the dangling-clause verdict, or a turn
+            // that spent its spec passes early would carry a stale
+            // dangling=true into its real ending and wait the extra window
+            // over dead silence.
             this.partialIncomplete = false;
             this.keepChunk(frame, energy);
         } else if (this.speechStarted) {
@@ -850,10 +833,9 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.bargeInChunks = 0;
         this.capturing = true;
 
-        // Transcribe a snapshot of captured frames - used by both the
-        // speculative interim passes and the final submission. `label` feeds
-        // the [stt-cost] telemetry: every POST here is billed cloud seconds,
-        // and spec-vs-final is invisible server-side.
+        // Transcribe a snapshot of captured frames - speculative passes and
+        // the final submission. `label` feeds [stt-cost]: spec-vs-final is
+        // invisible server-side.
         const transcribeChunks = async (
             frames: readonly Float32Array[],
             label: 'spec' | 'final'
@@ -869,9 +851,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             // before any frame accumulates (or just after a barge-in clears
             // them); POSTing an empty body just earns a 400 from the endpoint.
             if (downsampled.length === 0) return { ok: true, text: '', seconds: 0 };
-            // Int16 on the wire (format=i16): both endpoints re-encode to
-            // 16-bit for their backends anyway, so the extra Float32 precision
-            // was discarded server-side - this halves the upload for free.
+            // Int16 on the wire (format=i16): the endpoints re-encode to
+            // 16-bit anyway, so this halves the upload for free.
             const pcm16 = new Int16Array(downsampled.length);
             for (let i = 0; i < downsampled.length; i++) {
                 const s = Math.max(-1, Math.min(1, downsampled[i]!));
@@ -932,9 +913,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
                 const seconds = downsampled.length / TARGET_SAMPLE_RATE;
                 console.info(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
-                // Provenance for transcript anomalies (local console only): a
-                // user turn with no matching [stt-text] line did NOT come from
-                // the mic - it was injected somewhere downstream.
+                // Provenance for transcript anomalies: a user turn with no
+                // matching [stt-text] line did not come from the mic.
                 if (label === 'final') {
                     console.info(`[stt-text] "${(data.text ?? '').trim()}"`);
                 }
@@ -1011,10 +991,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                         specPasses += 1;
                         lastSpecSpeechMs = this.lastSpeechMs;
                         lastSpecAt = performance.now();
-                        // submitPayload, not the raw buffer: the leading
-                        // pre-buffer quiet bills on every spec pass too, and
-                        // at spec time (750ms pause < TAIL_KEEP_MS) the tail
-                        // cut keeps everything, so this is purely a lead trim.
+                        // submitPayload, not the raw buffer: the pre-buffer
+                        // quiet bills on spec passes too (mid-utterance the
+                        // tail cut is a no-op, so this is purely a lead trim).
                         const result = await transcribeChunks(this.submitPayload(), 'spec');
                         this.specInFlight = false;
                         // Drop the preview if the turn ended while it was in flight

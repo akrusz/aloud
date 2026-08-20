@@ -59,9 +59,8 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
         const model = requestedModel || stt.model;
 
-        // Wire format: i16 halves the upload; f32 is the legacy default so old
-        // clients keep working. Bytes-per-sample keys BOTH the alignment check
-        // and the billed duration, so an unknown value is a 400, not a guess.
+        // Wire format: i16 (current clients), f32 default for old ones. It
+        // keys the alignment check and billed duration, so unknown = 400.
         const format = c.req.query('format') ?? 'f32';
         if (format !== 'f32' && format !== 'i16') {
             return c.json(apiError('bad_request', 'unknown pcm format'), ERROR_STATUS.bad_request);
