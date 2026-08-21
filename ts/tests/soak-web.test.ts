@@ -198,6 +198,22 @@ describe('tier-2 orchestrator', () => {
         expect(result.endedBy).toBe('turns');
     });
 
+    it('stops the sit once the mute command takes, since the mic cannot come back', async () => {
+        const driver = new FakeDriver();
+        driver.mishear = (said) => {
+            if (said === 'mute') driver.tap.flags.muted = true;
+            return said;
+        };
+        const result = await run(driver, ['one', 'two', 'three'], {
+            ...SCENARIO,
+            muteAfterSec: 0,
+        });
+        expect(result.spoken).toHaveLength(1);
+        expect(result.spoken[0]?.said).toBe('mute');
+        expect(result.endedBy).toBe('sim-end');
+        expect(result.events.some((e) => e.detail === 'mute-took')).toBe(true);
+    });
+
     it('ends when the app tears the session down on its own', async () => {
         const driver = new FakeDriver();
         driver.tap.flags.ended = true;

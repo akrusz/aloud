@@ -172,6 +172,21 @@ soak run that takes an afternoon and still samples one session of it.
 settings mapping, and the audio checks offline against a fake driver and a silent
 voice, so drift in the tier-2 wiring breaks the build rather than the next run.
 
+### Measured baselines (first real run, 2026-08-20)
+
+Six sessions, `say` into BlackHole, Chrome Web Speech. Useful as the numbers to
+compare a later run against:
+
+- **Word error rate: 0% median** in five of six sessions (8% in the sixth).
+  Web Speech on `say` output is close to perfect, so a WER regression is a
+  signal about the capture path, not about speech being hard.
+- **Recognizer latency: 4.5-5.6s median** from end of playback to the final.
+  That is Web Speech's endpointing, and it sets the floor on how fast a turn can
+  possibly start - worth remembering before optimizing anything upstream.
+- Barge-in fired, the spoken mute command muted, and the echo guard never once
+  mistook the meditator for the facilitator even with the app's own TTS on the
+  same loopback.
+
 ## Tier 3 (beads meditation-pal-eldj.3)
 
 Tier 3 extends tier 2 to the iOS Simulator / Android emulator (both take host

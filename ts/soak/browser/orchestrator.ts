@@ -239,7 +239,16 @@ export async function runWebSoakSession(
                 await speakAndObserve('mute');
                 await sleep(2000);
                 await refresh();
-                localEvent('audio', tap.flags.muted ? 'mute-took' : 'mute-missed');
+                if (tap.flags.muted) {
+                    // Unmuting is button-only by design, so a muted app can
+                    // never hear the meditator again. Anything spoken from here
+                    // would score as an STT miss and fail the run for doing
+                    // exactly what it was asked to do.
+                    localEvent('audio', 'mute-took');
+                    endedBy = 'sim-end';
+                    break;
+                }
+                localEvent('audio', 'mute-missed');
                 continue;
             }
 
