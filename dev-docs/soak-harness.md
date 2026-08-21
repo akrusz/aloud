@@ -72,11 +72,108 @@ across judge models, and single sessions are noisy - use `--sessions=3`+ for a
 decision. The judge rubric here and `evals/rubric.md` should converge over
 time.
 
-## Tiers 2 and 3 (beads meditation-pal-eldj.2 / .3)
+## Tier 2: the real UI over a virtual microphone
 
-This is tier 1 of the epic (meditation-pal-eldj): text-level, so STT/TTS/VAD/
-echo-guard/barge-in are out of scope by design. Tier 2 drives the real web UI
-with synthesized speech through a virtual audio device (BlackHole); tier 3
-extends that to the iOS Simulator / Android emulator (both take host audio
-input) and to real devices via a speaker. Personas, checks, and the judge are
-built to be reused by those tiers.
+Tier 1 is text-level: STT, TTS, VAD, the echo guard, barge-in, and the mute
+command are all out of scope by construction. Tier 2 puts them under test. The
+same personas and the same judge, but the simulated meditator now **speaks out
+loud** into a virtual audio device that the real web UI has selected as its
+microphone.
+
+```bash
+npm run web:dev                                   # in another terminal, first
+npm run soak:web                                  # the whole matrix
+npm run soak:web -- --list
+npm run soak:web -- --scenarios=silence,mute
+npm run soak:web -- --voice=openai:sage           # a realer voice, costs money
+npm run soak:web -- --scenarios=baseline --no-judge --keep-open
+```
+
+### Setup (one time)
+
+```bash
+brew install --cask blackhole-2ch    # then RESTART the Mac: CoreAudio doesn't
+brew install switchaudio-osx         # list the driver until you do
+```
+
+Google Chrome must be installed. The harness drives **real Chrome**, not
+Playwright's bundled Chromium, because the Web Speech API only works in a build
+carrying Google's speech keys - `channel: 'chrome'` is load-bearing. Headed for
+the same reason; `--headless` exists but headless Chrome's media stack is a
+different animal and a run that transcribes nothing looks exactly like a
+facilitator that never answers.
+
+### The audio topology, and why it's a loopback
+
+Chrome's `--use-file-for-fake-audio-capture` replays one fixed WAV, so a virtual
+device is the only workable route. BlackHole becomes both the default **output**
+(where the sim voice plays) and the default **input** (what Chrome captures).
+
+The app therefore also hears **its own TTS**, because that plays out of the same
+default output. That is deliberate: it's the real acoustic situation a
+speaker-and-mic user is in, and it puts the echo guard and barge-in under test
+rather than around them. Two consequences worth knowing before you start a run:
+
+- A run **owns the machine's audio in and out** for its duration. Don't play
+  anything else; don't take a call. The harness restores the previous defaults
+  on exit, including on Ctrl-C.
+- When the echo guard drops a *meditator* utterance, that's the
+  `echo-guard-false-positive` check, and it's a `fail` - the topology exists to
+  make that visible.
+
+Pass `--no-audio-routing` to leave the system devices alone (for debugging the
+driver without the audio path).
+
+### How it works (`ts/soak/browser/`)
+
+| File | Role |
+|---|---|
+| `driver.ts` | Playwright over real Chrome. Seeds `preview:setup` / `app:settings` / `apikey:*` into localStorage before boot, resolves the loopback device's per-origin `deviceId` in-page, and clicks Begin (a real gesture, for the mic permission). Then it just reads the tap. |
+| `orchestrator.ts` | The session loop. Waits for a turn boundary, plays one sim utterance, and watches for the recognizer's final. All engine state comes back from the page. |
+| `voice.ts` | The meditator's mouth. `say` by default (free, offline, transcribes well); `openai:<voice>` runs the same gpt-4o-mini-tts the app's hosted voices use, for realistic prosody at a price. |
+| `audio.ts` | Points both default devices at BlackHole and restores them afterwards. |
+| `scenarios.ts` | The tier-2 matrix, plus the scenario → localStorage mapping. |
+| `checks.ts` | Audio-path checks, run alongside tier 1's `runChecks`: miss rate, word error rate, echo-guard false positives, barge-in, the mute command. |
+| `wer.ts` | Word error rate, normalized for case, punctuation, and contractions. |
+| `run.ts` | CLI. Sessions run one at a time, in real time - there's one pair of default devices. |
+
+The instrumentation on the app side is `ui/src/soak-tap.ts`: a structured event
+tap gated on `import.meta.env.DEV` **and** `?soak=1`, emitting exactly tier 1's
+`TurnRecord` / `SoakEvent` / `LlmCallStat` shapes. That's why `runChecks`,
+`judgeSession`, and the report writer take a browser session unchanged. Scraping
+the DOM instead would show clean text and nothing about holds, classifier
+verdicts, timer events, or raw pre-parse output - most of `checks.ts` would go
+dark. Vite tree-shakes the tap out of a release bundle entirely (there is no
+`__aloudSoak` in `ui/dist`); it also means tier 2 exercises the **dev** build.
+
+### Reading a tier-2 run
+
+Everything from "Reading a run" above still applies, plus an **Audio round trip**
+table per session: what the sim said, what the recognizer heard, and the WER for
+each utterance. Read it first when a session looks like a bad facilitator - a
+facilitator answering a garbled sentence sensibly is still a session a user would
+call broken, and the transcript alone can't tell you which happened.
+
+`stt-accuracy` reports the **median** WER, not the mean: one mangled utterance in
+a clean run is speech, a shifted median is a broken capture path. Numbers are
+only comparable within one `(voice, recognizer)` pair - a `say` run and an
+`openai` run are different experiments, which is why both are printed in the
+finding.
+
+### What tier 2 deliberately does not test
+
+There is no fake clock, so sits are short (5-9 real minutes) and each persona's
+`WAIT` is clamped (`maxWaitSec`). The relative pacing survives; the absolute
+scale doesn't. **Long-silence pacing - the 8-20 minute smart waits - stays tier
+1's job**, where the fake clock makes it honest. Reproducing it here would mean a
+soak run that takes an afternoon and still samples one session of it.
+
+`tests/soak-web.test.ts` covers the loop, the WER scoring, the scenario →
+settings mapping, and the audio checks offline against a fake driver and a silent
+voice, so drift in the tier-2 wiring breaks the build rather than the next run.
+
+## Tier 3 (beads meditation-pal-eldj.3)
+
+Tier 3 extends tier 2 to the iOS Simulator / Android emulator (both take host
+audio input) and to real devices via a speaker. Personas, checks, and the judge
+carry over again.

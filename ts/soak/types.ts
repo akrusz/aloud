@@ -74,7 +74,12 @@ export interface SoakEvent {
         | 'stage'
         | 'error'
         | 'sim'
-        | 'note';
+        | 'note'
+        // Tier 2 only (ui/src/soak-tap.ts): the audio path the headless
+        // harness has no equivalent of.
+        | 'tts'
+        | 'stt'
+        | 'audio';
     detail: string;
     data?: Record<string, unknown>;
 }
@@ -90,7 +95,9 @@ export type SessionEnd =
     | 'timer'
     | 'sim-end'
     | 'wall-clock'
-    | 'error';
+    | 'error'
+    /** Tier 2: the app tore the view down on its own (timer close, auto-quit). */
+    | 'app-ended';
 
 export interface SessionRunResult {
     scenario: Scenario;

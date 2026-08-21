@@ -5,7 +5,9 @@
         // harness typechecks alongside the core it imports (as ui/tsconfig).
         "noEmit": true,
         "rootDir": "..",
-        "types": ["node"]
+        // vite/client for ui/src/soak-tap.ts: the tier-2 harness imports its
+        // record types, which drags the module's import.meta.env guard in.
+        "types": ["node", "vite/client"]
     },
     "include": ["./**/*", "../src/**/*"],
     "exclude": ["node_modules"]

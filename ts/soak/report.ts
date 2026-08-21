@@ -59,7 +59,15 @@ function transcriptMd(r: SessionReport): string {
     return lines.join('\n>\n');
 }
 
-export function buildReportMd(meta: RunMeta, reports: SessionReport[]): string {
+/** Extra markdown lines to fold into a session's block, after the judge and
+ *  before the transcript. Tier 2 uses it for the audio round trip. */
+export type ExtraSection = (report: SessionReport) => string[];
+
+export function buildReportMd(
+    meta: RunMeta,
+    reports: SessionReport[],
+    extra?: ExtraSection
+): string {
     const failCount = (r: SessionReport): number => r.findings.filter((f) => f.level === 'fail').length;
     const warnCount = (r: SessionReport): number => r.findings.filter((f) => f.level === 'warn').length;
 
@@ -133,17 +141,23 @@ export function buildReportMd(meta: RunMeta, reports: SessionReport[]): string {
         } else if (r.judgeError) {
             lines.push(`**Judge failed:** ${r.judgeError}`, '');
         }
+        if (extra) lines.push(...extra(r));
         lines.push('<details><summary>Transcript</summary>', '', transcriptMd(r), '', '</details>', '');
     }
     return lines.join('\n');
 }
 
-export function writeRunReports(outDir: string, meta: RunMeta, reports: SessionReport[]): void {
+export function writeRunReports(
+    outDir: string,
+    meta: RunMeta,
+    reports: SessionReport[],
+    extra?: ExtraSection
+): void {
     mkdirSync(outDir, { recursive: true });
     const multi = isMultiModel(reports);
     writeFileSync(join(outDir, 'run.json'), JSON.stringify({ meta, reports }, null, 2));
     for (const r of reports) {
         writeFileSync(join(outDir, `session-${sessionSlug(r, multi)}.json`), JSON.stringify(r, null, 2));
     }
-    writeFileSync(join(outDir, 'report.md'), buildReportMd(meta, reports));
+    writeFileSync(join(outDir, 'report.md'), buildReportMd(meta, reports, extra));
 }

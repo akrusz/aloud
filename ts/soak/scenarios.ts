@@ -3,11 +3,15 @@
  * engine (silence machinery, check-in caps, staged arcs, the timer landing
  * inside a hold). Personas speak in the sim-user prompt's second person.
  * Fake minutes are simulated clock, not wall time.
+ *
+ * The personas are exported: tier 2 (soak/browser/scenarios.ts) aims the same
+ * characters at the real UI over a virtual microphone, and a persona that drifts
+ * between tiers would make the two runs incomparable.
  */
 
 import type { Persona, Scenario } from './types.js';
 
-const CHATTY_BEGINNER: Persona = {
+export const CHATTY_BEGINNER: Persona = {
     id: 'chatty-beginner',
     description:
         'You are new to meditation and a little restless. You share what you notice quickly and in everyday language, sometimes drift into talking about your day (work, your sister, a show you watched), and you ask the facilitator small questions ("am I doing this right?", "should I focus on my breath?"). Your waits are on the short side, 30-120 seconds.',
@@ -18,7 +22,7 @@ const CHATTY_BEGINNER: Persona = {
     ],
 };
 
-const SILENCE_SEEKER: Persona = {
+export const SILENCE_SEEKER: Persona = {
     id: 'silence-seeker',
     description:
         'You are an experienced meditator who mostly wants to sit quietly with company. You speak briefly and plainly. Long waits (300-900 seconds) are natural for you.',
@@ -29,14 +33,14 @@ const SILENCE_SEEKER: Persona = {
     ],
 };
 
-const QUIET_SITTER: Persona = {
+export const QUIET_SITTER: Persona = {
     id: 'quiet-sitter',
     description:
         'You barely speak. You are comfortable in very long silences (600-1500 seconds) and answer check-ins with one word or not at all. You never make small talk.',
     arc: ['somewhere past the middle, offer one short sentence about what you notice'],
 };
 
-const FELT_SENSE_CLIENT: Persona = {
+export const FELT_SENSE_CLIENT: Persona = {
     id: 'felt-sense-client',
     description:
         'You came with a vague, heavy feeling about your job that you cannot name yet. You follow the facilitator\'s guidance sincerely, checking words against the feeling ("no, tight isn\'t quite it... more like braced"). You take your time: waits of 60-300 seconds. You let the process move at its own pace and say so when a word finally fits.',
@@ -46,7 +50,7 @@ const FELT_SENSE_CLIENT: Persona = {
     ],
 };
 
-const TIMER_SITTER: Persona = {
+export const TIMER_SITTER: Persona = {
     id: 'timer-sitter',
     description:
         'You planned a short sit before a meeting and set a timer in the app. You settle fast and prefer quiet. Waits of 300-900 seconds are natural. You trust the timer completely: you never ask about the time.',
@@ -56,7 +60,7 @@ const TIMER_SITTER: Persona = {
     ],
 };
 
-const OVERWHELMED_SHARER: Persona = {
+export const OVERWHELMED_SHARER: Persona = {
     id: 'overwhelmed-sharer',
     description:
         'You are going through a hard week and it spills out. You give long, emotional shares that sometimes trail off mid-sentence ("I just... I don\'t know") without you wanting silence - you want company, not quiet. You occasionally say "I can\'t do this" in frustration, but you keep going. Waits of 30-180 seconds.',
