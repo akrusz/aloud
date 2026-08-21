@@ -94,6 +94,31 @@ describe('AnthropicProvider', () => {
         expect(headers['anthropic-version']).toBe('2023-06-01');
     });
 
+    it('sends the direct-browser-access header only when asked, hitting the real API', async () => {
+        const headersFor = async (directBrowserAccess: boolean) => {
+            const fetchImpl = vi.fn(async () =>
+                mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
+            );
+            const provider = new AnthropicProvider({
+                apiKey: 'k',
+                directBrowserAccess,
+                fetchImpl: fetchImpl as unknown as typeof fetch,
+            });
+            await provider.complete([{ role: 'user', content: 'hi' }]);
+            const [url, init] = fetchImpl.mock.calls[0]!;
+            return { url, headers: (init as RequestInit).headers as Record<string, string> };
+        };
+        // Without it, a browser preflight fails and every turn dies on the
+        // network - this header is the whole reason the webview can go direct.
+        const on = await headersFor(true);
+        expect(on.url).toBe('https://api.anthropic.com/v1/messages');
+        expect(on.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
+        expect(on.headers['x-api-key']).toBe('k');
+
+        const off = await headersFor(false);
+        expect(off.headers['anthropic-dangerous-direct-browser-access']).toBeUndefined();
+    });
+
     it('disables thinking on opt-out models (Sonnet 5, Opus 5) and omits the param elsewhere', async () => {
         const bodyFor = async (model: string) => {
             const fetchImpl = vi.fn(async () =>

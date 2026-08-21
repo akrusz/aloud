@@ -96,12 +96,20 @@ export interface AnthropicProviderOptions {
     apiKey?: string;
     model?: string;
     maxTokens?: number;
-    /**
-     * Endpoint URL, default Anthropic's hosted API. Override with a proxy URL
-     * ("/api/llm/anthropic/messages") in the browser, since Anthropic blocks
-     * browser-origin CORS.
-     */
+    /** Endpoint URL, default Anthropic's hosted API. */
     baseUrl?: string;
+    /**
+     * Send `anthropic-dangerous-direct-browser-access`, which opts a
+     * browser-origin request into Anthropic's CORS allowance. Required to call
+     * api.anthropic.com from a webview (hosted web, Tauri, Capacitor); without
+     * it the preflight fails and every turn dies on a network error.
+     *
+     * "Dangerous" is Anthropic's name for the general case - a key shipped to
+     * untrusted browsers. Here the key is the user's own BYOK key, typed into
+     * their own browser and never leaving it, which is the case the flag exists
+     * for. Harmless from Node, but off by default so it's an explicit choice.
+     */
+    directBrowserAccess?: boolean;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
     /**
@@ -139,6 +147,7 @@ export class AnthropicProvider implements LLMProvider {
     readonly maxTokens: number;
     private readonly apiKey: string | undefined;
     private readonly baseUrl: string;
+    private readonly directBrowserAccess: boolean;
     private readonly fetchImpl: typeof fetch;
     private readonly maxRetries: number;
     private readonly sleep: (ms: number) => Promise<void>;
@@ -155,6 +164,7 @@ export class AnthropicProvider implements LLMProvider {
         this.model = options.model ?? DEFAULT_MODEL;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.baseUrl = options.baseUrl ?? ANTHROPIC_API_URL;
+        this.directBrowserAccess = options.directBrowserAccess ?? false;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
         this.maxRetries = options.maxRetries ?? 3;
         this.sleep = options.sleepImpl ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -239,6 +249,7 @@ export class AnthropicProvider implements LLMProvider {
             'anthropic-version': ANTHROPIC_API_VERSION,
         };
         if (this.apiKey) headers['x-api-key'] = this.apiKey;
+        if (this.directBrowserAccess) headers['anthropic-dangerous-direct-browser-access'] = 'true';
         if (stream) headers['accept'] = 'text/event-stream';
 
         return {

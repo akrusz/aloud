@@ -121,7 +121,6 @@ import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messag
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isTauri, isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
-import { appUrl } from '../app-base.js';
 import {
     armSoakTap,
     tapCall,
@@ -148,7 +147,6 @@ import {
 // accept browser CORS. So Anthropic routes through the app-backend proxy, the
 // rest go BYOK direct. Mobile (Capacitor) will need another path for Anthropic
 // (@capacitor/http or a hosted proxy).
-const ANTHROPIC_PROXY_URL = appUrl('/llm/anthropic/messages');
 const OLLAMA_PROXY_URL = '/ollama';
 
 export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
@@ -182,15 +180,22 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
                 ...modelOpt,
             });
         case 'anthropic': {
-            // No CORS from Anthropic, so route through the app backend's proxy
-            // with the user's BYOK key. The key only reaches our own backend
-            // (loopback on desktop, the aloud cloud origin on web), never a
-            // third party (mirrors model-picker.ts). The proxy falls back to a
-            // server-side ANTHROPIC_API_KEY in dev when no key is sent.
+            // BYOK direct, like the other key providers: Anthropic allows
+            // browser-origin requests that carry
+            // anthropic-dangerous-direct-browser-access. This used to route
+            // through an app-backend relay, which only ever existed in the
+            // desktop shell - so on the hosted web app every turn 404'd
+            // (meditation-pal-aq4e). The key now goes straight to Anthropic and
+            // touches no server of ours at all.
             const anthropicKey = await getApiKey('anthropic');
+            if (!anthropicKey) {
+                throw new Error(
+                    'No API key set for anthropic. Add it in Settings, or pick a different provider.'
+                );
+            }
             return new AnthropicProvider({
-                baseUrl: ANTHROPIC_PROXY_URL,
-                ...(anthropicKey ? { apiKey: anthropicKey } : {}),
+                apiKey: anthropicKey,
+                directBrowserAccess: true,
                 ...modelOpt,
             });
         }
@@ -243,9 +248,13 @@ export async function buildUtilityProvider(
         }
         case 'anthropic': {
             const anthropicKey = await getApiKey('anthropic');
+            // No key: the facilitation leg has already thrown, so this is only
+            // reachable if that changes. Reuse it rather than construct a
+            // provider that can't authenticate.
+            if (!anthropicKey) return facilitation;
             return new AnthropicProvider({
-                baseUrl: ANTHROPIC_PROXY_URL,
-                ...(anthropicKey ? { apiKey: anthropicKey } : {}),
+                apiKey: anthropicKey,
+                directBrowserAccess: true,
                 model: 'claude-haiku-4-5-20251001',
             });
         }

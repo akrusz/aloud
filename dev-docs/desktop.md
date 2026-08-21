@@ -111,10 +111,6 @@ Endpoints (served at `/app/v1/*`):
   restart detects how Ollama runs and brings it back; upgrade/install use brew
   (macOS) or install.sh (Linux), 400 + download URL where there's no automatic
   path. All stream NDJSON; the settings controls bar drives them.
-- ✅ `/app/v1/llm/anthropic/messages` - relays an Anthropic Messages request
-  upstream (the webview can't reach Anthropic - no CORS). The UI forwards the
-  BYOK key as `x-api-key`; env `ANTHROPIC_API_KEY` is the dev fallback. See
-  `src-tauri/src/llm.rs::anthropic_proxy`.
 - ✅ `/app/v1/llm/claude_proxy/complete` - spawns the local `claude` CLI via
   `tokio::process` with the provider's flags, prompt encoding, JSON parsing, and
   90 s timeout. See `src-tauri/src/llm.rs`.

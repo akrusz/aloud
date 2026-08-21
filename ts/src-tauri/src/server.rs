@@ -188,7 +188,6 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/voices/preview", get(voices_preview))
         .route("/tts/download-model", post(tts_download_model))
         .route("/tts/uninstall-model", post(tts_uninstall_model))
-        .route("/llm/anthropic/messages", post(llm_anthropic_messages))
         .route("/llm/claude_proxy/complete", post(llm_claude_proxy_complete))
         .route("/llm/claude_proxy/probe", get(llm_claude_proxy_probe))
         .route("/providers", get(providers))
@@ -1230,59 +1229,6 @@ async fn open_voice_settings() -> (StatusCode, Json<Value>) {
     #[cfg(not(target_os = "macos"))]
     {
         (StatusCode::BAD_REQUEST, Json(json!({ "error": "macOS only" })))
-    }
-}
-
-/// `POST /app/v1/llm/anthropic/messages` - relay an Anthropic Messages request
-/// upstream, since the webview can't reach Anthropic directly (no CORS). The
-/// user's BYOK key arrives as `x-api-key` over loopback; a server-side
-/// `ANTHROPIC_API_KEY` is the dev/parity fallback.
-async fn llm_anthropic_messages(headers: axum::http::HeaderMap, body: Bytes) -> Response {
-    if body.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Empty request body." })))
-            .into_response();
-    }
-    if body.len() > crate::llm::MAX_PROXY_BYTES {
-        return (StatusCode::PAYLOAD_TOO_LARGE, Json(json!({ "error": "Request body too large." })))
-            .into_response();
-    }
-
-    let key = headers
-        .get("x-api-key")
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_owned)
-        .filter(|k| !k.is_empty())
-        .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
-        .filter(|k| !k.is_empty());
-    let Some(key) = key else {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({
-                "error": "No Anthropic API key. Add your key in Settings or set ANTHROPIC_API_KEY."
-            })),
-        )
-            .into_response();
-    };
-
-    let body_vec = body.to_vec();
-    match tokio::task::spawn_blocking(move || crate::llm::anthropic_proxy(body_vec, &key)).await {
-        Ok(Ok(r)) => {
-            let code = StatusCode::from_u16(r.status).unwrap_or(StatusCode::BAD_GATEWAY);
-            let mut resp = (code, r.body).into_response();
-            if let Ok(ct) = header::HeaderValue::from_str(&r.content_type) {
-                resp.headers_mut().insert(header::CONTENT_TYPE, ct);
-            }
-            resp
-        }
-        Ok(Err(e)) => {
-            let code = StatusCode::from_u16(e.status).unwrap_or(StatusCode::BAD_GATEWAY);
-            (code, Json(json!({ "error": e.message }))).into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("proxy task failed: {e}") })),
-        )
-            .into_response(),
     }
 }
 
