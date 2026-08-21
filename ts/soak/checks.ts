@@ -48,6 +48,24 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
         );
     }
 
+    // A turn that answers the meditator with nothing at all. Happens when the
+    // model replies with only control tokens ("[WAIT:8m]", "[HOLD]"): raw is
+    // non-empty so the empty-completion guard doesn't fire, the scrub leaves an
+    // empty string, and the app records a blank message and speaks silence. The
+    // [HOLD]-only case is the worst of them - the facilitator was supposed to
+    // ASK "shall I be quiet?", so the meditator's next utterance gets judged as
+    // an answer to a question they never heard.
+    const spokenTurns = assistant.filter((t) => t.kind !== 'checkin-canned');
+    const empty = spokenTurns.filter((t) => !t.text.trim());
+    if (empty.length > 0) {
+        const raws = empty.map((t) => JSON.stringify(t.raw ?? '')).slice(0, 3).join(', ');
+        add(
+            'empty-spoken-turn',
+            'fail',
+            `${empty.length} facilitator turn(s) said nothing after control tokens were stripped (raw: ${raws})`
+        );
+    }
+
     // Anything token-shaped that survived into spoken text is an engine bug.
     const residual = assistant.filter((t) => RESIDUAL_TOKEN_RE.test(t.text));
     if (residual.length > 0) {

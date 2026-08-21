@@ -22,11 +22,13 @@ import { fileURLToPath } from 'node:url';
 import { exit } from 'node:process';
 
 import { loadServerEnv } from '../env.js';
-import { buildProviderFromSpec } from '../providers.js';
 import { LlmSimUser } from '../sim-user.js';
 import { runChecks } from '../checks.js';
 import { judgeSession } from '../judge.js';
 import { writeRunReports, type RunMeta } from '../report.js';
+import { DEFAULT_ROLES } from '../batteries.js';
+import { describeRoles, findRoleCollisions, resolveRoles } from '../roles.js';
+import { diffAgainstBaseline, loadBaseline } from '../baseline.js';
 import type { SessionReport } from '../types.js';
 
 import { routeThroughLoopback, LOOPBACK_DEVICE } from './audio.js';
@@ -38,9 +40,9 @@ import { buildSimVoice } from './voice.js';
 import type { WebSessionRunResult } from './types.js';
 
 const DEFAULTS = {
-    facilitator: 'anthropic',
-    user: 'anthropic:claude-haiku-4-5',
-    judge: 'anthropic',
+    facilitator: DEFAULT_ROLES.facilitators[0] as string,
+    user: DEFAULT_ROLES.user,
+    judge: DEFAULT_ROLES.judge as string,
     voice: 'say',
     stt: 'web-speech',
     url: 'http://localhost:4649/',
@@ -94,6 +96,7 @@ async function main(): Promise<void> {
             headless: { type: 'boolean', default: false },
             'keep-open': { type: 'boolean', default: false },
             'no-audio-routing': { type: 'boolean', default: false },
+            baseline: { type: 'string' },
             out: { type: 'string' },
             list: { type: 'boolean', default: false },
             help: { type: 'boolean', default: false },
@@ -112,6 +115,7 @@ Options:
   --facilitator=<spec>    provider[:model] the app uses (default: ${DEFAULTS.facilitator})
   --user=<spec>           simulated meditator (default: ${DEFAULTS.user})
   --judge=<spec>          judge model (default: ${DEFAULTS.judge}); --no-judge to skip
+  --baseline=<dir>        compare against an earlier run directory
   --voice=<spec>          sim user's voice: say[:Name[@rate]], openai[:voice], silent
   --stt=<engine>          recognizer under test (default: ${DEFAULTS.stt})
   --url=<url>             where the dev UI is served (default: ${DEFAULTS.url})
@@ -138,13 +142,20 @@ Options:
             ? 'all'
             : (values.scenarios ?? '').split(',').map((s) => s.trim()).filter(Boolean)
     );
-    const judgeSpec = values['no-judge'] ? null : (values.judge as string);
-    const judgeProvider = judgeSpec ? buildProviderFromSpec(judgeSpec) : null;
-    const userProvider = buildProviderFromSpec(values.user as string);
-    // Resolved only to name the model in the report and to fail early on a
-    // missing key: the PAGE builds the real provider from the seeded settings.
+    // The facilitator is resolved here only to name the model and fail early on
+    // a missing key: the PAGE builds the real provider from the seeded settings,
+    // and runs the silence classifiers itself off the same one.
+    const roles = resolveRoles({
+        facilitators: [values.facilitator as string],
+        user: values.user as string,
+        utility: values.facilitator as string,
+        judge: values['no-judge'] ? null : (values.judge as string),
+    });
+    const collisions = findRoleCollisions(roles);
+    const facilitator = (roles.facilitators[0] as (typeof roles.facilitators)[number]).provider;
+    const judgeProvider = roles.judge?.provider ?? null;
+    const userProvider = roles.user.provider;
     const facilitatorSpec = values.facilitator as string;
-    const facilitator = buildProviderFromSpec(facilitatorSpec);
     const facilitatorName = facilitatorSpec.split(':')[0] as string;
     const apiKeys: Record<string, string> = {};
     const keyVar = KEY_VARS[facilitatorName];
@@ -165,11 +176,15 @@ Options:
         );
 
     const totalMin = scenarios.reduce((a, s) => a + s.realMinutes, 0);
+    const baseline = values.baseline ? loadBaseline(values.baseline) : null;
     console.log(
         `Soak (tier 2, browser): ${scenarios.length} session(s), ~${totalMin} min of real time.\n` +
-            `Facilitator ${facilitator.model} · voice ${voice.id} · recognizer ${values.stt}.\n` +
+            `${describeRoles(roles)}\nvoice ${voice.id} · recognizer ${values.stt}.\n` +
             `This run OWNS the machine's audio in and out - don't play anything else.\nOutput: ${outDir}\n`
     );
+    for (const collision of collisions) {
+        console.warn(`⚠️  Casting collision: ${collision.detail}.\n`);
+    }
 
     const routing = values['no-audio-routing']
         ? null
@@ -245,14 +260,27 @@ Options:
 
     const meta: RunMeta = {
         startedAt: startedAt.toISOString(),
-        facilitatorSpecs: [`${facilitatorSpec} (${facilitator.model})`],
-        userSpec: `${values.user} (${userProvider.model})`,
-        // Tier 2's classifiers run in the page, on the facilitator's provider.
-        utilitySpec: `in-page (${facilitator.model})`,
-        judgeSpec: judgeSpec && judgeProvider ? `${judgeSpec} (${judgeProvider.model})` : null,
+        tier: 'browser',
+        cast: {
+            facilitators: [{ spec: facilitatorSpec, model: facilitator.model }],
+            user: { spec: values.user as string, model: userProvider.model },
+            // Tier 2's classifiers run in the page, on the facilitator's provider.
+            utility: { spec: 'in-page', model: facilitator.model },
+            judge: roles.judge ? { spec: roles.judge.spec, model: roles.judge.model } : null,
+        },
+        collisions,
         wallClockMs: Date.now() - t0,
+        audio: `voice ${voice.id} → ${values.stt}`,
+        ...(baseline ? { baselineDir: baseline.dir } : {}),
     };
-    writeRunReports(outDir, meta, reports, (r) => audioSection(r.result as WebSessionRunResult));
+    const diff = baseline ? diffAgainstBaseline(reports, baseline.reports) : undefined;
+    writeRunReports(
+        outDir,
+        meta,
+        reports,
+        (r) => audioSection(r.result as WebSessionRunResult),
+        diff
+    );
 
     const totalFails = reports.flatMap((r) => r.findings).filter((f) => f.level === 'fail').length;
     const totalWarns = reports.flatMap((r) => r.findings).filter((f) => f.level === 'warn').length;

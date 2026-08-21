@@ -9,14 +9,56 @@ Not wired into CI - real API calls, real money. Run it by hand before a
 release, or after touching anything in `ts/src/facilitation/`.
 
 ```bash
-npm run soak                                        # all scenarios, defaults
+npm run soak -- --battery=pre-release               # the walk-away check
+npm run soak -- --battery=smoke --baseline=last     # quick, vs the last run
+npm run soak -- --battery=models                    # facilitator comparison
+npm run soak -- --list-batteries                    # what the presets do
 npm run soak -- --list                              # what's in the matrix
 npm run soak -- --scenarios=silence,timer-hold      # a slice
-npm run soak -- --sessions=3 --concurrency=3        # more samples per scenario
 npm run soak -- --facilitator=ollama:qwen3 --no-judge
-npm run soak -- --facilitator=anthropic,openai,groq   # model comparison: same
-                                # scenarios, same blind judge, per-model table
 ```
+
+## Batteries
+
+A battery (`soak/batteries.ts`) is a whole pre-release check as one word: which
+scenarios, how many sessions, and who plays which role. The point is that the
+decision gets made once and reviewed once, instead of being re-improvised at the
+prompt each release. Individual flags override anything a battery sets.
+
+| Battery | What it is |
+|---|---|
+| `smoke` | Two scenarios, one session. "Did I break the engine?" in a couple of minutes. |
+| `pre-release` | The full matrix, two sessions per scenario. The one to run before cutting a release. |
+| `models` | Facilitator comparison across three families, judged by a fourth that isn't in the contest. |
+
+Tier 2 is deliberately not part of a battery: it runs in real time and owns the
+machine's audio, so it stays an explicit `npm run soak:web`.
+
+## Casting: who plays which role
+
+A run casts four roles - **facilitator** (under test), **meditator** (the sim
+user), **classifiers** (the cheap utility model), **judge** - and two pairings
+invalidate the result:
+
+- **Judge = facilitator.** LLM judges prefer their own generations, so a
+  same-model judge inflates one row. In a `--facilitator=a,b,c` comparison the
+  bias lands on ONE contestant, which is worse than applying to all of them: the
+  ranking becomes partly an artifact of who the judge is. This used to be the
+  shipped default (facilitator and judge both `anthropic`), which is why the
+  default judge is now a different family.
+- **Meditator = facilitator.** Both halves of the conversation stop being
+  independent.
+
+**Classifiers sharing the facilitator's model is not a collision.** That's what
+the shipped app does (`buildUtilityProvider` runs Haiku next to whatever is
+facilitating), so matching it is realism.
+
+The defaults and every battery are held to "no collisions" by
+`tests/soak-roles.test.ts` - a preset is what gets run without thinking, so a
+preset must never be the thing that contaminates a scoreboard. An explicit
+override may still collide: the run proceeds, warns on the way in, and the report
+stamps the caveat directly above the scores. Every report names all four models
+in its header, because a scoreboard without its judge named can't be read.
 
 Keys come from the environment or `ts/server/.env` (`soak/env.ts`). Defaults:
 facilitator + judge on the Anthropic default model, sim user + classifiers on
@@ -47,9 +89,16 @@ shared types breaks the build.
 
 ## Reading a run
 
+`report.md` is ordered for a two-minute read, worst news first: verdict line →
+what changed since the baseline → scoreboard → every failure grouped by check →
+the judge's verbatim wince quotes. Transcripts and per-session bookkeeping come
+last and collapsed; they're where you go once something above has told you where
+to look.
+
 - **Check fails** are the "did something break" signal - they are mechanical
   and trustworthy. A fail is either an engine bug or a harness bug; both are
-  worth fixing.
+  worth fixing. Failures are grouped **by check id, not by session**: one broken
+  thing seen in four sessions is one problem, not four.
 - **Judge scores** are directional, not gospel: compare against the same
   judge model's scores on earlier runs, not across judge models. The wince
   quotes are the useful part - each one is a candidate regression case for
@@ -57,6 +106,28 @@ shared types breaks the build.
 - **Role leaks** (`role-leak-raw`) count how often the model *tried* to write
   the meditator's turn; the engine strips them before speech. Rising counts
   after a prompt change are the early warning.
+
+### Comparing against a baseline
+
+`--baseline=<dir>` (or `--baseline=last` for the most recent run) leads the
+report with what *changed*: checks that newly fail, checks that stopped failing,
+and judge scores that moved. Sessions are matched by scenario + facilitator model
+and averaged over that cell's repeats, so `--sessions=2` compares like with like.
+
+`JUDGE_DELTA_MIN` (1.5) is calibrated against the harness, not guessed: two
+`smoke` runs of identical code moved a scenario a full point at one session
+each. Anything under that is hidden rather than reported as a regression.
+
+`--baseline=last` only ever picks a run from the **same tier**, and an explicit
+cross-tier `--baseline` is stamped with a warning in the report. The two matrices
+share scenario ids (`baseline`, `silence`) while measuring different things, so a
+cross-tier diff looks perfectly plausible and means nothing.
+
+The comparison is deliberately asymmetric about how much it trusts each signal. A
+newly failing check is mechanical and gets stated flatly. A judge score is one
+sample of a stochastic model, so movement under `JUDGE_DELTA_MIN` (1.0) is hidden
+as noise, and even a shown move is labelled a place to look rather than a verdict.
+Use `--sessions=2`+ before reading anything into a score change.
 
 ## Relation to `ts/evals/`
 

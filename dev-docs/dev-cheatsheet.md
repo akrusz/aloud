@@ -185,7 +185,8 @@ cd ts && npx tsx evals/protocol-eval.ts
 
 # Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
 # sessions; see dev-docs/soak-harness.md). Run before a release.
-npm run soak                          # all scenarios; report in ts/soak-runs/
+npm run soak -- --battery=pre-release  # the release check; report in ts/soak-runs/
+npm run soak -- --battery=smoke --baseline=last   # quick, vs the previous run
 npm run soak:web                      # tier 2: real UI, real audio (needs
                                       # `npm run web:dev` + BlackHole + Chrome)
 ```
