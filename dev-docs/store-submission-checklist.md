@@ -21,8 +21,9 @@ Already done:
 
 What the beta build actually does on a phone: the LLM is **aloud cloud**
 (sign-in + credits). Exploration / FeltSense call cloud. **Noting defaults to a
-solo circle**, which calls no model and needs no account (bead `vr3w`); adding an
-AI companion is one tap and puts you back on cloud. The bundled on-device model
+circle of one sound participant** ("plop", adaptive timing), which calls no model
+and needs no account (bead `vr3w`); swapping in an AI companion is one tap and
+puts you back on cloud. The bundled on-device model
 tier (beads `dbd` / `7ej`) is not shipped yet, so device RAM gates nothing here.
 
 ### Status, 2026-08-21 - blocked on one device session
@@ -89,7 +90,7 @@ Easy to forget, because it's separate from the privacy *page*.
 - [ ] Apple **App Privacy** labels + Google **Data Safety** form, filled from the real data flows (account email, transcribed audio, credits). **Email has two purposes, not one**: account management *and* product-update emails, since the signup opt-in (`Account.emailUpdates`, `sign-in-modal.ts` + the account page) keeps an opted-in address for that. In Play → Data safety → Personal info → Email address, add the **Developer communications** purpose and mark the collection **optional** (users can choose); in App Store Connect → App Privacy → Contact Info → Email Address, add **Developer's Advertising or Marketing**. The two labels differ because the taxonomies do, not because the behavior does: Play's "Advertising or marketing" means ads and promos and is **not** ticked, while Apple has no "developer communications" bucket and defines its marketing label to cover exactly this (email sent directly to users). Both consoles are the deploy - editing this file doesn't change the live answers. **Audio is a three-path answer**, matching `docs/privacy/index.html` → "Your voice": on-device (Whisper, desktop), the **platform recognizer** the mobile apps default to (Android's may route audio to Google - the app's own labels cover what *we* collect, so this is disclosed in the policy, not claimed as on-device), and aloud cloud (relayed to an STT provider, not retained). Nothing here should imply mobile speech never leaves the device - `580e049` removed exactly that claim from the UI.
 - [x] iOS **privacy manifest** (`ts/ios/App/App/PrivacyInfo.xcprivacy`): tracking = false, UserDefaults required-reason (CA92.1), wired into the App target. Collected-data-types left empty; the App Store Connect labels above are the source of truth.
 - [x] iOS **export compliance**: `ITSAppUsesNonExemptEncryption` = `false` in Info.plist (HTTPS-only is exempt) skips the per-upload prompt.
-- [ ] **Reviewer note**: Noting works free with no account - it now **defaults** to a solo circle, which calls no model, and the opener is static, so a reviewer who taps straight through never meets the sign-in modal (`meditation-pal-vr3w`). Say so explicitly, and note that adding an AI companion is what switches it to the paid cloud path. Also give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
+- [ ] **Reviewer note**: Noting works free with no account - it **defaults** to a circle of one sound participant, which calls no model, and the opener is static, so a reviewer who taps straight through never meets the sign-in modal (`meditation-pal-vr3w`). Say so explicitly, and note that swapping in an AI companion is what switches it to the paid cloud path. Also give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
 - [ ] Listing assets: screenshots (required sizes), description, keywords, support + privacy URLs, age / content rating. Copy direction in bead `7ej` (lead with values, no device-spec claims). Play also wants a 1024x500 feature graphic + 512 icon.
 - [ ] **Promo video** (optional; Play takes a YouTube URL, not a file). Beta-grade
       recipe: screen-record one short real session on the phone (system settings →

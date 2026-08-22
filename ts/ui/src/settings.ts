@@ -183,27 +183,6 @@ export type NotingSound = (typeof NOTING_SOUNDS)[number];
  * spoken aloud, or a sound effect. Timing is adaptive (matches the user's
  * cadence) or a fixed number of seconds before the turn.
  */
-/**
- * Whether a session in this mode will actually call an LLM.
- *
- * Exploration and the staged modes always do. A noting circle only does when a
- * participant is an AI: 'fixed' participants speak a set phrase and 'sound'
- * ones play a cue, and the facilitator's opener is NOTING_STATIC_OPENER, so a
- * circle of those (or a solo circle with none at all) generates no text.
- *
- * One predicate because three places have to agree - the cloud gate, the setup
- * pickers, and the noting view. When they disagreed, a circle that makes zero
- * LLM calls still demanded sign-in, which broke the "noting works with no
- * account" claim the store listing rests on (meditation-pal-vr3w).
- */
-export function sessionNeedsLlm(
-    mode: MeditationType,
-    participants: NotingParticipantConfig[] | undefined
-): boolean {
-    if (mode !== 'noting') return true;
-    return (participants ?? []).some((p) => p.type === 'llm');
-}
-
 export type NotingParticipantConfig =
     | {
           type: 'llm';
@@ -230,6 +209,27 @@ export type NotingParticipantConfig =
           timing: NotingTiming;
           fixedDelaySec: number;
       };
+
+/**
+ * Whether a session in this mode will actually call an LLM.
+ *
+ * Exploration and the staged modes always do. A noting circle only does when a
+ * participant is an AI: 'fixed' participants speak a set phrase and 'sound'
+ * ones play a cue, and the facilitator's opener is NOTING_STATIC_OPENER, so a
+ * circle of those (or a solo circle with none at all) generates no text.
+ *
+ * One predicate because three places have to agree - the cloud gate, the setup
+ * pickers, and the noting view. When they disagreed, a circle that makes zero
+ * LLM calls still demanded sign-in, which broke the "noting works with no
+ * account" claim the store listing rests on (meditation-pal-vr3w).
+ */
+export function sessionNeedsLlm(
+    mode: MeditationType,
+    participants: NotingParticipantConfig[] | undefined
+): boolean {
+    if (mode !== 'noting') return true;
+    return (participants ?? []).some((p) => p.type === 'llm');
+}
 
 export const DIRECTIVENESS_VALUES: readonly number[] = [0, 3, 5, 7, 10];
 
@@ -295,13 +295,15 @@ export const defaultSetup: SessionSetup = {
     model: '',
     voice: null,
     ttsRate: 160,
-    // Solo circle: no participants, so noting calls no model and needs no
-    // account (sessionNeedsLlm). It used to default to one AI participant, which
-    // made the very first thing a new user touched demand sign-in - on mobile
-    // there is no local provider, so 'aloud' is the only option there
-    // (meditation-pal-vr3w). Adding a companion is one tap in setup.
+    // One sound participant on adaptive timing: a companion in the circle that
+    // calls no model, so noting needs no account (sessionNeedsLlm). It used to
+    // default to an AI participant, which made the very first thing a new user
+    // touched demand sign-in - on mobile there is no local provider, so 'aloud'
+    // is the only option there (meditation-pal-vr3w). A solo circle would also
+    // be free but sits oddly: noting alone with nothing answering. Swapping the
+    // AI back in is one tap in setup.
     // Revisit when mobile can run a model for free: meditation-pal-c17d.
-    notingParticipants: [],
+    notingParticipants: [{ type: 'sound', sound: 'plop', timing: 'adaptive', fixedDelaySec: 4 }],
     notingUserTurnCue: false,
     notingUserTurnCueSound: null,
 };
