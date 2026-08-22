@@ -6,16 +6,18 @@
  * Google client id falls back to /v1/auth/dev (local-only) so the loop runs
  * end-to-end locally.
  *
- * Cached in a KvStorage slot (localStorage today, swappable per platform, same
- * pattern as api-keys.ts). Not a BYOK secret, but treating it like one keeps it
- * out of serialized setup/state.
+ * Cached in a KvStorage slot picked per platform (createKv): native Preferences
+ * on mobile, localStorage everywhere else. Same pattern as api-keys.ts. Not a
+ * BYOK secret, but treating it like one keeps it out of serialized setup/state.
  */
 
+import { createKv } from './adapters/kv.js';
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import { cloudUrl } from './cloud-base.js';
 import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
 import { setRetreatCovered, clearRetreatCovered } from './cloud-coverage.js';
 import { isDevBypass } from './app-mode.js';
+import { isCapacitor } from './is-desktop.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
@@ -46,13 +48,14 @@ export interface AuthResponse {
     account: AccountView;
 }
 
-// Lazy so importing this module doesn't construct LocalStorageKv (which throws
-// outside a browser, e.g. in Node tests). Tests call setCloudAuthBackend first.
+// Lazy so importing this module doesn't construct a backend (LocalStorageKv
+// throws outside a browser, e.g. in Node tests). Tests call setCloudAuthBackend
+// first.
 let backendOverride: KvStorage | null = null;
 let lazyBackend: KvStorage | null = null;
 function kv(): KvStorage {
     if (backendOverride) return backendOverride;
-    if (!lazyBackend) lazyBackend = new LocalStorageKv();
+    if (!lazyBackend) lazyBackend = createKv();
     return lazyBackend;
 }
 let fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis);
@@ -144,7 +147,31 @@ export class CloudSignInRequiredError extends Error {
 }
 
 export async function getCloudToken(): Promise<string | null> {
-    return kv().get(TOKEN_KEY);
+    const token = await kv().get(TOKEN_KEY);
+    if (token !== null) return token;
+    return liftLegacyToken();
+}
+
+/** Mobile used to keep the token in the webview's localStorage, which iOS can
+ *  evict (meditation-pal-7n22). It now lives in native Preferences, so lift a
+ *  token written by an older build once rather than silently ending a tester's
+ *  session at the upgrade. Native only, and only when the durable slot is empty.
+ *  Sign-out sets the flag too, so a stale localStorage copy can never resurrect
+ *  a session the user just ended. */
+let legacyLifted = false;
+async function liftLegacyToken(): Promise<string | null> {
+    if (legacyLifted || backendOverride || !isCapacitor()) return null;
+    legacyLifted = true;
+    try {
+        const legacy = new LocalStorageKv();
+        const token = await legacy.get(TOKEN_KEY);
+        if (!token) return null;
+        await kv().set(TOKEN_KEY, token);
+        await legacy.delete(TOKEN_KEY);
+        return token;
+    } catch {
+        return null;
+    }
 }
 
 /** Adopt a slid session: the server re-mints a token once the presented one is a
@@ -188,6 +215,15 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
 
 export async function clearCloudToken(): Promise<void> {
     await kv().delete(TOKEN_KEY);
+    // Drop the pre-7n22 copy too, so the lift above can't sign the user back in.
+    legacyLifted = true;
+    if (!backendOverride && isCapacitor()) {
+        try {
+            await new LocalStorageKv().delete(TOKEN_KEY);
+        } catch {
+            /* no webview storage - nothing to drop */
+        }
+    }
 }
 
 /** DELETE /cloud/v1/me (meditation-pal-8jc). Soft-delete server-side: identities
