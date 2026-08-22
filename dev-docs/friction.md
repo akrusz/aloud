@@ -14,6 +14,7 @@ filed. Length should mean unresolved friction, not history.
 
 ---
 
-*Empty. Last triage 2026-08-05: session.ts size (`meditation-pal-e89d`), phone-dev
-cheatsheet section (`meditation-pal-75p1`), manual smoke list (`meditation-pal-nx1d`),
-recognizer event fixtures (`meditation-pal-x11x`).*
+*Empty. Last triage 2026-08-21: the manual smoke list shipped as
+dev-docs/manual-smoke.md (`meditation-pal-nx1d`, closed). Earlier triage
+2026-08-05: session.ts size (`meditation-pal-e89d`), phone-dev cheatsheet section
+(`meditation-pal-75p1`), recognizer event fixtures (`meditation-pal-x11x`).*
