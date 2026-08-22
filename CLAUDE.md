@@ -15,7 +15,7 @@ The codebase is a **TypeScript + Rust stack** under `ts/`, and **all work happen
 
 ## Source of truth
 
-**`dev-docs/dev-cheatsheet.md`** is the maintained reference for structure, running, testing, and releasing — read it first. This file is orientation plus the rules that override defaults.
+**`dev-docs/dev-cheatsheet.md`** is the maintained reference for structure, running, testing, and releasing — read it first. **`dev-docs/README.md`** indexes the rest of `dev-docs/` (one line per doc, grouped). This file is orientation plus the rules that override defaults.
 
 ## Architecture (the short version)
 

@@ -619,7 +619,11 @@ export class WhisperPcmSttEngine implements SttEngine {
      * AudioContext. Shared by start() and prime().
      */
     private async ensureCaptureGraph(): Promise<void> {
-        if (!this.stream || !this.stream.active) {
+        if (streamNeedsRefresh(this.stream)) {
+            // Stop whatever we were holding first. A stream can need replacing
+            // while its tracks are still live (the muted case below), and those
+            // tracks keep the mic claimed if we only drop the reference.
+            this.releaseStream();
             // On native mobile the WebView only grants getUserMedia audio once
             // the app holds RECORD_AUDIO; this cloud path never requested it, so
             // pre-flight it (no-op elsewhere). See mic-permission.ts.
@@ -727,13 +731,15 @@ export class WhisperPcmSttEngine implements SttEngine {
         // Wire the continuous graph once; it stays alive across turns so the
         // pre-buffer keeps filling even while the facilitator speaks.
         this.nativeRate = this.context.sampleRate;
+        const stream = this.stream;
+        if (!stream) throw new Error('capture stream unavailable');
         if (!this.processor) {
             const nativeRate = this.context.sampleRate;
             this.preBufferFrames = Math.max(
                 1,
                 Math.round((PRE_BUFFER_MS / 1000) * nativeRate / FRAME_SIZE)
             );
-            this.source = this.context.createMediaStreamSource(this.stream);
+            this.source = this.context.createMediaStreamSource(stream);
             // ScriptProcessorNode is deprecated in favour of AudioWorklet, but
             // it's a one-liner and still works everywhere. Migrate later.
             this.processor = this.context.createScriptProcessor(FRAME_SIZE, 1, 1);
@@ -1149,6 +1155,26 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.stream = null;
         }
     }
+}
+
+/**
+ * Whether a held capture stream is unusable and must be re-acquired.
+ *
+ * The trap is `muted`. Backgrounding an app on Android mutes the capture track
+ * but leaves the stream `active` and the track `live`, and it stays muted after
+ * returning to the foreground. A graph rebuilt on that track feeds digital
+ * zeros forever, so the session goes deaf with no error anywhere
+ * (meditation-pal-wudm). A track that `ended` fires its own reacquire handler;
+ * a muted one fires nothing, so it has to be caught on the way in.
+ *
+ * Only consulted from ensureCaptureGraph, i.e. from start()/prime() at a turn
+ * boundary - so re-acquiring here can never clip a live utterance.
+ */
+export function streamNeedsRefresh(stream: MediaStream | null): boolean {
+    if (!stream || !stream.active) return true;
+    const track = stream.getAudioTracks()[0];
+    if (!track) return true;
+    return track.muted || track.readyState === 'ended';
 }
 
 function frameRms(frame: Float32Array): number {
