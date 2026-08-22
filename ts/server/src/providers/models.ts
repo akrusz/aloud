@@ -50,6 +50,8 @@ export async function fetchModels(provider: string, apiKey: string | null): Prom
             return fetchVenice(apiKey);
         case 'groq':
             return fetchGroq(apiKey);
+        case 'opencode_go':
+            return fetchOpencodeGo(apiKey);
         default:
             return [];
     }
@@ -191,5 +193,62 @@ function groqLabel(id: string): string {
     return tail
         .split('-')
         .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+        .join(' ');
+}
+
+// ---- OpenCode Go (Zen) ------------------------------------------------------
+
+async function fetchOpencodeGo(key: string | null): Promise<ModelOption[]> {
+    if (!key) return [];
+    const body = await getJson('https://opencode.ai/zen/go/v1/models', {
+        Authorization: `Bearer ${key}`,
+    });
+    if (!body) return [];
+    return dataArray(body)
+        .map((m) => {
+            const id = String(m['id'] ?? '');
+            const name = String(m['name'] ?? '');
+            return { value: id, label: name || opencodeGoLabel(id) };
+        })
+        .filter((m) => m.value);
+}
+
+/** `minimax-m3` -> `Minimax M3`, `qwen3.6-plus` -> `Qwen 3.6 Plus`. */
+function opencodeGoLabel(id: string): string {
+    return id
+        .split(/[-_.]/)
+        .map((w) => {
+            if (!w) return '';
+            if (/^\d/.test(w)) return w;
+            const known: Record<string, string> = {
+                minimax: 'MiniMax',
+                kimi: 'Kimi',
+                glm: 'GLM',
+                deepseek: 'DeepSeek',
+                qwen: 'Qwen',
+                mimo: 'MiMo',
+                hy: 'Hy',
+                gpt: 'GPT',
+                grok: 'Grok',
+                muse: 'Muse',
+                ox: 'Ox',
+                alpha: 'Alpha',
+                free: 'Free',
+                vision: 'Vision',
+                exp: 'Exp',
+                max: 'Max',
+                pro: 'Pro',
+                plus: 'Plus',
+                flash: 'Flash',
+                code: 'Code',
+                omni: 'Omni',
+                preview: 'Preview',
+                luna: 'Luna',
+                contributor: 'Contributor',
+                spark: 'Spark',
+            };
+            return known[w.toLowerCase()] ?? w.charAt(0).toUpperCase() + w.slice(1);
+        })
+        .filter(Boolean)
         .join(' ');
 }

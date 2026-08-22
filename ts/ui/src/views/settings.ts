@@ -1636,6 +1636,10 @@ const API_KEY_INFO: Record<Provider, { url: string; prefix: string } | undefined
         url: 'https://venice.ai/settings/api',
         prefix: '',
     },
+    opencode_go: {
+        url: 'https://opencode.ai/auth',
+        prefix: 'sk-',
+    },
     ollama: undefined,
     // claude_proxy uses the local `claude` CLI's existing login.
     claude_proxy: undefined,
