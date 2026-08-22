@@ -11,7 +11,7 @@
  * no Google client id fall through to lazy dev sign-in.
  */
 
-import type { MeditationType, SessionSetup } from './settings.js';
+import { sessionNeedsLlm, type MeditationType, type SessionSetup } from './settings.js';
 import type { AppSettings } from './app-settings.js';
 import { isHostedSttChoice, resolveSttChoice } from './adapters/stt-picker.js';
 import { isWebMode, isDevBypass } from './app-mode.js';
@@ -25,14 +25,19 @@ import { showSignInModal } from './sign-in-modal.js';
  *  tts-picker routes to metered TTS whatever the provider), and any one alone
  *  needs credits. In noting mode each participant carries its own voice and the
  *  narrator speaks the opener with setup.voice, so all count. STT keys off the
- *  resolved choice, not the raw setting, to account for the web default. */
+ *  resolved choice, not the raw setting, to account for the web default.
+ *
+ *  The LLM provider only counts when the session will actually CALL it
+ *  (sessionNeedsLlm): mobile has no local provider, so setup.provider is always
+ *  'aloud' there, and taking that at face value made an AI-free noting circle
+ *  demand sign-in for a model it never asks anything (meditation-pal-vr3w). */
 export function sessionUsesCloud(
     setup: SessionSetup,
     settings: AppSettings,
     webMode: boolean,
     mode: MeditationType = 'exploration'
 ): boolean {
-    if (setup.provider === 'aloud') return true;
+    if (setup.provider === 'aloud' && sessionNeedsLlm(mode, setup.notingParticipants)) return true;
     if (setup.voice?.startsWith('aloud:')) return true;
     if (
         mode === 'noting' &&

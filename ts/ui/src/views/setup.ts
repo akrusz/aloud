@@ -19,6 +19,7 @@ import {
     isProviderAvailable,
     resolveSetupProvider,
     providerNeedsKey,
+    sessionNeedsLlm,
     type ProviderAvailabilityOpts,
     DIRECTIVENESS_VALUES,
     FOCUS_LABELS,
@@ -874,15 +875,13 @@ export async function mountSetupView(
     }
 
     /**
-     * Whether the chosen flow needs a working LLM. Exploration always does; a
-     * noting circle only if a participant is an AI, or it's a solo/empty circle
-     * (which falls back to an AI-led intro).
+     * Whether the chosen flow needs a working LLM. Shared with the cloud gate so
+     * the two can't disagree (meditation-pal-vr3w). A solo/empty circle used to
+     * count as needing one "for an AI-led intro"; that hasn't been true since
+     * the opener became static (NOTING_STATIC_OPENER).
      */
     function needsLLM(): boolean {
-        if (setup.meditationType !== 'noting') return true;
-        const ps = setup.notingParticipants ?? [];
-        if (ps.length === 0) return true;
-        return ps.some((p) => p.type === 'llm');
+        return sessionNeedsLlm(setup.meditationType, setup.notingParticipants);
     }
 
     /**

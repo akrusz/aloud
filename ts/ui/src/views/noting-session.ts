@@ -49,7 +49,12 @@ import {
     wireEmberControls,
 } from '../embers.js';
 import { initKasinaMode } from '../kasina.js';
-import { type SessionSetup, type NotingParticipantConfig, ALL_PROVIDERS } from '../settings.js';
+import {
+    type SessionSetup,
+    type NotingParticipantConfig,
+    ALL_PROVIDERS,
+    sessionNeedsLlm,
+} from '../settings.js';
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
@@ -87,20 +92,28 @@ export async function mountNotingSessionView(
     // on later boots (fire-and-forget).
     void markSessionStarted();
 
-    let provider: LLMProvider;
-    try {
-        provider = await buildProvider(setup);
-    } catch (err) {
-        return mountError(root, (err as Error).message, onEnd);
-    }
+    // A circle of fixed phrases and sounds calls no model, and the opener is
+    // static, so don't build a provider for one: on mobile the only provider is
+    // 'aloud', and constructing it fetches a cloud token the session never needs
+    // - which is what made an AI-free circle demand sign-in (meditation-pal-vr3w).
+    const needsLlm = sessionNeedsLlm('noting', setup.notingParticipants);
+    let provider: LLMProvider | null = null;
     // Noting labels and the session recap run on a cheap, fast, non-reasoning
     // model (see buildUtilityProvider), not the possibly slow/always-thinking
     // facilitation model. Falls back to `provider`.
-    let utilityProvider = provider;
-    try {
-        utilityProvider = await buildUtilityProvider(setup, provider);
-    } catch {
+    let utilityProvider: LLMProvider | null = null;
+    if (needsLlm) {
+        try {
+            provider = await buildProvider(setup);
+        } catch (err) {
+            return mountError(root, (err as Error).message, onEnd);
+        }
         utilityProvider = provider;
+        try {
+            utilityProvider = await buildUtilityProvider(setup, provider);
+        } catch {
+            utilityProvider = provider;
+        }
     }
 
     // ---- nav chrome (breathing orb + End/History) ----
@@ -138,7 +151,8 @@ export async function mountNotingSessionView(
         const providerLabel =
             ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
         const modelLabel = sessionModelLabel(setup.provider, setup.model);
-        const streams = typeof (provider as { completeStream?: unknown }).completeStream === 'function';
+        const streams =
+            typeof (provider as { completeStream?: unknown } | null)?.completeStream === 'function';
         return [
             {
                 label: 'Model',
@@ -598,6 +612,9 @@ export async function mountNotingSessionView(
         const name = participantName(index);
         if (p.type === 'llm') {
             setStatus(`${name} is noting…`);
+            // Unreachable without a provider: an 'llm' participant is exactly
+            // what makes needsLlm true.
+            if (!utilityProvider) return;
             const label = await generateNotingLabel(utilityProvider, {
                 context: recentLabels.slice(),
                 ownLabels: ownLabels[index]!.slice(),
@@ -766,9 +783,14 @@ export async function mountNotingSessionView(
             // returns '' on failure). The exchanges are short notes ("warmth",
             // "tension") distilled into a one-line recap.
             setStatus('Saving session…');
-            const summary = await generateSessionSummary(utilityProvider, finalState.exchanges, {
-                onUsage: (u) => session.recordLlmUsage(u),
-            });
+            // No provider means an AI-free circle: fall straight back to the
+            // intention rather than reaching for a metered recap the user never
+            // asked for (meditation-pal-vr3w).
+            const summary = utilityProvider
+                ? await generateSessionSummary(utilityProvider, finalState.exchanges, {
+                      onUsage: (u) => session.recordLlmUsage(u),
+                  })
+                : '';
             finalState.notes = summary || setup.intention.trim();
             try {
                 await sessionStore.save(finalState);

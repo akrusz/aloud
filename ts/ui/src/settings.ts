@@ -178,6 +178,27 @@ export type NotingSound = (typeof NOTING_SOUNDS)[number];
  * spoken aloud, or a sound effect. Timing is adaptive (matches the user's
  * cadence) or a fixed number of seconds before the turn.
  */
+/**
+ * Whether a session in this mode will actually call an LLM.
+ *
+ * Exploration and the staged modes always do. A noting circle only does when a
+ * participant is an AI: 'fixed' participants speak a set phrase and 'sound'
+ * ones play a cue, and the facilitator's opener is NOTING_STATIC_OPENER, so a
+ * circle of those (or a solo circle with none at all) generates no text.
+ *
+ * One predicate because three places have to agree - the cloud gate, the setup
+ * pickers, and the noting view. When they disagreed, a circle that makes zero
+ * LLM calls still demanded sign-in, which broke the "noting works with no
+ * account" claim the store listing rests on (meditation-pal-vr3w).
+ */
+export function sessionNeedsLlm(
+    mode: MeditationType,
+    participants: NotingParticipantConfig[] | undefined
+): boolean {
+    if (mode !== 'noting') return true;
+    return (participants ?? []).some((p) => p.type === 'llm');
+}
+
 export type NotingParticipantConfig =
     | {
           type: 'llm';
@@ -276,7 +297,14 @@ export const defaultSetup: SessionSetup = {
 };
 
 const SETTINGS_KEY = 'preview:setup';
-const kv = new LocalStorageKv();
+// Lazy for the same reason as app-settings.ts: importing this module for a pure
+// helper must not construct a storage backend (LocalStorageKv throws outside a
+// browser).
+let lazyKv: LocalStorageKv | null = null;
+function kv(): LocalStorageKv {
+    if (!lazyKv) lazyKv = new LocalStorageKv();
+    return lazyKv;
+}
 
 export async function loadSetup(): Promise<SessionSetup> {
     // Two inheritance rules, on purpose:
@@ -295,7 +323,7 @@ export async function loadSetup(): Promise<SessionSetup> {
         provider: s.defaultProvider,
         model: s.defaultModel,
     };
-    const raw = await kv.get(SETTINGS_KEY);
+    const raw = await kv().get(SETTINGS_KEY);
     let merged = base;
     if (raw) {
         try {
@@ -320,5 +348,5 @@ export async function loadSetup(): Promise<SessionSetup> {
 }
 
 export async function saveSetup(setup: SessionSetup): Promise<void> {
-    await kv.set(SETTINGS_KEY, JSON.stringify(setup));
+    await kv().set(SETTINGS_KEY, JSON.stringify(setup));
 }

@@ -10,9 +10,10 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * bakes them into the generated native projects.
  *
  * Full build/run steps, the required Info.plist / AndroidManifest permission
- * strings, and the native-adapter map live in dev-docs/mobile.md. The
- * generated ios/ and android/ projects are gitignored, so that doc is where
- * the native-side config is kept.
+ * strings, and the native-adapter map live in dev-docs/mobile.md. The generated
+ * ios/ and android/ projects ARE committed (they carry icons, signing, and the
+ * permission strings), so edit them in place - `cap add` is a one-time step, not
+ * something to re-run.
  */
 const config: CapacitorConfig = {
     appId: 'app.aloud.meditation',

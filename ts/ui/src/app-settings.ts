@@ -8,6 +8,7 @@
  */
 
 import { createKv } from './adapters/kv.js';
+import type { KvStorage } from '../../src/platform/storage.js';
 import type { Provider } from './settings.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
@@ -216,10 +217,18 @@ export function detectLocale(): string {
 }
 
 const KEY = 'app:settings';
-const kv = createKv();
+// Lazy: constructing a backend at module scope makes merely IMPORTING this file
+// (or anything that re-exports through settings.ts) throw outside a browser,
+// which is how a Node test that only wanted a pure helper ended up building
+// localStorage. Same lazy pattern as cloud-auth.ts.
+let lazyKv: KvStorage | null = null;
+function kv(): KvStorage {
+    if (!lazyKv) lazyKv = createKv();
+    return lazyKv;
+}
 
 export async function loadAppSettings(): Promise<AppSettings> {
-    const raw = await kv.get(KEY);
+    const raw = await kv().get(KEY);
     // No stored settings, or none with an explicit language: seed from the
     // browser locale. An explicit stored choice wins.
     if (!raw) return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
@@ -239,7 +248,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
 }
 
 export async function saveAppSettings(settings: AppSettings): Promise<void> {
-    await kv.set(KEY, JSON.stringify(settings));
+    await kv().set(KEY, JSON.stringify(settings));
 }
 
 /**
