@@ -20,9 +20,44 @@ Already done:
 - [x] Apple Developer Program membership (already used for macOS notarization).
 
 What the beta build actually does on a phone: the LLM is **aloud cloud**
-(sign-in + credits). Noting runs with no AI; Exploration / FeltSense call cloud.
-The bundled on-device model tier (beads `dbd` / `7ej`) is not shipped yet, so
-device RAM gates nothing in this build.
+(sign-in + credits). Exploration / FeltSense call cloud. **Noting defaults to a
+solo circle**, which calls no model and needs no account (bead `vr3w`); adding an
+AI companion is one tap and puts you back on cloud. The bundled on-device model
+tier (beads `dbd` / `7ej`) is not shipped yet, so device RAM gates nothing here.
+
+### Status, 2026-08-21 - blocked on one device session
+
+Everything below is either done or waiting on hardware. **The gate right now is
+Phase 0**: six fixes are written, typechecked and unit-tested but have never run
+on a phone, and until they do nothing else is worth queueing behind them.
+
+Run section 3 of [manual-smoke.md](manual-smoke.md) - it is ordered as exactly
+this verification list:
+
+| Bead | What to prove |
+|---|---|
+| `cddo` | native STT holds a ~2s mid-thought pause as one turn |
+| `t25n` | cloud STT gets the mic (no permission error) |
+| `oxmt` | the facilitator doesn't interrupt itself on the loudspeaker |
+| `wudm` | mic survives backgrounding - **and check noting separately**, it's deliberately untouched |
+| `vr3w` | signed-out noting runs end to end (clear app data first) |
+| `7n22` | sign-in survives a force-stop; sign-**out** survives one too |
+
+After that session the critical path is short and entirely console work, none of
+it code: **`tpj4`** (Google iOS OAuth client → the `Info.plist` URL scheme, Apple
+Services ID, both audiences into the server's `GOOGLE_CLIENT_IDS` /
+`APPLE_CLIENT_IDS`) and the **Play App-signing SHA-1** Android OAuth client - the
+gotcha in [mobile-signing.md](mobile-signing.md) where sign-in works in dev and
+fails in every Play-delivered build. Guideline 4.8 makes Apple sign-in mandatory
+on iOS because the build ships Google; the code for it already exists.
+
+Android is closer than iOS: the upload keystore exists, `scripts/android-aab.sh`
+builds a signed `.aab`, and internal testing has no review wait. iOS additionally
+needs the URL scheme above before a build with working Google sign-in can go up.
+
+Known and accepted for the beta: no barge-in on native STT (`x4h4`), and no
+anonymous first sit on iPhone **web** (`2dy1` - punted deliberately; the native
+apps are unaffected).
 
 ## Phase 0 - Validate on a real device (the critical path)
 
@@ -54,7 +89,7 @@ Easy to forget, because it's separate from the privacy *page*.
 - [ ] Apple **App Privacy** labels + Google **Data Safety** form, filled from the real data flows (account email, transcribed audio, credits). **Email has two purposes, not one**: account management *and* product-update emails, since the signup opt-in (`Account.emailUpdates`, `sign-in-modal.ts` + the account page) keeps an opted-in address for that. In Play → Data safety → Personal info → Email address, add the **Developer communications** purpose and mark the collection **optional** (users can choose); in App Store Connect → App Privacy → Contact Info → Email Address, add **Developer's Advertising or Marketing**. The two labels differ because the taxonomies do, not because the behavior does: Play's "Advertising or marketing" means ads and promos and is **not** ticked, while Apple has no "developer communications" bucket and defines its marketing label to cover exactly this (email sent directly to users). Both consoles are the deploy - editing this file doesn't change the live answers. **Audio is a three-path answer**, matching `docs/privacy/index.html` → "Your voice": on-device (Whisper, desktop), the **platform recognizer** the mobile apps default to (Android's may route audio to Google - the app's own labels cover what *we* collect, so this is disclosed in the policy, not claimed as on-device), and aloud cloud (relayed to an STT provider, not retained). Nothing here should imply mobile speech never leaves the device - `580e049` removed exactly that claim from the UI.
 - [x] iOS **privacy manifest** (`ts/ios/App/App/PrivacyInfo.xcprivacy`): tracking = false, UserDefaults required-reason (CA92.1), wired into the App target. Collected-data-types left empty; the App Store Connect labels above are the source of truth.
 - [x] iOS **export compliance**: `ITSAppUsesNonExemptEncryption` = `false` in Info.plist (HTTPS-only is exempt) skips the per-upload prompt.
-- [ ] **Reviewer note**: Noting works free with no account **when the circle has no AI participants** - fixed-phrase and sound participants call no model, and the opener is static, so nothing touches the cloud (`meditation-pal-vr3w`). The default circle ships with one AI participant, so spell out the two taps that remove it, or the reviewer will hit the sign-in modal and conclude the app is account-walled. Also give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
+- [ ] **Reviewer note**: Noting works free with no account - it now **defaults** to a solo circle, which calls no model, and the opener is static, so a reviewer who taps straight through never meets the sign-in modal (`meditation-pal-vr3w`). Say so explicitly, and note that adding an AI companion is what switches it to the paid cloud path. Also give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
 - [ ] Listing assets: screenshots (required sizes), description, keywords, support + privacy URLs, age / content rating. Copy direction in bead `7ej` (lead with values, no device-spec claims). Play also wants a 1024x500 feature graphic + 512 icon.
 - [ ] **Promo video** (optional; Play takes a YouTube URL, not a file). Beta-grade
       recipe: screen-record one short real session on the phone (system settings →

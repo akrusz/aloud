@@ -783,15 +783,16 @@ export async function mountNotingSessionView(
             // returns '' on failure). The exchanges are short notes ("warmth",
             // "tension") distilled into a one-line recap.
             setStatus('Saving session…');
-            // No provider means an AI-free circle: fall straight back to the
-            // intention rather than reaching for a metered recap the user never
-            // asked for (meditation-pal-vr3w).
-            const summary = utilityProvider
+            // No provider means an AI-free circle: save without a recap rather
+            // than reaching for a metered one the user never asked for
+            // (meditation-pal-vr3w). No intention fallback here - noting has no
+            // intention field, so setup.intention is always '' (see
+            // SessionSetup.intention). History renders a missing summary fine.
+            finalState.notes = utilityProvider
                 ? await generateSessionSummary(utilityProvider, finalState.exchanges, {
                       onUsage: (u) => session.recordLlmUsage(u),
                   })
                 : '';
-            finalState.notes = summary || setup.intention.trim();
             try {
                 await sessionStore.save(finalState);
             } catch {

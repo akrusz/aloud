@@ -117,6 +117,11 @@ export interface SessionSetup {
      * The ACTIVE mode's intention - what sessions, prompts, and history consume.
      * The setup view keeps it in sync with intentionByMode[meditationType] (and
      * load normalizes it), so downstream code never sees the per-mode split.
+     *
+     * NOTE: **noting has no intention field**, so in a noting session this is
+     * ALWAYS ''. Only exploration and felt sense collect one. Code reached from
+     * the noting view must not treat it as a fallback - it reads as one and is
+     * silently empty every time.
      */
     intention: string;
     /**
@@ -290,8 +295,13 @@ export const defaultSetup: SessionSetup = {
     model: '',
     voice: null,
     ttsRate: 160,
-    // One AI participant, adaptive timing. (voice: null = inherit the default.)
-    notingParticipants: [{ type: 'llm', voice: null, reactive: 'low', timing: 'adaptive', fixedDelaySec: 4 }],
+    // Solo circle: no participants, so noting calls no model and needs no
+    // account (sessionNeedsLlm). It used to default to one AI participant, which
+    // made the very first thing a new user touched demand sign-in - on mobile
+    // there is no local provider, so 'aloud' is the only option there
+    // (meditation-pal-vr3w). Adding a companion is one tap in setup.
+    // Revisit when mobile can run a model for free: meditation-pal-c17d.
+    notingParticipants: [],
     notingUserTurnCue: false,
     notingUserTurnCueSound: null,
 };
