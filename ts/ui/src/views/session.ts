@@ -1016,6 +1016,57 @@ export async function mountSessionView(
         }
     }
 
+    /**
+     * Phones stop the speech recognizer and mute the getUserMedia tracks when
+     * the page goes to the background, and nothing brings them back: the listen
+     * loop's `for await` just ends and the mic is dead for the rest of the
+     * page's life, with no error shown (meditation-pal-wudm). Locking the screen
+     * or taking a notification mid-sit is ordinary meditation behaviour, so this
+     * has to self-heal. Rebuild the SAME engine on foreground and re-enter the
+     * loop.
+     *
+     * Phones only (isSingleOwnerMicPlatform), for the reason the mic cooldown is
+     * phone-only too: a desktop tab switch doesn't kill capture, and rebuilding
+     * there would cut a live turn for nothing.
+     */
+    async function restartSttAfterForeground(): Promise<void> {
+        if (torn || muted || switchingStt || !stt) return;
+        switchingStt = true;
+        try {
+            const next = await createSttForChoice(sttChoice, vadOpts);
+            if (!next) {
+                // Leave the old engine in place: a failed rebuild shouldn't also
+                // take away whatever capture may still work.
+                renderSttTrouble();
+                return;
+            }
+            const prev = stt;
+            stt = next;
+            whisperEngine = continuousCapture && next instanceof WhisperPcmSttEngine ? next : null;
+            wireWhisperBargeIn();
+            stopMeter();
+            // Ends the loop's in-flight iteration on the old engine; it re-enters
+            // on the new `stt`, or is restarted below if it had already fallen out.
+            void prev?.stop();
+            if (torn || muted) return;
+            startMeter();
+            if (!listenLoopRunning) void listenLoop();
+            debugLog('stt restarted after foreground');
+        } catch (err) {
+            console.warn('STT restart after foreground failed', err);
+            renderSttTrouble();
+        } finally {
+            switchingStt = false;
+        }
+    }
+
+    const onVisibilityChange = (): void => {
+        if (document.visibilityState !== 'visible') return;
+        if (!isSingleOwnerMicPlatform()) return;
+        void restartSttAfterForeground();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     // Staged-mode phase hint: a quiet word in the input row ("sensing",
     // "finding words") so the user can feel where they are in the arc without
     // it being announced aloud. Hidden for single-phase modes.
@@ -1624,20 +1675,6 @@ export async function mountSessionView(
             // history/logs so we resume from the last real turn. No buy prompt
             // and no silence mode - a top-up can't lift the pause.
             const ephemeral = finishReason === BILLING_PAUSED_FINISH;
-            // An empty completion (200 with no text) is not a valid turn:
-            // surface it instead of writing a blank message to history and
-            // limping along on canned check-ins. A [HOLD]-only reply keeps
-            // rawText non-empty, so legitimate holds aren't swallowed.
-            if (!ephemeral && !rawText.trim()) {
-                throw new Error(
-                    'The model returned an empty response. Try again, or check your provider in Settings.'
-                );
-            }
-            if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
-            // Claim the bubble's transcript spot now (still hidden if nothing
-            // has been spoken), so a turn that supersedes us mid-playback can't
-            // end up ordered above this reply.
-            bubble.anchor();
             // Staged modes: apply the LLM's movement signal (clamped at the ends
             // of the arc) and persist the new phase for resume.
             if (stager && !ephemeral && stage !== 'none') {
@@ -1665,6 +1702,27 @@ export async function mountSessionView(
                     debugLog(`turn [WAIT] ${waitSec}s ignored (timing ${checkinTiming})`);
                 }
             }
+            // Nothing to say is not a valid turn, whether the completion was
+            // blank or carried only control tokens. A signal-only reply
+            // ("[WAIT:8m]", a bare "[HOLD]") keeps rawText non-empty but leaves
+            // cleanText empty once parseTurnSignals strips it - recording that
+            // blank turn and speaking it gives the meditator total silence in
+            // answer to what they said. The signals above are already applied,
+            // so the model's intent still lands; only the empty turn is dropped.
+            // A bare [HOLD] must NOT arm awaitingHoldConfirm (set further down,
+            // past this bail): no question was asked, so the meditator's next
+            // words are a normal turn, not an answer. (meditation-pal-9era)
+            if (!ephemeral && !cleanText.trim()) {
+                if (rawText.trim()) tapEvent('signal', 'signal-only-reply', { raw: rawText });
+                throw new Error(
+                    'The model returned an empty response. Try again, or check your provider in Settings.'
+                );
+            }
+            if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
+            // Claim the bubble's transcript spot now (still hidden if nothing
+            // has been spoken), so a turn that supersedes us mid-playback can't
+            // end up ordered above this reply.
+            bubble.anchor();
 
             // Let in-flight TTS chunks finish so the next turn doesn't pile on.
             try {
@@ -2264,8 +2322,9 @@ export async function mountSessionView(
             // can neither hold nor move the arc.
             const { cleanText } = parseTurnSignals(rawText);
             // An empty greeting is a failed opener: throw so the catch uses the
-            // static fallback rather than a blank first turn.
-            if (!rawText.trim()) throw new Error('empty opener completion');
+            // static fallback rather than a blank first turn. Tested on
+            // cleanText, so a signal-only greeting falls back too (9era).
+            if (!cleanText.trim()) throw new Error('empty opener completion');
             tapTurn('assistant', 'opener', cleanText, { raw: rawText });
             // The opener prompt was one-shot; record only the greeting.
             session.addAssistantMessage(cleanText, undefined, usage);
@@ -2332,7 +2391,8 @@ export async function mountSessionView(
             clearSlowResponseStatus();
             const { cleanText } = parseTurnSignals(rawText);
             // Empty welcome-back: fall through to the static fallback below.
-            if (!rawText.trim()) throw new Error('empty continuation completion');
+            // cleanText, so a signal-only one falls back too (9era).
+            if (!cleanText.trim()) throw new Error('empty continuation completion');
             session.addAssistantMessage(cleanText, undefined, usage);
             reveal.anchor();
             try {
@@ -2740,6 +2800,7 @@ export async function mountSessionView(
         sessionClock.destroy();
         pacing.endSession();
         const finalState = session.endSession();
+        document.removeEventListener('visibilitychange', onVisibilityChange);
         void stt?.stop();
         stopMeter();
         void tts.cancel();

@@ -246,14 +246,8 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             return;
         }
         const { hold, stage, waitSec, cleanText } = parseTurnSignals(raw);
-        if (!raw.trim()) {
-            // The view surfaces this as an error toast and records nothing.
-            event('error', 'empty-reply');
-            pacing.onResponseEnd();
-            recordTurnGap();
-            return;
-        }
-        session.addAssistantMessage(cleanText, undefined, usage);
+        // Signals first, so a reply that carried nothing BUT signals still lands
+        // its intent before the empty turn is dropped (mirrors views/session.ts).
         if (stager && stage !== 'none') {
             const applied = stager.apply(stage);
             if (applied) {
@@ -271,6 +265,17 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 event('signal', 'wait-ignored', { requestedSec: waitSec });
             }
         }
+        // Blank completion, or one that was only control tokens: nothing to say,
+        // so record nothing, speak nothing, and leave awaitingHoldConfirm alone -
+        // a bare [HOLD] asked no question. (meditation-pal-9era)
+        if (!cleanText.trim()) {
+            // The view surfaces this as an error toast and records nothing.
+            event('error', 'empty-reply', raw.trim() ? { raw } : undefined);
+            pacing.onResponseEnd();
+            recordTurnGap();
+            return;
+        }
+        session.addAssistantMessage(cleanText, undefined, usage);
         record('assistant', 'reply', cleanText, { raw, latencyMs });
         speakAdvance(cleanText);
         awaitingHoldConfirm = !wasSilent && hold && silenceModeEnabled;
@@ -491,7 +496,10 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 )
             );
             const { cleanText } = parseTurnSignals(result.text);
-            if (!result.text.trim()) throw new Error('empty opener completion');
+            // cleanText, not result.text: a greeting of nothing but control
+            // tokens is as unusable as a blank one, and falls back the same way
+            // (mirrors views/session.ts - meditation-pal-9era).
+            if (!cleanText.trim()) throw new Error('empty opener completion');
             session.addAssistantMessage(cleanText, undefined, usageOf(result));
             record('assistant', 'opener', cleanText, { raw: result.text, latencyMs });
             speakAdvance(cleanText);

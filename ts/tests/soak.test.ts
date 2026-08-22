@@ -158,6 +158,51 @@ describe('runSoakSession', () => {
         expect(runChecks(result).filter((f) => f.level === 'fail')).toEqual([]);
     });
 
+    /**
+     * meditation-pal-9era. A reply of nothing but control tokens keeps
+     * rawText non-empty, so the old blank-completion guard waved it through and
+     * the meditator got total silence in answer to what they said. The bare
+     * [HOLD] is the worst of it: nothing is asked, so arming the confirm
+     * handshake would parse their next words as a yes/no to a question they
+     * never heard.
+     */
+    it('drops a signal-only reply instead of speaking a blank turn', async () => {
+        const facilitator = new ScriptedFacilitator({
+            turns: ['Settle in. What brings you here?', '[WAIT:8m]', '[HOLD]', 'Mm. Say more.'],
+        });
+        const sim = new ScriptedSimUser([
+            { waitSec: 30, text: 'my shoulders feel tight' },
+            { waitSec: 30, text: 'and my jaw too' },
+            { waitSec: 30, text: 'that is about it' },
+            { waitSec: 30, end: true },
+        ]);
+        const result = await runSoakSession({
+            scenario: baseScenario,
+            facilitator,
+            utility: utilityStub,
+            simUser: sim,
+        });
+
+        expect(result.error).toBeUndefined();
+        // Nothing blank reached the transcript...
+        const assistant = result.transcript.filter((t) => t.role === 'assistant');
+        expect(assistant.every((t) => t.text.trim().length > 0)).toBe(true);
+        // ...the opener is intact, so the two signal-only replies below are the
+        // ones under test...
+        expect(assistant[0]?.text).toContain('Settle in');
+        // ...both were surfaced as empty instead...
+        const eventKeys = result.events.map((e) => `${e.kind}:${e.detail}`);
+        expect(eventKeys.filter((k) => k === 'error:empty-reply')).toHaveLength(2);
+        // ...the [WAIT] still landed, because the intent is legible even when
+        // there are no words with it...
+        expect(eventKeys).toContain('signal:wait');
+        // ...and the bare [HOLD] never armed the handshake or entered silence.
+        expect(result.finalState.awaitingHoldConfirm).toBe(false);
+        expect(eventKeys).not.toContain('hold:enter');
+        // The soak check that exists for exactly this stays quiet.
+        expect(runChecks(result).filter((f) => f.id === 'empty-spoken-turn')).toEqual([]);
+    });
+
     it('speaks the timer completion inside a hold and restores the hold', async () => {
         const facilitator = new ScriptedFacilitator({
             turns: ['Settle in.', '[HOLD] Shall I stay quiet until your timer?'],
