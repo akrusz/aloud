@@ -191,6 +191,10 @@ npm run soak:web                      # tier 2: real UI, real audio (needs
                                       # `npm run web:dev` + BlackHole + Chrome)
 ```
 
+Then the by-hand pass: **[manual-smoke.md](manual-smoke.md)** - the desktop
+shell, permission refusals, real speakers, and phones, none of which the soak
+tiers can reach.
+
 ## Building & releasing
 
 ```bash
