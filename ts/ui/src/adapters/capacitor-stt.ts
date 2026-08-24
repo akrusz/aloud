@@ -51,6 +51,9 @@ export interface CapacitorSttEngineOptions {
 
 const RESTART_GAP_MS = 50;
 const SEGMENT_SETTLE_MS = 700;
+// A silence error this soon after a launch belongs to the previous segment:
+// Android needs seconds of quiet to decide it heard nothing. (wlp9: ~12ms.)
+const STALE_SILENCE_GUARD_MS = 300;
 const IDLE_TIMEOUT_MS = 15000;
 // The relaunched native recognizer isn't actually listening the instant
 // start() is called - Android spends a few hundred ms warming up (and clips
@@ -206,6 +209,9 @@ export class CapacitorSttEngine implements SttEngine {
         // True while a relaunch is tearing down/rebinding; error events in that
         // window belong to the dying segment and must not trigger another one.
         let relaunching = false;
+        // `relaunching` covers only the teardown window; a stale error can also
+        // land just after the new segment is up.
+        let segmentLaunchedAt = 0;
         let endTimer: ReturnType<typeof setTimeout> | null = null;
         let settleTimer: ReturnType<typeof setTimeout> | null = null;
         let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -390,6 +396,14 @@ export class CapacitorSttEngine implements SttEngine {
                 if (submitted || done || this.stopRequested || relaunching) return;
                 // NO_MATCH / SPEECH_TIMEOUT: ordinary silence, not a fault.
                 if (/didn't understand|no match|no speech/i.test(msg)) {
+                    // Not ours if this segment hasn't come up yet - it's the
+                    // previous one's, and acting on it cost every turn its first
+                    // ~650ms (meditation-pal-wlp9). Time-bounded so an engine
+                    // that never reports ready (iOS) still ends a silent turn.
+                    if (!started && Date.now() - segmentLaunchedAt < STALE_SILENCE_GUARD_MS) {
+                        console.info(`[stt-native] ignoring stale silence error: ${msg}`);
+                        return;
+                    }
                     // If end-of-speech already scheduled this segment's wrap-up,
                     // let the settle path own it (fold + restart/submit).
                     if (settleTimer !== null) return;
@@ -456,6 +470,7 @@ export class CapacitorSttEngine implements SttEngine {
 
         // Launch (or relaunch) one native recognition segment.
         const launchSegment = (): void => {
+            segmentLaunchedAt = Date.now();
             armStart(); // watchdog: relaunch if this start() hangs
             const startPromise = SpeechRecognition.start({
                 language: this.options.language,

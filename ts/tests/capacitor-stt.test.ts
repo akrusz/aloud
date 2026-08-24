@@ -287,3 +287,44 @@ describe('CapacitorSttEngine restart-stitching', () => {
         await finished;
     });
 });
+
+describe('stale silence errors (meditation-pal-wlp9)', () => {
+    // Real ordering from logcat: the stale error landed ~12ms after the new
+    // launch, before the new recognizer reported coming up.
+    it("ignores the previous segment's no-speech error, arriving before ready", async () => {
+        H.start.mockImplementation(async () => undefined as unknown); // no 'ready' yet
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(20);
+
+        nativeError('No speech detected');
+        await vi.advanceTimersByTimeAsync(30);
+        expect(finals(events)).toEqual([]); // turn survives
+        expect(H.start).toHaveBeenCalledTimes(1); // no cancel-and-restart
+
+        H.listeners.get('listeningState')?.({ status: 'ready' }); // now it's up
+        partial('the first word survives');
+        stopped();
+        partial('the first word survives');
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'the first word survives' }]);
+        await finished;
+    });
+
+    it('still ends a silent turn when the engine never reports coming up', async () => {
+        H.start.mockImplementation(async () => undefined as unknown); // iOS/unpatched
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        let ended = false;
+        void finished.then(() => {
+            ended = true;
+        });
+        await vi.advanceTimersByTimeAsync(400); // past STALE_SILENCE_GUARD_MS
+
+        nativeError('No speech detected');
+        await vi.advanceTimersByTimeAsync(50);
+        expect(ended).toBe(true); // an empty turn ends silently, emitting no final
+        expect(finals(events)).toEqual([]);
+        await finished;
+    });
+});
