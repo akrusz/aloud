@@ -54,6 +54,37 @@ Repeat with the **upload keystore's** SHA-1 when it exists, and - after
 enrolling in Play App Signing - add **Play's app-signing SHA-1** (Play Console →
 Test and release → App integrity), or store builds will fail the same way.
 
+### Registered fingerprints (keep this current)
+
+That "nothing to bake or deploy" is also why this step keeps getting silently
+un-done: it's the only part of sign-in config that leaves **no artifact in the
+repo**, so nothing fails at build time and there's no way to tell "done" from
+"never done". Paired with the plugin reporting the failure as a user cancel
+(`meditation-pal-7bi9`), a missing registration looks exactly like the button
+not working. So record the state here.
+
+Google Cloud project **1033783393687** (same project as the web + desktop client
+ids in `ts/server/.env` - an Android client in any other project does nothing).
+Package `app.aloud.meditation`:
+
+| Signing key | SHA-1 | Registered |
+|---|---|---|
+| Debug (`~/.android/debug.keystore`, created 2026-07-05) | `4E:AD:8D:D0:70:77:56:28:CA:17:3B:E9:22:27:57:E8:29:67:CD:1E` | 2026-08-23 |
+| Upload keystore | - | not yet |
+| Play app-signing | - | not yet |
+
+To check what's actually running on a device rather than what you assume is - the
+signature that matters is the installed APK's, not the keystore you meant to use:
+
+```bash
+adb shell pm path app.aloud.meditation                  # → /data/app/.../base.apk
+adb pull <that path> /tmp/aloud.apk
+$ANDROID_HOME/build-tools/*/apksigner verify --print-certs /tmp/aloud.apk | grep SHA-1
+```
+
+A `CN=Android Debug` in that output means a debug-signed build, so it needs the
+debug row above - a release-signed install needs a different row entirely.
+
 ## 2. Apple Developer - Sign in with Apple
 
 Certificates, IDs & Profiles → **Identifiers** → your App ID
