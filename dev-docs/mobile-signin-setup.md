@@ -65,7 +65,14 @@ not working. So record the state here.
 
 Google Cloud project **1033783393687** (same project as the web + desktop client
 ids in `ts/server/.env` - an Android client in any other project does nothing).
-Package `app.aloud.meditation`:
+Package `app.aloud.meditation`.
+
+These are **additive, one per signing key** - the same package name repeats, only
+the (package, SHA-1) pair has to be unique. Registering the Play key does not
+disturb the debug one, so a local build and a Play build sign in side by side.
+Nothing selects between them: the app always sends the *web* client id as the
+token audience, so the server's `GOOGLE_CLIENT_IDS` is unaffected and there is
+nothing to rebuild or redeploy when you add a row.
 
 | Signing key | SHA-1 | Registered |
 |---|---|---|
