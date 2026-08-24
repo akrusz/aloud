@@ -620,6 +620,17 @@ export class WhisperPcmSttEngine implements SttEngine {
      */
     private async ensureCaptureGraph(): Promise<void> {
         if (streamNeedsRefresh(this.stream)) {
+            // Says WHY we re-acquired, which is the whole signal when verifying
+            // the backgrounding fix on a device (meditation-pal-wudm): a
+            // replacing/muted line after a foreground is the fix doing its job,
+            // and its absence means the track came back healthy on its own.
+            const stale = this.stream?.getAudioTracks()[0];
+            console.info(
+                stale
+                    ? `[vad] replacing capture stream: muted=${String(stale.muted)} ` +
+                          `readyState=${stale.readyState} active=${String(this.stream?.active)}`
+                    : '[vad] acquiring capture stream'
+            );
             // Stop whatever we were holding first. A stream can need replacing
             // while its tracks are still live (the muted case below), and those
             // tracks keep the mic claimed if we only drop the reference.
