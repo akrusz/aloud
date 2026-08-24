@@ -95,22 +95,30 @@ function ensureInit(): Promise<SocialLogin> {
     return initPromise;
 }
 
+const SIGNIN_INCOMPLETE = "Sign-in didn't complete.";
+
+/** Compact, greppable rendering of a plugin rejection for adb logcat - the raw
+ *  object logs as "[object Object]" and tells you nothing. */
+export function describeAuthError(err: unknown): string {
+    const src = (typeof err === 'object' && err !== null ? err : {}) as Record<string, unknown>;
+    const parts = ['code', 'message', 'errorMessage']
+        .map((k) => (src[k] === undefined ? '' : `${k}=${String(src[k])}`))
+        .filter(Boolean);
+    return parts.length ? parts.join(' ') : String(err);
+}
+
 /**
  * Plugin rejections arrive as Error-ish values whose `message` is often empty
  * (or "[object Object]" once stringified), with the only real signal in a
- * numeric `code`. Passed straight to the modal's showError that paints a blank
- * line, so a hard failure looks like the button doing nothing: Android status
- * 10 is a package + signing-cert mismatch against the OAuth client, and it cost
- * a day of guessing on a Play-signed build. Always return something sayable and
- * keep the code in it.
+ * numeric `code`. A blank message painted a blank line, so a hard failure looked
+ * like the button doing nothing - Android status 10 is a package + signing-cert
+ * mismatch, and it cost a day of guessing on a Play-signed build. Always returns
+ * something sayable, including for a claimed cancellation.
  *
  * Server-side auth errors (googleSignIn/appleSignIn) are NOT routed through
  * here: postAuthAndCache already throws a self-contained message.
- *
- * Returns null when the person just backed out of the account picker, which
- * isn't worth painting as an error.
  */
-export function nativeAuthErrorMessage(err: unknown, provider: string): string | null {
+export function nativeAuthErrorMessage(err: unknown, provider: string): string {
     const src = (typeof err === 'object' && err !== null ? err : {}) as {
         message?: unknown;
         errorMessage?: unknown;
@@ -124,11 +132,14 @@ export function nativeAuthErrorMessage(err: unknown, provider: string): string |
     const code =
         typeof src.code === 'string' || typeof src.code === 'number' ? String(src.code).trim() : '';
 
-    // Deliberately narrow. Only an explicit cancellation stays silent, because
-    // the codes that look cancel-adjacent aren't: GMS CANCELED (16) is also
-    // what a missing Google account on the device surfaces as, and swallowing
-    // that recreates the silent failure this function exists to end.
-    if (/cancel|dismiss|abort/i.test(text) || code === '12501' || code === '1001') return null;
+    // A claimed cancellation gets a neutral line rather than silence: the
+    // plugin also reports hard config failures as USER_CANCELLED (a missing
+    // Android OAuth client arrives as "cancelled by user"), and we can't tell
+    // them apart from a message the plugin writes. True either way, and a
+    // breadcrumb when it wasn't a cancel (meditation-pal-7bi9).
+    if (/cancel|dismiss|abort/i.test(text) || code === '12501' || code === '1001') {
+        return SIGNIN_INCOMPLETE;
+    }
 
     if (text) return code && !text.includes(code) ? `${text} (code ${code})` : text;
     return code
@@ -177,8 +188,8 @@ async function runNativeGoogle(btn: HTMLButtonElement, handlers: SignInHandlers)
             // (serverAuthCode) because we initialize with mode:'online'.
             idToken = 'idToken' in result ? result.idToken : null;
         } catch (err) {
-            const msg = nativeAuthErrorMessage(err, 'Google');
-            if (msg) handlers.onError?.(new Error(msg));
+            console.warn(`[native-signin] google failed: ${describeAuthError(err)}`);
+            handlers.onError?.(new Error(nativeAuthErrorMessage(err, 'Google')));
             return;
         }
         if (!idToken) throw new Error('Google sign-in did not return an ID token.');
@@ -218,8 +229,8 @@ async function runNativeApple(btn: HTMLButtonElement, handlers: SignInHandlers):
             });
             idToken = result.idToken;
         } catch (err) {
-            const msg = nativeAuthErrorMessage(err, 'Apple');
-            if (msg) handlers.onError?.(new Error(msg));
+            console.warn(`[native-signin] apple failed: ${describeAuthError(err)}`);
+            handlers.onError?.(new Error(nativeAuthErrorMessage(err, 'Apple')));
             return;
         }
         if (!idToken) throw new Error('Apple sign-in did not return an identity token.');

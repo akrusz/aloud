@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nativeAuthErrorMessage } from '../ui/src/native-signin.js';
+import { describeAuthError, nativeAuthErrorMessage } from '../ui/src/native-signin.js';
 
 describe('nativeAuthErrorMessage', () => {
     it('names the code when the plugin gives no message', () => {
@@ -39,10 +39,24 @@ describe('nativeAuthErrorMessage', () => {
         );
     });
 
-    it('stays silent when the person backs out of the picker', () => {
-        expect(nativeAuthErrorMessage({ message: 'activity is cancelled by the user' }, 'Google')).toBeNull();
-        expect(nativeAuthErrorMessage({ code: '12501' }, 'Google')).toBeNull();
-        expect(nativeAuthErrorMessage({ code: 1001 }, 'Apple')).toBeNull();
+    it('leaves a neutral trace on a claimed cancellation', () => {
+        // Never silent: the plugin reports a missing Android OAuth client as
+        // "cancelled by user" too (meditation-pal-7bi9), and the message it
+        // writes can't tell the two apart. True either way.
+        const line = "Sign-in didn't complete.";
+        expect(nativeAuthErrorMessage({ message: 'activity is cancelled by the user' }, 'Google')).toBe(line);
+        expect(nativeAuthErrorMessage({ code: '12501' }, 'Google')).toBe(line);
+        expect(nativeAuthErrorMessage({ code: 1001 }, 'Apple')).toBe(line);
+        expect(
+            nativeAuthErrorMessage({ code: 'USER_CANCELLED', message: 'Google Sign-In cancelled by user' }, 'Google')
+        ).toBe(line);
+    });
+
+    it('describeAuthError renders a plugin rejection instead of [object Object]', () => {
+        expect(describeAuthError({ code: 'USER_CANCELLED', message: 'cancelled by user' })).toBe(
+            'code=USER_CANCELLED message=cancelled by user'
+        );
+        expect(describeAuthError('boom')).toBe('boom');
     });
 
     it('does not treat a missing-account failure as a cancellation', () => {
