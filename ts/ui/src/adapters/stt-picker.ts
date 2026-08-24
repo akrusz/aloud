@@ -321,7 +321,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // never have it), and first so it defaults there. Vocabulary per the plan
     // (meditation-pal-7ej); meditation-speech quality still device-validated
     // (meditation-pal-0ao), with aloud cloud one tap below if it disappoints.
-    if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in speech' });
+    if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in transcription' });
     // Local Whisper exists only in the desktop (Tauri) Rust shell: Hono doesn't
     // serve the /app whisper route, and the desktop's loopback backend isn't
     // reachable from a separate browser, so offering it on the web gives a dead

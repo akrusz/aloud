@@ -1289,8 +1289,8 @@ export async function mountSessionView(
         micBtn.disabled = true;
         micBtn.classList.add('disabled');
         const hint =
-            'No microphone available. Try Chrome or Edge for built-in speech ' +
-            'recognition, or check your microphone permissions.';
+            'No microphone available. Try Chrome or Edge for built-in transcription, ' +
+            'or check your microphone permissions.';
         micBtn.title = hint;
         setStatus('Mic unavailable');
     } else {

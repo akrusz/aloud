@@ -167,7 +167,7 @@ This is a brief overview of what's new, not detailed patch notes. About five lin
 
 Keep it terse - these are read at a glance. Each bullet is one clause, ideally under 10 words, no trailing explanation of the mechanism. 'Fallback for STT when Silero fails' is the right length; a full sentence is too long.
 
-The title is the release's name, so make it concise - maybe with some charm if it fits: cute or a little poetic, Title Case, five words at most and ideally two to four. Good examples: 'Clouds, Explained', 'The Quiet Part', 'Whisper Robustification', 'Watching the Clock'. Name the release's center of gravity, not every bullet in it.
+The title is the release's name, so make it concise - maybe with some charm if it fits: cute or a little poetic, Title Case, five words at most and ideally two to four. Good examples: 'Clouds, Explained', 'The Quiet Part', 'I Didn't Say That', 'Watching the Clock'. Name the release's center of gravity, not every bullet in it.
 
 Output exactly this shape and nothing else:
 TITLE: <the name>

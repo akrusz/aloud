@@ -152,7 +152,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     // earning it back).
     it('labels it for what it is, with no on-device or privacy claim', () => {
         const label = sttEngineOptions(true).find((o) => o.value === 'capacitor')!.label;
-        expect(label).toBe('Built-in speech');
+        expect(label).toBe('Built-in transcription');
         expect(label.toLowerCase()).not.toMatch(/private|on-device|local/);
     });
     it('defaults to the native on-device recognizer', () => {
