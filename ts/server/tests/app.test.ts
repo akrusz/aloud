@@ -73,6 +73,21 @@ describe('CORS allowlist', () => {
     it('falls back to open (*) when no origins are configured', async () => {
         expect(await preflightAcao(corsApp(''), 'https://anything.example')).toBe('*');
     });
+
+    // Every verb the client actually uses must be on the preflight list: a
+    // missing one fails the preflight, and the browser reports only an opaque
+    // fetch error (meditation-pal-bozr).
+    it('allows the /cloud/v1/me verbs (PATCH opt-in, DELETE account)', async () => {
+        const res = await corsApp('https://aloud.rest').request('/cloud/v1/me', {
+            method: 'OPTIONS',
+            headers: {
+                origin: 'https://aloud.rest',
+                'access-control-request-method': 'PATCH',
+            },
+        });
+        const methods = (res.headers.get('access-control-allow-methods') ?? '').split(/,\s*/);
+        expect(methods).toEqual(expect.arrayContaining(['GET', 'POST', 'PATCH', 'DELETE']));
+    });
 });
 
 describe('strict (production) config gate', () => {

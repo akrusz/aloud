@@ -42,7 +42,11 @@ export function createApp(deps: Deps): Hono {
                 allowedOrigins.length === 0
                     ? '*'
                     : (origin) => (allowedOrigins.includes(stripTrailingSlash(origin)) ? origin : null),
-            allowMethods: ['GET', 'POST', 'OPTIONS'],
+            // PATCH/DELETE are the /cloud/v1/me verbs (email-updates opt-in,
+            // account deletion). Both preflight, and a missing verb here fails
+            // the preflight, not the request - the client only ever sees an
+            // opaque "Load failed" (meditation-pal-bozr).
+            allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
             allowHeaders: ['authorization', 'content-type'],
             // So the browser can read per-request cost off the /cloud/v1/tts response.
             exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining', 'X-Session-Refresh'],
