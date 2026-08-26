@@ -2,13 +2,13 @@
  * Locks the cloud-access gate's core predicate (cloud-gate.ts). The load-
  * bearing insight: sign-in/credits are NOT gated by the LLM provider alone —
  * Cloud STT bills independently, so a local/BYOK LLM paired with the hosted
- * ('aloud') STT choice must still trip the gate. A regression here would let a
+ * (hosted) STT choice must still trip the gate. A regression here would let a
  * hosted STT session start unauthenticated and fail mid-utterance.
  *
  * sessionUsesCloud takes webMode as a param, but it also resolves the STT
  * choice (resolveSttChoice → sttEngineOptions), which gates the on-device
  * Whisper option on isTauri(). We mock isTauri so the "on desktop" case is
- * deterministic; the hosted-STT cases don't depend on it ('aloud' is always
+ * deterministic; the hosted-STT cases don't depend on it (the hosted choice is always
  * offered).
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -43,10 +43,10 @@ describe('sessionUsesCloud', () => {
     });
 
     it('is true for a NON-hosted LLM when Cloud STT is chosen (STT bills independently)', () => {
-        // 'aloud' is the hosted STT choice — offered in both modes, so it
+        // 'aloud-gpt-transcribe' is the hosted STT choice — offered in both modes, so it
         // resolves to itself regardless of webMode.
-        expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud'), true)).toBe(true);
-        expect(sessionUsesCloud(setupWith('openai'), settingsWith('aloud'), false)).toBe(true);
+        expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud-gpt-transcribe'), true)).toBe(true);
+        expect(sessionUsesCloud(setupWith('openai'), settingsWith('aloud-gpt-transcribe'), false)).toBe(true);
         // The second hosted model spends credits just the same.
         expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud-gpt-transcribe'), true)).toBe(true);
     });

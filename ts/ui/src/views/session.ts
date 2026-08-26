@@ -935,8 +935,8 @@ export async function mountSessionView(
     function renderSttTrouble(): void {
         if (!sttTroubleEl) return;
         const canSwitchToCloud =
-            sttChoice !== 'aloud' &&
-            sttEngineOptions(isWebMode()).some((o) => o.value === 'aloud');
+            sttChoice !== 'aloud-gpt-transcribe' &&
+            sttEngineOptions(isWebMode()).some((o) => o.value === 'aloud-gpt-transcribe');
         sttTroubleEl.replaceChildren();
         const msg = document.createElement('span');
         msg.textContent = canSwitchToCloud
@@ -948,7 +948,7 @@ export async function mountSessionView(
             btn.type = 'button';
             btn.className = 'stt-trouble-btn';
             btn.textContent = 'Use aloud cloud speech';
-            btn.addEventListener('click', () => void switchSttEngine('aloud'));
+            btn.addEventListener('click', () => void switchSttEngine('aloud-gpt-transcribe'));
             sttTroubleEl.appendChild(btn);
         }
         sttTroubleEl.classList.remove('hidden');

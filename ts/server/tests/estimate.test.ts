@@ -38,14 +38,14 @@ describe('estimateModels', () => {
 });
 
 describe('estimateStt', () => {
-    it('is a small leg for either hosted model, cheaper on gpt-transcribe', () => {
-        const stt = estimateStt(); // server default gpt-4o-transcribe
+    it('is a small leg, and the default is the cheaper of the two models', () => {
+        const stt = estimateStt(); // server default gpt-transcribe
         expect(stt.creditsPerHour).toBeGreaterThan(0);
         // VAD-segmented speech makes STT cheap relative to a premium model hour.
         const opus = estimateModels().find((m) => m.model === 'claude-opus-5')!;
         expect(stt.costUsdPerHour).toBeLessThan(opus.costUsdPerHour);
-        // The newer model debits at its own (25% lower) provider cost.
-        expect(estimateStt('gpt-transcribe').creditsPerSession).toBeLessThan(
+        // The retired model, still allowlisted for an env rollback, costs more.
+        expect(estimateStt('gpt-4o-transcribe').creditsPerSession).toBeGreaterThan(
             stt.creditsPerSession
         );
     });

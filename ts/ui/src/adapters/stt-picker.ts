@@ -87,7 +87,7 @@ export function invalidateSttBackendCache(): void {
 }
 
 /**
- * STT through the aloud cloud's authed /cloud/v1/stt (OpenAI gpt-4o-transcribe
+ * STT through the aloud cloud's authed /cloud/v1/stt (OpenAI gpt-transcribe
  * by default; Groq/custom via server env). Same client-side capture/VAD as
  * desktop server-Whisper - only endpoint + bearer token differ. Used when a
  * session runs on the hosted ('aloud') provider. Null when mic capture isn't
@@ -239,8 +239,6 @@ async function buildSttForChoice(
             // Native app only; a stale stored pick outside it gets the honest
             // mic-unavailable state, not a plugin that throws at start().
             return isCapacitor() ? new CapacitorSttEngine(capacitorOpts(vadOpts)) : null;
-        case 'aloud':
-            return createServerAloudStt(vadOpts);
         case 'aloud-gpt-transcribe':
             return createServerAloudStt(vadOpts, 'gpt-transcribe');
         case 'web-speech':
@@ -264,7 +262,6 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     switch (choice) {
         case 'capacitor':
             return 'capacitor';
-        case 'aloud':
         case 'aloud-gpt-transcribe':
         case 'whisper':
             return 'server-whisper';
@@ -282,9 +279,8 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  estimateStt figure and setCloudSttCreditsPerHour overwrites this the moment
  *  the model catalog loads. It only renders when the picker paints before (or
  *  without) a reachable cloud, so it should stay roughly right but can't drift
- *  into a real charge. 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe and
- *  is what the picker calls "aloud cloud"; 'aloud' is the older
- *  gpt-4o-transcribe (the server default), kept as "aloud cloud - old". */
+ *  into a real charge. 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe,
+ *  which is what the picker calls "aloud cloud". */
 const FALLBACK_STT_CREDITS_PER_HOUR = 2.4;
 
 let sttCreditsPerHour = FALLBACK_STT_CREDITS_PER_HOUR;
@@ -296,9 +292,9 @@ export function setCloudSttCreditsPerHour(rate: number | null | undefined): void
     if (typeof rate === 'number' && rate > 0) sttCreditsPerHour = rate;
 }
 
-/** The hosted (credit-spending, cloud-auth) STT choices. */
+/** The hosted (credit-spending, cloud-auth) STT choice. */
 export function isHostedSttChoice(choice: SttEngineChoice): boolean {
-    return choice === 'aloud' || choice === 'aloud-gpt-transcribe';
+    return choice === 'aloud-gpt-transcribe';
 }
 
 /** ☁️/hr for a picker choice — 0 for the free local/browser engines. */
@@ -337,17 +333,13 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
         out.push({ value: 'web-speech', label: 'Browser' });
     }
     // OpenAI's gpt-transcribe: cheaper upstream and (per benchmarks) more
-    // accurate than gpt-4o-transcribe, and validated enough in real sessions to
-    // be what "aloud cloud" means. First of the two, so it's what the hosted
-    // default resolves to.
+    // accurate than gpt-4o-transcribe, which it replaced outright after real
+    // sessions raised no regression (meditation-pal-vazw). Always offered, and
+    // last, so it's the fallback every mode can reach.
     out.push({
         value: 'aloud-gpt-transcribe',
         label: `aloud cloud${rateSuffix(sttCreditsPerHour)}`,
     });
-    // gpt-4o-transcribe, the previous default. Kept offered so anyone who
-    // reports a regression on the new model has somewhere to land; due for
-    // removal (meditation-pal-vazw).
-    out.push({ value: 'aloud', label: `aloud cloud - old${rateSuffix(sttCreditsPerHour)}` });
     return out;
 }
 

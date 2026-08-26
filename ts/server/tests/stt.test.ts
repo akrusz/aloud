@@ -73,13 +73,13 @@ describe('int16ToFloat32', () => {
 });
 
 describe('resolveSttConfig', () => {
-    it('uses OpenAI (gpt-4o-transcribe) on the LLM key when OPENAI_API_KEY is set', () => {
+    it('uses OpenAI (gpt-transcribe) on the LLM key when OPENAI_API_KEY is set', () => {
         const stt = resolveSttConfig({ OPENAI_API_KEY: 'sk-llm' });
         expect(stt).toEqual({
             provider: 'openai',
             apiKey: 'sk-llm',
             baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
-            model: 'gpt-4o-transcribe',
+            model: 'gpt-transcribe',
         });
     });
 
@@ -107,7 +107,7 @@ describe('resolveSttConfig', () => {
             provider: 'openai',
             apiKey: 'sk-1',
             baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
-            model: 'gpt-4o-transcribe',
+            model: 'gpt-transcribe',
         });
     });
 
@@ -146,9 +146,9 @@ describe('POST /cloud/v1/stt', () => {
         expect(sttCalls).toHaveLength(1);
         expect(sttCalls[0]!.url).toContain('api.openai.com'); // default backend
         expect(sttCalls[0]!.hasFile).toBe(true);
-        expect(sttCalls[0]!.model).toBe('gpt-4o-transcribe'); // server default
-        // At cost: 10 s × $0.36/3600 / $0.05 per credit = 0.02 — fractional, tiny.
-        expect(body.creditsCharged).toBeCloseTo((10 * 0.36) / 3600 / 0.05, 6);
+        expect(sttCalls[0]!.model).toBe('gpt-transcribe'); // server default
+        // At cost: 10 s × $0.27/3600 / $0.05 per credit = 0.015 — fractional, tiny.
+        expect(body.creditsCharged).toBeCloseTo((10 * 0.27) / 3600 / 0.05, 6);
         expect(body.creditsRemaining).toBeCloseTo(20 - body.creditsCharged, 6);
     });
 
@@ -164,7 +164,7 @@ describe('POST /cloud/v1/stt', () => {
         const body = (await res.json()) as TranscribeResponse;
         expect(body.text).toBe('hello world');
         // Half the bytes of the f32 body, identical billed seconds.
-        expect(body.creditsCharged).toBeCloseTo((10 * 0.36) / 3600 / 0.05, 6);
+        expect(body.creditsCharged).toBeCloseTo((10 * 0.27) / 3600 / 0.05, 6);
     });
 
     it('rejects an unknown format (it keys alignment and billed duration)', async () => {
@@ -191,10 +191,10 @@ describe('POST /cloud/v1/stt', () => {
         expect(sttCalls).toHaveLength(0);
     });
 
-    it("honors ?model=gpt-transcribe: forwards it upstream and bills that model's cost", async () => {
+    it("honors ?model=gpt-4o-transcribe: forwards it upstream and bills that model's cost", async () => {
         const a = app();
         const token = await devToken(a);
-        const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=gpt-transcribe', {
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=gpt-4o-transcribe', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
             body: pcmBody(10),
@@ -202,9 +202,9 @@ describe('POST /cloud/v1/stt', () => {
         expect(res.status).toBe(200);
         const body = (await res.json()) as TranscribeResponse;
         expect(sttCalls).toHaveLength(1);
-        expect(sttCalls[0]!.model).toBe('gpt-transcribe');
-        // At cost, 25% under the default: 10 s × $0.27/3600 / $0.05 per credit.
-        expect(body.creditsCharged).toBeCloseTo((10 * 0.27) / 3600 / 0.05, 6);
+        expect(sttCalls[0]!.model).toBe('gpt-4o-transcribe');
+        // At cost, a third over the default: 10 s × $0.36/3600 / $0.05 per credit.
+        expect(body.creditsCharged).toBeCloseTo((10 * 0.36) / 3600 / 0.05, 6);
     });
 
     it('rejects a model outside the backend allowlist (the model keys billing)', async () => {

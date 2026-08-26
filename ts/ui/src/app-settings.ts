@@ -17,11 +17,10 @@ export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenl
  *  the user controls where audio goes and knows when it costs credits. A stored
  *  null means the mode's flow default: Whisper locally -> browser speech ->
  *  hosted (resolveSttChoice in adapters/stt-picker). */
-/** 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe and is the hosted choice
- *  the picker labels "aloud cloud"; 'aloud' is the older gpt-4o-transcribe (the
- *  server default), still offered as "aloud cloud - old" for regression reports
- *  (see stt-picker.ts sttEngineOptions). */
-export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud' | 'aloud-gpt-transcribe' | 'capacitor';
+/** 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe and is the one hosted
+ *  choice, labelled "aloud cloud" (see stt-picker.ts sttEngineOptions). The id
+ *  keeps the model in the name because a stored pick outlives the model. */
+export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud-gpt-transcribe' | 'capacitor';
 
 /** When the facilitator checks in during silence: never, after a fixed
  *  interval (silenceCheckinSec), or model-set ('smart': the LLM prefixes

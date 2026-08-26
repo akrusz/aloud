@@ -23,6 +23,7 @@ import {
     cloudSttCreditsPerHour,
     setCloudSttCreditsPerHour,
 } from '../ui/src/adapters/stt-picker.js';
+import type { SttEngineChoice } from '../ui/src/app-settings.js';
 import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
 
 const isTauriMock = vi.mocked(isTauri);
@@ -35,20 +36,20 @@ beforeEach(() => {
 
 describe('sttEngineOptions — browser (non-Tauri; no Web Speech in Node)', () => {
     it('local mode offers only the hosted option — no on-device Whisper in a browser', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
     });
     it('web mode offers only the hosted option', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
     });
 });
 
 describe('sttEngineOptions — desktop (Tauri)', () => {
     beforeEach(() => isTauriMock.mockReturnValue(true));
     it('local mode offers Whisper then the hosted option', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe']);
     });
     it('web mode still hides Whisper (local-only)', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
     });
 });
 
@@ -78,13 +79,13 @@ describe('sttEngineOptions — Web Speech gating', () => {
     });
 
     it('offers web-speech in a browser that exposes the API', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud-gpt-transcribe']);
     });
     it('hides web-speech under Tauri even though the WKWebView exposes the API', () => {
         // Recognition silently never returns results in the embedded webview —
         // offering it gives a pulsing mic that can't transcribe.
         isTauriMock.mockReturnValue(true);
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe']);
     });
     it('a web-speech pick stored before the Tauri gate resolves to the desktop default', () => {
         isTauriMock.mockReturnValue(true);
@@ -108,7 +109,7 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
     });
 
     it('does not offer web-speech on an iPhone', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
     });
     it('defaults an iPhone to aloud cloud, not the browser recognizer', () => {
         expect(defaultSttChoice(true)).toBe('aloud-gpt-transcribe');
@@ -122,7 +123,7 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
             platform: 'MacIntel',
             maxTouchPoints: 5,
         });
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
     });
     it('leaves a real Mac (no touch) on the browser recognizer', () => {
         vi.stubGlobal('navigator', {
@@ -133,7 +134,6 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
         expect(sttEngineOptions(true).map((o) => o.value)).toEqual([
             'web-speech',
             'aloud-gpt-transcribe',
-            'aloud',
         ]);
     });
 });
@@ -144,7 +144,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     beforeEach(() => isCapacitorMock.mockReturnValue(true));
 
     it('offers the built-in recognizer first, then aloud cloud', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe']);
     });
 
     // No privacy promise: it's the PLATFORM's recognizer and Android's routes to
@@ -162,7 +162,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         (globalThis as unknown as { window: unknown }).window = {
             webkitSpeechRecognition: class {},
         };
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe', 'aloud']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe']);
         delete (globalThis as unknown as { window?: unknown }).window;
     });
     it('resolveSttChoice honors a stored on-device pick', () => {
@@ -173,19 +173,21 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     });
 });
 
-describe('hosted STT options — the two cloud models', () => {
-    it('shows the same rate badge on both hosted entries, and only those', () => {
-        // Both bill the same leg at the same profile, so the badge must match;
-        // the exact number tracks the measured STT profile and moves with it.
+describe('hosted STT — the one cloud model', () => {
+    it('badges the hosted entry with its rate, and only it', () => {
         const opts = sttEngineOptions(true);
         const badgeOf = (v: string) => opts.find((o) => o.value === v)!.label.match(/\((.*)\)/)?.[1];
-        expect(badgeOf('aloud')).toMatch(/☁️$/);
-        expect(badgeOf('aloud-gpt-transcribe')).toBe(badgeOf('aloud'));
+        expect(badgeOf('aloud-gpt-transcribe')).toMatch(/☁️$/);
         // Free engines carry no badge at all.
         expect(opts.find((o) => o.value === 'whisper')?.label ?? '').not.toContain('☁️');
     });
-    it('maps the new hosted choice to the continuous PCM backend, like classic', () => {
+    it('maps the hosted choice to the continuous PCM backend', () => {
         expect(sttBackendForChoice('aloud-gpt-transcribe')).toBe('server-whisper');
+    });
+    it("drops a stored 'aloud' pick from before gpt-transcribe replaced it", () => {
+        // The retired gpt-4o-transcribe choice (meditation-pal-vazw). No
+        // migration: it is simply no longer offered, so it resolves to default.
+        expect(resolveSttChoice('aloud' as SttEngineChoice, true)).toBe('aloud-gpt-transcribe');
     });
     it('resolveSttChoice honors a stored gpt-transcribe pick in every mode', () => {
         expect(resolveSttChoice('aloud-gpt-transcribe', true)).toBe('aloud-gpt-transcribe');
@@ -206,7 +208,7 @@ describe('resolveSttChoice', () => {
     });
     it('honors a stored pick that is offered in this mode', () => {
         isTauriMock.mockReturnValue(true);
-        expect(resolveSttChoice('aloud', false)).toBe('aloud');
+        expect(resolveSttChoice('whisper', false)).toBe('whisper');
     });
     it('falls back to the default when the stored pick is not offered here', () => {
         // Whisper carried into web mode → hosted default.
@@ -232,10 +234,7 @@ describe('sttLangTag - the Language setting as a recognizer BCP-47 tag', () => {
 
 describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', () => {
     it('is a small nonzero rate for hosted choices and zero for free ones', () => {
-        expect(cloudSttCreditsPerHour('aloud')).toBeGreaterThan(0);
-        expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(
-            cloudSttCreditsPerHour('aloud')
-        );
+        expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBeGreaterThan(0);
         expect(cloudSttCreditsPerHour('whisper')).toBe(0);
         expect(cloudSttCreditsPerHour('web-speech')).toBe(0);
         expect(cloudSttCreditsPerHour('capacitor')).toBe(0);
@@ -243,7 +242,7 @@ describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', 
 
     it('adopts the server rate from /me/models over the built-in seed', () => {
         setCloudSttCreditsPerHour(0.42);
-        expect(cloudSttCreditsPerHour('aloud')).toBe(0.42);
+        expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(0.42);
     });
 
     it('keeps the last good rate when the server sends nothing usable', () => {
@@ -252,7 +251,7 @@ describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', 
         setCloudSttCreditsPerHour(0.42);
         for (const bad of [undefined, null, 0, -1, NaN]) {
             setCloudSttCreditsPerHour(bad);
-            expect(cloudSttCreditsPerHour('aloud')).toBe(0.42);
+            expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(0.42);
         }
     });
 });

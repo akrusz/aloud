@@ -26,9 +26,11 @@ export interface ProviderKeys {
 const STT_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
     openai: {
         baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
-        // Not the cheaper -mini: a mis-heard word derails a facilitation turn,
-        // and STT is a rounding error against the session's TTS + LLM spend.
-        model: 'gpt-4o-transcribe',
+        // Not the cheaper -mini: a mis-heard word derails a facilitation turn.
+        // gpt-transcribe is the exception - cheaper AND more accurate than the
+        // gpt-4o-transcribe it replaced, so it's both the picker's only hosted
+        // choice and this fallback (for a client that names no model at all).
+        model: 'gpt-transcribe',
     },
     groq: {
         baseUrl: 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -37,9 +39,10 @@ const STT_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
 };
 
 /** Models a client may request per-call (POST /cloud/v1/stt?model=...) on top
- *  of the configured backend's default. Only OpenAI hosts both options the STT
- *  picker offers — gpt-4o-transcribe and the newer/cheaper gpt-transcribe
- *  (per-second costs in pricing/providers.ts STT_USD_PER_SECOND_BY_MODEL).
+ *  of the configured backend's default. gpt-4o-transcribe is no longer offered
+ *  in the picker, but stays allowlisted (and priced, pricing/providers.ts
+ *  STT_USD_PER_SECOND_BY_MODEL) so STT_MODEL can roll back to it without a
+ *  deploy.
  *  Other backends accept only their configured model: the model keys billing,
  *  so an arbitrary client value could otherwise name a cheaper rate. */
 export function sttModelChoices(backend: SttBackend): readonly string[] {
@@ -53,7 +56,7 @@ export function sttModelChoices(backend: SttBackend): readonly string[] {
  *      STT_PROVIDER label; defaults to the OpenAI host if base/model omitted).
  *   2. OPENAI_STT_API_KEY || OPENAI_API_KEY: the recommended backend, since the
  *      same key already powers the GPT LLM + OpenAI TTS. Defaults to
- *      gpt-4o-transcribe.
+ *      gpt-transcribe.
  *   3. GROQ_API_KEY: legacy (cheap, but new paid signups are frozen).
  * Undefined when none is set; /cloud/v1/stt then reports not-configured and the
  * client falls back to browser SpeechRecognition.

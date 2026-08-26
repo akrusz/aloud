@@ -26,8 +26,6 @@ specific manufacturer's stack.
   - `capacitor` - native on-device (SFSpeechRecognizer / Android SpeechRecognizer). **Free.** Current mobile default.
   - `aloud-gpt-transcribe` - hosted STT (OpenAI `gpt-transcribe`), shown as "aloud cloud".
     **Costs credits.** The fallback.
-  - `aloud` - the previous hosted model (`gpt-4o-transcribe`), shown as "aloud cloud - old".
-    Kept for regression reports only; due for removal (`meditation-pal-vazw`).
   - (browser web-speech is *not* offered on native - the native plugin is better.)
 - **TTS**
   - `browser` - the WebView's `speechSynthesis`, i.e. the **native system voices**. **Free.** Current mobile default.

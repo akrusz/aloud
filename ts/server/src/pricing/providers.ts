@@ -383,8 +383,9 @@ const MODELS: Record<string, ModelPricing> = {
  *  other leg (meter.ts Model B). The free/browser engines bill zero; only
  *  /cloud/v1/stt feeds this. Rates verified July 2026: gpt-4o-transcribe
  *  $0.006/min, gpt-transcribe $0.0045/min (its 25%-cheaper successor, same
- *  /audio/transcriptions API); Groq ≈ $0.04/hr, gpt-4o-mini-transcribe ≈
- *  $0.18/hr if ever env-pinned. Even at the top of the range STT is a small
+ *  /audio/transcriptions API, and now the default); Groq ≈ $0.04/hr,
+ *  gpt-4o-mini-transcribe ≈ $0.18/hr if ever env-pinned. Even at the top of
+ *  the range STT is a small
  *  fraction of a session's TTS + LLM spend. */
 export const STT_USD_PER_SECOND_BY_MODEL: Record<string, number> = {
     'gpt-4o-transcribe': 0.36 / 3600,
@@ -393,9 +394,10 @@ export const STT_USD_PER_SECOND_BY_MODEL: Record<string, number> = {
 
 /** The server-default model (config.ts STT_DEFAULTS), used when a request names
  *  no model — and the cost fallback for env-pinned backends (Groq, custom)
- *  whose models aren't in the table: they bill the default's rate, which can
- *  only over-charge fractions of a cent, never under-bill. */
-export const DEFAULT_STT_MODEL = 'gpt-4o-transcribe';
+ *  whose models aren't in the table. Those bill the default's rate, so keep the
+ *  default at or above the cheapest entry: a Groq clip billed at gpt-transcribe
+ *  still over-charges fractions of a cent, never under-bills. */
+export const DEFAULT_STT_MODEL = 'gpt-transcribe';
 
 /** Provider cost $/s for a model, falling back to the default's rate. */
 export function sttUsdPerSecond(model: string): number {
