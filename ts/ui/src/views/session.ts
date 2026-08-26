@@ -2152,12 +2152,24 @@ export async function mountSessionView(
     // (meditation-pal-v73p). Force a save the moment we go inactive so the
     // resume pointer + latest transcript are on disk before any kill. Per-round
     // autosave already covers the common case; this catches mid-round progress.
+    //
+    // Coming BACK is where the mic gets rebuilt: the Capacitor Android WebView
+    // does not fire 'visibilitychange' across a background round trip, so the
+    // visibilitychange handler below - the only trigger wudm shipped with -
+    // never ran on a phone, and the mic stayed deaf until the adapter's 15s
+    // idle backstop happened to relaunch it. appStateChange is the event that
+    // actually arrives there.
     // Removed in endSession (App.addListener isn't AbortController-aware).
     if (isCapacitor()) {
         appStateListener = (async () => {
             const { App } = await import('@capacitor/app');
             return App.addListener('appStateChange', ({ isActive }) => {
-                if (!isActive && !torn) void autosaveSession();
+                if (torn) return;
+                if (!isActive) {
+                    void autosaveSession();
+                    return;
+                }
+                if (isSingleOwnerMicPlatform()) void restartSttAfterForeground();
             });
         })();
     }
