@@ -789,9 +789,15 @@ export async function mountSetupView(
 
         // App-level (like the default voice), so saving here mirrors Settings.
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
+        const sttQualityNote = root.querySelector<HTMLElement>('#setup-stt-quality-note');
+        const updateSttQualityNote = (choice: string): void => {
+            sttQualityNote?.classList.toggle('hidden', choice !== 'capacitor');
+        };
+        updateSttQualityNote(sttSetupSelected);
         sttSel?.addEventListener('change', async () => {
             const s = await loadAppSettings();
             await saveAppSettings({ ...s, sttEngine: sttSel.value as SttEngineChoice });
+            updateSttQualityNote(sttSel.value);
             updateSessionEstimate();
         });
 
@@ -1724,6 +1730,13 @@ function renderSetupHTML(
             <div class="form-group" id="setup-stt-group">
                 <label for="setup-stt-engine">Speech Recognition</label>
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
+                <!-- Phone-only by construction: 'capacitor' is offered nowhere
+                     else (sttEngineOptions). The device recognizer is the free
+                     default, so say what it costs in accuracy before the sit
+                     rather than after. -->
+                <p id="setup-stt-quality-note" class="credit-rate-legend hidden">
+                    Quality varies by device. aloud cloud is more accurate.
+                </p>
             </div>
         </div>
         <!-- No-mic notice. Painted by probeMic() only when it's certain (it
