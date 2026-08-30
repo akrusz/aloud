@@ -241,23 +241,61 @@ turn (live-reload is a follow-up - meditation-pal).
 
 ## Hosted voices & auditioning new ones
 
-The curated hosted voices live in `src/providers/voice-catalog.ts` - a
-short-name → Google Cloud TTS id map (currently Pulcherrima/androgynous,
-Sadachbia/male, Leda/female, all Chirp3-HD). `GET /cloud/v1/voices` publishes them;
-the client merges them into its picker (top "Recommended" tier) and sends the
-short name back, which `/cloud/v1/tts` resolves. To add more: audition the catalog
-and append the winners to `CURATED_VOICES`.
+The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-name
+→ (provider, voice id) map across Google Cloud TTS and OpenAI. `GET
+/cloud/v1/voices` publishes them; the client merges them into its picker (top
+"Recommended" tier) and sends the short name back, which `/cloud/v1/tts`
+resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
+
+`scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
+the resulting audio, and writes `voice-previews/index.html` (gitignored) - a
+sortable, filterable page with a player per voice, a shortlist that emits
+paste-ready `CURATED_VOICES` lines, and `space`/`j`/`k`/`s` shortcuts.
 
 ```bash
 cd ts/server
-npx tsx scripts/preview-voices.ts                 # all Chirp3-HD en-US voices
-npx tsx scripts/preview-voices.ts Studio          # filter by name substring
-npx tsx scripts/preview-voices.ts Chirp3-HD en-GB # filter + language
-# → writes voice-previews/index.html (gitignored): a labeled <audio> player
-#   per voice playing the same meditation sample. Open it and listen.
+npx tsx scripts/preview-voices.ts curated                 # exactly what we ship
+npx tsx scripts/preview-voices.ts google                  # full Chirp3-HD/Neural2 roster
+npx tsx scripts/preview-voices.ts openai gemini           # several sources at once
+npx tsx scripts/preview-voices.ts all                     # every source with a key
+npx tsx scripts/preview-voices.ts google --locales=en-US,en-GB,en-AU
+npx tsx scripts/preview-voices.ts google --filter=Chirp3-HD --limit=12
+npx tsx scripts/preview-voices.ts curated --prosody        # every prosody treatment
+npx tsx scripts/preview-voices.ts all --rate=0.85          # at session pace
 ```
 
-Needs `GOOGLE_TTS_API_KEY` in `.env`. Costs a few cents (one short clip/voice).
+Sources are declared in `scripts/audition/sources.ts` - roster, synth call,
+prosody treatments, and cost model per engine. Beyond the two we ship it carries
+key-gated adapters for Gemini TTS, Cartesia, Deepgram Aura-2 and Inworld;
+anything without a key is skipped and listed on the page with a signup link, so a
+partial run still produces a usable page. These adapters are audition-only on
+purpose - promoting one means adding it to `src/providers/tts.ts`, the
+`TtsProvider` union, and `pricing/providers.ttsRateFor` before it can bill.
+
+Two things the page exists to make visible:
+
+- **Cost is measured, not quoted.** Half these engines bill by audio *duration*,
+  and every "$/1M chars" figure they publish assumes conversational pace. aloud
+  speaks slowly, so a duration-priced engine costs materially more than its
+  sticker. The page prices every clip from its real measured length (`ffprobe`,
+  `afinfo` fallback) per *spoken* character, which is the only cross-source
+  comparison worth making. Measured at our own instruction: OpenAI lands at
+  $16-20/1M (bracketing the reconciled $19 in `pricing/providers.ts`), and Gemini
+  TTS at $25-43/1M - i.e. **at or above** the $30/1M Chirp3-HD it is widely
+  claimed to undercut.
+- **Prosody differs enormously by engine.** Google honors SSML `<prosody>` +
+  `<break>` on *both* tiers, Chirp3-HD included, despite the docs historically
+  listing SSML as WaveNet/Neural2-only (verified: a 15.0s line goes to 22.8s
+  under rate 80% + 1400ms breaks). That is the strongest pacing lever available
+  and it is on the engine we already ship. But Google bills the tags, so marked-up
+  speech costs roughly double per spoken word - which is why Neural2 + SSML lands
+  at the same $30/1M as flat Chirp3-HD, and why that A/B is the interesting
+  listen. OpenAI/Gemini/Inworld take a natural-language style instruction only
+  (weakly honored - see meditation-pal-5yi1); Deepgram Aura-2 exposes no prosody
+  control at all.
+
+Needs `GOOGLE_TTS_API_KEY` and/or `OPENAI_API_KEY` in `.env` for the shipping
+sources. Costs a few cents (one short clip per voice per treatment).
 
 ## Known limits
 

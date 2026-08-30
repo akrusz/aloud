@@ -1,172 +1,373 @@
 /**
- * Audition hosted TTS voices for the curated set.
+ * Audition TTS voices and build a local comparison page.
  *
- * Modes:
- *   - `curated`: audition exactly the voices aloud offers (voice-catalog.ts)
- *     across BOTH providers (Google + OpenAI), labeled with the friendly name,
- *     tier, and the ☁️ credit-rate — the SET-DEFAULTS pass.
- *   - `openai`: audition OpenAI's FULL voice roster (alloy, ash, ballad, coral,
- *     echo, fable, onyx, nova, sage, shimmer, verse) to pick/replace the curated
- *     OpenAI voices; currently-curated voices are flagged.
- *   - substring filter (default): browse Google's wider catalog to find new
- *     candidates to add to the curated set.
- *
- * Each synthesizes a short meditation sample, writes MP3s to voice-previews/, and
- * (re)generates an index.html with a labeled <audio> player per voice.
+ * Synthesizes the same meditation sample through every requested source
+ * (scripts/audition/sources.ts), MEASURES the resulting audio, and writes
+ * voice-previews/index.html - a sortable, filterable, shortlist-able page with
+ * one player per voice.
  *
  *   cd ts/server
- *   npx tsx scripts/preview-voices.ts curated         # the offered set (defaults)
- *   npx tsx scripts/preview-voices.ts openai          # OpenAI's full roster
- *   npx tsx scripts/preview-voices.ts                 # all Chirp3-HD en-US
- *   npx tsx scripts/preview-voices.ts Neural2         # filter by name substring
- *   npx tsx scripts/preview-voices.ts Chirp3-HD en-GB # filter + language
+ *   npx tsx scripts/preview-voices.ts curated          # exactly what we ship
+ *   npx tsx scripts/preview-voices.ts google           # full Chirp3-HD/Neural2 roster
+ *   npx tsx scripts/preview-voices.ts openai gemini    # several sources at once
+ *   npx tsx scripts/preview-voices.ts all              # every source with a key
+ *   npx tsx scripts/preview-voices.ts google --locales=en-US,en-GB,en-AU
+ *   npx tsx scripts/preview-voices.ts google --filter=Chirp3-HD --limit=12
+ *   npx tsx scripts/preview-voices.ts all --rate=0.85  # audition at session pace
+ *   npx tsx scripts/preview-voices.ts google --prosody --limit=4   # every prosody
+ *                                              # treatment per voice, side by side
+ *   npx tsx scripts/preview-voices.ts curated --treatments=plain,ssml-spacious
  *
- * Needs GOOGLE_TTS_API_KEY in .env for the Google modes; OPENAI_API_KEY for the
- * OpenAI voices (curated reads both and skips any provider whose key is absent).
- * Output is gitignored. Cost is a few cents — one short clip per voice.
+ * Sources with no key are skipped and listed on the page with a signup link, so
+ * a partial run still produces a usable page. Output is gitignored; a full run
+ * costs a few cents.
+ *
+ * PROSODY. Each source declares the prosody treatments it can express
+ * (audition/sources.ts): SSML rate/pitch/breaks for Google, a natural-language
+ * style instruction for OpenAI/Gemini/Inworld, a speed knob for Cartesia, and
+ * nothing at all for Deepgram Aura-2. A default run uses whatever each source
+ * ships today; `--prosody` renders every treatment so the variants sit adjacent
+ * on the page. SSML bills its own tags, so a treatment can move the cost column
+ * as well as the sound - which is the point of pricing per SPOKEN character.
+ *
+ * WHY IT MEASURES. Half these engines bill by audio DURATION, not characters,
+ * and every "$/1M chars" figure they publish assumes conversational pace. aloud
+ * speaks slowly, so a duration-priced engine costs materially more than its
+ * sticker (Gemini 2.5 Flash TTS: ~$43/1M chars measured at our pace, against a
+ * $30/1M Chirp3-HD we can actually beat on quality). The page's "$/1M chars"
+ * column is therefore always pace-adjusted from the real clip, and is the only
+ * cross-source comparison worth making. See audition/sources.ts.
  */
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { synthesizeWithGoogle, synthesizeWithOpenAI } from '../src/providers/tts.js';
-import { CURATED_VOICES } from '../src/providers/voice-catalog.js';
-import { voiceCreditsPerHourTypical } from '../src/pricing/estimate.js';
 
+import { CURATED_VOICES } from '../src/providers/voice-catalog.js';
+import { TTS_CHAR_PROFILES, TYPICAL_SESSION_MINUTES } from '../src/pricing/estimate.js';
+import { usdToCredits } from '../src/pricing/meter.js';
+import {
+    SOURCES,
+    keyFor,
+    sourceById,
+    type AuditionSource,
+    type AuditionVoice,
+    type Treatment,
+} from './audition/sources.js';
+
+/** Long enough to hear pacing and breath, short enough to stay cheap. */
 const SAMPLE =
     "Let's begin. Find a comfortable position, and when you're ready, gently " +
-    'let your eyes close. Take a slow breath in... and let it go.';
+    'let your eyes close. Take a slow breath in... and let it go. ' +
+    "There's nothing to get right here. Just noticing what's already present.";
 
-/** OpenAI's full TTS voice roster — gpt-4o-mini-tts has no list endpoint, so
- *  these are the documented voices. The `note` is a rough perceived character to
- *  orient the listen, not authoritative; audition to decide. Update if OpenAI
- *  ships more. */
-const OPENAI_VOICES: ReadonlyArray<{ id: string; note: string }> = [
-    { id: 'alloy', note: 'neutral, even' },
-    { id: 'ash', note: 'male' },
-    { id: 'ballad', note: 'male, lyrical' },
-    { id: 'coral', note: 'female, warm' },
-    { id: 'echo', note: 'male' },
-    { id: 'fable', note: 'male, British' },
-    { id: 'onyx', note: 'male, deep' },
-    { id: 'nova', note: 'female' },
-    { id: 'sage', note: 'androgynous, calm' },
-    { id: 'shimmer', note: 'female, soft' },
-    { id: 'verse', note: 'neutral, expressive' },
-];
+const M = 1_000_000;
+/** Chars/hr at the mid talk profile - the basis for the ☁️/hr column. */
+const CHARS_PER_HOUR = TTS_CHAR_PROFILES.typical * (60 / TYPICAL_SESSION_MINUTES);
 
-const VOICES_URL = 'https://texttospeech.googleapis.com/v1/voices';
-
-interface GoogleVoice {
+interface Row {
+    sourceId: string;
+    sourceLabel: string;
+    /** Display name (short where the provider gives one). */
     name: string;
-    languageCodes: string[];
-    ssmlGender?: string;
-}
-
-async function listVoices(apiKey: string, languageCode: string): Promise<GoogleVoice[]> {
-    const res = await fetch(`${VOICES_URL}?key=${encodeURIComponent(apiKey)}&languageCode=${languageCode}`);
-    if (!res.ok) throw new Error(`voices.list ${res.status}: ${await res.text().catch(() => '')}`);
-    const data = (await res.json()) as { voices?: GoogleVoice[] };
-    return data.voices ?? [];
-}
-
-interface PreviewEntry {
-    name: string;
-    gender: string;
+    voiceId: string;
+    note: string;
     file: string;
-    /** Optional second line, e.g. "premium · ~8☁️/hr · en-US-Chirp3-HD-Leda". */
-    sub?: string;
+    /** Measured clip length in seconds. */
+    seconds: number;
+    /** Prosody treatment label, and what it does. */
+    treatment: string;
+    treatmentNote: string;
+    /** True when this is the source's shipping treatment. */
+    shippingTreatment: boolean;
+    /** Pace-adjusted USD per 1M chars. */
+    usdPerMillionChars: number;
+    creditsPerHour: number;
+    billing: string;
+    /** Set when this voice is already in CURATED_VOICES. */
+    curatedAs?: string;
+    isDefault?: boolean;
 }
 
-function html(entries: PreviewEntry[]): string {
-    const rows = entries
-        .map(
-            (e) => `
-    <div class="row">
-      <div class="meta"><span class="name">${e.name}</span><span class="g">${e.gender}</span>${
-          e.sub ? `<div class="sub">${e.sub}</div>` : ''
-      }</div>
-      <audio controls preload="none" src="${e.file}"></audio>
-    </div>`
-        )
+interface Skipped {
+    label: string;
+    envKeys: readonly string[];
+    signupUrl: string;
+    reason: string;
+}
+
+// ---------------------------------------------------------------------------
+// Measurement
+// ---------------------------------------------------------------------------
+
+/** Clip length in seconds. ffprobe first, macOS afinfo as the fallback; 0 when
+ *  neither is present, which makes the duration-priced columns read "-" rather
+ *  than silently inventing a rate. */
+function durationSeconds(path: string): number {
+    try {
+        const out = execFileSync(
+            'ffprobe',
+            ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path],
+            { encoding: 'utf8' }
+        );
+        return Number.parseFloat(out.trim()) || 0;
+    } catch {
+        /* fall through */
+    }
+    try {
+        const out = execFileSync('afinfo', [path], { encoding: 'utf8' });
+        return Number.parseFloat(/estimated duration: ([\d.]+)/.exec(out)?.[1] ?? '') || 0;
+    } catch {
+        return 0;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+function esc(s: string): string {
+    return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}
+
+function money(n: number): string {
+    return n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(1)}`;
+}
+
+function html(rows: Row[], skipped: Skipped[], sources: AuditionSource[], rate: number): string {
+    const cheapest = rows.length ? Math.min(...rows.map((r) => r.usdPerMillionChars)) : 0;
+    const rowHtml = rows
+        .map((r, i) => {
+            const flags = [
+                r.isDefault ? '<span class="flag def">current default</span>' : '',
+                r.curatedAs && !r.isDefault ? `<span class="flag cur">shipping as ${esc(r.curatedAs)}</span>` : '',
+            ].join('');
+            return `<tr data-i="${i}" data-src="${esc(r.sourceId)}" data-cost="${r.usdPerMillionChars.toFixed(3)}"
+   data-name="${esc((r.name + ' ' + r.note + ' ' + r.voiceId + ' ' + r.treatment).toLowerCase())}"
+   data-shipping="${r.curatedAs ? 1 : 0}" data-voice="${esc(r.sourceId + ':' + r.voiceId)}">
+ <td class="star"><button class="starbtn" data-vid="${esc(r.sourceId)}:${esc(r.voiceId)}" title="shortlist">☆</button></td>
+ <td class="play"><button class="playbtn" data-file="${esc(r.file)}">▶</button></td>
+ <td class="who"><span class="nm">${esc(r.name)}</span>${flags}<div class="sub">${esc(r.note)}</div></td>
+ <td class="src">${esc(r.sourceLabel)}<div class="sub">${esc(r.voiceId)}</div></td>
+ <td class="tr8">${esc(r.treatment)}${r.shippingTreatment ? '' : '<span class="flag var">variant</span>'}<div class="sub">${esc(r.treatmentNote)}</div></td>
+ <td class="num">${r.seconds ? r.seconds.toFixed(1) + 's' : '-'}</td>
+ <td class="num cost${r.usdPerMillionChars <= cheapest * 1.05 ? ' best' : ''}">${money(r.usdPerMillionChars)}<div class="sub">${esc(r.billing)}</div></td>
+ <td class="num">${r.creditsPerHour.toFixed(1)}☁️</td>
+</tr>`;
+        })
+        .join('\n');
+
+    const srcChips = sources
+        .map((s) => `<button class="chip on" data-src="${esc(s.id)}">${esc(s.label)}</button>`)
         .join('');
+
+    const rateNotes = sources
+        .map((s) => `<li><b>${esc(s.label)}</b> - ${esc(s.rateNote)}</li>`)
+        .join('');
+
+    const skippedHtml = skipped.length
+        ? `<div class="skipped"><b>Not auditioned</b> - no key set:<ul>${skipped
+              .map(
+                  (s) =>
+                      `<li>${esc(s.label)} - set <code>${esc(s.envKeys[0] ?? '')}</code> in <code>ts/server/.env</code> (<a href="${esc(
+                          s.signupUrl
+                      )}">get a key</a>)${s.reason ? ` <span class="sub">${esc(s.reason)}</span>` : ''}</li>`
+              )
+              .join('')}</ul></div>`
+        : '';
+
     return `<!doctype html><meta charset="utf-8"><title>aloud voice audition</title>
 <style>
- body{font:15px/1.5 system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#222}
- h1{font-size:1.2rem} .sample{color:#666;font-style:italic;margin-bottom:1.5rem}
- .row{display:flex;align-items:center;gap:1rem;padding:.5rem 0;border-bottom:1px solid #eee}
- .meta{width:300px} .name{font-weight:600} .g{color:#999;margin-left:.5rem;font-size:.85em}
- .sub{color:#999;font-size:.78em;margin-top:.15rem}
- audio{flex:1}
+ :root{--fg:#1c1c1e;--mut:#6b6b70;--line:#e6e6e9;--bg:#fff;--accent:#2f6f5e;--best:#0a7a52}
+ body{font:15px/1.55 system-ui,-apple-system,sans-serif;max-width:1080px;margin:2rem auto;padding:0 1.2rem;color:var(--fg);background:var(--bg)}
+ h1{font-size:1.3rem;margin:0 0 .2rem}
+ .sample{color:var(--mut);font-style:italic;margin:.4rem 0 1rem;max-width:60ch}
+ .bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:1rem 0;padding:.7rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+ .chip{border:1px solid var(--line);background:#f6f6f7;color:var(--mut);border-radius:999px;padding:.25rem .7rem;font:inherit;font-size:.85em;cursor:pointer}
+ .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+ input[type=search]{border:1px solid var(--line);border-radius:6px;padding:.3rem .6rem;font:inherit;min-width:14rem}
+ label.tog{font-size:.85em;color:var(--mut);display:flex;gap:.3rem;align-items:center}
+ table{width:100%;border-collapse:collapse}
+ th{text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);padding:.4rem .5rem;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+ th.num,td.num{text-align:right}
+ td{padding:.45rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+ .sub{color:var(--mut);font-size:.78em;margin-top:.1rem}
+ .nm{font-weight:600}
+ .flag{display:inline-block;margin-left:.4rem;font-size:.7em;padding:.05rem .4rem;border-radius:999px;vertical-align:middle}
+ .flag.def{background:var(--accent);color:#fff}
+ .flag.cur{background:#eef1f0;color:var(--accent)}
+ .flag.var{background:#f3eefa;color:#5b4a86;margin-left:.35rem}
+ td.tr8{max-width:15rem}
+ tr.samevoice td.who,tr.samevoice td.src{visibility:hidden}
+ .cost.best{color:var(--best);font-weight:600}
+ button.playbtn,button.starbtn{border:1px solid var(--line);background:#fafafa;border-radius:6px;width:2rem;height:1.9rem;cursor:pointer;font-size:.9em;color:var(--fg)}
+ button.playbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+ button.starbtn.on{color:#c58b12;border-color:#e3c98a;background:#fdf7e8}
+ tr.playing{background:#f3f8f6}
+ .skipped{background:#fbfbfc;border:1px solid var(--line);border-radius:8px;padding:.7rem 1rem;margin:1rem 0;font-size:.88em}
+ .skipped ul,.notes ul{margin:.4rem 0 0;padding-left:1.2rem}
+ .notes{margin-top:2rem;font-size:.85em;color:var(--mut);border-top:1px solid var(--line);padding-top:1rem}
+ .out{width:100%;min-height:7rem;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:.5rem;border:1px solid var(--line);border-radius:6px;padding:.5rem;display:none}
+ kbd{background:#f2f2f4;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 .3rem;font-size:.85em}
 </style>
-<h1>aloud voice audition — ${entries.length} voices</h1>
-<p class="sample">“${SAMPLE}”</p>${rows}
+<h1>aloud voice audition</h1>
+<div class="sub">${rows.length} voices across ${sources.length} source${sources.length === 1 ? '' : 's'} · synthesized at speed ${rate} · <kbd>space</kbd> play/pause · <kbd>j</kbd>/<kbd>k</kbd> next/prev · <kbd>s</kbd> shortlist</div>
+<p class="sample">“${esc(SAMPLE)}”</p>
+${skippedHtml}
+<div class="bar">
+ ${srcChips}
+ <input type="search" id="q" placeholder="filter by name, id, character…">
+ <label class="tog"><input type="checkbox" id="onlystar"> shortlisted only</label>
+ <label class="tog"><input type="checkbox" id="hideship"> hide what we already ship</label>
+ <label class="tog"><input type="checkbox" id="groupvoice" checked> group prosody variants</label>
+ <button class="chip" id="copy">copy shortlist</button>
+</div>
+<table>
+<thead><tr>
+ <th></th><th></th>
+ <th data-sort="name">Voice</th>
+ <th data-sort="src">Source</th>
+ <th data-sort="treatment">Prosody</th>
+ <th class="num" data-sort="secs">Clip</th>
+ <th class="num" data-sort="cost">$/1M chars</th>
+ <th class="num" data-sort="cost">☁️/hr</th>
+</tr></thead>
+<tbody id="rows">
+${rowHtml}
+</tbody>
+</table>
+<textarea class="out" id="out" readonly></textarea>
+<div class="notes">
+ <p><b>$/1M chars is pace-adjusted</b>, measured from each clip's real duration at our own meditation instruction - not the provider's headline rate. Duration-priced engines get more expensive the slower they speak, which is exactly the register aloud uses. ☁️/hr assumes the mid talk profile (${Math.round(CHARS_PER_HOUR)} chars/hr, pricing/estimate.ts).</p>
+ <p><b>Prosody</b> is expressed differently per engine, and the gap is wide. Google honors SSML
+ <code>&lt;prosody&gt;</code> + <code>&lt;break&gt;</code> on <em>both</em> tiers, Chirp3-HD included - the strongest
+ pacing lever we have, and it is on the engine we already ship - but Google bills the tags, so a marked-up
+ line costs more per spoken word (that tax is already in the $/1M column). OpenAI, Gemini and Inworld take a
+ natural-language style instruction only. Deepgram Aura-2 exposes no prosody control at all.</p>
+ <p>Rate sources:</p><ul>${rateNotes}</ul>
+</div>
+<script>
+const rows=[...document.querySelectorAll('#rows tr')];
+const audio=new Audio(); let cur=null;
+const KEY='aloud-voice-shortlist';
+const stars=new Set(JSON.parse(localStorage.getItem(KEY)||'[]'));
+document.querySelectorAll('.starbtn').forEach(b=>{
+  if(stars.has(b.dataset.vid))b.classList.add('on'),b.textContent='★';
+  b.onclick=e=>{e.stopPropagation();toggleStar(b)};
+});
+function toggleStar(b){
+  const v=b.dataset.vid;
+  if(stars.has(v)){stars.delete(v);b.classList.remove('on');b.textContent='☆';}
+  else{stars.add(v);b.classList.add('on');b.textContent='★';}
+  localStorage.setItem(KEY,JSON.stringify([...stars]));apply();
+}
+function play(tr){
+  const btn=tr.querySelector('.playbtn');
+  if(cur===tr&&!audio.paused){audio.pause();return;}
+  document.querySelectorAll('.playbtn.on').forEach(b=>{b.classList.remove('on');b.textContent='▶'});
+  document.querySelectorAll('tr.playing').forEach(t=>t.classList.remove('playing'));
+  cur=tr;tr.classList.add('playing');btn.classList.add('on');btn.textContent='⏸';
+  audio.src=btn.dataset.file;audio.play();
+  tr.scrollIntoView({block:'nearest'});
+}
+audio.onended=()=>{document.querySelectorAll('.playbtn.on').forEach(b=>{b.classList.remove('on');b.textContent='▶'});};
+rows.forEach(tr=>{tr.querySelector('.playbtn').onclick=()=>play(tr)});
+function visible(){return rows.filter(r=>r.style.display!=='none')}
+function step(d){
+  const v=visible();if(!v.length)return;
+  const i=cur?v.indexOf(cur):-1;
+  play(v[Math.max(0,Math.min(v.length-1,i+d))]||v[0]);
+}
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  if(e.key===' '){e.preventDefault();cur?play(cur):step(1);}
+  else if(e.key==='j')step(1); else if(e.key==='k')step(-1);
+  else if(e.key==='s'&&cur)toggleStar(cur.querySelector('.starbtn'));
+});
+const off=new Set();
+document.querySelectorAll('.chip[data-src]').forEach(c=>{c.onclick=()=>{
+  c.classList.toggle('on');off.has(c.dataset.src)?off.delete(c.dataset.src):off.add(c.dataset.src);apply();
+}});
+// With variants on, a voice's treatments should read as one block: sort them
+// adjacent and blank the repeated name/source cells so the eye compares prosody,
+// not names.
+function regroup(){
+  const on=document.getElementById('groupvoice').checked;
+  const tb=document.getElementById('rows');
+  document.querySelectorAll('tr.samevoice').forEach(r=>r.classList.remove('samevoice'));
+  if(!on)return;
+  const seen=new Map();
+  [...tb.children].forEach(r=>{
+    const v=r.dataset.voice;
+    if(!seen.has(v))seen.set(v,[]);
+    seen.get(v).push(r);
+  });
+  seen.forEach(group=>{
+    if(group.length<2)return;
+    group[0].after(...group.slice(1));
+    group.slice(1).forEach(r=>r.classList.add('samevoice'));
+  });
+}
+function apply(){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const onlyStar=document.getElementById('onlystar').checked;
+  const hideShip=document.getElementById('hideship').checked;
+  rows.forEach(r=>{
+    const starred=stars.has(r.querySelector('.starbtn').dataset.vid);
+    const ok=!off.has(r.dataset.src)&&(!q||r.dataset.name.includes(q))
+      &&(!onlyStar||starred)&&(!hideShip||r.dataset.shipping==='0');
+    r.style.display=ok?'':'none';
+  });
+  regroup();
+}
+['q','onlystar','hideship','groupvoice'].forEach(id=>{
+  const el=document.getElementById(id);el.addEventListener(el.type==='search'?'input':'change',apply);
+});
+let asc={};
+document.querySelectorAll('th[data-sort]').forEach(th=>{th.onclick=()=>{
+  const k=th.dataset.sort;asc[k]=!asc[k];const dir=asc[k]?1:-1;const tb=document.getElementById('rows');
+  const val=r=>k==='cost'?parseFloat(r.dataset.cost)
+    :k==='secs'?parseFloat(r.children[5].textContent)||0
+    :k==='treatment'?r.children[4].textContent.trim().toLowerCase()
+    :k==='src'?r.dataset.src:r.querySelector('.nm').textContent.toLowerCase();
+  [...tb.children].sort((a,b)=>val(a)>val(b)?dir:val(a)<val(b)?-dir:0).forEach(r=>tb.appendChild(r));
+  regroup();
+}});
+document.getElementById('copy').onclick=()=>{
+  const out=document.getElementById('out');
+  const picked=rows.filter(r=>stars.has(r.querySelector('.starbtn').dataset.vid));
+  out.style.display='block';
+  out.value=picked.length
+    ? picked.map(r=>{
+        const [src,...idp]=r.querySelector('.starbtn').dataset.vid.split(':');
+        const n=r.dataset.name;
+        const g=n.includes('androgynous')?'androgynous':n.includes('female')?'female':n.includes('male')?'male':'?';
+        return "{ name: '"+r.querySelector('.nm').textContent.trim()+"', provider: '"+src
+          +"', providerVoiceId: '"+idp.join(':')+"', gender: '"+g+"', tier: '?' },"
+          +"  // $"+r.dataset.cost+"/1M chars, "+r.children[4].querySelector('.sub').textContent.trim();
+      }).join('\\n')
+    : 'Nothing shortlisted yet - press ☆ (or s) on the voices you like.';
+  out.select();
+};
+apply();
+</script>
 `;
 }
 
-/** Synthesize a meditation sample for each curated voice, labeled with provider,
- *  tier + ☁️ rate — the audition that informs the default-voice decision.
- *  Dispatches per provider; an OpenAI voice with no openaiKey is skipped. */
-async function previewCurated(
-    googleKey: string | undefined,
-    openaiKey: string | undefined,
-    outDir: string
-): Promise<PreviewEntry[]> {
-    const entries: PreviewEntry[] = [];
-    for (const cv of CURATED_VOICES) {
-        try {
-            const key = cv.provider === 'openai' ? openaiKey : googleKey;
-            if (!key) {
-                const envName = cv.provider === 'openai' ? 'OPENAI_API_KEY' : 'GOOGLE_TTS_API_KEY';
-                console.log(`  – ${cv.name} (${cv.provider}) — skipped, ${envName} not set`);
-                continue;
-            }
-            const mp3 =
-                cv.provider === 'openai'
-                    ? await synthesizeWithOpenAI(SAMPLE, cv.providerVoiceId, 1.0, key)
-                    : await synthesizeWithGoogle(SAMPLE, cv.providerVoiceId, 1.0, key);
-            const file = `${cv.name}.mp3`;
-            writeFileSync(resolve(outDir, file), mp3);
-            const rate = voiceCreditsPerHourTypical(cv.provider, cv.providerVoiceId);
-            entries.push({
-                name: `${cv.name}${cv.default ? ' — current default' : ''}`,
-                gender: cv.gender,
-                file,
-                sub: `${cv.provider} · ${cv.tier} · ~${rate}☁️/hr · ${cv.providerVoiceId}`,
-            });
-            console.log(`  ✓ ${cv.name} (${cv.provider}, ${cv.tier}, ~${rate}☁️/hr)`);
-        } catch (err) {
-            console.log(`  ✗ ${cv.name} — ${String(err)}`);
-        }
-    }
-    return entries;
-}
+// ---------------------------------------------------------------------------
+// Run
+// ---------------------------------------------------------------------------
 
-/** Synthesize every voice in OpenAI's roster, flagging which are currently
- *  curated, so you can pick replacements/additions for voice-catalog.ts. */
-async function previewOpenaiRoster(openaiKey: string, outDir: string): Promise<PreviewEntry[]> {
-    const curatedByVoice = new Map(
-        CURATED_VOICES.filter((v) => v.provider === 'openai').map((v) => [v.providerVoiceId, v.name])
-    );
-    const rate = voiceCreditsPerHourTypical('openai', 'any'); // flat per-char rate, voice-independent
-    const entries: PreviewEntry[] = [];
-    for (const v of OPENAI_VOICES) {
-        try {
-            const mp3 = await synthesizeWithOpenAI(SAMPLE, v.id, 1.0, openaiKey);
-            const file = `openai-${v.id}.mp3`;
-            writeFileSync(resolve(outDir, file), mp3);
-            const curated = curatedByVoice.get(v.id);
-            entries.push({
-                name: `${v.id}${curated ? ` — currently "${curated}"` : ''}`,
-                gender: v.note,
-                file,
-                sub: `openai · gpt-4o-mini-tts · ~${rate}☁️/hr`,
-            });
-            console.log(`  ✓ ${v.id}${curated ? ` (curated as ${curated})` : ''}`);
-        } catch (err) {
-            console.log(`  ✗ ${v.id} — ${String(err)}`);
-        }
+/** Curated mode is a different shape from a roster: it walks CURATED_VOICES so
+ *  the page shows exactly what ships, in ship order, with the default flagged. */
+function curatedTargets(): { source: AuditionSource; voice: AuditionVoice; curated: (typeof CURATED_VOICES)[number] }[] {
+    const out = [];
+    for (const cv of CURATED_VOICES) {
+        const source = sourceById(cv.provider);
+        if (!source) continue;
+        out.push({ source, voice: { id: cv.providerVoiceId, label: cv.name, note: cv.gender }, curated: cv });
     }
-    return entries;
+    return out;
 }
 
 async function main(): Promise<void> {
@@ -175,74 +376,158 @@ async function main(): Promise<void> {
     } catch {
         /* rely on ambient env */
     }
-    // TTS reads the same keys (and OPENAI_API_KEY fallback) the server config does.
-    // `||`, not `??`: a blank OPENAI_TTS_API_KEY= line is the empty string, which
-    // `??` would not fall through (matches config.ts).
-    const googleKey = process.env['GOOGLE_TTS_API_KEY'];
-    const openaiKey = process.env['OPENAI_TTS_API_KEY'] || process.env['OPENAI_API_KEY'];
 
-    const filter = process.argv[2] ?? 'Chirp3-HD';
-    const languageCode = process.argv[3] ?? 'en-US';
+    const args = process.argv.slice(2);
+    const flag = (name: string): string | undefined =>
+        args.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
+    const names = args.filter((a) => !a.startsWith('--')).map((a) => a.toLowerCase());
+    const rate = Number(flag('rate') ?? 1);
+    const limit = Number(flag('limit') ?? Infinity);
+    const filter = flag('filter');
+    const locales = (flag('locales') ?? 'en-US').split(',').map((s) => s.trim()).filter(Boolean);
+    const rosterOpts = { locales, ...(filter === undefined ? {} : { filter }) };
+
+    // Prosody axis. Default: one clip per voice, in the treatment that source
+    // ships today, so a plain run is the roster comparison. `--prosody` renders
+    // every treatment a source can express, which is the "how much pacing can I
+    // actually buy here" listen; `--treatments=` narrows that.
+    const wantAllTreatments = args.includes('--prosody');
+    const treatmentIds = flag('treatments')?.split(',').map((t) => t.trim()).filter(Boolean);
+    const treatmentsFor = (source: AuditionSource): readonly Treatment[] => {
+        if (treatmentIds?.length) {
+            const picked = source.treatments.filter((t) => treatmentIds.includes(t.id));
+            // A source that can't express a requested treatment still gets
+            // auditioned in its shipping one, rather than vanishing from the page.
+            return picked.length ? picked : source.treatments.slice(0, 1);
+        }
+        return wantAllTreatments ? source.treatments : source.treatments.slice(0, 1);
+    };
+
+    const mode = names.length === 0 ? ['curated'] : names;
+    const wanted =
+        mode.includes('all') ? SOURCES.map((s) => s.id)
+        : mode.includes('curated') ? ['curated']
+        : mode;
+
+    for (const w of wanted) {
+        if (w !== 'curated' && !sourceById(w)) {
+            console.error(`Unknown source "${w}". Known: ${SOURCES.map((s) => s.id).join(', ')}, curated, all.`);
+            process.exit(1);
+        }
+    }
 
     const outDir = resolve(import.meta.dirname, '..', 'voice-previews');
+    rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
 
-    // `curated` mode: audition exactly the offered set (for the defaults pass).
-    // Runs with EITHER provider's key — each voice skips if its own key is absent,
-    // so you can audition just the OpenAI voices with only OPENAI_API_KEY set.
-    if (filter.toLowerCase() === 'curated') {
-        if (!googleKey && !openaiKey) {
-            console.error('Set GOOGLE_TTS_API_KEY and/or OPENAI_API_KEY (in ts/server/.env) to audition curated voices.');
-            process.exit(1);
+    const rows: Row[] = [];
+    const skipped: Skipped[] = [];
+    const used: AuditionSource[] = [];
+    const curatedIndex = new Map(CURATED_VOICES.map((v) => [`${v.provider}:${v.providerVoiceId}`, v]));
+
+    // Build the work list: either the shipping set, or each source's roster.
+    type Target = { source: AuditionSource; voice: AuditionVoice; key: string; treatment: Treatment };
+    const targets: Target[] = [];
+
+    if (wanted[0] === 'curated') {
+        for (const t of curatedTargets()) {
+            const key = keyFor(t.source);
+            if (!key) {
+                if (!skipped.some((s) => s.label === t.source.label))
+                    skipped.push({ ...t.source, reason: 'curated voices from this source were skipped' });
+                continue;
+            }
+            for (const treatment of treatmentsFor(t.source))
+                targets.push({ source: t.source, voice: t.voice, key, treatment });
         }
-        console.log(`Auditioning ${CURATED_VOICES.length} curated voices → ${outDir}`);
-        const entries = await previewCurated(googleKey, openaiKey, outDir);
-        writeFileSync(resolve(outDir, 'index.html'), html(entries));
-        console.log(`\nOpen: ${resolve(outDir, 'index.html')}`);
-        return;
+    } else {
+        for (const id of wanted) {
+            const source = sourceById(id)!;
+            const key = keyFor(source);
+            if (!key) {
+                skipped.push({ ...source, reason: '' });
+                continue;
+            }
+            let roster: AuditionVoice[];
+            try {
+                roster = await source.roster(key, rosterOpts);
+            } catch (err) {
+                skipped.push({ ...source, reason: `roster failed - ${String(err)}` });
+                continue;
+            }
+            for (const voice of roster.slice(0, limit))
+                for (const treatment of treatmentsFor(source))
+                    targets.push({ source, voice, key, treatment });
+        }
     }
 
-    // `openai` mode: audition OpenAI's full voice roster to pick the curated set.
-    if (filter.toLowerCase() === 'openai') {
-        if (!openaiKey) {
-            console.error('Set OPENAI_API_KEY (in ts/server/.env) to audition OpenAI voices.');
-            process.exit(1);
-        }
-        console.log(`Auditioning ${OPENAI_VOICES.length} OpenAI voices → ${outDir}`);
-        const entries = await previewOpenaiRoster(openaiKey, outDir);
-        writeFileSync(resolve(outDir, 'index.html'), html(entries));
-        console.log(`\nOpen: ${resolve(outDir, 'index.html')}`);
-        return;
-    }
-
-    // Browse mode walks Google's catalog, so it needs the Google key.
-    if (!googleKey) {
-        console.error('GOOGLE_TTS_API_KEY not set (put it in ts/server/.env).');
+    if (targets.length === 0) {
+        console.error('Nothing to audition. Set at least one provider key in ts/server/.env:');
+        for (const s of SOURCES) console.error(`  ${s.envKeys[0]} — ${s.label} (${s.signupUrl})`);
         process.exit(1);
     }
-    const all = await listVoices(googleKey, languageCode);
-    const voices = all.filter((v) => v.name.includes(filter)).sort((a, b) => a.name.localeCompare(b.name));
-    if (voices.length === 0) {
-        console.error(`No voices match "${filter}" for ${languageCode}. Try a different filter.`);
-        process.exit(1);
-    }
 
-    console.log(`Synthesizing ${voices.length} "${filter}" voices (${languageCode}) → ${outDir}`);
+    console.log(`Auditioning ${targets.length} voices at speed ${rate} → ${outDir}\n`);
 
-    const entries: PreviewEntry[] = [];
-    for (const v of voices) {
+    for (const { source, voice, key, treatment } of targets) {
+        const name = voice.label ?? voice.id;
         try {
-            const mp3 = await synthesizeWithGoogle(SAMPLE, v.name, 1.0, googleKey);
-            const file = `${v.name}.mp3`;
-            writeFileSync(resolve(outDir, file), mp3);
-            entries.push({ name: v.name, gender: v.ssmlGender ?? '', file });
-            console.log(`  ✓ ${v.name}`);
+            const result = await source.synth(SAMPLE, voice.id, rate, key, treatment);
+            const file = `${source.id}-${voice.id.replace(/[^\w.-]/g, '_')}-${treatment.id}.${result.ext}`;
+            const path = resolve(outDir, file);
+            writeFileSync(path, result.bytes);
+            const seconds = durationSeconds(path);
+
+            // One comparable number across billing models: what this clip cost,
+            // divided by its characters. A per-second source only lands here
+            // honestly because we measured the audio.
+            // A treatment can change BOTH legs: SSML bills its tags (billedChars),
+            // and a slower delivery bills more seconds. Normalising by the plain
+            // sample length keeps every row comparable in $/1M SPOKEN chars,
+            // which is what a session actually costs.
+            const usd =
+                result.usdActual ??
+                (source.billing === 'per-char'
+                    ? (result.billedChars ?? SAMPLE.length) * source.usdPerUnit(voice.id)
+                    : seconds * source.usdPerUnit(voice.id));
+            const usdPerMillionChars = (usd / SAMPLE.length) * M;
+            const curated = curatedIndex.get(`${source.id}:${voice.id}`);
+
+            if (!used.includes(source)) used.push(source);
+            rows.push({
+                sourceId: source.id,
+                sourceLabel: source.label,
+                name,
+                voiceId: voice.id,
+                note: voice.note ?? '',
+                file,
+                seconds,
+                treatment: treatment.label,
+                treatmentNote: treatment.note,
+                shippingTreatment: treatment.id === source.treatments[0]?.id,
+                usdPerMillionChars,
+                creditsPerHour: usdToCredits((usdPerMillionChars / M) * CHARS_PER_HOUR),
+                billing: source.billing === 'per-char' ? 'per char' : 'per second',
+                ...(curated ? { curatedAs: curated.name } : {}),
+                ...(curated?.default ? { isDefault: true } : {}),
+            });
+            console.log(
+                `  ✓ ${name.padEnd(24)} ${source.id.padEnd(9)} ${treatment.id.padEnd(20)} ` +
+                    `${seconds.toFixed(1).padStart(5)}s ${money(usdPerMillionChars).padStart(6)}/1M` +
+                    `${curated ? `  (ships as ${curated.name})` : ''}`
+            );
         } catch (err) {
-            console.log(`  ✗ ${v.name} — ${String(err)}`);
+            console.log(`  ✗ ${name.padEnd(24)} ${source.id.padEnd(9)} ${treatment.id.padEnd(20)} ${String(err).slice(0, 110)}`);
         }
     }
 
-    writeFileSync(resolve(outDir, 'index.html'), html(entries));
+    rows.sort((a, b) => a.usdPerMillionChars - b.usdPerMillionChars || a.name.localeCompare(b.name));
+    writeFileSync(resolve(outDir, 'index.html'), html(rows, skipped, used, rate));
+
+    if (skipped.length) {
+        console.log('\nSkipped (no key):');
+        for (const s of skipped) console.log(`  ${s.label} — set ${s.envKeys[0]} (${s.signupUrl})`);
+    }
     console.log(`\nOpen: ${resolve(outDir, 'index.html')}`);
 }
 
