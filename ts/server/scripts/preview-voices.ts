@@ -136,6 +136,38 @@ function money(n: number): string {
     return n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(1)}`;
 }
 
+/**
+ * Legend for the prosody column. One entry per (source, treatment) actually
+ * present, so the rows can carry the option NAME alone instead of repeating a
+ * sentence of explanation on all of them.
+ */
+function prosodyKey(rows: Row[]): string {
+    const bySource = new Map<string, { label: string; note: string; ships: boolean }[]>();
+    for (const r of rows) {
+        const list = bySource.get(r.sourceLabel) ?? [];
+        if (!list.some((e) => e.label === r.treatment))
+            list.push({ label: r.treatment, note: r.treatmentNote, ships: r.shippingTreatment });
+        bySource.set(r.sourceLabel, list);
+    }
+    for (const list of bySource.values()) list.sort((a, b) => Number(b.ships) - Number(a.ships));
+    // Nothing to explain when every source was auditioned in one treatment.
+    if (![...bySource.values()].some((l) => l.length > 1)) return '';
+    const blocks = [...bySource.entries()]
+        .map(
+            ([src, list]) =>
+                `<div class="keysrc"><b>${esc(src)}</b><ul>${list
+                    .map(
+                        (e) =>
+                            `<li><span class="kname">${esc(e.label)}</span>${
+                                e.ships ? '<span class="flag cur">what we ship today</span>' : ''
+                            } - ${esc(e.note)}</li>`
+                    )
+                    .join('')}</ul></div>`
+        )
+        .join('');
+    return `<details class="key" open><summary>What the prosody options mean</summary>${blocks}</details>`;
+}
+
 function html(rows: Row[], skipped: Skipped[], sources: AuditionSource[], rate: number): string {
     const cheapest = rows.length ? Math.min(...rows.map((r) => r.usdPerMillionChars)) : 0;
     const rowHtml = rows
@@ -151,7 +183,7 @@ function html(rows: Row[], skipped: Skipped[], sources: AuditionSource[], rate: 
  <td class="play"><button class="playbtn" data-file="${esc(r.file)}">▶</button></td>
  <td class="who"><span class="nm">${esc(r.name)}</span>${flags}<div class="sub">${esc(r.note)}</div></td>
  <td class="src">${esc(r.sourceLabel)}<div class="sub">${esc(r.voiceId)}</div></td>
- <td class="tr8">${esc(r.treatment)}${r.shippingTreatment ? '' : '<span class="flag var">variant</span>'}<div class="sub">${esc(r.treatmentNote)}</div></td>
+ <td class="tr8">${esc(r.treatment)}</td>
  <td class="num">${r.seconds ? r.seconds.toFixed(1) + 's' : '-'}</td>
  <td class="num cost${r.usdPerMillionChars <= cheapest * 1.05 ? ' best' : ''}">${money(r.usdPerMillionChars)}<div class="sub">${esc(r.billing)}</div></td>
  <td class="num">${r.creditsPerHour.toFixed(1)}☁️</td>
@@ -199,7 +231,11 @@ function html(rows: Row[], skipped: Skipped[], sources: AuditionSource[], rate: 
  .flag.def{background:var(--accent);color:#fff}
  .flag.cur{background:#eef1f0;color:var(--accent)}
  .flag.var{background:#f3eefa;color:#5b4a86;margin-left:.35rem}
- td.tr8{max-width:15rem}
+ td.tr8{max-width:11rem}
+ .key{background:#fbfbfc;border:1px solid var(--line);border-radius:8px;padding:.6rem 1rem;margin:0 0 1rem;font-size:.86em}
+ .key summary{cursor:pointer;font-weight:600}
+ .keysrc{margin-top:.5rem} .keysrc ul{margin:.2rem 0 0;padding-left:1.2rem}
+ .keysrc li{color:var(--mut)} .kname{color:var(--fg);font-weight:600}
  tr.samevoice td.who,tr.samevoice td.src{visibility:hidden}
  .cost.best{color:var(--best);font-weight:600}
  button.playbtn,button.starbtn{border:1px solid var(--line);background:#fafafa;border-radius:6px;width:2rem;height:1.9rem;cursor:pointer;font-size:.9em;color:var(--fg)}
@@ -224,6 +260,7 @@ ${skippedHtml}
  <label class="tog"><input type="checkbox" id="groupvoice" checked> group prosody variants</label>
  <button class="chip" id="copy">copy shortlist</button>
 </div>
+${prosodyKey(rows)}
 <table>
 <thead><tr>
  <th></th><th></th>
@@ -346,7 +383,7 @@ document.getElementById('copy').onclick=()=>{
         const g=n.includes('androgynous')?'androgynous':n.includes('female')?'female':n.includes('male')?'male':'?';
         return "{ name: '"+r.querySelector('.nm').textContent.trim()+"', provider: '"+src
           +"', providerVoiceId: '"+idp.join(':')+"', gender: '"+g+"', tier: '?' },"
-          +"  // $"+r.dataset.cost+"/1M chars, "+r.children[4].querySelector('.sub').textContent.trim();
+          +"  // $"+r.dataset.cost+"/1M chars, "+r.children[4].textContent.trim();
       }).join('\\n')
     : 'Nothing shortlisted yet - press ☆ (or s) on the voices you like.';
   out.select();

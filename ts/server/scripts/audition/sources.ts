@@ -158,12 +158,12 @@ export function ssmlProsody(text: string, opts: { rate: string; pitch: string; b
  *  worth auditioning because instruction-steered engines drift fast under a
  *  short instruction (meditation-pal-5yi1). */
 export const INSTRUCTION_TREATMENTS: readonly Treatment[] = [
-    { id: 'instruction', label: 'meditation instruction', note: 'the register we ship - warm, calm, unhurried' },
-    { id: 'plain', label: 'no instruction', note: 'unsteered, to hear the voice\u2019s own default' },
+    { id: 'instruction', label: 'meditation instruction', note: 'a natural-language style instruction: warm, calm, unhurried' },
+    { id: 'plain', label: 'no instruction', note: 'the voice\u2019s own default, unsteered' },
     {
         id: 'instruction-spacious',
         label: 'instruction + pauses',
-        note: 'pushes explicitly for long silences between sentences',
+        note: 'the same instruction, pushed harder for long silences between sentences',
     },
 ];
 
@@ -266,7 +266,7 @@ const google: AuditionSource = {
         return out.sort((a, b) => a.id.localeCompare(b.id));
     },
     treatments: [
-        { id: 'plain', label: 'plain text', note: 'what we ship today - no markup, pace from the speed setting alone' },
+        { id: 'plain', label: 'plain text', note: 'no markup - pace comes from the speed setting alone' },
         {
             id: 'ssml-gentle',
             label: 'SSML gentle',
@@ -275,7 +275,7 @@ const google: AuditionSource = {
         {
             id: 'ssml-spacious',
             label: 'SSML spacious',
-            note: 'rate 80%, pitch -2st, 1400ms between sentences - meditation pacing',
+            note: 'rate 80%, pitch -2st, 1400ms between sentences',
         },
     ],
     async synth(text, voiceId, rate, key, t) {
@@ -548,7 +548,7 @@ const deepgram: AuditionSource = {
         {
             id: 'plain',
             label: 'no prosody control',
-            note: 'Aura-2 exposes no rate, pitch, SSML or style instruction - the pace is whatever the voice does',
+            note: 'Aura-2 exposes no rate, pitch, SSML or style control of any kind',
         },
     ],
     async synth(text, voiceId, _rate, key) {
@@ -570,7 +570,7 @@ const inworld: AuditionSource = {
     signupUrl: 'https://platform.inworld.ai',
     billing: 'per-char',
     usdPerUnit: () => 25 / M,
-    rateNote: 'Realtime TTS-2 $25/1M on-demand ($12.50 Growth); the older TTS-1 tier was $5-10/1M - confirm which model your key bills at',
+    rateNote: 'Realtime TTS-2 $25/1M on-demand - the rate that applies to us. Cheaper tiers are SUBSCRIPTION commitments ($25/mo Creator $20, $300/mo Developer $15, $1500/mo Growth $12.50), not volume discounts',
     shipping: false,
     async roster(key, { filter }) {
         const res = await fetch('https://api.inworld.ai/tts/v1/voices', {
