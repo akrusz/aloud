@@ -6,17 +6,19 @@
  * voice-previews/index.html - a sortable, filterable, shortlist-able page with
  * one player per voice.
  *
- *   cd ts/server
- *   npx tsx scripts/preview-voices.ts curated          # exactly what we ship
- *   npx tsx scripts/preview-voices.ts google           # full Chirp3-HD/Neural2 roster
- *   npx tsx scripts/preview-voices.ts openai gemini    # several sources at once
- *   npx tsx scripts/preview-voices.ts all              # every source with a key
- *   npx tsx scripts/preview-voices.ts google --locales=en-US,en-GB,en-AU
- *   npx tsx scripts/preview-voices.ts google --filter=Chirp3-HD --limit=12
- *   npx tsx scripts/preview-voices.ts all --rate=0.85  # audition at session pace
- *   npx tsx scripts/preview-voices.ts google --prosody --limit=4   # every prosody
- *                                              # treatment per voice, side by side
- *   npx tsx scripts/preview-voices.ts curated --treatments=plain,ssml-spacious
+ * Run it from ANYWHERE in the repo via the npm delegate - note the `--`, which
+ * passes the rest through:
+ *
+ *   npm run voices -- curated         # only what we already ship (the default)
+ *   npm run voices -- google          # ~130 Google voices, all English locales
+ *   npm run voices -- openai gemini   # several sources at once
+ *   npm run voices -- all             # every source with a key
+ *   npm run voices -- google --locales=en-US,en-GB,en-AU
+ *   npm run voices -- google --filter=Chirp3-HD --limit=12
+ *   npm run voices -- all --rate=0.85          # audition at session pace
+ *   npm run voices -- google --prosody --limit=4   # every prosody treatment
+ *                                                  # per voice, side by side
+ *   npm run voices -- curated --treatments=plain,ssml-spacious
  *
  * Sources with no key are skipped and listed on the page with a signup link, so
  * a partial run still produces a usable page. Output is gitignored; a full run
@@ -523,6 +525,15 @@ async function main(): Promise<void> {
 
     rows.sort((a, b) => a.usdPerMillionChars - b.usdPerMillionChars || a.name.localeCompare(b.name));
     writeFileSync(resolve(outDir, 'index.html'), html(rows, skipped, used, rate));
+
+    if (wanted[0] === 'curated') {
+        console.log(
+            '\nThat was the CURATED set - only the voices we already ship. To hear new ones:\n' +
+                '  npm run voices -- google --locales=en-US,en-GB,en-AU   # ~130 Google voices\n' +
+                '  npm run voices -- openai                               # the full OpenAI roster\n' +
+                '  npm run voices -- all                                  # every source with a key'
+        );
+    }
 
     if (skipped.length) {
         console.log('\nSkipped (no key):');

@@ -252,23 +252,43 @@ the resulting audio, and writes `voice-previews/index.html` (gitignored) - a
 sortable, filterable page with a player per voice, a shortlist that emits
 paste-ready `CURATED_VOICES` lines, and `space`/`j`/`k`/`s` shortcuts.
 
+Run it from **anywhere in the repo** through the npm delegate. Note the `--`,
+which passes the rest of the arguments through; and note that there is also a
+`scripts/` directory at the repo root, so calling the file by a bare relative
+path from the wrong one fails with a confusing `MODULE_NOT_FOUND`.
+
 ```bash
-cd ts/server
-npx tsx scripts/preview-voices.ts curated                 # exactly what we ship
-npx tsx scripts/preview-voices.ts google                  # full Chirp3-HD/Neural2 roster
-npx tsx scripts/preview-voices.ts openai gemini           # several sources at once
-npx tsx scripts/preview-voices.ts all                     # every source with a key
-npx tsx scripts/preview-voices.ts google --locales=en-US,en-GB,en-AU
-npx tsx scripts/preview-voices.ts google --filter=Chirp3-HD --limit=12
-npx tsx scripts/preview-voices.ts curated --prosody        # every prosody treatment
-npx tsx scripts/preview-voices.ts all --rate=0.85          # at session pace
+npm run voices -- curated         # only what we already ship (the default)
+npm run voices -- google          # ~130 Google voices, all English locales
+npm run voices -- openai gemini   # several sources at once
+npm run voices -- all             # every source with a key
+npm run voices -- google --locales=en-US,en-GB,en-AU
+npm run voices -- google --filter=Chirp3-HD --limit=12
+npm run voices -- curated --prosody       # every prosody treatment, side by side
+npm run voices -- all --rate=0.85         # at session pace
 ```
+
+`curated` is the default and shows **only the voices already in
+`CURATED_VOICES`** - it is the set-the-defaults pass, not the discovery one.
+To find new voices, name a source. Google alone has ~130 English voices across
+en-US/en-GB/en-AU (30 Chirp3-HD per locale, plus Neural2 and Standard), which
+is roughly $0.70 and a few minutes to audition in full.
 
 Sources are declared in `scripts/audition/sources.ts` - roster, synth call,
 prosody treatments, and cost model per engine. Beyond the two we ship it carries
 key-gated adapters for Gemini TTS, Cartesia, Deepgram Aura-2 and Inworld;
 anything without a key is skipped and listed on the page with a signup link, so a
-partial run still produces a usable page. These adapters are audition-only on
+partial run still produces a usable page. The keys are documented in
+`.env.example` under "Voice-audition keys":
+
+| Env var | Engine | Billing | Get a key |
+|---|---|---|---|
+| `GOOGLE_TTS_API_KEY` | Google Cloud TTS *(ships)* | per char | [console](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com) |
+| `OPENAI_API_KEY` (or `OPENAI_TTS_API_KEY`) | OpenAI gpt-4o-mini-tts *(ships)* | per second | [platform](https://platform.openai.com/api-keys) |
+| `GEMINI_API_KEY` | Gemini TTS - already set for the LLM | per second | [AI Studio](https://aistudio.google.com/apikey) |
+| `CARTESIA_API_KEY` | Cartesia Sonic 3 | per char | [play.cartesia.ai](https://play.cartesia.ai/keys) |
+| `INWORLD_API_KEY` | Inworld TTS | per char | [platform.inworld.ai](https://platform.inworld.ai) |
+| `DEEPGRAM_API_KEY` | Deepgram Aura-2 | per char | [console](https://console.deepgram.com/signup) | These adapters are audition-only on
 purpose - promoting one means adding it to `src/providers/tts.ts`, the
 `TtsProvider` union, and `pricing/providers.ttsRateFor` before it can bill.
 

@@ -14,6 +14,7 @@
     "server:dev": "npm --prefix ts/server run dev",
     "soak": "npm --prefix ts run soak",
     "soak:web": "npm --prefix ts run soak:web",
-    "soak:audio": "./scripts/blackhole-driver.sh"
+    "soak:audio": "./scripts/blackhole-driver.sh",
+    "voices": "npm --prefix ts/server run voices --"
   }
 }
