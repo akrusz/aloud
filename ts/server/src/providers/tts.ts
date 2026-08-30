@@ -52,10 +52,20 @@ export async function synthesizeWithGoogle(
     return Uint8Array.from(Buffer.from(data.audioContent, 'base64'));
 }
 
-/** Calm facilitation register for the instruction-steered OpenAI model. `rate`
- *  folds in as a pace word because gpt-4o-mini-tts can ignore the numeric
- *  `speed` param; the instruction is the reliable lever. `speed` is still sent
- *  (harmless if honored). */
+/** Calm facilitation register for the instruction-steered OpenAI model.
+ *
+ *  NOTE the comment here previously said `speed` can be ignored and the
+ *  instruction is the reliable lever. Measured 2026-08-30, that is BACKWARDS:
+ *  `speed` is precise and linear (0.7 -> +42% duration against a nominal +43%,
+ *  0.5 -> +100% against +100%), while the instruction is erratic (+26% with a
+ *  35% render-to-render spread, and an explicitly MORE spacious instruction
+ *  produced a SHORTER clip than the plain one).
+ *
+ *  Which makes the pace word below a likely cause of meditation-pal-5yi1 rather
+ *  than a fix for it: we send BOTH levers, and they compound - speed 0.7 alone
+ *  gives +42%, speed 0.7 plus the instruction gives +66%. Left as-is here
+ *  because changing delivery pace is a tuning decision with an audible effect
+ *  on every hosted OpenAI session, not a comment fix. See 5yi1. */
 function meditationInstruction(rate: number): string {
     const pace =
         rate < 0.95 ? ' Speak slowly, leaving generous space between phrases.'
