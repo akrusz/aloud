@@ -25,9 +25,9 @@ client on (package, SHA-1); they're additive, so none of these disturb the other
 Project **1033783393687**, package `app.aloud.meditation`
 (detail: [mobile-signin-setup.md](mobile-signin-setup.md) step 1b).
 
-1. **Play app-signing SHA-1** - enroll, then Play Console → Test and release →
-   App integrity → copy the app-signing SHA-1 → register it as an Android OAuth
-   client. **Do this before inviting testers**: without it their sign-in fails the
+1. **Play app-signing SHA-1** - enroll, then Play Console → Protected with Play
+   → Play Store distribution → Play app signing → copy the **app signing key
+   certificate** SHA-1 → register it as an Android OAuth client. **Do this before inviting testers**: without it their sign-in fails the
    way it did on 2026-08-23, and Play re-signs with its own key so your local
    registration doesn't cover them.
 2. **Upload keystore SHA-1** - same, for anything you sign yourself.

@@ -72,7 +72,7 @@ The one thing paperwork can't stand in for. Needs hardware.
 ## Phase 1 - Sign-in + signing setup
 
 - [ ] Google / Apple sign-in consoles (bead `tpj4`): Google iOS OAuth client + both client ids in server `GOOGLE_CLIENT_IDS`; Apple Services ID + "Sign in with Apple" capability. Guideline 4.8: offering Google on iOS requires Apple too.
-- [ ] Google **Android** OAuth clients - one per signing cert: debug SHA-1 (dev installs) AND, once the Play app exists, the **App signing key** SHA-1 from Play Console → App integrity (store installs get re-signed by Google). See the gotcha in [mobile-signing.md](mobile-signing.md).
+- [ ] Google **Android** OAuth clients - one per signing cert: debug SHA-1 (dev installs) AND, once the Play app exists, the **App signing key** SHA-1 from Play Console → Protected with Play → Play Store distribution → Play app signing (store installs get re-signed by Google). See the gotcha in [mobile-signing.md](mobile-signing.md).
 - [x] iOS: automatic signing (team id now in `project.pbxproj`; distribution cert + profile auto-created, Sign in with Apple capability enabled on the App ID via `-allowProvisioningUpdates`, 2026-08-03). Server `APPLE_CLIENT_IDS` must include the bundle id for the native Apple button to work.
 - [ ] Android: create the upload keystore, enroll in Play App Signing, back the keystore up. Steps in [mobile-signing.md](mobile-signing.md). *(Gradle side is wired: `app/build.gradle` reads gitignored `android/keystore.properties` when present; `versionName` tracks the app version - bump it and `versionCode` each upload.)*
 

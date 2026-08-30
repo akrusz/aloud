@@ -111,9 +111,9 @@ key; your upload key only signs uploads, so a lost upload key is recoverable.
 > differs from your upload and debug keys. Google sign-in on Android works by
 > matching package + signing-cert SHA-1 against an Android OAuth client, which
 > means you need one per fingerprint: debug key (dev installs), and the **App
-> signing key** SHA-1 from Play Console → Setup → App integrity (store
-> installs). Register only the debug SHA-1 and sign-in works in dev but fails
-> in every Play-delivered build.
+> signing key** SHA-1 from Play Console → Protected with Play → Play Store
+> distribution → Play app signing (store installs). Register only the debug
+> SHA-1 and sign-in works in dev but fails in every Play-delivered build.
 
 **Build a release bundle & upload**
 

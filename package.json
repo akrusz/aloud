@@ -13,6 +13,7 @@
     "tauri:dev": "npm --prefix ts run tauri:dev",
     "server:dev": "npm --prefix ts/server run dev",
     "soak": "npm --prefix ts run soak",
-    "soak:web": "npm --prefix ts run soak:web"
+    "soak:web": "npm --prefix ts run soak:web",
+    "soak:audio": "./scripts/blackhole-driver.sh"
   }
 }

@@ -41,6 +41,14 @@ else, don't take a call. Devices are restored on exit, Ctrl-C included. Pass
 `--no-audio-routing` to leave them alone (for debugging the driver, not the audio
 path).
 
+**The driver only exists during a run.** A loaded BlackHole plug-in is a
+permanent candidate default input, and CoreAudio reaches for it whenever the real
+mic goes away (sleep, unplugged headphones) - which is how it ends up being the
+microphone your next video call picks up. So a run loads the driver on the way in
+and parks it on the way out, and only puts back what it moved: start a run with
+BlackHole already loaded and it stays loaded. See `scripts/blackhole-driver.sh`
+below.
+
 **Judge scores are noisier than they look.** Two `smoke` runs of *identical code*
 moved a scenario a full point. That is what `JUDGE_DELTA_MIN` (1.5, in
 `soak/baseline.ts`) is calibrated against, not a guess. Use `--sessions=2`+ before
@@ -170,6 +178,27 @@ the real web UI has selected as its microphone.
 brew install --cask blackhole-2ch    # then RESTART the Mac: CoreAudio doesn't
 brew install switchaudio-osx         # list the driver until you do
 ```
+
+**Parking the driver.** `scripts/blackhole-driver.sh {status|park|unpark}` moves
+the HAL plug-in in and out of `/Library/Audio/Plug-Ins/HAL` and restarts
+`coreaudiod`; the install stays put either way. `soak:web` calls it, and
+`npm run soak:audio -- park` is the by-hand version for when a run dies hard
+enough to skip its own cleanup.
+
+The moves need root, so expect a password prompt at the start of a run and
+another at the end. The end one comes **after** the reports are written, so a run
+you walked away from still leaves its results on disk; if it goes unanswered, or
+the run crashed, or you Ctrl-C'd it, the driver just stays loaded and the harness
+tells you how to park it.
+
+Don't hand this script a `NOPASSWD` sudoers rule. It lives in a repo you can
+write to, and sudo matches on path rather than contents, so the rule would turn
+"can write one file in this checkout" - a dependency's postinstall, a stray agent,
+a tampered branch - into silent root. If a run is long enough that two prompts
+genuinely grate, `sudo install -o root -g wheel -m 755 scripts/blackhole-driver.sh
+/usr/local/libexec/aloud-blackhole-driver` and point the rule at *that* copy
+instead; the harness tries `sudo -n` first, so it picks that up with no further
+changes.
 
 Google Chrome must be installed. The harness drives **real Chrome**, not
 Playwright's bundled Chromium, because the Web Speech API only works in a build

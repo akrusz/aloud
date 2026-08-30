@@ -52,7 +52,8 @@ Credentials → **Create credentials → OAuth client ID → Android**:
 
 Repeat with the **upload keystore's** SHA-1 when it exists, and - after
 enrolling in Play App Signing - add **Play's app-signing SHA-1** (Play Console →
-Test and release → App integrity), or store builds will fail the same way.
+Protected with Play → Play Store distribution → Play app signing), or store
+builds will fail the same way.
 
 ### Registered fingerprints (keep this current)
 
@@ -77,8 +78,8 @@ nothing to rebuild or redeploy when you add a row.
 | Signing key | SHA-1 | Registered |
 |---|---|---|
 | Debug (`~/.android/debug.keystore`, created 2026-07-05) | `4E:AD:8D:D0:70:77:56:28:CA:17:3B:E9:22:27:57:E8:29:67:CD:1E` | 2026-08-23 |
-| Upload keystore | - | not yet |
-| Play app-signing | - | not yet |
+| Upload keystore (`~/keys/aloud-upload.jks`, created 2026-07-30) | `F2:43:63:2C:6C:B5:FC:4A:81:82:3D:62:D4:9D:EF:D8:61:56:2B:90` | not yet |
+| Play app-signing (Google-held) | `3A:F3:38:6B:08:16:83:80:28:6B:E5:8F:E3:37:8E:6C:4E:D1:D3:04` | 2026-08-25 |
 
 To check what's actually running on a device rather than what you assume is - the
 signature that matters is the installed APK's, not the keystore you meant to use:

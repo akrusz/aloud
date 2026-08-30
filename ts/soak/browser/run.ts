@@ -31,7 +31,7 @@ import { describeRoles, findRoleCollisions, resolveRoles } from '../roles.js';
 import { diffAgainstBaseline, loadBaseline } from '../baseline.js';
 import type { SessionReport } from '../types.js';
 
-import { routeThroughLoopback, LOOPBACK_DEVICE } from './audio.js';
+import { routeThroughLoopback, LOOPBACK_DEVICE, type AudioRouting } from './audio.js';
 import { launchSession } from './driver.js';
 import { runWebSoakSession } from './orchestrator.js';
 import { runAudioChecks } from './checks.js';
@@ -80,6 +80,9 @@ function audioSection(result: WebSessionRunResult): string[] {
     lines.push('');
     return lines;
 }
+
+/** Hoisted so a crashed run can still put the audio driver back. */
+let routing: AudioRouting | null = null;
 
 async function main(): Promise<void> {
     const { values } = parseArgs({
@@ -186,9 +189,13 @@ Options:
         console.warn(`⚠️  Casting collision: ${collision.detail}.\n`);
     }
 
-    const routing = values['no-audio-routing']
+    routing = values['no-audio-routing']
         ? null
-        : await routeThroughLoopback(values.device as string);
+        : await routeThroughLoopback(values.device as string, {
+              // --keep-open leaves Chrome holding an audio stream; parking the
+              // driver restarts coreaudiod underneath it.
+              park: !values['keep-open'],
+          });
 
     const t0 = Date.now();
     const reports: SessionReport[] = [];
@@ -288,10 +295,15 @@ Options:
         `\nDone in ${Math.round(meta.wallClockMs / 1000)}s: ${totalFails} check fail(s), ${totalWarns} warn(s).\n` +
             `Report: ${join(outDir, 'report.md')}`
     );
+    // Last, and only once the reports are on disk: parking is the step that can
+    // ask for a password, and a run you walked away from shouldn't sit on its
+    // results waiting for one.
+    await routing?.parkDriver();
     if (totalFails > 0) exit(1);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
     console.error('soak:web failed:', err instanceof Error ? err.message : err);
+    await routing?.parkDriver({ interactive: false });
     exit(1);
 });
