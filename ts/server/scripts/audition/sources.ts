@@ -224,11 +224,14 @@ interface GoogleVoice {
     ssmlGender?: string;
 }
 
-/** Tiers worth auditioning. Studio ($160/1M) is priced out; Standard ($4/1M) is
- *  in because it is the floor a value tier could fall back to. */
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
-const GOOGLE_TIERS = ['Chirp3-HD', 'Neural2', 'Standard'];
+/** Tiers worth auditioning. Studio ($160/1M) is priced out and excluded.
+ *  Standard ($4/1M) is in as the floor a value tier could fall back to.
+ *  WaveNet and the older Chirp-HD are in because they bill at the SAME $16/1M
+ *  as Neural2 while sounding different - excluding a same-price alternative
+ *  just hides options. */
+const GOOGLE_TIERS = ['Chirp3-HD', 'Chirp-HD', 'Neural2', 'Wavenet', 'Standard'];
 
 const google: AuditionSource = {
     id: 'google',
