@@ -85,6 +85,17 @@ export const TYPICAL_SESSION: SessionUsage = {
  * setting). Reseeded Aug 18 2026 (header): measured cloud-voice sessions ran
  * ≈1k-6.2k chars/session, all under the original Gemma-seeded 10k "typical".
  * So the UI shows a RANGE per voice, not a worst case.
+ *
+ * LANGUAGE (meditation-pal-c3a0.4): these profiles are English-calibrated, and
+ * zh sessions deliberately reuse them unadjusted. Measured over the parallel
+ * canned pools (same content in both languages, src/facilitation/language.ts,
+ * 2026-08-31): zh runs ~0.35x the characters of the same English content, and
+ * Azure's bill-each-CJK-char-twice rule brings the BILLED count to ~0.69x
+ * English. So an en-calibrated estimate OVERSTATES a zh session by ~1.45x -
+ * conservative, never an under-bill - while the meter itself stays exact (the
+ * TTS route prices the real billed chars per synthesis). Revisit with real zh
+ * session telemetry (usage records carry billed chars) before shaving the
+ * estimate.
  */
 export const TTS_CHAR_PROFILES = {
     spacious: 1_200, // terse model / low verbosity / lots of held silence
