@@ -268,6 +268,14 @@ npm run voices -- curated --prosody       # every prosody treatment, side by sid
 npm run voices -- all --rate=0.85         # at session pace
 ```
 
+Runs **merge**: auditioning one source adds to the page rather than replacing
+it, so building up google, then openai, then a new candidate as its key arrives
+works, and a quick spot-check does not destroy a roster that took minutes to
+render. `--fresh` starts over. State lives in `voice-previews/rows.json`.
+
+Keys on the page: `e` play/pause, `w`/`s` prev/next, `f` shortlist (space is
+left alone so it still scrolls).
+
 `curated` is the default and shows **only the voices already in
 `CURATED_VOICES`** - it is the set-the-defaults pass, not the discovery one.
 To find new voices, name a source. Google alone has ~130 English voices across

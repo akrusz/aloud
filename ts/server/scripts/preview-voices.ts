@@ -42,7 +42,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { CURATED_VOICES } from '../src/providers/voice-catalog.js';
@@ -80,6 +80,8 @@ interface Row {
     /** Prosody treatment label, and what it does. */
     treatment: string;
     treatmentNote: string;
+    /** Speed this clip was synthesized at; a merged page can mix runs. */
+    rate: number;
     /** True when this is the source's shipping treatment. */
     shippingTreatment: boolean;
     /** Pace-adjusted USD per 1M chars. */
@@ -89,6 +91,22 @@ interface Row {
     /** Set when this voice is already in CURATED_VOICES. */
     curatedAs?: string;
     isDefault?: boolean;
+}
+
+/** What the page needs about a source, kept in the manifest so a merged page
+ *  can still render chips and rate notes for a source this run didn't touch. */
+interface SourceMeta {
+    id: string;
+    label: string;
+    rateNote: string;
+}
+
+/** Accumulated audition state, saved beside index.html. Runs MERGE into this
+ *  rather than replacing it: auditioning openai should not silently destroy the
+ *  130-voice google page you already had open. `--fresh` starts over. */
+interface Manifest {
+    rows: Row[];
+    sources: SourceMeta[];
 }
 
 interface Skipped {
@@ -168,7 +186,7 @@ function prosodyKey(rows: Row[]): string {
     return `<details class="key" open><summary>What the prosody options mean</summary>${blocks}</details>`;
 }
 
-function html(rows: Row[], skipped: Skipped[], sources: AuditionSource[], rate: number): string {
+function html(rows: Row[], skipped: Skipped[], sources: SourceMeta[]): string {
     const cheapest = rows.length ? Math.min(...rows.map((r) => r.usdPerMillionChars)) : 0;
     const rowHtml = rows
         .map((r, i) => {
@@ -249,7 +267,11 @@ function html(rows: Row[], skipped: Skipped[], sources: AuditionSource[], rate: 
  kbd{background:#f2f2f4;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 .3rem;font-size:.85em}
 </style>
 <h1>aloud voice audition</h1>
-<div class="sub">${rows.length} voices across ${sources.length} source${sources.length === 1 ? '' : 's'} · synthesized at speed ${rate} · <kbd>space</kbd> play/pause · <kbd>j</kbd>/<kbd>k</kbd> next/prev · <kbd>s</kbd> shortlist</div>
+<div class="sub">${rows.length} voices across ${sources.length} source${sources.length === 1 ? '' : 's'} · speed ${[
+        ...new Set(rows.map((r) => r.rate)),
+    ]
+        .sort()
+        .join(', ')} · <kbd>e</kbd> play/pause · <kbd>w</kbd>/<kbd>s</kbd> prev/next · <kbd>f</kbd> shortlist</div>
 <p class="sample">“${esc(SAMPLE)}”</p>
 ${skippedHtml}
 <div class="bar">
@@ -306,7 +328,7 @@ function play(tr){
   document.querySelectorAll('.playbtn.on').forEach(b=>{b.classList.remove('on');b.textContent='▶'});
   document.querySelectorAll('tr.playing').forEach(t=>t.classList.remove('playing'));
   cur=tr;tr.classList.add('playing');btn.classList.add('on');btn.textContent='⏸';
-  audio.src=btn.dataset.file;audio.play();
+  audio.src=btn.dataset.file;audio.play().catch(()=>{});
   tr.scrollIntoView({block:'nearest'});
 }
 audio.onended=()=>{document.querySelectorAll('.playbtn.on').forEach(b=>{b.classList.remove('on');b.textContent='▶'});};
@@ -319,9 +341,11 @@ function step(d){
 }
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
-  if(e.key===' '){e.preventDefault();cur?play(cur):step(1);}
-  else if(e.key==='j')step(1); else if(e.key==='k')step(-1);
-  else if(e.key==='s'&&cur)toggleStar(cur.querySelector('.starbtn'));
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const k=e.key.toLowerCase();
+  if(k==='e'){e.preventDefault();cur?play(cur):step(1);}
+  else if(k==='s')step(1); else if(k==='w')step(-1);
+  else if(k==='f'&&cur)toggleStar(cur.querySelector('.starbtn'));
 });
 const off=new Set();
 document.querySelectorAll('.chip[data-src]').forEach(c=>{c.onclick=()=>{
@@ -456,8 +480,21 @@ async function main(): Promise<void> {
     }
 
     const outDir = resolve(import.meta.dirname, '..', 'voice-previews');
-    rmSync(outDir, { recursive: true, force: true });
+    const manifestPath = resolve(outDir, 'rows.json');
+    if (args.includes('--fresh')) rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
+
+    // Merge into whatever is already there. Auditioning one source must not
+    // destroy a page built from another - that is a slow, expensive rebuild and
+    // it happens exactly when someone is mid-listen.
+    let prior: Manifest = { rows: [], sources: [] };
+    if (existsSync(manifestPath)) {
+        try {
+            prior = JSON.parse(readFileSync(manifestPath, 'utf8')) as Manifest;
+        } catch {
+            /* unreadable manifest: start clean rather than die */
+        }
+    }
 
     const rows: Row[] = [];
     const skipped: Skipped[] = [];
@@ -543,6 +580,7 @@ async function main(): Promise<void> {
                 seconds,
                 treatment: treatment.label,
                 treatmentNote: treatment.note,
+                rate,
                 shippingTreatment: treatment.id === source.treatments[0]?.id,
                 usdPerMillionChars,
                 creditsPerHour: usdToCredits((usdPerMillionChars / M) * CHARS_PER_HOUR),
@@ -560,8 +598,27 @@ async function main(): Promise<void> {
         }
     }
 
-    rows.sort((a, b) => a.usdPerMillionChars - b.usdPerMillionChars || a.name.localeCompare(b.name));
-    writeFileSync(resolve(outDir, 'index.html'), html(rows, skipped, used, rate));
+    // Rows this run re-auditioned supersede their prior versions; everything
+    // else in the manifest survives.
+    const fresh = new Set(rows.map((r) => `${r.sourceId}|${r.voiceId}|${r.treatment}`));
+    const merged = [
+        ...prior.rows.filter((r) => !fresh.has(`${r.sourceId}|${r.voiceId}|${r.treatment}`)),
+        ...rows,
+    ];
+    merged.sort((a, b) => a.usdPerMillionChars - b.usdPerMillionChars || a.name.localeCompare(b.name));
+
+    const sourceMeta = new Map(prior.sources.map((m) => [m.id, m]));
+    for (const src of used) sourceMeta.set(src.id, { id: src.id, label: src.label, rateNote: src.rateNote });
+    // Drop meta for sources no longer represented, so the chips can't outlive
+    // their rows.
+    const present = new Set(merged.map((r) => r.sourceId));
+    const sources = [...sourceMeta.values()].filter((m) => present.has(m.id));
+
+    writeFileSync(manifestPath, JSON.stringify({ rows: merged, sources } satisfies Manifest));
+    writeFileSync(resolve(outDir, 'index.html'), html(merged, skipped, sources));
+
+    const carried = merged.length - rows.length;
+    if (carried > 0) console.log(`\n  (+ ${carried} voices carried over from earlier runs; --fresh to start over)`);
 
     if (wanted[0] === 'curated') {
         console.log(

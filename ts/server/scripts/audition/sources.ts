@@ -258,9 +258,21 @@ const google: AuditionSource = {
                 seen.add(v.name);
                 out.push({
                     id: v.name,
+                    // Locale is added below, not here: it is only worth the
+                    // width when the run actually spans more than one.
                     label: v.name.replace(/^[a-z]{2}-[A-Z]{2}-/, ''),
                     note: `${(v.ssmlGender ?? '').toLowerCase()} · ${v.languageCodes[0] ?? lang}`,
                 });
+            }
+        }
+        // Google names repeat across locales - en-AU/en-GB/en-US all have a
+        // "Standard-A" - so a locale-stripped label is ambiguous the moment a
+        // run covers more than one. Qualify it rather than showing 48 rows that
+        // read identically.
+        if (locales.length > 1) {
+            for (const v of out) {
+                const loc = /^([a-z]{2}-[A-Z]{2})-/.exec(v.id)?.[1];
+                if (loc) v.label = `${v.label} · ${loc}`;
             }
         }
         return out.sort((a, b) => a.id.localeCompare(b.id));
