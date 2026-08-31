@@ -124,13 +124,15 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!curated) {
             return c.json(apiError('bad_request', 'unknown preview voice'), ERROR_STATUS.bad_request);
         }
-        const resolved: ResolvedVoice = { provider: curated.provider, voiceId: curated.providerVoiceId };
+        // resolveVoice(name), not a hand-built ResolvedVoice: a curated voice
+        // can carry a style, and a preview without it isn't the voice.
+        const resolved = resolveVoice(curated.name);
         const synth = synthFor(deps, resolved);
         if (!synth) {
             return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
         }
 
-        const cacheKey = `${resolved.provider}:${resolved.voiceId}`;
+        const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}`;
         let audio = PREVIEW_AUDIO.get(cacheKey);
         if (!audio) {
             try {
