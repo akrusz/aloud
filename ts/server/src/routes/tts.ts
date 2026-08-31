@@ -34,19 +34,39 @@ import { log } from '../logger.js';
  *  provider→(key, synth fn) dispatch keeps the three routes below uniform: any
  *  curated voice works once its provider key is present. */
 type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
+
+/** The rate actually synthesized: the caller's request scaled by the curated
+ *  voice's pace normalization, so the speed slider means about the same
+ *  words-per-minute on every voice (CuratedVoice.paceBias). */
+function effectiveRate(resolved: ResolvedVoice, rate: number): number {
+    return rate * (resolved.paceBias ?? 1);
+}
+
 function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
     if (resolved.provider === 'openai') {
         const key = deps.config.openaiTtsApiKey;
-        return key ? (text, rate) => synthesizeWithOpenAI(text, resolved.voiceId, rate, key) : null;
+        return key
+            ? (text, rate) => synthesizeWithOpenAI(text, resolved.voiceId, effectiveRate(resolved, rate), key)
+            : null;
     }
     if (resolved.provider === 'azure') {
         const key = deps.config.azureSpeechKey;
         return key
-            ? (text, rate) => synthesizeWithAzure(text, resolved.voiceId, rate, key, deps.config.azureSpeechRegion, resolved.style)
+            ? (text, rate) =>
+                  synthesizeWithAzure(
+                      text,
+                      resolved.voiceId,
+                      effectiveRate(resolved, rate),
+                      key,
+                      deps.config.azureSpeechRegion,
+                      resolved.style
+                  )
             : null;
     }
     const key = deps.config.googleTtsApiKey;
-    return key ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, rate, key) : null;
+    return key
+        ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate), key)
+        : null;
 }
 
 /** Characters the provider will actually bill for this synthesis. Google and
@@ -56,7 +76,12 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
  *  usage record all take THIS number - billing text.length would under-charge
  *  every Azure synthesis (roughly 2x on Chinese text). */
 function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): number {
-    return resolved.provider === 'azure' ? azureBilledChars(text, rate, resolved.style) : text.length;
+    // Same effective rate as synthFor, or the billed SSML disagrees with the
+    // SSML actually sent (a pace-biased voice carries a prosody wrapper even
+    // at slider-neutral rate 1).
+    return resolved.provider === 'azure'
+        ? azureBilledChars(text, effectiveRate(resolved, rate), resolved.style)
+        : text.length;
 }
 
 /** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`. The texts are

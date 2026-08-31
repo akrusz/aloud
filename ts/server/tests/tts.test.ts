@@ -381,6 +381,22 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         expect(azureBilledChars(text, 1)).toBe(text.length * 2);
     });
 
+    it('applies a curated voice\'s style and pace bias (Harper: softvoice, biased even at rate 1)', async () => {
+        const a = azureApp();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'Breathe in.', voice: 'Harper', rate: 1 }),
+        });
+        expect(res.status).toBe(200);
+        expect(azureCalls).toHaveLength(1);
+        const body = azureCalls[0]!.body;
+        expect(body).toContain('<mstts:express-as style="softvoice">');
+        // paceBias applies even at slider-neutral rate 1, in multiplier form.
+        expect(body).toMatch(/<prosody rate="1\.\d\d">/);
+    });
+
     it('502s for an Azure voice when no Azure key is configured', async () => {
         const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
         const a = createApp(buildDeps(config));

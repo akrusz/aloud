@@ -37,6 +37,13 @@ export interface CuratedVoice {
      *  voice (softvoice, empathetic). Part of the voice's identity, not a user
      *  knob - "Harper" IS Harper-in-softvoice. */
     style?: string;
+    /** Multiplied into the requested rate before synthesis, so the speed
+     *  slider means roughly the same words-per-minute on every voice. The MAI
+     *  and DragonHD voices read the audition sample in 19-24s where the norm
+     *  is ~13s; these biases close about half that gap (deliberately not all
+     *  of it - the unhurried delivery is why they were picked). Tuned by ear,
+     *  not formula. */
+    paceBias?: number;
     /** The default when the client doesn't specify a voice. */
     default?: boolean;
 }
@@ -68,13 +75,13 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // below-Chirp3-HD burn, same logic as the OpenAI block above.
     { name: 'Ada (GB)', provider: 'azure', providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
     { name: 'Davis', provider: 'azure', providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    { name: 'Ethan', provider: 'azure', providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
+    { name: 'Ethan', provider: 'azure', providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
-    { name: 'Harper', provider: 'azure', providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice' },
-    { name: 'Isla (AU)', provider: 'azure', providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium' },
-    { name: 'Serena', provider: 'azure', providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium' },
+    { name: 'Harper', provider: 'azure', providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
+    { name: 'Isla (AU)', provider: 'azure', providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    { name: 'Serena', provider: 'azure', providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
 
 export function defaultVoice(): CuratedVoice {
@@ -97,6 +104,8 @@ export interface ResolvedVoice {
     voiceId: string;
     /** Azure express-as style carried by a curated voice (never on passthrough). */
     style?: string;
+    /** Per-voice pace normalization (CuratedVoice.paceBias); never on passthrough. */
+    paceBias?: number;
 }
 
 /**
@@ -116,6 +125,7 @@ export function resolveVoice(voice: string | undefined): ResolvedVoice {
             provider: curated.provider,
             voiceId: curated.providerVoiceId,
             ...(curated.style ? { style: curated.style } : {}),
+            ...(curated.paceBias ? { paceBias: curated.paceBias } : {}),
         };
     // Raw passthrough accepts Google and Azure ids, which encode their own tier
     // (OpenAI voices must come through the curated short names). Azure
