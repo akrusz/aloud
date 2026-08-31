@@ -42,7 +42,7 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
     if (resolved.provider === 'azure') {
         const key = deps.config.azureSpeechKey;
         return key
-            ? (text, rate) => synthesizeWithAzure(text, resolved.voiceId, rate, key, deps.config.azureSpeechRegion)
+            ? (text, rate) => synthesizeWithAzure(text, resolved.voiceId, rate, key, deps.config.azureSpeechRegion, resolved.style)
             : null;
     }
     const key = deps.config.googleTtsApiKey;
@@ -56,7 +56,7 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
  *  usage record all take THIS number - billing text.length would under-charge
  *  every Azure synthesis (roughly 2x on Chinese text). */
 function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): number {
-    return resolved.provider === 'azure' ? azureBilledChars(text, rate) : text.length;
+    return resolved.provider === 'azure' ? azureBilledChars(text, rate, resolved.style) : text.length;
 }
 
 /** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`. The texts are

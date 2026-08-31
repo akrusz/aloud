@@ -414,6 +414,12 @@ document.getElementById('copy').onclick=()=>{
       }).join('\\n')
     : 'Nothing shortlisted yet - press ☆ (or f) on the voices you like.';
   out.select();
+  if(picked.length&&navigator.clipboard){
+    navigator.clipboard.writeText(out.value).then(()=>{
+      const b=document.getElementById('copy');b.textContent='copied ✓';
+      setTimeout(()=>{b.textContent='copy shortlist'},1500);
+    }).catch(()=>{});
+  }
 };
 apply();
 </script>

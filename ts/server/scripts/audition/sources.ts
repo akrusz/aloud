@@ -529,36 +529,29 @@ const azure: AuditionSource = {
         },
     ],
     async synth(text, voiceId, rate, key, t) {
-        // The shipping path (providers/tts.ts synthesizeWithAzure) IS the plain
-        // treatment, so that row reuses it verbatim, like google/openai above.
-        if (t.id === 'plain') {
+        // The shipping path (providers/tts.ts synthesizeWithAzure) covers the
+        // plain treatment AND style-soft (a curated voice can carry a style),
+        // so those rows reuse it verbatim, like google/openai above.
+        if (t.id === 'plain' || t.id === 'style-soft') {
+            const style = t.id === 'style-soft' ? azureSoftStyle(voiceId) : undefined;
             return {
-                bytes: await synthesizeWithAzure(text, voiceId, rate, key, azureRegion()),
+                bytes: await synthesizeWithAzure(text, voiceId, rate, key, azureRegion(), style),
                 ext: 'mp3',
-                billedChars: azureBilledChars(text, rate),
+                billedChars: azureBilledChars(text, rate, style),
             };
         }
         // Azure takes SSML always; the treatments below build their own body
         // with the session speed as a prosody rate.
-        const bare =
-            rate === 1
-                ? xmlEscape(text)
-                : `<prosody rate="${Math.round(rate * 100)}%">${xmlEscape(text)}</prosody>`;
-        const inner =
-            t.id === 'plain'
-                ? bare
-                : t.id === 'style-soft'
-                  ? `<mstts:express-as style="${azureSoftStyle(voiceId)}">${bare}</mstts:express-as>`
-                  : (() => {
-                      const o =
-                          t.id === 'ssml-spacious'
-                              ? { rate: '80%', pitch: '-2st', breakMs: 1400 }
-                              : { rate: '90%', pitch: '-1st', breakMs: 700 };
-                      const body = sentences(text)
-                          .map(xmlEscape)
-                          .join(`<break time="${o.breakMs}ms"/>`);
-                      return `<prosody rate="${o.rate}" pitch="${o.pitch}">${body}</prosody>`;
-                  })();
+        const inner = (() => {
+            const o =
+                t.id === 'ssml-spacious'
+                    ? { rate: '80%', pitch: '-2st', breakMs: 1400 }
+                    : { rate: '90%', pitch: '-1st', breakMs: 700 };
+            const body = sentences(text)
+                .map(xmlEscape)
+                .join(`<break time="${o.breakMs}ms"/>`);
+            return `<prosody rate="${o.rate}" pitch="${o.pitch}">${body}</prosody>`;
+        })();
         const locale = voiceId.split('-').slice(0, 2).join('-');
         const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${locale}"><voice name="${voiceId}">${inner}</voice></speak>`;
         const res = await fetch(`https://${azureRegion()}.tts.speech.microsoft.com/cognitiveservices/v1`, {

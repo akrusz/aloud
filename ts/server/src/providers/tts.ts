@@ -138,10 +138,14 @@ function xmlEscape(s: string): string {
  * The route must gate and debit on THIS count, not the plain text length, or a
  * Chinese session under-bills by half.
  */
-export function azureSsmlBody(text: string, rate: number): { inner: string; billedChars: number } {
+export function azureSsmlBody(text: string, rate: number, style?: string): { inner: string; billedChars: number } {
     const escaped = xmlEscape(text);
-    const inner =
+    const paced =
         rate === 1 ? escaped : `<prosody rate="${Math.round(Math.min(4, Math.max(0.25, rate)) * 100)}%">${escaped}</prosody>`;
+    // A curated voice may carry an mstts speaking style (softvoice, empathetic);
+    // express-as silently no-ops on a voice without it. The tags bill like any
+    // other markup, hence wrapping BEFORE the count.
+    const inner = style ? `<mstts:express-as style="${style}">${paced}</mstts:express-as>` : paced;
     // CJK ideographs, kana, and hangul bill double; count them once more on top
     // of the raw length. BMP ranges cover the zh/ja/ko text we'd actually send.
     const cjk = inner.match(/[\u3000-\u30FF\u3400-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF\uFF00-\uFFEF]/g)?.length ?? 0;
@@ -150,8 +154,8 @@ export function azureSsmlBody(text: string, rate: number): { inner: string; bill
 
 /** Characters Azure will bill for `text` at `rate` — the number the meter and
  *  the up-front balance gate must use for an Azure voice. */
-export function azureBilledChars(text: string, rate: number): number {
-    return azureSsmlBody(text, rate).billedChars;
+export function azureBilledChars(text: string, rate: number, style?: string): number {
+    return azureSsmlBody(text, rate, style).billedChars;
 }
 
 /**
@@ -167,9 +171,10 @@ export async function synthesizeWithAzure(
     rate: number,
     apiKey: string,
     region: string,
+    style?: string,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<Uint8Array> {
-    const { inner } = azureSsmlBody(text, rate);
+    const { inner } = azureSsmlBody(text, rate, style);
     const ssml =
         `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" ` +
         `xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageOf(voice)}">` +

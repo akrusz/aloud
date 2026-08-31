@@ -33,6 +33,10 @@ export interface CuratedVoice {
     /** Perceived gender, for the picker's label. */
     gender: VoiceGender;
     tier: VoiceTier;
+    /** Azure only: an mstts express-as speaking style baked into the curated
+     *  voice (softvoice, empathetic). Part of the voice's identity, not a user
+     *  knob - "Harper" IS Harper-in-softvoice. */
+    style?: string;
     /** The default when the client doesn't specify a voice. */
     default?: boolean;
 }
@@ -53,10 +57,21 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // that lower real burn. Steerable via natural-language instructions
     // (providers/tts.ts sets a calm meditation register). OpenAI's full set:
     // alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.
-    { name: 'Lyra', provider: 'openai', providerVoiceId: 'shimmer', gender: 'female', tier: 'premium' },
-    { name: 'Altair', provider: 'openai', providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
+    { name: 'Altair (GB)', provider: 'openai', providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
     { name: 'Mira', provider: 'openai', providerVoiceId: 'echo', gender: 'male', tier: 'premium' },
     { name: 'Polaris', provider: 'openai', providerVoiceId: 'nova', gender: 'female', tier: 'premium' },
+    // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
+    // are naturally unhurried and the `style` ones bake in the calmest
+    // express-as register the voice supports; multilingual entries (Ada, Davis)
+    // also speak zh natively - groundwork for meditation-pal-c3a0. ~$16/1M
+    // (MAI/multilingual) and ~$22/1M (DragonHD), so premium placement at
+    // below-Chirp3-HD burn, same logic as the OpenAI block above.
+    { name: 'Ada (GB)', provider: 'azure', providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
+    { name: 'Davis', provider: 'azure', providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
+    { name: 'Ethan', provider: 'azure', providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
+    { name: 'Harper', provider: 'azure', providerVoiceId: 'en-US-Harper:MAI-Voice-2', gender: 'female', tier: 'premium', style: 'softvoice' },
+    { name: 'Isla (AU)', provider: 'azure', providerVoiceId: 'en-AU-Isla:MAI-Voice-2', gender: 'female', tier: 'premium' },
+    { name: 'Serena', provider: 'azure', providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium' },
 ];
 
 export function defaultVoice(): CuratedVoice {
@@ -77,6 +92,8 @@ export const PREVIEW_PHRASE = "Welcome to aloud. I'll be your facilitator.";
 export interface ResolvedVoice {
     provider: TtsProvider;
     voiceId: string;
+    /** Azure express-as style carried by a curated voice (never on passthrough). */
+    style?: string;
 }
 
 /**
@@ -91,7 +108,12 @@ export function resolveVoice(voice: string | undefined): ResolvedVoice {
         return { provider: d.provider, voiceId: d.providerVoiceId };
     }
     const curated = CURATED_VOICES.find((v) => v.name === voice);
-    if (curated) return { provider: curated.provider, voiceId: curated.providerVoiceId };
+    if (curated)
+        return {
+            provider: curated.provider,
+            voiceId: curated.providerVoiceId,
+            ...(curated.style ? { style: curated.style } : {}),
+        };
     // Raw passthrough accepts Google and Azure ids, which encode their own tier
     // (OpenAI voices must come through the curated short names). Azure
     // ShortNames end in "Neural" (en-US-SaraNeural, zh-CN-XiaochenNeural,
