@@ -458,6 +458,16 @@ const gemini: AuditionSource = {
 /** Azure's regional endpoints bake the region into the hostname. */
 const azureRegion = (): string => process.env.AZURE_SPEECH_REGION || 'eastus';
 
+/** The calmest express-as style each Azure voice family supports. express-as
+ *  silently no-ops on a voice without the style, so a miss reads neutral
+ *  rather than erroring. */
+function azureSoftStyle(voiceId: string): string {
+    if (voiceId.includes('MAI-Voice-2')) return 'softvoice';
+    if (/(Jenny|Guy|Sara|Jane|Jason|Tony|Nancy|Davis)Neural$/.test(voiceId) || voiceId.includes('en-GB-Ryan'))
+        return 'whispering';
+    return 'empathetic';
+}
+
 interface AzureVoice {
     ShortName: string;
     DisplayName?: string;
@@ -503,21 +513,32 @@ const azure: AuditionSource = {
     },
     // Same SSML levers as Google, so the treatments mirror google's for a
     // like-for-like listen. HD voices ignore some SSML elements - audition
-    // tells us which survive.
+    // tells us which survive. On top of those, Azure alone has speaking STYLES
+    // (mstts:express-as): softvoice/whispering/empathetic are the closest any
+    // engine gets to a built-in meditation register.
     treatments: [
         { id: 'plain', label: 'plain text', note: 'no markup - pace comes from the speed setting alone' },
         { id: 'ssml-gentle', label: 'SSML gentle', note: 'rate 90%, pitch -1st, 700ms between sentences' },
         { id: 'ssml-spacious', label: 'SSML spacious', note: 'rate 80%, pitch -2st, 1400ms between sentences' },
+        {
+            id: 'style-soft',
+            label: 'soft style',
+            note: 'mstts:express-as, the calmest style the voice family supports (softvoice / empathetic / whispering); unsupported styles are silently ignored',
+        },
     ],
     async synth(text, voiceId, rate, key, t) {
         // Azure takes SSML always; "plain" is the bare text in the required
         // wrapper with the session speed as a prosody rate.
+        const bare =
+            rate === 1
+                ? xmlEscape(text)
+                : `<prosody rate="${Math.round(rate * 100)}%">${xmlEscape(text)}</prosody>`;
         const inner =
             t.id === 'plain'
-                ? rate === 1
-                    ? xmlEscape(text)
-                    : `<prosody rate="${Math.round(rate * 100)}%">${xmlEscape(text)}</prosody>`
-                : (() => {
+                ? bare
+                : t.id === 'style-soft'
+                  ? `<mstts:express-as style="${azureSoftStyle(voiceId)}">${bare}</mstts:express-as>`
+                  : (() => {
                       const o =
                           t.id === 'ssml-spacious'
                               ? { rate: '80%', pitch: '-2st', breakMs: 1400 }
@@ -528,7 +549,7 @@ const azure: AuditionSource = {
                       return `<prosody rate="${o.rate}" pitch="${o.pitch}">${body}</prosody>`;
                   })();
         const locale = voiceId.split('-').slice(0, 2).join('-');
-        const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${locale}"><voice name="${voiceId}">${inner}</voice></speak>`;
+        const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${locale}"><voice name="${voiceId}">${inner}</voice></speak>`;
         const res = await fetch(`https://${azureRegion()}.tts.speech.microsoft.com/cognitiveservices/v1`, {
             method: 'POST',
             headers: {
