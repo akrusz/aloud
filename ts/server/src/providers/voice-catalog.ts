@@ -69,9 +69,10 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     { name: 'Ada (GB)', provider: 'azure', providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
     { name: 'Davis', provider: 'azure', providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
     { name: 'Ethan', provider: 'azure', providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
-    // Harper ships PLAIN on purpose: softvoice makes her read faster (~19s vs
-    // ~24s on the audition sample), the opposite of what it does elsewhere.
-    { name: 'Harper', provider: 'azure', providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium' },
+    // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
+    // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
+    // the audition sample); the speed slider makes that back up if wanted.
+    { name: 'Harper', provider: 'azure', providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice' },
     { name: 'Isla (AU)', provider: 'azure', providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium' },
     { name: 'Serena', provider: 'azure', providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium' },
 ];
