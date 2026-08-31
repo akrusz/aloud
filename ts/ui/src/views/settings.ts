@@ -780,6 +780,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             // The language picks .en vs multilingual model files, so the
             // on-disk state per size can change with it.
             void refreshWhisperModelBadges();
+            // And re-mark voice compatibility (the picker dims mismatches).
+            void loadVoiceCatalog();
         });
 
         const sttSel = root.querySelector<HTMLSelectElement>('#s-stt-engine');
@@ -1080,7 +1082,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
         }
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
-        scoredVoices = buildScoredVoiceList(server, true, hosted);
+        // App-level language here: this picker edits the app default voice.
+        scoredVoices = buildScoredVoiceList(server, true, hosted, settings.language);
         const btn = root.querySelector<HTMLButtonElement>('#s-voice-btn');
         if (btn) updateVoiceButtonLabel(btn);
     }
@@ -1806,7 +1809,7 @@ function renderLanguageSection(s: AppSettings): string {
             <div class="form-group">
                 <label for="s-language">Language</label>
                 <select id="s-language" name="language">${langOptions}</select>
-                <span class="form-hint">The language you'll speak - sets up speech recognition</span>
+                <span class="form-hint">The language you and the facilitator speak. New sessions start with this; each session can pick its own in setup.</span>
             </div>
             <div class="form-group slot-hidden" id="s-mic-device-group">
                 <label for="s-mic-device">Microphone</label>

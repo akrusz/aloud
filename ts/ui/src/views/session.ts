@@ -2205,7 +2205,7 @@ export async function mountSessionView(
 
     async function initVoicePicker(): Promise<void> {
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
-        scoredVoices = buildScoredVoiceList(server, true, hosted);
+        scoredVoices = buildScoredVoiceList(server, true, hosted, sessionLanguage);
         updateVoicePickerLabel();
     }
 

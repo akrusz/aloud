@@ -359,7 +359,9 @@ export async function mountSetupView(
             });
         }
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
-        scoredVoices = buildScoredVoiceList(server, true, hosted);
+        // Session language marks incompatible voices (dimmed in the picker);
+        // the Language select's change handler rebuilds this list.
+        scoredVoices = buildScoredVoiceList(server, true, hosted, setup.language);
         // Never leave the picker on a bare "Default": take the best (list is
         // sorted best-first) voice that doesn't need downloading.
         if (!stripVoicePrefix(setup.voice)) {
@@ -799,6 +801,9 @@ export async function mountSetupView(
             langSel.addEventListener('change', () => {
                 setup.language = langSel.value;
                 persist();
+                // Re-mark voice compatibility for the new language (the picker
+                // dims voices that don't speak it).
+                void loadVoiceCatalog();
             });
         }
 

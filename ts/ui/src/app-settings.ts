@@ -169,40 +169,19 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 /**
- * Speech-recognition / voice-preview languages. Single source of truth: the
- * settings dropdown renders these and `detectLocale()` validates against them.
+ * Session languages on offer. Single source of truth: the settings + setup
+ * dropdowns render these and `detectLocale()` validates against them.
+ *
+ * Deliberately just the languages the app actually FACILITATES in (canned
+ * pools, prompt fragment, mute command - src/facilitation/language.ts). The
+ * pre-c3a0 list offered ~30 recognizer languages, which half-worked: STT heard
+ * you and the model usually mirrored you, but every canned line stayed English.
+ * The STT plumbing still accepts any 2-letter code, so restoring a language is
+ * one row here plus its facilitation strings (the old list is in git history).
  */
 export const LANGUAGES: ReadonlyArray<[string, string]> = [
     ['en', 'English'],
-    ['es', 'Español'],
-    ['fr', 'Français'],
-    ['de', 'Deutsch'],
-    ['it', 'Italiano'],
-    ['pt', 'Português'],
-    ['nl', 'Nederlands'],
-    ['pl', 'Polski'],
-    ['ru', 'Русский'],
-    ['uk', 'Українська'],
-    ['ja', '日本語'],
-    ['zh', '中文'],
-    ['ko', '한국어'],
-    ['ar', 'العربية'],
-    ['hi', 'हिन्दी'],
-    ['tr', 'Türkçe'],
-    ['vi', 'Tiếng Việt'],
-    ['th', 'ภาษาไทย'],
-    ['sv', 'Svenska'],
-    ['da', 'Dansk'],
-    ['no', 'Norsk'],
-    ['fi', 'Suomi'],
-    ['el', 'Ελληνικά'],
-    ['he', 'עברית'],
-    ['cs', 'Čeština'],
-    ['ro', 'Română'],
-    ['hu', 'Magyar'],
-    ['id', 'Bahasa Indonesia'],
-    ['ms', 'Bahasa Melayu'],
-    ['ca', 'Català'],
+    ['zh', '中文 (Beta)'],
 ];
 
 const SUPPORTED_LANGUAGE_CODES = new Set(LANGUAGES.map(([code]) => code));
@@ -240,7 +219,14 @@ export async function loadAppSettings(): Promise<AppSettings> {
             parsed.checkinTiming = 'none';
         }
         delete parsed.silenceCheckinsEnabled;
-        return { ...DEFAULT_APP_SETTINGS, ...parsed, language: parsed.language ?? detectLocale() };
+        // Language must be an offered code: the pre-c3a0 list had ~30, so a
+        // stored 'es'/'ja' from that era normalizes back to the browser seed
+        // rather than riding invisibly under a select that can't show it.
+        const language =
+            parsed.language && SUPPORTED_LANGUAGE_CODES.has(parsed.language)
+                ? parsed.language
+                : detectLocale();
+        return { ...DEFAULT_APP_SETTINGS, ...parsed, language };
     } catch {
         return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
     }

@@ -115,6 +115,9 @@ export interface CloudVoice {
     /** Estimated credits/hr at a typical talk profile, from the same pricing the
      *  meter bills with, so the picker can show a concrete "~N cr/hr". */
     creditsPerHourTypical: number;
+    /** Speaks languages beyond English natively (CuratedVoice.multilingual);
+     *  the picker dims voices without it in a non-English session. */
+    multilingual?: boolean;
 }
 
 // ---- Auth & account ---------------------------------------------------------

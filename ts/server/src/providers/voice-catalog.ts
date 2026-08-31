@@ -37,6 +37,13 @@ export interface CuratedVoice {
      *  voice (softvoice, empathetic). Part of the voice's identity, not a user
      *  knob - "Harper" IS Harper-in-softvoice. */
     style?: string;
+    /** Speaks languages beyond English natively - safe to use in a zh session
+     *  (meditation-pal-c3a0.6). The picker dims voices without it when the
+     *  session language isn't English. Only flag voices actually HEARD in zh:
+     *  the Azure *Multilingual family (zh demo clips in voice-previews/) and
+     *  OpenAI gpt-4o-mini-tts (multilingual by model). The MAI-Voice-2 and
+     *  DragonHD voices are unverified in zh - audition before flagging. */
+    multilingual?: boolean;
     /** Multiplied into the requested rate before synthesis, so the speed
      *  slider means roughly the same words-per-minute on every voice. The MAI
      *  and DragonHD voices read the audition sample in 19-24s where the norm
@@ -64,17 +71,17 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // that lower real burn. Steerable via natural-language instructions
     // (providers/tts.ts sets a calm meditation register). OpenAI's full set:
     // alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.
-    { name: 'Altair (GB)', provider: 'openai', providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
-    { name: 'Mira', provider: 'openai', providerVoiceId: 'echo', gender: 'male', tier: 'premium' },
-    { name: 'Polaris', provider: 'openai', providerVoiceId: 'nova', gender: 'female', tier: 'premium' },
+    { name: 'Altair (GB)', provider: 'openai', multilingual: true, providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
+    { name: 'Mira', provider: 'openai', multilingual: true, providerVoiceId: 'echo', gender: 'male', tier: 'premium' },
+    { name: 'Polaris', provider: 'openai', multilingual: true, providerVoiceId: 'nova', gender: 'female', tier: 'premium' },
     // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
     // are naturally unhurried and the `style` ones bake in the calmest
     // express-as register the voice supports; multilingual entries (Ada, Davis)
     // also speak zh natively - groundwork for meditation-pal-c3a0. ~$16/1M
     // (MAI/multilingual) and ~$22/1M (DragonHD), so premium placement at
     // below-Chirp3-HD burn, same logic as the OpenAI block above.
-    { name: 'Ada (GB)', provider: 'azure', providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
-    { name: 'Davis', provider: 'azure', providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
+    { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
+    { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
     { name: 'Ethan', provider: 'azure', providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on

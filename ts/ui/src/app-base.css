@@ -2451,6 +2451,11 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 .voice-row-locked:hover {
     background: none;
 }
+/* Doesn't speak the session's language: dimmed via color (not opacity), still
+   pickable. The .voice-row-lang badge names the language it does speak. */
+.voice-row-lang-mismatch .voice-row-name {
+    color: var(--text-muted);
+}
 .voice-preview-tooltip {
     position: absolute;
     right: 0.5rem;

@@ -49,6 +49,8 @@ export interface CloudVoice {
     tier?: 'premium' | 'value';
     /** Estimated credits/hr at a typical talk profile (server-computed). */
     creditsPerHourTypical?: number;
+    /** Speaks languages beyond English natively; ungated by session language. */
+    multilingual?: boolean;
 }
 
 /** Scored, sorted voice entry for the picker UI. */
@@ -74,6 +76,10 @@ export interface ScoredVoice {
     costTier?: 'premium' | 'value';
     /** Estimated credits/hr for a hosted voice (shown in the badge tooltip). */
     creditsPerHour?: number;
+    /** Doesn't speak the session's language (meditation-pal-c3a0.6): rendered
+     *  dimmed with a language badge, sunk below its tier-mates, still pickable
+     *  (the mismatch is a warning, not a wall). */
+    langMismatch?: boolean;
 }
 
 export const TIER_LABELS: Record<number, string> = {
@@ -135,16 +141,25 @@ export function scoreVoice(name: string, engine?: string): number {
 
 /**
  * Scored, sorted voice list from server + browser voices, filtered to English
- * plus the navigator's primary language. Server voices lead when present
- * (they're what the app backend's TTS engines actually speak); browser voices
- * fill in when `includeBrowserVoices` and no server voice covers them.
+ * plus the navigator's primary language plus the session language. Server
+ * voices lead when present (they're what the app backend's TTS engines
+ * actually speak); browser voices fill in when `includeBrowserVoices` and no
+ * server voice covers them.
+ *
+ * `sessionLang` (a 2-letter app code, default 'en') marks each entry that
+ * can't speak that language with `langMismatch` - the picker dims those and
+ * sinks them below their tier-mates rather than hiding them (c3a0.6).
  */
 export function buildScoredVoiceList(
     serverVoices: readonly ServerVoice[] | null,
     includeBrowserVoices: boolean,
-    hostedVoices: readonly CloudVoice[] = []
+    hostedVoices: readonly CloudVoice[] = [],
+    sessionLang = 'en'
 ): ScoredVoice[] {
     const langPrefix = (navigator.language || 'en').split(/[-_]/)[0];
+    /** '' (unknown) reads as English - the catalog's overwhelming default. */
+    const speaks = (voiceLang: string | undefined): boolean =>
+        ((voiceLang || 'en').split(/[-_]/)[0] ?? 'en') === sessionLang;
     const browserVoices =
         includeBrowserVoices && typeof speechSynthesis !== 'undefined'
             ? speechSynthesis.getVoices()
@@ -174,6 +189,7 @@ export function buildScoredVoiceList(
             note: hv.gender,
             ...(hv.tier ? { costTier: hv.tier } : {}),
             ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
+            ...(hv.multilingual || speaks('en') ? {} : { langMismatch: true }),
         });
         seen.add(hv.name);
     }
@@ -181,7 +197,7 @@ export function buildScoredVoiceList(
     if (serverVoices) {
         for (const sv of serverVoices) {
             const vLang = (sv.lang ?? '').split(/[-_]/)[0];
-            if (vLang !== 'en' && vLang !== langPrefix) continue;
+            if (vLang !== 'en' && vLang !== langPrefix && vLang !== sessionLang) continue;
 
             const score = scoreVoice(sv.name, sv.engine);
 
@@ -196,6 +212,7 @@ export function buildScoredVoiceList(
                 lang: sv.lang ?? '',
                 score,
                 engine: sv.engine,
+                ...(speaks(sv.lang) ? {} : { langMismatch: true }),
             };
             if (browserVoice) entry.browserVoice = browserVoice;
             if (sv.needs_download) {
@@ -217,7 +234,7 @@ export function buildScoredVoiceList(
     for (const v of browserVoices) {
         if (seen.has(v.name)) continue;
         const vLang = (v.lang || '').split(/[-_]/)[0];
-        if (vLang !== 'en' && vLang !== langPrefix) continue;
+        if (vLang !== 'en' && vLang !== langPrefix && vLang !== sessionLang) continue;
 
         let score = scoreVoice(v.name);
         // Non-local browser voices (Chrome/Edge cloud) are the genuinely good
@@ -241,12 +258,18 @@ export function buildScoredVoiceList(
             ...(isApple ? { displayEngine: 'macos' } : {}),
             browserVoice: v,
             ...(recommended ? { recommended: true } : {}),
+            ...(speaks(v.lang) ? {} : { langMismatch: true }),
         });
         seen.add(v.name);
     }
 
     scored.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
+        // Voices that speak the session language surface above tier-mates that
+        // don't (which render dimmed).
+        const am = a.langMismatch ? 1 : 0;
+        const bm = b.langMismatch ? 1 : 0;
+        if (am !== bm) return am - bm;
         const ar = a.recommended ? 1 : 0;
         const br = b.recommended ? 1 : 0;
         if (ar !== br) return br - ar;
@@ -338,6 +361,14 @@ export function renderVoiceList(
     }
 }
 
+/** Human word for a voice's language on the mismatch badge. */
+function languageWord(lang: string): string {
+    const base = (lang || 'en').split(/[-_]/)[0]!.toLowerCase();
+    if (base === 'en') return 'English';
+    if (base === 'zh') return '中文';
+    return base.toUpperCase();
+}
+
 function appendTierLabel(parent: HTMLElement, text: string): void {
     const el = document.createElement('div');
     el.className = 'voice-tier-label';
@@ -354,6 +385,7 @@ function appendRow(
     const row = document.createElement('div');
     row.className = 'voice-row';
     if (entry.needsDownload && !entry.downloaded) row.classList.add('voice-row-locked');
+    if (entry.langMismatch) row.classList.add('voice-row-lang-mismatch');
     if (entry.name === selectedName) row.classList.add('selected');
     row.dataset['voiceName'] = entry.name;
     // Speakers sharing a model file share data-model, so an in-flight download
@@ -390,6 +422,15 @@ function appendRow(
         badge.className = 'voice-row-engine';
         badge.textContent = ENGINE_LABELS[eng] ?? eng;
         nameSpan.appendChild(badge);
+    }
+    if (entry.langMismatch) {
+        // Say which language the voice DOES speak; the dimming already says it
+        // isn't this session's.
+        const langBadge = document.createElement('span');
+        langBadge.className = 'voice-row-engine voice-row-lang';
+        langBadge.textContent = languageWord(entry.lang);
+        langBadge.title = 'This voice may not speak the session language well';
+        nameSpan.appendChild(langBadge);
     }
     row.appendChild(nameSpan);
 

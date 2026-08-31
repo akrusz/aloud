@@ -240,3 +240,59 @@ describe('previewErrorMessage', () => {
         expect(msg).toMatch(/Couldn't play/i);
     });
 });
+
+describe('buildScoredVoiceList session language (c3a0.6)', () => {
+    it('marks non-multilingual voices langMismatch in a zh session, sinks them, keeps multilingual clean', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [{ name: 'Samantha', lang: 'en-US', engine: 'macos' }],
+            false,
+            [
+                { name: 'Leda', gender: 'female', tier: 'premium' },
+                { name: 'Ada (GB)', gender: 'female', tier: 'premium', multilingual: true },
+            ],
+            'zh'
+        );
+        const leda = scored.find((v) => v.name === 'Leda')!;
+        const ada = scored.find((v) => v.name === 'Ada (GB)')!;
+        const sam = scored.find((v) => v.name === 'Samantha')!;
+        expect(leda.langMismatch).toBe(true);
+        expect(ada.langMismatch).toBeUndefined();
+        expect(sam.langMismatch).toBe(true);
+        // Within the shared Best/recommended group, the speaking voice leads.
+        expect(scored.indexOf(ada)).toBeLessThan(scored.indexOf(leda));
+    });
+
+    it('includes session-language voices the en/navigator filter would drop', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [
+                { name: 'Tingting', lang: 'zh_CN', engine: 'macos' },
+                { name: 'Samantha', lang: 'en-US', engine: 'macos' },
+            ],
+            false,
+            [],
+            'zh'
+        );
+        const ting = scored.find((v) => v.name === 'Tingting')!;
+        expect(ting).toBeDefined();
+        expect(ting.langMismatch).toBeUndefined();
+        // And an en session still drops it (unchanged behavior).
+        const en = buildScoredVoiceList(
+            [{ name: 'Tingting', lang: 'zh_CN', engine: 'macos' }],
+            false,
+            []
+        );
+        expect(en.find((v) => v.name === 'Tingting')).toBeUndefined();
+    });
+
+    it('marks nothing in an en session', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [{ name: 'Samantha', lang: 'en-US', engine: 'macos' }],
+            false,
+            [{ name: 'Leda', gender: 'female', tier: 'premium' }]
+        );
+        expect(scored.every((v) => !v.langMismatch)).toBe(true);
+    });
+});

@@ -323,7 +323,7 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // serve the /app whisper route, and the desktop's loopback backend isn't
     // reachable from a separate browser, so offering it on the web gives a dead
     // mic. Browsers fall through to web-speech (Chrome) / aloud cloud.
-    if (!webMode && isTauri()) out.push({ value: 'whisper', label: 'Whisper (on this device)' });
+    if (!webMode && isTauri()) out.push({ value: 'whisper', label: 'Whisper (local)' });
     // Browser speech needs a recognizer that actually works. Not under Tauri:
     // the macOS WKWebView exposes webkitSpeechRecognition but never returns
     // results (same reason detectSttBackend skips it), and desktop has Whisper +
