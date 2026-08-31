@@ -363,7 +363,7 @@ export const CHECK_IN_PROMPTS: readonly string[] = [
 
 // Session openers, pool-based.
 
-const COMMON_OPENERS: readonly string[] = [
+export const COMMON_OPENERS: readonly string[] = [
     'What do you notice right now?',
     "Let's begin. What's here?",
     'Taking a moment to arrive... what do you notice?',
@@ -374,7 +374,7 @@ const COMMON_OPENERS: readonly string[] = [
     "Take a moment to land. What's present?",
 ];
 
-const MINIMAL_OPENERS: readonly string[] = [
+export const MINIMAL_OPENERS: readonly string[] = [
     "I'm here.",
     'Take your time.',
     "Whenever you're ready.",
