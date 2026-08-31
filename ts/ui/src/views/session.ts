@@ -36,6 +36,8 @@ import {
     TIMER_APPROACH_FALLBACKS,
     TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
+    sessionLanguageOf,
+    localizePool,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
@@ -360,6 +362,9 @@ export async function mountSessionView(
     const checkinContent: AppSettings['checkinContent'] = mode.checkinPaceSlider
         ? 'smart'
         : appSettings.checkinContent;
+    // A continued session keeps the language it began in (its transcript and
+    // its meditator are already in it); the setup pick applies to fresh sits.
+    const sessionLanguage = continueFrom?.language ?? setup.language;
     const builder = new PromptBuilder({
         config: {
             focuses: setup.focuses,
@@ -369,6 +374,9 @@ export async function mountSessionView(
             customInstructions: setup.customInstructions,
             waitSignal: checkinTiming === 'smart',
             holdSignal: appSettings.silenceModeEnabled,
+            // zh sessions: respond-in-Chinese fragment + zh canned pools
+            // (openers, check-ins, hold re-entry). meditation-pal-c3a0.3.
+            language: sessionLanguageOf(sessionLanguage),
         },
         mode,
     });
@@ -378,9 +386,6 @@ export async function mountSessionView(
     const stager = mode.phases
         ? new StagedModeController(mode, continueFrom?.modePhase)
         : null;
-    // A continued session keeps the language it began in (its transcript and
-    // its meditator are already in it); the setup pick applies to fresh sits.
-    const sessionLanguage = continueFrom?.language ?? setup.language;
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession(undefined, mode.id);
     // Stamped at start (not save) so autosave carries it and a resume keeps the
@@ -2513,7 +2518,10 @@ export async function mountSessionView(
                 : endsSession
                   ? TIMER_CLOSE_FALLBACKS
                   : TIMER_COMPLETION_FALLBACKS;
-        const canned = pickTimerFallback(fallbackPool, total);
+        const canned = pickTimerFallback(
+            localizePool(fallbackPool, sessionLanguageOf(sessionLanguage)),
+            total
+        );
         try {
             const eventText =
                 kind === 'approach'

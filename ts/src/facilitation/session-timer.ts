@@ -16,6 +16,12 @@
  */
 
 import { PASS_PREFIX, SMART_CHECKIN_EVENT_PREFIX } from './smart-checkin.js';
+import {
+    registerZhPool,
+    ZH_TIMER_APPROACH_FALLBACKS,
+    ZH_TIMER_COMPLETION_FALLBACKS,
+    ZH_TIMER_CLOSE_FALLBACKS,
+} from './language.js';
 
 /** Stable opener of every synthetic timer event turn (see isSessionTimerEvent). */
 export const SESSION_TIMER_EVENT_PREFIX = '[Timer:';
@@ -153,3 +159,8 @@ export const TIMER_CLOSE_FALLBACKS: readonly string[] = [
 export function pickTimerFallback(pool: readonly string[], index: number): string {
     return pool[Math.abs(index) % pool.length] as string;
 }
+
+// zh twins (language.ts registry; owner-registered).
+registerZhPool(TIMER_APPROACH_FALLBACKS, ZH_TIMER_APPROACH_FALLBACKS);
+registerZhPool(TIMER_COMPLETION_FALLBACKS, ZH_TIMER_COMPLETION_FALLBACKS);
+registerZhPool(TIMER_CLOSE_FALLBACKS, ZH_TIMER_CLOSE_FALLBACKS);

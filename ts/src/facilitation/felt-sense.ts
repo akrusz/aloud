@@ -18,6 +18,7 @@
  */
 
 import type { ModePhase, ModeSpec } from './modes.js';
+import { registerZhPool, ZH_FELT_SENSE_OPENERS, ZH_FELT_SENSE_CHECK_INS } from './language.js';
 import {
     VOICE_STYLE_FRAGMENT,
     HOLD_SIGNAL_FRAGMENT,
@@ -200,3 +201,7 @@ export const FELT_SENSE_MODE: ModeSpec = {
     phases: FELT_SENSE_PHASES,
     checkinPaceSlider: true,
 };
+
+// zh twins (language.ts registry; owner-registered).
+registerZhPool(FELT_SENSE_OPENERS, ZH_FELT_SENSE_OPENERS);
+registerZhPool(FELT_SENSE_CHECK_INS, ZH_FELT_SENSE_CHECK_INS);

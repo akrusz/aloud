@@ -80,6 +80,7 @@ export {
     NOTING_CHECK_IN_PROMPTS,
     NOTING_LABEL_SYSTEM_PROMPT,
     NOTING_STATIC_OPENER,
+    NOTING_STATIC_OPENERS,
     type Participant,
     type SoundParticipant,
     type LlmParticipant,

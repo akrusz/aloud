@@ -10,6 +10,12 @@
 
 import type { LLMProvider, Message } from '../llm/index.js';
 import type { LlmUsage } from './session.js';
+import {
+    registerZhPool,
+    ZH_NOTING_CHECK_IN_PROMPTS,
+    ZH_NOTING_STATIC_OPENERS,
+    type SessionLanguage,
+} from './language.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
 // System prompts
@@ -104,6 +110,10 @@ export const NOTING_STATIC_OPENER =
     'On your turn, just say one or two words that describe something in your awareness. ' +
     "Let's begin.";
 
+/** The same opener as a one-entry pool, so it has a stable array identity for
+ *  the zh registry (language.ts localizePool) and the mode spec. */
+export const NOTING_STATIC_OPENERS: readonly string[] = [NOTING_STATIC_OPENER];
+
 // Label generation
 
 export interface GenerateLabelOptions {
@@ -113,6 +123,8 @@ export interface GenerateLabelOptions {
     ownLabels?: readonly string[];
     /** How reactive this participant is to others' notes. */
     reactive?: ReactiveLevel;
+    /** Session language: zh sessions get zh labels (language.ts). */
+    language?: SessionLanguage;
     /** Token cap. Labels are 1-3 words, so this is tiny. */
     maxTokens?: number;
     /**
@@ -135,6 +147,7 @@ export async function generateNotingLabel(
         context = [],
         ownLabels = [],
         reactive = 'none',
+        language = 'en',
         maxTokens = 20,
         onUsage,
     } = options;
@@ -157,6 +170,9 @@ export async function generateNotingLabel(
             : reactive === 'low'
               ? NOTING_LABEL_REACTIVE_LOW
               : NOTING_LABEL_REACTIVE_NONE;
+    if (language === 'zh-CN') {
+        system += '\nThe circle notes in Mandarin: your label must be in Simplified Chinese (e.g. 温暖, 呼吸, 肩膀发紧). Output only the label.\n';
+    }
 
     const messages: Message[] = [
         { role: 'user', content: 'Your turn. Say something you notice now, 1-2 words.' },
@@ -173,10 +189,14 @@ export async function generateNotingLabel(
         const cleaned = stripThinkTags(result.text)
             .trim()
             .replace(/^["']+|["']+$/g, '') // strip surrounding quotes
-            .replace(/[.!?,]+$/, '') // strip trailing punctuation
+            .replace(/[.!?,。!?,]+$/, '') // strip trailing punctuation
             .toLowerCase();
-        return cleaned || 'breathing';
+        return cleaned || (language === 'zh-CN' ? '呼吸' : 'breathing');
     } catch {
-        return 'breathing';
+        return language === 'zh-CN' ? '呼吸' : 'breathing';
     }
 }
+
+// zh twins (language.ts registry; owner-registered).
+registerZhPool(NOTING_CHECK_IN_PROMPTS, ZH_NOTING_CHECK_IN_PROMPTS);
+registerZhPool(NOTING_STATIC_OPENERS, ZH_NOTING_STATIC_OPENERS);

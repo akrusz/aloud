@@ -49,23 +49,15 @@ The hidden control tokens are the one exception: [HOLD], [NEXT], [BACK], [PASS],
 // --- zh twins of the canned pools -------------------------------------------
 //
 // Same order and count as their en originals so a pool position means the same
-// thing in both languages. Register each pair in POOL_ZH below.
-
-import {
-    CHECK_IN_PROMPTS,
-    HOLD_REENTRY_LINES,
-    COMMON_OPENERS,
-    MINIMAL_OPENERS,
-} from './prompts.js';
-import {
-    TIMER_APPROACH_FALLBACKS,
-    TIMER_COMPLETION_FALLBACKS,
-    TIMER_CLOSE_FALLBACKS,
-} from './session-timer.js';
-import { FELT_SENSE_OPENERS, FELT_SENSE_CHECK_INS } from './felt-sense.js';
-import { NOTING_CHECK_IN_PROMPTS } from './noting.js';
-
-const ZH_CHECK_IN_PROMPTS: readonly string[] = [
+// thing in both languages (pickTimerFallback indexes by position).
+//
+// THIS MODULE IMPORTS NOTHING, deliberately. The pool owners (prompts.ts,
+// session-timer.ts, felt-sense.ts, noting.ts) import their zh twins from here
+// and register the en→zh pairing themselves (registerZhPool, at the end of
+// each module body). An earlier version imported the en pools here to build
+// the map centrally, which closed an import cycle whose TDZ crash depended on
+// module load ORDER - fine under vitest, dead on a different entry point.
+export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '我还在这里陪着你。',
     '你准备好了我就在。',
     '慢慢来,不着急。',
@@ -84,7 +76,7 @@ const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '时间很充裕。',
 ];
 
-const ZH_HOLD_REENTRY_LINES: readonly string[] = [
+export const ZH_HOLD_REENTRY_LINES: readonly string[] = [
     '好,我再安静下来。',
     '好的,我在这里。',
     '我先安静地听着,想让我回来就说一声。',
@@ -92,7 +84,7 @@ const ZH_HOLD_REENTRY_LINES: readonly string[] = [
     '好。想让我回来的时候,说一声就行。',
 ];
 
-const ZH_COMMON_OPENERS: readonly string[] = [
+export const ZH_COMMON_OPENERS: readonly string[] = [
     '此刻你注意到了什么?',
     '我们开始吧。现在有什么在?',
     '花一点时间安顿下来……你注意到了什么?',
@@ -103,32 +95,32 @@ const ZH_COMMON_OPENERS: readonly string[] = [
     '花点时间落定。此刻有什么在?',
 ];
 
-const ZH_MINIMAL_OPENERS: readonly string[] = [
+export const ZH_MINIMAL_OPENERS: readonly string[] = [
     '我在。',
     '慢慢来。',
     '你准备好了就开始。',
     '你准备好了,我就在这里。',
 ];
 
-const ZH_TIMER_APPROACH_FALLBACKS: readonly string[] = [
+export const ZH_TIMER_APPROACH_FALLBACKS: readonly string[] = [
     '还剩一点时间。让它停留在原处就好。',
     '还有几分钟。不需要做什么。',
     '快到尾声了。和此刻在的一切待在一起。',
 ];
 
-const ZH_TIMER_COMPLETION_FALLBACKS: readonly string[] = [
+export const ZH_TIMER_COMPLETION_FALLBACKS: readonly string[] = [
     '时间到了。你准备好了再回来。',
     '你设的时间结束了。慢慢回来,不着急。',
     '这一坐到这里就结束了。不用急。',
 ];
 
-const ZH_TIMER_CLOSE_FALLBACKS: readonly string[] = [
+export const ZH_TIMER_CLOSE_FALLBACKS: readonly string[] = [
     '时间到了。我就陪你到这里。',
     '你设的时间到了。就到这里。',
     '这一坐到这里结束。慢慢来。',
 ];
 
-const ZH_FELT_SENSE_OPENERS: readonly string[] = [
+export const ZH_FELT_SENSE_OPENERS: readonly string[] = [
     '花一点时间安顿下来……当你准备好了,可以在心里问问自己:此刻,是什么隔在我和"感觉还好"之间?',
     '慢慢安顿,不着急。当你准备好了,我们来留意一下,今天什么在心里压着分量。',
     '先让自己到达这里。几个轻松的呼吸……然后也许在心里问问:此刻什么想要我的注意?',
@@ -136,7 +128,7 @@ const ZH_FELT_SENSE_OPENERS: readonly string[] = [
     '不急着开始。先落定……看看你今天带着什么进来了。',
 ];
 
-const ZH_FELT_SENSE_CHECK_INS: readonly string[] = [
+export const ZH_FELT_SENSE_CHECK_INS: readonly string[] = [
     '不着急。身体有它自己的节奏。',
     '我还在,等什么浮现都可以。',
     '需要多久就用多久。',
@@ -145,7 +137,7 @@ const ZH_FELT_SENSE_CHECK_INS: readonly string[] = [
     '要多久都没关系。',
 ];
 
-const ZH_NOTING_CHECK_IN_PROMPTS: readonly string[] = [
+export const ZH_NOTING_CHECK_IN_PROMPTS: readonly string[] = [
     '我还在这里陪着你。',
     '继续标记浮现的任何东西就好。',
     '我在。',
@@ -154,20 +146,55 @@ const ZH_NOTING_CHECK_IN_PROMPTS: readonly string[] = [
     '不急。',
 ];
 
+export const ZH_NOTING_STATIC_OPENERS: readonly string[] = [
+    '轮到你的时候,用一两个词说出你觉察到的任何东西。我们开始吧。',
+];
+
+export const ZH_FOCUS_OPENERS: Record<string, readonly string[]> = {
+    body_sensations: [
+        '让自己慢慢落回身体……你注意到了什么?',
+        '花一点时间感受你的身体。那里有什么?',
+        '此刻你在身体里注意到什么?',
+    ],
+    emotions: [
+        '你现在感觉怎么样?',
+        '花一点时间到达这里……你心里还好吗?',
+        '慢慢安顿。此刻的感受基调是什么?',
+    ],
+    inner_parts: [
+        '和自己打个照面……此刻有什么在?',
+        '花一点时间到达这里……你心里还好吗?',
+        '慢慢安顿。内在有什么浮现出来?',
+    ],
+    open_awareness: [
+        '此刻什么占据着你的注意?',
+        '看看今天有什么在。你注意到了什么?',
+    ],
+};
+
+export const ZH_QUALITY_OPENERS: Record<string, readonly string[]> = {
+    playful: ['嘿,里面在发生什么呢?', '那么……你注意到了什么?'],
+    compassionate: ['你好。从你所在的地方开始就好。你怎么样?', '不着急。你还好吗?'],
+    loving: ['慢慢安顿……这里有什么需要一点善意吗?'],
+    spacious: ['这里空间很大。你注意到了什么?'],
+    effortless: ['什么都不用做。已经在这里的是什么?'],
+    feeling_good: [
+        '此刻有什么感觉是舒服的吗?',
+        '花一点时间。有什么感觉不错,哪怕一点点?',
+        '慢慢安顿……有什么感觉还可以的吗?',
+    ],
+};
+
 /** en pool → zh twin, keyed by array identity so callers pass the pool they
- *  already hold and unlisted pools fall through unchanged. */
-const POOL_ZH: ReadonlyMap<readonly string[], readonly string[]> = new Map([
-    [CHECK_IN_PROMPTS, ZH_CHECK_IN_PROMPTS],
-    [HOLD_REENTRY_LINES, ZH_HOLD_REENTRY_LINES],
-    [COMMON_OPENERS, ZH_COMMON_OPENERS],
-    [MINIMAL_OPENERS, ZH_MINIMAL_OPENERS],
-    [TIMER_APPROACH_FALLBACKS, ZH_TIMER_APPROACH_FALLBACKS],
-    [TIMER_COMPLETION_FALLBACKS, ZH_TIMER_COMPLETION_FALLBACKS],
-    [TIMER_CLOSE_FALLBACKS, ZH_TIMER_CLOSE_FALLBACKS],
-    [FELT_SENSE_OPENERS, ZH_FELT_SENSE_OPENERS],
-    [FELT_SENSE_CHECK_INS, ZH_FELT_SENSE_CHECK_INS],
-    [NOTING_CHECK_IN_PROMPTS, ZH_NOTING_CHECK_IN_PROMPTS],
-]);
+ *  already hold and unlisted pools fall through unchanged. Populated by the
+ *  pool owners via registerZhPool (see the imports-nothing note above). */
+const poolZh = new Map<readonly string[], readonly string[]>();
+
+/** Pair an en pool with its zh twin. Called by the pool's OWNER module at the
+ *  end of its body, so registration can never race the pool's initialization. */
+export function registerZhPool(en: readonly string[], zh: readonly string[]): void {
+    poolZh.set(en, zh);
+}
 
 /**
  * The pool to draw from in `language`: the registered zh twin, or the en pool
@@ -176,5 +203,5 @@ const POOL_ZH: ReadonlyMap<readonly string[], readonly string[]> = new Map([
  */
 export function localizePool(pool: readonly string[], language: SessionLanguage): readonly string[] {
     if (language === 'en') return pool;
-    return POOL_ZH.get(pool) ?? pool;
+    return poolZh.get(pool) ?? pool;
 }

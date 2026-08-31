@@ -16,7 +16,9 @@ import {
     generateSessionSummary,
     pickTimerFallback,
     timerApproachLeadSec,
-    NOTING_STATIC_OPENER,
+    NOTING_STATIC_OPENERS,
+    sessionLanguageOf,
+    localizePool,
     TIMER_APPROACH_FALLBACKS,
     TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
@@ -86,8 +88,11 @@ export async function mountNotingSessionView(
 ): Promise<NotingSessionViewHandle> {
     const participants = setup.notingParticipants ?? [];
     const appSettings = await loadAppSettings();
+    // zh circles: zh opener, labels, and timer lines (meditation-pal-c3a0.3).
+    const notingLanguage = sessionLanguageOf(setup.language);
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession(undefined, 'noting');
+    if (session.state) session.state.language = setup.language;
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).
     void markSessionStarted();
@@ -462,7 +467,7 @@ export async function mountNotingSessionView(
                 : ending
                   ? TIMER_CLOSE_FALLBACKS
                   : TIMER_COMPLETION_FALLBACKS;
-        const text = pickTimerFallback(pool, sessionClock.timerMinutes());
+        const text = pickTimerFallback(localizePool(pool, notingLanguage), sessionClock.timerMinutes());
         session.addAssistantMessage(text, 'Facilitator');
         appendMessage('facilitator', text, 'Facilitator');
         await speakVia(setup.voice, text);
@@ -619,6 +624,7 @@ export async function mountNotingSessionView(
                 context: recentLabels.slice(),
                 ownLabels: ownLabels[index]!.slice(),
                 reactive: p.reactive,
+                language: notingLanguage,
                 onUsage: (u) => session.recordLlmUsage(u),
             });
             if (torn || paused) return;
@@ -671,7 +677,7 @@ export async function mountNotingSessionView(
     // few ways to say this…").
     async function speakOpener(): Promise<void> {
         if (torn) return;
-        const text = NOTING_STATIC_OPENER;
+        const text = localizePool(NOTING_STATIC_OPENERS, notingLanguage)[0]!;
         session.addAssistantMessage(text, 'Facilitator');
         appendMessage('facilitator', text, 'Facilitator');
         setStatus('Speaking…');

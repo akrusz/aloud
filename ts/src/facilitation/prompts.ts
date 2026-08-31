@@ -10,6 +10,20 @@
 // Type-only import: modes.ts imports prompt constants from here at runtime, so
 // a value import would be a cycle.
 import type { ModeSpec } from './modes.js';
+// language.ts imports nothing, so this can never cycle; the zh twins of this
+// module's pools are registered at the bottom of this file.
+import {
+    localizePool,
+    registerZhPool,
+    ZH_LANGUAGE_FRAGMENT,
+    ZH_CHECK_IN_PROMPTS,
+    ZH_HOLD_REENTRY_LINES,
+    ZH_COMMON_OPENERS,
+    ZH_MINIMAL_OPENERS,
+    ZH_FOCUS_OPENERS,
+    ZH_QUALITY_OPENERS,
+    type SessionLanguage,
+} from './language.js';
 
 export type Verbosity = 'low' | 'medium' | 'high';
 export type Focus = 'body_sensations' | 'emotions' | 'inner_parts' | 'open_awareness';
@@ -34,6 +48,11 @@ export interface PromptConfig {
     /** Silence mode: teach the model the [HOLD] signal (HOLD_SIGNAL_FRAGMENT).
      *  On by default; mirrors AppSettings.silenceModeEnabled. */
     holdSignal: boolean;
+    /** Facilitation language (language.ts). 'zh-CN' appends the respond-in-
+     *  Chinese fragment and swaps every canned pool to its zh twin; 'en' is
+     *  byte-identical to the pre-language prompt, so default sessions keep
+     *  their prompt-cache prefix. */
+    language: SessionLanguage;
 }
 
 export const defaultPromptConfig: PromptConfig = {
@@ -44,6 +63,7 @@ export const defaultPromptConfig: PromptConfig = {
     customInstructions: '',
     waitSignal: false,
     holdSignal: true,
+    language: 'en',
 };
 
 /** Returns a number in [0, 1). Injectable so randomness is testable. */
@@ -381,7 +401,7 @@ export const MINIMAL_OPENERS: readonly string[] = [
     "I'm here whenever you're ready.",
 ];
 
-const FOCUS_OPENERS: Partial<Record<Focus, readonly string[]>> = {
+export const FOCUS_OPENERS: Partial<Record<Focus, readonly string[]>> = {
     body_sensations: [
         'Settling into your body... what do you notice?',
         "Take a moment to feel your body. What's there?",
@@ -403,7 +423,7 @@ const FOCUS_OPENERS: Partial<Record<Focus, readonly string[]>> = {
     ],
 };
 
-const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
+export const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
     playful: [
         "Hey. What's going on in there?",
         'So... what do you notice?',
@@ -463,7 +483,14 @@ export const RESUME_INTENT_SYSTEM_PROMPT =
     '"I think there\'s something about not wanting to be seen." -> NO\n' +
     '"Part of me wants to run away from this feeling." -> NO\n' +
     '"Okay, so now she\'s telling me to scan down my body." -> NO\n' +
-    '"That\'s interesting, it moved when I looked at it." -> NO';
+    '"That\'s interesting, it moved when I looked at it." -> NO\n' +
+    // zh sessions run the same classifier; a couple of anchors keep small
+    // models from treating any Chinese utterance as out-of-band (c3a0.3).
+    '"好了,我回来了。" -> YES\n' +
+    '"你可以说话了。" -> YES\n' +
+    '"你觉得刚才那个怎么样?" -> YES\n' +
+    '"胸口有一种暖暖的感觉。" -> NO\n' +
+    '"有点意思,我一看它就动了。" -> NO';
 
 /**
  * Spoken when the meditator asks for quiet again just after a hold ended, in
@@ -508,7 +535,10 @@ export const HOLD_REQUEST_SYSTEM_PROMPT =
     '"Yes, that\'s exactly it." -> NO\n' +
     '"Sorry, what was that?" -> NO\n' +
     '"Let\'s keep going." -> NO\n' +
-    '"I was just thinking out loud." -> NO';
+    '"I was just thinking out loud." -> NO\n' +
+    '"别说话,再安静一会儿。" -> YES\n' +
+    '"不好意思,我不是在跟你说话。" -> YES\n' +
+    '"嗯,就是这样。" -> NO';
 
 /** Judges the reply to the facilitator's "shall I go quiet?", so the client,
  *  not the model, decides whether to enter silence (rlgm). Mirrors the
@@ -522,7 +552,9 @@ export const HOLD_CONFIRM_SYSTEM_PROMPT =
     '"Yes, please." -> YES\n' +
     '"Some quiet would be nice." -> YES\n' +
     '"No, keep talking to me." -> NO\n' +
-    '"What? No, I was just thinking out loud." -> NO';
+    '"What? No, I was just thinking out loud." -> NO\n' +
+    '"好的,安静一会儿吧。" -> YES\n' +
+    '"不用,继续陪我说话。" -> NO';
 
 // [HOLD] parser
 
@@ -664,6 +696,13 @@ export class PromptBuilder {
             );
         }
 
+        // After every composed dimension so no later section can read as
+        // superseding it; the en path pushes nothing and stays byte-identical
+        // (prompt-cache prefix, same rule as the holdSignal cut above).
+        if (this.config.language === 'zh-CN') {
+            parts.push(ZH_LANGUAGE_FRAGMENT);
+        }
+
         if (composes?.custom !== false && this.config.customInstructions) {
             parts.push(`\nAdditional instructions from the meditator:\n${this.config.customInstructions}`);
         }
@@ -671,23 +710,28 @@ export class PromptBuilder {
         return parts.join('\n');
     }
 
+    /** The pool in the session's language (language.ts). */
+    private localized(pool: readonly string[]): readonly string[] {
+        return localizePool(pool, this.config.language);
+    }
+
     /** Pick a session-opening phrase based on the active dimensions. */
     getSessionOpener(): string {
         if (this.mode?.openers?.length) {
-            return choice(this.mode.openers, this.random);
+            return choice(this.localized(this.mode.openers), this.random);
         }
         if (this.config.directiveness <= 1) {
-            return choice(MINIMAL_OPENERS, this.random);
+            return choice(this.localized(MINIMAL_OPENERS), this.random);
         }
 
-        const pool: string[] = [...COMMON_OPENERS];
+        const pool: string[] = [...this.localized(COMMON_OPENERS)];
         for (const focus of this.config.focuses) {
             const extras = FOCUS_OPENERS[focus];
-            if (extras) pool.push(...extras);
+            if (extras) pool.push(...this.localized(extras));
         }
         for (const quality of this.config.qualities) {
             const extras = QUALITY_OPENERS[quality];
-            if (extras) pool.push(...extras);
+            if (extras) pool.push(...this.localized(extras));
         }
         return choice(pool, this.random);
     }
@@ -759,11 +803,29 @@ export class PromptBuilder {
 
     /** Pick a gentle check-in phrase for long silences. */
     getCheckInPrompt(): string {
-        return choice(this.mode?.checkIns?.length ? this.mode.checkIns : CHECK_IN_PROMPTS, this.random);
+        return choice(
+            this.localized(this.mode?.checkIns?.length ? this.mode.checkIns : CHECK_IN_PROMPTS),
+            this.random
+        );
     }
 
     /** Pick the line spoken while dropping straight back into a silence. */
     getHoldReentryLine(): string {
-        return choice(HOLD_REENTRY_LINES, this.random);
+        return choice(this.localized(HOLD_REENTRY_LINES), this.random);
     }
+}
+
+// zh twins for this module's pools (language.ts registry; owner-registered so
+// the pairing can't race initialization).
+registerZhPool(CHECK_IN_PROMPTS, ZH_CHECK_IN_PROMPTS);
+registerZhPool(HOLD_REENTRY_LINES, ZH_HOLD_REENTRY_LINES);
+registerZhPool(COMMON_OPENERS, ZH_COMMON_OPENERS);
+registerZhPool(MINIMAL_OPENERS, ZH_MINIMAL_OPENERS);
+for (const [focus, pool] of Object.entries(FOCUS_OPENERS)) {
+    const zh = ZH_FOCUS_OPENERS[focus];
+    if (zh) registerZhPool(pool, zh);
+}
+for (const [quality, pool] of Object.entries(QUALITY_OPENERS)) {
+    const zh = ZH_QUALITY_OPENERS[quality];
+    if (zh) registerZhPool(pool, zh);
 }
