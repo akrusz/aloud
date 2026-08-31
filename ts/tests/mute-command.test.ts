@@ -34,6 +34,20 @@ describe('isMuteCommand', () => {
         }
     });
 
+    it('takes the zh command with the same strictness', () => {
+        for (const text of ['静音', '静音。', '请静音', '静音吧', '把麦克风静音', '请把话筒静音', '静音一下', '静 音']) {
+            expect(isMuteCommand(text), text).toBe(true);
+        }
+        for (const text of [
+            '我感觉被静音了', // "I feel muted"
+            '取消静音', // unmute
+            '声音好像被静音了一样',
+            '我想把心里的声音静音掉',
+        ]) {
+            expect(isMuteCommand(text), text).toBe(false);
+        }
+    });
+
     it('ignores an empty utterance', () => {
         expect(isMuteCommand('')).toBe(false);
         expect(isMuteCommand('   ...  ')).toBe(false);

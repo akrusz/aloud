@@ -40,8 +40,23 @@ const FILLER = new Set([
 /** Past this many words it's a sentence about muting, not a command. */
 const MAX_WORDS = 5;
 
+/**
+ * The zh command, same strictness: the whole utterance (punctuation aside) must
+ * be 静音 ("mute") with at most a politeness around it - 请 (please), a leading
+ * 把麦克风/把话筒 (the mic, as the object 把-construction puts before the verb),
+ * or a trailing 吧/了/一下. Chinese recognizers segment with spaces
+ * inconsistently, so this matches the joined utterance rather than words.
+ * Anything longer is a sentence ABOUT muting and falls through as speech.
+ */
+const ZH_MUTE_RE = /^(?:请)?(?:把?(?:麦克风|话筒))?静音(?:吧|了|一下)?$/;
+
 /** True when the utterance is the spoken mute command and nothing else. */
 export function isMuteCommand(utterance: string): boolean {
+    // zh first: the a-z scrub below would erase it entirely. CJK punctuation
+    // and any stray spaces drop; the remainder must BE the command.
+    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    if (/[㐀-鿿]/.test(zh)) return ZH_MUTE_RE.test(zh);
+
     const words = utterance
         .toLowerCase()
         .replace(/[^a-z0-9']+/g, ' ')

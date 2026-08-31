@@ -725,11 +725,12 @@ async fn stt_whisper(
 
     // Whisper inference is CPU-heavy and blocking; keep it off the async
     // reactor so the server stays responsive.
+    let lang_out = lang.clone();
     match tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate, &lang)).await
     {
         Ok(Ok((text, duration))) => (
             StatusCode::OK,
-            Json(json!({ "text": text.trim(), "language": "en", "duration": duration })),
+            Json(json!({ "text": text.trim(), "language": lang_out, "duration": duration })),
         ),
         Ok(Err(e)) => err(
             StatusCode::INTERNAL_SERVER_ERROR,

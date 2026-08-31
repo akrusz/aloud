@@ -97,6 +97,13 @@ export interface SessionState {
     /** The Provider id behind `model` ('claude_proxy', 'aloud'). Kept for
      *  history/analytics; display uses `model`. */
     provider?: string;
+    /**
+     * The session language (2-letter app code, e.g. 'en', 'zh'; language.ts).
+     * Stamped at session start from the live setup so a resume keeps speaking
+     * the language the sit began in. Absent on sessions from before the field
+     * existed = 'en'.
+     */
+    language?: string;
     /** Compute usage tally. Always present on sessions started by this code. */
     usage: SessionUsage;
 }

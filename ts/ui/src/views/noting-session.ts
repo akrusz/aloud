@@ -354,7 +354,7 @@ export async function mountNotingSessionView(
         {
             micDeviceId: appSettings.micDeviceId,
             whisperModelSize: appSettings.sttWhisperModel,
-            language: appSettings.language,
+            language: setup.language,
             silenceBaseMs: 1200,
             silenceMaxMs: 6000,
             silenceRampRate: 1,

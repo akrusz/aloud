@@ -56,11 +56,18 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
     return new Uint8Array(buf);
 }
 
-/** Transcribe mono Float32 PCM via the configured backend. Throws on upstream error. */
+/**
+ * Transcribe mono Float32 PCM via the configured backend. Throws on upstream
+ * error. `language` is an optional ISO-639-1 hint (the session language,
+ * meditation-pal-c3a0.2): these endpoints auto-detect without it, but a hint
+ * removes the misfire where a soft zh utterance comes back transliterated or
+ * translated.
+ */
 export async function transcribeWhisper(
     samples: Float32Array,
     sampleRate: number,
     backend: SttBackend,
+    language?: string,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<string> {
     const wav = encodeWav(samples, sampleRate);
@@ -68,6 +75,7 @@ export async function transcribeWhisper(
     form.append('file', new Blob([wav], { type: 'audio/wav' }), 'audio.wav');
     form.append('model', backend.model);
     form.append('response_format', 'json');
+    if (language) form.append('language', language);
 
     const res = await fetchImpl(backend.baseUrl, {
         method: 'POST',

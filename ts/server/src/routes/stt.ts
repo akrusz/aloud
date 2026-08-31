@@ -85,9 +85,17 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
+        // Optional language hint (the session language). Advisory only - it
+        // keys no billing - so an unparseable value is dropped, not a 400. The
+        // client sends the app's 2-letter code; providers want ISO-639-1, so a
+        // regional tag ('zh-CN') is trimmed to its base.
+        const langRaw = c.req.query('lang') ?? '';
+        const langMatch = /^([a-z]{2,3})(-|$)/i.exec(langRaw);
+        const language = langMatch ? langMatch[1]!.toLowerCase() : undefined;
+
         let text: string;
         try {
-            text = await transcribeWhisper(samples, sampleRate, { ...stt, model });
+            text = await transcribeWhisper(samples, sampleRate, { ...stt, model }, language);
         } catch (err) {
             log.error('stt forward failed', { err: String(err) });
             return c.json(apiError('provider_error', 'STT upstream error'), ERROR_STATUS.provider_error);

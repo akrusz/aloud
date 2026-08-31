@@ -378,8 +378,14 @@ export async function mountSessionView(
     const stager = mode.phases
         ? new StagedModeController(mode, continueFrom?.modePhase)
         : null;
+    // A continued session keeps the language it began in (its transcript and
+    // its meditator are already in it); the setup pick applies to fresh sits.
+    const sessionLanguage = continueFrom?.language ?? setup.language;
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession(undefined, mode.id);
+    // Stamped at start (not save) so autosave carries it and a resume keeps the
+    // language the sit began in.
+    if (session.state) session.state.language = sessionLanguage;
     if (stager) session.setModePhase(stager.phase.id);
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).
@@ -636,7 +642,10 @@ export async function mountSessionView(
         minSpeechDurationMs: pacingConfig.minSpeechDurationMs,
         micDeviceId: appSettings.micDeviceId,
         whisperModelSize: appSettings.sttWhisperModel,
-        language: appSettings.language,
+        // Per-session pick (setup; original language on a resume), not the app
+        // default: the recognizer must hear the language this sit runs in
+        // (meditation-pal-c3a0.2).
+        language: sessionLanguage,
     };
     // The STT source is an explicit, mode-resolved choice (Settings / setup):
     // local Whisper, browser speech, or the aloud cloud (credits). No hidden

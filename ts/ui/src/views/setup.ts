@@ -74,7 +74,7 @@ import {
 } from '../provider-markers.js';
 import { alertDialog } from '../dialog.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
-import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
+import { loadAppSettings, saveAppSettings, LANGUAGES, type SttEngineChoice } from '../app-settings.js';
 import { clockModeLabel, showSessionClockModal } from '../session-clock.js';
 import {
     autoStart as autoStartGuide,
@@ -786,6 +786,21 @@ export async function mountSetupView(
         );
         getModelRate = () => modelPicker.getRate();
         refreshModelPicker = (p) => void modelPicker.refresh(p);
+
+        // Per-session (like provider/model): the app-level Language in Settings
+        // seeds a fresh setup, a pick here sticks to this device's sessions. It
+        // drives the recognizer AND, for Chinese, the facilitation language
+        // itself (meditation-pal-c3a0).
+        const langSel = root.querySelector<HTMLSelectElement>('#setup-language');
+        if (langSel) {
+            langSel.value = setup.language;
+            // A stored code the list no longer carries: fall back visibly to en.
+            if (langSel.value !== setup.language) langSel.value = 'en';
+            langSel.addEventListener('change', () => {
+                setup.language = langSel.value;
+                persist();
+            });
+        }
 
         // App-level (like the default voice), so saving here mirrors Settings.
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
@@ -1726,6 +1741,12 @@ function renderSetupHTML(
             <div class="form-group" id="ai-model-group">
                 <label for="model-select">Model</label>
                 <div id="model-picker-slot"></div>
+            </div>
+            <div class="form-group" id="setup-language-group">
+                <label for="setup-language">Language</label>
+                <select id="setup-language">${LANGUAGES.map(
+                    ([code, label]) => `<option value="${code}">${escapeHtml(label)}</option>`
+                ).join('')}</select>
             </div>
             <div class="form-group" id="setup-stt-group">
                 <label for="setup-stt-engine">Speech Recognition</label>

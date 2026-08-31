@@ -150,6 +150,14 @@ export interface SessionSetup {
     feltSenseCheckins: boolean;
     verbosity: Verbosity;
     customInstructions: string;
+    /**
+     * Session language: a 2-letter code from app-settings.LANGUAGES. Drives the
+     * STT recognizer AND (for zh) the facilitation language - prompts and canned
+     * lines (src/facilitation/language.ts). Seeded from AppSettings.language
+     * like provider/model: the app default seeds a fresh setup, a per-session
+     * pick here wins (meditation-pal-c3a0.2).
+     */
+    language: string;
     provider: Provider;
     model: string;
     /**
@@ -291,6 +299,7 @@ export const defaultSetup: SessionSetup = {
     feltSenseCheckins: true,
     verbosity: 'medium',
     customInstructions: '',
+    language: 'en',
     provider: 'ollama',
     model: '',
     voice: null,
@@ -334,6 +343,7 @@ export async function loadSetup(): Promise<SessionSetup> {
         ...defaultSetup,
         provider: s.defaultProvider,
         model: s.defaultModel,
+        language: s.language,
     };
     const raw = await kv().get(SETTINGS_KEY);
     let merged = base;

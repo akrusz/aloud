@@ -136,10 +136,13 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  default. Applied as `ideal`, so a saved-but-unplugged device falls back
      *  to the default rather than failing getUserMedia. */
     micDeviceId?: string | null;
-    /** Local-Whisper model size + language, sent as query params so the
-     *  desktop shell loads the matching whisper.cpp model. Only the local
-     *  endpoint understands these - leave unset for aloud cloud. */
+    /** Local-Whisper model size, sent as a query param so the desktop shell
+     *  loads the matching whisper.cpp model. Local endpoint only - leave unset
+     *  for aloud cloud. */
     whisperModelSize?: string | null;
+    /** Session language (2-letter app code), sent as `lang`. The desktop shell
+     *  keys the whisper model's language off it; the cloud route forwards it to
+     *  the provider as a transcription hint. */
     language?: string | null;
     /** Hosted-model override, sent as a `model` query param the cloud /stt
      *  route validates against its backend's allowlist (e.g. 'gpt-transcribe').
@@ -881,8 +884,13 @@ export class WhisperPcmSttEngine implements SttEngine {
                 const sessionId = getCloudSessionId();
                 const sessionParam = sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : '';
                 const modelParam = this.opts.whisperModelSize
-                    ? `&model_size=${encodeURIComponent(this.opts.whisperModelSize)}` +
-                      `&lang=${encodeURIComponent(this.opts.language ?? 'en')}`
+                    ? `&model_size=${encodeURIComponent(this.opts.whisperModelSize)}`
+                    : '';
+                // Independent of model_size: the desktop shell uses it to pick
+                // the whisper model's language, the cloud route forwards it to
+                // the provider as a transcription hint.
+                const langParam = this.opts.language
+                    ? `&lang=${encodeURIComponent(this.opts.language)}`
                     : '';
                 const cloudModelParam = this.opts.cloudModel
                     ? `&model=${encodeURIComponent(this.opts.cloudModel)}`
@@ -896,7 +904,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         if (token) headers['authorization'] = `Bearer ${token}`;
                     }
                     return this.opts.fetchImpl(
-                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${sessionParam}${modelParam}${cloudModelParam}`,
+                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${sessionParam}${modelParam}${langParam}${cloudModelParam}`,
                         {
                             method: 'POST',
                             headers,

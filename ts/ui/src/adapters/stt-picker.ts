@@ -39,9 +39,9 @@ import type { SttEngineChoice } from '../app-settings.js';
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
  *  capture-device pick and the local-Whisper model params. Only the PCM
  *  engines (Whisper / aloud cloud) consume micDeviceId - Web Speech and the
- *  native recognizer own their capture. `language` reaches the local Whisper
- *  engine (model params) AND, as a BCP-47 tag, the Web Speech / native
- *  recognizers; only the cloud endpoint ignores it (its models auto-detect). */
+ *  native recognizer own their capture. `language` reaches every engine: the
+ *  local Whisper endpoint (model params), the Web Speech / native recognizers
+ *  (as a BCP-47 tag), and the cloud endpoint (a transcription hint). */
 type VadOpts = Partial<
     Pick<
         PacingConfig,
@@ -95,10 +95,11 @@ export function invalidateSttBackendCache(): void {
  */
 export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): SttEngine | null {
     if (!WhisperPcmSttEngine.isAvailable()) return null;
-    // Strip the local-Whisper model params: the cloud endpoint would receive
-    // them as stray query params (it picks its own model server-side unless
-    // `model` pins one of its allowlisted alternates).
-    const { whisperModelSize: _size, language: _lang, ...rest } = vadOpts;
+    // Strip the local-Whisper model-size param: the cloud endpoint picks its
+    // own model server-side (unless `model` pins an allowlisted alternate).
+    // `language` stays: the cloud /stt route forwards it to the provider as a
+    // transcription hint (meditation-pal-c3a0.2).
+    const { whisperModelSize: _size, ...rest } = vadOpts;
     return new WhisperPcmSttEngine({
         ...rest,
         ...(model ? { cloudModel: model } : {}),

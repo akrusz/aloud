@@ -8,7 +8,7 @@ import type { AuthResponse, TranscribeResponse } from '../src/contract.js';
 // Stub global fetch so the route's STT call never hits the network. Returns a
 // fixed transcript and records the request for assertions. The default backend
 // is OpenAI (config.ts resolveSttConfig), so match its transcription host.
-let sttCalls: Array<{ url: string; hasFile: boolean; model: string | null }> = [];
+let sttCalls: Array<{ url: string; hasFile: boolean; model: string | null; language: string | null }> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -21,6 +21,7 @@ beforeEach(() => {
                 url: u,
                 hasFile: body instanceof FormData && body.has('file'),
                 model: body instanceof FormData ? (body.get('model') as string | null) : null,
+                language: body instanceof FormData ? (body.get('language') as string | null) : null,
             });
             return new Response(JSON.stringify({ text: '  hello world  ' }), { status: 200 });
         }
@@ -165,6 +166,31 @@ describe('POST /cloud/v1/stt', () => {
         expect(body.text).toBe('hello world');
         // Half the bytes of the f32 body, identical billed seconds.
         expect(body.creditsCharged).toBeCloseTo((10 * 0.27) / 3600 / 0.05, 6);
+    });
+
+    it('forwards ?lang as an ISO-639-1 language hint, trimming a regional tag', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i16&lang=zh-CN', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcm16Body(1),
+        });
+        expect(res.status).toBe(200);
+        expect(sttCalls).toHaveLength(1);
+        expect(sttCalls[0]!.language).toBe('zh');
+    });
+
+    it('drops an unparseable lang instead of failing the call (advisory only)', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i16&lang=%3Cscript%3E', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcm16Body(1),
+        });
+        expect(res.status).toBe(200);
+        expect(sttCalls[0]!.language).toBeNull();
     });
 
     it('rejects an unknown format (it keys alignment and billed duration)', async () => {
