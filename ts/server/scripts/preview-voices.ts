@@ -303,7 +303,8 @@ ${rowHtml}
  <p><b>Prosody</b> is expressed differently per engine, and the gap is wide. Google honors SSML
  <code>&lt;prosody&gt;</code> + <code>&lt;break&gt;</code> on <em>both</em> tiers, Chirp3-HD included - the strongest
  pacing lever we have, and it is on the engine we already ship - but Google bills the tags, so a marked-up
- line costs more per spoken word (that tax is already in the $/1M column). OpenAI, Gemini and Inworld take a
+ line costs more per spoken word (that tax is already in the $/1M column). Azure honors the same SSML levers
+ (and also bills the tags, minus the speak/voice wrapper). OpenAI, Gemini and Inworld take a
  natural-language style instruction only. Deepgram Aura-2 exposes no prosody control at all.</p>
  <p>Rate sources:</p><ul>${rateNotes}</ul>
 </div>
@@ -324,7 +325,8 @@ function toggleStar(b){
 }
 function play(tr){
   const btn=tr.querySelector('.playbtn');
-  if(cur===tr&&!audio.paused){audio.pause();return;}
+  if(cur===tr&&!audio.paused){audio.pause();btn.textContent='▶';return;}
+  if(cur===tr&&audio.src){btn.classList.add('on');btn.textContent='⏸';audio.play().catch(()=>{});return;}
   document.querySelectorAll('.playbtn.on').forEach(b=>{b.classList.remove('on');b.textContent='▶'});
   document.querySelectorAll('tr.playing').forEach(t=>t.classList.remove('playing'));
   cur=tr;tr.classList.add('playing');btn.classList.add('on');btn.textContent='⏸';
@@ -333,7 +335,7 @@ function play(tr){
 }
 audio.onended=()=>{document.querySelectorAll('.playbtn.on').forEach(b=>{b.classList.remove('on');b.textContent='▶'});};
 rows.forEach(tr=>{tr.querySelector('.playbtn').onclick=()=>play(tr)});
-function visible(){return rows.filter(r=>r.style.display!=='none')}
+function visible(){return [...document.getElementById('rows').children].filter(r=>r.style.display!=='none')}
 function step(d){
   const v=visible();if(!v.length)return;
   const i=cur?v.indexOf(cur):-1;
@@ -398,7 +400,8 @@ document.querySelectorAll('th[data-sort]').forEach(th=>{th.onclick=()=>{
 }});
 document.getElementById('copy').onclick=()=>{
   const out=document.getElementById('out');
-  const picked=rows.filter(r=>stars.has(r.querySelector('.starbtn').dataset.vid));
+  const seen=new Set();
+  const picked=rows.filter(r=>stars.has(r.dataset.voice)&&!seen.has(r.dataset.voice)&&(seen.add(r.dataset.voice),true));
   out.style.display='block';
   out.value=picked.length
     ? picked.map(r=>{
@@ -409,7 +412,7 @@ document.getElementById('copy').onclick=()=>{
           +"', providerVoiceId: '"+idp.join(':')+"', gender: '"+g+"', tier: '?' },"
           +"  // $"+r.dataset.cost+"/1M chars, "+r.children[4].textContent.trim();
       }).join('\\n')
-    : 'Nothing shortlisted yet - press ☆ (or s) on the voices you like.';
+    : 'Nothing shortlisted yet - press ☆ (or f) on the voices you like.';
   out.select();
 };
 apply();

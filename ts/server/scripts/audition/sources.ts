@@ -448,10 +448,108 @@ const gemini: AuditionSource = {
 // us its headline rate no matter how slowly the facilitator speaks.
 //
 // Deliberately NOT here: Rime (~$0.03/audio min, duration-priced and so worse
-// for us than the sticker suggests), Hume Octave ($50-100/1M), ElevenLabs
-// ($180-300/1M). Priced out of a session whose TTS leg is already the dominant
-// cost line.
+// for us than the sticker suggests), Hume Octave ($50-100/1M), MiniMax
+// Speech 2.8 ($60/1M Turbo, $100/1M HD), ElevenLabs ($180-300/1M). Priced out
+// of a session whose TTS leg is already the dominant cost line. Amazon Polly
+// (generative $30/1M, neural $16/1M, per-char) prices in but auths via SigV4,
+// so it waits until something suggests it can beat same-priced Chirp3-HD.
 // ---------------------------------------------------------------------------
+
+/** Azure's regional endpoints bake the region into the hostname. */
+const azureRegion = (): string => process.env.AZURE_SPEECH_REGION || 'eastus';
+
+interface AzureVoice {
+    ShortName: string;
+    DisplayName?: string;
+    Gender?: string;
+    Locale: string;
+    /** e.g. "Neural", "NeuralHD". DragonHD voices carry it in the ShortName. */
+    VoiceType?: string;
+    StyleList?: string[];
+}
+
+const azure: AuditionSource = {
+    id: 'azure',
+    label: 'Azure AI Speech',
+    envKeys: ['AZURE_SPEECH_KEY'],
+    signupUrl: 'https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices',
+    billing: 'per-char',
+    usdPerUnit: (voiceId) => (voiceId.includes('DragonHD') ? 22 / M : 16 / M),
+    rateNote:
+        'azure.microsoft.com/pricing (Speech services) - Neural ~$16/1M, DragonHD ~$22/1M, region-dependent; confirm before shipping. Set AZURE_SPEECH_REGION too (default eastus)',
+    shipping: false,
+    async roster(key, { locales, filter }) {
+        const res = await fetch(
+            `https://${azureRegion()}.tts.speech.microsoft.com/cognitiveservices/voices/list`,
+            { headers: { 'Ocp-Apim-Subscription-Key': key } }
+        );
+        if (!res.ok) throw new Error(`voices/list ${res.status}`);
+        const voices = (await res.json()) as AzureVoice[];
+        return voices
+            .filter((v) => locales.includes(v.Locale))
+            .filter((v) => !filter || v.ShortName.toLowerCase().includes(filter.toLowerCase()))
+            .map((v) => ({
+                id: v.ShortName,
+                label: `${v.DisplayName ?? v.ShortName} · ${v.Locale}`,
+                note: [
+                    (v.Gender ?? '').toLowerCase(),
+                    v.Locale,
+                    v.StyleList?.length ? `styles: ${v.StyleList.slice(0, 4).join(', ')}` : '',
+                ]
+                    .filter(Boolean)
+                    .join(' · '),
+            }))
+            .sort((a, b) => a.id.localeCompare(b.id));
+    },
+    // Same SSML levers as Google, so the treatments mirror google's for a
+    // like-for-like listen. HD voices ignore some SSML elements - audition
+    // tells us which survive.
+    treatments: [
+        { id: 'plain', label: 'plain text', note: 'no markup - pace comes from the speed setting alone' },
+        { id: 'ssml-gentle', label: 'SSML gentle', note: 'rate 90%, pitch -1st, 700ms between sentences' },
+        { id: 'ssml-spacious', label: 'SSML spacious', note: 'rate 80%, pitch -2st, 1400ms between sentences' },
+    ],
+    async synth(text, voiceId, rate, key, t) {
+        // Azure takes SSML always; "plain" is the bare text in the required
+        // wrapper with the session speed as a prosody rate.
+        const inner =
+            t.id === 'plain'
+                ? rate === 1
+                    ? xmlEscape(text)
+                    : `<prosody rate="${Math.round(rate * 100)}%">${xmlEscape(text)}</prosody>`
+                : (() => {
+                      const o =
+                          t.id === 'ssml-spacious'
+                              ? { rate: '80%', pitch: '-2st', breakMs: 1400 }
+                              : { rate: '90%', pitch: '-1st', breakMs: 700 };
+                      const body = sentences(text)
+                          .map(xmlEscape)
+                          .join(`<break time="${o.breakMs}ms"/>`);
+                      return `<prosody rate="${o.rate}" pitch="${o.pitch}">${body}</prosody>`;
+                  })();
+        const locale = voiceId.split('-').slice(0, 2).join('-');
+        const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${locale}"><voice name="${voiceId}">${inner}</voice></speak>`;
+        const res = await fetch(`https://${azureRegion()}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+            method: 'POST',
+            headers: {
+                'Ocp-Apim-Subscription-Key': key,
+                'content-type': 'application/ssml+xml',
+                'x-microsoft-outputformat': 'audio-24khz-96kbitrate-mono-mp3',
+                'user-agent': 'aloud-voice-audition',
+            },
+            body: ssml,
+        });
+        if (!res.ok) throw new Error(`${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
+        return {
+            bytes: new Uint8Array(await res.arrayBuffer()),
+            ext: 'mp3',
+            // Azure bills everything in the body EXCEPT the <speak> and <voice>
+            // wrapper tags (learn.microsoft.com text-to-speech "Billable
+            // characters"), so the SSML tax here is the inner markup only.
+            billedChars: inner.length,
+        };
+    },
+};
 
 const CARTESIA_VERSION = '2026-08-14';
 
@@ -461,8 +559,9 @@ const cartesia: AuditionSource = {
     envKeys: ['CARTESIA_API_KEY'],
     signupUrl: 'https://play.cartesia.ai/keys',
     billing: 'per-char',
-    usdPerUnit: () => 25 / M,
-    rateNote: '1 credit/char; effective $5-37/1M chars by plan - $25/1M assumed at a mid plan, confirm before shipping',
+    usdPerUnit: () => 30 / M,
+    rateNote:
+        '1 credit/char; effective rate depends on plan - Startup $39/mo = 1.25M credits (~$31/1M), Scale $239/mo = 8M (~$30/1M). $30/1M assumed, confirm before shipping',
     shipping: false,
     async roster(key, { filter }) {
         const res = await fetch('https://api.cartesia.ai/voices/?limit=100', {
@@ -580,7 +679,7 @@ const inworld: AuditionSource = {
     signupUrl: 'https://platform.inworld.ai',
     billing: 'per-char',
     usdPerUnit: () => 25 / M,
-    rateNote: 'Realtime TTS-2 $25/1M on-demand - the rate that applies to us. Cheaper tiers are SUBSCRIPTION commitments ($25/mo Creator $20, $300/mo Developer $15, $1500/mo Growth $12.50), not volume discounts',
+    rateNote: 'Realtime TTS-2 $25/1M on-demand - the rate that applies to us. Cheaper tiers are SUBSCRIPTION commitments ($25/mo Creator $20, $300/mo Developer $15, $1500/mo Growth $12.50), not volume discounts. TTS-2 Flash is $15/1M on-demand if the full model prices out',
     shipping: false,
     async roster(key, { filter }) {
         const res = await fetch('https://api.inworld.ai/tts/v1/voices', {
@@ -625,7 +724,7 @@ const inworld: AuditionSource = {
     },
 };
 
-export const SOURCES: readonly AuditionSource[] = [google, openai, gemini, cartesia, deepgram, inworld];
+export const SOURCES: readonly AuditionSource[] = [google, openai, gemini, azure, cartesia, deepgram, inworld];
 
 export function sourceById(id: string): AuditionSource | undefined {
     return SOURCES.find((s) => s.id === id);
