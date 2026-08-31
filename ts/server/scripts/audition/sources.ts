@@ -266,14 +266,12 @@ const google: AuditionSource = {
             }
         }
         // Google names repeat across locales - en-AU/en-GB/en-US all have a
-        // "Standard-A" - so a locale-stripped label is ambiguous the moment a
-        // run covers more than one. Qualify it rather than showing 48 rows that
-        // read identically.
-        if (locales.length > 1) {
-            for (const v of out) {
-                const loc = /^([a-z]{2}-[A-Z]{2})-/.exec(v.id)?.[1];
-                if (loc) v.label = `${v.label} · ${loc}`;
-            }
+        // "Standard-A" - so a locale-stripped label is ambiguous. Qualify it
+        // ALWAYS, not just on multi-locale runs: runs merge into one page, so a
+        // single-locale run's labels have to line up with what is already there.
+        for (const v of out) {
+            const loc = /^([a-z]{2}-[A-Z]{2})-/.exec(v.id)?.[1];
+            if (loc) v.label = `${v.label} · ${loc}`;
         }
         return out.sort((a, b) => a.id.localeCompare(b.id));
     },
