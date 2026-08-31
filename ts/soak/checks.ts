@@ -12,6 +12,18 @@ import type { CheckFinding, SessionRunResult } from './types.js';
 /** Spoken text must never contain a control token or markup the scrub missed. */
 const RESIDUAL_TOKEN_RE = /\[(HOLD|NEXT|BACK|PASS|WAIT[:\]])|<\/?[a-z][\w-]*>/i;
 
+/** Sentence-opening verbs that read as commands in the facilitation register.
+ *  Deliberately domain-scoped: a generic imperative detector over-fires, and
+ *  these are the verbs the transcripts actually open commands with. */
+const IMPERATIVE_OPENERS = new Set([
+    'notice', 'pay', 'focus', 'try', 'take', 'let', 'allow', 'bring', 'feel',
+    'close', 'open', 'breathe', 'relax', 'return', 'come', 'keep', 'stay',
+    'imagine', 'observe', 'place', 'rest', 'soften', 'release', 'follow',
+    'hold', 'sit', 'remember', 'begin', 'start', 'continue', 'put', 'drop',
+    'turn', 'shift', 'settle', 'ground', 'scan', 'watch', 'listen', 'see',
+    'check', 'stop', 'go', 'gently',
+]);
+
 function percentile(sorted: number[], p: number): number {
     if (sorted.length === 0) return 0;
     const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
@@ -119,6 +131,36 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     // Stage clamps: the model pushing past the arc's ends.
     const clamps = byEvent('stage', 'clamped').length;
     if (clamps > 0) add('stage-clamped', 'info', `${clamps} stage signal(s) clamped at an end of the arc`);
+
+    // Imperative rate: at low guidance the prompt asks for invitations, not
+    // commands ("Pay attention to X"), but the register's training data is
+    // ~all imperatives, so the model drifts back. Heuristic scoreboard for
+    // prompt-verbiage tuning: sentences opening on a command verb, over the
+    // MODEL-authored spoken turns only - `raw` is set exactly on those, so
+    // canned copy (fallback openers, canned check-ins: our own words) stays
+    // out of the score. At directiveness 7+ commanding is the requested
+    // style, so the rate stays info-only there.
+    const modelSpoken = assistant.filter((t) => t.raw !== undefined);
+    const sentences = modelSpoken
+        .flatMap((t) => t.text.split(/(?<=[.!?…])\s+/))
+        .map((s) => s.trim())
+        .filter((s) => s.length > 1);
+    const imperative = sentences.filter((s) => {
+        if (/^let'?s\b|^let us\b/i.test(s)) return false; // first-person invitation
+        const first = /^["'“]?([a-z]+)/i.exec(s)?.[1]?.toLowerCase();
+        return first !== undefined && IMPERATIVE_OPENERS.has(first);
+    });
+    if (sentences.length >= 5) {
+        const rate = imperative.length / sentences.length;
+        const detail = `${imperative.length}/${sentences.length} sentences open on a command verb (${(rate * 100).toFixed(0)}%)`;
+        const directiveness = result.scenario.directiveness ?? 5;
+        if (directiveness <= 5 && rate > 0.2) {
+            const sample = (imperative[0] ?? '').slice(0, 80);
+            add('imperative-heavy', 'warn', `${detail} at guidance ${directiveness}; first: "${sample}"`);
+        } else {
+            add('imperative-rate', 'info', detail);
+        }
+    }
 
     // Latency profile of real LLM calls.
     const latencies = result.calls.map((c) => c.latencyMs).sort((a, b) => a - b);

@@ -80,6 +80,38 @@ const baseScenario: Scenario = {
     fakeMinutes: 30,
 };
 
+describe('imperative-rate check', () => {
+    it('warns on command-heavy replies at low guidance, and ignores invitations', async () => {
+        const facilitator = new ScriptedFacilitator({
+            turns: [
+                // Five imperative openings across two turns...
+                'Notice the breath. Take a moment here. Let it settle. Bring attention to the chest.',
+                'Focus on that warmth. Is there anything else present?',
+                // ...while invitations, questions, and "Let's" don't count.
+                "Let's stay here. You might notice some tingling. What's that like?",
+            ],
+        });
+        const sim = new ScriptedSimUser([
+            { waitSec: 10, text: 'okay' },
+            { waitSec: 10, text: 'some warmth I think' },
+            { waitSec: 10, end: true },
+        ]);
+        const result = await runSoakSession({
+            scenario: { ...baseScenario, directiveness: 3 },
+            facilitator,
+            utility: utilityStub,
+            simUser: sim,
+        });
+        const finding = runChecks(result).find((f) => f.id === 'imperative-heavy');
+        expect(finding?.level).toBe('warn');
+        expect(finding?.detail).toContain('5/');
+        // The same transcript at high guidance is the requested style: info only.
+        const high = runChecks({ ...result, scenario: { ...baseScenario, directiveness: 7 } });
+        expect(high.find((f) => f.id === 'imperative-heavy')).toBeUndefined();
+        expect(high.find((f) => f.id === 'imperative-rate')?.level).toBe('info');
+    });
+});
+
 describe('parseSimReply', () => {
     it('parses wait + spoken line', () => {
         const a = parseSimReply('WAIT: 90\nI notice my jaw is tight.');
