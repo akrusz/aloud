@@ -450,13 +450,28 @@ export function googleTtsRateFor(voiceId: string | undefined): number {
     return TTS_USD_PER_CHAR;
 }
 
+/** Azure AI Speech list price per BILLED character (see providers/tts.ts
+ *  azureSsmlBody: SSML markup and doubled CJK characters are the caller's
+ *  problem — this is the rate applied to that count). Neural voices ~$16/1M,
+ *  DragonHD ~$22/1M (azure.microsoft.com Speech pricing, region-dependent;
+ *  matches scripts/audition/sources.ts). The tier is read from the ShortName:
+ *  DragonHD voices carry it (en-US-Andrew_DragonHDLatestNeural). */
+const AZURE_TTS_USD_PER_CHAR = { neural: 16 / M, dragonHd: 22 / M } as const;
+
+export function azureTtsRateFor(voiceId: string | undefined): number {
+    return voiceId?.includes('DragonHD') ? AZURE_TTS_USD_PER_CHAR.dragonHd : AZURE_TTS_USD_PER_CHAR.neural;
+}
+
 /** Per-character TTS cost for a resolved (provider, voiceId). OpenAI is a flat
- *  per-char rate (voice doesn't change the price); Google's is read from the
- *  voice id's tier. The single rate authority both the meter and the picker's
- *  credits/hr estimate bill through, so a shown rate can't drift from the real
- *  charge. */
+ *  per-char rate (voice doesn't change the price); Google's and Azure's are
+ *  read from the voice id's tier. The single rate authority both the meter and
+ *  the picker's credits/hr estimate bill through, so a shown rate can't drift
+ *  from the real charge. NOTE for Azure the "characters" this multiplies must
+ *  be the BILLED count (providers/tts.azureBilledChars), not text.length. */
 export function ttsRateFor(provider: TtsProvider, voiceId: string | undefined): number {
-    return provider === 'openai' ? OPENAI_TTS_USD_PER_CHAR : googleTtsRateFor(voiceId);
+    if (provider === 'openai') return OPENAI_TTS_USD_PER_CHAR;
+    if (provider === 'azure') return azureTtsRateFor(voiceId);
+    return googleTtsRateFor(voiceId);
 }
 
 export function pricingFor(provider: ProviderId, model: string): ModelPricing | undefined {

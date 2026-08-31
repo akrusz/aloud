@@ -11,7 +11,7 @@ export type VoiceGender = 'female' | 'male' | 'androgynous';
 
 /** The TTS backend that speaks a voice. Each has its own synth call, key, and
  *  per-char rate (providers/tts.ts, pricing/providers.ttsRateFor). */
-export type TtsProvider = 'google' | 'openai';
+export type TtsProvider = 'google' | 'openai' | 'azure';
 
 /** Voice quality/placement bucket (also the picker's cost-badge hint).
  *  'premium' = "Best", leads the picker, flagged recommended: Google Chirp3-HD
@@ -27,7 +27,8 @@ export interface CuratedVoice {
     /** Short display name shown + stored by the client (e.g. "Pulcherrima"). */
     name: string;
     provider: TtsProvider;
-    /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda) or OpenAI voice name (coral). */
+    /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda), OpenAI voice name
+     *  (coral), or Azure ShortName (en-US-AvaMultilingualNeural). */
     providerVoiceId: string;
     /** Perceived gender, for the picker's label. */
     gender: VoiceGender;
@@ -91,7 +92,11 @@ export function resolveVoice(voice: string | undefined): ResolvedVoice {
     }
     const curated = CURATED_VOICES.find((v) => v.name === voice);
     if (curated) return { provider: curated.provider, voiceId: curated.providerVoiceId };
-    // Raw passthrough accepts Google ids only (they encode their own tier;
-    // OpenAI voices must come through the curated short names).
+    // Raw passthrough accepts Google and Azure ids, which encode their own tier
+    // (OpenAI voices must come through the curated short names). Azure
+    // ShortNames end in "Neural" (en-US-SaraNeural, zh-CN-XiaochenNeural,
+    // en-US-Andrew_DragonHDLatestNeural) or name an MAI-Voice model; Google's
+    // tiers never do (Neural2 ids continue "Neural2-F").
+    if (/Neural$/.test(voice) || voice.includes('MAI-Voice')) return { provider: 'azure', voiceId: voice };
     return { provider: 'google', voiceId: voice };
 }

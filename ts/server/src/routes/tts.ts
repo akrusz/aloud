@@ -1,7 +1,8 @@
 /**
  * POST /v1/tts, metered text-to-speech. Takes JSON { text, voice?, rate? },
- * synthesizes via the resolved voice's provider (Google or OpenAI), debits
- * fractional credits by character count, returns MP3 bytes (audio/mpeg). Cost
+ * synthesizes via the resolved voice's provider (Google, OpenAI, or Azure),
+ * debits fractional credits by billed character count, returns MP3 bytes
+ * (audio/mpeg). Cost
  * rides in X-Credits-Charged / X-Credits-Remaining so the body stays a clean
  * audio stream the client hands straight to an <audio> element.
  *
@@ -18,7 +19,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
-import { synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
+import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
 import {
     CURATED_VOICES,
     PREVIEW_PHRASE,
@@ -38,8 +39,24 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
         const key = deps.config.openaiTtsApiKey;
         return key ? (text, rate) => synthesizeWithOpenAI(text, resolved.voiceId, rate, key) : null;
     }
+    if (resolved.provider === 'azure') {
+        const key = deps.config.azureSpeechKey;
+        return key
+            ? (text, rate) => synthesizeWithAzure(text, resolved.voiceId, rate, key, deps.config.azureSpeechRegion)
+            : null;
+    }
     const key = deps.config.googleTtsApiKey;
     return key ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, rate, key) : null;
+}
+
+/** Characters the provider will actually bill for this synthesis. Google and
+ *  OpenAI bill the plain text; Azure bills the SSML body we send (markup +
+ *  expanded escapes) and counts each CJK character twice, so its count runs
+ *  higher than text.length. The meter, the up-front balance gate, and the
+ *  usage record all take THIS number - billing text.length would under-charge
+ *  every Azure synthesis (roughly 2x on Chinese text). */
+function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): number {
+    return resolved.provider === 'azure' ? azureBilledChars(text, rate) : text.length;
 }
 
 /** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`. The texts are
@@ -167,7 +184,8 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // front, it's character-priced) must fit the balance, or a near-zero
         // balance would buy an unbounded provider call with the debit clamped
         // after the fact.
-        const cost = priceTtsChars(text.length, { provider: resolved.provider, voiceId: resolved.voiceId });
+        const billedChars = billedCharsFor(resolved, text, body.rate ?? 1);
+        const cost = priceTtsChars(billedChars, { provider: resolved.provider, voiceId: resolved.voiceId });
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
         const balance = pass ? 0 : await deps.ledger.balance(account.id);
         if (!pass && balance < cost.credits) {
@@ -187,7 +205,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // Under a pass nothing is debited, but record the metered credits so
         // per-retreat spend and the daily-cap sum stay honest.
         const debit = pass ? 0 : Math.min(cost.credits, balance);
-        if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${text.length}c`);
+        if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${billedChars}c`);
         const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
         await recordUsage(deps.store, {
             accountId: account.id,
@@ -200,7 +218,9 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             cacheRead: 0,
             cacheCreation: 0,
             seconds: 0,
-            chars: text.length,
+            // Billed chars, not text.length, so reconciliation against the
+            // provider invoice lines up (they differ on Azure).
+            chars: billedChars,
             providerCostUsd: cost.providerCostUsd,
             credits: pass ? cost.credits : debit,
             passId: pass?.id ?? null,

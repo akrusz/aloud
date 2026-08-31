@@ -3,16 +3,20 @@ import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MAX_TTS_CHARS, type AuthResponse } from '../src/contract.js';
+import { azureBilledChars } from '../src/providers/tts.js';
+import { priceTtsChars } from '../src/pricing/meter.js';
 
 // MP3 bytes Google would return, base64-encoded as audioContent.
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
 let googleCalls: Array<{ url: string; body: any }> = [];
 let openaiCalls: Array<{ url: string; body: any; auth: string | null }> = [];
+let azureCalls: Array<{ url: string; body: string; key: string | null }> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
     googleCalls = [];
     openaiCalls = [];
+    azureCalls = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url);
         if (u.includes('texttospeech.googleapis.com')) {
@@ -30,6 +34,12 @@ beforeEach(() => {
                 auth: headers['authorization'] ?? null,
             });
             // OpenAI returns the audio as the raw response body (not base64 JSON).
+            return new Response(FAKE_MP3, { status: 200 });
+        }
+        if (u.includes('.tts.speech.microsoft.com')) {
+            const headers = (init?.headers ?? {}) as Record<string, string>;
+            azureCalls.push({ url: u, body: String(init?.body), key: headers['Ocp-Apim-Subscription-Key'] ?? null });
+            // Azure also returns raw audio bytes.
             return new Response(FAKE_MP3, { status: 200 });
         }
         return realFetch(url, init);
@@ -310,6 +320,89 @@ describe('POST /cloud/v1/tts — OpenAI voices', () => {
         // Neither provider was actually called — it fails fast on the missing key.
         expect(openaiCalls).toHaveLength(0);
         expect(googleCalls).toHaveLength(0);
+    });
+});
+
+describe('POST /cloud/v1/tts — Azure voices', () => {
+    function azureApp(extra: Record<string, string> = {}) {
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            AZURE_SPEECH_KEY: 'az-key',
+            ALOUD_FREE_SIGNUP_CREDITS: '20',
+            ...extra,
+        });
+        return createApp(buildDeps(config));
+    }
+
+    it('routes a raw Azure ShortName to Azure with an SSML body', async () => {
+        const a = azureApp({ AZURE_SPEECH_REGION: 'westus2' });
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'Breathe in.', voice: 'zh-CN-XiaochenNeural', rate: 0.9 }),
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toBe('audio/mpeg');
+        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
+
+        expect(googleCalls).toHaveLength(0);
+        expect(azureCalls).toHaveLength(1);
+        const call = azureCalls[0]!;
+        expect(call.url).toBe('https://westus2.tts.speech.microsoft.com/cognitiveservices/v1');
+        expect(call.key).toBe('az-key');
+        // SSML wrapper carries the voice, its locale, and the prosody rate.
+        expect(call.body).toContain('<voice name="zh-CN-XiaochenNeural">');
+        expect(call.body).toContain('xml:lang="zh-CN"');
+        expect(call.body).toContain('<prosody rate="90%">');
+    });
+
+    it('bills Azure BILLED chars: markup + double-counted CJK, at the Neural rate', async () => {
+        const a = azureApp();
+        const token = await devToken(a);
+        const text = '吸气，呼气。'; // 6 CJK chars → 12 billed, no prosody wrapper at rate 1
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text, voice: 'zh-CN-XiaochenNeural', rate: 1 }),
+        });
+        expect(res.status).toBe(200);
+        const charged = Number(res.headers.get('X-Credits-Charged'));
+        const expected = priceTtsChars(azureBilledChars(text, 1), {
+            provider: 'azure',
+            voiceId: 'zh-CN-XiaochenNeural',
+        }).credits;
+        expect(charged).toBeCloseTo(expected, 10);
+        // The double-count is real: billed chars are exactly 2x the raw length here.
+        expect(azureBilledChars(text, 1)).toBe(text.length * 2);
+    });
+
+    it('502s for an Azure voice when no Azure key is configured', async () => {
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const a = createApp(buildDeps(config));
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'hi', voice: 'en-US-SaraNeural' }),
+        });
+        expect(res.status).toBe(502);
+        expect(azureCalls).toHaveLength(0);
+        expect(googleCalls).toHaveLength(0);
+    });
+});
+
+describe('azureBilledChars', () => {
+    it('bills XML escapes at their expanded length', () => {
+        // "I'll" → "I&apos;ll": 4 chars of text, 9 billed.
+        expect(azureBilledChars("I'll", 1)).toBe(9);
+    });
+
+    it('bills the prosody wrapper when rate is not 1', () => {
+        const plain = azureBilledChars('hello', 1);
+        const paced = azureBilledChars('hello', 0.9);
+        expect(plain).toBe(5);
+        expect(paced).toBe(5 + '<prosody rate="90%">'.length + '</prosody>'.length);
     });
 });
 

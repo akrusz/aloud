@@ -144,6 +144,13 @@ export interface Config {
      *  only when its key is present. */
     openaiTtsApiKey?: string;
 
+    /** Azure AI Speech key + region (the region is baked into the endpoint
+     *  hostname). When set, /cloud/v1/tts can synthesize Azure Neural/DragonHD
+     *  voices; like the other two, its voices appear only when the key is
+     *  present. */
+    azureSpeechKey?: string;
+    azureSpeechRegion: string;
+
     /** Stripe, optional; billing routes report "not configured" without it. */
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
@@ -242,6 +249,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         adminEmails: list(env['ALOUD_ADMIN_EMAILS']).map((e) => e.toLowerCase()),
         strict,
         enableDevAuth: truthy(env['ALOUD_ENABLE_DEV_AUTH']),
+        // `||`: a blank AZURE_SPEECH_REGION= template line falls through to the
+        // default rather than producing an empty hostname segment.
+        azureSpeechRegion: env['AZURE_SPEECH_REGION'] || 'eastus',
     };
     const sttConfig = resolveSttConfig(env);
     if (sttConfig) config.sttConfig = sttConfig;
@@ -252,6 +262,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // `||` treats blank as absent and uses the LLM key.
     const openaiTtsKey = env['OPENAI_TTS_API_KEY'] || env['OPENAI_API_KEY'];
     if (openaiTtsKey) config.openaiTtsApiKey = openaiTtsKey;
+    if (env['AZURE_SPEECH_KEY']) config.azureSpeechKey = env['AZURE_SPEECH_KEY'];
     if (env['STRIPE_SECRET_KEY']) config.stripeSecretKey = env['STRIPE_SECRET_KEY'];
     if (env['STRIPE_WEBHOOK_SECRET']) config.stripeWebhookSecret = env['STRIPE_WEBHOOK_SECRET'];
     if (env['X402_ENABLED'] === '1') config.x402Enabled = true;

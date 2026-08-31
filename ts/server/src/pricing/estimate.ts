@@ -211,8 +211,9 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
  * Octave (~$7.60/1M), Deepgram Aura ($15/1M), and self-hosted Kokoro (~$0.70/1M,
  * but breaks the stateless proxy).
  */
-function voiceEngineLabel(v: { provider: TtsProvider; tier: string }): string {
+function voiceEngineLabel(v: { provider: TtsProvider; providerVoiceId: string; tier: string }): string {
     if (v.provider === 'openai') return 'OpenAI gpt-4o-mini-tts';
+    if (v.provider === 'azure') return v.providerVoiceId.includes('DragonHD') ? 'Azure DragonHD' : 'Azure Neural';
     return v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
 }
 

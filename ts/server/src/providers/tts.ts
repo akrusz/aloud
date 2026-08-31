@@ -1,11 +1,13 @@
 /**
- * Server-side TTS to MP3 bytes via Google Cloud TTS or OpenAI. The route picks
- * the provider from the resolved voice (voice-catalog.resolveVoice) and calls
- * the matching function here. Stateless: the text transits only for the synth
- * call, never persisted (privacy invariant; logger.ts).
+ * Server-side TTS to MP3 bytes via Google Cloud TTS, OpenAI, or Azure AI
+ * Speech. The route picks the provider from the resolved voice
+ * (voice-catalog.resolveVoice) and calls the matching function here. Stateless:
+ * the text transits only for the synth call, never persisted (privacy
+ * invariant; logger.ts).
  *
- * Google voice names encode their language (en-US-Chirp3-HD-Achernar →
- * languageCode en-US). Voice is per-request so the client's picker can drive it.
+ * Google and Azure voice names encode their language (en-US-Chirp3-HD-Achernar,
+ * zh-CN-XiaochenNeural → languageCode en-US / zh-CN). Voice is per-request so
+ * the client's picker can drive it.
  */
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
@@ -111,6 +113,80 @@ export async function synthesizeWithOpenAI(
     if (!res.ok) {
         const detail = await res.text().catch(() => '');
         throw new Error(`OpenAI TTS ${res.status}: ${detail}`);
+    }
+    return new Uint8Array(await res.arrayBuffer());
+}
+
+function xmlEscape(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
+}
+
+/**
+ * Azure's SSML body for a synthesis: the bare escaped text, wrapped in a
+ * <prosody> rate when the session speed isn't 1.0 (Azure has no top-level
+ * speakingRate knob; SSML is the only input shape it takes). This mirrors the
+ * audition's 'plain' treatment (scripts/audition/sources.ts) — the richer
+ * treatments (breaks, mstts styles) stay audition-only until one is chosen to
+ * ship.
+ *
+ * Exported alongside billedChars because Azure's bill is NOT text.length
+ * (learn.microsoft.com text-to-speech "Billable characters"):
+ *   - everything inside <speak>…</speak> bills, including markup like the
+ *     prosody tags and expanded XML escapes (&apos; is 6 chars), but NOT the
+ *     <speak>/<voice> wrapper tags themselves;
+ *   - each CJK character bills as TWO characters.
+ * The route must gate and debit on THIS count, not the plain text length, or a
+ * Chinese session under-bills by half.
+ */
+export function azureSsmlBody(text: string, rate: number): { inner: string; billedChars: number } {
+    const escaped = xmlEscape(text);
+    const inner =
+        rate === 1 ? escaped : `<prosody rate="${Math.round(Math.min(4, Math.max(0.25, rate)) * 100)}%">${escaped}</prosody>`;
+    // CJK ideographs, kana, and hangul bill double; count them once more on top
+    // of the raw length. BMP ranges cover the zh/ja/ko text we'd actually send.
+    const cjk = inner.match(/[\u3000-\u30FF\u3400-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF\uFF00-\uFFEF]/g)?.length ?? 0;
+    return { inner, billedChars: inner.length + cjk };
+}
+
+/** Characters Azure will bill for `text` at `rate` — the number the meter and
+ *  the up-front balance gate must use for an Azure voice. */
+export function azureBilledChars(text: string, rate: number): number {
+    return azureSsmlBody(text, rate).billedChars;
+}
+
+/**
+ * Synthesize `text` to MP3 bytes via Azure AI Speech. Azure takes SSML always
+ * (content-type application/ssml+xml, raw audio back) and bakes the region into
+ * the hostname. `voice` is an Azure ShortName (en-US-SaraNeural,
+ * zh-CN-XiaochenNeural, en-US-Andrew_DragonHDLatestNeural). Throws on an
+ * upstream error.
+ */
+export async function synthesizeWithAzure(
+    text: string,
+    voice: string,
+    rate: number,
+    apiKey: string,
+    region: string,
+    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
+): Promise<Uint8Array> {
+    const { inner } = azureSsmlBody(text, rate);
+    const ssml =
+        `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" ` +
+        `xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageOf(voice)}">` +
+        `<voice name="${voice}">${inner}</voice></speak>`;
+    const res = await fetchImpl(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+        method: 'POST',
+        headers: {
+            'Ocp-Apim-Subscription-Key': apiKey,
+            'content-type': 'application/ssml+xml',
+            'x-microsoft-outputformat': 'audio-24khz-96kbitrate-mono-mp3',
+            'user-agent': 'aloud-cloud-tts',
+        },
+        body: ssml,
+    });
+    if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`Azure TTS ${res.status}: ${detail}`);
     }
     return new Uint8Array(await res.arrayBuffer());
 }

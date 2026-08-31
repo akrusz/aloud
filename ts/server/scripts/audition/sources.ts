@@ -23,8 +23,8 @@
  * modelling it.
  */
 
-import { synthesizeWithGoogle, synthesizeWithOpenAI } from '../../src/providers/tts.js';
-import { googleTtsRateFor } from '../../src/pricing/providers.js';
+import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../../src/providers/tts.js';
+import { azureTtsRateFor, googleTtsRateFor } from '../../src/pricing/providers.js';
 
 const M = 1_000_000;
 
@@ -484,10 +484,12 @@ const azure: AuditionSource = {
     envKeys: ['AZURE_SPEECH_KEY'],
     signupUrl: 'https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices',
     billing: 'per-char',
-    usdPerUnit: (voiceId) => (voiceId.includes('DragonHD') ? 22 / M : 16 / M),
+    usdPerUnit: (voiceId) => azureTtsRateFor(voiceId),
     rateNote:
-        'azure.microsoft.com/pricing (Speech services) - Neural ~$16/1M, DragonHD ~$22/1M, region-dependent; confirm before shipping. Set AZURE_SPEECH_REGION too (default eastus)',
-    shipping: false,
+        'azure.microsoft.com/pricing (Speech services) - Neural ~$16/1M, DragonHD ~$22/1M, region-dependent (pricing/providers.azureTtsRateFor). Set AZURE_SPEECH_REGION too (default eastus)',
+    // Promoted (meditation-pal-c3a0.1): the shipping path is providers/tts.ts
+    // synthesizeWithAzure; curated entries pend the dev's audition picks.
+    shipping: true,
     async roster(key, { locales, filter }) {
         const res = await fetch(
             `https://${azureRegion()}.tts.speech.microsoft.com/cognitiveservices/voices/list`,
@@ -527,8 +529,17 @@ const azure: AuditionSource = {
         },
     ],
     async synth(text, voiceId, rate, key, t) {
-        // Azure takes SSML always; "plain" is the bare text in the required
-        // wrapper with the session speed as a prosody rate.
+        // The shipping path (providers/tts.ts synthesizeWithAzure) IS the plain
+        // treatment, so that row reuses it verbatim, like google/openai above.
+        if (t.id === 'plain') {
+            return {
+                bytes: await synthesizeWithAzure(text, voiceId, rate, key, azureRegion()),
+                ext: 'mp3',
+                billedChars: azureBilledChars(text, rate),
+            };
+        }
+        // Azure takes SSML always; the treatments below build their own body
+        // with the session speed as a prosody rate.
         const bare =
             rate === 1
                 ? xmlEscape(text)

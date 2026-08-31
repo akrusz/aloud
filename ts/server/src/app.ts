@@ -61,7 +61,7 @@ export function createApp(deps: Deps): Hono {
             billing: Boolean(deps.config.stripeSecretKey),
             // Which media capabilities the client can route here (vs native).
             stt: Boolean(deps.config.sttConfig),
-            tts: Boolean(deps.config.googleTtsApiKey || deps.config.openaiTtsApiKey),
+            tts: Boolean(deps.config.googleTtsApiKey || deps.config.openaiTtsApiKey || deps.config.azureSpeechKey),
         })
     );
 
@@ -89,6 +89,7 @@ export function createApp(deps: Deps): Hono {
         const hasKey = {
             google: Boolean(deps.config.googleTtsApiKey),
             openai: Boolean(deps.config.openaiTtsApiKey),
+            azure: Boolean(deps.config.azureSpeechKey),
         };
         const voices: CloudVoice[] = CURATED_VOICES.filter((v) => hasKey[v.provider]).map((v) => ({
             name: v.name,
