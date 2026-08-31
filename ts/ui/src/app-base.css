@@ -2384,6 +2384,25 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     background: var(--accent-dim);
 }
 
+/* The collapsed-Piper expander line (voice-picker renderVoiceList). */
+.voice-more-piper {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.voice-more-piper:hover {
+    background: var(--accent-dim);
+    color: var(--text);
+}
+
 .voice-row.selected {
     background: var(--accent-dim);
     border-left: 2px solid var(--accent);

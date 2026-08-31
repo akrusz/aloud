@@ -9,7 +9,7 @@ describe('voice catalog', () => {
     it('resolves a curated short name to its (provider, voiceId)', () => {
         expect(resolveVoice('Leda')).toEqual({ provider: 'google', voiceId: 'en-US-Chirp3-HD-Leda' });
         // An OpenAI curated voice resolves to the OpenAI provider + voice name.
-        expect(resolveVoice('Lyra')).toEqual({ provider: 'openai', voiceId: 'shimmer' });
+        expect(resolveVoice('Polaris')).toEqual({ provider: 'openai', voiceId: 'nova' });
     });
 
     it('passes a raw Google id through as Google and falls back to the default', () => {
@@ -37,7 +37,7 @@ describe('GET /cloud/v1/voices', () => {
         const voices = (await res.json()) as CloudVoice[];
         expect(voices.map((v) => v.name)).toEqual(namesFor('google'));
         // OpenAI voices stay hidden without OPENAI_TTS_API_KEY.
-        expect(voices.some((v) => v.name === 'Lyra')).toBe(false);
+        expect(voices.some((v) => v.name === 'Polaris')).toBe(false);
         expect(voices.every((v) => 'gender' in v)).toBe(true);
     });
 
@@ -48,9 +48,11 @@ describe('GET /cloud/v1/voices', () => {
         expect(voices.some((v) => v.name === 'Leda')).toBe(false);
     });
 
-    it('lists every curated voice when both keys are set', async () => {
+    it('lists every curated voice when all provider keys are set', async () => {
         const app = createApp(
-            buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', OPENAI_TTS_API_KEY: 'k2' }))
+            buildDeps(
+                loadConfig({ GOOGLE_TTS_API_KEY: 'k', OPENAI_TTS_API_KEY: 'k2', AZURE_SPEECH_KEY: 'k3' })
+            )
         );
         const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
         expect(voices.map((v) => v.name)).toEqual(CURATED_VOICES.map((v) => v.name));

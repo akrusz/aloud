@@ -267,12 +267,12 @@ describe('GET /cloud/v1/tts/preview', () => {
     it('previews an OpenAI voice via OpenAI when its key is set', async () => {
         const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_TTS_API_KEY: 'oai-key' });
         const a = createApp(buildDeps(config));
-        const res = await a.request('/cloud/v1/tts/preview?voice=Lyra'); // Lyra → shimmer
+        const res = await a.request('/cloud/v1/tts/preview?voice=Polaris'); // Polaris → nova
         expect(res.status).toBe(200);
         expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
         expect(googleCalls).toHaveLength(0);
         expect(openaiCalls).toHaveLength(1);
-        expect(openaiCalls[0]!.body.voice).toBe('shimmer');
+        expect(openaiCalls[0]!.body.voice).toBe('nova');
         expect(openaiCalls[0]!.body.input).toContain('Welcome to aloud');
     });
 });
@@ -289,7 +289,7 @@ describe('POST /cloud/v1/tts — OpenAI voices', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe in.', voice: 'Lyra', rate: 0.9 }),
+            body: JSON.stringify({ text: 'Breathe in.', voice: 'Polaris', rate: 0.9 }),
         });
         expect(res.status).toBe(200);
         expect(res.headers.get('content-type')).toBe('audio/mpeg');
@@ -301,7 +301,7 @@ describe('POST /cloud/v1/tts — OpenAI voices', () => {
         expect(openaiCalls).toHaveLength(1);
         const sent = openaiCalls[0]!.body;
         expect(sent.model).toBe('gpt-4o-mini-tts');
-        expect(sent.voice).toBe('shimmer'); // Lyra → shimmer
+        expect(sent.voice).toBe('nova'); // Polaris → nova
         expect(sent.response_format).toBe('mp3');
         expect(typeof sent.instructions).toBe('string');
         expect(openaiCalls[0]!.auth).toBe('Bearer oai-key');
@@ -314,7 +314,7 @@ describe('POST /cloud/v1/tts — OpenAI voices', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'hi', voice: 'Lyra' }),
+            body: JSON.stringify({ text: 'hi', voice: 'Polaris' }),
         });
         expect(res.status).toBe(502);
         // Neither provider was actually called — it fails fast on the missing key.

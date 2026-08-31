@@ -265,6 +265,9 @@ export interface RenderListOptions {
     showEngine?: boolean;
     /** Show an Uninstall button for downloaded Piper voices. */
     showUninstall?: boolean;
+    /** List un-downloaded Piper voices instead of collapsing them behind the
+     *  "Show Piper voices" line. Set internally when that line is clicked. */
+    showLockedPiper?: boolean;
 }
 
 /** Render the modal list: recommended voices in their own section, the rest
@@ -283,9 +286,21 @@ export function renderVoiceList(
         return;
     }
 
+    // A pickerful of not-yet-downloaded Piper rows is noise for anyone who
+    // hasn't opted into local voices: until a first model is installed, they
+    // collapse behind a single "Show Piper voices" line.
+    const lockedPiper = new Set(
+        voices.filter((v) => v.engine === 'piper' && v.needsDownload && !v.downloaded)
+    );
+    const collapsePiper =
+        !options.showLockedPiper &&
+        lockedPiper.size > 0 &&
+        !voices.some((v) => v.engine === 'piper' && v.downloaded);
+
     const recommended: ScoredVoice[] = [];
     const tiers: Record<number, ScoredVoice[]> = {};
     for (const v of voices) {
+        if (collapsePiper && lockedPiper.has(v)) continue;
         if (v.recommended) {
             recommended.push(v);
         } else {
@@ -303,6 +318,16 @@ export function renderVoiceList(
         if (!items || items.length === 0) continue;
         appendTierLabel(listEl, TIER_LABELS[tier] ?? 'Other');
         for (const v of items) appendRow(listEl, v, selectedName, options);
+    }
+
+    if (collapsePiper) {
+        const more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'voice-more-piper';
+        more.textContent = `More options: show ${lockedPiper.size} Piper voices (local, free download)`;
+        more.onclick = () =>
+            renderVoiceList(listEl, voices, selectedName, { ...options, showLockedPiper: true });
+        listEl.appendChild(more);
     }
 
     // Show the "☁️ per hour" legend in the header only when a paid hosted voice

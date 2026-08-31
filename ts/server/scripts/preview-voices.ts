@@ -408,9 +408,11 @@ document.getElementById('copy').onclick=()=>{
         const [src,...idp]=r.querySelector('.starbtn').dataset.vid.split(':');
         const n=r.dataset.name;
         const g=n.includes('androgynous')?'androgynous':n.includes('female')?'female':n.includes('male')?'male':'?';
+        // Stars are per-voice, not per-treatment, so naming one treatment here
+        // would be a guess - the cost quoted is the first listed row's.
         return "{ name: '"+r.querySelector('.nm').textContent.trim()+"', provider: '"+src
           +"', providerVoiceId: '"+idp.join(':')+"', gender: '"+g+"', tier: '?' },"
-          +"  // $"+r.dataset.cost+"/1M chars, "+r.children[4].textContent.trim();
+          +"  // $"+r.dataset.cost+"/1M chars";
       }).join('\\n')
     : 'Nothing shortlisted yet - press ☆ (or f) on the voices you like.';
   out.select();
