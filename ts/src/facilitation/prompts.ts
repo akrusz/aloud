@@ -313,7 +313,8 @@ or qualities if the meditator seems stuck, but prefer open questions.
 `,
     5: `Guidance level: Balanced
 Balanced between following and gentle guidance. Feel free to suggest
-exploring specific areas or qualities that seem relevant, without commanding.
+exploring specific areas or qualities that seem relevant, but don't tell what to do.
+For example, "Do you notice any change in your chest?" instead of "Pay attention to your chest".
 `,
     7: `Guidance level: Somewhat directing
 More actively guide attention while still responding to what arises.
