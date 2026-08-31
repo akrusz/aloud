@@ -354,7 +354,11 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         // SSML wrapper carries the voice, its locale, and the prosody rate.
         expect(call.body).toContain('<voice name="zh-CN-XiaochenNeural">');
         expect(call.body).toContain('xml:lang="zh-CN"');
-        expect(call.body).toContain('<prosody rate="90%">');
+        // MULTIPLIER form, never a percentage: Azure reads rate="90%" as +90%
+        // (near-double speed), unlike Google's percent-of-normal - shipping
+        // the percentage made every slowed session play ~2x fast.
+        expect(call.body).toContain('<prosody rate="0.90">');
+        expect(call.body).not.toMatch(/<prosody rate="[^"]*%/);
     });
 
     it('bills Azure BILLED chars: markup + double-counted CJK, at the Neural rate', async () => {
@@ -402,7 +406,7 @@ describe('azureBilledChars', () => {
         const plain = azureBilledChars('hello', 1);
         const paced = azureBilledChars('hello', 0.9);
         expect(plain).toBe(5);
-        expect(paced).toBe(5 + '<prosody rate="90%">'.length + '</prosody>'.length);
+        expect(paced).toBe(5 + '<prosody rate="0.90">'.length + '</prosody>'.length);
     });
 });
 

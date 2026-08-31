@@ -140,8 +140,13 @@ function xmlEscape(s: string): string {
  */
 export function azureSsmlBody(text: string, rate: number, style?: string): { inner: string; billedChars: number } {
     const escaped = xmlEscape(text);
+    // Azure reads a bare number as a multiplier of normal pace, but a
+    // percentage as a RELATIVE CHANGE - rate="90%" means +90%, near-double
+    // speed (verified 2026-08-31: 6.7s -> 3.6s). Google's SSML reads "90%" as
+    // 90% OF normal, so porting its markup here shipped 2x-fast sessions.
+    // Always the multiplier form; Azure's supported band is [0.5, 2].
     const paced =
-        rate === 1 ? escaped : `<prosody rate="${Math.round(Math.min(4, Math.max(0.25, rate)) * 100)}%">${escaped}</prosody>`;
+        rate === 1 ? escaped : `<prosody rate="${Math.min(2, Math.max(0.5, rate)).toFixed(2)}">${escaped}</prosody>`;
     // A curated voice may carry an mstts speaking style (softvoice, empathetic);
     // express-as silently no-ops on a voice without it. The tags bill like any
     // other markup, hence wrapping BEFORE the count.

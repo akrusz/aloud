@@ -543,10 +543,12 @@ const azure: AuditionSource = {
         // Azure takes SSML always; the treatments below build their own body
         // with the session speed as a prosody rate.
         const inner = (() => {
+            // Multiplier form, NOT Google's percentage form: Azure reads
+            // "90%" as +90% - see providers/tts.azureSsmlBody.
             const o =
                 t.id === 'ssml-spacious'
-                    ? { rate: '80%', pitch: '-2st', breakMs: 1400 }
-                    : { rate: '90%', pitch: '-1st', breakMs: 700 };
+                    ? { rate: '0.8', pitch: '-2st', breakMs: 1400 }
+                    : { rate: '0.9', pitch: '-1st', breakMs: 700 };
             const body = sentences(text)
                 .map(xmlEscape)
                 .join(`<break time="${o.breakMs}ms"/>`);
