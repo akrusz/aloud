@@ -68,6 +68,7 @@ load logic is `loadConfig` in `config.ts`.
 | `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/cloud/v1/stt` (Whisper; server default `gpt-transcribe`, ≈ $0.27/hr, which is also what the app's "aloud cloud" STT choice asks for), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
+| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | server TTS | Azure AI Speech key + region (region defaults to `eastus`). Unset → the Azure voices drop out of `GET /cloud/v1/voices`, including the flagged default Harper, and `defaultVoice()` falls down `DEFAULT_VOICE_CHAIN` to Leda/Polaris. Azure bills SSML markup and counts each CJK char twice; `providers/tts.ts azureBilledChars` is what the meter charges on |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup - once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
@@ -242,7 +243,8 @@ turn (live-reload is a follow-up - meditation-pal).
 ## Hosted voices & auditioning new ones
 
 The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-name
-→ (provider, voice id) map across Google Cloud TTS and OpenAI. `GET
+→ (provider, voice id) map across Google Cloud TTS, OpenAI and Azure AI Speech
+(the flagged default, Harper, is an Azure MAI-Voice-2 voice). `GET
 /cloud/v1/voices` publishes them; the client merges them into its picker (top
 "Recommended" tier) and sends the short name back, which `/cloud/v1/tts`
 resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
@@ -283,7 +285,7 @@ en-US/en-GB/en-AU (30 Chirp3-HD per locale, plus Neural2 and Standard), which
 is roughly $0.70 and a few minutes to audition in full.
 
 Sources are declared in `scripts/audition/sources.ts` - roster, synth call,
-prosody treatments, and cost model per engine. Beyond the two we ship it carries
+prosody treatments, and cost model per engine. Beyond the three we ship it carries
 key-gated adapters for Gemini TTS, Cartesia, Deepgram Aura-2 and Inworld;
 anything without a key is skipped and listed on the page with a signup link, so a
 partial run still produces a usable page. The keys are documented in
@@ -293,6 +295,7 @@ partial run still produces a usable page. The keys are documented in
 |---|---|---|---|
 | `GOOGLE_TTS_API_KEY` | Google Cloud TTS *(ships)* | per char | [console](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com) |
 | `OPENAI_API_KEY` (or `OPENAI_TTS_API_KEY`) | OpenAI gpt-4o-mini-tts *(ships)* | per second | [platform](https://platform.openai.com/api-keys) |
+| `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION` | Azure AI Speech *(ships)* | per char (SSML tags billed; CJK ×2) | [portal](https://portal.azure.com) |
 | `GEMINI_API_KEY` | Gemini TTS - already set for the LLM | per second | [AI Studio](https://aistudio.google.com/apikey) |
 | `CARTESIA_API_KEY` | Cartesia Sonic 3 | per char | [play.cartesia.ai](https://play.cartesia.ai/keys) |
 | `INWORLD_API_KEY` | Inworld TTS | per char | [platform.inworld.ai](https://platform.inworld.ai) |
@@ -322,8 +325,8 @@ Two things the page exists to make visible:
   (weakly honored - see meditation-pal-5yi1); Deepgram Aura-2 exposes no prosody
   control at all.
 
-Needs `GOOGLE_TTS_API_KEY` and/or `OPENAI_API_KEY` in `.env` for the shipping
-sources. Costs a few cents (one short clip per voice per treatment).
+Needs `GOOGLE_TTS_API_KEY`, `OPENAI_API_KEY` and/or `AZURE_SPEECH_KEY` in `.env`
+for the shipping sources. Costs a few cents (one short clip per voice per treatment).
 
 ## Known limits
 

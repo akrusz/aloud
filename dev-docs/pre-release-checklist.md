@@ -59,6 +59,18 @@ check each of these still reflects reality:
   surface to keep in sync.
 - **App UI text** - settings labels and hints, the tour/onboarding wizard,
   check-in prompts, welcome/empty-state copy.
+- **`ts/ui/src/i18n/zh.ts`** - the Chinese UI catalog. It is keyed on the
+  **English string verbatim**, so *any* edit to an English `t()` string orphans
+  its translation and silently reverts that string to English. Nothing in CI
+  catches it: `t()` falls back by design and `tests/i18n.test.ts` only checks
+  placeholder hygiene. After a copy change, grep the old English string in
+  `zh.ts` and re-key it.
+- **`ts/src/facilitation/language.ts`** - the zh twins of every canned pool
+  (check-ins, openers, timer lines, felt-sense/noting pools) and the
+  respond-in-Chinese prompt fragment. Same rule as the catalog: a new or
+  reworded English pool entry needs its zh counterpart, in the same position
+  (`localizePool` pairs by array identity, `pickTimerFallback` indexes by
+  position). The zh strings are an unreviewed draft flagged for a native pass.
 - **`ts/server/.env.example`** - comments describing config keys and defaults.
 - **`THIRD-PARTY-NOTICES.md`** - if a vendored asset or bundled third-party
   component was added, removed, or upgraded.
@@ -79,6 +91,12 @@ check each of these still reflects reality:
   provider claims.
 - **Added/removed a feature or mode** → README, site, store listings, CLAUDE.md
   architecture, and privacy policy *if it changes a data flow*.
+- **Added/removed a hosted STT or TTS provider** → `.env.example` + the
+  `ts-server.md` env table and audition table, `pricing/providers.ttsRateFor`
+  and the estimate labels, and the **privacy policy's subprocessor list**
+  (it names the voice/speech vendors, not just the LLM ones).
+- **Edited any user-facing English string** → see `zh.ts` in Part A. The
+  translation is keyed on the English text; changing the text un-translates it.
 - **Changed platform support** (e.g. mobile ships) → the "coming soon" lines on the
   site, README platform notes, store listings, the desktop-vs-mobile provider caveats.
 - **Rebrand / rename** → sweep every surface in Part A (name, repo URL, bundle id).

@@ -169,8 +169,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 /**
- * Session languages on offer. Single source of truth: the settings + setup
- * dropdowns render these and `detectLocale()` validates against them.
+ * Session languages on offer. Single source of truth: the Settings dropdown
+ * renders these and `detectLocale()` validates against them. There is no
+ * per-session pick - setup's selector was removed 2026-08-31.
  *
  * Deliberately just the languages the app actually FACILITATES in (canned
  * pools, prompt fragment, mute command - src/facilitation/language.ts). The

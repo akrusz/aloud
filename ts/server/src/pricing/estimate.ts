@@ -212,7 +212,8 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
 /**
  * Per-voice TTS leg, as a band across the talk profile. Covers only the voices a
  * user can ACTUALLY pick: free local engines plus the curated cloud voices
- * (voice-catalog.ts: Google Chirp3-HD/Neural2, OpenAI gpt-4o-mini-tts), each
+ * (voice-catalog.ts: Google Chirp3-HD/Neural2, OpenAI gpt-4o-mini-tts, Azure
+ * MAI-Voice-2/multilingual Neural and DragonHD), each
  * priced through the meter's own rate authority (providers.ttsRateFor), so a
  * shown line can't drift from the real charge.
  *

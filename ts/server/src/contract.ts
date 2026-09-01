@@ -70,7 +70,7 @@ export interface CompleteChunk {
 // in the `sample_rate` query param (plus an optional `session_id`, see
 // CompleteRequest.sessionId). The server computes duration from the byte length
 // (authoritative: the client can't under-report to underpay), wraps it to WAV,
-// and forwards to the configured Whisper backend (gpt-4o-transcribe by default).
+// and forwards to the configured Whisper backend (gpt-transcribe by default).
 
 export interface TranscribeResponse {
     text: string;

@@ -1,7 +1,7 @@
 /**
  * Server-side STT via an OpenAI-compatible Whisper endpoint. Backend is
  * config-selected (base URL + model + key), not hardcoded: OpenAI
- * (gpt-4o-transcribe) by default, Groq speaks the same multipart
+ * (gpt-transcribe) by default, Groq speaks the same multipart
  * `audio/transcriptions` API. See config.ts `resolveSttConfig`.
  * The client POSTs raw mono Float32 samples; we wrap them in a WAV container
  * (these endpoints want a file upload) and forward. Stateless: audio is never

@@ -63,6 +63,7 @@ deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
 | `?slowboot=<ms>` | Hold the boot orb on screen `<ms>` *before* the first view mounts, so you can eyeball the real loading state (static nav + orb, empty content). On localhost boot is otherwise a blink. | `bootApp` in `app.ts` |
 | `?nomic=<status>` | Simulate a broken mic - `denied`, `no-device`, `no-api`, or `error`. Sticky for the tab; `?nomic=off` clears it. Same switch as Settings → Developer → **Simulate failures → Microphone**. | `mic-check.ts` |
 | `?sim=<fault>` | The rest of the simulated failures: a cloud error code (`insufficient_credits`, `unauthenticated`, `email_unverified`, `quota_exceeded`), a recognizer fault (`service-not-allowed`, `network`, `not-allowed`, `whisper-503`), or `no-voices`. `?sim=off` clears all four (mic included). | `dev-sim.ts` |
+| `?soak=1` | Arm the tier-2 soak tap: the session view publishes structured turn/event/LLM records for the Playwright driver to read (holds, classifier routes, echo drops, timer events - none of which the DOM shows). Set by `npm run soak:web`, not usually by hand. See [soak-harness.md](soak-harness.md). | `soak-tap.ts` |
 
 The mode build-default keys off the *environment*, **not** whether a cloud URL
 was baked in - aloud cloud ships in every build, so its presence can't signal

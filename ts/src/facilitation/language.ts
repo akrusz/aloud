@@ -1,8 +1,9 @@
 /**
  * Session language: which language the FACILITATION runs in (the meditator's
- * speech, the model's replies, every canned line that reaches their ears). UI
- * chrome stays English on purpose - this is a session-language feature, not
- * localization (meditation-pal-c3a0).
+ * speech, the model's replies, every canned line that reaches their ears).
+ * Since 2026-08-31 the UI follows it too - one language control drives both -
+ * but that layer lives in `ui/src/i18n.ts` and knows nothing about this module
+ * (meditation-pal-c3a0).
  *
  * Three surfaces hang off the setting:
  *   - the system prompt gains a respond-in-Chinese fragment (prompts.ts
