@@ -3496,6 +3496,12 @@ html:has(.nav-brand.has-update) .update-btn {
     }
 }
 
+/* zh: the nav item is just 冥想 - "新" + a Latin word-space reads as a
+   typo in CJK, and the narrow layout already drops "New" the same way. */
+html[lang='zh-CN'] .nav-word-new {
+    display: none;
+}
+
 /* Tablet-ish: stack form rows that would otherwise be tight */
 @media (max-width: 767px) {
     .form-row {

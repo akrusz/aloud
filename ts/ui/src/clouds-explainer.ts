@@ -12,6 +12,7 @@ import { getCloudToken, fetchMe } from './cloud-auth.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
 import { showSignInModal } from './sign-in-modal.js';
 import { withTimeout } from './net-timeout.js';
+import { t } from './i18n.js';
 
 const EXPLAINER =
     '<strong>☁️ are aloud cloud credits.</strong>\n\n' +
@@ -37,12 +38,12 @@ async function needsFreeCloudsHint(): Promise<boolean> {
 }
 
 export async function showCloudsExplainer(): Promise<void> {
-    const hint = (await needsFreeCloudsHint()) ? `${FREE_CLOUDS_LINE}\n\n` : '';
+    const hint = (await needsFreeCloudsHint()) ? `${t(FREE_CLOUDS_LINE)}\n\n` : '';
     // html mode: the copy's own <strong> plus the cloud-glyph outline spans
     // (EXPLAINER is our own static copy, safe to inject).
-    const getClouds = await confirmDialog(withCloudOutline(EXPLAINER + hint), {
-        okLabel: withCloudOutline('Get ☁️'),
-        cancelLabel: 'Got it',
+    const getClouds = await confirmDialog(withCloudOutline(t(EXPLAINER) + hint), {
+        okLabel: withCloudOutline(t('Get ☁️')),
+        cancelLabel: t('Got it'),
         // Got it is the focused primary - an explainer shouldn't upsell by default.
         primary: 'cancel',
         html: true,

@@ -23,6 +23,7 @@
 
 import { ensureMicPermission } from './mic-permission.js';
 import { isTauri, isCapacitor } from './is-desktop.js';
+import { t } from './i18n.js';
 
 export type MicStatus =
     /** A stream is available, or nothing we can check says otherwise. */
@@ -173,23 +174,23 @@ export function describeMicProblem(status: MicStatus): string | null {
                 // Most likely a webview without media support (Linux WebKitGTK
                 // varies by build). Nothing the user can toggle, so don't
                 // pretend otherwise.
-                return "aloud can't reach a microphone on this device.";
+                return t("aloud can't reach a microphone on this device.");
             }
             if (typeof window !== 'undefined' && window.isSecureContext === false) {
-                return 'A microphone needs a secure connection. Open aloud over https.';
+                return t('A microphone needs a secure connection. Open aloud over https.');
             }
-            return "This browser can't reach a microphone. Try Chrome, Edge, or Safari.";
+            return t("This browser can't reach a microphone. Try Chrome, Edge, or Safari.");
         case 'no-device':
-            return 'No microphone found. Connect one, then reload.';
+            return t('No microphone found. Connect one, then reload.');
         case 'denied':
-            return 'Microphone access is blocked. Allow the mic for this site, then reload.';
+            return t('Microphone access is blocked. Allow the mic for this site, then reload.');
         case 'error':
-            return "Couldn't open the microphone. Check that nothing else is using it.";
+            return t("Couldn't open the microphone. Check that nothing else is using it.");
     }
 }
 
 /** The same reason with the why in front, for the setup-page notice. */
 export function describeMicRequirement(status: MicStatus): string | null {
     const problem = describeMicProblem(status);
-    return problem && `aloud is voice-based and needs a mic. ${problem}`;
+    return problem && t('aloud is voice-based and needs a mic. {problem}', { problem });
 }

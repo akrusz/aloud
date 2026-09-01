@@ -33,6 +33,7 @@ import { showErrorToast, showSuccessToast } from './toast.js';
 import { isCapacitor } from './is-desktop.js';
 import { getActiveSessionId, clearActiveSession } from './active-session.js';
 import { sessionStore } from './state.js';
+import { setUiLang, localizeChrome, LANGUAGE_CHANGED_EVENT, t } from './i18n.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings' | 'account';
 
@@ -72,6 +73,12 @@ export async function bootApp(): Promise<void> {
     // Before the first view mounts, so there's no default-style flash.
     const settings = await loadAppSettings();
     applyChromeSettings(settings);
+    // The one language setting drives the UI too (meditation-pal-wbhy).
+    // Before the first view mounts and before localizeChrome, so there is no
+    // English flash beyond the static HTML itself.
+    setUiLang(settings.language);
+    localizeChrome();
+    wireLanguageChange();
 
     // Read (and clear) any `?purchase=` Stripe appended on return from checkout,
     // before the router normalizes the URL. The toast waits until a view is
@@ -121,9 +128,9 @@ export async function bootApp(): Promise<void> {
     // Fulfilment is the server's webhook, so credits are usually already added
     // by the time the user lands back; copy avoids promising timing.
     if (purchase === 'success') {
-        showSuccessToast('Payment received. Your credits have been added.');
+        showSuccessToast(t('Payment received. Your credits have been added.'));
     } else if (purchase === 'cancel') {
-        showErrorToast('Checkout canceled. You have not been charged.');
+        showErrorToast(t('Checkout canceled. You have not been charged.'));
     }
 
     // Prompt to accept any clouds gifted to this account (no-op when signed out
@@ -210,6 +217,28 @@ function settleBootOrb(): void {
         bootOrb.remove();
         showNavOrb();
     };
+}
+
+/**
+ * A language change (Settings fires LANGUAGE_CHANGED_EVENT after setUiLang)
+ * re-translates the static chrome in place and remounts the current view so
+ * its render-time t() calls pick up the new language. Only idle views remount -
+ * a live session can't be on screen while Settings is (views tear sessions
+ * down), so the guard is belt-and-braces. Scroll is restored because the
+ * remount rebuilds the page from innerHTML and would otherwise jump to top,
+ * stranding the user away from the language control they just used.
+ */
+function wireLanguageChange(): void {
+    window.addEventListener(LANGUAGE_CHANGED_EVENT, () => {
+        localizeChrome();
+        if (!currentView || currentView === 'session' || currentSession || currentNoting) return;
+        const view = currentView as Exclude<View, 'session'>;
+        currentView = null; // defeat the already-there short-circuit
+        const scrollY = window.scrollY;
+        void routeTo($('app-root'), view, { replace: true, fromPopstate: true }).then(() => {
+            window.scrollTo(0, scrollY);
+        });
+    });
 }
 
 function wireNav(): void {

@@ -5,6 +5,8 @@
  * still loading" 503 behind a misleading "check your connection".
  */
 
+import { t } from './i18n.js';
+
 /**
  * Map a hosted-server error to a clear, actionable message. The server returns
  * structured errors ({error:{code}}, ts/server/src/contract.ts), but by the time
@@ -14,16 +16,18 @@
  */
 export function describeCloudError(msg: string): string | null {
     if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
-        return 'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.';
+        return t(
+            'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.'
+        );
     }
     if (/unauthenticated|endpoint 401/i.test(msg)) {
-        return 'aloud cloud needs you to sign in again. Check Settings.';
+        return t('aloud cloud needs you to sign in again. Check Settings.');
     }
     if (/email_unverified|endpoint 403/i.test(msg)) {
-        return 'Verify your email to use aloud cloud, then try again.';
+        return t('Verify your email to use aloud cloud, then try again.');
     }
     if (/quota_exceeded|endpoint 429/i.test(msg)) {
-        return "You've hit aloud's rate limit. Wait a moment and try again.";
+        return t("You've hit aloud's rate limit. Wait a moment and try again.");
     }
     return null;
 }
@@ -45,10 +49,10 @@ export function describeSttError(err: unknown): string {
         } catch {
             // unstructured body - fall through to the generic line
         }
-        return 'Whisper model still loading. Try again in a moment.';
+        return t('Whisper model still loading. Try again in a moment.');
     }
     if (/Whisper endpoint 5\d\d/.test(msg) || /failed to fetch/i.test(msg)) {
-        return 'Speech-recognition backend unreachable. Check your connection.';
+        return t('Speech-recognition backend unreachable. Check your connection.');
     }
     // `service-not-allowed` is a blocked *service*, not a denied mic. On
     // Windows/Edge it's usually the OS "online speech recognition" privacy
@@ -56,21 +60,27 @@ export function describeSttError(err: unknown): string {
     // off. Either way the recognizer can't work until that changes, so name
     // both and point at the in-session switch to aloud cloud.
     if (msg === 'service-not-allowed') {
-        return "This browser is blocking its speech recognition (Windows: Settings → Privacy → Speech; Mac: turn on Dictation). Or switch to aloud cloud speech - it doesn't need it.";
+        return t(
+            "This browser is blocking its speech recognition (Windows: Settings → Privacy → Speech; Mac: turn on Dictation). Or switch to aloud cloud speech - it doesn't need it."
+        );
     }
     // Web Speech's own denied-permission code is the hyphenated `not-allowed`
     // (distinct from getUserMedia's `NotAllowedError`, matched below).
     if (msg === 'not-allowed') {
-        return 'Microphone access is blocked. Allow the mic for this site (the padlock in the address bar), or switch to aloud cloud speech.';
+        return t(
+            'Microphone access is blocked. Allow the mic for this site (the padlock in the address bar), or switch to aloud cloud speech.'
+        );
     }
     if (/permission/i.test(msg) || /denied/i.test(msg) || /NotAllowed/.test(msg)) {
-        return 'Mic permission denied. Allow microphone access and try again.';
+        return t('Mic permission denied. Allow microphone access and try again.');
     }
     // `network` means Web Speech's cloud recognizer was unreachable. Usually a
     // Chromium build (Brave, others) where Google blocks the speech endpoint, so
     // it can never succeed - point at the paths that work.
     if (msg === 'network') {
-        return 'Browser speech recognition is blocked in this browser. Switch to aloud cloud speech, or use Chrome/Edge.';
+        return t(
+            'Browser speech recognition is blocked in this browser. Switch to aloud cloud speech, or use Chrome/Edge.'
+        );
     }
-    return `Mic error: ${msg}`;
+    return t('Mic error: {message}', { message: msg });
 }

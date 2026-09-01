@@ -16,6 +16,7 @@ import { probeOllamaDirect } from './ollama-direct.js';
 import { rateSuffix } from './credit-rate.js';
 import { setCloudSttCreditsPerHour } from './adapters/stt-picker.js';
 import { loadAppSettings, saveAppSettings } from './app-settings.js';
+import { t } from './i18n.js';
 import type { Provider } from './settings.js';
 
 /** Providers that authenticate with a user-supplied key (BYOK). The hosted
@@ -114,7 +115,8 @@ export function sessionModelLabel(provider: string, model: string): string {
         return prettyModelName(slash > 0 ? model.slice(slash + 1) : model);
     }
     if (provider === 'claude_proxy') {
-        return SUBSCRIPTION_ALIAS_NAMES[model.toLowerCase()] ?? prettyModelName(model);
+        const alias = SUBSCRIPTION_ALIAS_NAMES[model.toLowerCase()];
+        return alias ? t(alias) : prettyModelName(model);
     }
     return prettyModelName(model);
 }
@@ -326,7 +328,7 @@ export function mountModelPicker(
 
     container.innerHTML = `
         <select id="model-select" disabled>
-            <option value="">Loading models…</option>
+            <option value="">${t('Loading models…')}</option>
         </select>`;
 
     function renderSelect(provider: string, models: ModelOption[]): void {
@@ -347,12 +349,12 @@ export function mountModelPicker(
         const toggle =
             provider === 'aloud'
                 ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escape(
-                      showAll ? 'Show fewer models ▲' : 'Show all available models ▼'
+                      showAll ? t('Show fewer models ▲') : t('Show all available models ▼')
                   )}</button></p>`
                 : '';
         container.innerHTML = `
             <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${toggle}
-            <p class="model-slow-note hidden" id="model-slow-note">${escape(SLOW_MODEL_NOTE)}</p>`;
+            <p class="model-slow-note hidden" id="model-slow-note">${escape(t(SLOW_MODEL_NOTE))}</p>`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
         const slowNote = container.querySelector<HTMLElement>('#model-slow-note')!;
         container
@@ -409,7 +411,7 @@ export function mountModelPicker(
             const opt = Array.from(sel.options).find((o) => o.value === m.value);
             if (opt) {
                 opt.disabled = true;
-                opt.textContent = `${m.label} - unavailable on your subscription`;
+                opt.textContent = t('{label} - unavailable on your subscription', { label: m.label });
             }
             if (currentValue === m.value) {
                 const fallback = nearestSubscriptionModel(m.value) ?? 'sonnet';
@@ -433,8 +435,10 @@ export function mountModelPicker(
     async function renderUnavailable(provider: string): Promise<void> {
         const reason =
             providerNeedsKey(provider) && !(await hasApiKey(provider as Provider))
-                ? `Add an API key to load models.`
-                : `Couldn't load ${provider} models. Check the key or your connection.`;
+                ? t('Add an API key to load models.')
+                : t("Couldn't load {provider} models. Check the key or your connection.", {
+                      provider,
+                  });
         container.innerHTML = `<p class="model-unavailable" id="model-none"><span>${escape(reason)}</span></p>`;
     }
 
@@ -443,7 +447,7 @@ export function mountModelPicker(
     function renderOllamaEmpty(): void {
         container.innerHTML = `
             <p class="ollama-rec-hint" id="model-ollama-empty">
-                No local models found. Install Ollama and download a model below.
+                ${t('No local models found. Install Ollama and download a model below.')}
             </p>`;
     }
 
@@ -452,7 +456,7 @@ export function mountModelPicker(
     function renderCloudConnecting(): void {
         container.innerHTML = `
             <p class="model-cloud-waking" id="model-cloud-waking">
-                Connecting to aloud cloud…
+                ${t('Connecting to aloud cloud…')}
             </p>`;
     }
 
@@ -460,8 +464,8 @@ export function mountModelPicker(
     function renderCloudUnreachable(): void {
         container.innerHTML = `
             <p class="model-unavailable" id="model-cloud-down">
-                <span>Can't reach aloud cloud. Check your connection and
-                <button type="button" class="model-retry-btn" id="model-cloud-retry">try again</button>.</span>
+                <span>${t("Can't reach aloud cloud. Check your connection and")}
+                <button type="button" class="model-retry-btn" id="model-cloud-retry">${t('try again')}</button>.</span>
             </p>`;
         container
             .querySelector<HTMLButtonElement>('#model-cloud-retry')
@@ -471,7 +475,7 @@ export function mountModelPicker(
     async function refresh(provider: string): Promise<void> {
         currentModels = [];
         container.innerHTML = `
-            <select disabled><option>Loading models…</option></select>`;
+            <select disabled><option>${t('Loading models…')}</option></select>`;
         let models = await fetchModels(provider);
         // A miss may be a transient network hiccup rather than a real outage,
         // so retry with backoff before giving up.

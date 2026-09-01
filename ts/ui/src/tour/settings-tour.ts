@@ -7,6 +7,7 @@
 
 import { sharedKv } from '../state.js';
 import { appUrl } from '../app-base.js';
+import { t } from '../i18n.js';
 
 const TOUR_DISMISSED_KEY = 'aloud-tour-dismissed';
 const TOUR_REMIND_KEY = 'aloud-tour-remind-later';
@@ -122,7 +123,7 @@ function footerHtml(opts: FooterOpts): string {
     let html = '<div class="tour-footer">';
 
     if (opts.skip !== false) {
-        html += '<button class="tour-skip" data-action="skip">Skip</button>';
+        html += '<button class="tour-skip" data-action="skip">' + t('Skip') + '</button>';
     } else {
         html += '<span></span>';
     }
@@ -135,13 +136,13 @@ function footerHtml(opts: FooterOpts): string {
 
     html += '<div class="tour-actions">';
     if (opts.back) {
-        html += '<button class="btn btn-small btn-secondary" data-action="back">Back</button>';
+        html += '<button class="btn btn-small btn-secondary" data-action="back">' + t('Back') + '</button>';
     }
     if (opts.next) {
-        html += '<button class="btn btn-small btn-primary" data-action="next">Next</button>';
+        html += '<button class="btn btn-small btn-primary" data-action="next">' + t('Next') + '</button>';
     }
     if (opts.done) {
-        html += '<button class="btn btn-small btn-primary" data-action="done">Got it</button>';
+        html += '<button class="btn btn-small btn-primary" data-action="done">' + t('Got it') + '</button>';
     }
     html += '</div></div>';
     return html;
@@ -209,15 +210,15 @@ function showWelcome(): void {
     currentStep = 0;
     hideSpotlight();
 
-    let html = '<p>Welcome to <span class="brand-mark">aloud.</span> &mdash; let’s get your meditation facilitator set up. It only takes a minute.</p>';
+    let html = '<p>' + t('Welcome to') + ' <span class="brand-mark">aloud.</span> &mdash; ' + t('let’s get your meditation facilitator set up. It only takes a minute.') + '</p>';
     html += '<div class="tour-choices">';
     html += '<button class="tour-choice" data-action="help">';
-    html += '<strong>Help me set up</strong>';
-    html += '<small>We’ll walk you through choosing an AI provider and voice</small>';
+    html += '<strong>' + t('Help me set up') + '</strong>';
+    html += '<small>' + t('We’ll walk you through choosing an AI provider and voice') + '</small>';
     html += '</button>';
     html += '<button class="tour-choice" data-action="self-serve">';
-    html += '<strong>I’ll set this up myself</strong>';
-    html += '<small>Use the settings page directly</small>';
+    html += '<strong>' + t('I’ll set this up myself') + '</strong>';
+    html += '<small>' + t('Use the settings page directly') + '</small>';
     html += '</button>';
     html += '</div>';
 
@@ -242,27 +243,27 @@ function showLLMStep(): void {
     scrollToSection(section, function () {
         positionSpotlight(section, false);
 
-        let html = '<h3>Choose Your AI Provider</h3>';
-        html += '<p>An LLM is the AI that guides your meditation. Pick what works for you:</p>';
+        let html = '<h3>' + t('Choose Your AI Provider') + '</h3>';
+        html += '<p>' + t('An LLM is the AI that guides your meditation. Pick what works for you:') + '</p>';
         html += '<div class="tour-choices">';
 
-        let ollamaDesc = 'Free &amp; private. Runs AI entirely on your computer.';
+        let ollamaDesc = t('Free &amp; private. Runs AI entirely on your computer.');
         if (tourOptions.ollamaRec) {
-            ollamaDesc += ' Recommended model: <strong>' + tourOptions.ollamaRec + '</strong>';
+            ollamaDesc += ' ' + t('Recommended model:') + ' <strong>' + tourOptions.ollamaRec + '</strong>';
         }
         html += '<button class="tour-choice" data-action="provider" data-value="ollama">';
-        html += '<strong>Ollama: free, runs locally</strong>';
+        html += '<strong>' + t('Ollama: free, runs locally') + '</strong>';
         html += '<small>' + ollamaDesc + '</small>';
         html += '</button>';
 
         html += '<button class="tour-choice" data-action="provider" data-value="claude_proxy">';
-        html += '<strong>I have a Claude subscription</strong>';
-        html += '<small>Uses your Pro or Max plan via the locally-installed <code>claude</code> command-line tool - install Claude Code with <code>npm install -g @anthropic-ai/claude-code</code> (the CLI, not the Claude desktop app).</small>';
+        html += '<strong>' + t('I have a Claude subscription') + '</strong>';
+        html += '<small>' + t('Uses your Pro or Max plan via the locally-installed <code>claude</code> command-line tool - install Claude Code with <code>npm install -g @anthropic-ai/claude-code</code> (the CLI, not the Claude desktop app).') + '</small>';
         html += '</button>';
 
         html += '<button class="tour-choice" data-action="show-api-keys">';
-        html += '<strong>I have an API key</strong>';
-        html += '<small>Anthropic, OpenAI, Groq, OpenRouter, or Venice</small>';
+        html += '<strong>' + t('I have an API key') + '</strong>';
+        html += '<small>' + t('Anthropic, OpenAI, Groq, OpenRouter, or Venice') + '</small>';
         html += '</button>';
 
         html += '</div>';
@@ -277,8 +278,8 @@ function showApiKeyChoices(): void {
     const section = getProviderSection();
     if (!section) return;
 
-    let html = '<h3>Which provider?</h3>';
-    html += '<p>Select the provider you have an API key for:</p>';
+    let html = '<h3>' + t('Which provider?') + '</h3>';
+    html += '<p>' + t('Select the provider you have an API key for:') + '</p>';
     html += '<div class="tour-choice-group">';
     html += '<button class="tour-choice-sm" data-action="provider" data-value="anthropic">Anthropic</button>';
     html += '<button class="tour-choice-sm" data-action="provider" data-value="openai">OpenAI</button>';
@@ -387,33 +388,33 @@ function showVoiceStep(): void {
     scrollToSection(section, function () {
         positionSpotlight(section, false);
 
-        let html = '<h3>Set Up Your Voice</h3>';
-        html += '<p>This is how aloud speaks to you. A natural-sounding voice makes a big difference.</p>';
+        let html = '<h3>' + t('Set Up Your Voice') + '</h3>';
+        html += '<p>' + t('This is how aloud speaks to you. A natural-sounding voice makes a big difference.') + '</p>';
         html += '<div class="tour-choices">';
 
         if (tourOptions.piperAvailable) {
             html += '<button class="tour-choice" data-action="voice" data-value="piper">';
-            html += '<strong>Piper: free, natural sounding</strong>';
-            html += '<small>Local neural TTS. Pick and download a voice (~60–100 MB).</small>';
+            html += '<strong>' + t('Piper: free, natural sounding') + '</strong>';
+            html += '<small>' + t('Local neural TTS. Pick and download a voice (~60–100 MB).') + '</small>';
             html += '</button>';
         }
 
         if (tourOptions.isMac) {
             html += '<button class="tour-choice" data-action="voice" data-value="macos">';
-            html += '<strong>Premium macOS voices</strong>';
-            html += '<small>Download from System Settings → Accessibility → Spoken Content. In the System Voice row, click the <b>ⓘ</b> then click Voice. <a href="#" onclick="fetch(\'/app/v1/open-voice-settings\',{method:\'POST\'}); return false;">Open Settings</a></small>';
+            html += '<strong>' + t('Premium macOS voices') + '</strong>';
+            html += '<small>' + t('Download from System Settings → Accessibility → Spoken Content. In the System Voice row, click the <b>ⓘ</b> then click Voice.') + ' <a href="#" onclick="fetch(\'/app/v1/open-voice-settings\',{method:\'POST\'}); return false;">' + t('Open Settings') + '</a></small>';
             html += '</button>';
         }
 
         if (!tourOptions.isMac) {
             html += '<button class="tour-choice" data-action="voice" data-value="skip">';
-            html += '<strong>Browser voices</strong>';
-            html += '<small>On Windows, Edge and the desktop app include high-quality natural voices.</small>';
+            html += '<strong>' + t('Browser voices') + '</strong>';
+            html += '<small>' + t('On Windows, Edge and the desktop app include high-quality natural voices.') + '</small>';
             html += '</button>';
         }
 
         html += '<button class="tour-choice" data-action="voice" data-value="skip">';
-        html += '<strong>Skip, I’ll pick later</strong>';
+        html += '<strong>' + t('Skip, I’ll pick later') + '</strong>';
         html += '</button>';
 
         html += '</div>';
@@ -482,8 +483,8 @@ function showDoneStep(): void {
     // The footer is position:fixed, so the spotlight must be too.
     positionSpotlight(footer, true);
 
-    let html = '<h3>You’re All Set</h3>';
-    html += '<p>Your settings apply as you go, so you’re ready to begin your first meditation. You can always come back to change them later.</p>';
+    let html = '<h3>' + t('You’re All Set') + '</h3>';
+    html += '<p>' + t('Your settings apply as you go, so you’re ready to begin your first meditation. You can always come back to change them later.') + '</p>';
     html += footerHtml({ back: true, done: true, skip: false });
 
     showCard(html, 'tour-tooltip');

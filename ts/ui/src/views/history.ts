@@ -15,6 +15,7 @@ import { sessionStore } from '../state.js';
 import { appUrl } from '../app-base.js';
 import { confirmDialog } from '../dialog.js';
 import { isTauri } from '../is-desktop.js';
+import { t, uiLocale } from '../i18n.js';
 
 export interface HistoryViewHandle {
     show(): Promise<void>;
@@ -79,7 +80,7 @@ export async function mountHistoryView(
             const deleteBtn = item.querySelector<HTMLButtonElement>('.btn-delete');
             deleteBtn?.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                if (!(await confirmDialog('Delete this session permanently?', { okLabel: 'Delete', danger: true })))
+                if (!(await confirmDialog(t('Delete this session permanently?'), { okLabel: t('Delete'), danger: true })))
                     return;
                 await sessionStore.delete(session.sessionId);
                 // Fade out before re-rendering so other rows don't jump.
@@ -129,7 +130,7 @@ export async function mountHistoryView(
         const lines: string[] = [];
         for (const ex of session.exchanges) {
             if (ex.role === 'user' && isSyntheticEventTurn(ex.content)) continue;
-            const role = ex.name ?? (ex.role === 'assistant' ? 'Facilitator' : 'You');
+            const role = ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
             lines.push(`${role}\n${ex.content}`);
         }
         const text = lines.join('\n\n');
@@ -139,11 +140,11 @@ export async function mountHistoryView(
         navigator.clipboard
             .writeText(text)
             .then(() => {
-                btn.textContent = 'Copied';
+                btn.textContent = t('Copied');
                 restore();
             })
             .catch(() => {
-                btn.textContent = 'Copy failed';
+                btn.textContent = t('Copy failed');
                 restore();
             });
     }
@@ -159,11 +160,11 @@ function revealSessionFile(session: SessionState, btn: HTMLButtonElement): void 
     fetch(appUrl(`/open-session-file/${encodeURIComponent(session.sessionId)}`), { method: 'POST' })
         .then((res) => {
             if (res.ok) return;
-            btn.textContent = 'Not on disk';
+            btn.textContent = t('Not on disk');
             setTimeout(() => (btn.textContent = original), 1500);
         })
         .catch(() => {
-            btn.textContent = "Couldn't open";
+            btn.textContent = t("Couldn't open");
             setTimeout(() => (btn.textContent = original), 1500);
         });
 }
@@ -191,21 +192,21 @@ function exportSessions(sessions: readonly SessionState[]): void {
 function renderShellHTML(sessions: readonly SessionState[]): string {
     const header = `
         <div class="history-header">
-            <h1>Past Sessions</h1>
+            <h1>${t('Past Sessions')}</h1>
             ${
                 sessions.length === 0
                     ? ''
                     : isTauri()
-                      ? `<button class="btn-config-path" id="btn-open-sessions-folder" type="button">Open sessions folder</button>`
-                      : `<button class="btn-config-path" id="btn-export-sessions" type="button">Export sessions</button>`
+                      ? `<button class="btn-config-path" id="btn-open-sessions-folder" type="button">${t('Open sessions folder')}</button>`
+                      : `<button class="btn-config-path" id="btn-export-sessions" type="button">${t('Export sessions')}</button>`
             }
         </div>`;
 
     const body =
         sessions.length === 0
             ? `<div id="empty-state" class="empty-state">
-                   <p>No saved sessions yet.</p>
-                   <p class="muted">Sessions you end with at least one turn show up here.</p>
+                   <p>${t('No saved sessions yet.')}</p>
+                   <p class="muted">${t('Sessions you end with at least one turn show up here.')}</p>
                </div>`
             : `<div class="session-list" id="session-list">${sessions.map(renderItem).join('')}</div>`;
 
@@ -235,7 +236,8 @@ function renderItem(session: SessionState): string {
     const turnCount = session.exchanges.length;
     const { typeLabel, summary } = sessionTypeAndSummary(session);
     const meta =
-        `${durationText} · ${turnCount} exchanges` + (typeLabel ? ` · ${typeLabel}` : '');
+        `${durationText} · ${t('{n} exchanges', { n: turnCount })}` +
+        (typeLabel ? ` · ${t(typeLabel)}` : '');
 
     return `
     <div class="session-item" data-session-id="${attr(session.sessionId)}" data-summary="${attr(summary)}">
@@ -249,13 +251,13 @@ function renderItem(session: SessionState): string {
         </div>
         <div class="session-item-body hidden">
             <div class="session-transcript" data-loaded="0">
-                <p class="loading-text">Loading...</p>
+                <p class="loading-text">${t('Loading...')}</p>
             </div>
             <div class="session-actions">
-                <button type="button" class="btn btn-secondary btn-small btn-continue">Continue from here</button>
-                <button type="button" class="btn btn-secondary btn-small btn-copy">Copy text</button>
-                ${isTauri() ? `<button type="button" class="btn btn-secondary btn-small btn-reveal">Open on disk</button>` : ''}
-                <button type="button" class="btn btn-danger btn-small btn-delete">Delete</button>
+                <button type="button" class="btn btn-secondary btn-small btn-continue">${t('Continue from here')}</button>
+                <button type="button" class="btn btn-secondary btn-small btn-copy">${t('Copy text')}</button>
+                ${isTauri() ? `<button type="button" class="btn btn-secondary btn-small btn-reveal">${t('Open on disk')}</button>` : ''}
+                <button type="button" class="btn btn-danger btn-small btn-delete">${t('Delete')}</button>
             </div>
         </div>
     </div>`;
@@ -263,13 +265,13 @@ function renderItem(session: SessionState): string {
 
 function renderTranscript(exchanges: readonly Exchange[]): string {
     if (exchanges.length === 0) {
-        return '<p class="loading-text">No exchanges recorded.</p>';
+        return `<p class="loading-text">${t('No exchanges recorded.')}</p>`;
     }
     return exchanges
         // Synthetic check-in events are model context, not the user speaking.
         .filter((ex) => !(ex.role === 'user' && isSyntheticEventTurn(ex.content)))
         .map((ex) => {
-            const role = ex.name ?? (ex.role === 'assistant' ? 'Facilitator' : 'You');
+            const role = ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
             return `
             <div class="transcript-message">
                 <div class="transcript-role ${ex.role}">${escape(role)}</div>
@@ -281,7 +283,7 @@ function renderTranscript(exchanges: readonly Exchange[]): string {
 
 function formatDate(startTime: number): string {
     const d = new Date(startTime * 1000);
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString(uiLocale(), {
         month: 'long',
         day: 'numeric',
         year: 'numeric',
@@ -293,8 +295,8 @@ function formatDuration(s: SessionState): string {
     const seconds = Math.max(0, Math.round(end - s.startTime));
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    if (mins === 0) return `${secs}s`;
-    return `${mins}m ${secs}s`;
+    if (mins === 0) return t('{s}s', { s: secs });
+    return t('{m}m {s}s', { m: mins, s: secs });
 }
 
 function escape(s: string): string {

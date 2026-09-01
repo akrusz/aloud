@@ -23,6 +23,7 @@ import {
     type AuthResponse,
 } from './cloud-auth.js';
 import { manageModalFocus } from './modal-focus.js';
+import { t } from './i18n.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
@@ -53,31 +54,31 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         overlay.id = OVERLAY_ID;
         overlay.className = 'voice-modal-overlay';
         overlay.innerHTML = `
-            <div class="voice-modal signin-modal" role="dialog" aria-modal="true" aria-label="Sign in">
+            <div class="voice-modal signin-modal" role="dialog" aria-modal="true" aria-label="${t('Sign in')}">
                 <div class="voice-modal-header">
-                    <span class="voice-modal-title">${escapeHtml(options.title ?? DEFAULT_TITLE)}</span>
-                    <button type="button" class="voice-modal-close" id="signin-modal-close" aria-label="Close">&times;</button>
+                    <span class="voice-modal-title">${escapeHtml(options.title ?? t(DEFAULT_TITLE))}</span>
+                    <button type="button" class="voice-modal-close" id="signin-modal-close" aria-label="${t('Close')}">&times;</button>
                 </div>
-                <p class="provider-hint signin-modal-subtitle">${escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE)}</p>
+                <p class="provider-hint signin-modal-subtitle">${escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE))}</p>
                 <div class="signin-oauth" id="signin-oauth">
                     <div class="signin-modal-button" id="signin-google-button"></div>
                     <div class="signin-modal-button" id="signin-apple-button"></div>
                 </div>
-                <div class="signin-divider"><span>or</span></div>
+                <div class="signin-divider"><span>${t('or')}</span></div>
                 <form class="signin-email-form" id="signin-email-form" novalidate>
                     <input type="email" id="signin-email" placeholder="you@example.com"
                         autocomplete="email" required class="signin-input" />
-                    <input type="password" id="signin-password" placeholder="Password"
+                    <input type="password" id="signin-password" placeholder="${t('Password')}"
                         autocomplete="current-password" required class="signin-input" />
                     <label class="checkbox-label signin-updates-optin hidden" id="signin-updates-row">
                         <input type="checkbox" id="signin-email-updates">
-                        <span>Email me occasional updates about aloud (we'll never share or sell your address)</span>
+                        <span>${t("Email me occasional updates about aloud (we'll never share or sell your address)")}</span>
                     </label>
                     <button type="submit" class="btn btn-primary signin-email-submit" id="signin-email-submit">
-                        Sign in
+                        ${t('Sign in')}
                     </button>
                     <button type="button" class="signin-email-toggle" id="signin-email-toggle">
-                        New here? Create an account
+                        ${t('New here? Create an account')}
                     </button>
                 </form>
                 <div class="provider-hint signin-modal-error hidden" id="signin-modal-error"></div>
@@ -175,8 +176,9 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             if (isAppleSignInConfigured()) {
                 const note = document.createElement('p');
                 note.className = 'provider-hint signin-apple-soon';
-                note.textContent =
-                    'Sign in with Apple is coming soon on desktop. For now, use Google above, or set a password on the web app and sign in with email.';
+                note.textContent = t(
+                    'Sign in with Apple is coming soon on desktop. For now, use Google above, or set a password on the web app and sign in with email.'
+                );
                 overlay.querySelector('.signin-modal')?.appendChild(note);
             }
         } else {
@@ -215,9 +217,9 @@ function wireEmailForm(
 
     toggle.addEventListener('click', () => {
         mode = mode === 'login' ? 'signup' : 'login';
-        submit.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+        submit.textContent = mode === 'login' ? t('Sign in') : t('Create account');
         toggle.textContent =
-            mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in';
+            mode === 'login' ? t('New here? Create an account') : t('Have an account? Sign in');
         passEl.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
         // The updates opt-in only makes sense when creating an account; an
         // existing account manages it from the Account page.
@@ -231,7 +233,7 @@ function wireEmailForm(
         const email = emailEl.value.trim();
         const password = passEl.value;
         if (!email || !password) {
-            cb.showError('Enter your email and password.');
+            cb.showError(t('Enter your email and password.'));
             return;
         }
         submit.disabled = true;
@@ -268,9 +270,10 @@ function showOauthHint(overlay: HTMLElement): void {
     if (overlay.querySelector('#signin-google-button')) names.push('Google');
     if (overlay.querySelector('#signin-apple-button')) names.push('Apple');
     if (names.length === 0) return; // email is the only way in; nothing to point at
-    el.textContent = `Signed up with ${names.join(' or ')}? Use the ${
-        names.length > 1 ? 'buttons' : 'button'
-    } above.`;
+    el.textContent =
+        names.length > 1
+            ? t('Signed up with {a} or {b}? Use the buttons above.', { a: names[0]!, b: names[1]! })
+            : t('Signed up with {name}? Use the button above.', { name: names[0]! });
     el.classList.remove('hidden');
 }
 

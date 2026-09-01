@@ -21,6 +21,7 @@ import { resolveSttChoice } from './adapters/stt-picker.js';
 import { withTimeout } from './net-timeout.js';
 import { recentErrors } from './error-log.js';
 import { choiceDialog } from './dialog.js';
+import { t } from './i18n.js';
 
 /** Same inbox as the About "kind words" / privacy contact. */
 const SUPPORT_EMAIL = 'lexkrusz@gmail.com';
@@ -280,7 +281,7 @@ function copyButton(label: string, text: () => string): HTMLButtonElement {
     btn.textContent = label;
     btn.addEventListener('click', () => {
         void copyText(text()).then((ok) => {
-            btn.textContent = ok ? 'Copied' : "Couldn't copy";
+            btn.textContent = ok ? t('Copied') : t("Couldn't copy");
         });
     });
     return btn;
@@ -297,16 +298,16 @@ function manualRow(r: Report): HTMLElement {
     row.className = 'app-dialog-footer';
     const note = document.createElement('p');
     note.className = 'app-dialog-note';
-    note.append('Alternatively, send an email to ');
+    note.append(t('Alternatively, send an email to '));
     const addr = document.createElement('span');
     addr.className = 'app-dialog-selectable';
     addr.textContent = SUPPORT_EMAIL;
-    note.append(addr, ' and paste the report in.');
+    note.append(addr, t(' and paste the report in.'));
     const actions = document.createElement('div');
     actions.className = 'app-dialog-footer-actions';
     actions.append(
-        copyButton('Copy address', () => SUPPORT_EMAIL),
-        copyButton('Copy report text', () => reportText(r))
+        copyButton(t('Copy address'), () => SUPPORT_EMAIL),
+        copyButton(t('Copy report text'), () => reportText(r))
     );
     row.append(note, actions);
     return row;
@@ -319,8 +320,8 @@ function manualRow(r: Report): HTMLElement {
  */
 async function offerReport(r: Report): Promise<void> {
     const pick = await choiceDialog(
-        'A report has been created with details about your setup to help solve the problem.',
-        [{ label: 'Send report via email', value: 'mail', action: true }],
+        t('A report has been created with details about your setup to help solve the problem.'),
+        [{ label: t('Send report via email'), value: 'mail', action: true }],
         { footer: manualRow(r), closeX: true, centerButtons: true }
     );
     if (pick === 'mail') await openMailto(mailtoHref(r));

@@ -20,6 +20,7 @@ import { isDevMode, setDevMode, DEV_MODE_TAPS } from './dev-mode.js';
 import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
 import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
 import { openBugReport } from './bug-report.js';
+import { t } from './i18n.js';
 
 // krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this same
 // bare address, so a scan and a copy land in the same place.
@@ -37,7 +38,7 @@ export function initAbout(): void {
     const versionEl = document.getElementById('aboutVersion');
     const syncVersionLine = (): void => {
         if (versionEl) {
-            versionEl.textContent = `Version ${__APP_VERSION__}${isDevMode() ? ' · dev' : ''}`;
+            versionEl.textContent = `${t('Version {version}', { version: __APP_VERSION__ })}${isDevMode() ? ' · dev' : ''}`;
         }
     };
     syncVersionLine();
@@ -93,7 +94,7 @@ export function initAbout(): void {
         const label = addrBtn.textContent;
         addrBtn.addEventListener('click', () => {
             navigator.clipboard.writeText(DONATE_ADDRESS).then(() => {
-                addrBtn.textContent = 'copied!';
+                addrBtn.textContent = t('copied!');
                 setTimeout(() => {
                     addrBtn.textContent = label;
                 }, 1500);
@@ -211,7 +212,7 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
     if (!preview) lastAboutCheck = Date.now();
     checking = true;
     updateEl.classList.remove('hidden');
-    updateEl.textContent = 'Checking for updates…';
+    updateEl.textContent = t('Checking for updates…');
     const settle = (render: (el: HTMLElement) => void) => {
         updateEl.textContent = '';
         render(updateEl);
@@ -230,7 +231,9 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
             settle((el) =>
                 update
                     ? renderUpdateAvailable(el, update)
-                    : (el.textContent = `You're on the latest version (${__APP_VERSION__}).`)
+                    : (el.textContent = t("You're on the latest version ({version}).", {
+                          version: __APP_VERSION__,
+                      }))
             )
         );
     } else {
@@ -238,8 +241,10 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
             settle((el) => {
                 if (res.state === 'available' && res.latest) renderWebUpdate(el, res.latest);
                 else if (res.state === 'current')
-                    el.textContent = `You're on the latest version (${res.current}).`;
-                else el.textContent = "Couldn't check for updates.";
+                    el.textContent = t("You're on the latest version ({version}).", {
+                        version: res.current,
+                    });
+                else el.textContent = t("Couldn't check for updates.");
             })
         );
     }
@@ -248,13 +253,13 @@ function runUpdateCheck(updateEl: HTMLElement | null): void {
 // Local dev browser: no installer to run, so link to the release. (The desktop
 // shell shows an install button instead - renderUpdateAvailable.)
 function renderWebUpdate(el: HTMLElement, latest: string): void {
-    el.textContent = `Update available: ${latest}`;
+    el.textContent = t('Update available: {version}', { version: latest });
     const link = document.createElement('a');
     link.href = RELEASES_PAGE;
     link.target = '_blank';
     link.rel = 'noopener';
     link.className = 'about-update-link';
-    link.textContent = 'Get the latest release →';
+    link.textContent = t('Get the latest release →');
     el.appendChild(link);
 }
 
@@ -265,25 +270,25 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'about-update-btn';
-    btn.textContent = `Update to ${update.version}`;
+    btn.textContent = t('Update to {version}', { version: update.version });
 
     const status = document.createElement('span');
     status.className = 'about-update-status';
 
     btn.addEventListener('click', () => {
         btn.disabled = true;
-        status.textContent = ' Downloading…';
+        status.textContent = ` ${t('Downloading…')}`;
         void update
             .installAndRelaunch((fraction) => {
                 status.textContent =
                     fraction === null
-                        ? ' Downloading…'
-                        : ` Downloading… ${Math.round(fraction * 100)}%`;
+                        ? ` ${t('Downloading…')}`
+                        : ` ${t('Downloading… {percent}%', { percent: Math.round(fraction * 100) })}`;
             })
             // On success the app relaunches, so this only runs on failure.
             .catch(() => {
                 btn.disabled = false;
-                status.textContent = ' Update failed - try again';
+                status.textContent = ` ${t('Update failed - try again')}`;
             });
     });
 

@@ -22,6 +22,7 @@ import {
     type X402Network,
     type X402Requirements,
 } from './x402-sign.js';
+import { t } from './i18n.js';
 
 /** EIP-1193 provider - the subset we use. */
 interface Eip1193Provider {
@@ -63,7 +64,7 @@ function injected(): Eip1193Provider {
     const eth = typeof window !== 'undefined' ? window.ethereum : undefined;
     if (!eth) {
         throw new WalletError(
-            'No crypto wallet found. Install a wallet like MetaMask or Coinbase Wallet to pay with USDC.'
+            t('No crypto wallet found. Install a wallet like MetaMask or Coinbase Wallet to pay with USDC.')
         );
     }
     return eth;
@@ -100,7 +101,7 @@ export interface X402PurchaseResult {
  */
 export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
     let token = await getCloudToken();
-    if (!token) throw new Error('Sign in to buy credits.');
+    if (!token) throw new Error(t('Sign in to buy credits.'));
     const url = cloudUrl(`/billing/x402/buy/${encodeURIComponent(packId)}`);
     let headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
 
@@ -120,12 +121,12 @@ export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
         if (challenge.ok) return (await challenge.json()) as X402PurchaseResult;
         throw new Error(
             challenge.status >= 500
-                ? 'USDC payments are not available right now.'
-                : `Couldn't start payment (${challenge.status}).`
+                ? t('USDC payments are not available right now.')
+                : t("Couldn't start payment ({status}).", { status: challenge.status })
         );
     }
     const req = ((await challenge.json()) as { accepts?: X402Requirements[] }).accepts?.[0];
-    if (!req) throw new Error('The server did not return payment requirements.');
+    if (!req) throw new Error(t('The server did not return payment requirements.'));
 
     // 2) Connect the wallet, switch to Base, sign the transfer authorization.
     const provider = injected();
@@ -134,7 +135,7 @@ export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
     try {
         const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as string[];
         from = accounts?.[0];
-        if (!from) throw new WalletError('No wallet account was selected.');
+        if (!from) throw new WalletError(t('No wallet account was selected.'));
         await ensureChain(provider, req.network);
         const authorization = buildAuthorization(req, from);
         signature = (await provider.request({
@@ -149,11 +150,15 @@ export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
         });
         if (!paid.ok) {
             const detail = (await paid.json().catch(() => ({}))) as { error?: string };
-            throw new Error(detail.error ? `Payment failed: ${detail.error}` : `Payment failed (${paid.status}).`);
+            throw new Error(
+                detail.error
+                    ? t('Payment failed: {error}', { error: detail.error })
+                    : t('Payment failed ({status}).', { status: paid.status })
+            );
         }
         return (await paid.json()) as X402PurchaseResult;
     } catch (err) {
-        if (isUserRejection(err)) throw new WalletError('Payment cancelled.');
+        if (isUserRejection(err)) throw new WalletError(t('Payment cancelled.'));
         throw err;
     }
 }

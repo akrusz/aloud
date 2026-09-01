@@ -10,6 +10,7 @@ import { fetchMe } from './cloud-auth.js';
 import { creditAmount, withCloudOutline } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { showSuccessToast, showErrorToast } from './toast.js';
+import { t } from './i18n.js';
 
 const OVERLAY_ID = 'gift-modal-overlay';
 
@@ -26,12 +27,12 @@ function showGiftModal(gifts: GiftView[]): void {
     overlay.id = OVERLAY_ID;
     overlay.className = 'voice-modal-overlay';
     overlay.innerHTML = `
-        <div class="voice-modal gift-modal" role="dialog" aria-modal="true" aria-label="Gifted clouds">
+        <div class="voice-modal gift-modal" role="dialog" aria-modal="true" aria-label="${t('Gifted clouds')}">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">${withCloudOutline("You've been gifted clouds ☁️!")}</span>
-                <button type="button" class="voice-modal-close" id="gift-modal-close" aria-label="Close">&times;</button>
+                <span class="voice-modal-title">${withCloudOutline(t("You've been gifted clouds ☁️!"))}</span>
+                <button type="button" class="voice-modal-close" id="gift-modal-close" aria-label="${t('Close')}">&times;</button>
             </div>
-            <p class="provider-hint gift-modal-subtitle">Accept to add them to your balance, or decline to send them back to the sender.</p>
+            <p class="provider-hint gift-modal-subtitle">${t('Accept to add them to your balance, or decline to send them back to the sender.')}</p>
             <div class="gift-list" id="gift-list"></div>
         </div>`;
     document.body.appendChild(overlay);
@@ -59,15 +60,15 @@ function showGiftModal(gifts: GiftView[]): void {
     for (const gift of gifts) {
         const row = document.createElement('div');
         row.className = 'gift-row';
-        const from = gift.fromEmail ? ` from ${escapeHtml(gift.fromEmail)}` : '';
+        const from = gift.fromEmail ? ` ${t('from {email}', { email: escapeHtml(gift.fromEmail) })}` : '';
         row.innerHTML = `
             <div class="gift-row-info">
                 <span class="gift-row-amount">${withCloudOutline(creditAmount(gift.credits, 0))}</span>
                 <span class="provider-hint gift-row-from">${from}</span>
             </div>
             <div class="gift-row-actions">
-                <button type="button" class="btn btn-primary gift-accept">Accept</button>
-                <button type="button" class="btn btn-secondary gift-decline">Decline</button>
+                <button type="button" class="btn btn-primary gift-accept">${t('Accept')}</button>
+                <button type="button" class="btn btn-secondary gift-decline">${t('Decline')}</button>
             </div>`;
 
         const resolve = (action: (id: string) => Promise<void>, onDone: () => void): void => {
@@ -86,7 +87,7 @@ function showGiftModal(gifts: GiftView[]): void {
 
         row.querySelector('.gift-accept')?.addEventListener('click', () =>
             resolve(acceptGift, () => {
-                showSuccessToast(`${creditAmount(gift.credits, 0)} added to your balance.`);
+                showSuccessToast(t('{amount} added to your balance.', { amount: creditAmount(gift.credits, 0) }));
                 // The accept endpoint returns no balance, so refresh from /me to
                 // get the gift into live readouts.
                 void fetchMe().catch(() => null);

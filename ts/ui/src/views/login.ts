@@ -5,6 +5,8 @@
  * mounting this view.
  */
 
+import { t } from '../i18n.js';
+
 export interface LoginViewHandle {
     show(error?: string | null): void;
     hide(): void;
@@ -18,15 +20,15 @@ export function mountLoginView(root: HTMLElement): LoginViewHandle {
         root.innerHTML = `
         <div class="setup-container" style="max-width: 360px;">
             <div class="setup-header">
-                <h1>Welcome</h1>
-                <p class="setup-subtitle">Enter the password to continue.</p>
+                <h1>${t('Welcome')}</h1>
+                <p class="setup-subtitle">${t('Enter the password to continue.')}</p>
             </div>
             <form method="post" action="/login" class="setup-form">
                 ${errorHtml}
                 <div class="form-group">
-                    <input type="password" name="password" placeholder="Password" autofocus>
+                    <input type="password" name="password" placeholder="${t('Password')}" autofocus>
                 </div>
-                <button type="submit" class="btn btn-primary btn-begin">Log In</button>
+                <button type="submit" class="btn btn-primary btn-begin">${t('Log In')}</button>
             </form>
         </div>`;
     }

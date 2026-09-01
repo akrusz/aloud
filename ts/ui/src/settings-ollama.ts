@@ -14,6 +14,7 @@
 import { appUrl } from './app-base.js';
 import { probeOllamaDirect } from './ollama-direct.js';
 import { confirmDialog, alertDialog } from './dialog.js';
+import { t } from './i18n.js';
 
 interface Tier {
     model: string;
@@ -93,7 +94,7 @@ export function mountOllamaSettings(
                     installed: true,
                     version: direct.version,
                     models: direct.models,
-                    hint: 'Ollama is running. Start the app backend to manage models and see size recommendations.',
+                    hint: t('Ollama is running. Start the app backend to manage models and see size recommendations.'),
                 };
             }
         }
@@ -149,9 +150,9 @@ export function mountOllamaSettings(
         const originalText = btn.textContent;
         const controls = el.querySelectorAll<HTMLButtonElement>('.ollama-tools button');
         controls.forEach((b) => (b.disabled = true));
-        btn.textContent = 'Working…';
+        btn.textContent = t('Working…');
         bar?.classList.remove('hidden');
-        if (statusEl) statusEl.textContent = 'Starting…';
+        if (statusEl) statusEl.textContent = t('Starting…');
 
         try {
             const resp = await fetch(url, { method: 'POST' });
@@ -164,11 +165,11 @@ export function mountOllamaSettings(
                     window.open(data.download_url, '_blank', 'noopener');
                     if (statusEl) {
                         statusEl.textContent =
-                            data.error ?? 'Opening the download page…';
+                            data.error ?? t('Opening the download page…');
                     }
                     return;
                 }
-                throw new Error(data.error ?? 'Request failed (400).');
+                throw new Error(data.error ?? t('Request failed (400).'));
             }
             if (!resp.ok || !resp.body) throw new Error(`server returned ${resp.status}`);
             const finalMessage = await consumeStatusStream(resp.body, statusEl);
@@ -196,7 +197,7 @@ export function mountOllamaSettings(
 
         const originalText = btn.textContent;
         btn.disabled = true;
-        btn.textContent = 'Downloading…';
+        btn.textContent = t('Downloading…');
         progressEl?.classList.remove('hidden');
 
         try {
@@ -211,7 +212,7 @@ export function mountOllamaSettings(
             if (onModelsChanged) await onModelsChanged();
         } catch (err) {
             btn.disabled = false;
-            btn.textContent = originalText ?? 'Download';
+            btn.textContent = originalText ?? t('Download');
             if (statusEl) statusEl.textContent = (err as Error).message;
         }
     }
@@ -221,15 +222,15 @@ export function mountOllamaSettings(
         if (!model) return;
         if (
             !(await confirmDialog(
-                `Remove ${model}?\n\nThis will delete the model from disk. You can re-download it later.`,
-                { okLabel: 'Remove', danger: true }
+                t('Remove {model}?\n\nThis will delete the model from disk. You can re-download it later.', { model }),
+                { okLabel: t('Remove'), danger: true }
             ))
         ) {
             return;
         }
         const originalText = btn.textContent;
         btn.disabled = true;
-        btn.textContent = 'Removing…';
+        btn.textContent = t('Removing…');
         try {
             const resp = await fetch(appUrl('/ollama/delete'), {
                 method: 'POST',
@@ -244,8 +245,8 @@ export function mountOllamaSettings(
             if (onModelsChanged) await onModelsChanged();
         } catch (err) {
             btn.disabled = false;
-            btn.textContent = originalText ?? 'Remove';
-            void alertDialog(`Failed to remove model: ${(err as Error).message}`);
+            btn.textContent = originalText ?? t('Remove');
+            void alertDialog(t('Failed to remove model: {message}', { message: (err as Error).message }));
         }
     }
 
@@ -271,28 +272,29 @@ function renderHTML(info: OllamaInfo): string {
     if (info.outdated && info.version) {
         html += `<div class="ollama-outdated-banner">
             <div class="ollama-outdated-message">
-                Your Ollama (v${escapeHtml(info.version)}) is outdated and may not be able
-                to download recent models. Update Ollama to
-                v${escapeHtml(info.min_version ?? '0.21.0')}+.
+                ${t('Your Ollama (v{version}) is outdated and may not be able to download recent models. Update Ollama to v{minVersion}+.', {
+                    version: escapeHtml(info.version),
+                    minVersion: escapeHtml(info.min_version ?? '0.21.0'),
+                })}
             </div>
         </div>`;
     }
 
     if (rec.ram_gb) {
-        html += `<p class="ollama-rec-detected">Your system has ${rec.ram_gb} GB RAM.</p>`;
+        html += `<p class="ollama-rec-detected">${t('Your system has {n} GB RAM.', { n: rec.ram_gb })}</p>`;
     }
 
     html += '<div class="ollama-tiers">';
-    for (const t of rec.tiers) {
+    for (const tier of rec.tiers) {
         // With known RAM, hide tiers that can't run, to keep the list short. If
         // detection failed, show everything so the user can still pick.
-        if (rec.ram_gb && !t.fits && !t.installed) continue;
-        html += renderTier(t, rec.recommended_model);
+        if (rec.ram_gb && !tier.fits && !tier.installed) continue;
+        html += renderTier(tier, rec.recommended_model);
     }
     html += '</div>';
 
     if (rec.other_installed && rec.other_installed.length > 0) {
-        html += '<div class="ollama-others-heading">Other installed models</div>';
+        html += `<div class="ollama-others-heading">${t('Other installed models')}</div>`;
         html += '<div class="ollama-tiers">';
         for (const m of rec.other_installed) {
             html += renderOtherInstalled(m);
@@ -310,9 +312,9 @@ function renderHTML(info: OllamaInfo): string {
 function renderControls(info: OllamaInfo): string {
     const installed = info.installed === true || Boolean(info.version);
     const buttons = installed
-        ? `<button type="button" class="btn btn-small ollama-restart-btn">Restart Ollama</button>
-           <button type="button" class="btn btn-small ollama-upgrade-btn">Upgrade Ollama</button>`
-        : `<button type="button" class="btn btn-small ollama-install-btn">Install Ollama</button>`;
+        ? `<button type="button" class="btn btn-small ollama-restart-btn">${t('Restart Ollama')}</button>
+           <button type="button" class="btn btn-small ollama-upgrade-btn">${t('Upgrade Ollama')}</button>`
+        : `<button type="button" class="btn btn-small ollama-install-btn">${t('Install Ollama')}</button>`;
     return `<div class="ollama-tools">
         ${buttons}
         <div class="ollama-tool-progress hidden"><span class="ollama-tool-status"></span></div>
@@ -321,31 +323,34 @@ function renderControls(info: OllamaInfo): string {
 
 /** One curated tier as a condensed flex row: model + label (+ badge) on the
  *  head line, size + note beneath, action button on the right. */
-function renderTier(t: Tier, recommendedModel: string | undefined): string {
-    const isRecommended = t.model === recommendedModel;
+function renderTier(tier: Tier, recommendedModel: string | undefined): string {
+    const isRecommended = tier.model === recommendedModel;
     const rowClass = isRecommended
         ? 'ollama-tier-row ollama-tier-recommended'
         : 'ollama-tier-row';
 
     const badge = isRecommended
-        ? ' <span class="ollama-tier-badge">recommended</span>'
+        ? ` <span class="ollama-tier-badge">${t('recommended')}</span>`
         : '';
-    const sizeText = `${escapeHtml(t.download)} download, ${escapeHtml(t.ram)} in memory`;
+    const sizeText = t('{download} download, {ram} in memory', {
+        download: escapeHtml(tier.download),
+        ram: escapeHtml(tier.ram),
+    });
 
-    const actions = t.installed
+    const actions = tier.installed
         ? `<div class="ollama-tier-actions">
-            <span class="ollama-tier-installed">Installed</span>
-            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeAttr(t.model)}">Remove</button>
+            <span class="ollama-tier-installed">${t('Installed')}</span>
+            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeAttr(tier.model)}">${t('Remove')}</button>
           </div>`
         : `<div class="ollama-tier-actions">
-            <button type="button" class="btn btn-small ollama-pull-btn" data-model="${escapeAttr(t.model)}">Download</button>
+            <button type="button" class="btn btn-small ollama-pull-btn" data-model="${escapeAttr(tier.model)}">${t('Download')}</button>
           </div>`;
 
     return `<div class="${rowClass}">
         <div class="ollama-tier-info">
-            <div class="ollama-tier-head"><strong>${escapeHtml(t.model)}</strong> - ${escapeHtml(t.label)}${badge}</div>
+            <div class="ollama-tier-head"><strong>${escapeHtml(tier.model)}</strong> - ${escapeHtml(tier.label)}${badge}</div>
             <div class="ollama-tier-size">${sizeText}</div>
-            ${t.note ? `<div class="ollama-tier-note">${escapeHtml(t.note)}</div>` : ''}
+            ${tier.note ? `<div class="ollama-tier-note">${escapeHtml(tier.note)}</div>` : ''}
         </div>
         ${actions}
         <div class="ollama-pull-progress hidden">
@@ -356,15 +361,15 @@ function renderTier(t: Tier, recommendedModel: string | undefined): string {
 }
 
 function renderOtherInstalled(m: OtherModel): string {
-    const sizeText = m.size ? `${escapeHtml(m.size)} on disk` : '';
+    const sizeText = m.size ? t('{size} on disk', { size: escapeHtml(m.size) }) : '';
     return `<div class="ollama-tier-row">
         <div class="ollama-tier-info">
             <div class="ollama-tier-head"><strong>${escapeHtml(m.model)}</strong></div>
             ${sizeText ? `<div class="ollama-tier-size">${sizeText}</div>` : ''}
         </div>
         <div class="ollama-tier-actions">
-            <span class="ollama-tier-installed">Installed</span>
-            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeAttr(m.model)}">Remove</button>
+            <span class="ollama-tier-installed">${t('Installed')}</span>
+            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeAttr(m.model)}">${t('Remove')}</button>
         </div>
     </div>`;
 }
@@ -398,7 +403,7 @@ async function consumePullStream(
             } catch {
                 continue;
             }
-            if (msg.status === 'error') throw new Error(msg.error ?? 'pull failed');
+            if (msg.status === 'error') throw new Error(msg.error ?? t('pull failed'));
             if (statusEl) statusEl.textContent = msg.status ?? '';
             if (
                 typeof msg.total === 'number' &&
@@ -441,9 +446,9 @@ async function consumeStatusStream(
             } catch {
                 continue;
             }
-            if (msg.status === 'error') throw new Error(msg.error ?? 'operation failed');
+            if (msg.status === 'error') throw new Error(msg.error ?? t('operation failed'));
             if (msg.status === 'done') {
-                finalMessage = msg.message ?? 'Done.';
+                finalMessage = msg.message ?? t('Done.');
                 if (statusEl) statusEl.textContent = finalMessage;
                 continue;
             }

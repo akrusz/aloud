@@ -18,6 +18,7 @@ import {
     SESSION_TIMER_PRESETS,
 } from '../../src/facilitation/index.js';
 import type { AppSettings, SessionClockMode } from './app-settings.js';
+import { t } from './i18n.js';
 import { manageModalFocus } from './modal-focus.js';
 
 const OVERLAY_ID = 'session-clock-modal-overlay';
@@ -73,9 +74,13 @@ export function clockModeLabel(
     timerMin: number,
     showClock = true
 ): string {
-    if (mode === 'timer') return `${timerMin} min timer${showClock ? '' : ' (hidden)'}`;
-    if (!showClock) return 'Hidden';
-    return mode === 'wall' ? 'Time of day' : 'Time in session';
+    if (mode === 'timer') {
+        return showClock
+            ? t('{min} min timer', { min: timerMin })
+            : t('{min} min timer (hidden)', { min: timerMin });
+    }
+    if (!showClock) return t('Hidden');
+    return mode === 'wall' ? t('Time of day') : t('Time in session');
 }
 
 /**
@@ -228,7 +233,10 @@ export class SessionClock {
         // are the point, the readout is optional.
         const showing = this.visible || this.revealing;
         this.el.classList.toggle('hidden', !showing);
-        this.el.setAttribute('aria-label', `Session Clock: ${clockModeLabel(this.mode, this.timerMin)}`);
+        this.el.setAttribute(
+            'aria-label',
+            t('Session Clock: {label}', { label: clockModeLabel(this.mode, this.timerMin) })
+        );
         if (!showing) return;
         if (this.mode === 'wall') {
             this.el.textContent = formatWallClock(new Date());
@@ -282,18 +290,18 @@ export function showSessionClockModal(
         overlay.id = OVERLAY_ID;
         overlay.className = 'voice-modal-overlay';
         overlay.innerHTML = `
-        <div class="voice-modal clock-modal" role="dialog" aria-modal="true" aria-label="Session Clock">
+        <div class="voice-modal clock-modal" role="dialog" aria-modal="true" aria-label="${t('Session Clock')}">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">Session Clock</span>
-                <button type="button" class="voice-modal-close" id="clock-modal-close" aria-label="Cancel">&times;</button>
+                <span class="voice-modal-title">${t('Session Clock')}</span>
+                <button type="button" class="voice-modal-close" id="clock-modal-close" aria-label="${t('Cancel')}">&times;</button>
             </div>
             <div class="clock-modal-body">
-                <div class="clock-mode-list" role="radiogroup" aria-label="Clock mode">
+                <div class="clock-mode-list" role="radiogroup" aria-label="${t('Clock mode')}">
                     ${MODE_LABELS.map(
                         ([value, label, hint]) => `
                     <button type="button" class="clock-mode" role="radio" data-mode="${value}" aria-checked="false">
-                        <span class="clock-mode-label">${label}</span>
-                        <span class="clock-mode-hint">${hint}</span>
+                        <span class="clock-mode-label">${t(label)}</span>
+                        <span class="clock-mode-hint">${t(hint)}</span>
                     </button>`
                     ).join('')}
                 </div>
@@ -305,12 +313,12 @@ export function showSessionClockModal(
                         ).join('')}
                     </div>
                     <div class="clock-custom">
-                        <label for="clock-minutes">Minutes</label>
+                        <label for="clock-minutes">${t('Minutes')}</label>
                         <div class="stepper">
-                            <button type="button" class="stepper-btn stepper-dec" aria-label="Decrease">&minus;</button>
+                            <button type="button" class="stepper-btn stepper-dec" aria-label="${t('Decrease')}">&minus;</button>
                             <input type="number" id="clock-minutes" class="stepper-value" inputmode="numeric"
                                 min="${SESSION_TIMER_MIN_MINUTES}" max="${SESSION_TIMER_MAX_MINUTES}" step="1">
-                            <button type="button" class="stepper-btn stepper-inc" aria-label="Increase">+</button>
+                            <button type="button" class="stepper-btn stepper-inc" aria-label="${t('Increase')}">+</button>
                         </div>
                         <!-- Set mid-session, a duration counts from now, not from
                              when the sit began. This line is what says so. -->
@@ -318,19 +326,19 @@ export function showSessionClockModal(
                     </div>
                     <label class="checkbox-label clock-end-row">
                         <input type="checkbox" id="clock-end-on-complete">
-                        <span>End the session when the time is up</span>
+                        <span>${t('End the session when the time is up')}</span>
                     </label>
-                    <p class="clock-end-hint">The facilitator says the time is up either way. Off, the sit stays open.</p>
+                    <p class="clock-end-hint">${t('The facilitator says the time is up either way. Off, the sit stays open.')}</p>
                 </div>
             </div>
             <!-- Outside the scrolling body: on a short window the mode list
                  scrolls, but this stays put rather than clipping away. -->
             <label class="checkbox-label clock-hide-row">
                 <input type="checkbox" id="clock-show">
-                <span>Show the clock during sessions</span>
+                <span>${t('Show the clock during sessions')}</span>
             </label>
             <div class="clock-modal-actions">
-                <button type="button" class="btn btn-primary" id="clock-modal-save">Done</button>
+                <button type="button" class="btn btn-primary" id="clock-modal-save">${t('Done')}</button>
             </div>
         </div>`;
         document.body.appendChild(overlay);
@@ -356,7 +364,8 @@ export function showSessionClockModal(
             showToggle.checked = showClock;
             endToggle.checked = endOnComplete;
             const end = new Date(Date.now() + timerMin * 60_000);
-            endsAt.textContent = mode === 'timer' ? `ends ${formatWallClock(end)}` : '';
+            endsAt.textContent =
+                mode === 'timer' ? t('ends {time}', { time: formatWallClock(end) }) : '';
         }
 
         const close = (result: SessionClockChoice | null): void => {
@@ -393,7 +402,9 @@ export function showSessionClockModal(
             const n = Number(minutesInput.value);
             if (!Number.isFinite(n) || n <= 0) return;
             timerMin = clampTimerMinutes(n);
-            endsAt.textContent = `ends ${formatWallClock(new Date(Date.now() + timerMin * 60_000))}`;
+            endsAt.textContent = t('ends {time}', {
+                time: formatWallClock(new Date(Date.now() + timerMin * 60_000)),
+            });
             for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset')) {
                 btn.classList.toggle('selected', Number(btn.dataset['min']) === timerMin);
             }

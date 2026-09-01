@@ -27,6 +27,7 @@ import { fetchMe } from './cloud-auth.js';
 import { creditAmount, withCloudOutline } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { openExternal } from './external-links.js';
+import { t } from './i18n.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -57,39 +58,39 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         overlay.id = OVERLAY_ID;
         overlay.className = 'voice-modal-overlay';
         overlay.innerHTML = `
-            <div class="voice-modal buy-credits-modal" role="dialog" aria-modal="true" aria-label="Buy credits">
+            <div class="voice-modal buy-credits-modal" role="dialog" aria-modal="true" aria-label="${t('Buy credits')}">
                 <div class="voice-modal-header">
-                    <span class="voice-modal-title">${withCloudOutline(escapeHtml(options.title ?? DEFAULT_TITLE))}</span>
-                    <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="Close">&times;</button>
+                    <span class="voice-modal-title">${withCloudOutline(escapeHtml(options.title ?? t(DEFAULT_TITLE)))}</span>
+                    <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="${t('Close')}">&times;</button>
                 </div>
                 <p class="provider-hint buy-credits-subtitle clouds-hint-row">
-                    <span>${withCloudOutline(escapeHtml(options.subtitle ?? DEFAULT_SUBTITLE))}</span>
-                    <button type="button" class="btn btn-secondary" id="buy-credits-whatare">What are ${withCloudOutline('☁️')}?</button>
+                    <span>${withCloudOutline(escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE)))}</span>
+                    <button type="button" class="btn btn-secondary" id="buy-credits-whatare">${t('What are {clouds}?', { clouds: withCloudOutline('☁️') })}</button>
                 </p>
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
-                    <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">Card</button>
+                    <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">${t('Card')}</button>
                     <button type="button" class="buy-credits-target-btn" data-method="usdc" role="tab" aria-selected="false">USDC ⟠</button>
                 </div>
                 <div class="buy-credits-target" id="buy-credits-audience" role="tablist">
-                    <button type="button" class="buy-credits-target-btn active" data-target="self" role="tab" aria-selected="true">For myself</button>
-                    <button type="button" class="buy-credits-target-btn" data-target="gift" role="tab" aria-selected="false">Gift to someone</button>
+                    <button type="button" class="buy-credits-target-btn active" data-target="self" role="tab" aria-selected="true">${t('For myself')}</button>
+                    <button type="button" class="buy-credits-target-btn" data-target="gift" role="tab" aria-selected="false">${t('Gift to someone')}</button>
                 </div>
                 <input type="email" id="buy-credits-gift-email" class="signin-input buy-credits-gift-email hidden"
-                    placeholder="Recipient's email" autocomplete="off" />
+                    placeholder="${t("Recipient's email")}" autocomplete="off" />
                 <p class="provider-hint buy-credits-gift-note hidden" id="buy-credits-gift-note">
-                    They'll be asked to accept the gift next time they sign in. If they decline or don't within 60 days, the clouds return to you.
+                    ${t("They'll be asked to accept the gift next time they sign in. If they decline or don't within 60 days, the clouds return to you.")}
                 </p>
                 <div class="buy-credits-packs" id="buy-credits-packs">
-                    <p class="provider-hint">Loading…</p>
+                    <p class="provider-hint">${t('Loading…')}</p>
                 </div>
                 <div class="buy-credits-custom hidden" id="buy-credits-custom"></div>
                 <div class="provider-hint buy-credits-usdc-note hidden" id="buy-credits-usdc-note">
-                    Pay in USDC on Base from a connected wallet. Credited to your account on settlement.
+                    ${t('Pay in USDC on Base from a connected wallet. Credited to your account on settlement.')}
                 </div>
                 <div class="buy-credits-waiting hidden" id="buy-credits-waiting">
-                    <p class="provider-hint" id="buy-credits-waiting-note">We opened Stripe in your browser. Finish your purchase there, then come back - your balance updates here automatically.</p>
-                    <button type="button" class="btn btn-secondary" id="buy-credits-done">Done</button>
+                    <p class="provider-hint" id="buy-credits-waiting-note">${t('We opened Stripe in your browser. Finish your purchase there, then come back - your balance updates here automatically.')}</p>
+                    <button type="button" class="btn btn-secondary" id="buy-credits-done">${t('Done')}</button>
                 </div>
                 <div class="provider-hint buy-credits-success hidden" id="buy-credits-success"></div>
                 <div class="provider-hint buy-credits-error hidden" id="buy-credits-error"></div>
@@ -150,7 +151,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 balanceEl.classList.add('hidden');
                 return;
             }
-            balanceEl.innerHTML = withCloudOutline(`Balance: ${creditAmount(bal)}`);
+            balanceEl.innerHTML = withCloudOutline(t('Balance: {amount}', { amount: creditAmount(bal) }));
             balanceEl.classList.remove('hidden');
         };
         renderBalance(getKnownBalance());
@@ -211,7 +212,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             if (!gifting) return {};
             const email = emailEl.value.trim();
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                return { error: "Enter the recipient's email to send a gift." };
+                return { error: t("Enter the recipient's email to send a gift.") };
             }
             return { email };
         };
@@ -268,7 +269,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                         if (typeof startBalance === 'number' && typeof now === 'number' && now > startBalance) {
                             if (pollTimer !== null) clearInterval(pollTimer);
                             pollTimer = null;
-                            showSuccess(`Payment received. Balance ${creditAmount(now, 0)}.`);
+                            showSuccess(t('Payment received. Balance {balance}.', { balance: creditAmount(now, 0) }));
                             setTimeout(() => close(true), 1600);
                         }
                     })
@@ -285,7 +286,10 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     const { credits, creditsRemaining } = await payWithUsdc(pack.id);
                     setKnownBalance(creditsRemaining);
                     showSuccess(
-                        `Added ${creditAmount(credits, 0)}, balance ${creditAmount(creditsRemaining, 0)}.`
+                        t('Added {added}, balance {balance}.', {
+                            added: creditAmount(credits, 0),
+                            balance: creditAmount(creditsRemaining, 0),
+                        })
                     );
                     setTimeout(() => close(true), 1600);
                 } catch (err) {
@@ -379,12 +383,12 @@ function renderCustom(
 ): void {
     host.classList.remove('hidden');
     host.innerHTML = `
-        <p class="provider-hint buy-credits-custom-label">Or choose your own amount</p>
+        <p class="provider-hint buy-credits-custom-label">${t('Or choose your own amount')}</p>
         <div class="buy-credits-custom-row">
             <input type="number" class="signin-input buy-credits-custom-amount" id="buy-credits-custom-amount"
                 min="${custom.minCredits}" step="1" inputmode="numeric"
-                placeholder="Credits (min ${custom.minCredits})" autocomplete="off" />
-            <button type="button" class="btn btn-secondary buy-credits-custom-btn" id="buy-credits-custom-btn" disabled>Buy</button>
+                placeholder="${t('Credits (min {n})', { n: custom.minCredits })}" autocomplete="off" />
+            <button type="button" class="btn btn-secondary buy-credits-custom-btn" id="buy-credits-custom-btn" disabled>${t('Buy')}</button>
         </div>
         <p class="provider-hint buy-credits-custom-hint" id="buy-credits-custom-hint"></p>`;
     const input = host.querySelector<HTMLInputElement>('#buy-credits-custom-amount')!;
@@ -399,14 +403,16 @@ function renderCustom(
         btn.disabled = !valid;
         const price = valid ? customPriceCents(n, custom) : 0;
         // innerHTML for the ☁️ legibility outline; content is our own numbers.
-        btn.innerHTML = valid ? withCloudOutline(`Buy ${n} ☁️ - ${dollars(price)}`) : 'Buy';
+        btn.innerHTML = valid
+            ? withCloudOutline(t('Buy {n} ☁️ - {price}', { n, price: dollars(price) }))
+            : t('Buy');
         // Volume discount = how far the curve price beats the flat base rate.
         const baseCents = Math.ceil(n * custom.baseCentsPerCredit);
         const pct = valid && price < baseCents ? Math.round((1 - price / baseCents) * 100) : 0;
         if (empty) hint.textContent = '';
-        else if (n < custom.minCredits) hint.innerHTML = withCloudOutline(`Minimum ${custom.minCredits} ☁️.`);
-        else if (n > custom.maxCredits) hint.innerHTML = withCloudOutline(`Maximum ${custom.maxCredits.toLocaleString()} ☁️.`);
-        else if (pct >= 1) hint.textContent = `${pct}% volume discount applied.`;
+        else if (n < custom.minCredits) hint.innerHTML = withCloudOutline(t('Minimum {n} ☁️.', { n: custom.minCredits }));
+        else if (n > custom.maxCredits) hint.innerHTML = withCloudOutline(t('Maximum {n} ☁️.', { n: custom.maxCredits.toLocaleString() }));
+        else if (pct >= 1) hint.textContent = t('{pct}% volume discount applied.', { pct });
         else hint.textContent = '';
     };
     input.addEventListener('input', update);
@@ -430,7 +436,7 @@ function applyChannels(methodRow: HTMLElement, x402: X402Capability): void {
 
 function renderPacks(host: HTMLElement, packs: CreditPack[], onPick: (pack: CreditPack) => void): void {
     if (packs.length === 0) {
-        host.innerHTML = '<p class="provider-hint">No credit packs are available right now.</p>';
+        host.innerHTML = `<p class="provider-hint">${t('No credit packs are available right now.')}</p>`;
         return;
     }
     host.innerHTML = '';

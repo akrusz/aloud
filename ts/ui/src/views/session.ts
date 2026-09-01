@@ -117,6 +117,7 @@ import {
 } from '../embers.js';
 import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle } from '../theme.js';
+import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
@@ -171,7 +172,7 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
             const sub = slash > 0 ? setup.model.slice(0, slash) : '';
             const model = slash > 0 ? setup.model.slice(slash + 1) : '';
             if (!sub || !model) {
-                throw new Error('Pick a model for the aloud cloud in Settings.');
+                throw new Error(t('Pick a model for the aloud cloud in Settings.'));
             }
             return new CloudLlmProvider({ provider: sub as CloudProviderId, model });
         }
@@ -194,7 +195,9 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
             const anthropicKey = await getApiKey('anthropic');
             if (!anthropicKey) {
                 throw new Error(
-                    'No API key set for anthropic. Add it in Settings, or pick a different provider.'
+                    t('No API key set for {provider}. Add it in Settings, or pick a different provider.', {
+                        provider: 'anthropic',
+                    })
                 );
             }
             return new AnthropicProvider({
@@ -215,8 +218,9 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
             const apiKey = await getApiKey(setup.provider);
             if (!apiKey) {
                 throw new Error(
-                    `No API key set for ${setup.provider}. ` +
-                        `Add it in Settings, or pick a different provider.`
+                    t('No API key set for {provider}. Add it in Settings, or pick a different provider.', {
+                        provider: setup.provider,
+                    })
                 );
             }
             const opts = { apiKey, ...modelOpt };
@@ -434,7 +438,7 @@ export async function mountSessionView(
                 </div>
             </section>
             <section class="controls">
-                <button id="back" type="button" data-nav="setup">Back to setup</button>
+                <button id="back" type="button" data-nav="setup">${t('Back to setup')}</button>
             </section>`;
         return {
             teardown() {
@@ -523,39 +527,39 @@ export async function mountSessionView(
         // brevity, plus its own check-in timing default).
         const rows: SessionInfoRow[] = [
             {
-                label: 'Model',
+                label: t('Model'),
                 value: modelLabel,
-                ...(isSlowModel(activeModel) ? { note: SLOW_MODEL_NOTE } : {}),
+                ...(isSlowModel(activeModel) ? { note: t(SLOW_MODEL_NOTE) } : {}),
             },
-            { label: 'Mode', value: mode.label },
+            { label: t('Mode'), value: t(mode.label) },
         ];
         if (mode.composes?.focuses !== false) {
             rows.push({
-                label: 'Focus',
+                label: t('Focus'),
                 value:
                     setup.focuses.length > 0
-                        ? setup.focuses.map((f) => FOCUS_LABELS[f]).join(', ')
-                        : FOCUS_LABELS.open_awareness,
+                        ? setup.focuses.map((f) => t(FOCUS_LABELS[f])).join(', ')
+                        : t(FOCUS_LABELS.open_awareness),
             });
         }
         if (mode.composes?.qualities !== false && setup.qualities.length > 0) {
             rows.push({
-                label: 'Vibe',
-                value: setup.qualities.map((q) => QUALITY_LABELS[q]).join(', '),
+                label: t('Vibe'),
+                value: setup.qualities.map((q) => t(QUALITY_LABELS[q])).join(', '),
             });
         }
         if (mode.composes?.directiveness !== false) {
-            rows.push({ label: 'Guidance', value: GUIDANCE_LEVEL_LABELS[setup.dirStep] ?? 'Balanced' });
+            rows.push({ label: t('Guidance'), value: t(GUIDANCE_LEVEL_LABELS[setup.dirStep] ?? 'Balanced') });
         } else if (mode.checkinPaceSlider) {
             rows.push({
-                label: 'Check-in pace',
+                label: t('Check-in pace'),
                 value: setup.feltSenseCheckins
-                    ? (CHECKIN_PACE_LABELS[setup.feltSensePaceStep] ?? 'Patient')
-                    : 'Off',
+                    ? t(CHECKIN_PACE_LABELS[setup.feltSensePaceStep] ?? 'Patient')
+                    : t('Off'),
             });
         }
         if (mode.composes?.verbosity !== false) {
-            rows.push({ label: 'Response length', value: VERBOSITY_LABELS[setup.verbosity] });
+            rows.push({ label: t('Response length'), value: t(VERBOSITY_LABELS[setup.verbosity]) });
         }
         // What the sit speaks with and hears: the live voice (tap to change -
         // same modal as the input-row button), the recognizer, and the
@@ -567,44 +571,47 @@ export async function mountSessionView(
         const engineLabel = engineId ? (ENGINE_LABELS[engineId] ?? engineId) : null;
         rows.push(
             {
-                label: 'Voice',
-                value: voiceName ?? 'Default',
-                note: engineLabel ? `${engineLabel} · ${setup.ttsRate} wpm` : `${setup.ttsRate} wpm`,
+                label: t('Voice'),
+                value: voiceName ?? t('Default'),
+                note: engineLabel
+                    ? `${t(engineLabel)} · ${t('{rate} wpm', { rate: setup.ttsRate })}`
+                    : t('{rate} wpm', { rate: setup.ttsRate }),
                 onClick: () => openSessionVoiceModal(),
             },
             {
-                label: 'Speech recognition',
-                value:
+                label: t('Speech recognition'),
+                value: t(
                     sttEngineOptions(isWebMode()).find((o) => o.value === sttChoice)?.label ??
-                    sttChoice,
+                        sttChoice
+                ),
             },
             {
-                label: 'Language',
+                label: t('Language'),
                 value: LANGUAGES.find(([c]) => c === sessionLanguage)?.[1] ?? sessionLanguage,
             },
-            { label: 'Source', value: providerLabel },
+            { label: t('Source'), value: t(providerLabel) },
             {
-                label: 'Delivery',
-                value: streams ? 'Speaks as it generates' : 'Waits for full reply, then speaks',
+                label: t('Delivery'),
+                value: streams ? t('Speaks as it generates') : t('Waits for full reply, then speaks'),
             },
             // Actionable: the clock can be hidden from the input row, and this
             // is then the only way back to its settings mid-session.
             {
-                label: 'Clock',
+                label: t('Clock'),
                 value: sessionClock.faceLabel(),
                 onClick: () => void sessionClock.openPicker(),
             }
         );
         return rows;
     }
-    const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows, 'Session', [
-        { label: 'Report a bug', onClick: () => void openBugReport() },
+    const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows, t('Session'), [
+        { label: t('Report a bug'), onClick: () => void openBugReport() },
         // Flag an inappropriate facilitator response. Play's AI-Generated
         // Content policy requires this to be reachable in-session, whatever
         // the LLM source; own-provider (BYOK/local) reports self-identify in
         // the mail template.
         {
-            label: 'Report AI content',
+            label: t('Report AI content'),
             onClick: () =>
                 void openAiContentReport({
                     sourceLabel:
@@ -644,7 +651,10 @@ export async function mountSessionView(
         // Toast carries the specifics; the spoken line stays in the
         // facilitator's voice (no "subscription"/model jargon mid-session).
         showErrorToast(
-            `${prevLabel} isn't available on your subscription right now. Switched to ${prettyModelName(fallback)}.`
+            t("{prev} isn't available on your subscription right now. Switched to {next}.", {
+                prev: prevLabel,
+                next: prettyModelName(fallback),
+            })
         );
         void tts.speak('I need to switch models for a moment, then we can continue.', {
             rate: setup.ttsRate,
@@ -896,20 +906,20 @@ export async function mountSessionView(
         navCenter.innerHTML = `
             <div class="nav-session-info">
                 <div class="orb orb-breathing orb-nav" id="orb"></div>
-                <button type="button" class="session-hamburger" id="sessionHamburger" aria-label="Session menu" aria-haspopup="true" aria-controls="mobileMoreSheet" data-mobile-more-open>
+                <button type="button" class="session-hamburger" id="sessionHamburger" aria-label="${t('Session menu')}" aria-haspopup="true" aria-controls="mobileMoreSheet" data-mobile-more-open>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
                 </button>
             </div>`;
     }
     if (navLinks) {
         navLinks.innerHTML = `
-            <a href="#" id="end-btn" class="nav-end-link">End<span class="nav-word-session"> Session</span></a>
-            <a href="#" data-nav="history">History</a>
-            <button type="button" class="nav-info-btn" id="session-info-btn" aria-label="Session info" title="Session info">
+            <a href="#" id="end-btn" class="nav-end-link">${t('End')}<span class="nav-word-session"> ${t('Session')}</span></a>
+            <a href="#" data-nav="history">${t('History')}</a>
+            <button type="button" class="nav-info-btn" id="session-info-btn" aria-label="${t('Session info')}" title="${t('Session info')}">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             </button>
             <button type="button" class="theme-toggle"
-                data-theme-toggle aria-label="Toggle theme"></button>`;
+                data-theme-toggle aria-label="${t('Toggle theme')}"></button>`;
         // Re-init the theme toggle since we just replaced its DOM node.
         const themeBtn = navLinks.querySelector<HTMLElement>('[data-theme-toggle]');
         if (themeBtn) initThemeToggle(themeBtn);
@@ -951,7 +961,7 @@ export async function mountSessionView(
         silenceBuffer = [];
         pacing.enterSilenceMode();
         setHolding(true);
-        setStatus("Holding space, say when you're ready to continue");
+        setStatus(t("Holding space, say when you're ready to continue"));
     }
 
     function setStatus(text: string): void {
@@ -968,7 +978,7 @@ export async function mountSessionView(
     function armSlowResponseStatus(): void {
         clearSlowResponseStatus();
         slowStatusTimer = setTimeout(
-            () => setStatus('Still working - the response is taking longer than usual'),
+            () => setStatus(t('Still working - the response is taking longer than usual')),
             SLOW_RESPONSE_STATUS_MS
         );
     }
@@ -1004,14 +1014,16 @@ export async function mountSessionView(
         sttTroubleEl.replaceChildren();
         const msg = document.createElement('span');
         msg.textContent = canSwitchToCloud
-            ? "Trouble hearing you - your browser may be blocking its speech recognition."
-            : "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.";
+            ? t('Trouble hearing you - your browser may be blocking its speech recognition.')
+            : t(
+                  "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings."
+              );
         sttTroubleEl.appendChild(msg);
         if (canSwitchToCloud) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'stt-trouble-btn';
-            btn.textContent = 'Use aloud cloud speech';
+            btn.textContent = t('Use aloud cloud speech');
             btn.addEventListener('click', () => void switchSttEngine('aloud-gpt-transcribe'));
             sttTroubleEl.appendChild(btn);
         }
@@ -1037,13 +1049,13 @@ export async function mountSessionView(
         if (switchingStt || torn || choice === sttChoice) return;
         switchingStt = true;
         try {
-            setStatus('Switching to aloud cloud speech…');
+            setStatus(t('Switching to aloud cloud speech…'));
             const next = await createSttForChoice(choice, vadOpts);
             if (!next) {
                 showErrorToast(
-                    "Couldn't start aloud cloud speech - check your connection and that you're signed in."
+                    t("Couldn't start aloud cloud speech - check your connection and that you're signed in.")
                 );
-                setStatus(muted ? 'Muted' : 'Listening…');
+                setStatus(muted ? t('Muted') : t('Listening…'));
                 return;
             }
             const prev = stt;
@@ -1069,11 +1081,11 @@ export async function mountSessionView(
             // on the new `stt`. Restart it if it had already fallen out.
             void prev?.stop();
             if (!muted) {
-                setStatus('Listening…');
+                setStatus(t('Listening…'));
                 startMeter();
                 if (!listenLoopRunning) void listenLoop();
             } else {
-                setStatus('Muted');
+                setStatus(t('Muted'));
             }
         } finally {
             switchingStt = false;
@@ -1137,8 +1149,12 @@ export async function mountSessionView(
     const phaseEl = root.querySelector<HTMLElement>('#session-phase');
     function setPhaseHint(): void {
         if (!phaseEl || !stager) return;
-        phaseEl.textContent = stager.phase.label;
-        phaseEl.title = `${mode.label}: step ${stager.phaseIndex + 1} of ${stager.phases.length}`;
+        phaseEl.textContent = t(stager.phase.label);
+        phaseEl.title = t('{mode}: step {n} of {total}', {
+            mode: t(mode.label),
+            n: stager.phaseIndex + 1,
+            total: stager.phases.length,
+        });
         phaseEl.classList.remove('hidden');
     }
     setPhaseHint();
@@ -1230,11 +1246,11 @@ export async function mountSessionView(
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'buy-clouds-inline';
-        btn.innerHTML = withCloudOutline('Buy ☁️ to continue');
+        btn.innerHTML = withCloudOutline(t('Buy ☁️ to continue'));
         btn.addEventListener('click', () => {
             void showBuyCreditsModal({
-                title: "You're out of clouds",
-                subtitle: 'Top up to keep going, or switch to a local/BYOK provider in Settings.',
+                title: t("You're out of clouds"),
+                subtitle: t('Top up to keep going, or switch to a local/BYOK provider in Settings.'),
             });
         });
         el.appendChild(btn);
@@ -1352,13 +1368,13 @@ export async function mountSessionView(
     if (stt === null) {
         micBtn.disabled = true;
         micBtn.classList.add('disabled');
-        const hint =
-            'No microphone available. Try Chrome or Edge for built-in transcription, ' +
-            'or check your microphone permissions.';
+        const hint = t(
+            'No microphone available. Try Chrome or Edge for built-in transcription, or check your microphone permissions.'
+        );
         micBtn.title = hint;
-        setStatus('Mic unavailable');
+        setStatus(t('Mic unavailable'));
     } else {
-        setStatus('Listening…');
+        setStatus(t('Listening…'));
     }
 
     function insertDivider(text: string): void {
@@ -1371,7 +1387,7 @@ export async function mountSessionView(
     // On continue, render the old exchanges under a "continuing from" divider.
     if (continueFrom && continueFrom.exchanges.length > 0) {
         const oldDate = new Date(continueFrom.startTime * 1000).toLocaleString();
-        insertDivider(`continuing from ${oldDate}`);
+        insertDivider(t('continuing from {date}', { date: oldDate }));
         for (const ex of continueFrom.exchanges) {
             // Synthetic check-in / timer event turns are model context, not speech.
             if (ex.role === 'user' && isSyntheticEventTurn(ex.content)) continue;
@@ -1379,12 +1395,12 @@ export async function mountSessionView(
                 appendMessage(ex.role, ex.content);
             }
         }
-        insertDivider('resumed');
+        insertDivider(t('resumed'));
     }
 
     // Show the intention as a faint first line of context, if set.
     if (setup.intention.trim()) {
-        insertDivider(`intention: ${setup.intention}`);
+        insertDivider(t('intention: {intention}', { intention: setup.intention }));
     }
 
     let busy = false;
@@ -1536,7 +1552,7 @@ export async function mountSessionView(
         appendMessage('user', userText);
         tapTurn('user', 'user', userText);
         silenceBuffer.push(userText);
-        setStatus('Holding space, one moment…');
+        setStatus(t('Holding space, one moment…'));
         const classifyStart = Date.now();
         const verdict = await classifyResumeIntent(utilityProvider, userText, {
             onUsage: (u) => session.recordLlmUsage(u),
@@ -1547,7 +1563,7 @@ export async function mountSessionView(
         // during the classifier round-trip; bail so we don't resurrect it.
         if (torn || !silenceMode) return;
         if (verdict === 'stay') {
-            setStatus("Holding space, say when you're ready to continue");
+            setStatus(t("Holding space, say when you're ready to continue"));
             return;
         }
         // 'resume' (they asked to continue) or 'error' (the classifier call
@@ -1684,7 +1700,7 @@ export async function mountSessionView(
             // Dots the instant we submit, before any network round-trip, so the
             // user sees their turn was received.
             showTyping();
-            setStatus('Thinking…');
+            setStatus(t('Thinking…'));
 
             // Ollama: surface a not-yet-loaded model next to the dots so the
             // user knows why the first response is slow. One cheap HTTP call.
@@ -1718,7 +1734,7 @@ export async function mountSessionView(
                     onSpeakStart: (sentence) => {
                         if (!superseded()) {
                             clearSlowResponseStatus();
-                            setStatus('Speaking…');
+                            setStatus(t('Speaking…'));
                             bubble.reveal(sentence);
                         }
                     },
@@ -1779,7 +1795,7 @@ export async function mountSessionView(
             if (!ephemeral && !cleanText.trim()) {
                 if (rawText.trim()) tapEvent('signal', 'signal-only-reply', { raw: rawText });
                 throw new Error(
-                    'The model returned an empty response. Try again, or check your provider in Settings.'
+                    t('The model returned an empty response. Try again, or check your provider in Settings.')
                 );
             }
             if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
@@ -1810,7 +1826,7 @@ export async function mountSessionView(
                 !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
             tapFlags({ awaitingHoldConfirm });
             if (hold) tapEvent('signal', awaitingHoldConfirm ? 'hold-bid' : 'hold-bid-ignored');
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
             pacing.onResponseEnd();
         } catch (err) {
             // The reply never made it into history: drop any partially revealed
@@ -1847,9 +1863,9 @@ export async function mountSessionView(
                         : "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
                     showErrorToast(
                         limit
-                            ? 'Claude subscription usage limit reached. It resets after a few hours, or pick another model in Settings.'
+                            ? t('Claude subscription usage limit reached. It resets after a few hours, or pick another model in Settings.')
                             : auth
-                              ? 'Claude sign-in expired. Run `claude` in a terminal to log in again.'
+                              ? t('Claude sign-in expired. Run `claude` in a terminal to log in again.')
                               : apology
                     );
                     void tts.speak(apology, { rate: setup.ttsRate });
@@ -1857,9 +1873,9 @@ export async function mountSessionView(
             } else {
                 // Other failures: a toast is more visible than the small status
                 // line, and the loop resumes listening so nothing is wedged.
-                showErrorToast(describeCloudError(msg) ?? `Something went wrong: ${msg}`);
+                showErrorToast(describeCloudError(msg) ?? t('Something went wrong: {msg}', { msg }));
             }
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
             // Reset the check-in clock like the success path does, or a long
             // failed turn leaves a stale timestamp and the next poll fires a
             // check-in right on top of the error apology.
@@ -2084,7 +2100,7 @@ export async function mountSessionView(
         orbEl?.classList.toggle('orb-muted', muted);
         micBtn.setAttribute(
             'aria-label',
-            muted ? 'Unmute microphone' : 'Mute microphone'
+            muted ? t('Unmute microphone') : t('Mute microphone')
         );
     }
 
@@ -2147,7 +2163,7 @@ export async function mountSessionView(
             void stt.stop();
             stopMeter();
             setMicButtonState();
-            setStatus('Muted');
+            setStatus(t('Muted'));
         } else {
             muted = false;
             setMicButtonState();
@@ -2155,10 +2171,10 @@ export async function mountSessionView(
             // 'Muted' status here or it sticks.
             setStatus(
                 silenceMode
-                    ? "Holding space, say when you're ready to continue"
+                    ? t("Holding space, say when you're ready to continue")
                     : stt
-                      ? 'Listening…'
-                      : 'Ready'
+                      ? t('Listening…')
+                      : t('Ready')
             );
             startMeter();
             void listenLoop();
@@ -2184,7 +2200,7 @@ export async function mountSessionView(
             leftHoldAt = Date.now();
             pacing.exitSilenceMode();
             setHolding(false);
-            setStatus(stt ? 'Listening…' : 'Ready');
+            setStatus(stt ? t('Listening…') : t('Ready'));
         } else {
             // Clicking the button IS the confirmation: bypass the auto-[HOLD]
             // bid/classify handshake (rlgm) and go straight into the hold.
@@ -2261,8 +2277,8 @@ export async function mountSessionView(
 
     function updateVoicePickerLabel(): void {
         const name = stripVoicePrefix(setup.voice);
-        if (name) voicePickerBtn.textContent = `${name} · ${setup.ttsRate} wpm`;
-        else voicePickerBtn.textContent = 'Voice';
+        if (name) voicePickerBtn.textContent = `${name} · ${t('{rate} wpm', { rate: setup.ttsRate })}`;
+        else voicePickerBtn.textContent = t('Voice');
     }
 
     voicePickerBtn.addEventListener('click', () => openSessionVoiceModal());
@@ -2278,7 +2294,7 @@ export async function mountSessionView(
         const currentName = stripVoicePrefix(setup.voice);
         renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
         speedSlider.value = String(setup.ttsRate);
-        speedLabel.textContent = `${setup.ttsRate} wpm`;
+        speedLabel.textContent = t('{rate} wpm', { rate: setup.ttsRate });
         modal.classList.remove('hidden');
         // Pause listening and stop in-flight capture while the modal is open, so
         // voice previews aren't transcribed as user turns.
@@ -2310,7 +2326,7 @@ export async function mountSessionView(
         const onSpeedInput = () => {
             const rate = Number(speedSlider.value);
             setup.ttsRate = rate;
-            speedLabel.textContent = `${rate} wpm`;
+            speedLabel.textContent = t('{rate} wpm', { rate });
             updateVoicePickerLabel();
         };
         const closeModal = () => {
@@ -2365,7 +2381,7 @@ export async function mountSessionView(
         const openerPrompt = builder.buildOpenerPrompt(setup.intention.trim());
         const reveal = createAssistantReveal();
         try {
-            setStatus('Thinking…');
+            setStatus(t('Thinking…'));
             showTyping();
             armSlowResponseStatus();
             // First LLM call, so this is where Ollama pays the cold-load cost;
@@ -2388,7 +2404,7 @@ export async function mountSessionView(
                     onTtsError: handleTtsError,
                     onSpeakStart: (sentence) => {
                         clearSlowResponseStatus();
-                        setStatus('Speaking…');
+                        setStatus(t('Speaking…'));
                         reveal.reveal(sentence);
                     },
                 }
@@ -2412,7 +2428,7 @@ export async function mountSessionView(
             }
             reveal.finalize(cleanText);
             pacing.onResponseEnd();
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
         } catch (err) {
             console.warn('LLM opener failed, using static fallback', err);
             clearSlowResponseStatus();
@@ -2429,7 +2445,7 @@ export async function mountSessionView(
                 /* non-fatal */
             }
             pacing.onResponseEnd();
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
         }
     }
 
@@ -2440,7 +2456,7 @@ export async function mountSessionView(
             'picking up where they left off.';
         const reveal = createAssistantReveal();
         try {
-            setStatus('Welcoming you back…');
+            setStatus(t('Welcoming you back…'));
             // Previous exchanges + the synthetic continuation note. The note
             // stays out of history: it's a one-shot instruction, not a turn.
             const messages = [
@@ -2459,7 +2475,7 @@ export async function mountSessionView(
                     onTtsError: handleTtsError,
                     onSpeakStart: (sentence) => {
                         clearSlowResponseStatus();
-                        setStatus('Speaking…');
+                        setStatus(t('Speaking…'));
                         reveal.reveal(sentence);
                     },
                 }
@@ -2478,7 +2494,7 @@ export async function mountSessionView(
             }
             reveal.finalize(cleanText);
             pacing.onResponseEnd();
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
         } catch (err) {
             console.warn('Continuation opener failed', err);
             clearSlowResponseStatus();
@@ -2493,7 +2509,7 @@ export async function mountSessionView(
                 /* non-fatal */
             }
             pacing.onResponseEnd();
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
         }
     }
 
@@ -2648,7 +2664,7 @@ export async function mountSessionView(
         if (torn || !silenceMode) return;
         tapEvent('hold', 'restored-after-timer');
         pacing.enterSilenceMode();
-        setStatus("Holding space, say when you're ready to continue");
+        setStatus(t("Holding space, say when you're ready to continue"));
     }
 
     // Auto-quit-after-silence: once a session goes untouched past the configured
@@ -2681,7 +2697,7 @@ export async function mountSessionView(
             // Reveal with the voice, like LLM replies.
             const reveal = createAssistantReveal();
             reveal.anchor();
-            setStatus('Speaking…');
+            setStatus(t('Speaking…'));
             try {
                 await tts.speak(text, {
                     rate: setup.ttsRate,
@@ -2692,7 +2708,7 @@ export async function mountSessionView(
             }
             reveal.finalize(text);
             pacing.onResponseEnd();
-            setStatus(stt ? 'Listening…' : 'Mic unavailable');
+            setStatus(stt ? t('Listening…') : t('Mic unavailable'));
         } finally {
             busy = false;
             tapFlags({ busy: false });
@@ -2819,7 +2835,7 @@ export async function mountSessionView(
     if (endBtn) {
         endBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            showEndConfirm('End this session?', undefined);
+            showEndConfirm(t('End this session?'), undefined);
         });
     }
     const historyLink = navLinks?.querySelector<HTMLAnchorElement>('[data-nav="history"]');
@@ -2830,7 +2846,7 @@ export async function mountSessionView(
             // out of a live session.
             e.stopImmediatePropagation();
             showEndConfirm(
-                'Leave session to view history? This will end your current session.',
+                t('Leave session to view history? This will end your current session.'),
                 'history'
             );
         });
@@ -2915,7 +2931,7 @@ export async function mountSessionView(
 
         if (!skipSave && finalState && hasUserContent(finalState.exchanges)) {
             // LLM summary for the history row; falls back to the intention.
-            setStatus('Saving session…');
+            setStatus(t('Saving session…'));
             let summary = '';
             try {
                 // Off-transcript completion, so fold its token usage into the
@@ -3049,15 +3065,15 @@ export async function mountSessionView(
  *  (browser Back). Matches the wording the in-session links use. */
 function leaveMessage(destination?: SessionEndDestination): string {
     if (destination === 'history') {
-        return 'Leave session to view history? This will end your current session.';
+        return t('Leave session to view history? This will end your current session.');
     }
     if (destination === 'settings') {
-        return 'Leave session to view settings? This will end your current session.';
+        return t('Leave session to view settings? This will end your current session.');
     }
     if (destination === 'account') {
-        return 'Leave session to view your account? This will end your current session.';
+        return t('Leave session to view your account? This will end your current session.');
     }
-    return 'Leave your session?';
+    return t('Leave your session?');
 }
 
 /** SessionSetup.voice carries a 'server:' or 'browser:' prefix; the voice
@@ -3091,13 +3107,13 @@ function renderSessionHTML(): string {
                  a dead mic for a whole session without noticing. -->
             <div class="stt-trouble hidden" id="stt-trouble" role="status"></div>
             <div class="input-row">
-                <div id="voice-status" class="voice-status">Connecting…</div>
+                <div id="voice-status" class="voice-status">${t('Connecting…')}</div>
                 <span class="session-phase hidden" id="session-phase"></span>
                 <!-- Live cloud balance: hidden unless the user opts in
                      (Settings, "Show credit balance during sessions"). -->
-                <span class="session-balance hidden" id="session-balance" title="Cloud credits remaining"></span>
-                <button type="button" class="session-timer" id="timer" title="Session Clock">0:00</button>
-                <button id="tts-toggle" class="btn btn-tts active" title="Read responses aloud" aria-label="Toggle text-to-speech">
+                <span class="session-balance hidden" id="session-balance" title="${t('Cloud credits remaining')}"></span>
+                <button type="button" class="session-timer" id="timer" title="${t('Session Clock')}">0:00</button>
+                <button id="tts-toggle" class="btn btn-tts active" title="${t('Read responses aloud')}" aria-label="${t('Toggle text-to-speech')}">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                         <path class="tts-waves" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -3105,7 +3121,7 @@ function renderSessionHTML(): string {
                         <line class="mute-line" x1="3" y1="3" x2="21" y2="21"></line>
                     </svg>
                 </button>
-                <button id="voice-btn" class="btn btn-voice" title="Toggle microphone" aria-label="Toggle microphone">
+                <button id="voice-btn" class="btn btn-voice" title="${t('Toggle microphone')}" aria-label="${t('Toggle microphone')}">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -3115,13 +3131,13 @@ function renderSessionHTML(): string {
                     </svg>
                 </button>
                 <button id="listen-btn" class="btn btn-listen"
-                    title="The facilitator stays quiet until you ask to resume.">
-                    Just Listen
+                    title="${t('The facilitator stays quiet until you ask to resume.')}">
+                    ${t('Just Listen')}
                 </button>
             </div>
             <div class="input-controls">
-                <div class="ember-level" title="Floating ember particles">
-                    <span class="toggle-text">Embers</span>
+                <div class="ember-level" title="${t('Floating ember particles')}">
+                    <span class="toggle-text">${t('Embers')}</span>
                     <button class="ember-btn" id="ember-minus" type="button">−</button>
                     <div class="ember-blocks" id="ember-blocks">
                         <span class="ember-block filled" data-level="1"></span>
@@ -3136,7 +3152,7 @@ function renderSessionHTML(): string {
                      Kasina entry on mobile; click-outside exits. -->
                 <input type="checkbox" id="kasina-toggle" class="hidden">
                 <div class="voice-control">
-                    <button type="button" id="voice-picker-btn" class="voice-picker-btn">Voice</button>
+                    <button type="button" id="voice-picker-btn" class="voice-picker-btn">${t('Voice')}</button>
                 </div>
             </div>
         </div>
@@ -3157,16 +3173,16 @@ function renderSessionHTML(): string {
         <div class="session-ended-content">
             <p id="confirm-text"></p>
             <div class="session-ended-actions">
-                <button id="confirm-yes" type="button" class="btn btn-primary">End Session</button>
-                <button id="confirm-no" type="button" class="btn btn-secondary">Cancel</button>
+                <button id="confirm-yes" type="button" class="btn btn-primary">${t('End Session')}</button>
+                <button id="confirm-no" type="button" class="btn btn-secondary">${t('Cancel')}</button>
             </div>
-            <button id="confirm-skip-save" type="button" class="btn-link hidden">End Without Saving</button>
+            <button id="confirm-skip-save" type="button" class="btn-link hidden">${t('End Without Saving')}</button>
         </div>
     </div>
 
     <div class="session-ended-overlay hidden" id="session-saving">
         <div class="session-ended-content">
-            <p>Saving session…</p>
+            <p>${t('Saving session…')}</p>
         </div>
     </div>`;
 }

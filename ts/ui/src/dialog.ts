@@ -8,6 +8,8 @@
  * desktop shell. Styling in ui/src/style.css (.app-dialog*).
  */
 
+import { t } from './i18n.js';
+
 interface ButtonSpec<T> {
     label: string;
     value: T;
@@ -89,7 +91,7 @@ function showDialog<T>(
             // Same face as the About / voice modal close.
             x.className = 'app-dialog-close voice-modal-close';
             x.innerHTML = '&times;';
-            x.setAttribute('aria-label', 'Close');
+            x.setAttribute('aria-label', t('Close'));
             x.addEventListener('click', () => finish(dismissValue));
             box.prepend(x);
         }
@@ -142,9 +144,9 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
     return showDialog(
         message,
         [
-            { label: opts.cancelLabel ?? 'Cancel', value: false, action: cancelIsPrimary },
+            { label: opts.cancelLabel ?? t('Cancel'), value: false, action: cancelIsPrimary },
             {
-                label: opts.okLabel ?? 'OK',
+                label: opts.okLabel ?? t('OK'),
                 value: true,
                 action: !cancelIsPrimary,
                 danger: opts.danger ?? false,
@@ -159,12 +161,12 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
  *  renders the message as markup - static app copy only, nothing untrusted. */
 export function alertDialog(
     message: string,
-    okLabel = 'OK',
+    okLabel?: string,
     opts: { html?: boolean } = {}
 ): Promise<void> {
     return showDialog(
         message,
-        [{ label: okLabel, value: true, action: true }],
+        [{ label: okLabel ?? t('OK'), value: true, action: true }],
         true,
         { asHtml: opts.html ?? false }
     ).then(() => undefined);
@@ -203,7 +205,7 @@ export function choiceDialog(
 ): Promise<string | null> {
     const cancel: ButtonSpec<string | null>[] = opts.closeX
         ? []
-        : [{ label: opts.cancelLabel ?? 'Cancel', value: null }];
+        : [{ label: opts.cancelLabel ?? t('Cancel'), value: null }];
     return showDialog<string | null>(
         message,
         [...cancel, ...choices],
@@ -254,7 +256,7 @@ export function confirmTypedDialog(message: string, opts: ConfirmTypedOptions): 
         input.type = 'text';
         input.className = 'app-dialog-input';
         input.placeholder = opts.requiredText;
-        input.setAttribute('aria-label', `Type ${opts.requiredText} to confirm`);
+        input.setAttribute('aria-label', t('Type {text} to confirm', { text: opts.requiredText }));
         input.autocomplete = 'off';
         input.autocapitalize = 'off';
         input.spellcheck = false;
@@ -276,13 +278,13 @@ export function confirmTypedDialog(message: string, opts: ConfirmTypedOptions): 
 
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
-        cancelBtn.textContent = opts.cancelLabel ?? 'Cancel';
+        cancelBtn.textContent = opts.cancelLabel ?? t('Cancel');
         cancelBtn.className = 'btn btn-small btn-secondary';
         cancelBtn.addEventListener('click', () => finish(false));
 
         const okBtn = document.createElement('button');
         okBtn.type = 'button';
-        okBtn.textContent = opts.okLabel ?? 'Confirm';
+        okBtn.textContent = opts.okLabel ?? t('Confirm');
         okBtn.className = `btn btn-small ${opts.danger ? 'btn-danger' : 'btn-begin'}`;
         okBtn.disabled = true;
         okBtn.addEventListener('click', () => {

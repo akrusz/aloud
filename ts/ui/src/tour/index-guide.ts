@@ -5,6 +5,7 @@
  */
 
 import { sharedKv } from '../state.js';
+import { t } from '../i18n.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
@@ -227,7 +228,7 @@ interface FooterOpts {
 function footerHtml(opts: FooterOpts): string {
     let html = '<div class="tour-footer">';
     if (opts.skip !== false) {
-        html += '<button class="tour-skip" data-action="dismiss">Skip</button>';
+        html += '<button class="tour-skip" data-action="dismiss">' + t('Skip') + '</button>';
     } else {
         html += '<span></span>';
     }
@@ -237,9 +238,9 @@ function footerHtml(opts: FooterOpts): string {
     }
     html += '</div>';
     html += '<div class="tour-actions">';
-    if (opts.back) html += '<button class="btn btn-small btn-secondary" data-action="back">Back</button>';
-    if (opts.next) html += '<button class="btn btn-small btn-primary" data-action="next">Next</button>';
-    if (opts.done) html += '<button class="btn btn-small btn-primary" data-action="done">Got it</button>';
+    if (opts.back) html += '<button class="btn btn-small btn-secondary" data-action="back">' + t('Back') + '</button>';
+    if (opts.next) html += '<button class="btn btn-small btn-primary" data-action="next">' + t('Next') + '</button>';
+    if (opts.done) html += '<button class="btn btn-small btn-primary" data-action="done">' + t('Got it') + '</button>';
     html += '</div></div>';
     return html;
 }
@@ -257,15 +258,15 @@ function showWelcome(): void {
         p.classList.add('hidden');
     });
 
-    let html = '<p><span class="brand-mark">aloud.</span> is a meditation facilitator that listens and responds to your experience in real time.</p>';
+    let html = '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
     html += '<div class="tour-choices">';
     html += '<button class="tour-choice" data-action="start">';
-    html += '<strong>Show me around</strong>';
-    html += '<small>A quick look at how it works</small>';
+    html += '<strong>' + t('Show me around') + '</strong>';
+    html += '<small>' + t('A quick look at how it works') + '</small>';
     html += '</button>';
     html += '<button class="tour-choice" data-action="dismiss">';
-    html += '<strong>I’ll explore on my own</strong>';
-    html += '<small>You can tap <span class="info-btn-glyph">?</span> on any section for more info</small>';
+    html += '<strong>' + t('I’ll explore on my own') + '</strong>';
+    html += '<small>' + t('You can tap <span class="info-btn-glyph">?</span> on any section for more info') + '</small>';
     html += '</button>';
     html += '</div>';
 
@@ -325,8 +326,8 @@ function showDone(): void {
         p.classList.add('hidden');
     });
 
-    let html = '<h3>You’re ready</h3>';
-    html += '<p>Pick what resonates and begin. Tap <span class="info-btn-glyph">?</span> on any section to revisit these notes.</p>';
+    let html = '<h3>' + t('You’re ready') + '</h3>';
+    html += '<p>' + t('Pick what resonates and begin. Tap <span class="info-btn-glyph">?</span> on any section to revisit these notes.') + '</p>';
     html += footerHtml({ back: true, done: true, skip: false });
 
     showCard(html, 'tour-welcome');

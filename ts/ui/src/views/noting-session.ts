@@ -60,6 +60,7 @@ import {
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
+import { t } from '../i18n.js';
 
 export interface NotingSessionViewHandle {
     teardown(): void;
@@ -129,7 +130,7 @@ export async function mountNotingSessionView(
         navCenter.innerHTML = `
             <div class="nav-session-info">
                 <div class="orb orb-breathing orb-nav" id="orb"></div>
-                <button type="button" class="session-hamburger" id="sessionHamburger" aria-label="Session menu" aria-haspopup="true" aria-controls="mobileMoreSheet" data-mobile-more-open>
+                <button type="button" class="session-hamburger" id="sessionHamburger" aria-label="${t('Session menu')}" aria-haspopup="true" aria-controls="mobileMoreSheet" data-mobile-more-open>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
                 </button>
             </div>`;
@@ -141,12 +142,12 @@ export async function mountNotingSessionView(
     void acquireWakeLock();
     if (navLinks) {
         navLinks.innerHTML = `
-            <a href="#" id="end-btn" class="nav-end-link">End<span class="nav-word-session"> Session</span></a>
-            <a href="#" data-nav="history">History</a>
-            <button type="button" class="nav-info-btn" id="session-info-btn" aria-label="Session info" title="Session info">
+            <a href="#" id="end-btn" class="nav-end-link">${t('End')}<span class="nav-word-session"> ${t('Session')}</span></a>
+            <a href="#" data-nav="history">${t('History')}</a>
+            <button type="button" class="nav-info-btn" id="session-info-btn" aria-label="${t('Session info')}" title="${t('Session info')}">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             </button>
-            <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle theme"></button>`;
+            <button type="button" class="theme-toggle" data-theme-toggle aria-label="${t('Toggle theme')}"></button>`;
         const themeBtn = navLinks.querySelector<HTMLElement>('[data-theme-toggle]');
         if (themeBtn) initThemeToggle(themeBtn);
     }
@@ -160,31 +161,37 @@ export async function mountNotingSessionView(
             typeof (provider as { completeStream?: unknown } | null)?.completeStream === 'function';
         return [
             {
-                label: 'Model',
+                label: t('Model'),
                 value: modelLabel,
-                ...(isSlowModel(setup.model) ? { note: SLOW_MODEL_NOTE } : {}),
+                ...(isSlowModel(setup.model) ? { note: t(SLOW_MODEL_NOTE) } : {}),
             },
-            { label: 'Mode', value: 'Noting circle' },
-            { label: 'Circle', value: `${participants.length} participant${participants.length === 1 ? '' : 's'}` },
-            { label: 'Source', value: providerLabel },
+            { label: t('Mode'), value: t('Noting circle') },
             {
-                label: 'Delivery',
-                value: streams ? 'Speaks as it generates' : 'Speaks after receiving full reply',
+                label: t('Circle'),
+                value:
+                    participants.length === 1
+                        ? t('1 participant')
+                        : t('{n} participants', { n: participants.length }),
+            },
+            { label: t('Source'), value: providerLabel },
+            {
+                label: t('Delivery'),
+                value: streams ? t('Speaks as it generates') : t('Speaks after receiving full reply'),
             },
             // Actionable: the clock can be hidden from the input row, and this
             // is then the only way back to its settings mid-circle.
             {
-                label: 'Clock',
+                label: t('Clock'),
                 value: sessionClock.faceLabel(),
                 onClick: () => void sessionClock.openPicker(),
             },
         ];
-    }, 'Session', [
-        { label: 'Report a bug', onClick: () => void openBugReport() },
+    }, t('Session'), [
+        { label: t('Report a bug'), onClick: () => void openBugReport() },
         // AI circle participants generate content too (a word or two at a
         // time), so the Play GenAI-policy flag belongs here as well.
         {
-            label: 'Report AI content',
+            label: t('Report AI content'),
             onClick: () =>
                 void openAiContentReport({
                     sourceLabel:
@@ -203,9 +210,9 @@ export async function mountNotingSessionView(
             <div class="conversation" id="conversation"></div>
             <div class="input-area">
                 <div class="input-row input-row-noting">
-                    <div id="voice-status" class="voice-status">Starting…</div>
-                    <button type="button" class="session-timer" id="timer" title="Session Clock">0:00</button>
-                    <button id="tts-toggle" class="btn btn-tts active" title="Read notes aloud" aria-label="Toggle text-to-speech">
+                    <div id="voice-status" class="voice-status">${t('Starting…')}</div>
+                    <button type="button" class="session-timer" id="timer" title="${t('Session Clock')}">0:00</button>
+                    <button id="tts-toggle" class="btn btn-tts active" title="${t('Read notes aloud')}" aria-label="${t('Toggle text-to-speech')}">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                             <path class="tts-waves" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -213,7 +220,7 @@ export async function mountNotingSessionView(
                             <line class="mute-line" x1="3" y1="3" x2="21" y2="21"></line>
                         </svg>
                     </button>
-                    <button id="voice-btn" class="btn btn-voice active" title="Toggle microphone" aria-label="Toggle microphone">
+                    <button id="voice-btn" class="btn btn-voice active" title="${t('Toggle microphone')}" aria-label="${t('Toggle microphone')}">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                             <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -224,8 +231,8 @@ export async function mountNotingSessionView(
                     </button>
                 </div>
                 <div class="input-controls">
-                    <div class="ember-level" title="Floating ember particles">
-                        <span class="toggle-text">Embers</span>
+                    <div class="ember-level" title="${t('Floating ember particles')}">
+                        <span class="toggle-text">${t('Embers')}</span>
                         <button class="ember-btn" id="ember-minus" type="button">−</button>
                         <div class="ember-blocks" id="ember-blocks">
                             <span class="ember-block filled" data-level="1"></span>
@@ -249,10 +256,10 @@ export async function mountNotingSessionView(
             <div class="session-ended-content">
                 <p id="confirm-text"></p>
                 <div class="session-ended-actions">
-                    <button id="confirm-yes" type="button" class="btn btn-primary">End Session</button>
-                    <button id="confirm-no" type="button" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-yes" type="button" class="btn btn-primary">${t('End Session')}</button>
+                    <button id="confirm-no" type="button" class="btn btn-secondary">${t('Cancel')}</button>
                 </div>
-                <button id="confirm-skip-save" type="button" class="btn-link hidden">End Without Saving</button>
+                <button id="confirm-skip-save" type="button" class="btn-link hidden">${t('End Without Saving')}</button>
             </div>
         </div>`;
 
@@ -425,9 +432,9 @@ export async function mountNotingSessionView(
 
     function participantName(index: number): string {
         const p = participants[index];
-        if (!p) return `Participant ${index + 1}`;
+        if (!p) return t('Participant {n}', { n: index + 1 });
         if (p.type === 'sound') return capitalize(p.sound);
-        return stripVoiceLabel(p.voice ?? setup.voice) || `Participant ${index + 1}`;
+        return stripVoiceLabel(p.voice ?? setup.voice) || t('Participant {n}', { n: index + 1 });
     }
 
     function clearWait(): void {
@@ -469,7 +476,7 @@ export async function mountNotingSessionView(
                   : TIMER_COMPLETION_FALLBACKS;
         const text = pickTimerFallback(localizePool(pool, notingLanguage), sessionClock.timerMinutes());
         session.addAssistantMessage(text, 'Facilitator');
-        appendMessage('facilitator', text, 'Facilitator');
+        appendMessage('facilitator', text, t('Facilitator'));
         await speakVia(setup.voice, text);
         void autosaveSession();
     }
@@ -509,7 +516,7 @@ export async function mountNotingSessionView(
             for await (const event of stt.start()) {
                 if (torn || paused) break;
                 if (event.type === 'partial') {
-                    if (!partialEl) partialEl = appendMessage('user', event.text, 'You');
+                    if (!partialEl) partialEl = appendMessage('user', event.text, t('You'));
                     else {
                         const c = partialEl.querySelector('.message-content');
                         if (c) c.textContent = event.text;
@@ -548,7 +555,7 @@ export async function mountNotingSessionView(
             await sleep(250);
         }
         if (torn || paused) return;
-        setStatus('Your turn. Say something you notice now, 1-2 words.');
+        setStatus(t('Your turn. Say something you notice now, 1-2 words.'));
         userTurnStart = Date.now();
 
         if (!stt) {
@@ -574,7 +581,7 @@ export async function mountNotingSessionView(
                 if (userCadences.length > 5) userCadences.shift();
                 recentLabels.push(note);
                 session.addUserMessage(note, 'You');
-                appendMessage('user', note, 'You');
+                appendMessage('user', note, t('You'));
                 void autosaveSession();
                 // Clear the "Your turn" prompt now, or it lingers through the
                 // next participant's breathing delay and reads as "still my
@@ -616,7 +623,7 @@ export async function mountNotingSessionView(
 
         const name = participantName(index);
         if (p.type === 'llm') {
-            setStatus(`${name} is noting…`);
+            setStatus(t('{name} is noting…', { name }));
             // Unreachable without a provider: an 'llm' participant is exactly
             // what makes needsLlm true.
             if (!utilityProvider) return;
@@ -679,8 +686,8 @@ export async function mountNotingSessionView(
         if (torn) return;
         const text = localizePool(NOTING_STATIC_OPENERS, notingLanguage)[0]!;
         session.addAssistantMessage(text, 'Facilitator');
-        appendMessage('facilitator', text, 'Facilitator');
-        setStatus('Speaking…');
+        appendMessage('facilitator', text, t('Facilitator'));
+        setStatus(t('Speaking…'));
         await speakVia(setup.voice, text);
     }
 
@@ -688,7 +695,7 @@ export async function mountNotingSessionView(
     function setMicButtonState(): void {
         micBtn.classList.toggle('active', !muted);
         orbEl?.classList.toggle('orb-muted', muted);
-        micBtn.setAttribute('aria-label', muted ? 'Unmute microphone' : 'Mute microphone');
+        micBtn.setAttribute('aria-label', muted ? t('Unmute microphone') : t('Mute microphone'));
     }
     micBtn.addEventListener('click', () => {
         muted = !muted;
@@ -697,10 +704,10 @@ export async function mountNotingSessionView(
             paused = true;
             clearWait();
             void stt?.stop();
-            setStatus('Paused, unmute to resume');
+            setStatus(t('Paused, unmute to resume'));
         } else if (paused) {
             paused = false;
-            setStatus('Resuming…');
+            setStatus(t('Resuming…'));
             // Resume from the current turn.
             const turn = turnOrder[currentTurn];
             if (turn === 'user') void startUserTurn();
@@ -715,7 +722,7 @@ export async function mountNotingSessionView(
     const endBtn = document.getElementById('end-btn') as HTMLAnchorElement | null;
     endBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        showEndConfirm('End this session?', undefined);
+        showEndConfirm(t('End this session?'), undefined);
     });
     const historyLink = navLinks?.querySelector<HTMLAnchorElement>('[data-nav="history"]');
     historyLink?.addEventListener('click', (e) => {
@@ -724,7 +731,7 @@ export async function mountNotingSessionView(
         // of a live circle.
         e.stopImmediatePropagation();
         showEndConfirm(
-            'Leave session to view history? This will end your current session.',
+            t('Leave session to view history? This will end your current session.'),
             'history'
         );
     });
@@ -788,7 +795,7 @@ export async function mountNotingSessionView(
             // History summary, as exploration sessions do (never throws;
             // returns '' on failure). The exchanges are short notes ("warmth",
             // "tension") distilled into a one-line recap.
-            setStatus('Saving session…');
+            setStatus(t('Saving session…'));
             // No provider means an AI-free circle: save without a recap rather
             // than reaching for a metered one the user never asked for
             // (meditation-pal-vr3w). No intention fallback here - noting has no
@@ -822,7 +829,7 @@ export async function mountNotingSessionView(
         // app.ts gates every session start on a working mic, so this is a
         // can't-happen. If it happens anyway, don't run a circle whose every
         // user turn would be skipped - say why and leave it unstarted.
-        setStatus('No microphone available. Noting needs a mic for your turns.');
+        setStatus(t('No microphone available. Noting needs a mic for your turns.'));
     } else {
         void (async () => {
             // Prime the STT capture graph before the opener so its onset
@@ -855,15 +862,15 @@ export async function mountNotingSessionView(
  *  matching helper in session.ts so the wording matches across modes. */
 function leaveMessage(destination?: SessionEndDestination): string {
     if (destination === 'history') {
-        return 'Leave session to view history? This will end your current session.';
+        return t('Leave session to view history? This will end your current session.');
     }
     if (destination === 'settings') {
-        return 'Leave session to view settings? This will end your current session.';
+        return t('Leave session to view settings? This will end your current session.');
     }
     if (destination === 'account') {
-        return 'Leave session to view your account? This will end your current session.';
+        return t('Leave session to view your account? This will end your current session.');
     }
-    return 'Leave your session?';
+    return t('Leave your session?');
 }
 
 function sleep(ms: number): Promise<void> {
@@ -890,7 +897,7 @@ function mountError(
         <section class="session-stage">
             <div class="status"><div id="status">${escapeHtml(message)}</div></div>
             <div class="controls">
-                <button type="button" class="btn btn-secondary" id="noting-back-btn">Back to setup</button>
+                <button type="button" class="btn btn-secondary" id="noting-back-btn">${t('Back to setup')}</button>
             </div>
         </section>`;
     root.querySelector('#noting-back-btn')?.addEventListener('click', () => onEnd());

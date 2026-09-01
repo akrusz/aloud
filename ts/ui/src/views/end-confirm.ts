@@ -10,6 +10,8 @@
  * never carries a stale destination.
  */
 
+import { t } from '../i18n.js';
+
 export interface EndConfirmConfig {
     /** When true, saving is the recommended action (primary button saves). */
     saveByDefault: boolean;
@@ -35,8 +37,8 @@ export function showEndConfirm(
     text.textContent = message;
     // The primary label stays "End Session" either way (the Save-logs setting
     // decides what that does); the link spells out the opposite choice.
-    yes.textContent = 'End Session';
-    skip.textContent = config.saveByDefault ? 'End Without Saving' : 'Save & End';
+    yes.textContent = t('End Session');
+    skip.textContent = config.saveByDefault ? t('End Without Saving') : t('Save & End');
     skip.classList.remove('hidden');
     overlay.classList.remove('hidden');
 

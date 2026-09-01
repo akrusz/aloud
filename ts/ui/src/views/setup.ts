@@ -61,6 +61,7 @@ import {
     cloudSttCreditsPerHour,
 } from '../adapters/stt-picker.js';
 import { probeMic, describeMicRequirement, type MicStatus } from '../mic-check.js';
+import { t } from '../i18n.js';
 import { sessionStore } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
@@ -153,7 +154,7 @@ function resumeModeLabel(state: SessionState): string {
         noting: 'Noting',
         felt_sense: 'Felt sense',
     };
-    return labels[state.meditationType ?? ''] ?? 'Session';
+    return t(labels[state.meditationType ?? ''] ?? 'Session');
 }
 
 /** "felt sense · 12 min in" - mode + elapsed for the resume banner. endTime is
@@ -161,7 +162,7 @@ function resumeModeLabel(state: SessionState): string {
 function resumeBannerDetail(state: SessionState): string {
     const end = state.endTime ?? Math.floor(state.startTime);
     const mins = Math.max(1, Math.round((end - state.startTime) / 60));
-    return `${resumeModeLabel(state)} · ${mins} min in`;
+    return t('{mode} · {mins} min in', { mode: resumeModeLabel(state), mins });
 }
 
 export async function mountSetupView(
@@ -252,7 +253,7 @@ export async function mountSetupView(
             (typeof sessionStorage !== 'undefined' &&
                 sessionStorage.getItem('continueFromSummary')) ||
             new Date(state.startTime * 1000).toLocaleString();
-        text.textContent = `Continuing from: ${summary}`;
+        text.textContent = t('Continuing from: {summary}', { summary });
         // Must be the .hidden class: the HTML hidden attribute loses to
         // .continue-banner's `display: flex`.
         banner.classList.remove('hidden');
@@ -411,12 +412,12 @@ export async function mountSetupView(
         const ratePart = rate ? ` · ${rate}` : '';
         let text: string;
         if (entry) {
-            text = `${entry.name}${ratePart} · ${setup.ttsRate} wpm`;
+            text = `${entry.name}${ratePart} · ${t('{rate} wpm', { rate: setup.ttsRate })}`;
         } else if (selectedName) {
             // Voice id is stored but we haven't loaded its details yet.
-            text = `${selectedName} · ${setup.ttsRate} wpm`;
+            text = `${selectedName} · ${t('{rate} wpm', { rate: setup.ttsRate })}`;
         } else {
-            text = scoredVoices.length > 0 ? 'Default' : 'Voice';
+            text = scoredVoices.length > 0 ? t('Default') : t('Voice');
         }
         // innerHTML so a paid pick's ☁️ badge gets the legibility outline;
         // voice names are catalog data, so escape before wrapping.
@@ -476,10 +477,10 @@ export async function mountSetupView(
         }
         el.classList.remove('hidden');
         setCloudUi(true);
-        const rate = `≈${rateBadge(total)}/hr`;
+        const rate = t('≈{rate}/hr', { rate: rateBadge(total) });
         el.title = util > 0
-            ? 'Rough estimate. Includes a small background model for summaries and quick decisions, so it can sit above the badges combined.'
-            : 'Rough estimate; varies with how much is said.';
+            ? t('Rough estimate. Includes a small background model for summaries and quick decisions, so it can sit above the badges combined.')
+            : t('Rough estimate; varies with how much is said.');
         // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
         // out on the white pill). Content is our own numbers + fixed words, safe.
         el.innerHTML = withCloudOutline(rate);
@@ -505,7 +506,7 @@ export async function mountSetupView(
         const currentName = stripVoicePrefix(target ? target.current() : setup.voice);
         renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
         speedSlider.value = String(setup.ttsRate);
-        speedLabel.textContent = `${setup.ttsRate} wpm`;
+        speedLabel.textContent = t('{rate} wpm', { rate: setup.ttsRate });
         modal.classList.remove('hidden');
 
         const onListClick = (e: MouseEvent) => {
@@ -533,9 +534,9 @@ export async function mountSetupView(
                         });
                     } catch (err) {
                         downloadBtn.disabled = false;
-                        downloadBtn.textContent = original ?? 'Download';
+                        downloadBtn.textContent = original ?? t('Download');
                         setModelDownloadsDisabled(listEl, model, false, downloadBtn);
-                        void alertDialog(`Could not download: ${(err as Error).message}`);
+                        void alertDialog(t('Could not download: {message}', { message: (err as Error).message }));
                         return;
                     }
                     invalidateServerVoicesCache();
@@ -569,7 +570,7 @@ export async function mountSetupView(
         const onSpeedInput = () => {
             const rate = Number(speedSlider.value);
             setup.ttsRate = rate;
-            speedLabel.textContent = `${rate} wpm`;
+            speedLabel.textContent = t('{rate} wpm', { rate });
             void persistDefaultVoice(setup.voice, setup.ttsRate);
             updateVoiceButtonLabel();
         };
@@ -636,7 +637,7 @@ export async function mountSetupView(
             const names = [
                 ...setup.focuses.map((f) => FOCUS_LABELS[f]),
                 ...setup.qualities.map((q) => QUALITY_LABELS[q]),
-            ].filter(Boolean);
+            ].filter(Boolean).map((n) => t(n));
             el.textContent = names.join(', ');
         }
         updateCustomizeSummary();
@@ -1013,7 +1014,7 @@ export async function mountSetupView(
         // "connecting" note rather than an error while the background poll
         // waits for it to answer.
         if (setup.provider === 'aloud' && byokOpts.webMode && !capabilitiesSync().cloud) {
-            hintEl.textContent = 'Connecting to aloud cloud…';
+            hintEl.textContent = t('Connecting to aloud cloud…');
             hintEl.classList.remove('hidden');
             return;
         }
@@ -1124,8 +1125,8 @@ export async function mountSetupView(
         return found ? found.name : name;
     }
     function participantLabel(p: NotingParticipantConfig, index: number): string {
-        if (p.type === 'sound') return capitalize(p.sound);
-        return voiceNameFromId(p.voice ?? setup.voice) || `Participant ${index + 1}`;
+        if (p.type === 'sound') return t(capitalize(p.sound));
+        return voiceNameFromId(p.voice ?? setup.voice) || t('Participant {n}', { n: index + 1 });
     }
     function newParticipant(type: NotingParticipantConfig['type']): NotingParticipantConfig {
         const timing = 'adaptive' as const;
@@ -1144,62 +1145,62 @@ export async function mountSetupView(
         listEl.innerHTML = ps
             .map((p, i) => {
                 const reactiveIdx = p.type === 'llm' ? Math.max(0, REACTIVE_LEVELS.indexOf(p.reactive)) : 1;
-                const voiceLabel = p.type !== 'sound' ? voiceNameFromId(p.voice ?? setup.voice) || 'Default' : 'Default';
-                const soundLabel = p.type === 'sound' ? capitalize(p.sound) : 'Crow';
+                const voiceLabel = p.type !== 'sound' ? voiceNameFromId(p.voice ?? setup.voice) || t('Default') : t('Default');
+                const soundLabel = p.type === 'sound' ? t(capitalize(p.sound)) : t('Crow');
                 const phraseVal = p.type === 'fixed' ? p.phrase : '';
                 const delayVal = p.fixedDelaySec || 4;
                 return `<div class="participant-row" data-index="${i}">
                     <div class="participant-row-header">
                         <span class="participant-label">${escapeAttr(participantLabel(p, i))}</span>
-                        <button type="button" class="participant-remove" title="Remove">&times;</button>
+                        <button type="button" class="participant-remove" title="${escapeAttr(t('Remove'))}">&times;</button>
                     </div>
                     <div class="participant-fields">
                         <div class="participant-field">
-                            <label>Type</label>
+                            <label>${t('Type')}</label>
                             <select class="participant-type">
-                                <option value="llm"${p.type === 'llm' ? ' selected' : ''}>AI</option>
-                                <option value="fixed"${p.type === 'fixed' ? ' selected' : ''}>Fixed phrase</option>
-                                <option value="sound"${p.type === 'sound' ? ' selected' : ''}>Sound effect</option>
+                                <option value="llm"${p.type === 'llm' ? ' selected' : ''}>${t('AI')}</option>
+                                <option value="fixed"${p.type === 'fixed' ? ' selected' : ''}>${t('Fixed phrase')}</option>
+                                <option value="sound"${p.type === 'sound' ? ' selected' : ''}>${t('Sound effect')}</option>
                             </select>
                         </div>
                         <div class="participant-field participant-voice-field${p.type === 'sound' ? ' hidden' : ''}">
-                            <label>Voice</label>
+                            <label>${t('Voice')}</label>
                             <button type="button" class="setup-voice-btn participant-voice-btn">${escapeAttr(voiceLabel)}</button>
                         </div>
                         <div class="participant-field">
-                            <label>Timing</label>
+                            <label>${t('Timing')}</label>
                             <select class="participant-timing">
-                                <option value="adaptive"${p.timing === 'adaptive' ? ' selected' : ''}>Adaptive</option>
-                                <option value="fixed"${p.timing === 'fixed' ? ' selected' : ''}>Fixed</option>
+                                <option value="adaptive"${p.timing === 'adaptive' ? ' selected' : ''}>${t('Adaptive')}</option>
+                                <option value="fixed"${p.timing === 'fixed' ? ' selected' : ''}>${t('Fixed')}</option>
                             </select>
                         </div>
                         <div class="participant-field participant-delay-field${p.timing === 'fixed' ? '' : ' hidden'}">
-                            <label>Seconds</label>
+                            <label>${t('Seconds')}</label>
                             <div class="stepper">
-                                <button type="button" class="stepper-btn stepper-dec" aria-label="Decrease">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-dec" aria-label="${escapeAttr(t('Decrease'))}">&minus;</button>
                                 <input type="number" class="participant-delay stepper-value" value="${delayVal}" min="1" max="30" step="1">
-                                <button type="button" class="stepper-btn stepper-inc" aria-label="Increase">+</button>
+                                <button type="button" class="stepper-btn stepper-inc" aria-label="${escapeAttr(t('Increase'))}">+</button>
                             </div>
                         </div>
                         <div class="participant-field participant-reactive-field${p.type === 'llm' ? '' : ' hidden'}">
-                            <label>Responsiveness</label>
+                            <label>${t('Responsiveness')}</label>
                             <div class="reactive-slider-wrap">
                                 <input type="range" class="participant-reactive slider-stops" min="0" max="2" value="${reactiveIdx}" step="1">
-                                <span class="reactive-label">${REACTIVE_LABELS[reactiveIdx]}</span>
+                                <span class="reactive-label">${t(REACTIVE_LABELS[reactiveIdx] ?? 'Low')}</span>
                             </div>
                         </div>
                         <div class="participant-field participant-phrase-field${p.type === 'fixed' ? '' : ' hidden'}">
-                            <label>Phrase</label>
+                            <label>${t('Phrase')}</label>
                             <div class="phrase-input-wrap">
-                                <input type="text" class="participant-phrase" placeholder="e.g. breathing" maxlength="30" value="${escapeAttr(phraseVal)}">
-                                <button type="button" class="participant-phrase-preview btn btn-secondary btn-small" title="Preview phrase">&#9654;</button>
+                                <input type="text" class="participant-phrase" placeholder="${escapeAttr(t('e.g. breathing'))}" maxlength="30" value="${escapeAttr(phraseVal)}">
+                                <button type="button" class="participant-phrase-preview btn btn-secondary btn-small" title="${escapeAttr(t('Preview phrase'))}">&#9654;</button>
                             </div>
                         </div>
                         <div class="participant-field participant-sound-field${p.type === 'sound' ? '' : ' hidden'}">
-                            <label>Sound</label>
+                            <label>${t('Sound')}</label>
                             <div class="phrase-input-wrap">
                                 <button type="button" class="btn btn-secondary btn-small participant-sound-btn sound-pick-btn">${escapeAttr(soundLabel)}</button>
-                                <button type="button" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>
+                                <button type="button" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeAttr(t('Play sound'))}">&#9654;</button>
                             </div>
                         </div>
                     </div>
@@ -1256,7 +1257,7 @@ export async function mountSetupView(
                 const idx = Number(reactive.value);
                 p.reactive = REACTIVE_LEVELS[idx] ?? 'low';
                 const lbl = row.querySelector('.reactive-label');
-                if (lbl) lbl.textContent = REACTIVE_LABELS[idx] ?? 'Low';
+                if (lbl) lbl.textContent = t(REACTIVE_LABELS[idx] ?? 'Low');
                 persist();
             });
             const phraseInput = row.querySelector<HTMLInputElement>('.participant-phrase');
@@ -1268,7 +1269,7 @@ export async function mountSetupView(
             });
             row.querySelector<HTMLButtonElement>('.participant-phrase-preview')?.addEventListener('click', () => {
                 if (p.type !== 'fixed') return;
-                void previewPhrase(phraseInput?.value.trim() || 'breathing', p.voice ?? setup.voice);
+                void previewPhrase(phraseInput?.value.trim() || t('breathing'), p.voice ?? setup.voice);
             });
             row.querySelector<HTMLButtonElement>('.participant-sound-btn')?.addEventListener('click', () => {
                 if (p.type !== 'sound') return;
@@ -1321,9 +1322,9 @@ export async function mountSetupView(
         listEl.innerHTML = names
             .map(
                 (name) => `<div class="voice-row${name === current ? ' selected' : ''}" data-sound-name="${name}">
-                    <span class="voice-row-name">${capitalize(name)}</span>
+                    <span class="voice-row-name">${t(capitalize(name))}</span>
                     ${name === current ? '<span class="voice-row-check">✓</span>' : ''}
-                    <button type="button" class="voice-row-preview" data-sound="${name}">Preview</button>
+                    <button type="button" class="voice-row-preview" data-sound="${name}">${t('Preview')}</button>
                 </div>`
             )
             .join('');
@@ -1418,14 +1419,14 @@ export async function mountSetupView(
         const cueSoundBtn = root.querySelector<HTMLButtonElement>('#user-turn-cue-sound-btn');
         if (cueSoundBtn) {
             const initial = setup.notingUserTurnCueSound ?? 'chime';
-            cueSoundBtn.textContent = capitalize(initial);
+            cueSoundBtn.textContent = t(capitalize(initial));
             cueSoundBtn.dataset['sound'] = initial;
             cueSoundBtn.addEventListener('click', () => {
                 openSoundModal(
                     setup.notingUserTurnCueSound ?? 'chime',
                     (name) => {
                         setup.notingUserTurnCueSound = name === 'chime' ? null : (name as NotingSound);
-                        cueSoundBtn.textContent = capitalize(name);
+                        cueSoundBtn.textContent = t(capitalize(name));
                         cueSoundBtn.dataset['sound'] = name;
                         persist();
                     },
@@ -1509,12 +1510,12 @@ function stripVoicePrefix(voice: string | null): string | null {
 function renderClockButton(key: string): string {
     return `
         <div class="form-group setup-clock-group">
-            <label>Session Clock <button type="button" class="info-btn" data-info="clock-${key}" aria-label="About the session clock">?</button></label>
+            <label>${t('Session Clock')} <button type="button" class="info-btn" data-info="clock-${key}" aria-label="${t('About the session clock')}">?</button></label>
             <div class="info-panel hidden" id="info-clock-${key}">
-                <p>A clock or a timer for the sit. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.</p>
-                <p>Hiding the readout doesn't disarm the timer; you still get the spoken close.</p>
+                <p>${t("A clock or a timer for the sit. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.")}</p>
+                <p>${t("Hiding the readout doesn't disarm the timer; you still get the spoken close.")}</p>
             </div>
-            <button type="button" class="setup-clock-btn" data-clock-btn>Time in session</button>
+            <button type="button" class="setup-clock-btn" data-clock-btn>${t('Time in session')}</button>
         </div>`;
 }
 
@@ -1526,7 +1527,7 @@ function renderSetupHTML(
     const sttSetupOptions = sttEngineOptions(isWebMode())
         .map(
             ({ value, label }) =>
-                `<option value="${value}"${value === sttSelected ? ' selected' : ''}>${escapeHtml(label)}</option>`
+                `<option value="${value}"${value === sttSelected ? ' selected' : ''}>${escapeHtml(t(label))}</option>`
         )
         .join('');
 
@@ -1535,8 +1536,8 @@ function renderSetupHTML(
         <label class="modifier-toggle">
             <input type="checkbox" name="focus" value="${f.value}">
             <div class="modifier-info">
-                <span class="modifier-name">${escapeHtml(f.name)}</span>
-                <span class="modifier-desc">${escapeHtml(f.description)}</span>
+                <span class="modifier-name">${escapeHtml(t(f.name))}</span>
+                <span class="modifier-desc">${escapeHtml(t(f.description))}</span>
             </div>
         </label>`
     ).join('');
@@ -1546,82 +1547,82 @@ function renderSetupHTML(
         <label class="modifier-toggle">
             <input type="checkbox" name="quality" value="${q.value}">
             <div class="modifier-info">
-                <span class="modifier-name">${escapeHtml(q.name)}</span>
-                <span class="modifier-desc">${escapeHtml(q.description)}</span>
+                <span class="modifier-name">${escapeHtml(t(q.name))}</span>
+                <span class="modifier-desc">${escapeHtml(t(q.description))}</span>
             </div>
         </label>`
     ).join('');
 
     const dirTickCount = DIRECTIVENESS_VALUES.length - 1;
     const verbosityOptions = VERBOSITY_OPTIONS.map(
-        (v) => `<option value="${v.value}">${escapeHtml(v.label)}</option>`
+        (v) => `<option value="${v.value}">${escapeHtml(t(v.label))}</option>`
     ).join('');
 
     return `
     <div id="continue-banner" class="continue-banner hidden">
-        <span id="continue-banner-text">Continuing from a previous session</span>
-        <button type="button" class="continue-banner-close" id="continue-cancel" aria-label="Cancel continuation">&times;</button>
+        <span id="continue-banner-text">${t('Continuing from a previous session')}</span>
+        <button type="button" class="continue-banner-close" id="continue-cancel" aria-label="${t('Cancel continuation')}">&times;</button>
     </div>
 
     <div class="setup-header">
         <div class="tab-bar">
-            <button type="button" class="tab-btn active" data-tab="exploration">Exploration</button>
-            <button type="button" class="tab-btn" data-tab="noting">Noting</button>
-            <button type="button" class="tab-btn" data-tab="felt_sense">Felt Sense</button>
-            <button type="button" class="info-btn" data-info="methods" aria-label="About meditation methods">?</button>
+            <button type="button" class="tab-btn active" data-tab="exploration">${t('Exploration')}</button>
+            <button type="button" class="tab-btn" data-tab="noting">${t('Noting')}</button>
+            <button type="button" class="tab-btn" data-tab="felt_sense">${t('Felt Sense')}</button>
+            <button type="button" class="info-btn" data-info="methods" aria-label="${t('About meditation methods')}">?</button>
         </div>
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
-                <p><strong>exploration</strong>: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.</p>
-                <p>in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.</p>
-                <p>thanks to <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> and <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for guiding me in similar practices.</p>
+                <p><strong>${t('exploration')}</strong>: ${t('this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.')}</p>
+                <p>${t("in this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. there's a guidance slider so you can dial in how actively it leads. in my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.")}</p>
+                <p>${t('thanks to')} <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> ${t('and')} <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> ${t('for guiding me in similar practices.')}</p>
             </div>
             <div data-method="noting" class="hidden">
-                <p><strong>noting</strong>: you specify what participants you'd like, if any: AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. this process can be helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing the cue -&gt; observing -&gt; speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.</p>
-                <p>thanks to <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> and again to <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> for inspiration.</p>
+                <p><strong>${t('noting')}</strong>: ${t('you specify what participants you\'d like, if any: AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. this process can be helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing the cue -&gt; observing -&gt; speaking. if there are no other participants, it\'ll just briefly introduce the method and then record what you note.')}</p>
+                <p>${t('thanks to')} <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> ${t('and again to')} <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> ${t('for inspiration.')}</p>
             </div>
             <div data-method="felt_sense" class="hidden">
-                <p><strong>felt sense</strong>: a gentle six-step process. settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time.</p>
-                <p>adapted from <a href="https://focusing.org/" target="_blank" rel="noopener">Eugene Gendlin's Focusing</a>, which deserves the credit for the method.</p>
+                <p><strong>${t('felt sense')}</strong>: ${t('a gentle six-step process. settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. the facilitator holds the arc quietly in the background; you just talk, sense, and take your time.')}</p>
+                <p>${t('adapted from')} <a href="https://focusing.org/" target="_blank" rel="noopener">${t("Eugene Gendlin's Focusing")}</a>${t(', which deserves the credit for the method.')}</p>
             </div>
-            <p class="info-panel-link"><a href="#" id="start-guide-link">Take the full tour &rarr;</a></p>
+            <p class="info-panel-link"><a href="#" id="start-guide-link">${t('Take the full tour')} &rarr;</a></p>
         </div>
     </div>
 
     <form id="setup-form" class="setup-form setup-container">
         <div class="tab-panel" id="exploration-panel">
             <div class="form-group">
-                <label for="intention">Intention <span class="optional">(optional)</span></label>
+                <label for="intention">${t('Intention')} <span class="optional">${t('(optional)')}</span></label>
                 <textarea id="intention" rows="2"
-                    placeholder="e.g. play with energetic flow, just be present with sensations, drop the need to control"></textarea>
+                    placeholder="${escapeHtml(t('e.g. play with energetic flow, just be present with sensations, drop the need to control'))}"></textarea>
             </div>
 
             <div class="customize-section" id="customize-section">
                 <button type="button" class="customize-toggle" id="customize-toggle"
                     aria-expanded="false" aria-controls="customize-body">
-                    <span class="customize-toggle-label">Customize facilitation</span>
+                    <span class="customize-toggle-label">${t('Customize facilitation')}</span>
                     <span class="customize-toggle-summary" id="customize-summary"></span>
                 </button>
                 <div class="customize-body" id="customize-body">
                     <div class="form-group">
-                        <label>Attention Focus <button type="button" class="info-btn" data-info="focus" aria-label="About attention focus">?</button></label>
+                        <label>${t('Attention Focus')} <button type="button" class="info-btn" data-info="focus" aria-label="${t('About attention focus')}">?</button></label>
                         <div class="info-panel hidden" id="info-focus">
-                            <p>These let the facilitator know where you intend to place your attention.</p>
-                            <p><strong>Body &amp; sensations:</strong> Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.</p>
-                            <p><strong>Emotions &amp; feeling tone:</strong> More complex collections of sensations and labels - joy, anger, something unnamed.</p>
-                            <p><strong>Parts &amp; inner world:</strong> Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.</p>
-                            <p>You can also select multiple, or leave all unchecked to keep things open.</p>
-                            <p>Some combinations to try: body &amp; emotions with playful and feeling good; emotions with loving and feeling good; parts with compassionate.</p>
+                            <p>${t('These let the facilitator know where you intend to place your attention.')}</p>
+                            <p><strong>${t('Body &amp; sensations:')}</strong> ${t('Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.')}</p>
+                            <p><strong>${t('Emotions &amp; feeling tone:')}</strong> ${t('More complex collections of sensations and labels - joy, anger, something unnamed.')}</p>
+                            <p><strong>${t('Parts &amp; inner world:')}</strong> ${t('Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.')}</p>
+                            <p>${t('You can also select multiple, or leave all unchecked to keep things open.')}</p>
+                            <p>${t('Some combinations to try: body &amp; emotions with playful and feeling good; emotions with loving and feeling good; parts with compassionate.')}</p>
                         </div>
                         <div class="modifier-toggles">${focusToggles}</div>
                     </div>
 
                     <div class="form-group">
-                        <label>Vibe <button type="button" class="info-btn" data-info="vibe" aria-label="About vibes">?</button></label>
+                        <label>${t('Vibe')} <button type="button" class="info-btn" data-info="vibe" aria-label="${t('About vibes')}">?</button></label>
                         <div class="info-panel hidden" id="info-vibe">
-                            <p>Vibes color the tone of facilitation. Select any combination; they blend naturally.</p>
-                            <p><strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.</p>
-                            <p>Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.</p>
+                            <p>${t('Vibes color the tone of facilitation. Select any combination; they blend naturally.')}</p>
+                            <p>${t("<strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.")}</p>
+                            <p>${t('Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.')}</p>
                         </div>
                         <div class="modifier-toggles">${qualityToggles}</div>
                     </div>
@@ -1630,22 +1631,22 @@ function renderSetupHTML(
 
             <div class="setup-extras-row setup-extras-row-top">
                 <details class="advanced-settings">
-                    <summary>Additional instructions</summary>
+                    <summary>${t('Additional instructions')}</summary>
                     <div class="form-group">
                         <textarea id="custom-instructions" rows="3"
-                            placeholder="Any specific guidance for the facilitator…"></textarea>
+                            placeholder="${escapeHtml(t('Any specific guidance for the facilitator…'))}"></textarea>
                     </div>
                 </details>
                 <div class="form-group setup-guidance-group">
-                    <label for="directiveness">Guidance Level <button type="button" class="info-btn" data-info="guidance" aria-label="About guidance level">?</button></label>
+                    <label for="directiveness">${t('Guidance Level')} <button type="button" class="info-btn" data-info="guidance" aria-label="${t('About guidance level')}">?</button></label>
                     <div class="info-panel hidden" id="info-guidance">
-                        <p>How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.</p>
-                        <p>If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.</p>
+                        <p>${t('How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.')}</p>
+                        <p>${t('If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.')}</p>
                     </div>
                     <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2">
                     <div class="range-labels">
-                        <span>Following</span>
-                        <span>Directing</span>
+                        <span>${t('Following')}</span>
+                        <span>${t('Directing')}</span>
                     </div>
                 </div>
             </div>
@@ -1653,14 +1654,14 @@ function renderSetupHTML(
             <div class="form-row form-row-thirds">
                 ${renderClockButton('exploration')}
                 <div class="form-group">
-                    <label for="verbosity">Response Length</label>
+                    <label for="verbosity">${t('Response Length')}</label>
                     <select id="verbosity">${verbosityOptions}</select>
                 </div>
                 <div class="form-group">
-                    <label>Voice</label>
-                    <button type="button" id="setup-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
+                    <label>${t('Voice')}</label>
+                    <button type="button" id="setup-voice-btn" class="setup-voice-btn" data-default-voice>${t('Default')}</button>
                     <div id="setup-no-voices" class="no-voices-banner inline hidden" role="alert" data-no-voices>
-                        <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
+                        <p>${t('No speech voices found.')} <a href="#" data-nav="settings" data-nav-anchor="settings-tts">${t('Set up TTS in Settings')}</a>.</p>
                     </div>
                 </div>
             </div>
@@ -1668,20 +1669,20 @@ function renderSetupHTML(
 
         <div class="tab-panel hidden" id="noting-panel">
             <div class="form-group">
-                <label>Participants</label>
+                <label>${t('Participants')}</label>
                 <div id="participant-list"></div>
                 <button type="button" id="add-participant-btn" class="btn btn-secondary btn-small"
-                    title="Add another participant to the noting circle (up to 4)">+ Add participant</button>
+                    title="${escapeHtml(t('Add another participant to the noting circle (up to 4)'))}">${t('+ Add participant')}</button>
             </div>
 
             <div class="setup-extras-row">
                 <div class="noting-option-row">
                     <label class="noting-option">
                         <input type="checkbox" id="user-turn-cue">
-                        <span>Play a sound on your turn</span>
+                        <span>${t('Play a sound on your turn')}</span>
                     </label>
-                    <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">Chime</button>
-                    <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="Play sound">&#9654;</button>
+                    <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">${t('Chime')}</button>
+                    <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}">&#9654;</button>
                 </div>
                 ${renderClockButton('noting')}
             </div>
@@ -1689,28 +1690,28 @@ function renderSetupHTML(
 
         <div class="tab-panel hidden" id="felt-sense-panel">
             <div class="form-group">
-                <label for="felt-sense-intention">Something to sit with <span class="optional">(optional)</span></label>
+                <label for="felt-sense-intention">${t('Something to sit with')} <span class="optional">${t('(optional)')}</span></label>
                 <textarea id="felt-sense-intention" rows="2"
-                    placeholder="e.g. the job decision, a conversation yesterday, this restless feeling lately..."></textarea>
+                    placeholder="${escapeHtml(t('e.g. the job decision, a conversation yesterday, this restless feeling lately...'))}"></textarea>
             </div>
 
             <div class="form-row form-row-thirds" id="felt-sense-voice-row">
                 <div class="form-group">
-                    <label class="checkin-pace-label" for="checkin-enabled">Check in if I'm quiet
+                    <label class="checkin-pace-label" for="checkin-enabled">${t("Check in if I'm quiet")}
                         <input type="checkbox" id="checkin-enabled" checked></label>
                     <div class="slider-control" id="checkin-pace-control">
                         <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
                         <div class="range-labels">
-                            <span>Patient</span>
-                            <span>Attentive</span>
+                            <span>${t('Patient')}</span>
+                            <span>${t('Attentive')}</span>
                         </div>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Voice</label>
-                    <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>Default</button>
+                    <label>${t('Voice')}</label>
+                    <button type="button" id="felt-sense-voice-btn" class="setup-voice-btn" data-default-voice>${t('Default')}</button>
                     <div class="no-voices-banner inline hidden" role="alert" data-no-voices>
-                        <p>No speech voices found. <a href="#" data-nav="settings" data-nav-anchor="settings-tts">Set up TTS in Settings</a>.</p>
+                        <p>${t('No speech voices found.')} <a href="#" data-nav="settings" data-nav-anchor="settings-tts">${t('Set up TTS in Settings')}</a>.</p>
                     </div>
                 </div>
                 ${renderClockButton('felt-sense')}
@@ -1719,29 +1720,29 @@ function renderSetupHTML(
 
         <div class="form-row form-row-thirds" id="ai-shared-row">
             <div class="form-group" id="ai-provider-group">
-                <label for="provider">AI Provider</label>
+                <label for="provider">${t('AI Provider')}</label>
                 <select id="provider">
                     ${ALL_PROVIDERS.filter((p) => isProviderAvailable(p, capabilitiesSync(), byokOpts))
                         .map(
                             (p) =>
-                                `<option value="${p.value}">${escapeHtml(p.label)}</option>`
+                                `<option value="${p.value}">${escapeHtml(t(p.label))}</option>`
                         )
                         .join('')}
                 </select>
             </div>
             <div class="form-group" id="ai-model-group">
-                <label for="model-select">Model</label>
+                <label for="model-select">${t('Model')}</label>
                 <div id="model-picker-slot"></div>
             </div>
             <div class="form-group" id="setup-stt-group">
-                <label for="setup-stt-engine">Speech Recognition</label>
+                <label for="setup-stt-engine">${t('Speech Recognition')}</label>
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
                 <!-- Phone-only by construction: 'capacitor' is offered nowhere
                      else (sttEngineOptions). The device recognizer is the free
                      default, so say what it costs in accuracy before the sit
                      rather than after. -->
                 <p id="setup-stt-quality-note" class="credit-rate-legend hidden">
-                    Quality varies by device. aloud cloud is more accurate.
+                    ${t('Quality varies by device. aloud cloud is more accurate.')}
                 </p>
             </div>
         </div>
@@ -1751,9 +1752,9 @@ function renderSetupHTML(
         <div id="setup-no-mic" class="no-voices-banner inline hidden" role="alert">
             <p id="setup-no-mic-text"></p>
         </div>
-        <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline('Noting mode uses fewer ☁️. Participants speak brief labels, not full sentences.')}</p>
+        <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline(t('Noting mode uses fewer ☁️. Participants speak brief labels, not full sentences.'))}</p>
 
-        <p id="ai-inactive-note" class="credit-rate-legend hidden">No AI participants in this circle, so the AI model isn't used.</p>
+        <p id="ai-inactive-note" class="credit-rate-legend hidden">${t("No AI participants in this circle, so the AI model isn't used.")}</p>
 
         <div id="provider-hint" class="provider-hint hidden"></div>
 
@@ -1773,7 +1774,7 @@ function renderSetupHTML(
     <div class="voice-modal-overlay hidden" id="sound-modal">
         <div class="voice-modal">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">Choose a sound</span>
+                <span class="voice-modal-title">${t('Choose a sound')}</span>
                 <button class="voice-modal-close" id="sound-modal-close">&times;</button>
             </div>
             <div class="voice-modal-list" id="sound-modal-list"></div>
@@ -1786,7 +1787,7 @@ function renderSetupHTML(
     <div class="setup-footer">
         <div class="setup-footer-inner">
             <button id="begin-btn" type="button" class="btn btn-primary btn-begin">
-                <span class="btn-begin-label">Begin Session</span>
+                <span class="btn-begin-label">${t('Begin Session')}</span>
                 <!-- Cloud-rate estimate, hidden when the session spends
                      nothing (updateSessionEstimate). -->
                 <span class="btn-begin-rate" id="session-estimate"></span>
@@ -1796,6 +1797,6 @@ function renderSetupHTML(
              centered column; rides the estimate pill's visibility (only shown
              when beginning would spend clouds). -->
         <button type="button" class="clouds-help hidden" id="clouds-help"
-            aria-label="What are clouds?" title="What are ☁️?">${withCloudOutline('☁️')}<span class="clouds-help-q">?</span></button>
+            aria-label="${escapeHtml(t('What are clouds?'))}" title="${escapeHtml(t('What are ☁️?'))}">${withCloudOutline('☁️')}<span class="clouds-help-q">?</span></button>
     </div>`;
 }

@@ -6,6 +6,7 @@
  */
 
 import { manageModalFocus } from './modal-focus.js';
+import { t } from './i18n.js';
 
 const OVERLAY_ID = 'resume-modal-overlay';
 
@@ -25,15 +26,15 @@ export function showResumeModal(config: ResumeModalConfig): void {
     overlay.id = OVERLAY_ID;
     overlay.className = 'voice-modal-overlay';
     overlay.innerHTML = `
-        <div class="voice-modal resume-modal" role="dialog" aria-modal="true" aria-label="Resume session">
+        <div class="voice-modal resume-modal" role="dialog" aria-modal="true" aria-label="${t('Resume session')}">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">Resume your session?</span>
-                <button type="button" class="voice-modal-close" id="resume-modal-close" aria-label="Not now">&times;</button>
+                <span class="voice-modal-title">${t('Resume your session?')}</span>
+                <button type="button" class="voice-modal-close" id="resume-modal-close" aria-label="${t('Not now')}">&times;</button>
             </div>
             <p class="resume-modal-detail"></p>
             <div class="resume-modal-actions">
-                <button type="button" class="btn btn-primary" id="resume-modal-resume">Resume session</button>
-                <button type="button" class="btn btn-secondary" id="resume-modal-fresh">Start fresh</button>
+                <button type="button" class="btn btn-primary" id="resume-modal-resume">${t('Resume session')}</button>
+                <button type="button" class="btn btn-secondary" id="resume-modal-fresh">${t('Start fresh')}</button>
             </div>
         </div>`;
     // textContent (not innerHTML): the detail is derived session data, keep inert.

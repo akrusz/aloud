@@ -21,6 +21,7 @@ import { createTtsForVoice, createCloudAloudPreviewTts } from './adapters/tts-pi
 import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE, withCloudOutline } from './credit-rate.js';
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
+import { t } from './i18n.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -186,7 +187,7 @@ export function buildScoredVoiceList(
             score: isValue ? 4 : 3,
             engine: 'aloud',
             ...(isValue ? {} : { recommended: true }),
-            note: hv.gender,
+            note: t(hv.gender),
             ...(hv.tier ? { costTier: hv.tier } : {}),
             ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
             ...(hv.multilingual || speaks('en') ? {} : { langMismatch: true }),
@@ -312,7 +313,7 @@ export function renderVoiceList(
 
     if (voices.length === 0) {
         listEl.innerHTML =
-            '<div class="voice-tier-label">No text-to-speech voices available</div>';
+            `<div class="voice-tier-label">${t('No text-to-speech voices available')}</div>`;
         return;
     }
 
@@ -353,14 +354,14 @@ export function renderVoiceList(
     }
 
     if (recommended.length > 0) {
-        appendTierLabel(listEl, 'Best');
+        appendTierLabel(listEl, t('Best'));
         for (const v of recommended) appendRow(listEl, v, selectedName, options);
     }
 
     for (const tier of [4, 3, 2, 1, 0] as const) {
         const items = tiers[tier];
         if (!items || items.length === 0) continue;
-        appendTierLabel(listEl, TIER_LABELS[tier] ?? 'Other');
+        appendTierLabel(listEl, t(TIER_LABELS[tier] ?? 'Other'));
         for (const v of items) appendRow(listEl, v, selectedName, options);
     }
 
@@ -368,7 +369,7 @@ export function renderVoiceList(
         const more = document.createElement('button');
         more.type = 'button';
         more.className = 'voice-more-piper';
-        more.textContent = `More options: show ${lockedPiper.size} Piper voices (local, free download)`;
+        more.textContent = t('More options: show {n} Piper voices (local, free download)', { n: lockedPiper.size });
         more.onclick = () =>
             renderVoiceList(listEl, voices, selectedName, { ...options, showLockedPiper: true });
         listEl.appendChild(more);
@@ -378,7 +379,7 @@ export function renderVoiceList(
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.className = 'voice-more-piper';
-        toggle.textContent = options.showAll ? 'Show fewer voices ▲' : `Show all voices ▼`;
+        toggle.textContent = options.showAll ? t('Show fewer voices ▲') : t('Show all voices ▼');
         toggle.onclick = () =>
             renderVoiceList(listEl, voices, selectedName, { ...options, showAll: !options.showAll });
         listEl.appendChild(toggle);
@@ -435,21 +436,24 @@ function appendRow(
             : 'voice-row-cost';
         cost.innerHTML = withCloudOutline(rateText);
         const tierWord =
-            entry.costTier === 'premium' ? 'Premium' : entry.costTier === 'value' ? 'Value' : 'Cloud';
-        cost.title = `${tierWord} voice · est. ≈ ${entry.creditsPerHour!.toFixed(1)} credits/hour at a concise (exploration) pace (noting mode uses fewer)`;
+            entry.costTier === 'premium' ? t('Premium') : entry.costTier === 'value' ? t('Value') : t('Cloud');
+        cost.title = t(
+            '{tier} voice · est. ≈ {rate} credits/hour at a concise (exploration) pace (noting mode uses fewer)',
+            { tier: tierWord, rate: entry.creditsPerHour!.toFixed(1) }
+        );
         nameSpan.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {
         const eng = entry.displayEngine ?? entry.engine!;
         const badge = document.createElement('span');
         badge.className = 'voice-row-engine';
-        badge.textContent = ENGINE_LABELS[eng] ?? eng;
+        badge.textContent = eng === 'browser' ? t('Browser') : (ENGINE_LABELS[eng] ?? eng);
         nameSpan.appendChild(badge);
     }
     if (entry.langMismatch) {
         // No badge (session pickers hide these behind "Show all voices", so a
         // per-row tag was noise); the dimmed style plus this tooltip carry it.
-        row.title = 'This voice may not speak the session language well';
+        row.title = t('This voice may not speak the session language well');
     }
     row.appendChild(nameSpan);
 
@@ -466,7 +470,7 @@ function appendRow(
                 const unBtn = document.createElement('button');
                 unBtn.type = 'button';
                 unBtn.className = 'voice-row-uninstall';
-                unBtn.textContent = 'Uninstall';
+                unBtn.textContent = t('Uninstall');
                 unBtn.dataset['voiceName'] = entry.name;
                 unBtn.dataset['engine'] = entry.engine ?? '';
                 row.appendChild(unBtn);
@@ -481,7 +485,7 @@ function appendRow(
             const dlBtn = document.createElement('button');
             dlBtn.type = 'button';
             dlBtn.className = 'voice-row-download';
-            dlBtn.textContent = 'Download';
+            dlBtn.textContent = t('Download');
             dlBtn.dataset['voiceName'] = entry.name;
             dlBtn.dataset['engine'] = entry.engine ?? '';
             row.appendChild(dlBtn);
@@ -491,11 +495,11 @@ function appendRow(
     const previewBtn = document.createElement('button');
     previewBtn.type = 'button';
     previewBtn.className = 'voice-row-preview';
-    previewBtn.textContent = 'Preview';
+    previewBtn.textContent = t('Preview');
     previewBtn.dataset['voiceName'] = entry.name;
     if (entry.needsDownload && !entry.downloaded) {
         previewBtn.classList.add('preview-unavailable');
-        previewBtn.title = 'Download this voice first to preview it';
+        previewBtn.title = t('Download this voice first to preview it');
     }
     row.appendChild(previewBtn);
 
@@ -562,7 +566,7 @@ export async function previewVoice(
         }
         activePreviewEngine = ttsEngine;
         const text =
-            voiceName === 'Zarvox' ? 'Come. On. Fahoogwuhgods.' : PREVIEW_PHRASE;
+            voiceName === 'Zarvox' ? 'Come. On. Fahoogwuhgods.' : t(PREVIEW_PHRASE);
         await ttsEngine.speak(text, rate !== undefined ? { rate } : undefined);
     } finally {
         if (activePreviewEngine) {
@@ -583,24 +587,24 @@ export function previewErrorMessage(err: unknown): string {
     const name = err instanceof Error ? err.name : '';
     const msg = err instanceof Error ? err.message : String(err);
     if (name === 'CloudSignInRequiredError') {
-        return 'Sign in to aloud cloud (in Settings) to preview these voices.';
+        return t('Sign in to aloud cloud (in Settings) to preview these voices.');
     }
     // The iOS/mobile autoplay gate: the fetch consumes the tap's user-gesture
     // window, so the play that follows is blocked with NotAllowedError.
     if (name === 'NotAllowedError') {
-        return 'Tap preview again to play this voice (your browser blocked the first play).';
+        return t('Tap preview again to play this voice (your browser blocked the first play).');
     }
-    if (/\b401\b/.test(msg)) return 'aloud cloud needs you to sign in again (in Settings).';
+    if (/\b401\b/.test(msg)) return t('aloud cloud needs you to sign in again (in Settings).');
     if (/\b402\b/.test(msg) || /credit/i.test(msg)) {
-        return 'aloud cloud voices need credits to preview. Add credits, or pick a free voice.';
+        return t('aloud cloud voices need credits to preview. Add credits, or pick a free voice.');
     }
-    if (/\b403\b/.test(msg)) return 'Verify your email to use aloud cloud voices.';
+    if (/\b403\b/.test(msg)) return t('Verify your email to use aloud cloud voices.');
     // A speechSynthesis voice that couldn't render, most often a Microsoft
     // "Online (Natural)" voice, which needs a live connection.
     if (/^speechSynthesis /.test(msg)) {
-        return "That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.";
+        return t("That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.");
     }
-    return "Couldn't play that voice preview. Check your connection and try again.";
+    return t("Couldn't play that voice preview. Check your connection and try again.");
 }
 
 export function stopPreview(): void {
@@ -631,15 +635,15 @@ export interface VoiceModalConfig {
 }
 
 export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
-    const title = cfg.title ?? 'Choose Voice';
+    const title = cfg.title ?? t('Choose Voice');
     const speedValue = cfg.speedValue ?? 110;
     const footer = cfg.speedSliderId
         ? `
         <div class="voice-modal-footer">
-            <label class="voice-modal-speed-label" for="${cfg.speedSliderId}">Speed</label>
+            <label class="voice-modal-speed-label" for="${cfg.speedSliderId}">${t('Speed')}</label>
             <input type="range" id="${cfg.speedSliderId}" class="slider-stops" min="60" max="240"
                 value="${speedValue}" step="10">
-            <span class="voice-modal-speed-value" id="${cfg.speedLabelId ?? ''}">${speedValue} wpm</span>
+            <span class="voice-modal-speed-value" id="${cfg.speedLabelId ?? ''}">${t('{wpm} wpm', { wpm: speedValue })}</span>
         </div>`
         : '';
     return `
@@ -648,7 +652,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
             <div class="voice-modal-header">
                 <span class="voice-modal-titlewrap">
                     <span class="voice-modal-title">${title}</span>
-                    <span class="voice-modal-legend hidden" title="${RATE_LEGEND_TITLE}">${withCloudOutline(RATE_LEGEND)}</span>
+                    <span class="voice-modal-legend hidden" title="${t(RATE_LEGEND_TITLE)}">${withCloudOutline(t(RATE_LEGEND))}</span>
                 </span>
                 <button type="button" class="voice-modal-close" id="${cfg.closeId}">&times;</button>
             </div>

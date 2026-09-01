@@ -40,6 +40,8 @@ export interface SessionInfoPanel {
     dispose(): void;
 }
 
+import { t } from './i18n.js';
+
 function escape(s: string): string {
     return s.replace(/[&<>"']/g, (c) =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
@@ -64,7 +66,7 @@ export function mountSessionInfoPanel(
         <div class="session-info-panel">
             <div class="session-info-head">
                 <h3 class="session-info-title">${escape(title)}</h3>
-                <button type="button" class="session-info-close" data-info-close aria-label="Close">&times;</button>
+                <button type="button" class="session-info-close" data-info-close aria-label="${t('Close')}">&times;</button>
             </div>
             <div class="session-info-body" id="session-info-body"></div>
             ${

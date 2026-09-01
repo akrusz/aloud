@@ -20,6 +20,7 @@ import {
     saveAppSettings,
 } from '../app-settings.js';
 import { sttEngineOptions, resolveSttChoice, isHostedSttChoice } from '../adapters/stt-picker.js';
+import { t, setUiLang, LANGUAGE_CHANGED_EVENT } from '../i18n.js';
 import { ALL_PROVIDERS, isProviderAvailable, providerNeedsKey, type Provider } from '../settings.js';
 import { isCapacitor, isDesktopSync, isTauri } from '../is-desktop.js';
 import { detectCapabilities, capabilitiesSync } from '../capabilities.js';
@@ -290,7 +291,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             )
                 .map(
                     (p) =>
-                        `<option value="${p.value}"${p.value === settings.defaultProvider ? ' selected' : ''}>${escape(p.label)}</option>`
+                        `<option value="${p.value}"${p.value === settings.defaultProvider ? ' selected' : ''}>${escape(t(p.label))}</option>`
                 )
                 .join('');
             // If the selected default was a BYOK provider that just vanished,
@@ -367,7 +368,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         let msg = '';
         if (suffix) {
             if (providerNeedsKey(p) && keyPresent[p] === false) {
-                msg = 'Selected provider has no API key. Paste one above before starting a session.';
+                msg = t('Selected provider has no API key. Paste one above before starting a session.');
             } else {
                 msg = providerStatus?.[p]?.hint ?? '';
             }
@@ -392,7 +393,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const existing = await getApiKey(p.value);
             // Masked rather than a bare "Saved", so the user can recognize
             // which key is stored without exposing it.
-            if (status) status.textContent = existing ? `key saved (${maskKey(existing)})` : '';
+            if (status)
+                status.textContent = existing
+                    ? t('key saved ({masked})', { masked: maskKey(existing) })
+                    : '';
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
         }
@@ -428,7 +432,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         getBtn.target = '_blank';
         getBtn.rel = 'noopener noreferrer';
         getBtn.className = 'btn btn-small btn-secondary api-key-open-btn';
-        getBtn.textContent = 'Get a key ↗';
+        getBtn.textContent = t('Get a key ↗');
         getBtn.title = url;
         actions.appendChild(getBtn);
 
@@ -447,8 +451,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const paste = document.createElement('button');
             paste.type = 'button';
             paste.className = 'btn btn-small btn-secondary api-key-paste-btn';
-            paste.textContent = 'Paste';
-            paste.title = 'Paste from clipboard';
+            paste.textContent = t('Paste');
+            paste.title = t('Paste from clipboard');
             actions.appendChild(paste);
 
             const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
@@ -458,8 +462,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 if (paste.dataset['unavailable']) return;
                 paste.dataset['unavailable'] = '1';
                 paste.disabled = true;
-                paste.textContent = 'Paste failed!';
-                paste.title = `This browser blocked clipboard access. Click the field and press ${shortcut} to paste.`;
+                paste.textContent = t('Paste failed!');
+                paste.title = t(
+                    'This browser blocked clipboard access. Click the field and press {shortcut} to paste.',
+                    { shortcut }
+                );
                 paste.classList.add('is-unavailable');
                 showManualPasteHint(input, shortcut);
             }
@@ -483,17 +490,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 try {
                     const text = (await navigator.clipboard.readText()).trim();
                     if (!text) {
-                        status.textContent = 'Clipboard is empty.';
+                        status.textContent = t('Clipboard is empty.');
                         status.classList.add('is-warn');
                         return;
                     }
                     input.value = text;
                     await setApiKey(provider, text);
                     if (prefix && !text.startsWith(prefix)) {
-                        status.textContent = `Pasted, but didn't start with "${prefix}". Double-check.`;
+                        status.textContent = t(
+                            'Pasted, but didn\'t start with "{prefix}". Double-check.',
+                            { prefix }
+                        );
                         status.classList.add('is-warn');
                     } else {
-                        status.textContent = 'Pasted ✓';
+                        status.textContent = t('Pasted ✓');
                         status.classList.add('is-ok');
                     }
                     await refreshApiKeyRows();
@@ -512,13 +522,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'btn btn-small btn-secondary api-key-remove-btn';
-        remove.textContent = 'Remove';
-        remove.title = 'Delete this stored key';
+        remove.textContent = t('Remove');
+        remove.title = t('Delete this stored key');
         remove.hidden = true;
         remove.addEventListener('click', async () => {
             await setApiKey(provider, ''); // empty → backend.delete()
             input.value = '';
-            status.textContent = 'Removed';
+            status.textContent = t('Removed');
             status.classList.remove('is-warn', 'is-ok');
             await refreshApiKeyRows();
         });
@@ -543,8 +553,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (input.dataset['pasteHintApplied']) return;
         const current = input.placeholder || '';
         input.placeholder = current
-            ? `${current} · ${shortcut} to paste`
-            : `${shortcut} to paste`;
+            ? `${current} · ${t('{shortcut} to paste', { shortcut })}`
+            : t('{shortcut} to paste', { shortcut });
         input.dataset['pasteHintApplied'] = '1';
     }
 
@@ -560,7 +570,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             'aloud-gpt-transcribe':
                 "Audio is transcribed by aloud's hosted provider and spends credits.",
         };
-        hintEl.textContent = hints[resolveSttChoice(settings.sttEngine, isWebMode())];
+        hintEl.textContent = t(hints[resolveSttChoice(settings.sttEngine, isWebMode())]);
     }
 
     /** Model size only matters for on-device Whisper; hide its column for
@@ -621,11 +631,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
         const stored = settings.micDeviceId ?? '';
         sel.innerHTML =
-            `<option value="">System default</option>` +
+            `<option value="">${t('System default')}</option>` +
             devices
                 .map(
                     (d, i) =>
-                        `<option value="${escape(d.deviceId)}">${escape(d.label || `Microphone ${i + 1}`)}</option>`
+                        `<option value="${escape(d.deviceId)}">${escape(d.label || t('Microphone {n}', { n: i + 1 }))}</option>`
                 )
                 .join('');
         // Show the stored pick when its device is present; otherwise display
@@ -676,8 +686,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 // replaces the suffix instead of stacking suffixes.
                 const label = (opt.dataset['label'] ??= opt.textContent ?? '');
                 opt.textContent = m.installed
-                    ? `${label} - downloaded`
-                    : `${label} - ${m.approx_download_mb} MB download`;
+                    ? t('{label} - downloaded', { label })
+                    : t('{label} - {mb} MB download', { label, mb: m.approx_download_mb });
             }
         } catch {
             return; // backend down - keep plain labels, leave the button hidden
@@ -697,8 +707,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         btn.classList.remove('hidden');
         btn.disabled = false;
         btn.textContent = info.installed
-            ? 'Remove download'
-            : `Download now (${info.approx_download_mb} MB)`;
+            ? t('Remove download')
+            : t('Download now ({mb} MB)', { mb: info.approx_download_mb });
         btn.dataset['action'] = info.installed ? 'remove' : 'download';
     }
 
@@ -708,7 +718,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const statusEl = root.querySelector<HTMLElement>('#s-whisper-model-status');
         whisperDownloadBusy = true;
         btn.disabled = true;
-        btn.textContent = 'Downloading…';
+        btn.textContent = t('Downloading…');
         try {
             const resp = await fetch(appUrl('/stt/whisper/download-model'), {
                 method: 'POST',
@@ -736,7 +746,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                     }
                     if (msg.status === 'error') throw new Error(msg.error || 'download failed');
                     if (msg.status === 'downloading' && msg.total) {
-                        btn.textContent = `Downloading… ${Math.round(((msg.completed ?? 0) / msg.total) * 100)}%`;
+                        btn.textContent = t('Downloading… {pct}%', {
+                            pct: Math.round(((msg.completed ?? 0) / msg.total) * 100),
+                        });
                     }
                 }
             }
@@ -744,7 +756,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         } catch (err) {
             if (statusEl) {
                 statusEl.textContent =
-                    err instanceof Error ? err.message : 'Download failed.';
+                    err instanceof Error ? err.message : t('Download failed.');
                 statusEl.classList.remove('hidden');
             }
         } finally {
@@ -755,8 +767,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     async function removeWhisperModel(): Promise<void> {
         const ok = await confirmDialog(
-            'Remove this speech model from disk? It re-downloads if a session needs it.',
-            { okLabel: 'Remove', danger: true }
+            t('Remove this speech model from disk? It re-downloads if a session needs it.'),
+            { okLabel: t('Remove'), danger: true }
         );
         if (!ok) return;
         try {
@@ -777,11 +789,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         langSel.addEventListener('change', () => {
             settings.language = langSel.value;
             persist();
-            // The language picks .en vs multilingual model files, so the
-            // on-disk state per size can change with it.
-            void refreshWhisperModelBadges();
-            // And re-mark voice compatibility (the picker dims mismatches).
-            void loadVoiceCatalog();
+            // The UI follows the session language. app.ts hears this event,
+            // re-translates the chrome, and remounts this view - so nothing
+            // after the dispatch should touch the DOM being replaced. The
+            // whisper-badge/voice-catalog refreshes the pre-i18n handler did
+            // here now happen naturally in the remount.
+            setUiLang(settings.language);
+            window.dispatchEvent(new Event(LANGUAGE_CHANGED_EVENT));
         });
 
         const sttSel = root.querySelector<HTMLSelectElement>('#s-stt-engine');
@@ -879,19 +893,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             typeof navigator !== 'undefined' ? navigator.platform || '' : ''
         );
         const openSettingsLink = isDesktopSync()
-            ? ' <a href="#" data-open-voice-settings>Download Premium voices</a>. In the System Voice row, click the <b>ⓘ</b> then click Voice.'
+            ? ` <a href="#" data-open-voice-settings>${t('Download Premium voices')}</a>. ${t('In the System Voice row, click the <b>ⓘ</b> then click Voice.')}`
             : '';
         const hints: Record<TtsEngineChoice, string> = {
-            cloud: 'Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁️ entries.',
+            cloud: t('Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁️ entries.'),
             macos:
-                'Built-in macOS voices. Zero latency, works offline.' +
+                t('Built-in macOS voices. Zero latency, works offline.') +
                 (isMac ? openSettingsLink : ''),
             browser:
-                "Uses your browser's built-in speech synthesis. On Windows, Edge and the desktop app include high-quality natural voices.",
+                t("Uses your browser's built-in speech synthesis. On Windows, Edge and the desktop app include high-quality natural voices."),
             elevenlabs:
-                'Cloud neural TTS with natural, expressive voices. Requires an API key and internet.',
+                t('Cloud neural TTS with natural, expressive voices. Requires an API key and internet.'),
             piper:
-                'Fast local neural TTS. Download voice models (~60–100 MB each) from the voice picker. <a href="https://rhasspy.github.io/piper-samples/" target="_blank" rel="noopener">Listen to samples</a>',
+                t('Fast local neural TTS. Download voice models (~60–100 MB each) from the voice picker.') +
+                ` <a href="https://rhasspy.github.io/piper-samples/" target="_blank" rel="noopener">${t('Listen to samples')}</a>`,
         };
         hintEl.innerHTML = hints[settings.ttsEngine];
         // /app/v1/open-voice-settings opens macOS System Settings straight to
@@ -932,7 +947,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         getBtn.target = '_blank';
         getBtn.rel = 'noopener noreferrer';
         getBtn.className = 'btn btn-small btn-secondary api-key-open-btn';
-        getBtn.textContent = 'Get a key ↗';
+        getBtn.textContent = t('Get a key ↗');
         actions.appendChild(getBtn);
 
         const status = document.createElement('span');
@@ -947,7 +962,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const paste = document.createElement('button');
             paste.type = 'button';
             paste.className = 'btn btn-small btn-secondary api-key-paste-btn';
-            paste.textContent = 'Paste';
+            paste.textContent = t('Paste');
             actions.appendChild(paste);
             const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
             const shortcut = isMac ? '⌘V' : 'Ctrl+V';
@@ -955,7 +970,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 try {
                     const text = (await navigator.clipboard.readText()).trim();
                     if (!text) {
-                        status.textContent = 'Clipboard is empty.';
+                        status.textContent = t('Clipboard is empty.');
                         status.classList.add('is-warn');
                         return;
                     }
@@ -966,18 +981,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         ELEVENLABS_KEY_INFO.prefix &&
                         !text.startsWith(ELEVENLABS_KEY_INFO.prefix)
                     ) {
-                        status.textContent = `Pasted, but didn't start with "${ELEVENLABS_KEY_INFO.prefix}".`;
+                        status.textContent = t('Pasted, but didn\'t start with "{prefix}".', {
+                            prefix: ELEVENLABS_KEY_INFO.prefix,
+                        });
                         status.classList.add('is-warn');
                     } else {
-                        status.textContent = 'Pasted ✓';
+                        status.textContent = t('Pasted ✓');
                         status.classList.add('is-ok');
                     }
                 } catch {
                     paste.disabled = true;
-                    paste.textContent = 'Paste failed!';
-                    paste.title = `Click the field and press ${shortcut} to paste.`;
+                    paste.textContent = t('Paste failed!');
+                    paste.title = t('Click the field and press {shortcut} to paste.', { shortcut });
                     if (!input.dataset['pasteHintApplied']) {
-                        input.placeholder = `${shortcut} to paste`;
+                        input.placeholder = t('{shortcut} to paste', { shortcut });
                         input.dataset['pasteHintApplied'] = '1';
                     }
                 }
@@ -992,7 +1009,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
 
         const existing = localStorage.getItem('apikey:elevenlabs');
-        if (existing) input.placeholder = 'Saved, type to replace';
+        if (existing) input.placeholder = t('Saved, type to replace');
 
         row.appendChild(actions);
         row.appendChild(status);
@@ -1007,17 +1024,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         name: string,
         engine: string | undefined
     ): Promise<void> {
-        if (!(await confirmDialog(`Uninstall the voice "${name}"?`, { okLabel: 'Uninstall', danger: true })))
+        if (!(await confirmDialog(t('Uninstall the voice "{name}"?', { name }), { okLabel: t('Uninstall'), danger: true })))
             return;
         const original = btn.textContent;
         btn.disabled = true;
-        btn.textContent = 'Removing…';
+        btn.textContent = t('Removing…');
         try {
             await uninstallVoiceModel(name, engine);
         } catch (err) {
             btn.disabled = false;
-            btn.textContent = original ?? 'Uninstall';
-            void alertDialog(`Could not uninstall: ${(err as Error).message}`);
+            btn.textContent = original ?? t('Uninstall');
+            void alertDialog(t('Could not uninstall: {message}', { message: (err as Error).message }));
             return;
         }
         await refreshVoiceList();
@@ -1046,9 +1063,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
         } catch (err) {
             btn.disabled = false;
-            btn.textContent = original ?? 'Download';
+            btn.textContent = original ?? t('Download');
             if (listEl) setModelDownloadsDisabled(listEl, model, false, btn);
-            void alertDialog(`Could not download: ${(err as Error).message}`);
+            void alertDialog(t('Could not download: {message}', { message: (err as Error).message }));
             return;
         }
         await refreshVoiceList();
@@ -1090,8 +1107,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     function updateVoiceButtonLabel(btn: HTMLButtonElement): void {
         const name = stripVoicePrefix(settings.defaultVoice);
-        if (name) btn.textContent = `${name} · ${settings.defaultTtsRate} wpm`;
-        else btn.textContent = scoredVoices.length > 0 ? 'Choose voice' : 'Default';
+        if (name) btn.textContent = `${name} · ${t('{rate} wpm', { rate: settings.defaultTtsRate })}`;
+        else btn.textContent = scoredVoices.length > 0 ? t('Choose voice') : t('Default');
     }
 
     function openVoiceModal(voiceBtn: HTMLButtonElement): void {
@@ -1110,7 +1127,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             showUninstall: true,
         });
         speedSlider.value = String(settings.defaultTtsRate);
-        speedLabel.textContent = `${settings.defaultTtsRate} wpm`;
+        speedLabel.textContent = t('{rate} wpm', { rate: settings.defaultTtsRate });
         modal.classList.remove('hidden');
 
         const onListClick = (e: MouseEvent) => {
@@ -1150,7 +1167,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const onSpeedInput = () => {
             const rate = Number(speedSlider.value);
             settings.defaultTtsRate = rate;
-            speedLabel.textContent = `${rate} wpm`;
+            speedLabel.textContent = t('{rate} wpm', { rate });
             persist();
             updateVoiceButtonLabel(voiceBtn);
         };
@@ -1517,7 +1534,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const body = root.querySelector<HTMLElement>('#s-advanced-body');
         toggle?.addEventListener('click', () => {
             const shown = body?.classList.toggle('hidden') === false;
-            toggle.textContent = shown ? 'Hide advanced settings' : 'Show advanced settings';
+            toggle.textContent = shown ? t('Hide advanced settings') : t('Show advanced settings');
             toggle.setAttribute('aria-expanded', String(shown));
         });
     }
@@ -1657,7 +1674,7 @@ const ELEVENLABS_KEY_INFO = {
 function renderHTML(s: AppSettings): string {
     return `
     <div class="setup-container">
-        <h1 class="settings-title">Settings</h1>
+        <h1 class="settings-title">${t('Settings')}</h1>
 
         <form id="settings-form" class="setup-form">
             ${renderLanguageSection(s)}
@@ -1681,13 +1698,13 @@ function renderHTML(s: AppSettings): string {
     <div class="settings-footer">
         <div class="settings-footer-inner">
             <button id="s-undo" type="button" class="btn btn-secondary btn-begin" disabled>
-                Undo<span class="settings-word">&nbsp;Changes</span>
+                ${t('Undo')}<span class="settings-word">&nbsp;${t('Changes')}</span>
             </button>
-            <span class="settings-saved hidden" id="settings-saved">Reverted</span>
+            <span class="settings-saved hidden" id="settings-saved">${t('Reverted')}</span>
             <div class="settings-footer-spacer"></div>
             <div class="settings-footer-secondary">
-                <button type="button" class="tour-show-btn" id="btn-show-tour">Setup guide</button>
-                <button type="button" class="btn-config-path hidden" id="btn-open-config-folder">Open config folder</button>
+                <button type="button" class="tour-show-btn" id="btn-show-tour">${t('Setup guide')}</button>
+                <button type="button" class="btn-config-path hidden" id="btn-open-config-folder">${t('Open config folder')}</button>
             </div>
         </div>
     </div>
@@ -1696,7 +1713,7 @@ function renderHTML(s: AppSettings): string {
         modalId: 'settings-voice-modal',
         closeId: 'settings-voice-modal-close',
         listId: 'settings-voice-modal-list',
-        title: 'Manage Voices',
+        title: t('Manage Voices'),
         speedSliderId: 's-tts-rate',
         speedLabelId: 's-tts-rate-label',
         speedValue: s.defaultTtsRate,
@@ -1712,7 +1729,7 @@ function renderProviderSection(s: AppSettings): string {
     const providerOptions = ALL_PROVIDERS.filter((p) => isProviderAvailable(p, caps, byokOpts))
         .map(
             (p) =>
-                `<option value="${p.value}"${p.value === s.defaultProvider ? ' selected' : ''}>${escape(p.label)}</option>`
+                `<option value="${p.value}"${p.value === s.defaultProvider ? ' selected' : ''}>${escape(t(p.label))}</option>`
         )
         .join('');
 
@@ -1720,33 +1737,33 @@ function renderProviderSection(s: AppSettings): string {
         .map(
             (p) => `
         <div class="form-group api-key-group hidden" id="s-key-row-${p.value}">
-            <label for="s-key-${p.value}">${escape(p.label)} API Key
+            <label for="s-key-${p.value}">${t('{provider} API Key', { provider: escape(p.label) })}
                 <span class="optional api-key-status"></span>
             </label>
             <input type="password" id="s-key-${p.value}" autocomplete="off"
-                spellcheck="false" placeholder="Paste your key">
+                spellcheck="false" placeholder="${t('Paste your key')}">
         </div>`
         )
         .join('');
 
     return `
     <section class="settings-section">
-        <h2>LLM Provider <button type="button" class="info-btn" id="llm-info-btn" aria-label="LLM provider info">?</button></h2>
+        <h2>${t('LLM Provider')} <button type="button" class="info-btn" id="llm-info-btn" aria-label="${t('LLM provider info')}">?</button></h2>
         <div class="info-panel hidden" id="llm-info-panel">
-            <p><strong>What is an LLM?</strong> - A large language model is the AI that listens to what you say and generates thoughtful responses to guide your meditation.</p>
-            <p><strong>Anthropic (Subscription)</strong> - Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> command-line tool (install with <code>npm install -g @anthropic-ai/claude-code</code> - the CLI, not the Claude desktop app). Desktop only.</p>
-            <p><strong>Ollama (Local)</strong> - Free and private. Runs the AI entirely on your computer.</p>
-            <p><strong>API Key providers</strong> - Pay-per-use cloud AI. Sign up with the provider, paste the key here.</p>
+            <p><strong>${t('What is an LLM?')}</strong> - ${t('A large language model is the AI that listens to what you say and generates thoughtful responses to guide your meditation.')}</p>
+            <p><strong>${t('Anthropic (Subscription)')}</strong> - ${t('Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> command-line tool (install with <code>npm install -g @anthropic-ai/claude-code</code> - the CLI, not the Claude desktop app). Desktop only.')}</p>
+            <p><strong>${t('Ollama (Local)')}</strong> - ${t('Free and private. Runs the AI entirely on your computer.')}</p>
+            <p><strong>${t('API Key providers')}</strong> - ${t('Pay-per-use cloud AI. Sign up with the provider, paste the key here.')}</p>
         </div>
-        <p class="settings-desc">Choose how aloud connects to a language model.</p>
+        <p class="settings-desc">${t('Choose how aloud connects to a language model.')}</p>
 
         <div class="form-row provider-row">
             <div class="form-group form-group-half">
-                <label for="s-provider">Default AI Provider</label>
+                <label for="s-provider">${t('Default AI Provider')}</label>
                 <select id="s-provider" name="provider">${providerOptions}</select>
             </div>
             <div class="form-group form-group-half">
-                <label>Default Model</label>
+                <label>${t('Default Model')}</label>
                 <div id="s-model-slot"></div>
             </div>
         </div>
@@ -1771,12 +1788,12 @@ function renderByokOptIn(s: AppSettings): string {
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-enable-byok"${s.enableByok ? ' checked' : ''}>
-                    <span>Enable providers that require API keys</span>
+                    <span>${t('Enable providers that require API keys')}</span>
                 </label>
-                <span class="form-hint">Enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Keys are stored only on this device and never saved on our servers. Sessions call each provider directly; only the model list is fetched through our servers, key included.${
+                <span class="form-hint">${t('Enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Keys are stored only on this device and never saved on our servers. Sessions call each provider directly; only the model list is fetched through our servers, key included.')}${
                     isCapacitor()
                         ? ''
-                        : ' The downloadable desktop app can also help you install your own AI and speech software, enabling completely free and private sessions.'
+                        : ` ${t('The downloadable desktop app can also help you install your own AI and speech software, enabling completely free and private sessions.')}`
                 }</span>
             </div>`;
 }
@@ -1793,7 +1810,7 @@ function renderLanguageSection(s: AppSettings): string {
     const sttOptions = sttEngineOptions(isWebMode())
         .map(
             ({ value, label }) =>
-                `<option value="${value}"${value === sttSelected ? ' selected' : ''}>${escape(label)}</option>`
+                `<option value="${value}"${value === sttSelected ? ' selected' : ''}>${escape(t(label))}</option>`
         )
         .join('');
 
@@ -1804,40 +1821,40 @@ function renderLanguageSection(s: AppSettings): string {
     // layouts, and collapses once the row stacks (narrow/mobile).
     return `
     <section class="settings-section">
-        <h2>Language &amp; Speech Recognition</h2>
+        <h2>${escape(t('Language & Speech Recognition'))}</h2>
         <div class="form-row">
             <div class="form-group">
                 <!-- "(A/文)" on the control's label so someone who can't read
                      the UI's language can still find it; this section leads
                      the page for the same reason. -->
-                <label for="s-language">Language (A/文)</label>
+                <label for="s-language">${t('Language')} (A/文)</label>
                 <select id="s-language" name="language">${langOptions}</select>
-                <span class="form-hint">The language you and the facilitator speak in sessions.</span>
+                <span class="form-hint">${t('The language you and the facilitator speak in sessions.')}</span>
             </div>
             <div class="form-group slot-hidden" id="s-mic-device-group">
-                <label for="s-mic-device">Microphone</label>
+                <label for="s-mic-device">${t('Microphone')}</label>
                 <select id="s-mic-device" name="mic_device">
-                    <option value="">System default</option>
+                    <option value="">${t('System default')}</option>
                 </select>
-                <span class="form-hint">Which mic aloud listens to.</span>
+                <span class="form-hint">${t('Which mic aloud listens to.')}</span>
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label for="s-stt-engine">Speech Recognition</label>
+                <label for="s-stt-engine">${t('Speech Recognition')}</label>
                 <select id="s-stt-engine" name="stt_engine">${sttOptions}</select>
                 <span class="form-hint" id="s-stt-engine-hint"></span>
             </div>
             <div class="form-group${sttSelected === 'whisper' ? '' : ' slot-hidden'}" id="s-whisper-model-group">
-                <label for="s-whisper-model">Whisper Model</label>
+                <label for="s-whisper-model">${t('Whisper Model')}</label>
                 <select id="s-whisper-model" name="whisper_model">
-                    <option value="tiny">Tiny (fastest)</option>
-                    <option value="base">Base (recommended)</option>
-                    <option value="small">Small</option>
-                    <option value="medium">Medium</option>
-                    <option value="large">Large (most accurate)</option>
+                    <option value="tiny">${t('Tiny (fastest)')}</option>
+                    <option value="base">${t('Base (recommended)')}</option>
+                    <option value="small">${t('Small')}</option>
+                    <option value="medium">${t('Medium')}</option>
+                    <option value="large">${t('Large (most accurate)')}</option>
                 </select>
-                <span class="form-hint">Larger = more accurate but slower. Downloads on use.</span>
+                <span class="form-hint">${t('Larger = more accurate but slower. Downloads on use.')}</span>
                 <div class="whisper-model-actions">
                     <button type="button" class="btn btn-small btn-secondary hidden" id="s-whisper-model-action"></button>
                     <span class="form-hint hidden" id="s-whisper-model-status"></span>
@@ -1868,12 +1885,12 @@ function renderTtsEngineControls(s: AppSettings): string {
     const opts = engines
         .map(
             ([v, label]) =>
-                `<option value="${v}"${v === s.ttsEngine ? ' selected' : ''}>${escape(label)}</option>`
+                `<option value="${v}"${v === s.ttsEngine ? ' selected' : ''}>${escape(t(label))}</option>`
         )
         .join('');
     return `
             <div class="form-group form-group-half" id="s-tts-engine-group">
-                <label for="s-tts-engine">Manage TTS Engines</label>
+                <label for="s-tts-engine">${t('Manage TTS Engines')}</label>
                 <select id="s-tts-engine" name="tts_engine">${opts}</select>
                 <span class="form-hint" id="s-tts-engine-hint"></span>
             </div>
@@ -1882,7 +1899,7 @@ function renderTtsEngineControls(s: AppSettings): string {
                  below. Narrow: the key sits between them, since you need a key
                  before the voice picker is useful. -->
             <div class="form-group api-key-group form-group-fullrow hidden" id="s-elevenlabs-key-row">
-                <label for="s-elevenlabs-key">ElevenLabs API Key
+                <label for="s-elevenlabs-key">${t('{provider} API Key', { provider: 'ElevenLabs' })}
                     <span class="optional api-key-status"></span>
                 </label>
                 <input type="password" id="s-elevenlabs-key" placeholder="sk_..." autocomplete="off">
@@ -1896,14 +1913,14 @@ function renderTtsSection(s: AppSettings): string {
     if (isWebMode()) {
         return `
     <section class="settings-section" id="settings-tts">
-        <h2>Text-to-Speech</h2>
+        <h2>${t('Text-to-Speech')}</h2>
         <!-- Plain form-row, NOT form-row-tts: its order rules place
              #s-voice-group after the (unordered) spacer, i.e. after a blank
              half-row. With one real child there's nothing to order. -->
         <div class="form-row">
             <div class="form-group form-group-half" id="s-voice-group">
-                <label>Manage Voices</label>
-                <button type="button" id="s-voice-btn" class="setup-voice-btn">Choose voice</button>
+                <label>${t('Manage Voices')}</label>
+                <button type="button" id="s-voice-btn" class="setup-voice-btn">${t('Choose voice')}</button>
             </div>
             <!-- Empty slot: a lone flex child stretches to the full row.
                  Collapses when the row stacks (mobile). -->
@@ -1913,23 +1930,23 @@ function renderTtsSection(s: AppSettings): string {
     }
     return `
     <section class="settings-section" id="settings-tts">
-        <h2>Text-to-Speech <button type="button" class="info-btn" id="tts-info-btn" aria-label="TTS engine info">?</button></h2>
+        <h2>${t('Text-to-Speech')} <button type="button" class="info-btn" id="tts-info-btn" aria-label="${t('TTS engine info')}">?</button></h2>
         <div class="info-panel hidden" id="tts-info-panel">
-            <p><strong>aloud cloud</strong> - Natural hosted voices, metered from your credit balance. No setup.</p>
+            <p><strong>aloud cloud</strong> - ${t('Natural hosted voices, metered from your credit balance. No setup.')}</p>
             ${
                 isTauri()
-                    ? `<p><strong>macOS</strong> - Built-in system voices. Zero latency, works offline.</p>
-            <p><strong>Piper</strong> - Fast local neural TTS, ~60–100 MB per voice.</p>`
+                    ? `<p><strong>macOS</strong> - ${t('Built-in system voices. Zero latency, works offline.')}</p>
+            <p><strong>Piper</strong> - ${t('Fast local neural TTS, ~60–100 MB per voice.')}</p>`
                     : ''
             }
-            <p><strong>Browser</strong> - Uses your browser's speechSynthesis. No install needed.</p>
-            <p><strong>ElevenLabs</strong> - Cloud TTS with the most natural voices. Requires an API key.</p>
+            <p><strong>${t('Browser')}</strong> - ${t("Uses your browser's speechSynthesis. No install needed.")}</p>
+            <p><strong>ElevenLabs</strong> - ${t('Cloud TTS with the most natural voices. Requires an API key.')}</p>
         </div>
         <div class="form-row form-row-tts">
             ${renderTtsEngineControls(s)}
             <div class="form-group form-group-half" id="s-voice-group">
-                <label>Manage Voices</label>
-                <button type="button" id="s-voice-btn" class="setup-voice-btn">Choose voice</button>
+                <label>${t('Manage Voices')}</label>
+                <button type="button" id="s-voice-btn" class="setup-voice-btn">${t('Choose voice')}</button>
             </div>
         </div>
     </section>`;
@@ -1944,74 +1961,74 @@ function renderDisplaySection(s: AppSettings): string {
     const themeOpts = themes
         .map(
             ([v, label]) =>
-                `<option value="${v}"${v === s.themeMode ? ' selected' : ''}>${escape(label)}</option>`
+                `<option value="${v}"${v === s.themeMode ? ' selected' : ''}>${escape(t(label))}</option>`
         )
         .join('');
     return `
     <section class="settings-section">
-        <h2>Display</h2>
+        <h2>${t('Display')}</h2>
         <div class="display-layout" id="text-scale-group">
             <div class="display-controls">
                 <div class="form-group">
-                    <label>Text Size</label>
+                    <label>${t('Text Size')}</label>
                     <div class="text-scale-control">
                         <input type="range" id="s-text-scale" class="slider-stops" min="0.8" max="1.4" step="0.05" value="${s.textScale}">
                         <span class="text-scale-value" id="s-text-scale-label">${Math.round(s.textScale * 100)}%</span>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="s-theme-mode">Theme</label>
+                    <label for="s-theme-mode">${t('Theme')}</label>
                     <select id="s-theme-mode">${themeOpts}</select>
                 </div>
                 <div class="form-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-show-session-balance"${s.showSessionBalance ? ' checked' : ''}>
-                        <span>Show live balance during sessions that use credits</span>
+                        <span>${t('Show live balance during sessions that use credits')}</span>
                     </label>
                 </div>
                 <div class="form-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-show-session-clock"${s.showSessionClock ? ' checked' : ''}>
-                        <span>Show the clock during sessions</span>
+                        <span>${t('Show the clock during sessions')}</span>
                     </label>
-                    <span class="form-hint">Timers speak up when finished, even if hidden.</span>
+                    <span class="form-hint">${t('Timers speak up when finished, even if hidden.')}</span>
                 </div>
                 <div class="display-apply-row">
-                    <button type="button" id="s-apply-display" class="btn btn-primary" disabled>Apply display changes</button>
-                    <span class="settings-saved hidden" id="display-applied">Applied</span>
+                    <button type="button" id="s-apply-display" class="btn btn-primary" disabled>${t('Apply display changes')}</button>
+                    <span class="settings-saved hidden" id="display-applied">${t('Applied')}</span>
                 </div>
             </div>
             <div class="display-preview">
                 <div class="text-scale-preview" id="text-scale-preview">
                     <div class="text-scale-preview-inner" id="text-scale-preview-inner">
-                        <p class="preview-label">Style Preview</p>
-                        <p class="preview-heading">Header Text</p>
-                        <p class="preview-body">This is what regular text will look like.</p>
-                        <p class="preview-small">This is how small text will appear.</p>
+                        <p class="preview-label">${t('Style Preview')}</p>
+                        <p class="preview-heading">${t('Header Text')}</p>
+                        <p class="preview-body">${t('This is what regular text will look like.')}</p>
+                        <p class="preview-small">${t('This is how small text will appear.')}</p>
                         <div class="preview-field">
-                            <label class="preview-field-label">Dropdown</label>
+                            <label class="preview-field-label">${t('Dropdown')}</label>
                             <select class="preview-select" tabindex="-1">
-                                <option>Option 1</option>
-                                <option>Option 2</option>
-                                <option>Option 3</option>
+                                <option>${t('Option {n}', { n: 1 })}</option>
+                                <option>${t('Option {n}', { n: 2 })}</option>
+                                <option>${t('Option {n}', { n: 3 })}</option>
                             </select>
                         </div>
                         <div class="preview-field">
-                            <label class="preview-field-label">Slider</label>
+                            <label class="preview-field-label">${t('Slider')}</label>
                             <input type="range" class="preview-range slider-stops" min="0" max="10" value="7" tabindex="-1">
                         </div>
                         <div class="preview-field">
                             <label class="checkbox-label preview-checkbox">
                                 <input type="checkbox" checked tabindex="-1">
-                                <span>Checkbox</span>
+                                <span>${t('Checkbox')}</span>
                             </label>
                         </div>
                         <div class="preview-field${s.showSessionBalance ? '' : ' hidden'}" id="preview-balance-field">
                             <span class="preview-pill">18<span class="cloud-glyph">☁️</span></span>
                         </div>
                         <div class="preview-field preview-btn-row">
-                            <button type="button" class="btn btn-small btn-primary preview-btn" tabindex="-1">Button 1</button>
-                            <button type="button" class="btn btn-small btn-secondary preview-btn" tabindex="-1">Button 2</button>
+                            <button type="button" class="btn btn-small btn-primary preview-btn" tabindex="-1">${t('Button {n}', { n: 1 })}</button>
+                            <button type="button" class="btn btn-small btn-secondary preview-btn" tabindex="-1">${t('Button {n}', { n: 2 })}</button>
                         </div>
                     </div>
                 </div>
@@ -2023,9 +2040,9 @@ function renderDisplaySection(s: AppSettings): string {
 function stepperHTML(id: string, value: number, min: number, max: number, step: number): string {
     return `
         <div class="stepper">
-            <button type="button" class="stepper-btn stepper-dec" data-target="${id}" aria-label="Decrease">−</button>
+            <button type="button" class="stepper-btn stepper-dec" data-target="${id}" aria-label="${t('Decrease')}">−</button>
             <input type="number" id="${id}" class="stepper-value" min="${min}" max="${max}" step="${step}" value="${value}">
-            <button type="button" class="stepper-btn stepper-inc" data-target="${id}" aria-label="Increase">+</button>
+            <button type="button" class="stepper-btn stepper-inc" data-target="${id}" aria-label="${t('Increase')}">+</button>
         </div>`;
 }
 
@@ -2033,14 +2050,14 @@ function pauseGroupHTML(prefix: string, base: number, max: number): string {
     return `
         <div class="form-row">
             <div class="form-group form-group-half">
-                <label>Minimum Pause (s)</label>
+                <label>${t('Minimum Pause (s)')}</label>
                 ${stepperHTML(`${prefix}-base`, base, 1, 15, 0.5)}
-                <span class="form-hint">Pause before your speech is submitted.</span>
+                <span class="form-hint">${t('Pause before your speech is submitted.')}</span>
             </div>
             <div class="form-group form-group-half">
-                <label>Extended Pause (s)</label>
+                <label>${t('Extended Pause (s)')}</label>
                 ${stepperHTML(`${prefix}-max`, max, 1, 20, 0.5)}
-                <span class="form-hint">Pause tolerance after longer speech.</span>
+                <span class="form-hint">${t('Pause tolerance after longer speech.')}</span>
             </div>
         </div>`;
 }
@@ -2066,7 +2083,10 @@ function matchPausePreset(s: AppSettings): PausePresetKey | null {
 }
 
 function customPauseLabel(s: AppSettings): string {
-    return `Custom (${s.silenceBaseMs / 1000}s / ${s.silenceMaxMs / 1000}s)`;
+    return t('Custom ({base}s / {max}s)', {
+        base: s.silenceBaseMs / 1000,
+        max: s.silenceMaxMs / 1000,
+    });
 }
 
 function renderPacingSection(s: AppSettings): string {
@@ -2075,56 +2095,56 @@ function renderPacingSection(s: AppSettings): string {
         (Object.entries(PAUSE_PRESETS) as [PausePresetKey, (typeof PAUSE_PRESETS)[PausePresetKey]][])
             .map(
                 ([key, p]) =>
-                    `<option value="${key}"${key === active ? ' selected' : ''}>${p.label} (${p.baseMs / 1000}s)</option>`
+                    `<option value="${key}"${key === active ? ' selected' : ''}>${t(p.label)} (${p.baseMs / 1000}s)</option>`
             )
             .join('') +
         (active ? '' : `<option value="custom" selected>${customPauseLabel(s)}</option>`);
     return `
     <section class="settings-section">
-        <h2>Pacing</h2>
+        <h2>${t('Pacing')}</h2>
         <div class="form-row">
             <div class="form-group form-group-half">
-                <label for="s-pause-preset">Pause before responding</label>
+                <label for="s-pause-preset">${t('Pause before responding')}</label>
                 <select id="s-pause-preset">${presetOpts}</select>
-                <span class="form-hint">How long a pause in your speech ends your turn. Exact values under Advanced.</span>
+                <span class="form-hint">${t('How long a pause in your speech ends your turn. Exact values under Advanced.')}</span>
             </div>
             <!-- Empty slot: keeps the select at half width on wide layouts
                  (a lone flex child stretches to the full row); collapses once
                  the row stacks. Same trick as the mic/whisper columns. -->
             <div class="form-group form-group-half slot-hidden" aria-hidden="true"></div>
         </div>
-        <h3 class="pacing-subhead" id="settings-checkins">Check-Ins After Silence (Exploration Mode)</h3>
+        <h3 class="pacing-subhead" id="settings-checkins">${t('Check-Ins After Silence (Exploration Mode)')}</h3>
         <div class="form-row">
             <div class="form-group" id="s-checkin-timing-group">
                 <div class="radio-group">
                     <label class="radio-label">
                         <input type="radio" name="s-checkin-mode" value="none"${s.checkinTiming === 'none' ? ' checked' : ''}>
-                        <span>Off</span>
+                        <span>${t('Off')}</span>
                     </label>
                     <div class="radio-inline">
                         <label class="radio-label">
                             <input type="radio" name="s-checkin-mode" value="simple"${s.checkinTiming === 'simple' ? ' checked' : ''}>
-                            <span>Every</span>
+                            <span>${t('Every')}</span>
                             ${stepperHTML('s-silence-sec', s.silenceCheckinSec, 30, 3600, 30)}
-                            <span>seconds</span>
+                            <span>${t('seconds')}</span>
                         </label>
                     </div>
                     <label class="radio-label">
                         <input type="radio" name="s-checkin-mode" value="smart"${s.checkinTiming === 'smart' ? ' checked' : ''}>
-                        <span>Smart</span>
+                        <span>${t('Smart')}</span>
                     </label>
                 </div>
-                <span class="form-hint">Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the AI pick the timing and the words, as per the session's guidance level.</span>
+                <span class="form-hint">${t('Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the AI pick the timing and the words, as per the session\'s guidance level.')}</span>
             </div>
         </div>
         <div class="form-row">
             <div class="form-group form-group-half">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-auto-quit"${s.autoQuitAfterSilence ? ' checked' : ''}>
-                    <span>Auto-save and quit after silence (min)</span>
+                    <span>${t('Auto-save and quit after silence (min)')}</span>
                 </label>
                 ${stepperHTML('s-auto-quit-min', s.autoQuitSilenceMin, 10, 300, 5)}
-                <span class="form-hint">An open session keeps listening and checking in, which can slowly consume cloud credits if in use.</span>
+                <span class="form-hint">${t('An open session keeps listening and checking in, which can slowly consume cloud credits if in use.')}</span>
             </div>
         </div>
     </section>`;
@@ -2133,14 +2153,14 @@ function renderPacingSection(s: AppSettings): string {
 function renderSessionLogsSection(s: AppSettings): string {
     return `
     <section class="settings-section">
-        <h2>Session History</h2>
+        <h2>${t('Session History')}</h2>
         <div class="form-row">
           <div class="form-group">
               <label class="checkbox-label">
                   <input type="checkbox" id="s-save-session-logs"${s.saveSessionLogs ? ' checked' : ''}>
-                  <span>Save session logs (locally)</span>
+                  <span>${t('Save session logs (locally)')}</span>
               </label>
-              <span class="form-hint">A local transcript of each session, autosaved every turn. When off, nothing's saved unless you save it from the end dialog.</span>
+              <span class="form-hint">${t("A local transcript of each session, autosaved every turn. When off, nothing's saved unless you save it from the end dialog.")}</span>
           </div>
         </div>
     </section>`;
@@ -2157,19 +2177,19 @@ function renderSessionLogsSection(s: AppSettings): string {
 function renderAdvancedSettingsSection(s: AppSettings): string {
     return `
     <section class="settings-section">
-        <h2>Advanced</h2>
+        <h2>${t('Advanced')}</h2>
         <button type="button" class="btn btn-secondary settings-advanced-toggle" id="s-advanced-toggle"
-            aria-expanded="false" aria-controls="s-advanced-body">Show advanced settings</button>
+            aria-expanded="false" aria-controls="s-advanced-body">${t('Show advanced settings')}</button>
         <div class="settings-advanced-body hidden" id="s-advanced-body">
-            <h3 class="pacing-subhead">Pause before submitting user response</h3>
+            <h3 class="pacing-subhead">${t('Pause before submitting user response')}</h3>
             ${pauseGroupHTML('s-silence', s.silenceBaseMs / 1000, s.silenceMaxMs / 1000)}
             <!-- The non-streaming pair applies to exactly one provider (the
                  Claude subscription can't speak until fully generated), so it
                  only shows while that provider is the default. Kept in the DOM
                  so the steppers stay wired across toggles. -->
             <div id="s-nonstream-group"${s.defaultProvider === 'claude_proxy' ? '' : ' class="hidden"'}>
-                <h3 class="pacing-subhead">Pause before submitting (Anthropic subscription)</h3>
-                <p class="form-hint pacing-subhead-note">This provider doesn't stream, so a shorter pause cuts latency.</p>
+                <h3 class="pacing-subhead">${t('Pause before submitting (Anthropic subscription)')}</h3>
+                <p class="form-hint pacing-subhead-note">${t("This provider doesn't stream, so a shorter pause cuts latency.")}</p>
                 ${pauseGroupHTML('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
             </div>
             ${
@@ -2192,16 +2212,16 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
-                        <span>Enable holding-space mode</span>
+                        <span>${t('Enable holding-space mode')}</span>
                     </label>
-                    <span class="form-hint">If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.</span>
+                    <span class="form-hint">${t('If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.')}</span>
                 </div>
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-resume-from-summary"${s.resumeFromSummary ? ' checked' : ''}>
-                        <span>Resume long sessions from a recap</span>
+                        <span>${t('Resume long sessions from a recap')}</span>
                     </label>
-                    <span class="form-hint">Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.</span>
+                    <span class="form-hint">${t('Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.')}</span>
                 </div>
             </div>
         </div>
@@ -2314,11 +2334,11 @@ function renderDeveloperSection(): string {
 function renderUpdatesSection(_s: AppSettings): string {
     return `
     <section class="settings-section">
-        <h2>Updates</h2>
+        <h2>${t('Updates')}</h2>
         <div class="form-group">
             <div class="settings-update-row">
-                <span class="settings-update-status" id="s-update-status">Version ${escape(__APP_VERSION__)}</span>
-                <button type="button" class="btn btn-small btn-secondary" id="s-check-update">Check for Updates</button>
+                <span class="settings-update-status" id="s-update-status">${t('Version {v}', { v: escape(__APP_VERSION__) })}</span>
+                <button type="button" class="btn btn-small btn-secondary" id="s-check-update">${t('Check for Updates')}</button>
             </div>
         </div>
     </section>`;
