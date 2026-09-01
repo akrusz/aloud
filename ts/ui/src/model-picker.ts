@@ -16,7 +16,7 @@ import { probeOllamaDirect } from './ollama-direct.js';
 import { rateSuffix } from './credit-rate.js';
 import { setCloudSttCreditsPerHour } from './adapters/stt-picker.js';
 import { loadAppSettings, saveAppSettings } from './app-settings.js';
-import { t } from './i18n.js';
+import { t, uiLang } from './i18n.js';
 import type { Provider } from './settings.js';
 
 /** Providers that authenticate with a user-supplied key (BYOK). The hosted
@@ -40,6 +40,7 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
     'gpt-5-nano': 'GPT-5 Nano',
     'gpt-5.6-sol': 'GPT-5.6 Sol',
+    'gpt-5.6-terra': 'GPT-5.6 Terra',
     'gpt-5.5': 'GPT-5.5',
     'gpt-5.4': 'GPT-5.4',
     'moonshotai/kimi-k2': 'Kimi K2',
@@ -157,6 +158,12 @@ interface ModelOption {
      *  Not a picker concern - it rides this payload so the choice stays in the
      *  pricing table. See cloudUtilityModel below. */
     utility?: boolean;
+    /** zh shortlist overrides (pricing/providers.ts zh flags): in a Chinese
+     *  app language the picker pre-selects zhDefault, shortlists zhCurated
+     *  even though expanded, and hides zhExpanded behind the show-all toggle. */
+    zhDefault?: boolean;
+    zhCurated?: boolean;
+    zhExpanded?: boolean;
 }
 
 /** The "Show all available models" state, shared by every mounted picker
@@ -217,6 +224,9 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                     default?: boolean;
                     expanded?: boolean;
                     utility?: boolean;
+                    zhDefault?: boolean;
+                    zhCurated?: boolean;
+                    zhExpanded?: boolean;
                 }>;
             };
             if (!data.models?.length) return null;
@@ -236,6 +246,9 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 isDefault: m.default ?? false,
                 expanded: m.expanded ?? false,
                 utility: m.utility ?? false,
+                ...(m.zhDefault ? { zhDefault: true } : {}),
+                ...(m.zhCurated ? { zhCurated: true } : {}),
+                ...(m.zhExpanded ? { zhExpanded: true } : {}),
             }));
             cache.set(provider, opts);
             return opts;
@@ -337,9 +350,15 @@ export function mountModelPicker(
         // until the user opts in, EXCEPT the currently-selected one - toggling
         // off must never silently switch an existing choice.
         const showAll = showAllModels === true;
+        // In Chinese the shortlist is rebuilt from the zh flags (the GPT family
+        // reads native there; the Claudes don't). English keeps the plain
+        // expanded flag.
+        const zh = uiLang() === 'zh';
+        const expandedHere = (m: ModelOption): boolean =>
+            zh ? !m.zhCurated && (m.zhExpanded === true || m.expanded === true) : m.expanded === true;
         const visible =
             provider === 'aloud' && !showAll
-                ? models.filter((m) => !m.expanded || m.value === currentValue)
+                ? models.filter((m) => !expandedHere(m) || m.value === currentValue)
                 : models;
         const optionsHTML = visible
             .map((m) => `<option value="${attr(m.value)}">${escape(m.label)}</option>`)
@@ -368,7 +387,11 @@ export function mountModelPicker(
         // flagged default (aloud cloud marks one), else the first model. Keeps
         // the displayed model honest about what will actually run.
         const matched = visible.find((m) => m.value === currentValue);
-        const promoted = matched ?? visible.find((m) => m.isDefault) ?? visible[0];
+        const promoted =
+            matched ??
+            (zh ? visible.find((m) => m.zhDefault) : undefined) ??
+            visible.find((m) => m.isDefault) ??
+            visible[0];
         if (promoted) {
             sel.value = promoted.value;
             currentValue = promoted.value;

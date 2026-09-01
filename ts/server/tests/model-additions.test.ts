@@ -63,6 +63,40 @@ describe('GPT-5.6 Sol (openai)', () => {
     });
 });
 
+describe('GPT-5.6 Terra (openai)', () => {
+    it('is allowlisted at the post-cut $2/$12 with the 5.6 cache-write fee, expanded for en, curated for zh', () => {
+        const p = pricingFor('openai', 'gpt-5.6-terra');
+        expect(p).toBeDefined();
+        expect(p!.input).toBeCloseTo(2 / M, 12);
+        expect(p!.output).toBeCloseTo(12 / M, 12);
+        expect(p!.cacheRead).toBeCloseTo(0.2 / M, 12);
+        expect(p!.cacheCreation).toBeCloseTo(2.5 / M, 12); // 1.25x write, like Sol
+        expect(p!.expanded).toBe(true);
+        expect(p!.zhCurated).toBe(true);
+    });
+});
+
+describe('zh shortlist flags (2026-09-01 native-listener pass)', () => {
+    it('flags exactly one zh default (Sol), swaps Sonnet/Haiku out and the GPTs + Kimi in', () => {
+        const models = allowedModels();
+        const zhDefaults = models.filter((m) => m.zhDefault);
+        expect(zhDefaults.map((m) => m.model)).toEqual(['gpt-5.6-sol']);
+        // The zh shortlist = curated minus zhExpanded plus zhCurated.
+        const zhShortlist = models
+            .filter((m) => (m.zhCurated ? true : !m.zhExpanded && !m.expanded))
+            .map((m) => m.model)
+            .sort();
+        expect(zhShortlist).toEqual(
+            ['claude-fable-5', 'claude-opus-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
+        );
+        // A zhCurated model must still be expanded for en - otherwise the flag
+        // is dead weight and the en shortlist silently grew.
+        for (const m of models.filter((x) => x.zhCurated)) expect(m.expanded).toBe(true);
+        // And zhExpanded only makes sense on an en-curated model.
+        for (const m of models.filter((x) => x.zhExpanded)) expect(m.expanded).toBeUndefined();
+    });
+});
+
 describe('GPT-5 Nano (openai)', () => {
     it('is allowlisted at the nano rates, with cache writes as a never-accrues placeholder', () => {
         const p = pricingFor('openai', 'gpt-5-nano');

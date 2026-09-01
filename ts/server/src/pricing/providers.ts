@@ -48,6 +48,16 @@ export interface ModelPricing extends TokenRates {
      *  variants of a listed sibling, so new users see a short curated list.
      *  Billing and forwarding ignore it - an expanded model is fully served. */
     expanded?: boolean;
+    /** zh picker overrides (2026-09-01, native-listener pass: the GPT family
+     *  reads better in Chinese than the Claudes). When the app language is
+     *  Chinese the client rebuilds the shortlist from these three flags;
+     *  billing and forwarding ignore them, and nothing changes for English.
+     *  zhDefault: pre-selected instead of `default` (at most one entry).
+     *  zhCurated: shortlisted in zh even though `expanded` here.
+     *  zhExpanded: dropped to the expanded tier in zh even though curated. */
+    zhDefault?: boolean;
+    zhCurated?: boolean;
+    zhExpanded?: boolean;
     /** The model background utility work runs on - currently the in-session
      *  recap refresh (ui/views/session.ts buildRecapProvider), which reads it
      *  off /me/models rather than pinning an id in the view. Exactly one entry
@@ -189,6 +199,7 @@ const MODELS: Record<string, ModelPricing> = {
     'anthropic:claude-sonnet-5': {
         provider: 'anthropic',
         model: 'claude-sonnet-5',
+        zhExpanded: true, // zh shortlist carries the GPTs instead (see zh flags above)
         input: 2 / M,
         output: 10 / M,
         cacheRead: 0.2 / M,
@@ -221,6 +232,7 @@ const MODELS: Record<string, ModelPricing> = {
     'anthropic:claude-haiku-4-5-20251001': {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',
+        zhExpanded: true, // zh's budget slot goes to Kimi K2 (zhCurated below)
         input: 1 / M,
         output: 5 / M,
         cacheRead: 0.1 / M,
@@ -317,11 +329,31 @@ const MODELS: Record<string, ModelPricing> = {
     'openai:gpt-5.6-sol': {
         provider: 'openai',
         model: 'gpt-5.6-sol',
+        zhDefault: true, // zh pre-select: GPT reads native, the Claudes accented
         input: 5 / M,
         output: 30 / M,
         cacheRead: 0.5 / M,
         cacheCreation: 6.25 / M, // real 1.25x write fee, new in the 5.6 family
         cacheCreation1h: 6.25 / M, // no 1h tier on automatic caching; never accrues
+    },
+    // Terra, the MID tier of the 5.6 family ($2/$12 after OpenAI's Jul 30 2026
+    // cuts - the revisit the Sol note above flagged; Luna still pends). Same
+    // caching contract as Sol: cached input ~90% off, cache writes billed 1.25x
+    // and reported via prompt_tokens_details.cache_write_tokens, no 1h tier.
+    // Expanded for English - Sonnet 5 holds that midrange slot - but CURATED on
+    // the zh shortlist as its cheaper GPT. Reasoning floor rides the existing
+    // ^gpt-5.\d handling (effort 'none', ts/src/llm/openai.ts). NOT yet
+    // ear-tested as a facilitator (checklist item 5).
+    'openai:gpt-5.6-terra': {
+        provider: 'openai',
+        model: 'gpt-5.6-terra',
+        expanded: true,
+        zhCurated: true,
+        input: 2 / M,
+        output: 12 / M,
+        cacheRead: 0.2 / M,
+        cacheCreation: 2.5 / M, // real 1.25x write fee, like Sol
+        cacheCreation1h: 2.5 / M, // no 1h tier on automatic caching; never accrues
     },
     // Expanded-tier: same sticker as its 5.6 Sol successor, kept only for its
     // different voice.
@@ -371,6 +403,7 @@ const MODELS: Record<string, ModelPricing> = {
         provider: 'openrouter',
         model: 'moonshotai/kimi-k2',
         expanded: true, // niche draw, same logic as Opus 3
+        zhCurated: true, // zh shortlist: Moonshot's own model, the budget slot there
         input: 0.57 / M,
         output: 2.3 / M,
         cacheRead: 0.57 / M,
