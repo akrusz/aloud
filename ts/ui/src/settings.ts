@@ -10,7 +10,7 @@ import type {
     Verbosity,
 } from '../../src/facilitation/index.js';
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
-import { loadAppSettings, LANGUAGES } from './app-settings.js';
+import { loadAppSettings } from './app-settings.js';
 import type { Capability, Capabilities } from './capabilities.js';
 
 export type Provider =
@@ -357,9 +357,10 @@ export async function loadSetup(): Promise<SessionSetup> {
     // App-level voice/rate win; clobber anything an older 'preview:setup' has.
     merged.voice = s.defaultVoice;
     merged.ttsRate = s.defaultTtsRate;
-    // A stored language the app no longer offers (the pre-c3a0 30-language
-    // list) falls back to the app-level seed, which loadAppSettings normalized.
-    if (!LANGUAGES.some(([code]) => code === merged.language)) merged.language = s.language;
+    // Language follows the voice/rate rule since the setup page dropped its
+    // selector (2026-08-31): the Settings value is canonical and always wins
+    // (loadAppSettings already normalized it against LANGUAGES).
+    merged.language = s.language;
     // Migrate a pre-split setup (one shared intention, no per-mode map): credit
     // the legacy text to the mode it was last used with, then make `intention`
     // canonical for the active mode so another tab's value can't leak in.

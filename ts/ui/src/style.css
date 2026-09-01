@@ -671,24 +671,14 @@
 .form-row-thirds > .form-group {
     min-width: 140px;
 }
-/* The Language group sizes to its A/文 button instead of claiming an equal
-   flex column, so the AI-provider select keeps enough width for its longest
-   label ("Anthropic subscription"). */
-.form-row > #setup-language-group {
-    flex: 0 0 auto;
-    min-width: 0;
+/* Icon nav entries (the Settings gear): center the glyph on the text links'
+   line so the active underline sits where the text ones' do. */
+.nav-links a.nav-icon-link {
+    display: inline-flex;
+    align-items: center;
 }
-#setup-language-group select {
-    width: auto;
-}
-.lang-glyph {
-    font-weight: 600;
-    color: var(--accent);
-}
-.lang-glyph-sep {
-    font-weight: 400;
-    color: var(--text-muted);
-    padding: 0 0.05em;
+.nav-icon-link svg {
+    display: block;
 }
 
 /* Download/Remove action under the Whisper model select. */

@@ -74,7 +74,7 @@ import {
 } from '../provider-markers.js';
 import { alertDialog } from '../dialog.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
-import { loadAppSettings, saveAppSettings, LANGUAGES, type SttEngineChoice } from '../app-settings.js';
+import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clockModeLabel, showSessionClockModal } from '../session-clock.js';
 import {
     autoStart as autoStartGuide,
@@ -359,8 +359,8 @@ export async function mountSetupView(
             });
         }
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
-        // Session language marks incompatible voices (dimmed in the picker);
-        // a pick in the A/文 language modal rebuilds this list.
+        // Session language (the app-level Settings value, mirrored by
+        // loadSetup) hides incompatible voices in the picker.
         scoredVoices = buildScoredVoiceList(server, true, hosted, setup.language);
         // Never leave the picker on a bare "Default": take the best (list is
         // sorted best-first) voice that doesn't need downloading.
@@ -789,23 +789,9 @@ export async function mountSetupView(
         getModelRate = () => modelPicker.getRate();
         refreshModelPicker = (p) => void modelPicker.refresh(p);
 
-        // Per-session (like provider/model): the app-level Language in Settings
-        // seeds a fresh setup, a pick here sticks to this device's sessions. It
-        // drives the recognizer AND, for Chinese, the facilitation language
-        // itself (meditation-pal-c3a0).
-        const langSel = root.querySelector<HTMLSelectElement>('#setup-language');
-        if (langSel) {
-            langSel.value = setup.language;
-            // A stored code the list no longer carries: fall back visibly to en.
-            if (langSel.value !== setup.language) langSel.value = 'en';
-            langSel.addEventListener('change', () => {
-                setup.language = langSel.value;
-                persist();
-                // Re-mark voice compatibility for the new language (the picker
-                // hides voices that don't speak it).
-                void loadVoiceCatalog();
-            });
-        }
+        // No language control here (removed 2026-08-31): the Settings value is
+        // canonical (loadSetup mirrors it), first-run detection picks it from
+        // the system locale, and very few people change language per session.
 
         // App-level (like the default voice), so saving here mirrors Settings.
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
@@ -1746,19 +1732,6 @@ function renderSetupHTML(
             <div class="form-group" id="ai-model-group">
                 <label for="model-select">Model</label>
                 <div id="model-picker-slot"></div>
-            </div>
-            <div class="form-group" id="setup-language-group">
-                <!-- The A/文 glyph IS the label: recognizable as a language
-                     switch without being able to read the UI's language. The
-                     group sizes to the select instead of claiming an equal
-                     flex column (which squeezed "Anthropic subscription" out
-                     of the provider column). Stays in this shared row, not the
-                     Response-length row, because that one lives inside the
-                     exploration tab and language applies to every mode. -->
-                <label for="setup-language"><span class="lang-glyph">A<span class="lang-glyph-sep">/</span>文</span></label>
-                <select id="setup-language" aria-label="Language">${LANGUAGES.map(
-                    ([code, label]) => `<option value="${code}">${escapeAttr(label)}</option>`
-                ).join('')}</select>
             </div>
             <div class="form-group" id="setup-stt-group">
                 <label for="setup-stt-engine">Speech Recognition</label>

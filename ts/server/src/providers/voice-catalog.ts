@@ -38,14 +38,14 @@ export interface CuratedVoice {
      *  knob - "Harper" IS Harper-in-softvoice. */
     style?: string;
     /** Speaks languages beyond English natively - safe to use in a zh session
-     *  (meditation-pal-c3a0.6). The picker dims voices without it when the
+     *  (meditation-pal-c3a0.6). The picker hides voices without it when the
      *  session language isn't English. Only flag voices actually HEARD in zh:
      *  the Azure *Multilingual family (zh demo clips in voice-previews/),
-     *  OpenAI gpt-4o-mini-tts (multilingual by model), and the MAI-Voice-2
-     *  voices the dev heard speak zh well in live sessions (Ethan, Harper -
-     *  2026-08-31). Isla and DragonHD Serena are still unverified in zh, and
-     *  Google's en-US Chirp3-HD Leda is confirmed BAD at it (glitches), so
-     *  the en-US voice id staying unflagged is a finding, not an oversight. */
+     *  OpenAI gpt-4o-mini-tts (multilingual by model), and the MAI-Voice-2 /
+     *  DragonHD voices the dev heard handle zh without glitching (2026-08-31;
+     *  a native-speaker quality pass is still pending). Google's en-US
+     *  Chirp3-HD Leda is confirmed BAD at it (glitches), so its missing flag
+     *  is a finding, not an oversight. */
     multilingual?: boolean;
     /** Multiplied into the requested rate before synthesis, so the speed
      *  slider means roughly the same words-per-minute on every voice. The MAI
@@ -93,8 +93,8 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // app, and a zh session that never picks a voice now gets a voice that can
     // actually speak it.
     { name: 'Harper', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', paceBias: 1.15, default: true },
-    { name: 'Isla (AU)', provider: 'azure', providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
-    { name: 'Serena', provider: 'azure', providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    { name: 'Serena', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
 
 export function defaultVoice(): CuratedVoice {

@@ -1660,8 +1660,8 @@ function renderHTML(s: AppSettings): string {
         <h1 class="settings-title">Settings</h1>
 
         <form id="settings-form" class="setup-form">
-            ${renderProviderSection(s)}
             ${renderLanguageSection(s)}
+            ${renderProviderSection(s)}
             ${renderTtsSection(s)}
             ${renderDisplaySection(s)}
             ${renderPacingSection(s)}
@@ -1804,12 +1804,15 @@ function renderLanguageSection(s: AppSettings): string {
     // layouts, and collapses once the row stacks (narrow/mobile).
     return `
     <section class="settings-section">
-        <h2>Language &amp; Speech Recognition</h2>
+        <!-- "(A/文)" in the header so someone who can't read the UI's language
+             can still find where to change it; this section leads the page for
+             the same reason. -->
+        <h2>Language (A/文) &amp; Speech Recognition</h2>
         <div class="form-row">
             <div class="form-group">
                 <label for="s-language">Language</label>
                 <select id="s-language" name="language">${langOptions}</select>
-                <span class="form-hint">The language you and the facilitator speak. New sessions start with this; each session can pick its own in setup.</span>
+                <span class="form-hint">The language you and the facilitator speak in sessions.</span>
             </div>
             <div class="form-group slot-hidden" id="s-mic-device-group">
                 <label for="s-mic-device">Microphone</label>
