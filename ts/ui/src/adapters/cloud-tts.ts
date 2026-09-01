@@ -25,6 +25,10 @@ import { withTimeout } from '../net-timeout.js';
 // sentence's WAV renders in a second or two.
 const TTS_REQUEST_TIMEOUT_MS = 45_000;
 
+/** Preview-URL version - see buildRequest's GET branch. Bump when a curated
+ *  voice's server-side sound changes (style/pace treatment, not new voices). */
+const PREVIEW_CACHE_REV = '2';
+
 /**
  * The UI carries TTS rate as WPM (≈160 neutral; see SessionSetup.ttsRate); the
  * aloud cloud contract (and Google Cloud TTS) wants a multiplier (1.0 neutral).
@@ -152,6 +156,13 @@ export class CloudTtsEngine implements TtsEngine {
         const params = new URLSearchParams({ voice: this.voiceId, text });
         if (this.engine) params.set('engine', this.engine);
         if (options?.rate !== undefined) params.set('rate', String(options.rate));
+        // Cache-buster for the public preview GET. A voice's server-side
+        // treatment (style, pace) can change under an unchanged URL, and the
+        // old long max-age left stale clips in webview/browser HTTP caches for
+        // a day (the softvoice fix was inaudible until this bump). Bump when a
+        // voice's sound changes server-side; the server's max-age is short now,
+        // so this mostly exists to evict entries cached before the shortening.
+        params.set('r', PREVIEW_CACHE_REV);
         return { url: `${this.endpointUrl}?${params.toString()}`, init: {} };
     }
 

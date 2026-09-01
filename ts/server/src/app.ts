@@ -95,7 +95,7 @@ export function createApp(deps: Deps): Hono {
             name: v.name,
             gender: v.gender,
             tier: v.tier,
-            creditsPerHourTypical: voiceCreditsPerHourTypical(v.provider, v.providerVoiceId),
+            creditsPerHourTypical: voiceCreditsPerHourTypical(v.provider, v.providerVoiceId, v),
             ...(v.multilingual ? { multilingual: true } : {}),
         }));
         return c.json(voices);

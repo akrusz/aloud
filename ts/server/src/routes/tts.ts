@@ -188,8 +188,12 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             PREVIEW_AUDIO.set(cacheKey, audio);
         }
         c.header('content-type', 'audio/mpeg');
-        // Fixed phrase per voice: safe to cache hard in the browser/CDN.
-        c.header('cache-control', 'public, max-age=86400');
+        // Short-lived: the phrase is fixed but a voice's server-side treatment
+        // (style, pace) can change under the same URL, and a day-long max-age
+        // held pre-fix clips in webview caches long past a deploy. PREVIEW_AUDIO
+        // absorbs the refetches; the client also versions the URL (cloud-tts
+        // PREVIEW_CACHE_REV) to evict entries cached under the old policy.
+        c.header('cache-control', 'public, max-age=300');
         return c.body(audio.buffer as ArrayBuffer);
     });
 

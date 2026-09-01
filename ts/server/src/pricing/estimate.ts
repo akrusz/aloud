@@ -105,6 +105,31 @@ export const TTS_CHAR_PROFILES = {
 
 export type TtsProfile = keyof typeof TTS_CHAR_PROFILES;
 
+/**
+ * Azure bills the SSML markup, not just the text (providers/tts.azureBilledChars),
+ * and the sentence-chunked bridge (ui streaming-tts) synthesizes one sentence
+ * per request - so a styled voice pays its express-as tags on EVERY sentence.
+ * Fold that into the shown estimate or a styled voice reads ~40% cheaper than
+ * it bills. The sentence length is eyeballed from meditation transcripts
+ * (short lines; shorter sentences make the overhead worse, so this leans low
+ * to stay conservative). paceBias voices pay the smaller prosody tag instead
+ * (styled voices never get prosody - routes/tts.effectiveRate).
+ */
+const AZURE_AVG_SENTENCE_CHARS = 80;
+const AZURE_STYLE_TAG_CHARS = '<mstts:express-as style="softvoice">'.length + '</mstts:express-as>'.length;
+const AZURE_PROSODY_TAG_CHARS = '<prosody rate="1.15">'.length + '</prosody>'.length;
+
+export function azureSsmlOverheadFactor(v: {
+    provider: TtsProvider;
+    style?: string;
+    paceBias?: number;
+}): number {
+    if (v.provider !== 'azure') return 1;
+    if (v.style) return 1 + AZURE_STYLE_TAG_CHARS / AZURE_AVG_SENTENCE_CHARS;
+    if (v.paceBias) return 1 + AZURE_PROSODY_TAG_CHARS / AZURE_AVG_SENTENCE_CHARS;
+    return 1;
+}
+
 const PER_HOUR = 60 / TYPICAL_SESSION_MINUTES;
 
 function round1(n: number): number {
@@ -192,9 +217,16 @@ export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
 
 /** Typical-profile credits/hr for a voice id: the "how fast does this burn my
  *  credits" number the picker shows, computed from the SAME rate the meter bills
- *  with (so it can't drift). Two decimals, unrounded - see creditsPerHour(). */
-export function voiceCreditsPerHourTypical(provider: TtsProvider, voiceId: string): number {
-    const usdPerHour = TTS_CHAR_PROFILES.typical * ttsRateFor(provider, voiceId) * PER_HOUR;
+ *  with (so it can't drift). Azure's per-sentence SSML tags are folded in via
+ *  azureSsmlOverheadFactor. Two decimals, unrounded - see creditsPerHour(). */
+export function voiceCreditsPerHourTypical(
+    provider: TtsProvider,
+    voiceId: string,
+    treatment?: { style?: string; paceBias?: number }
+): number {
+    const overhead = azureSsmlOverheadFactor({ provider, ...treatment });
+    const usdPerHour =
+        TTS_CHAR_PROFILES.typical * overhead * ttsRateFor(provider, voiceId) * PER_HOUR;
     return Math.round(usdToCredits(usdPerHour) * 100) / 100;
 }
 
@@ -235,7 +267,7 @@ export function estimateVoices(): VoiceEstimate[] {
         freeVoice('os-premium', 'System premium voice (free)'),
     ];
     const cloud = CURATED_VOICES.map((v): VoiceEstimate => {
-        const rate = ttsRateFor(v.provider, v.providerVoiceId);
+        const rate = ttsRateFor(v.provider, v.providerVoiceId) * azureSsmlOverheadFactor(v);
         const perHour = (chars: number): number => creditsPerHour(usdToCredits(chars * rate));
         return {
             voiceId: v.providerVoiceId,
