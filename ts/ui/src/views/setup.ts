@@ -41,6 +41,8 @@ import {
     previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
+    syncSpeedControlForVoice,
+    voiceRateLabel,
     setModelDownloadsDisabled,
     stopPreview,
     updateVoiceSelection,
@@ -412,10 +414,10 @@ export async function mountSetupView(
         const ratePart = rate ? ` · ${rate}` : '';
         let text: string;
         if (entry) {
-            text = `${entry.name}${ratePart} · ${t('{rate} wpm', { rate: setup.ttsRate })}`;
+            text = `${entry.name}${ratePart} · ${voiceRateLabel(entry.name, scoredVoices, setup.ttsRate)}`;
         } else if (selectedName) {
             // Voice id is stored but we haven't loaded its details yet.
-            text = `${selectedName} · ${t('{rate} wpm', { rate: setup.ttsRate })}`;
+            text = `${selectedName} · ${voiceRateLabel(selectedName, scoredVoices, setup.ttsRate)}`;
         } else {
             text = scoredVoices.length > 0 ? t('Default') : t('Voice');
         }
@@ -506,7 +508,7 @@ export async function mountSetupView(
         const currentName = stripVoicePrefix(target ? target.current() : setup.voice);
         renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
         speedSlider.value = String(setup.ttsRate);
-        speedLabel.textContent = t('{rate} wpm', { rate: setup.ttsRate });
+        syncSpeedControlForVoice(speedSlider, speedLabel, currentName, scoredVoices, setup.ttsRate);
         modal.classList.remove('hidden');
 
         const onListClick = (e: MouseEvent) => {
@@ -559,6 +561,7 @@ export async function mountSetupView(
             const entry = findVoice(name);
             const voiceId = prefixedVoiceId(entry?.engine, name);
             updateVoiceSelection(listEl, name);
+            syncSpeedControlForVoice(speedSlider, speedLabel, name, scoredVoices, setup.ttsRate);
             if (target) {
                 target.onSelect(voiceId);
             } else {

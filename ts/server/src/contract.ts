@@ -118,6 +118,10 @@ export interface CloudVoice {
     /** Speaks languages beyond English natively (CuratedVoice.multilingual);
      *  the picker dims voices without it in a non-English session. */
     multilingual?: boolean;
+    /** The voice's pace is fixed server-side: styled voices always synthesize
+     *  at rate 1 because a prosody tag would strip the style (routes/tts.ts
+     *  effectiveRate). The client grays its speed control out. */
+    fixedPace?: boolean;
 }
 
 // ---- Auth & account ---------------------------------------------------------

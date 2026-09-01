@@ -144,6 +144,8 @@ import {
     renderVoiceModalHTML,
     stopPreview as stopVoicePreview,
     updateVoiceSelection,
+    syncSpeedControlForVoice,
+    voiceRateLabel,
     ENGINE_LABELS,
     type ScoredVoice,
 } from '../voice-picker.js';
@@ -574,8 +576,8 @@ export async function mountSessionView(
                 label: t('Voice'),
                 value: voiceName ?? t('Default'),
                 note: engineLabel
-                    ? `${t(engineLabel)} · ${t('{rate} wpm', { rate: setup.ttsRate })}`
-                    : t('{rate} wpm', { rate: setup.ttsRate }),
+                    ? `${t(engineLabel)} · ${voiceRateLabel(voiceName, scoredVoices, setup.ttsRate)}`
+                    : voiceRateLabel(voiceName, scoredVoices, setup.ttsRate),
                 onClick: () => openSessionVoiceModal(),
             },
             {
@@ -2277,7 +2279,7 @@ export async function mountSessionView(
 
     function updateVoicePickerLabel(): void {
         const name = stripVoicePrefix(setup.voice);
-        if (name) voicePickerBtn.textContent = `${name} · ${t('{rate} wpm', { rate: setup.ttsRate })}`;
+        if (name) voicePickerBtn.textContent = `${name} · ${voiceRateLabel(name, scoredVoices, setup.ttsRate)}`;
         else voicePickerBtn.textContent = t('Voice');
     }
 
@@ -2294,7 +2296,7 @@ export async function mountSessionView(
         const currentName = stripVoicePrefix(setup.voice);
         renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
         speedSlider.value = String(setup.ttsRate);
-        speedLabel.textContent = t('{rate} wpm', { rate: setup.ttsRate });
+        syncSpeedControlForVoice(speedSlider, speedLabel, currentName, scoredVoices, setup.ttsRate);
         modal.classList.remove('hidden');
         // Pause listening and stop in-flight capture while the modal is open, so
         // voice previews aren't transcribed as user turns.
@@ -2318,6 +2320,7 @@ export async function mountSessionView(
             if (row.classList.contains('voice-row-locked')) return;
             setup.voice = prefixedVoiceId(entry?.engine, name);
             updateVoiceSelection(listEl, name);
+            syncSpeedControlForVoice(speedSlider, speedLabel, name, scoredVoices, setup.ttsRate);
             updateVoicePickerLabel();
             // Rebuild the live engine, or a browser/server voice change would
             // update only the label and silently keep the old engine.

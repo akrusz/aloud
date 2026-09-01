@@ -52,6 +52,8 @@ export interface CloudVoice {
     creditsPerHourTypical?: number;
     /** Speaks languages beyond English natively; ungated by session language. */
     multilingual?: boolean;
+    /** Pace fixed server-side (styled voices always synthesize at rate 1). */
+    fixedPace?: boolean;
 }
 
 /** Scored, sorted voice entry for the picker UI. */
@@ -81,6 +83,9 @@ export interface ScoredVoice {
      *  dimmed with a language badge, sunk below its tier-mates, still pickable
      *  (the mismatch is a warning, not a wall). */
     langMismatch?: boolean;
+    /** Pace fixed server-side (styled Azure voices; CloudVoice.fixedPace) -
+     *  the speed slider grays out while this voice is selected. */
+    fixedPace?: boolean;
 }
 
 export const TIER_LABELS: Record<number, string> = {
@@ -191,6 +196,7 @@ export function buildScoredVoiceList(
             ...(hv.tier ? { costTier: hv.tier } : {}),
             ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
             ...(hv.multilingual || speaks('en') ? {} : { langMismatch: true }),
+            ...(hv.fixedPace ? { fixedPace: true } : {}),
         });
         seen.add(hv.name);
     }
@@ -632,6 +638,43 @@ export interface VoiceModalConfig {
     speedLabelId?: string;
     /** Initial slider value (wpm). */
     speedValue?: number;
+}
+
+/**
+ * Gray the modal's speed footer while a fixed-pace voice is selected (styled
+ * Azure voices: the rate knob no-ops server-side, so an active slider would
+ * lie). Call on modal open and again on every selection change; `wpm` restores
+ * the readout when the pick moves back to an adjustable voice.
+ */
+export function voiceHasFixedPace(
+    voiceName: string | null,
+    list: readonly ScoredVoice[]
+): boolean {
+    return Boolean(voiceName && list.find((v) => v.name === voiceName)?.fixedPace);
+}
+
+/** The pace half of a voice label: "160 wpm", or "fixed pace" when the voice's
+ *  rate is set server-side. Every surface that pairs a voice with its wpm goes
+ *  through this so none of them promise a speed the server won't apply. */
+export function voiceRateLabel(
+    voiceName: string | null,
+    list: readonly ScoredVoice[],
+    wpm: number
+): string {
+    return voiceHasFixedPace(voiceName, list) ? t('fixed pace') : t('{rate} wpm', { rate: wpm });
+}
+
+export function syncSpeedControlForVoice(
+    slider: HTMLInputElement,
+    label: HTMLElement,
+    voiceName: string | null,
+    list: readonly ScoredVoice[],
+    wpm: number
+): void {
+    const fixed = voiceHasFixedPace(voiceName, list);
+    slider.disabled = fixed;
+    slider.closest('.voice-modal-footer')?.classList.toggle('voice-modal-footer-fixed', fixed);
+    label.textContent = voiceRateLabel(voiceName, list, wpm);
 }
 
 export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {

@@ -645,6 +645,7 @@ export const ZH: Record<string, string> = {
     "exploration": "探索",
     "felt sense": "体会",
     "female": "女声",
+    "fixed pace": "语速由声音决定",
     "finding words": "寻找词语",
     "for guiding me in similar practices.": "在类似练习中对我的引导。",
     "for inspiration.": "带来的启发。",

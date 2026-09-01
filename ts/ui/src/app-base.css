@@ -2666,6 +2666,15 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     text-align: right;
 }
 
+/* Fixed-pace voice selected (styled Azure voices): the rate knob no-ops
+   server-side, so the control grays out and the readout says why. The label
+   text keeps its normal muted COLOR (not opacity - copy rule); only the inert
+   control itself fades. */
+.voice-modal-footer-fixed input[type="range"] {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
 .voice-modal-footer input[type="range"] {
     flex: 1;
     height: 8px;

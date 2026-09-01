@@ -69,6 +69,8 @@ import {
     previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
+    syncSpeedControlForVoice,
+    voiceRateLabel,
     setModelDownloadsDisabled,
     stopPreview,
     uninstallVoiceModel,
@@ -1107,7 +1109,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     function updateVoiceButtonLabel(btn: HTMLButtonElement): void {
         const name = stripVoicePrefix(settings.defaultVoice);
-        if (name) btn.textContent = `${name} · ${t('{rate} wpm', { rate: settings.defaultTtsRate })}`;
+        if (name) btn.textContent = `${name} · ${voiceRateLabel(name, scoredVoices, settings.defaultTtsRate)}`;
         else btn.textContent = scoredVoices.length > 0 ? t('Choose voice') : t('Default');
     }
 
@@ -1127,7 +1129,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             showUninstall: true,
         });
         speedSlider.value = String(settings.defaultTtsRate);
-        speedLabel.textContent = t('{rate} wpm', { rate: settings.defaultTtsRate });
+        syncSpeedControlForVoice(speedSlider, speedLabel, currentName, scoredVoices, settings.defaultTtsRate);
         modal.classList.remove('hidden');
 
         const onListClick = (e: MouseEvent) => {
@@ -1162,6 +1164,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             settings.defaultVoice = prefixedVoiceId(entry?.engine, name);
             persist();
             updateVoiceSelection(listEl, name);
+            syncSpeedControlForVoice(speedSlider, speedLabel, name, scoredVoices, settings.defaultTtsRate);
             updateVoiceButtonLabel(voiceBtn);
         };
         const onSpeedInput = () => {
