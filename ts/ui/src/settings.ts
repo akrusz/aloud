@@ -153,9 +153,10 @@ export interface SessionSetup {
     /**
      * Session language: a 2-letter code from app-settings.LANGUAGES. Drives the
      * STT recognizer AND (for zh) the facilitation language - prompts and canned
-     * lines (src/facilitation/language.ts). Seeded from AppSettings.language
-     * like provider/model: the app default seeds a fresh setup, a per-session
-     * pick here wins (meditation-pal-c3a0.2).
+     * lines (src/facilitation/language.ts). Mirrors AppSettings.language like
+     * voice/rate - Settings is canonical, there's no per-session pick (setup's
+     * selector was removed 2026-08-31); a resumed session keeps the language it
+     * was started in (meditation-pal-c3a0.2).
      */
     language: string;
     provider: Provider;
