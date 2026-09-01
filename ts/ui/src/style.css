@@ -671,6 +671,25 @@
 .form-row-thirds > .form-group {
     min-width: 140px;
 }
+/* The Language group sizes to its A/文 button instead of claiming an equal
+   flex column, so the AI-provider select keeps enough width for its longest
+   label ("Anthropic subscription"). */
+.form-row > #setup-language-group {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+#setup-language-group select {
+    width: auto;
+}
+.lang-glyph {
+    font-weight: 600;
+    color: var(--accent);
+}
+.lang-glyph-sep {
+    font-weight: 400;
+    color: var(--text-muted);
+    padding: 0 0.05em;
+}
 
 /* Download/Remove action under the Whisper model select. */
 .whisper-model-actions {
@@ -1066,6 +1085,16 @@
     border-radius: 12px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     padding: 1.25rem 1.4rem 1.4rem;
+    /* Enough rows now (voice/STT/language joined) that a short phone screen
+       in landscape can overflow: the body scrolls, head/actions stay put. */
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+}
+.session-info-body {
+    overflow-y: auto;
+    min-height: 0;
 }
 .session-info-head {
     display: flex;

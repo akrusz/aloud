@@ -201,7 +201,7 @@ describe('retreat pass — TTS metering bypass', () => {
         const res = await h.app.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${h.token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe in.' }),
+            body: JSON.stringify({ text: 'Breathe in.', voice: 'Leda' }),
         });
         expect(res.status).toBe(200);
         expect(res.headers.get('X-Credits-Charged')).toBe('0');

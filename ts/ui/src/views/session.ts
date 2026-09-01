@@ -102,6 +102,7 @@ import {
     saveAppSettings,
     type AppSettings,
     type SttEngineChoice,
+    LANGUAGES,
 } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { sessionStore } from '../state.js';
@@ -142,6 +143,7 @@ import {
     renderVoiceModalHTML,
     stopPreview as stopVoicePreview,
     updateVoiceSelection,
+    ENGINE_LABELS,
     type ScoredVoice,
 } from '../voice-picker.js';
 
@@ -555,7 +557,31 @@ export async function mountSessionView(
         if (mode.composes?.verbosity !== false) {
             rows.push({ label: 'Response length', value: VERBOSITY_LABELS[setup.verbosity] });
         }
+        // What the sit speaks with and hears: the live voice (tap to change -
+        // same modal as the input-row button), the recognizer, and the
+        // language the whole session runs in (fixed at setup; a resume keeps
+        // the original, whatever the app setting says now).
+        const voiceName = stripVoicePrefix(setup.voice);
+        const voiceEntry = voiceName ? scoredVoices.find((v) => v.name === voiceName) : undefined;
+        const engineId = voiceEntry?.displayEngine ?? voiceEntry?.engine;
+        const engineLabel = engineId ? (ENGINE_LABELS[engineId] ?? engineId) : null;
         rows.push(
+            {
+                label: 'Voice',
+                value: voiceName ?? 'Default',
+                note: engineLabel ? `${engineLabel} · ${setup.ttsRate} wpm` : `${setup.ttsRate} wpm`,
+                onClick: () => openSessionVoiceModal(),
+            },
+            {
+                label: 'Speech recognition',
+                value:
+                    sttEngineOptions(isWebMode()).find((o) => o.value === sttChoice)?.label ??
+                    sttChoice,
+            },
+            {
+                label: 'Language',
+                value: LANGUAGES.find(([c]) => c === sessionLanguage)?.[1] ?? sessionLanguage,
+            },
             { label: 'Source', value: providerLabel },
             {
                 label: 'Delivery',
@@ -716,6 +742,30 @@ export async function mountSessionView(
         return wrapBargeIn
             ? wrapTtsWithBargeIn(engine, { onBargeIn, micDeviceId: appSettings.micDeviceId })
             : engine;
+    }
+    // A voice that can't speak the session's language (a leftover English pick
+    // starting a zh sit) gets swapped, for this session only, to the best voice
+    // that can: Leda glitching through a Chinese sit is worse than not honoring
+    // the pick (meditation-pal-c3a0.6). Never persisted - the next English
+    // session gets the original voice back.
+    if (sessionLanguage !== 'en') {
+        try {
+            const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
+            const list = buildScoredVoiceList(server, true, hosted, sessionLanguage);
+            const currentName = stripVoicePrefix(setup.voice);
+            const current = currentName ? list.find((v) => v.name === currentName) : undefined;
+            // No voice + hosted provider needs no swap: the server default
+            // (Harper) is multilingual.
+            const needsSwap = current
+                ? current.langMismatch === true
+                : setup.provider !== 'aloud';
+            if (needsSwap) {
+                const capable = list.find((v) => !v.langMismatch && !v.needsDownload);
+                if (capable) setup.voice = prefixedVoiceId(capable.engine, capable.name);
+            }
+        } catch {
+            // Catalog unreachable: keep the picked voice.
+        }
     }
     // `let` so an in-session voice change can swap the engine (see the voice
     // modal). Reassigning here is picked up by the outer `tts` wrapper.
@@ -2226,7 +2276,7 @@ export async function mountSessionView(
         if (!modal || !listEl || !closeBtn || !speedSlider || !speedLabel) return;
 
         const currentName = stripVoicePrefix(setup.voice);
-        renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true });
+        renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
         speedSlider.value = String(setup.ttsRate);
         speedLabel.textContent = `${setup.ttsRate} wpm`;
         modal.classList.remove('hidden');

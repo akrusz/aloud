@@ -360,7 +360,7 @@ export async function mountSetupView(
         }
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         // Session language marks incompatible voices (dimmed in the picker);
-        // the Language select's change handler rebuilds this list.
+        // a pick in the A/文 language modal rebuilds this list.
         scoredVoices = buildScoredVoiceList(server, true, hosted, setup.language);
         // Never leave the picker on a bare "Default": take the best (list is
         // sorted best-first) voice that doesn't need downloading.
@@ -503,7 +503,7 @@ export async function mountSetupView(
         if (!modal || !listEl || !closeBtn || !speedSlider || !speedLabel) return;
 
         const currentName = stripVoicePrefix(target ? target.current() : setup.voice);
-        renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true });
+        renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
         speedSlider.value = String(setup.ttsRate);
         speedLabel.textContent = `${setup.ttsRate} wpm`;
         modal.classList.remove('hidden');
@@ -540,7 +540,7 @@ export async function mountSetupView(
                     }
                     invalidateServerVoicesCache();
                     await loadVoiceCatalog();
-                    renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true });
+                    renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
                 })();
                 return;
             }
@@ -802,7 +802,7 @@ export async function mountSetupView(
                 setup.language = langSel.value;
                 persist();
                 // Re-mark voice compatibility for the new language (the picker
-                // dims voices that don't speak it).
+                // hides voices that don't speak it).
                 void loadVoiceCatalog();
             });
         }
@@ -1748,9 +1748,16 @@ function renderSetupHTML(
                 <div id="model-picker-slot"></div>
             </div>
             <div class="form-group" id="setup-language-group">
-                <label for="setup-language">Language</label>
-                <select id="setup-language">${LANGUAGES.map(
-                    ([code, label]) => `<option value="${code}">${escapeHtml(label)}</option>`
+                <!-- The A/文 glyph IS the label: recognizable as a language
+                     switch without being able to read the UI's language. The
+                     group sizes to the select instead of claiming an equal
+                     flex column (which squeezed "Anthropic subscription" out
+                     of the provider column). Stays in this shared row, not the
+                     Response-length row, because that one lives inside the
+                     exploration tab and language applies to every mode. -->
+                <label for="setup-language"><span class="lang-glyph">A<span class="lang-glyph-sep">/</span>文</span></label>
+                <select id="setup-language" aria-label="Language">${LANGUAGES.map(
+                    ([code, label]) => `<option value="${code}">${escapeAttr(label)}</option>`
                 ).join('')}</select>
             </div>
             <div class="form-group" id="setup-stt-group">

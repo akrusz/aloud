@@ -93,7 +93,7 @@ describe('POST /cloud/v1/tts', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'hi', rate: 50 }),
+            body: JSON.stringify({ text: 'hi', voice: 'Leda', rate: 50 }),
         });
         expect(res.status).toBe(200);
         const sent = googleCalls[0]!.body as { audioConfig: { speakingRate: number } };
@@ -161,7 +161,7 @@ describe('POST /cloud/v1/tts/canned', () => {
         const metered = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'hi' }),
+            body: JSON.stringify({ text: 'hi', voice: 'Leda' }),
         });
         expect(metered.status).toBe(402);
 
@@ -445,7 +445,7 @@ describe('POST /cloud/v1/tts — up-front cost gate', () => {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
             // Under MAX_TTS_CHARS (that's a separate 400) but far past a dust balance.
-            body: JSON.stringify({ text: 'so long, and thanks for all the breaths. '.repeat(20) }),
+            body: JSON.stringify({ text: 'so long, and thanks for all the breaths. '.repeat(20), voice: 'Leda' }),
         });
         expect(res.status).toBe(402);
         const body = (await res.json()) as { error: { code: string } };
@@ -459,7 +459,7 @@ describe('POST /cloud/v1/tts — up-front cost gate', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe out.' }),
+            body: JSON.stringify({ text: 'Breathe out.', voice: 'Leda' }),
         });
         expect(res.status).toBe(200);
         expect(googleCalls).toHaveLength(1);

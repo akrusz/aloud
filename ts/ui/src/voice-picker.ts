@@ -90,7 +90,7 @@ export const TIER_LABELS: Record<number, string> = {
     0: 'Other',
 };
 
-const ENGINE_LABELS: Record<string, string> = {
+export const ENGINE_LABELS: Record<string, string> = {
     macos: 'macOS',
     piper: 'Piper',
     elevenlabs: 'ElevenLabs',
@@ -291,6 +291,13 @@ export interface RenderListOptions {
     /** List un-downloaded Piper voices instead of collapsing them behind the
      *  "Show Piper voices" line. Set internally when that line is clicked. */
     showLockedPiper?: boolean;
+    /** Session pickers (setup + in-session): hide voices that can't speak the
+     *  session language, plus not-yet-downloaded Piper voices, behind one
+     *  "Show all voices" line - dimming alone wasn't a clear enough signal.
+     *  Settings omits this and shows the full catalog. */
+    hideIncompatible?: boolean;
+    /** Internal: the "Show all voices" line was clicked. */
+    showAll?: boolean;
 }
 
 /** Render the modal list: recommended voices in their own section, the rest
@@ -316,14 +323,28 @@ export function renderVoiceList(
         voices.filter((v) => v.engine === 'piper' && v.needsDownload && !v.downloaded)
     );
     const collapsePiper =
+        !options.hideIncompatible &&
         !options.showLockedPiper &&
         lockedPiper.size > 0 &&
         !voices.some((v) => v.engine === 'piper' && v.downloaded);
+
+    // Session pickers hide language-incompatible voices and locked Piper
+    // voices behind one "Show all voices" line (the model picker's expander
+    // pattern). The current selection always stays visible, even incompatible -
+    // hiding what's selected would misreport the session.
+    const hidden = new Set<ScoredVoice>();
+    if (options.hideIncompatible && !options.showAll) {
+        for (const v of voices) {
+            if (v.name === selectedName) continue;
+            if (v.langMismatch || lockedPiper.has(v)) hidden.add(v);
+        }
+    }
 
     const recommended: ScoredVoice[] = [];
     const tiers: Record<number, ScoredVoice[]> = {};
     for (const v of voices) {
         if (collapsePiper && lockedPiper.has(v)) continue;
+        if (hidden.has(v)) continue;
         if (v.recommended) {
             recommended.push(v);
         } else {
@@ -353,20 +374,22 @@ export function renderVoiceList(
         listEl.appendChild(more);
     }
 
+    if (options.hideIncompatible && (hidden.size > 0 || options.showAll)) {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'voice-more-piper';
+        toggle.textContent = options.showAll ? 'Show fewer voices ▲' : `Show all voices ▼`;
+        toggle.onclick = () =>
+            renderVoiceList(listEl, voices, selectedName, { ...options, showAll: !options.showAll });
+        listEl.appendChild(toggle);
+    }
+
     // Show the "☁️ per hour" legend in the header only when a paid hosted voice
     // is actually listed, so a local-only picker stays clean.
     const legend = listEl.closest('.voice-modal')?.querySelector('.voice-modal-legend');
     if (legend) {
         legend.classList.toggle('hidden', !voices.some((v) => rateBadge(v.creditsPerHour)));
     }
-}
-
-/** Human word for a voice's language on the mismatch badge. */
-function languageWord(lang: string): string {
-    const base = (lang || 'en').split(/[-_]/)[0]!.toLowerCase();
-    if (base === 'en') return 'English';
-    if (base === 'zh') return '中文';
-    return base.toUpperCase();
 }
 
 function appendTierLabel(parent: HTMLElement, text: string): void {
@@ -424,13 +447,9 @@ function appendRow(
         nameSpan.appendChild(badge);
     }
     if (entry.langMismatch) {
-        // Say which language the voice DOES speak; the dimming already says it
-        // isn't this session's.
-        const langBadge = document.createElement('span');
-        langBadge.className = 'voice-row-engine voice-row-lang';
-        langBadge.textContent = languageWord(entry.lang);
-        langBadge.title = 'This voice may not speak the session language well';
-        nameSpan.appendChild(langBadge);
+        // No badge (session pickers hide these behind "Show all voices", so a
+        // per-row tag was noise); the dimmed style plus this tooltip carry it.
+        row.title = 'This voice may not speak the session language well';
     }
     row.appendChild(nameSpan);
 

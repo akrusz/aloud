@@ -2452,7 +2452,7 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     background: none;
 }
 /* Doesn't speak the session's language: dimmed via color (not opacity), still
-   pickable. The .voice-row-lang badge names the language it does speak. */
+   pickable. Session pickers hide these behind "Show all voices". */
 .voice-row-lang-mismatch .voice-row-name {
     color: var(--text-muted);
 }

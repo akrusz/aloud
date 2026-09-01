@@ -40,9 +40,12 @@ export interface CuratedVoice {
     /** Speaks languages beyond English natively - safe to use in a zh session
      *  (meditation-pal-c3a0.6). The picker dims voices without it when the
      *  session language isn't English. Only flag voices actually HEARD in zh:
-     *  the Azure *Multilingual family (zh demo clips in voice-previews/) and
-     *  OpenAI gpt-4o-mini-tts (multilingual by model). The MAI-Voice-2 and
-     *  DragonHD voices are unverified in zh - audition before flagging. */
+     *  the Azure *Multilingual family (zh demo clips in voice-previews/),
+     *  OpenAI gpt-4o-mini-tts (multilingual by model), and the MAI-Voice-2
+     *  voices the dev heard speak zh well in live sessions (Ethan, Harper -
+     *  2026-08-31). Isla and DragonHD Serena are still unverified in zh, and
+     *  Google's en-US Chirp3-HD Leda is confirmed BAD at it (glitches), so
+     *  the en-US voice id staying unflagged is a finding, not an oversight. */
     multilingual?: boolean;
     /** Multiplied into the requested rate before synthesis, so the speed
      *  slider means roughly the same words-per-minute on every voice. The MAI
@@ -60,7 +63,7 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Pulcherrima reads androgynous despite Google's "female" label.
     { name: 'Pulcherrima', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'premium' },
     { name: 'Sadachbia', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'premium' },
-    { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'premium', default: true },
+    { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'premium' },
     // Value tier: Google Neural2 (~$16/1M, about half), still natural and calm.
     // Unauditioned picks, refine after listening (meditation-pal-b7i).
     { name: 'Vega', provider: 'google', providerVoiceId: 'en-US-Neural2-F', gender: 'female', tier: 'value' },
@@ -82,11 +85,14 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // below-Chirp3-HD burn, same logic as the OpenAI block above.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    { name: 'Ethan', provider: 'azure', providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
+    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
-    { name: 'Harper', provider: 'azure', providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
+    // Default (dev pick 2026-08-31, was Leda): the softvoice register suits the
+    // app, and a zh session that never picks a voice now gets a voice that can
+    // actually speak it.
+    { name: 'Harper', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', paceBias: 1.15, default: true },
     { name: 'Isla (AU)', provider: 'azure', providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     { name: 'Serena', provider: 'azure', providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
