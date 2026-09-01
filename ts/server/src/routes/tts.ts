@@ -38,8 +38,16 @@ type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
 
 /** The rate actually synthesized: the caller's request scaled by the curated
  *  voice's pace normalization, so the speed slider means about the same
- *  words-per-minute on every voice (CuratedVoice.paceBias). */
+ *  words-per-minute on every voice (CuratedVoice.paceBias).
+ *
+ *  EXCEPT a styled voice, which is always rate 1: on MAI-Voice-2 ANY
+ *  <prosody> tag silently reverts the mstts express-as style to the standard
+ *  voice (either nesting order, even rate 1.05 - measured 2026-08-31, bead
+ *  p23f), so a styled voice with a rate is a contradiction - the style IS the
+ *  pacing, and its natural pace (~1.5x slower) is the sound these voices were
+ *  curated for. The speed slider therefore no-ops on styled voices. */
 function effectiveRate(resolved: ResolvedVoice, rate: number): number {
+    if (resolved.style) return 1;
     return rate * (resolved.paceBias ?? 1);
 }
 

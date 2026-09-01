@@ -103,7 +103,7 @@ describe('POST /cloud/v1/tts', () => {
         expect(sent.voice.name).toBe('en-US-Chirp3-HD-Leda');
     });
 
-    it('speaks the flagged default (Harper, softvoice + paceBias intact) when its key is configured', async () => {
+    it('speaks the flagged default (Harper, softvoice intact) when its key is configured', async () => {
         const config = loadConfig({
             ALOUD_ENABLE_DEV_AUTH: '1',
             GOOGLE_TTS_API_KEY: 'tts-key',
@@ -420,20 +420,22 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         expect(azureBilledChars(text, 1)).toBe(text.length * 2);
     });
 
-    it('applies a curated voice\'s style and pace bias (Harper: softvoice, biased even at rate 1)', async () => {
+    it('never sends prosody for a styled voice - the rate knob no-ops (Harper: softvoice)', async () => {
         const a = azureApp();
         const token = await devToken(a);
+        // Deliberately non-neutral rate: on MAI-Voice-2 a <prosody> tag would
+        // silently revert softvoice to the standard voice, so the style must
+        // win over the requested rate (routes/tts.effectiveRate).
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe in.', voice: 'Harper', rate: 1 }),
+            body: JSON.stringify({ text: 'Breathe in.', voice: 'Harper', rate: 1.2 }),
         });
         expect(res.status).toBe(200);
         expect(azureCalls).toHaveLength(1);
         const body = azureCalls[0]!.body;
         expect(body).toContain('<mstts:express-as style="softvoice">');
-        // paceBias applies even at slider-neutral rate 1, in multiplier form.
-        expect(body).toMatch(/<prosody rate="1\.\d\d">/);
+        expect(body).not.toContain('<prosody');
     });
 
     it('502s for an Azure voice when no Azure key is configured', async () => {

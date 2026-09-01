@@ -52,7 +52,13 @@ export interface CuratedVoice {
      *  and DragonHD voices read the audition sample in 19-24s where the norm
      *  is ~13s; these biases close about half that gap (deliberately not all
      *  of it - the unhurried delivery is why they were picked). Tuned by ear,
-     *  not formula. */
+     *  not formula.
+     *
+     *  MUTUALLY EXCLUSIVE with `style`: on MAI-Voice-2 any <prosody> tag
+     *  silently reverts express-as to the standard voice (measured
+     *  2026-08-31), so routes/tts.effectiveRate forces rate 1 whenever a
+     *  style is present - a paceBias on a styled voice would be dead config
+     *  that reads as if it worked. */
     paceBias?: number;
     /** The default when the client doesn't specify a voice. */
     default?: boolean;
@@ -85,14 +91,14 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // below-Chirp3-HD burn, same logic as the OpenAI block above.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice', paceBias: 1.15 },
+    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
     // Default (dev pick 2026-08-31, was Leda): the softvoice register suits the
     // app, and a zh session that never picks a voice now gets a voice that can
     // actually speak it.
-    { name: 'Harper', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', paceBias: 1.15, default: true },
+    { name: 'Harper', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', default: true },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     { name: 'Serena', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
