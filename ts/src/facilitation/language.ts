@@ -13,10 +13,11 @@
  *   - STT engines get the locale (browser SpeechRecognition lang, Whisper
  *     language param, native recognizer locale, hosted STT hint).
  *
- * TRANSLATION REVIEW: the zh strings here are Claude's draft (2026-08-31) and
- * ship only behind the language setting, which defaults to English. Flagged for
- * native review before promoting the feature - tone matters more than fidelity:
- * these lines are spoken softly into silence.
+ * TRANSLATION REVIEW: the zh strings here are Claude's draft (2026-08-31;
+ * second pass 2026-09-01 toward natural spoken register, full-width
+ * punctuation) and ship only behind the language setting, which defaults to
+ * English. Flagged for native review before promoting the feature - tone
+ * matters more than fidelity: these lines are spoken softly into silence.
  */
 
 /**
@@ -60,17 +61,17 @@ The hidden control tokens are the one exception: [HOLD], [NEXT], [BACK], [PASS],
 // module load ORDER - fine under vitest, dead on a different entry point.
 export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '我还在这里陪着你。',
-    '你准备好了我就在。',
-    '慢慢来,不着急。',
+    '你准备好了就说，我在。',
+    '慢慢来，不着急。',
     '不用急。',
     '我就在这里。',
     '我在。',
     '还陪着你。',
-    '现在感觉怎么样?',
+    '现在感觉怎么样？',
     '不急。',
     '我哪儿也不去。',
     '慢慢来。',
-    '你注意到了什么?',
+    '你注意到了什么？',
     '还在这里。',
     '就在这里。',
     '在这里陪着你。',
@@ -78,60 +79,60 @@ export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
 ];
 
 export const ZH_HOLD_REENTRY_LINES: readonly string[] = [
-    '好,我再安静下来。',
-    '好的,我在这里。',
-    '我先安静地听着,想让我回来就说一声。',
-    '慢慢来,不着急。',
-    '好。想让我回来的时候,说一声就行。',
+    '好，我再安静下来。',
+    '好的，我在这里。',
+    '我先安静地听着，想让我回来就说一声。',
+    '慢慢来，不着急。',
+    '好。想让我回来的时候，说一声就行。',
 ];
 
 export const ZH_COMMON_OPENERS: readonly string[] = [
-    '此刻你注意到了什么?',
-    '我们开始吧。现在有什么在?',
-    '花一点时间安顿下来……你注意到了什么?',
-    '当你准备好了,你觉察到什么?',
-    '慢慢安顿下来。此刻有什么在?',
-    '就从你现在的状态开始。此刻正在发生什么?',
-    '什么时候准备好都可以……有什么浮现出来?',
-    '花点时间落定。此刻有什么在?',
+    '此刻你注意到了什么？',
+    '我们开始吧。此刻有什么正在发生？',
+    '花一点时间安顿下来……你注意到了什么？',
+    '当你准备好了，看看此刻能觉察到什么？',
+    '慢慢安顿下来。此刻心里有什么？',
+    '就从你现在的状态开始。此刻正在发生什么？',
+    '什么时候准备好都可以……有什么浮现出来吗？',
+    '花点时间让自己落定。现在有什么浮现？',
 ];
 
 export const ZH_MINIMAL_OPENERS: readonly string[] = [
     '我在。',
     '慢慢来。',
     '你准备好了就开始。',
-    '你准备好了,我就在这里。',
+    '你准备好了，我就在这里。',
 ];
 
 export const ZH_TIMER_APPROACH_FALLBACKS: readonly string[] = [
-    '还剩一点时间。让它停留在原处就好。',
-    '还有几分钟。不需要做什么。',
-    '快到尾声了。和此刻在的一切待在一起。',
+    '还剩一点时间。一切保持原样就好。',
+    '还有几分钟。什么都不需要做。',
+    '快到尾声了。继续和此刻的一切待在一起。',
 ];
 
 export const ZH_TIMER_COMPLETION_FALLBACKS: readonly string[] = [
-    '时间到了。你准备好了再回来。',
-    '你设的时间结束了。慢慢回来,不着急。',
+    '时间到了。你准备好了再慢慢回来。',
+    '你设的时间结束了。慢慢回来，不着急。',
     '这一坐到这里就结束了。不用急。',
 ];
 
 export const ZH_TIMER_CLOSE_FALLBACKS: readonly string[] = [
     '时间到了。我就陪你到这里。',
-    '你设的时间到了。就到这里。',
+    '你设的时间到了。就到这里吧。',
     '这一坐到这里结束。慢慢来。',
 ];
 
 export const ZH_FELT_SENSE_OPENERS: readonly string[] = [
-    '花一点时间安顿下来……当你准备好了,可以在心里问问自己:此刻,是什么隔在我和"感觉还好"之间?',
-    '慢慢安顿,不着急。当你准备好了,我们来留意一下,今天什么在心里压着分量。',
-    '先让自己到达这里。几个轻松的呼吸……然后也许在心里问问:此刻什么想要我的注意?',
-    '什么时候开始都可以。你可以让注意力慢慢落到身体的中间,感受一下里面是什么样子。',
-    '不急着开始。先落定……看看你今天带着什么进来了。',
+    '花一点时间安顿下来……当你准备好了，可以在心里问问自己：此刻，是什么隔在我和「感觉还好」之间？',
+    '慢慢安顿，不着急。当你准备好了，我们来留意一下，今天什么在心里压着分量。',
+    '先让自己到达这里。几个轻松的呼吸……然后也许在心里问问：此刻什么想要我的注意？',
+    '什么时候开始都可以。你可以让注意力慢慢落到身体的中间，感受一下那里现在是什么样子。',
+    '不急着开始。先让自己落定……看看你今天带着什么来了。',
 ];
 
 export const ZH_FELT_SENSE_CHECK_INS: readonly string[] = [
     '不着急。身体有它自己的节奏。',
-    '我还在,等什么浮现都可以。',
+    '我还在，等多久都可以。',
     '需要多久就用多久。',
     '我在。',
     '还陪着你。',
@@ -140,49 +141,49 @@ export const ZH_FELT_SENSE_CHECK_INS: readonly string[] = [
 
 export const ZH_NOTING_CHECK_IN_PROMPTS: readonly string[] = [
     '我还在这里陪着你。',
-    '继续标记浮现的任何东西就好。',
+    '继续标记浮现出来的任何东西就好。',
     '我在。',
-    '现在浮现的是什么?',
+    '现在浮现的是什么？',
     '还陪着你。',
     '不急。',
 ];
 
 export const ZH_NOTING_STATIC_OPENERS: readonly string[] = [
-    '轮到你的时候,用一两个词说出你觉察到的任何东西。我们开始吧。',
+    '轮到你的时候，用一两个词说出你觉察到的任何东西。我们开始吧。',
 ];
 
 export const ZH_FOCUS_OPENERS: Record<string, readonly string[]> = {
     body_sensations: [
-        '让自己慢慢落回身体……你注意到了什么?',
-        '花一点时间感受你的身体。那里有什么?',
-        '此刻你在身体里注意到什么?',
+        '让自己慢慢回到身体里……你注意到了什么？',
+        '花一点时间感受你的身体。那里有什么？',
+        '此刻你在身体里注意到了什么？',
     ],
     emotions: [
-        '你现在感觉怎么样?',
-        '花一点时间到达这里……你心里还好吗?',
-        '慢慢安顿。此刻的感受基调是什么?',
+        '你现在感觉怎么样？',
+        '花一点时间到达这里……你心里还好吗？',
+        '慢慢安顿下来。此刻心里是什么样的基调？',
     ],
     inner_parts: [
-        '和自己打个照面……此刻有什么在?',
-        '花一点时间到达这里……你心里还好吗?',
-        '慢慢安顿。内在有什么浮现出来?',
+        '先和自己打个招呼……此刻内在有什么？',
+        '花一点时间到达这里……你心里还好吗？',
+        '慢慢安顿下来。内在有什么浮现出来？',
     ],
     open_awareness: [
-        '此刻什么占据着你的注意?',
-        '看看今天有什么在。你注意到了什么?',
+        '此刻什么占据着你的注意力？',
+        '看看今天有什么在。你注意到了什么？',
     ],
 };
 
 export const ZH_QUALITY_OPENERS: Record<string, readonly string[]> = {
-    playful: ['嘿,里面在发生什么呢?', '那么……你注意到了什么?'],
-    compassionate: ['你好。从你所在的地方开始就好。你怎么样?', '不着急。你还好吗?'],
-    loving: ['慢慢安顿……这里有什么需要一点善意吗?'],
-    spacious: ['这里空间很大。你注意到了什么?'],
-    effortless: ['什么都不用做。已经在这里的是什么?'],
+    playful: ['嘿，里面在发生什么呢？', '那么……你注意到了什么？'],
+    compassionate: ['你好。从你现在所在的地方开始就好。你怎么样？', '不着急。你还好吗？'],
+    loving: ['慢慢安顿下来……此刻有什么需要一点温柔和善意吗？'],
+    spacious: ['这里有很多空间。你注意到了什么？'],
+    effortless: ['什么都不用做。本来就在这里的，是什么？'],
     feeling_good: [
-        '此刻有什么感觉是舒服的吗?',
-        '花一点时间。有什么感觉不错,哪怕一点点?',
-        '慢慢安顿……有什么感觉还可以的吗?',
+        '此刻有什么感觉是舒服的吗？',
+        '花一点时间。有什么感觉不错的，哪怕一点点？',
+        '慢慢安顿下来……有什么感觉还不错的吗？',
     ],
 };
 

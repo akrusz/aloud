@@ -22,6 +22,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "cli": "tsx src/cli.ts",
+        "zh:review-doc": "tsx scripts/zh-review.ts",
         "soak": "tsx soak/run.ts",
         "soak:web": "tsx soak/browser/run.ts",
         "ui:dev": "vite --config ui/vite.config.ts",

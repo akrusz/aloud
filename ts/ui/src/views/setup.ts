@@ -89,12 +89,12 @@ const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }
     {
         value: 'body_sensations',
         name: FOCUS_LABELS.body_sensations,
-        description: 'Physical experience: texture, temperature, movement',
+        description: 'Physical experience: warmth, relaxation, movement',
     },
     {
         value: 'emotions',
         name: FOCUS_LABELS.emotions,
-        description: 'Emotional landscape, warmth, what’s alive underneath',
+        description: 'Joy, sadness, or whatever’s alive underneath',
     },
     {
         value: 'inner_parts',
@@ -1597,7 +1597,7 @@ function renderSetupHTML(
             <div class="form-group">
                 <label for="intention">${t('Intention')} <span class="optional">${t('(optional)')}</span></label>
                 <textarea id="intention" rows="2"
-                    placeholder="${escapeHtml(t('e.g. play with energetic flow, just be present with sensations, drop the need to control'))}"></textarea>
+                    placeholder="${escapeHtml(t('e.g. just be present with sensations, drop the need to control, find something that feels good'))}"></textarea>
             </div>
 
             <div class="customize-section" id="customize-section">
