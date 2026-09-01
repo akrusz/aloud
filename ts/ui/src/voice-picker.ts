@@ -52,6 +52,9 @@ export interface CloudVoice {
     creditsPerHourTypical?: number;
     /** Speaks languages beyond English natively; ungated by session language. */
     multilingual?: boolean;
+    /** Native-quality Chinese to a native ear; zh sessions default to and
+     *  surface these first. */
+    zhNative?: boolean;
     /** Pace fixed server-side (styled voices always synthesize at rate 1). */
     fixedPace?: boolean;
 }
@@ -86,6 +89,10 @@ export interface ScoredVoice {
     /** Pace fixed server-side (styled Azure voices; CloudVoice.fixedPace) -
      *  the speed slider grays out while this voice is selected. */
     fixedPace?: boolean;
+    /** Native-quality Chinese (CloudVoice.zhNative): sorts first among
+     *  zh-capable tier-mates in a zh session, and is what a no-voice zh
+     *  session swaps to. */
+    zhNative?: boolean;
 }
 
 export const TIER_LABELS: Record<number, string> = {
@@ -197,6 +204,7 @@ export function buildScoredVoiceList(
             ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
             ...(hv.multilingual || speaks('en') ? {} : { langMismatch: true }),
             ...(hv.fixedPace ? { fixedPace: true } : {}),
+            ...(hv.zhNative ? { zhNative: true } : {}),
         });
         seen.add(hv.name);
     }
@@ -277,6 +285,12 @@ export function buildScoredVoiceList(
         const am = a.langMismatch ? 1 : 0;
         const bm = b.langMismatch ? 1 : 0;
         if (am !== bm) return am - bm;
+        // In a zh session, native-audited voices outrank the merely capable.
+        if (sessionLang === 'zh') {
+            const an = a.zhNative ? 1 : 0;
+            const bn = b.zhNative ? 1 : 0;
+            if (an !== bn) return bn - an;
+        }
         const ar = a.recommended ? 1 : 0;
         const br = b.recommended ? 1 : 0;
         if (ar !== br) return br - ar;

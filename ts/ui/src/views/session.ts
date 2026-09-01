@@ -766,14 +766,21 @@ export async function mountSessionView(
             const list = buildScoredVoiceList(server, true, hosted, sessionLanguage);
             const currentName = stripVoicePrefix(setup.voice);
             const current = currentName ? list.find((v) => v.name === currentName) : undefined;
-            // No voice + hosted provider needs no swap: the server default
-            // (Harper) is multilingual.
             const needsSwap = current
                 ? current.langMismatch === true
                 : setup.provider !== 'aloud';
             if (needsSwap) {
+                // The list sorts zh-native voices first in a zh session, so
+                // this lands on one when the catalog has it.
                 const capable = list.find((v) => !v.langMismatch && !v.needsDownload);
                 if (capable) setup.voice = prefixedVoiceId(capable.engine, capable.name);
+            } else if (!current && setup.provider === 'aloud' && sessionLanguage === 'zh') {
+                // No voice + hosted provider: the server default (Harper) does
+                // speak zh, but with an audible accent - steer to a voice a
+                // native speaker signed off on (CloudVoice.zhNative), when the
+                // catalog names one. Session-only, like the swap above.
+                const native = list.find((v) => v.zhNative && !v.langMismatch && !v.needsDownload);
+                if (native) setup.voice = prefixedVoiceId(native.engine, native.name);
             }
         } catch {
             // Catalog unreachable: keep the picked voice.

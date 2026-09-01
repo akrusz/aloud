@@ -286,6 +286,20 @@ describe('buildScoredVoiceList session language (c3a0.6)', () => {
         expect(en.find((v) => v.name === 'Tingting')).toBeUndefined();
     });
 
+    it('surfaces zhNative voices above merely-multilingual tier-mates in zh, not in en', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const hosted = [
+            { name: 'Harper', gender: 'female' as const, tier: 'premium' as const, multilingual: true },
+            { name: 'Serena', gender: 'female' as const, tier: 'premium' as const, multilingual: true, zhNative: true },
+        ];
+        const zh = buildScoredVoiceList([], false, hosted, 'zh');
+        expect(zh.find((v) => v.name === 'Serena')?.zhNative).toBe(true);
+        expect(zh.findIndex((v) => v.name === 'Serena')).toBeLessThan(zh.findIndex((v) => v.name === 'Harper'));
+        // en keeps the alphabetical order - nativeness is a zh-session concern.
+        const en = buildScoredVoiceList([], false, hosted);
+        expect(en.findIndex((v) => v.name === 'Harper')).toBeLessThan(en.findIndex((v) => v.name === 'Serena'));
+    });
+
     it('marks nothing in an en session', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         const scored = buildScoredVoiceList(

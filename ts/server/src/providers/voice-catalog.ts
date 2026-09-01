@@ -47,6 +47,13 @@ export interface CuratedVoice {
      *  Chirp3-HD Leda is confirmed BAD at it (glitches), so its missing flag
      *  is a finding, not an oversight. */
     multilingual?: boolean;
+    /** A native zh speaker judged this voice native-quality in Chinese
+     *  (2026-08-31 listening pass). The other multilingual voices passed the
+     *  glitch check but read as clearly accented to a native ear, so a zh
+     *  session that never picked a voice is steered here instead of the
+     *  flagged default (views/session.ts language swap), and the picker
+     *  surfaces these first in zh sessions. */
+    zhNative?: boolean;
     /** Multiplied into the requested rate before synthesis, so the speed
      *  slider means roughly the same words-per-minute on every voice. The MAI
      *  and DragonHD voices read the audition sample in 19-24s where the norm
@@ -97,10 +104,11 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // the audition sample); the speed slider makes that back up if wanted.
     // Default (dev pick 2026-08-31, was Leda): the softvoice register suits the
     // app, and a zh session that never picks a voice now gets a voice that can
-    // actually speak it.
+    // actually speak it. (zh sessions are further steered client-side to a
+    // zhNative voice - Harper's zh reads accented to a native ear.)
     { name: 'Harper', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', default: true },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
-    { name: 'Serena', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
 
 /** Default-voice preference order behind the `default: true` pick, one voice

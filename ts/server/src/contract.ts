@@ -118,6 +118,9 @@ export interface CloudVoice {
     /** Speaks languages beyond English natively (CuratedVoice.multilingual);
      *  the picker dims voices without it in a non-English session. */
     multilingual?: boolean;
+    /** Native-quality Chinese to a native ear (CuratedVoice.zhNative); zh
+     *  sessions default to and surface these first. */
+    zhNative?: boolean;
     /** The voice's pace is fixed server-side: styled voices always synthesize
      *  at rate 1 because a prosody tag would strip the style (routes/tts.ts
      *  effectiveRate). The client grays its speed control out. */
