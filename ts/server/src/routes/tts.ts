@@ -25,6 +25,7 @@ import {
     PREVIEW_PHRASE,
     resolveVoice,
     type ResolvedVoice,
+    type TtsProvider,
 } from '../providers/voice-catalog.js';
 import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
@@ -40,6 +41,16 @@ type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
  *  words-per-minute on every voice (CuratedVoice.paceBias). */
 function effectiveRate(resolved: ResolvedVoice, rate: number): number {
     return rate * (resolved.paceBias ?? 1);
+}
+
+/** Providers with a key configured here, so a no-voice request's default can
+ *  fall through to one that will actually synthesize (defaultVoice's chain). */
+function availableProviders(deps: Deps): ReadonlySet<TtsProvider> {
+    const s = new Set<TtsProvider>();
+    if (deps.config.googleTtsApiKey) s.add('google');
+    if (deps.config.openaiTtsApiKey) s.add('openai');
+    if (deps.config.azureSpeechKey) s.add('azure');
+    return s;
 }
 
 function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
@@ -116,7 +127,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!message) {
             return c.json(apiError('bad_request', 'unknown canned reason'), ERROR_STATUS.bad_request);
         }
-        const resolved = resolveVoice(body.voice);
+        const resolved = resolveVoice(body.voice, availableProviders(deps));
         const synth = synthFor(deps, resolved);
         if (!synth) {
             return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
@@ -200,7 +211,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // provider/tier-specific), and telemetry, so the charge matches the
         // voice actually synthesized. Null synth = the resolved provider has no
         // key configured here.
-        const resolved = resolveVoice(body.voice);
+        const resolved = resolveVoice(body.voice, availableProviders(deps));
         const synth = synthFor(deps, resolved);
         if (!synth) {
             return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);

@@ -18,8 +18,27 @@ describe('voice catalog', () => {
             voiceId: 'en-US-Chirp3-HD-Charon',
         });
         const d = defaultVoice();
-        expect(resolveVoice(undefined)).toEqual({ provider: d.provider, voiceId: d.providerVoiceId });
+        // The default path carries the curated voice's style/paceBias (Harper's
+        // softvoice would otherwise silently drop on no-voice requests).
+        expect(resolveVoice(undefined)).toEqual({
+            provider: d.provider,
+            voiceId: d.providerVoiceId,
+            ...(d.style ? { style: d.style } : {}),
+            ...(d.paceBias ? { paceBias: d.paceBias } : {}),
+        });
         expect(d.default).toBe(true);
+    });
+
+    it('defaultVoice falls through its chain to a provider with a key', () => {
+        const flagged = defaultVoice();
+        // Full availability: the flagged default wins.
+        expect(defaultVoice(new Set(['google', 'openai', 'azure'])).name).toBe(flagged.name);
+        // Flagged provider missing: next chain entry on a configured provider.
+        expect(defaultVoice(new Set(['google'])).provider).toBe('google');
+        expect(defaultVoice(new Set(['openai'])).provider).toBe('openai');
+        // Nothing configured: still returns the flagged default (the route's
+        // synthFor null-check turns it into provider_error).
+        expect(defaultVoice(new Set()).name).toBe(flagged.name);
     });
 
     it('labels Pulcherrima androgynous (not Google\'s "female")', () => {

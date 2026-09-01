@@ -97,8 +97,22 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     { name: 'Serena', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
 
-export function defaultVoice(): CuratedVoice {
-    return CURATED_VOICES.find((v) => v.default) ?? CURATED_VOICES[0]!;
+/** Default-voice preference order behind the `default: true` pick, one voice
+ *  per provider, so a deploy missing the flagged default's key still speaks
+ *  instead of 502ing every no-voice request. Ordering is a dev taste call -
+ *  edit freely. */
+const DEFAULT_VOICE_CHAIN = ['Harper', 'Leda', 'Polaris'];
+
+/** The flagged default; with `available` (the providers whose keys are
+ *  configured), the first choice in the chain that can actually synthesize. */
+export function defaultVoice(available?: ReadonlySet<TtsProvider>): CuratedVoice {
+    const flagged = CURATED_VOICES.find((v) => v.default) ?? CURATED_VOICES[0]!;
+    if (!available || available.has(flagged.provider)) return flagged;
+    for (const name of DEFAULT_VOICE_CHAIN) {
+        const v = CURATED_VOICES.find((c) => c.name === name);
+        if (v && available.has(v.provider)) return v;
+    }
+    return CURATED_VOICES.find((v) => available.has(v.provider)) ?? flagged;
 }
 
 /**
@@ -124,13 +138,22 @@ export interface ResolvedVoice {
 /**
  * Resolve a client-supplied voice to (provider, voiceId). Accepts a curated
  * short name ("Leda", "Lyra"), a raw Google voice id (power-user passthrough),
- * or empty → the default. The meter bills per char at the RESOLVED provider's
+ * or empty → the default (steered by `available` to a provider with a key -
+ * see defaultVoice). The meter bills per char at the RESOLVED provider's
  * rate, so an unrecognized value can't be a billing problem.
  */
-export function resolveVoice(voice: string | undefined): ResolvedVoice {
+export function resolveVoice(
+    voice: string | undefined,
+    available?: ReadonlySet<TtsProvider>
+): ResolvedVoice {
     if (!voice) {
-        const d = defaultVoice();
-        return { provider: d.provider, voiceId: d.providerVoiceId };
+        const d = defaultVoice(available);
+        return {
+            provider: d.provider,
+            voiceId: d.providerVoiceId,
+            ...(d.style ? { style: d.style } : {}),
+            ...(d.paceBias ? { paceBias: d.paceBias } : {}),
+        };
     }
     const curated = CURATED_VOICES.find((v) => v.name === voice);
     if (curated)

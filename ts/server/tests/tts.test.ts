@@ -86,6 +86,45 @@ describe('POST /cloud/v1/tts', () => {
         expect(sent.audioConfig.speakingRate).toBe(0.9);
     });
 
+    it('falls back to a configured provider for the default voice when the flagged default\'s key is missing', async () => {
+        // app() configures only the Google key; the flagged default (Harper)
+        // is Azure. A no-voice request must fall through the default chain to
+        // a Google voice instead of 502ing.
+        const a = app();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'hi' }),
+        });
+        expect(res.status).toBe(200);
+        expect(googleCalls).toHaveLength(1);
+        const sent = googleCalls[0]!.body as { voice: { name: string } };
+        expect(sent.voice.name).toBe('en-US-Chirp3-HD-Leda');
+    });
+
+    it('speaks the flagged default (Harper, softvoice + paceBias intact) when its key is configured', async () => {
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            GOOGLE_TTS_API_KEY: 'tts-key',
+            AZURE_SPEECH_KEY: 'az-key',
+            ALOUD_FREE_SIGNUP_CREDITS: '20',
+        });
+        const a = createApp(buildDeps(config));
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'hi' }),
+        });
+        expect(res.status).toBe(200);
+        expect(azureCalls).toHaveLength(1);
+        const body = azureCalls[0]!.body;
+        expect(body).toContain('en-US-Harper:MAI-Voice-2-Flash');
+        // The default path carries the curated voice's style, not a bare id.
+        expect(body).toContain('softvoice');
+    });
+
     it('clamps an out-of-range speakingRate into Google\'s accepted band', async () => {
         const a = app();
         const token = await devToken(a);
