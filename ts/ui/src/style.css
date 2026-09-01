@@ -671,11 +671,14 @@
 .form-row-thirds > .form-group {
     min-width: 140px;
 }
-/* Icon nav entries (the Settings gear): center the glyph on the text links'
-   line so the active underline sits where the text ones' do. */
+/* Icon nav entries (the Settings gear). Side padding widens the tap target
+   toward what the word links offer; padding-top mirrors the shared
+   padding-bottom(2px) + underline border(2px) so the glyph centers on the
+   theme toggle instead of riding 4px high. */
 .nav-links a.nav-icon-link {
     display: inline-flex;
     align-items: center;
+    padding: 4px 0.5rem 2px;
 }
 .nav-icon-link svg {
     display: block;

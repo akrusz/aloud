@@ -1804,13 +1804,13 @@ function renderLanguageSection(s: AppSettings): string {
     // layouts, and collapses once the row stacks (narrow/mobile).
     return `
     <section class="settings-section">
-        <!-- "(A/文)" in the header so someone who can't read the UI's language
-             can still find where to change it; this section leads the page for
-             the same reason. -->
-        <h2>Language (A/文) &amp; Speech Recognition</h2>
+        <h2>Language &amp; Speech Recognition</h2>
         <div class="form-row">
             <div class="form-group">
-                <label for="s-language">Language</label>
+                <!-- "(A/文)" on the control's label so someone who can't read
+                     the UI's language can still find it; this section leads
+                     the page for the same reason. -->
+                <label for="s-language">Language (A/文)</label>
                 <select id="s-language" name="language">${langOptions}</select>
                 <span class="form-hint">The language you and the facilitator speak in sessions.</span>
             </div>
