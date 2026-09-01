@@ -304,7 +304,7 @@ export const defaultSetup: SessionSetup = {
     provider: 'ollama',
     model: '',
     voice: null,
-    ttsRate: 160,
+    ttsRate: 140,
     // One sound participant on adaptive timing: a companion in the circle that
     // calls no model, so noting needs no account (sessionNeedsLlm). It used to
     // default to an AI participant, which made the very first thing a new user

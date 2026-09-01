@@ -29,6 +29,12 @@ describe('voice catalog', () => {
         expect(d.default).toBe(true);
     });
 
+    it('resolves a removed curated short name to the default, not the raw passthrough', () => {
+        // Mira was removed 2026-09-01; a stored pick must keep speaking rather
+        // than erroring as a bogus Google id on every turn.
+        expect(resolveVoice('Mira').voiceId).toBe(defaultVoice().providerVoiceId);
+    });
+
     it('defaultVoice falls through its chain to a provider with a key', () => {
         const flagged = defaultVoice();
         // Full availability: the flagged default wins.

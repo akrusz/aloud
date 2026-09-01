@@ -150,7 +150,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     autoQuitSilenceMin: 120,
     ttsEngine: 'cloud',
     defaultVoice: null,
-    defaultTtsRate: 160,
+    // 140, not the engines' neutral 160 (rate multiplier 1 = 160 wpm): the
+    // neutral pace reads hurried for facilitation (dev + native-listener pass,
+    // 2026-08-31).
+    defaultTtsRate: 140,
     language: 'en',
     sttWhisperModel: 'base',
     sttEngine: null,

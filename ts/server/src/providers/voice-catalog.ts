@@ -88,7 +88,6 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // (providers/tts.ts sets a calm meditation register). OpenAI's full set:
     // alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.
     { name: 'Altair (GB)', provider: 'openai', multilingual: true, providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
-    { name: 'Mira', provider: 'openai', multilingual: true, providerVoiceId: 'echo', gender: 'male', tier: 'premium' },
     { name: 'Polaris', provider: 'openai', multilingual: true, providerVoiceId: 'nova', gender: 'female', tier: 'premium' },
     // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
     // are naturally unhurried and the `style` ones bake in the calmest
@@ -177,6 +176,11 @@ export function resolveVoice(
             ...(curated.style ? { style: curated.style } : {}),
             ...(curated.paceBias ? { paceBias: curated.paceBias } : {}),
         };
+    // A short name that is no longer curated (a removed voice, e.g. Mira,
+    // 2026-09-01) falls back to the default rather than the passthrough below:
+    // real Google/Azure ids always carry locale hyphens, so a bare word could
+    // only error upstream on every turn of that user's session.
+    if (!voice.includes('-')) return resolveVoice(undefined, available);
     // Raw passthrough accepts Google and Azure ids, which encode their own tier
     // (OpenAI voices must come through the curated short names). Azure
     // ShortNames end in "Neural" (en-US-SaraNeural, zh-CN-XiaochenNeural,
