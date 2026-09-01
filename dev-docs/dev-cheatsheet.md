@@ -358,6 +358,11 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
 
 ## Dev gotchas
 
+- **UI strings are localized**: any user-visible literal in `ts/ui/src` goes
+  through `t()` (`ui/src/i18n.ts` - keyed on the English string, `{name}`
+  placeholders) with a matching entry in `ui/src/i18n/zh.ts`; static
+  `index.html` chrome uses `data-i18n` instead. Rewording English orphans the
+  zh entry - the guard in `tests/i18n.test.ts` fails until it's re-keyed.
 - **`/cloud/v1/*` `ECONNREFUSED` in `tauri:dev`** → the Hono server isn't
   running. Start `cd ts/server && npm run dev`, or ignore it for local-only work.
 - **whisper.cpp's `whisper_model_load:` dump** is silenced

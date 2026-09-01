@@ -61,10 +61,12 @@ check each of these still reflects reality:
   check-in prompts, welcome/empty-state copy.
 - **`ts/ui/src/i18n/zh.ts`** - the Chinese UI catalog. It is keyed on the
   **English string verbatim**, so *any* edit to an English `t()` string orphans
-  its translation and silently reverts that string to English. Nothing in CI
-  catches it: `t()` falls back by design and `tests/i18n.test.ts` only checks
-  placeholder hygiene. After a copy change, grep the old English string in
-  `zh.ts` and re-key it.
+  its translation and silently reverts that string to English (`t()` falls
+  back by design). The orphan-guard in `tests/i18n.test.ts` fails CI when a
+  catalog key no longer appears anywhere in the source - on failure, re-key
+  the entry to the new English wording (or delete it). The guard matches file
+  text, not parsed strings, so a key assembled in an unusual new way could
+  still false-positive; the fix is a better variant in the test, not skipping.
 - **`ts/src/facilitation/language.ts`** - the zh twins of every canned pool
   (check-ins, openers, timer lines, felt-sense/noting pools) and the
   respond-in-Chinese prompt fragment. Same rule as the catalog: a new or
