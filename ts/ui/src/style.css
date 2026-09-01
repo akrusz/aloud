@@ -671,14 +671,14 @@
 .form-row-thirds > .form-group {
     min-width: 140px;
 }
-/* Icon nav entries (the Settings gear). Side padding widens the tap target
-   toward what the word links offer; padding-top mirrors the shared
-   padding-bottom(2px) + underline border(2px) so the glyph centers on the
-   theme toggle instead of riding 4px high. */
+/* Icon nav entries (the Settings gear): side padding widens the tap target
+   toward what the word links offer. Vertical centering comes from the shared
+   .nav-links a padding (app-base.css). */
 .nav-links a.nav-icon-link {
     display: inline-flex;
     align-items: center;
-    padding: 4px 0.5rem 2px;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 .nav-icon-link svg {
     display: block;

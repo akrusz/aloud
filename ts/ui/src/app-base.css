@@ -251,6 +251,9 @@ body {
     text-decoration: none;
     font-size: 0.875rem;
     transition: color var(--transition);
+    /* Top padding mirrors the bottom padding + underline border, so link
+       content (text or the Settings gear) centers on the theme toggle. */
+    padding-top: 4px;
     padding-bottom: 2px;
     border-bottom: 2px solid transparent;
     white-space: nowrap;
