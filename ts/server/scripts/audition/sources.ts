@@ -527,6 +527,16 @@ const azure: AuditionSource = {
             label: 'soft style',
             note: 'mstts:express-as, the calmest style the voice family supports (softvoice / empathetic / whispering); unsupported styles are silently ignored',
         },
+        {
+            id: 'style-breaks',
+            label: 'soft style + pauses',
+            note: 'the same express-as style with 900ms breaks between sentences and nothing else changed - the shipping treatment plus held pauses, isolating whether <break> survives inside express-as on this family',
+        },
+        {
+            id: 'style-spacious',
+            label: 'soft style + spacious',
+            note: 'express-as style wrapping rate 0.8, pitch -2st, 1400ms breaks - everything at once',
+        },
     ],
     async synth(text, voiceId, rate, key, t) {
         // The shipping path (providers/tts.ts synthesizeWithAzure) covers the
@@ -545,14 +555,17 @@ const azure: AuditionSource = {
         const inner = (() => {
             // Multiplier form, NOT Google's percentage form: Azure reads
             // "90%" as +90% - see providers/tts.azureSsmlBody.
+            const joined = (breakMs: number): string =>
+                sentences(text).map(xmlEscape).join(`<break time="${breakMs}ms"/>`);
+            if (t.id === 'style-breaks')
+                return `<mstts:express-as style="${azureSoftStyle(voiceId)}">${joined(900)}</mstts:express-as>`;
+            if (t.id === 'style-spacious')
+                return `<mstts:express-as style="${azureSoftStyle(voiceId)}"><prosody rate="0.8" pitch="-2st">${joined(1400)}</prosody></mstts:express-as>`;
             const o =
                 t.id === 'ssml-spacious'
                     ? { rate: '0.8', pitch: '-2st', breakMs: 1400 }
                     : { rate: '0.9', pitch: '-1st', breakMs: 700 };
-            const body = sentences(text)
-                .map(xmlEscape)
-                .join(`<break time="${o.breakMs}ms"/>`);
-            return `<prosody rate="${o.rate}" pitch="${o.pitch}">${body}</prosody>`;
+            return `<prosody rate="${o.rate}" pitch="${o.pitch}">${joined(o.breakMs)}</prosody>`;
         })();
         const locale = voiceId.split('-').slice(0, 2).join('-');
         const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${locale}"><voice name="${voiceId}">${inner}</voice></speak>`;

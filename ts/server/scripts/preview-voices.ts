@@ -482,8 +482,11 @@ async function main(): Promise<void> {
         mode.includes('all') ? SOURCES.map((s) => s.id)
         : mode.includes('curated') ? ['curated']
         : mode;
+    // `curated azure` audits only the shipping voices from that source - the
+    // per-source deep listen without re-billing the whole curated set.
+    const curatedSources = mode.includes('curated') ? mode.filter((m) => m !== 'curated') : [];
 
-    for (const w of wanted) {
+    for (const w of [...wanted, ...curatedSources]) {
         if (w !== 'curated' && !sourceById(w)) {
             console.error(`Unknown source "${w}". Known: ${SOURCES.map((s) => s.id).join(', ')}, curated, all.`);
             process.exit(1);
@@ -518,6 +521,7 @@ async function main(): Promise<void> {
 
     if (wanted[0] === 'curated') {
         for (const t of curatedTargets()) {
+            if (curatedSources.length && !curatedSources.includes(t.source.id)) continue;
             const key = keyFor(t.source);
             if (!key) {
                 if (!skipped.some((s) => s.label === t.source.label))
