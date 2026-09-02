@@ -667,7 +667,7 @@ export function voiceHasFixedPace(
     return Boolean(voiceName && list.find((v) => v.name === voiceName)?.fixedPace);
 }
 
-/** The pace half of a voice label: "160 wpm", or "fixed pace" when the voice's
+/** The pace half of a voice label: "160 wpm", or "fixed speed" when the voice's
  *  rate is set server-side. Every surface that pairs a voice with its wpm goes
  *  through this so none of them promise a speed the server won't apply. */
 export function voiceRateLabel(
@@ -675,7 +675,7 @@ export function voiceRateLabel(
     list: readonly ScoredVoice[],
     wpm: number
 ): string {
-    return voiceHasFixedPace(voiceName, list) ? t('fixed pace') : t('{rate} wpm', { rate: wpm });
+    return voiceHasFixedPace(voiceName, list) ? t('fixed speed') : t('{rate} wpm', { rate: wpm });
 }
 
 export function syncSpeedControlForVoice(

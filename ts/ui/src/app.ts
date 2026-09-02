@@ -26,6 +26,7 @@ import { isCloudBuild } from './cloud-base.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
 import { acquireMicOnce, describeMicRequirement } from './mic-check.js';
+import { primeAudioPlayback } from './audio-unlock.js';
 import { alertDialog } from './dialog.js';
 import { consumePurchaseReturn } from './cloud-billing.js';
 import { checkAndShowGifts } from './gift-modal.js';
@@ -485,6 +486,10 @@ async function goSession(
  * still carries the Begin click's user gesture (WebKit requires it).
  */
 async function ensureMicAvailable(): Promise<boolean> {
+    // Same gesture, same reason: the shared <audio> element only earns Safari's
+    // playback permission if it is played from the click itself, and the first
+    // spoken sentence is many awaits away (audio-unlock.ts).
+    primeAudioPlayback();
     const problem = describeMicRequirement(await acquireMicOnce());
     if (!problem) return true;
     await alertDialog(problem);

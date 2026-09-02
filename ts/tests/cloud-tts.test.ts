@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CloudTtsEngine } from '../ui/src/adapters/cloud-tts.js';
 
 // HTMLAudioElement isn't in the Node test env; stub a minimal Audio that
-// "plays" instantly so speak() resolves. The adapter only needs play() +
+// "plays" instantly so speak() resolves. The adapter plays through the shared
+// element from audio-unlock.ts, which needs play()/pause()/removeAttribute plus
 // the lifecycle event handlers.
 beforeEach(() => {
     (globalThis as unknown as { Audio: unknown }).Audio = class {
@@ -12,15 +13,23 @@ beforeEach(() => {
         onplaying: (() => void) | null = null;
         preload = '';
         src = '';
+        paused = true;
         constructor(public url?: string) {}
+        removeAttribute(_name: string) {
+            this.src = '';
+        }
         play() {
+            this.paused = false;
             queueMicrotask(() => {
+                this.paused = true;
                 this.onplaying?.();
                 this.onended?.();
             });
             return Promise.resolve();
         }
-        pause() {}
+        pause() {
+            this.paused = true;
+        }
     };
     (globalThis as unknown as { URL: typeof URL }).URL.createObjectURL = () => 'blob:x';
     (globalThis as unknown as { URL: typeof URL }).URL.revokeObjectURL = () => {};

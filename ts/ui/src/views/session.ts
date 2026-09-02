@@ -1282,6 +1282,13 @@ export async function mountSessionView(
      *  hiccup isn't worth interrupting a meditation for. */
     function handleTtsError(err: unknown): void {
         if (torn) return;
+        // The browser refused to play the audio we did synthesize (Safari's
+        // per-element autoplay gate, or a per-site "never auto-play" setting).
+        // Worth saying: the alternative is a whole sit in silence with no clue.
+        if ((err as { name?: string })?.name === 'NotAllowedError') {
+            showErrorToast(t('Your browser blocked audio playback - allow auto-play for this site.'));
+            return;
+        }
         const msg = err instanceof Error ? err.message : String(err);
         if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
             appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);

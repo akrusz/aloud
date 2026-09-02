@@ -10,6 +10,7 @@
 import { ensureCloudToken, clearCloudToken } from './cloud-auth.js';
 import { cloudUrl } from './cloud-base.js';
 import type { CannedReason } from './billing-messages.js';
+import { playbackAudio } from './audio-unlock.js';
 
 const CANNED_ENDPOINT = '/tts/canned';
 
@@ -48,8 +49,13 @@ async function fetchCanned(reason: CannedReason, voice: string | null): Promise<
 function playBlob(blob: Blob): Promise<void> {
     return new Promise<void>((resolve) => {
         const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
+        // The shared, gesture-primed element (audio-unlock.ts) - a fresh one is
+        // blocked on Safari, and an apology nobody hears is no apology.
+        const audio = playbackAudio();
+        audio.src = url;
         const done = () => {
+            audio.onended = null;
+            audio.onerror = null;
             URL.revokeObjectURL(url);
             resolve();
         };

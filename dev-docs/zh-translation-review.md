@@ -2218,8 +2218,8 @@ ZH: 体会
 EN: female
 ZH: 女声
 
-EN: fixed pace
-ZH: 语速由声音决定
+EN: fixed speed
+ZH: 语速不可调
 
 EN: finding words
 ZH: 寻找词语

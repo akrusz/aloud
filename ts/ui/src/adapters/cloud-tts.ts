@@ -18,6 +18,7 @@ import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { isTauri } from '../is-desktop.js';
+import { playbackAudio } from '../audio-unlock.js';
 import { withTimeout } from '../net-timeout.js';
 
 // Dead-server ceiling, not a latency budget: a synthesis request that hangs
@@ -101,6 +102,15 @@ export interface CloudTtsEngineOptions {
      * LLM path self-heals. Wire to clearCloudToken for the hosted engine.
      */
     onAuthError?: () => Promise<void>;
+}
+
+/** Drop every listener this engine put on the shared playback element, so a
+ *  finished (or cancelled) utterance's events can't reach the next one. */
+function detachPlaybackHandlers(audio: HTMLAudioElement): void {
+    audio.onplaying = null;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.onpause = null;
 }
 
 export class CloudTtsEngine implements TtsEngine {
@@ -259,21 +269,24 @@ export class CloudTtsEngine implements TtsEngine {
         if (isTauri()) return this.playViaWebAudio(blob, abort, options?.onStart);
 
         const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        // preload=auto so Firefox buffers before play(), trimming the lead-in gap.
-        audio.preload = 'auto';
+        // The ONE shared element, primed by the Begin click - a per-utterance
+        // `new Audio()` is unprivileged under Safari's per-element autoplay gate
+        // and plays nothing (see audio-unlock.ts).
+        const audio = playbackAudio();
+        audio.src = url;
         // Report when audible playback begins (not when the blob arrived), so
         // callers can reveal text in step with the voice.
         const onStart = options?.onStart;
-        if (onStart) {
-            audio.onplaying = () => {
-                audio.onplaying = null;
-                onStart();
-            };
-        }
+        audio.onplaying = onStart
+            ? () => {
+                  audio.onplaying = null;
+                  onStart();
+              }
+            : null;
 
         return new Promise<void>((resolve, reject) => {
             const cleanup = () => {
+                detachPlaybackHandlers(audio);
                 URL.revokeObjectURL(url);
                 if (this.currentAudio === audio) {
                     this.currentAudio = null;
@@ -304,6 +317,7 @@ export class CloudTtsEngine implements TtsEngine {
                     cleanup();
                     return;
                 }
+                detachPlaybackHandlers(audio);
                 URL.revokeObjectURL(url);
                 if (this.currentAudio === audio) {
                     this.currentAudio = null;
@@ -397,12 +411,16 @@ export class CloudTtsEngine implements TtsEngine {
             this.currentAbort = null;
         }
         if (this.currentAudio) {
+            // Detach FIRST: the element is shared, so a pause event still queued
+            // when the next speak() installs its handlers would finalize that
+            // utterance before it made a sound.
+            detachPlaybackHandlers(this.currentAudio);
             try {
                 this.currentAudio.pause();
             } catch {
                 // ignore
             }
-            this.currentAudio.src = '';
+            this.currentAudio.removeAttribute('src');
             this.currentAudio = null;
         }
         if (this.currentSource) {

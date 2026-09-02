@@ -61,6 +61,7 @@ import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { t } from '../i18n.js';
+import { playbackAudio, playbackAudioContext } from '../audio-unlock.js';
 
 export interface NotingSessionViewHandle {
     teardown(): void;
@@ -392,16 +393,12 @@ export async function mountNotingSessionView(
         return engine;
     }
 
-    let audioCtx: AudioContext | null = null;
     function playChime(): void {
         try {
-            const AC =
-                (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-                (globalThis as unknown as { webkitAudioContext?: typeof AudioContext })
-                    .webkitAudioContext;
-            if (!AC) return;
-            audioCtx = audioCtx ?? new AC();
-            const ctx = audioCtx;
+            // The context primed by the Begin click (audio-unlock.ts): a
+            // freshly built one is suspended on Safari and chimes silently.
+            const ctx = playbackAudioContext();
+            if (!ctx) return;
             const now = ctx.currentTime;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -668,11 +665,20 @@ export async function mountNotingSessionView(
     function playSoundFile(sound: string): Promise<void> {
         return new Promise((resolve) => {
             try {
+                // The shared, gesture-primed element - a fresh one plays
+                // nothing on Safari (audio-unlock.ts). Cues and voices are
+                // strictly sequential here, so sharing it is safe.
+                const audio = playbackAudio();
                 // The hosted build serves under /app/, so a bare /audio/... 404s.
-                const audio = new Audio(assetPath(`/audio/${encodeURIComponent(sound)}.mp3`));
-                audio.onended = () => resolve();
-                audio.onerror = () => resolve();
-                void audio.play().catch(() => resolve());
+                audio.src = assetPath(`/audio/${encodeURIComponent(sound)}.mp3`);
+                const done = () => {
+                    audio.onended = null;
+                    audio.onerror = null;
+                    resolve();
+                };
+                audio.onended = done;
+                audio.onerror = done;
+                void audio.play().catch(done);
             } catch {
                 resolve();
             }
@@ -777,7 +783,6 @@ export async function mountNotingSessionView(
         sessionClock.destroy();
         void stt?.stop();
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();
-        if (audioCtx && audioCtx.state !== 'closed') void audioCtx.close().catch(() => {});
         // Embers are session-only.
         unmountEmberContainer();
         // Exit kasina if active: the toggle's exit branch restores the theme and
