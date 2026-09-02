@@ -5796,9 +5796,16 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .setup-header {
         margin-bottom: 1.25rem; /* 2.5rem */
     }
+    /* Bottom reserve = the fixed footer (~4rem on setup, ~4.2rem on
+       settings) plus a small gap, and nothing else: .main's own bottom
+       padding would sit under the bar as invisible scroll height, so a
+       page whose content fits above the bar could still scroll. */
     .setup-container {
         gap: 1rem; /* 1.25rem */
-        padding-bottom: 5.5rem; /* 7rem; still clears the fixed footer */
+        padding-bottom: 5rem; /* 7rem */
+    }
+    .main:has(.setup-footer, .settings-footer) {
+        padding-bottom: 0;
     }
     .tab-panel,
     .customize-body {
