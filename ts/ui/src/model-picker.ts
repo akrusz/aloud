@@ -62,14 +62,18 @@ export function prettyModelName(model: string): string {
 /**
  * ⭐ TWEAK ME to change which models carry the "may be slower" note. Purely
  * local, no network. We disable reasoning wherever possible (Opus included), so
- * most heavy models answer at normal speed; the exceptions are models whose
- * reasoning can't be turned off (Fable and its Mythos sibling), which think
- * before every reply. (Kimi K2 0711 doesn't reason at all; its K3 successor was
- * dropped from the hosted list over exactly that 7-12s always-on delay.)
- * Substring-matched against the model id/alias, so one entry covers every
- * variant - cloud "provider/model" values and bare claude_proxy aliases alike.
+ * most heavy models answer at normal speed. Fable used to be the exception
+ * (reasoning can't be turned off), but pinned to effort `low` Fable 5.1 lands
+ * its first token within ~0.3s of Opus 5 on a facilitation turn (measured
+ * 2026-09-01: 1.4s vs 1.7s median on the API, ~1s behind through the claude
+ * CLI), so it no longer earns the note; Fable 5 was ~1s slower still. Mythos
+ * stays listed on the same reasoning until it is measured. (Kimi K2 0711
+ * doesn't reason at all; its K3 successor was dropped from the hosted list over
+ * exactly that 7-12s always-on delay.) Substring-matched against the model
+ * id/alias, so one entry covers every variant - cloud "provider/model" values
+ * and bare claude_proxy aliases alike.
  */
-export const SLOW_MODEL_MARKERS: readonly string[] = ['fable', 'mythos'];
+export const SLOW_MODEL_MARKERS: readonly string[] = ['mythos'];
 
 export function isSlowModel(value: string): boolean {
     const v = value.toLowerCase();

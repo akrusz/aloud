@@ -119,7 +119,7 @@ describe('AnthropicProvider', () => {
         expect(off.headers['anthropic-dangerous-direct-browser-access']).toBeUndefined();
     });
 
-    it('disables thinking on opt-out models (Sonnet 5, Opus 5) and omits the param elsewhere', async () => {
+    it('tunes thinking by model family: effort low on always-on, disable on opt-out, nothing on opt-in', async () => {
         const bodyFor = async (model: string) => {
             const fetchImpl = vi.fn(async () =>
                 mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
@@ -143,12 +143,65 @@ describe('AnthropicProvider', () => {
         expect(opus5['output_config']).toBeUndefined();
         // Opt-in models are already off without it; Fable would 400 on it.
         expect((await bodyFor('claude-opus-4-8'))['thinking']).toBeUndefined();
-        expect((await bodyFor('claude-fable-5'))['thinking']).toBeUndefined();
-        // Fable 5.1 is the same always-on shape, and must carry the low-effort
-        // pin - the BYOK list serves it straight off /v1/models.
-        const fable51 = await bodyFor('claude-fable-5-1');
-        expect(fable51['thinking']).toBeUndefined();
-        expect(fable51['output_config']).toEqual({ effort: 'low' });
+        expect((await bodyFor('claude-3-opus-20240229'))['output_config']).toBeUndefined();
+        // Always-on models get the low-effort pin and no thinking param. The
+        // BYOK list serves new ids straight off /v1/models, so the rule is by
+        // family: a point release must work with no code edit.
+        for (const model of ['claude-fable-5', 'claude-fable-5-1', 'claude-fable-6', 'claude-mythos-5-1']) {
+            const body = await bodyFor(model);
+            expect(body['thinking']).toBeUndefined();
+            expect(body['output_config']).toEqual({ effort: 'low' });
+        }
+        // Same for the opt-out family's point releases.
+        expect((await bodyFor('claude-opus-5-1'))['thinking']).toEqual({ type: 'disabled' });
+    });
+
+    it('retries once without the tuning when a model 400s on it, then stays untuned', async () => {
+        const rejection = () =>
+            new Response(
+                JSON.stringify({
+                    type: 'error',
+                    error: { type: 'invalid_request_error', message: 'thinking.type: disabled is not supported' },
+                }),
+                { status: 400, headers: { 'content-type': 'application/json' } }
+            );
+        const fetchImpl = vi
+            .fn()
+            .mockImplementationOnce(async () => rejection())
+            .mockImplementation(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            model: 'claude-opus-7', // a future opt-out guess that turns out wrong
+            maxRetries: 0,
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        const result = await provider.complete([{ role: 'user', content: 'hi' }]);
+        expect(result.text).toBe('ok');
+        const bodies = fetchImpl.mock.calls.map((c) => JSON.parse((c[1] as RequestInit).body as string));
+        expect(bodies[0]['thinking']).toEqual({ type: 'disabled' });
+        expect(bodies[1]['thinking']).toBeUndefined();
+        // The next turn skips the tuning outright - no round trip wasted.
+        await provider.complete([{ role: 'user', content: 'again' }]);
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(JSON.parse((fetchImpl.mock.calls[2]![1] as RequestInit).body as string)['thinking']).toBeUndefined();
+    });
+
+    it('does not retry a 400 that blames the prompt rather than the tuning', async () => {
+        const fetchImpl = vi.fn(
+            async () =>
+                new Response(
+                    JSON.stringify({ type: 'error', error: { message: 'messages: first message must use the user role' } }),
+                    { status: 400 }
+                )
+        );
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            model: 'claude-opus-5',
+            maxRetries: 0,
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await expect(provider.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow(/400/);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
     it('sends the system prompt without its own cache_control and strips system from messages', async () => {

@@ -29,26 +29,41 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
 const DEFAULT_MAX_TOKENS = 300;
 
 /**
- * Models with always-on thinking (`thinking: {type:"disabled"}` 400s). Pinned to
- * lowest effort for the shortest think-before-speak, capping both the preamble
- * latency and thinking tokens (billed as output). Gated to this exact set:
- * `output_config`/`effort` 400s on older models (claude-3-opus-20240229), and
- * the opt-in thinking models (opus-4-8, sonnet-4-6) already run without thinking
- * when no `thinking` param is sent.
- */
-const EFFORT_LOW_MODELS = new Set(['claude-fable-5', 'claude-fable-5-1']);
-
-/**
- * Models where thinking is opt-OUT: omitting `thinking` runs adaptive thinking
- * (Sonnet 5, Opus 5), costing a silent delay plus output-billed thinking tokens
- * every turn, so send an explicit disable. Gated to this exact set: the disable
- * 400s on always-on models (Fable), and opt-in models are already off.
+ * How a model treats `thinking`, decided by FAMILY rather than by an exact-id
+ * allowlist, so a new release (fable-5-1, opus-5-1, ...) is served correctly
+ * the day it shows up on /v1/models instead of after a code edit:
  *
- * Opus 5 accepts the disable only at effort `high` or lower, so keep it OUT of
- * EFFORT_LOW_MODELS: sending no `output_config` leaves it at the `high` default,
- * while `xhigh`/`max` alongside a disable is a 400.
+ *  - always-on (Fable, Mythos): thinking can't be disabled (`{type:"disabled"}`
+ *    400s), so pin `output_config.effort` to `low` - the shortest
+ *    think-before-speak, capping both the preamble latency and thinking tokens
+ *    (billed as output).
+ *  - opt-out (Opus/Sonnet 5+, and Haiku 5+ by extension): omitting `thinking`
+ *    runs adaptive thinking, costing a silent delay plus output-billed thinking
+ *    tokens every turn, so send an explicit disable. NO effort override
+ *    alongside: Opus 5 accepts the disable only at effort `high` or lower
+ *    (omitting `output_config` leaves it at the `high` default), and
+ *    `xhigh`/`max` next to a disable is a 400.
+ *  - none (the 4.x opt-in models, claude-3-*): already off without a param, and
+ *    `output_config`/`effort` 400s on claude-3-opus.
+ *
+ * A future family whose rules differ is caught by `send()`: a 400 that blames
+ * the tuning gets one retry without it, and the provider stays untuned for the
+ * rest of the session.
  */
-const THINKING_OFF_MODELS = new Set(['claude-sonnet-5', 'claude-opus-5']);
+export type ThinkingPolicy = 'always-on' | 'opt-out' | 'none';
+
+export function thinkingPolicy(model: string): ThinkingPolicy {
+    const m = model.toLowerCase();
+    if (/^claude-(fable|mythos)-/.test(m)) return 'always-on';
+    const gen = /^claude-(opus|sonnet|haiku)-(\d+)/.exec(m);
+    if (gen && Number(gen[2]) >= 5) return 'opt-out';
+    return 'none';
+}
+
+/** Does a 400 body blame the thinking/effort tuning (vs. the prompt itself)? */
+function isTuningRejection(detail: string): boolean {
+    return /thinking|effort|output_config/i.test(detail);
+}
 
 /** Retryable upstream statuses: 429, and the transient 5xx family including
  *  Anthropic's 529 "overloaded". A non-429 4xx is the caller's fault (bad
@@ -199,11 +214,15 @@ export class AnthropicProvider implements LLMProvider {
         }
     }
 
+    /** Set once a model 400s on the thinking tuning; every later turn skips it. */
+    private tuningRejected = false;
+
     private buildRequest(
         messages: Message[],
         options: CompletionOptions,
-        stream: boolean
-    ): { url: string; init: RequestInit } {
+        stream: boolean,
+        tune: boolean
+    ): { url: string; init: RequestInit; tuned: boolean } {
         const convo = normalizeConversation(messages);
         const lastIndex = convo.length - 1;
         // The 1h anchor: largest ANCHOR_STEP boundary strictly behind the tail.
@@ -239,10 +258,10 @@ export class AnthropicProvider implements LLMProvider {
             ...(stream && { stream: true }),
         };
         if (systemParam) body['system'] = systemParam;
-        // Minimal reasoning preamble, so the facilitator speaks sooner.
-        if (EFFORT_LOW_MODELS.has(this.model)) body['output_config'] = { effort: 'low' };
-        // Turn off default adaptive thinking, so the facilitator speaks sooner.
-        if (THINKING_OFF_MODELS.has(this.model)) body['thinking'] = { type: 'disabled' };
+        // Both branches exist so the facilitator speaks sooner (see thinkingPolicy).
+        const policy = tune ? thinkingPolicy(this.model) : 'none';
+        if (policy === 'always-on') body['output_config'] = { effort: 'low' };
+        if (policy === 'opt-out') body['thinking'] = { type: 'disabled' };
 
         const headers: Record<string, string> = {
             'content-type': 'application/json',
@@ -260,17 +279,40 @@ export class AnthropicProvider implements LLMProvider {
                 body: JSON.stringify(body),
                 ...(options.signal && { signal: options.signal }),
             },
+            tuned: policy !== 'none',
         };
     }
 
-    async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
-        const { url, init } = this.buildRequest(messages, options, false);
-        const response = await this.fetchWithRetry(url, init);
-
+    /**
+     * One request, tuned per thinkingPolicy, with a single untuned retry when
+     * the model rejects the tuning - the safety net for a family whose rules
+     * don't match the policy's guess. Resolves to an ok response or throws.
+     */
+    private async send(
+        messages: Message[],
+        options: CompletionOptions,
+        stream: boolean
+    ): Promise<Response> {
+        const first = this.buildRequest(messages, options, stream, !this.tuningRejected);
+        let response = await this.fetchWithRetry(first.url, first.init);
+        if (response.status === 400 && first.tuned) {
+            const detail = await response.text().catch(() => '');
+            if (!isTuningRejection(detail)) {
+                throw new Error(`Anthropic API error ${response.status}: ${detail}`);
+            }
+            this.tuningRejected = true;
+            const plain = this.buildRequest(messages, options, stream, false);
+            response = await this.fetchWithRetry(plain.url, plain.init);
+        }
         if (!response.ok) {
             const detail = await response.text().catch(() => '');
             throw new Error(`Anthropic API error ${response.status}: ${detail}`);
         }
+        return response;
+    }
+
+    async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
+        const response = await this.send(messages, options, false);
 
         const data = (await response.json()) as AnthropicMessagesResponse;
         // Take the TEXT blocks, not content[0]: an always-thinking model (Fable
@@ -292,13 +334,7 @@ export class AnthropicProvider implements LLMProvider {
         messages: Message[],
         options: CompletionOptions = {}
     ): AsyncIterable<StreamChunk> {
-        const { url, init } = this.buildRequest(messages, options, true);
-        const response = await this.fetchWithRetry(url, init);
-
-        if (!response.ok) {
-            const detail = await response.text().catch(() => '');
-            throw new Error(`Anthropic API error ${response.status}: ${detail}`);
-        }
+        const response = await this.send(messages, options, true);
 
         // Events of interest: content_block_delta (text deltas), message_delta
         // (final stop_reason + usage), message_stop (terminator).

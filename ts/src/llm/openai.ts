@@ -313,7 +313,7 @@ function preconfigured(defaults: {
  *  400s ("Reasoning is mandatory for this endpoint and cannot be disabled",
  *  kimi-k3). Pin the lowest effort instead (both list `reasoning`/
  *  `reasoning_effort` in supported_parameters), as anthropic.ts does with
- *  EFFORT_LOW_MODELS: shortest think-before-speak, fewest billed tokens. */
+ *  thinkingPolicy 'always-on': shortest think-before-speak, fewest billed tokens. */
 const OPENROUTER_MANDATORY_REASONING = new Set(['moonshotai/kimi-k3']);
 
 /** OpenRouter models whose only endpoints don't support the `reasoning`

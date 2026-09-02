@@ -133,7 +133,7 @@ const MODELS: Record<string, ModelPricing> = {
     // and the shown credits/hr don't move. Swapped rather than listed alongside
     // 4.8, as Sonnet 5 replaced Sonnet 4.6 below - two same-price Opus entries
     // would only clutter the picker. Thinking is ON by default here, so the core
-    // AnthropicProvider sends an explicit disable (THINKING_OFF_MODELS) to keep
+    // AnthropicProvider sends an explicit disable (thinkingPolicy 'opt-out') to keep
     // the voice loop prompt. Its 512-token cache minimum (half of 4.8's) makes
     // short early turns cacheable - cheaper, never costlier.
     'anthropic:claude-opus-5': {
@@ -150,8 +150,8 @@ const MODELS: Record<string, ModelPricing> = {
     // until Opus 5 replaced it, so it's already ear-tested and cache-verified in
     // production here - restored verbatim from the pre-2bd2120 entry because the
     // older personalities speak differently, not worse. Same $5/$25 sticker and
-    // cache multipliers as Opus 5; thinking is off by default (no
-    // THINKING_OFF_MODELS entry needed). Legacy-model caveat: Anthropic will
+    // cache multipliers as Opus 5; thinking is off by default
+    // (thinkingPolicy 'none'). Legacy-model caveat: Anthropic will
     // retire it eventually - drop the entry when the API does.
     'anthropic:claude-opus-4-8': {
         provider: 'anthropic',
