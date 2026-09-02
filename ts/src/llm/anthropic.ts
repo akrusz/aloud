@@ -36,7 +36,7 @@ const DEFAULT_MAX_TOKENS = 300;
  * the opt-in thinking models (opus-4-8, sonnet-4-6) already run without thinking
  * when no `thinking` param is sent.
  */
-const EFFORT_LOW_MODELS = new Set(['claude-fable-5']);
+const EFFORT_LOW_MODELS = new Set(['claude-fable-5', 'claude-fable-5-1']);
 
 /**
  * Models where thinking is opt-OUT: omitting `thinking` runs adaptive thinking

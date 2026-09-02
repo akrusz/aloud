@@ -66,7 +66,7 @@ describe('GET /cloud/v1/me/models', () => {
         // (and Fable, deliberately surfaced). Expanded models exist behind the
         // "Show all available models" toggle.
         expect(curated).toEqual(
-            expect.arrayContaining(['claude-fable-5', 'claude-opus-5', 'claude-sonnet-5'])
+            expect.arrayContaining(['claude-fable-5-1', 'claude-opus-5', 'claude-sonnet-5'])
         );
         expect(curated.length).toBeLessThanOrEqual(6);
         expect(body.models.some((m) => m.expanded)).toBe(true);

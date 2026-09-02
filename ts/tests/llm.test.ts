@@ -144,6 +144,11 @@ describe('AnthropicProvider', () => {
         // Opt-in models are already off without it; Fable would 400 on it.
         expect((await bodyFor('claude-opus-4-8'))['thinking']).toBeUndefined();
         expect((await bodyFor('claude-fable-5'))['thinking']).toBeUndefined();
+        // Fable 5.1 is the same always-on shape, and must carry the low-effort
+        // pin - the BYOK list serves it straight off /v1/models.
+        const fable51 = await bodyFor('claude-fable-5-1');
+        expect(fable51['thinking']).toBeUndefined();
+        expect(fable51['output_config']).toEqual({ effort: 'low' });
     });
 
     it('sends the system prompt without its own cache_control and strips system from messages', async () => {

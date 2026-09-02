@@ -87,7 +87,7 @@ describe('zh shortlist flags (2026-09-01 native-listener pass)', () => {
             .map((m) => m.model)
             .sort();
         expect(zhShortlist).toEqual(
-            ['claude-fable-5', 'claude-opus-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
+            ['claude-fable-5-1', 'claude-opus-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
         );
         // A zhCurated model must still be expanded for en - otherwise the flag
         // is dead weight and the en shortlist silently grew.

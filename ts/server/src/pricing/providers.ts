@@ -108,20 +108,23 @@ const M = 1_000_000;
 
 /** Keyed by `${provider}:${model}`. */
 const MODELS: Record<string, ModelPricing> = {
-    // Fable 5: Anthropic's most capable model, a premium tier ABOVE Opus 5
+    // Fable 5.1 (replaced Fable 5 here, Sept 2026, the way Opus 5 replaced
+    // 4.8): Anthropic's most capable model, a premium tier ABOVE Opus 5
     // ($10/$50 per 1M, ~2x Opus). Same 5m/1h prompt caching as the Opus family
-    // (verified live on the metered request shape), so the 1h "anchor" bills
-    // through cacheCreation1h like the others. Offered but NOT the default: it's
-    // slow (always reasons) and the priciest tier, so Opus 5 is pre-selected
-    // (see `default` below) and Fable is opt-in. Uses the newer tokenizer (~30%
-    // more tokens for the same text), which inflates token COUNTS, not the
-    // per-token rates below, so no adjustment here.
-    'anthropic:claude-fable-5': {
+    // (verified live on 5.1 with the metered request shape), so the 1h "anchor"
+    // bills through cacheCreation1h like the others - but cache READS are
+    // 0.025x input on 5.1 ($0.25/M, a quarter of Fable 5's $1), which is the
+    // rate that drives $/hr here. Offered but NOT the default: it's slow
+    // (always reasons) and the priciest tier, so Opus 5 is pre-selected (see
+    // `default` below) and Fable is opt-in. Same tokenizer as Fable 5 (~30%
+    // more tokens than 4.6 for the same text), which inflates token COUNTS,
+    // not the per-token rates below, so no adjustment here.
+    'anthropic:claude-fable-5-1': {
         provider: 'anthropic',
-        model: 'claude-fable-5',
+        model: 'claude-fable-5-1',
         input: 10 / M,
         output: 50 / M,
-        cacheRead: 1 / M,
+        cacheRead: 0.25 / M,
         cacheCreation: 12.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 20 / M, // 1h write, 2x input
     },
