@@ -89,7 +89,7 @@ const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }
     {
         value: 'body_sensations',
         name: FOCUS_LABELS.body_sensations,
-        description: 'Physical experience: warmth, relaxation, movement',
+        description: 'Physical feelings like warmth, movement, or relaxation',
     },
     {
         value: 'emotions',
@@ -99,7 +99,7 @@ const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }
     {
         value: 'inner_parts',
         name: FOCUS_LABELS.inner_parts,
-        description: 'Inner parts, protectors, body parts, speaking to/as parts',
+        description: 'Give attention to the parts of yourself that need care',
     },
 ];
 

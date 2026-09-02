@@ -1054,8 +1054,8 @@ ZH: 在「系统嗓音」一行点击 <b>ⓘ</b>，再点击「嗓音」。
 EN: Increase
 ZH: 增加
 
-EN: Inner parts, protectors, body parts, speaking to/as parts
-ZH: 内在的不同部分、保护你的部分、身体的部位；也可以和这些部分对话，或以它们的口吻说话
+EN: Give attention to the parts of yourself that need care
+ZH: 关照内心需要照顾的部分，比如担心、受伤或自责的那一面
 
 EN: Install Ollama
 ZH: 安装 Ollama
@@ -1450,8 +1450,8 @@ ZH: 永久删除你的账户。剩余积分将被作废且无法退款。此操�
 EN: Phrase
 ZH: 短语
 
-EN: Physical experience: warmth, relaxation, movement
-ZH: 身体的感受：温暖、放松、流动
+EN: Physical feelings like warmth, movement, or relaxation
+ZH: 身体上的感觉，比如温暖、流动或放松
 
 EN: Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.
 ZH: 身体的感受：质感、温度、流动、压力。这往往是回到当下最直接的入口。
@@ -2127,6 +2127,9 @@ ZH: 你的 Ollama（v{version}）版本过旧，可能无法下载较新的模�
 
 EN: Your account has been deleted.
 ZH: 你的账户已删除。
+
+EN: Your browser blocked audio playback - allow auto-play for this site.
+ZH: 浏览器拦截了音频播放。请在浏览器设置中允许本网站自动播放。
 
 EN: Your settings apply as you go, so you’re ready to begin your first meditation. You can always come back to change them later.
 ZH: 设置即改即生效，你已经可以开始第一次冥想了。之后随时可以回来调整。
