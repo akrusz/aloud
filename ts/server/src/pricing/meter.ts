@@ -149,11 +149,68 @@ export function priceSession(
     return toCredits(llm + stt + tts);
 }
 
-/** Conservative pre-auth hold at session start, before usage is known
- *  (meditation-pal-8sj: "a small pre-auth hold at session start"). Sized to a
- *  few minutes of premium use; the unused remainder is released on settle. At
- *  cost-denominated credits that's a few cents of headroom. */
+/** Ceiling on the per-turn pre-auth hold (meditation-pal-8sj). The hold itself
+ *  is sized from the request by holdForTurn; this only caps a pathological one.
+ *  It is NOT a floor: a flat 10-credit hold clamped to the balance parked a
+ *  sub-10 balance in its entirety for the length of every LLM turn, so the TTS
+ *  and STT legs - which gate on spendable balance and fire while the turn is
+ *  still open - 402'd mid-reply. The user saw the out-of-credits apology and a
+ *  buy button, then the reply anyway once the hold settled (meditation-pal-hd24). */
 export const SESSION_HOLD_CREDITS = 10;
+
+/** Tokenizer-free upper bound on the tokens in `text`: ASCII at ~3 chars/token
+ *  (English runs ~4), every other character at a token apiece (CJK lands near
+ *  1:1, and a prompt's non-ASCII share is small enough that over-counting it
+ *  costs nothing). */
+export function estimateTokens(text: string): number {
+    let ascii = 0;
+    let other = 0;
+    for (let i = 0; i < text.length; i++) {
+        if (text.charCodeAt(i) < 128) ascii++;
+        else other++;
+    }
+    return Math.ceil(ascii / 3) + other;
+}
+
+/** Headroom over the estimate for tokenizer variance and the provider's own
+ *  per-message overhead. */
+const HOLD_CUSHION = 1.25;
+
+/** Spendable credits an LLM hold leaves untouched for the turn's OTHER legs
+ *  (the TTS of the reply, a speculative STT pass), which bill against balance
+ *  while the hold is open. Below this the hold takes half the balance, so a
+ *  near-empty account still finishes its last turns end to end. Provider-cost
+ *  pennies: the worst case is one turn overdrawing by this much. */
+export const TURN_SIDECAR_RESERVE_CREDITS = 0.5;
+
+/** Credits to pre-auth for one turn: the request's whole prompt (system +
+ *  every message) at the model's fresh-input rate plus `maxTokens` of output,
+ *  cushioned, capped at SESSION_HOLD_CREDITS. Real turns settle well below this
+ *  - most input is a cache read at a fraction of the input rate - so this already
+ *  bounds a cold-cache turn; pricing it as a cache write on top would only
+ *  starve the sidecar legs again. A model outside the price table (can't happen
+ *  past the allowlist) holds the cap. */
+export function holdForTurn(
+    provider: ProviderId,
+    model: string,
+    promptTexts: readonly string[],
+    maxTokens: number
+): number {
+    const p = pricingFor(provider, model);
+    if (!p) return SESSION_HOLD_CREDITS;
+    let promptTokens = 0;
+    for (const text of promptTexts) promptTokens += estimateTokens(text);
+    const usd = promptTokens * p.input + Math.max(0, maxTokens) * p.output;
+    return Math.min(SESSION_HOLD_CREDITS, usdToCredits(usd) * HOLD_CUSHION);
+}
+
+/** The hold to actually place for a turn against `balance`: the turn's
+ *  estimate, but never so much that less than the sidecar reserve (or half the
+ *  balance, whichever is smaller) stays spendable. */
+export function holdAgainstBalance(estimate: number, balance: number): number {
+    const reserve = Math.min(TURN_SIDECAR_RESERVE_CREDITS, balance / 2);
+    return Math.max(0, Math.min(estimate, balance - reserve));
+}
 
 /** Hard ceiling on output tokens per turn, enforced server-side regardless of
  *  what the client asks for (meditation-pal-aa8). Bounds the priciest leg of a

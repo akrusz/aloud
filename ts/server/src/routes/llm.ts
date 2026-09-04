@@ -28,7 +28,7 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isMeteredBlocked, FREE_LIMIT_MESSAGE, BILLING_PAUSED_FINISH } from '../admin/runtime-config.js';
 import { isModelAllowed, allowedModels } from '../pricing/providers.js';
-import { SESSION_HOLD_CREDITS, MAX_OUTPUT_TOKENS, priceLlmTurn, type CostBreakdown } from '../pricing/meter.js';
+import { holdForTurn, holdAgainstBalance, MAX_OUTPUT_TOKENS, priceLlmTurn, type CostBreakdown } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
@@ -126,14 +126,23 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // hold and no charge, but still record usage tagged with the pass.
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
 
-        // Hold up to the per-turn cap, bounded by what the user actually has.
+        // Clamp output length server-side so the client can't request a turn
+        // pricier than the pre-auth hold is sized for (meditation-pal-aa8).
+        const maxTokens = Math.min(body.maxTokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS);
+
+        // Hold what THIS turn could cost, leaving a sliver of the balance
+        // spendable. Sized from the request, not a flat cap: the TTS/STT legs
+        // of the same turn gate on spendable balance while this hold is open,
+        // so holding more than the turn can bill - or the whole of a small
+        // balance - starves them mid-reply (meditation-pal-hd24).
         let holdId: string | null = null;
         if (!pass) {
             const balance = await deps.ledger.balance(account.id);
             if (balance <= 0) {
                 return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
             }
-            const holdAmount = Math.min(SESSION_HOLD_CREDITS, balance);
+            const promptTexts = [body.system ?? '', ...body.messages.map((m) => m.content ?? '')];
+            const holdAmount = holdAgainstBalance(holdForTurn(body.provider, body.model, promptTexts, maxTokens), balance);
             try {
                 holdId = await deps.ledger.placeHold(account.id, holdAmount, `turn:${body.provider}:${body.model}`);
             } catch (err) {
@@ -147,9 +156,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const fwd = {
             provider: body.provider,
             model: body.model,
-            // Clamp output length server-side so the client can't request a turn
-            // pricier than the pre-auth hold was sized for (meditation-pal-aa8).
-            maxTokens: Math.min(body.maxTokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
+            maxTokens,
             ...(body.system ? { system: body.system } : {}),
         };
         const reason = `llm:${body.provider}:${body.model}`;

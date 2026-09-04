@@ -78,7 +78,7 @@ describe('streaming hold lifecycle', () => {
         await res.text(); // drain the SSE so the handler runs to completion
 
         const balance = await deps.ledger.balance(accountId);
-        // Charged the (tiny, fractional) real cost — not the 10-credit hold.
+        // Charged the (tiny, fractional) real cost, not the estimate held.
         expect(balance).toBeLessThan(20);
         expect(balance).toBeGreaterThan(19);
         // No hold left outstanding: every hold has a matching release.
