@@ -24,7 +24,7 @@ import { fetchModels } from '../providers/models.js';
  *  decide. Ollama and claude_proxy are local-only, reported unavailable so a
  *  forced-local browser-dev session (which shows every provider) marks them ✘
  *  rather than usable. */
-const WEB_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'venice', 'groq'];
+const WEB_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'venice', 'groq', 'opencode_go'];
 
 export function appBackendRoutes(_deps: Deps): Hono {
     const app = new Hono();
@@ -76,6 +76,39 @@ export function appBackendRoutes(_deps: Deps): Hono {
     // No on-device Piper/macOS voices on the web: speechSynthesis voices come
     // from the client, hosted voices from /cloud/v1/voices.
     app.get('/voices', (c) => c.json([]));
+
+    // OpenCode Go (Zen) doesn't support browser CORS, so the app backend
+    // relays completions. The path mirrors OpenAI's /v1/chat/completions shape
+    // so the OpenAI-compatible provider can just swap its baseUrl.
+    app.post('/llm/opencode_go/chat/completions', async (c) => {
+        // The OpenAI provider sends Authorization: Bearer; extract the key.
+        const auth = c.req.header('authorization') ?? '';
+        const key = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+        if (!key) return c.json({ error: 'No API key set' }, 400);
+        const body = await c.req.json();
+        try {
+            const resp = await fetch('https://opencode.ai/zen/go/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    authorization: `Bearer ${key}`,
+                    ...(body.stream ? { accept: 'text/event-stream' } : {}),
+                },
+                body: JSON.stringify(body),
+                signal: c.req.raw.signal,
+            });
+            if (body.stream) {
+                c.header('content-type', 'text/event-stream');
+                c.header('cache-control', 'no-cache');
+                c.header('connection', 'keep-alive');
+            } else {
+                c.header('content-type', 'application/json');
+            }
+            return c.body(await resp.arrayBuffer(), resp.status as any);
+        } catch {
+            return c.json({ error: 'OpenCode Go request failed' }, 502);
+        }
+    });
 
     return app;
 }
