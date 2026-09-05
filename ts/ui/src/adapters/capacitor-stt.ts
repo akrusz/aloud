@@ -49,6 +49,16 @@ export interface CapacitorSttEngineOptions {
     submitRampRate?: number;
 }
 
+/**
+ * EXPERIMENT (meditation-pal-lbl5): ask Android's endpointer to tolerate this
+ * long a pause before it ends the utterance. Stock ends a segment on ~1.5s,
+ * and every segment boundary costs a 1.2-2.7s recognizer restart during which
+ * nothing is heard - the mid-sentence word drops on device STT. The extras
+ * are a hint the recognizer may ignore; compare '[stt-native] final … N
+ * segment(s)' and the stopped→started gaps against a run without it.
+ */
+const NATIVE_ENDPOINT_SILENCE_MS = 4000;
+
 const RESTART_GAP_MS = 50;
 const SEGMENT_SETTLE_MS = 700;
 // A silence error this soon after a launch belongs to the previous segment:
@@ -491,6 +501,7 @@ export class CapacitorSttEngine implements SttEngine {
                 maxResults: this.options.maxResults,
                 partialResults: this.options.partialResults,
                 popup: false,
+                silenceLengthMs: NATIVE_ENDPOINT_SILENCE_MS,
             });
             startPromise
                 .then((result) => {

@@ -50,7 +50,14 @@ already-resolved call on `onError` - so JS saw neither "recognizer is live" nor
 any error (NO_MATCH, SPEECH_TIMEOUT, BUSY). The patch emits `listeningState:
 'ready'` and `listeningState: 'error'`; `CapacitorSttEngine` keys its startup
 watchdog and silence handling on them. Note the stock `'started'` event is
-`onBeginningOfSpeech` - user speech, not launch.
+`onBeginningOfSpeech` - user speech, not launch. The patch also adds a
+`silenceLengthMs` start option that sets Android's
+`EXTRA_SPEECH_INPUT_*_SILENCE_LENGTH_MILLIS` endpointer extras; the adapter
+sends `NATIVE_ENDPOINT_SILENCE_MS` on every launch (an experiment against the
+mid-sentence restart gaps, `meditation-pal-lbl5` - recognizers honour it
+unevenly). To change the patch: edit under `node_modules`, then
+`npx patch-package @capacitor-community/speech-recognition --exclude 'android/build'`
+(the exclude keeps gradle's build artifacts out of the diff).
 
 Because postinstall runs it, `patch-package` is a **regular dependency**, not a
 dev one: the server image installs with `--omit=dev` and died on a missing

@@ -80,6 +80,8 @@ describe('CapacitorSttEngine restart-stitching', () => {
         const { events } = collect(engine);
         await vi.advanceTimersByTimeAsync(60); // permission + 50ms reset, listeners, launch #1
         expect(H.start).toHaveBeenCalledTimes(1);
+        // The endpointer hint (meditation-pal-lbl5) rides every launch.
+        expect(H.start.mock.calls[0]![0]).toMatchObject({ silenceLengthMs: 4000, popup: false });
 
         partial('I notice'); // live speech
         stopped(); // Android end-of-speech
