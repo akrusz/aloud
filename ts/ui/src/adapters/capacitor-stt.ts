@@ -54,8 +54,10 @@ export interface CapacitorSttEngineOptions {
  * long a pause before it ends the utterance. Stock ends a segment on ~1.5s,
  * and every segment boundary costs a 1.2-2.7s recognizer restart during which
  * nothing is heard - the mid-sentence word drops on device STT. The extras
- * are a hint the recognizer may ignore; compare '[stt-native] final … N
- * segment(s)' and the stopped→started gaps against a run without it.
+ * are a hint the recognizer may ignore - and Google's on a Pixel does
+ * (2026-09-05: 2/4/3 segments per turn and the same 1-3s gaps with 4000ms
+ * as without). Left on because it costs nothing and other recognizers may
+ * honour it; the real fix is on the restart path (see the bead).
  */
 const NATIVE_ENDPOINT_SILENCE_MS = 4000;
 
