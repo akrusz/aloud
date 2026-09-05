@@ -104,14 +104,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   html { scroll-behavior: smooth; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
-    font: 17px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif;
-    padding: 24px; max-width: 980px; margin-inline: auto;
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    padding: 20px; max-width: 980px; margin-inline: auto;
   }
   h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .3px;
        display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   h1 .dot { color: var(--accent); }
-  h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px;
-       color: var(--dim); margin: 28px 0 12px; font-weight: 600;
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+       color: var(--dim); margin: 22px 0 10px; font-weight: 600;
        scroll-margin-top: 16px;
        display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   /* Control clusters that sit at the right edge of a heading and drop onto
@@ -129,24 +129,31 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     #quickNav a:hover { color: var(--accent); border-left-color: var(--accent); }
   }
   #quickNav.hidden { display: none; }
-  .sub { color: var(--dim); font-size: 16px; margin: 0 0 20px; }
+  .sub { color: var(--dim); font-size: 14px; margin: 0 0 14px; }
   /* Explainer paragraphs are toggled as a group - hidden by default, revealed
      by the "Show explanations" button in the header. */
   body.hide-help .help-text { display: none; }
+  /* Compact view (the default): the key cards and tables only. Anything
+     marked .detail - the long tail of per-hour cards, itemized sits, cache
+     breakdown, distributions, daily table - waits behind the header's
+     "Full view" button, so each section fits about a screen. */
+  body.compact .detail { display: none; }
   .card { background: var(--panel); border: 1px solid var(--line);
-          border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
-  label { display: block; font-size: 16px; color: var(--dim); margin-bottom: 5px; }
+          border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+  /* A stat grid directly before a card used to touch it. */
+  .grid { margin-bottom: 10px; }
+  label { display: block; font-size: 14px; color: var(--dim); margin-bottom: 5px; }
   input, textarea {
     width: 100%; padding: 9px 11px; background: #100d0b; color: var(--ink);
     border: 1px solid var(--line); border-radius: 8px; font: inherit;
   }
   textarea { resize: vertical; min-height: 60px; }
   input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-  .check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 16px; }
+  .check { display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: 14px; }
   .check input { width: auto; }
-  button.xs { padding: 4px 10px; font-size: 15px; }
+  button.xs { padding: 4px 10px; font-size: 13px; }
   button {
-    padding: 9px 16px; background: var(--accent); color: #1a1208; border: none;
+    padding: 8px 14px; background: var(--accent); color: #1a1208; border: none;
     border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
   }
   button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
@@ -155,31 +162,45 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .row > div { flex: 1; min-width: 140px; }
   .row > button { flex: 0 0 auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
   /* Wide tables scroll inside their card instead of spilling past its edge. */
   .table-wrap { overflow-x: auto; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  /* Headers stay on one line; a wide table scrolls in its .table-wrap rather
+     than stacking every header word (the 13-column sits table ran 7 rows tall). */
+  th { white-space: nowrap; }
+  /* Long free-text cells (incident detail) clip with the full text on hover. */
+  td.clip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Long unbreakable values (emails) give up width first; the action column
      never wraps and takes only what its button needs. */
   td.wrap { overflow-wrap: anywhere; }
   th.act, td.act { width: 1%; white-space: nowrap; text-align: right; }
-  th { color: var(--dim); font-weight: 600; font-size: 15px;
-       text-transform: uppercase; letter-spacing: .6px; }
+  th { color: var(--dim); font-weight: 600; font-size: 12px;
+       text-transform: uppercase; letter-spacing: .5px; }
   tbody tr { cursor: pointer; }
   tbody tr:hover { background: #221d19; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px;
-          font-size: 15px; font-weight: 600; }
+          font-size: 13px; font-weight: 600; }
+  /* A row of pills standing in for a stat grid (incident kinds). */
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .pills .lead { font-weight: 700; margin-right: 4px; }
+  .pills .lead.bad { color: var(--bad); }
+  .pill.warn { background: rgba(217,138,122,.16); color: var(--bad); }
   .pill.paid { background: rgba(127,179,137,.18); color: var(--good); }
   .pill.free { background: rgba(168,154,140,.16); color: var(--dim); }
-  .prov { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 15px;
+  .prov { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 13px;
           border: 1px solid var(--line); color: var(--dim); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-  .stat { background: #100d0b; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .stat .k { font-size: 15px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
-  .stat .v { font-size: 20px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .stat { background: #100d0b; border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; min-width: 0; }
+  /* One line per label, clipped with the full label on hover, so a card is
+     always two lines tall and the grid rows line up. */
+  .stat .k { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .4px;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat .v { font-size: 17px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums;
+             overflow-wrap: anywhere; }
   .stat .v.warn { color: var(--bad); }
-  .msg { font-size: 16px; margin-top: 10px; min-height: 18px; }
+  .msg { font-size: 14px; margin-top: 8px; min-height: 18px; }
   .msg.ok { color: var(--good); }
   .msg.err { color: var(--bad); }
   .muted { color: var(--dim); }
@@ -187,7 +208,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
      a step down in color only. */
   .assumed { color: var(--dim); }
   .hidden { display: none; }
-  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 15px; }
+  code { background: #100d0b; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6);
               display: flex; align-items: center; justify-content: center; padding: 20px; }
   .modal { background: var(--panel); border: 1px solid var(--line);
@@ -210,7 +231,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
        font-size: 22px; cursor: pointer; padding: 0; line-height: 1; }
 </style>
 </head>
-<body class="hide-help">
+<body class="hide-help compact">
   <nav id="quickNav" class="hidden" aria-label="Sections">
     <a href="#sec-spend">Spend &amp; abuse</a>
     <a href="#sec-cost">Cost attribution</a>
@@ -221,7 +242,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <a href="#sec-retreats">Retreats</a>
     <a href="#sec-accounts">Accounts</a>
   </nav>
-  <h1><span>aloud<span class="dot">.</span> admin</span><span class="controls"><label class="check hidden" id="liveWrap" style="font-size:15px;font-weight:400"><input type="checkbox" id="autoRefresh"> live (60s)</label><button id="signOut" class="ghost xs hidden" type="button">Sign out</button><button id="toggleHelp" class="ghost xs" type="button">Show explanations</button></span></h1>
+  <h1><span>aloud<span class="dot">.</span> admin</span><span class="controls"><label class="check hidden" id="liveWrap" style="font-size:13px;font-weight:400"><input type="checkbox" id="autoRefresh"> live (60s)</label><button id="signOut" class="ghost xs hidden" type="button">Sign out</button><button id="toggleCompact" class="ghost xs" type="button">Full view</button><button id="toggleHelp" class="ghost xs" type="button">Show explanations</button></span></h1>
   <p class="sub help-text">Operator console - spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
 
   <div class="card" id="authCard">
@@ -241,56 +262,56 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   <div id="app" class="hidden">
     <h2 id="sec-spend">Spend &amp; abuse
       <span class="controls">
-        <select id="metricsWindow" style="width:auto;padding:4px 8px;font-size:16px">
+        <select id="metricsWindow" style="width:auto;padding:3px 7px;font-size:13px">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
         </select>
-        <button class="ghost" id="refreshMetrics" style="padding:4px 10px;font-size:16px">refresh</button>
+        <button class="ghost" id="refreshMetrics" style="padding:3px 9px;font-size:13px">refresh</button>
       </span>
     </h2>
     <div class="grid" id="stats"></div>
 
     <h2 id="sec-incidents">Incidents
       <span class="controls">
-        <select id="incidentWindow" style="width:auto;padding:4px 8px;font-size:16px">
+        <select id="incidentWindow" style="width:auto;padding:3px 7px;font-size:13px">
           <option value="24">last 24h</option>
           <option value="168" selected>last 7d</option>
           <option value="720">last 30d</option>
         </select>
-        <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
-        <button class="ghost" id="refreshIncidents" style="padding:4px 10px;font-size:16px">refresh</button>
+        <label class="check" style="font-size:13px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshIncidents" style="padding:3px 9px;font-size:13px">refresh</button>
       </span>
     </h2>
-    <p class="help">What the app handled quietly on the cloud path. <b>llm_empty</b>: a completion came back with no text (finish=length with tokens_out &gt; 0 means reasoning ate the budget). <b>llm/stt/tts_error</b>: the upstream call failed. <b>insufficient_credits</b>: a metered call was refused. <b>client_*</b> rows are reported by the app itself: a blank turn it retried or replaced with a canned line, a voice that failed to synthesize or play. Rows never contain what was said.</p>
-    <div class="grid" id="incidentStats"></div>
+    <p class="sub help-text" style="margin:-4px 0 10px">What the app handled quietly on the cloud path. <b>llm_empty</b>: a completion came back with no text (finish=length with tokens_out &gt; 0 means reasoning ate the budget). <b>llm/stt/tts_error</b>: the upstream call failed. <b>insufficient_credits</b>: a metered call was refused. <b>client_*</b> rows are reported by the app itself: a blank turn it retried or replaced with a canned line, a voice that failed to synthesize or play. Rows never contain what was said.</p>
     <div class="card">
+      <div class="pills" id="incidentStats"><span class="muted">Connect to load.</span></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>When</th><th>Kind</th><th>Account</th><th>Session</th><th>Provider</th><th>Model</th><th>Detail</th></tr></thead>
-          <tbody id="incidentRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
+          <thead><tr><th>When</th><th>Kind</th><th>Acct</th><th>Sess</th><th>Model</th><th>Detail</th></tr></thead>
+          <tbody id="incidentRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
         </table>
       </div>
     </div>
 
     <h2 id="sec-cost">Cost attribution
       <span class="controls">
-        <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:16px">
+        <select id="usageWindow" style="width:auto;padding:3px 7px;font-size:13px">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
           <option value="8760">last year</option>
           <option value="1000000">all time</option>
         </select>
-        <select id="realSit" style="width:auto;padding:4px 8px;font-size:16px" title="One bar for every session-level number in this section. Real sessions need 5+ turns and at least this many minutes; 'all' is unfiltered">
+        <select id="realSit" style="width:auto;padding:3px 7px;font-size:13px" title="One bar for every session-level number in this section. Real sessions need 5+ turns and at least this many minutes; 'all' is unfiltered">
           <option value="real" selected>real sessions (5+ turns and 5+ min)</option>
           <option value="15">real sits, 15+ min</option>
           <option value="25">real sits, 25+ min</option>
           <option value="45">real sits, 45+ min</option>
           <option value="all">all sessions</option>
         </select>
-        <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
-        <button class="ghost" id="refreshUsage" style="padding:4px 10px;font-size:16px">refresh</button>
+        <label class="check" style="font-size:13px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshUsage" style="padding:3px 9px;font-size:13px">refresh</button>
       </span>
     </h2>
     <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost - the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
@@ -303,14 +324,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <tbody id="perHourRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
     </div>
-    <div class="card">
+    <div class="card detail">
       <p class="sub help-text" style="margin:0 0 10px">Your own sits, itemized - only sessions from accounts on <code>ALOUD_ADMIN_EMAILS</code> ever appear here; real users stay aggregate. One line per qualifying session, newest first, with the badge the app would have shown for that model + voice (typical talk band, plus the STT and utility legs when used). Tokens are per facilitation turn; utility counts the Haiku / Flash Lite calls riding alongside.</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>Start</th><th class="num">Min</th><th>Model</th><th class="num">Turns</th><th class="num">Util</th><th>Voice</th><th class="num">Cr/hr</th><th class="num">Badge</th><th class="num">LLM · STT · TTS cr/hr</th><th class="num">In / read / out tok per turn</th><th class="num">STT min</th><th class="num">STT calls</th><th class="num">TTS chars</th></tr></thead>
+        <thead><tr><th>Start</th><th class="num">Min</th><th>Model</th><th class="num">Turns</th><th class="num">Util</th><th>Voice</th><th class="num">Cr/hr</th><th class="num">Badge</th><th class="num" title="LLM · STT · TTS credits per hour">L·S·T cr/hr</th><th class="num" title="Fresh input / cache read / output tokens per turn">tok/turn in·rd·out</th><th class="num">STT min</th><th class="num">STT calls</th><th class="num">TTS chars</th></tr></thead>
         <tbody id="sessionRows"><tr><td colspan="13" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
     </div>
-    <div class="card">
+    <div class="card detail">
       <p class="sub help-text" style="margin:0 0 10px">LLM prompt cache - the read/write/fresh token split, hit rate, and dollars caching saved vs a no-cache baseline (everything cached re-priced at full input). Broken out per provider because Anthropic (explicit breakpoints) and OpenAI/Google (automatic on a stable prefix) cache differently - the per-provider hit rate is how you tell each path is actually caching.</p>
       <div class="grid" id="cacheStats" style="margin-bottom:12px"></div>
       <div class="table-wrap"><table>
@@ -325,14 +346,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <tbody id="usageServiceRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
     </div>
-    <div class="card">
+    <div class="card detail">
       <p class="sub help-text" style="margin:0 0 10px">Per-model / per-voice cost, biggest first.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Provider $</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageModelRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
     </div>
-    <div class="card">
+    <div class="card detail">
       <p class="sub help-text" style="margin:0 0 10px">Per-session distribution - sessions reconstructed by clustering each account's calls (gaps over 8&nbsp;min split a session).</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Metric</th><th class="num">Median</th><th class="num">p90</th><th class="num">Max</th><th class="num">Mean</th></tr></thead>
@@ -342,7 +363,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
     <h2 id="sec-history">Usage over time
       <span class="controls">
-        <select id="historyMetric" style="width:auto;padding:4px 8px;font-size:16px">
+        <select id="historyMetric" style="width:auto;padding:3px 7px;font-size:13px">
           <option value="cost" selected>provider $</option>
           <option value="margin">revenue vs cost</option>
           <option value="sessions">sessions</option>
@@ -351,21 +372,21 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="credits">credits</option>
           <option value="duration">avg min / session</option>
         </select>
-        <select id="historyDays" style="width:auto;padding:4px 8px;font-size:16px">
+        <select id="historyDays" style="width:auto;padding:3px 7px;font-size:13px">
           <option value="7">last 7d</option>
           <option value="30" selected>last 30d</option>
           <option value="90">last 90d</option>
           <option value="365">last year</option>
         </select>
-        <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
-        <button class="ghost" id="refreshHistory" style="padding:4px 10px;font-size:16px">refresh</button>
+        <label class="check" style="font-size:13px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshHistory" style="padding:3px 9px;font-size:13px">refresh</button>
       </span>
     </h2>
     <p class="sub help-text" style="margin:-4px 0 12px">Daily trend, one bar per UTC day (dates labeled in UTC). Each session is counted on the day it began. Hover a bar for the exact value.</p>
     <div class="card">
       <div id="historyChart"><p class="muted" style="margin:0">Connect to load.</p></div>
     </div>
-    <div class="card">
+    <div class="card detail">
       <div class="table-wrap"><table>
         <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Accounts</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Revenue $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
         <tbody id="historyRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
@@ -412,7 +433,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
-    <h2 id="sec-retreats">Retreats <span class="controls"><button class="ghost" id="refreshRetreats" style="padding:4px 10px;font-size:16px">refresh</button></span></h2>
+    <h2 id="sec-retreats">Retreats <span class="controls"><button class="ghost" id="refreshRetreats" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
       <div class="row">
@@ -426,7 +447,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     </div>
     <div id="retreatList"></div>
 
-    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts" style="padding:4px 10px;font-size:16px">refresh</button></span></h2>
+    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
@@ -507,6 +528,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function dateUTC(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 
   // ---- metrics dashboard -------------------------------------------------
+  // A stat grid. card = [label, valueHtml, valueClass?, detail?]; detail cards
+  // sit behind the Full view toggle. The label rides the title too, since it
+  // clips to one line.
+  function statCards(cards) {
+    return cards.map(function (c) {
+      return '<div class="stat' + (c[3] ? ' detail' : '') + '" title="' + esc(c[0]) + '"><div class="k">' + esc(c[0]) + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
+    }).join('');
+  }
   function loadMetrics() {
     var sel = $('metricsWindow');
     // "last 24h" → "24h" for the card labels.
@@ -515,35 +544,36 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var t = m.totals, w = m.window, a = m.abuse;
       var cards = [
         ['Accounts', int(t.accounts)],
-        ['Credits outstanding', dec1(t.creditsOutstanding)],
-        ['Provider cost (all-time)', usd(t.providerCostUsd)],
-        ['Free burn (non-converters)', usd(t.freeBurnUsd), t.freeBurnUsd > 0 ? 'warn' : ''],
-        ['Est. gross revenue', usd(t.estGrossRevenueUsd)],
-        ['Signups (' + wl + ')', int(w.signups)],
-        ['Provider cost (' + wl + ')', usd(w.providerCostUsd)],
-        ['IP clusters (' + wl + ')', int(a.ipsOverThreshold), a.ipsOverThreshold > 0 ? 'warn' : ''],
+        ['Outstanding cr', dec1(t.creditsOutstanding)],
+        ['Cost all-time', usd(t.providerCostUsd)],
+        ['Free burn', usd(t.freeBurnUsd), t.freeBurnUsd > 0 ? 'warn' : ''],
+        ['Gross rev (est.)', usd(t.estGrossRevenueUsd)],
+        ['Signups ' + wl, int(w.signups)],
+        ['Cost ' + wl, usd(w.providerCostUsd)],
+        ['IP clusters ' + wl, int(a.ipsOverThreshold), a.ipsOverThreshold > 0 ? 'warn' : ''],
       ];
-      $('stats').innerHTML = cards.map(function (c) {
-        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
-      }).join('');
+      $('stats').innerHTML = statCards(cards);
     });
   }
 
   // ---- incidents ---------------------------------------------------------
+  // One pill per kind stands in for a stat grid: the count is what matters,
+  // the accounts/sessions behind it ride the hover. Compact view shows the
+  // newest COMPACT_INCIDENT_ROWS rows; the rest are .detail.
+  var COMPACT_INCIDENT_ROWS = 8;
   function loadIncidents() {
     var sel = $('incidentWindow');
     return api('/incidents?sinceHours=' + sel.value + omitAdminParam()).then(function (r) {
-      var cards = [['Incidents', int(r.total), r.total > 0 ? 'warn' : '']].concat((r.byKind || []).map(function (k) {
-        return [k.kind, int(k.count) + ' <span class="assumed">· ' + int(k.accounts) + ' acct · ' + int(k.sessions) + ' sess</span>', ''];
-      }));
-      $('incidentStats').innerHTML = cards.map(function (c) {
-        return '<div class="stat"><div class="k">' + esc(c[0]) + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
+      var lead = '<span class="lead ' + (r.total > 0 ? 'bad' : '') + '">' + int(r.total) + ' incident' + (r.total === 1 ? '' : 's') + '</span>';
+      $('incidentStats').innerHTML = lead + (r.byKind || []).map(function (k) {
+        return '<span class="pill ' + (k.source === 'server' ? 'warn' : 'free') + '" title="' + int(k.accounts) + ' account(s), ' + int(k.sessions) + ' session(s)">' +
+          esc(k.kind) + ' ×' + int(k.count) + '</span>';
       }).join('');
-      $('incidentRows').innerHTML = (r.recent || []).map(function (i) {
-        return '<tr><td class="muted" style="white-space:nowrap">' + dateTime(i.ts) + '</td><td>' + esc(i.kind) +
+      $('incidentRows').innerHTML = (r.recent || []).map(function (i, idx) {
+        return '<tr' + (idx >= COMPACT_INCIDENT_ROWS ? ' class="detail"' : '') + '><td class="muted" style="white-space:nowrap">' + dateTime(i.ts) + '</td><td>' + esc(i.kind) +
           '</td><td>' + esc(i.account) + '</td><td class="muted">' + esc(i.sessionId ? String(i.sessionId).slice(0, 8) : '') +
-          '</td><td>' + esc(i.provider) + '</td><td>' + esc(i.model) + '</td><td class="muted">' + esc(i.detail) + '</td></tr>';
-      }).join('') || '<tr><td colspan="7" class="muted">No incidents in this window.</td></tr>';
+          '</td><td title="' + esc(i.provider) + '" style="white-space:nowrap"><code>' + esc(i.model) + '</code></td><td class="muted clip" title="' + esc(i.detail) + '">' + esc(i.detail) + '</td></tr>';
+      }).join('') || '<tr><td colspan="6" class="muted">No incidents in this window.</td></tr>';
     });
   }
 
@@ -565,18 +595,16 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
         ['Credits spent', dec1(u.totals.credits)],
-        ['Active accounts', int(u.accounts)],
-        ['Metered calls', int(u.events)],
-        ['LLM cache-hit', pct(u.llmCacheHitRatio)],
         ['Sessions', int(s.count) + (s.excludedShort ? ' (+' + int(s.excludedShort) + ' short)' : '')],
-        ['Avg cost / session', usdp(s.costUsd.mean)],
-        ['Median credits / session', dec1(s.credits.p50)],
-        ['Avg turns / session', num1(s.turns.mean)],
-        ['Avg session length', (Number(s.meanDurationMin) || 0).toFixed(1) + ' min'],
+        ['Avg $ / session', usdp(s.costUsd.mean)],
+        ['LLM cache-hit', pct(u.llmCacheHitRatio)],
+        ['Active accounts', int(u.accounts), '', true],
+        ['Metered calls', int(u.events), '', true],
+        ['Median cr / session', dec1(s.credits.p50), '', true],
+        ['Turns / session', num1(s.turns.mean), '', true],
+        ['Avg length', (Number(s.meanDurationMin) || 0).toFixed(1) + ' min', '', true],
       ];
-      $('usageStats').innerHTML = cards.map(function (c) {
-        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
-      }).join('');
+      $('usageStats').innerHTML = statCards(cards);
 
       // ---- observed per-hour burn ----
       var ph = u.perHour || { sessions: 0, hours: 0, creditsPerHour: 0, costUsdPerHour: 0, turnsPerHour: 0, sttSecondsPerHour: 0, ttsCharsPerHour: 0, byService: [], byModel: [] };
@@ -601,14 +629,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['LLM cr/hr', svcRate('llm')],
         ['STT cr/hr', svcRate('stt')],
         ['TTS cr/hr', svcRate('tts')],
-        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">· pooled ' + num1(pooled.turnsPerHour) + ' / ' + num1(EST.turns) + '</span>'],
-        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60)],
-        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0))],
-        ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
-        ['Real sessions', int(ph.sessions)],
+        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">· pooled ' + num1(pooled.turnsPerHour) + ' / ' + num1(EST.turns) + '</span>', '', true],
+        ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60), '', true],
+        ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0)), '', true],
+        ['Hours measured', (Number(ph.hours) || 0).toFixed(1), '', true],
+        ['Real sessions', int(ph.sessions), '', true],
         // Rates below are a sqrt-of-spend weighted mean across accounts. At 1,
         // every per-hour number here is one person's habits.
-        ['Accounts behind them', int(ph.accounts)],
+        ['Accounts (rates)', int(ph.accounts), '', true],
       ];
       // Token volume per hour over the same qualifying sessions: what
       // pricing/estimate.ts assumes, measured. Each card prints actual vs
@@ -656,9 +684,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['Cache read tok/turn', vsAssumed(tpt.cacheRead, EST.cacheReadPerTurn)],
         ['Cache write tok/turn', vsAssumed(tpt.cacheCreation, EST.cacheCreationPerTurn)],
       ]);
-      $('perHourStats').innerHTML = phCards.map(function (c) {
-        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
-      }).join('');
+      // Everything past the five headline rates is detail.
+      $('perHourStats').innerHTML = statCards(phCards.map(function (c, i) {
+        return i < 5 ? c : [c[0], c[1], c[2], true];
+      }));
       // The advertised rate for a usage row, or '' when the app has no badge
       // for it (a model since dropped from the roster, a voice off the curated
       // list). Voices print the picker's typical–engaged band.
@@ -728,14 +757,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['Cache reads tok', int(lc.cacheReadTokens)],
         ['Cache writes tok', int(lc.cacheCreationTokens)],
         // 1h-TTL writes (the anchor, billed 2x). Rising = holds forcing re-anchors.
-        ['1h-anchor writes tok', int(lc.cacheCreation1hTokens || 0)],
+        ['1h-anchor writes', int(lc.cacheCreation1hTokens || 0)],
         ['LLM cost', usdp(lc.costUsd)],
         ['Cost w/o cache', usdp(lc.costNoCacheUsd)],
         ['Saved by cache', usdp(lc.savedUsd) + ' (' + pct(savedPct) + ')'],
       ];
-      $('cacheStats').innerHTML = cacheCards.map(function (c) {
-        return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
-      }).join('');
+      $('cacheStats').innerHTML = statCards(cacheCards);
       $('cacheProviderRows').innerHTML = (u.llmCacheByProvider || []).map(function (p) {
         return '<tr><td><code>' + esc(p.provider) + '</code></td><td class="num">' + pct(p.hitRatio) +
           '</td><td class="num">' + int(p.freshInputTokens) + '</td><td class="num">' + int(p.cacheReadTokens) +
@@ -1373,6 +1400,21 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       document.body.classList.toggle('hide-help');
       sync();
     });
+    sync();
+  })();
+
+  // Compact (default) vs full view: .detail elements hide in compact. Sticky.
+  (function () {
+    var btn = $('toggleCompact');
+    var sync = function () {
+      btn.textContent = document.body.classList.contains('compact') ? 'Full view' : 'Compact view';
+    };
+    btn.addEventListener('click', function () {
+      document.body.classList.toggle('compact');
+      savePref('compact', document.body.classList.contains('compact'));
+      sync();
+    });
+    if (loadPrefs().compact === false) document.body.classList.remove('compact');
     sync();
   })();
 
