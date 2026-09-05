@@ -32,10 +32,34 @@ import { holdForTurn, holdAgainstBalance, MAX_OUTPUT_TOKENS, priceLlmTurn, type 
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
+import { recordIncident } from '../credits/incidents.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
 import type { LlmUsage } from '@aloud/core/facilitation';
+import type { CompletionDiagnostics } from '@aloud/core/llm';
 import type { ProviderId } from '../contract.js';
 import { log } from '../logger.js';
+
+function sessionIdOf(body: { sessionId?: unknown }): string | null {
+    return typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
+}
+
+/** Why a completion came back blank, in the incident row: the finish reason
+ *  plus the output tokens billed for it. "length" with hundreds of output
+ *  tokens and no text is the reasoning-ate-the-budget signature. */
+function emptyCompletionDetail(
+    finishReason: string | null,
+    usage: LlmUsage,
+    diagnostics: CompletionDiagnostics | undefined
+): string {
+    const parts = [
+        `finish=${finishReason ?? 'null'}`,
+        `tokens_out=${usage.tokensOut ?? 0}`,
+        `tokens_in=${usage.tokensIn ?? 0}`,
+    ];
+    if (diagnostics?.reasoningChars !== undefined) parts.push(`reasoning_chars=${diagnostics.reasoningChars}`);
+    if (diagnostics?.servedBy) parts.push(`served=${diagnostics.servedBy}`);
+    return parts.join(' ');
+}
 
 /** Best-effort cost attribution for one settled LLM turn (usage.ts). */
 function recordLlmUsage(
@@ -139,6 +163,15 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!pass) {
             const balance = await deps.ledger.balance(account.id);
             if (balance <= 0) {
+                void recordIncident(deps.store, {
+                    accountId: account.id,
+                    kind: 'insufficient_credits',
+                    source: 'server',
+                    provider: body.provider,
+                    model: body.model,
+                    sessionId: sessionIdOf(body),
+                    detail: 'llm: balance 0',
+                });
                 return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
             }
             const promptTexts = [body.system ?? '', ...body.messages.map((m) => m.content ?? '')];
@@ -147,6 +180,15 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 holdId = await deps.ledger.placeHold(account.id, holdAmount, `turn:${body.provider}:${body.model}`);
             } catch (err) {
                 if (err instanceof InsufficientCreditsError) {
+                    void recordIncident(deps.store, {
+                        accountId: account.id,
+                        kind: 'insufficient_credits',
+                        source: 'server',
+                        provider: body.provider,
+                        model: body.model,
+                        sessionId: sessionIdOf(body),
+                        detail: `llm: hold ${holdAmount.toFixed(2)} > balance ${balance.toFixed(2)}`,
+                    });
                     return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
                 }
                 throw err;
@@ -161,7 +203,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         };
         const reason = `llm:${body.provider}:${body.model}`;
         // Opaque per-session grouping id, when the client sends one (usage.ts).
-        const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
+        const sessionId = sessionIdOf(body);
 
         // ---- streaming branch ----
         if (body.stream) {
@@ -179,6 +221,17 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                         if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
                         settled = true;
                         await recordLlmUsage(deps, account.id, body.provider!, body.model!, usage, cost, pass?.id ?? null, sessionId);
+                        if (!chunk.text.trim()) {
+                            void recordIncident(deps.store, {
+                                accountId: account.id,
+                                kind: 'llm_empty',
+                                source: 'server',
+                                provider: body.provider!,
+                                model: body.model!,
+                                sessionId,
+                                detail: emptyCompletionDetail(chunk.finishReason ?? null, usage, chunk.diagnostics),
+                            });
+                        }
                         final = {
                             text: chunk.text,
                             finishReason: chunk.finishReason ?? null,
@@ -191,6 +244,15 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     await sse.writeSSE({ data: JSON.stringify(terminal) });
                 } catch (err) {
                     log.error('stream forward failed', { err: String(err), provider: body.provider });
+                    void recordIncident(deps.store, {
+                        accountId: account.id,
+                        kind: 'llm_error',
+                        source: 'server',
+                        provider: body.provider!,
+                        model: body.model!,
+                        sessionId,
+                        detail: `stream: ${String(err)}`,
+                    });
                     // Best-effort: the failure may be the client going away.
                     await sse
                         .writeSSE({ event: 'error', data: JSON.stringify(apiError('provider_error', 'upstream provider error')) })
@@ -214,6 +276,17 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             const cost = priceLlmTurn(body.provider, body.model, usage);
             if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, reason);
             await recordLlmUsage(deps, account.id, body.provider, body.model, usage, cost, pass?.id ?? null, sessionId);
+            if (!result.text.trim()) {
+                void recordIncident(deps.store, {
+                    accountId: account.id,
+                    kind: 'llm_empty',
+                    source: 'server',
+                    provider: body.provider,
+                    model: body.model,
+                    sessionId,
+                    detail: emptyCompletionDetail(result.finishReason, usage, result.diagnostics),
+                });
+            }
             const response: CompleteResponse = {
                 text: result.text,
                 finishReason: result.finishReason,
@@ -224,6 +297,15 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(response);
         } catch (err) {
             log.error('forward failed', { err: String(err), provider: body.provider });
+            void recordIncident(deps.store, {
+                accountId: account.id,
+                kind: 'llm_error',
+                source: 'server',
+                provider: body.provider,
+                model: body.model,
+                sessionId,
+                detail: String(err),
+            });
             if (holdId) await deps.ledger.releaseHold(account.id, holdId);
             return c.json(apiError('provider_error', 'upstream provider error'), ERROR_STATUS.provider_error);
         }

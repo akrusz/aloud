@@ -25,6 +25,7 @@ import type { Deps } from '../deps.js';
 import type { LedgerEntry } from '../credits/store.js';
 import { buildMetrics, buildDailyRevenue } from '../admin/metrics.js';
 import { buildUsageReport, buildUsageHistory, buildProviderDailyCosts } from '../credits/usage.js';
+import { buildIncidentReport } from '../credits/incidents.js';
 import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
@@ -130,6 +131,30 @@ export function adminRoutes(deps: Deps): Hono {
             deps.store.allEntries(),
         ]);
         return c.json(buildMetrics(accounts, entries, now, windowSinceTs));
+    });
+
+    // Incident log (meditation-pal-xtgh): what the app handled quietly on the
+    // cloud path - blank completions, upstream failures, 402s, client-reported
+    // TTS/playback failures - grouped by kind, newest rows first.
+    app.get('/incidents', async (c) => {
+        const fail = await authFailure(c, deps);
+        if (fail) return fail;
+        const sinceHours = Number(c.req.query('sinceHours') ?? 168);
+        const sinceTs = Date.now() / 1000 - Math.max(0, sinceHours) * 3600;
+        let rows = await deps.store.incidentsSince(sinceTs);
+        if (c.req.query('excludeAdmin') === '1') {
+            const admin = await adminAccountIds(deps);
+            if (admin.size) rows = rows.filter((r) => !admin.has(r.accountId));
+        }
+        // Short account labels for the table (the email's local part), never
+        // the whole address in a JSON blob the browser keeps around.
+        const accounts = await deps.store.allAccounts();
+        const label = new Map(accounts.map((a) => [a.id, a.email.split('@')[0] ?? a.id.slice(0, 8)]));
+        const report = buildIncidentReport(rows, sinceTs);
+        return c.json({
+            ...report,
+            recent: report.recent.map((r) => ({ ...r, account: label.get(r.accountId) ?? r.accountId.slice(0, 8) })),
+        });
     });
 
     // Cost attribution (meditation-pal-rvy): per-service split, cache-hit ratio,

@@ -59,6 +59,12 @@ The hidden control tokens are the one exception: [HOLD], [NEXT], [BACK], [PASS],
 // each module body). An earlier version imported the en pools here to build
 // the map centrally, which closed an import cycle whose TDZ crash depended on
 // module load ORDER - fine under vitest, dead on a different entry point.
+export const ZH_EMPTY_REPLY_FALLBACKS: readonly string[] = [
+    '我陪着你，继续。',
+    '嗯。',
+    '我在，慢慢来。',
+    '你现在注意到了什么？',
+];
 export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '我还在这里陪着你。',
     '你准备好了就说，我在。',

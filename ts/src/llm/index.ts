@@ -1,6 +1,7 @@
 export type {
     CompletionOptions,
     CompletionResult,
+    CompletionDiagnostics,
     LLMProvider,
     Message,
     Role,

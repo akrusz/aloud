@@ -34,6 +34,19 @@ export interface CompletionResult {
      *  default's 1.25x, so tracked separately for billing. Null when the
      *  provider reports no TTL breakdown. */
     cacheCreation1hTokens?: number | null;
+    /** What the provider did that the text alone can't show; for the incident
+     *  log (server credits/incidents.ts), never for facilitation. */
+    diagnostics?: CompletionDiagnostics;
+}
+
+export interface CompletionDiagnostics {
+    /** Characters of hidden reasoning the provider streamed alongside (or
+     *  instead of) content. Non-zero with empty text and finish "length" is the
+     *  thinking-ate-the-budget signature. */
+    reasoningChars?: number;
+    /** Upstream host + model that actually served the call, when a routing
+     *  proxy (OpenRouter) reports them: "Novita/moonshotai/kimi-k2". */
+    servedBy?: string;
 }
 
 export interface CompletionOptions {
@@ -64,6 +77,8 @@ export interface StreamChunk {
     cacheReadTokens?: number | null;
     cacheCreationTokens?: number | null;
     cacheCreation1hTokens?: number | null;
+    /** On the final chunk. See CompletionResult. */
+    diagnostics?: CompletionDiagnostics;
 }
 
 export interface LLMProvider {

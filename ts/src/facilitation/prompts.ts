@@ -17,6 +17,7 @@ import {
     registerZhPool,
     ZH_LANGUAGE_FRAGMENT,
     ZH_CHECK_IN_PROMPTS,
+    ZH_EMPTY_REPLY_FALLBACKS,
     ZH_HOLD_REENTRY_LINES,
     ZH_COMMON_OPENERS,
     ZH_MINIMAL_OPENERS,
@@ -379,6 +380,17 @@ export const CHECK_IN_PROMPTS: readonly string[] = [
     'Right here.',
     'Here with you.',
     'Plenty of time.',
+];
+
+/** Spoken when the model returns nothing twice in a row (a blanked turn,
+ *  meditation-pal-yi02): a brief acknowledgement so the meditator's words
+ *  don't land in dead air. Deliberately content-free - it must fit whatever
+ *  was just said. */
+export const EMPTY_REPLY_FALLBACKS: readonly string[] = [
+    "I'm with you. Keep going.",
+    'Mhm.',
+    "I'm here. Take your time.",
+    'What are you noticing now?',
 ];
 
 // Session openers, pool-based.
@@ -818,6 +830,7 @@ export class PromptBuilder {
 // zh twins for this module's pools (language.ts registry; owner-registered so
 // the pairing can't race initialization).
 registerZhPool(CHECK_IN_PROMPTS, ZH_CHECK_IN_PROMPTS);
+registerZhPool(EMPTY_REPLY_FALLBACKS, ZH_EMPTY_REPLY_FALLBACKS);
 registerZhPool(HOLD_REENTRY_LINES, ZH_HOLD_REENTRY_LINES);
 registerZhPool(COMMON_OPENERS, ZH_COMMON_OPENERS);
 registerZhPool(MINIMAL_OPENERS, ZH_MINIMAL_OPENERS);

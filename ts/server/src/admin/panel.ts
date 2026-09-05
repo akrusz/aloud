@@ -251,6 +251,28 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     </h2>
     <div class="grid" id="stats"></div>
 
+    <h2 id="sec-incidents">Incidents
+      <span class="controls">
+        <select id="incidentWindow" style="width:auto;padding:4px 8px;font-size:16px">
+          <option value="24">last 24h</option>
+          <option value="168" selected>last 7d</option>
+          <option value="720">last 30d</option>
+        </select>
+        <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshIncidents" style="padding:4px 10px;font-size:16px">refresh</button>
+      </span>
+    </h2>
+    <p class="help">What the app handled quietly on the cloud path. <b>llm_empty</b>: a completion came back with no text (finish=length with tokens_out &gt; 0 means reasoning ate the budget). <b>llm/stt/tts_error</b>: the upstream call failed. <b>insufficient_credits</b>: a metered call was refused. <b>client_*</b> rows are reported by the app itself: a blank turn it retried or replaced with a canned line, a voice that failed to synthesize or play. Rows never contain what was said.</p>
+    <div class="grid" id="incidentStats"></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>When</th><th>Kind</th><th>Account</th><th>Session</th><th>Provider</th><th>Model</th><th>Detail</th></tr></thead>
+          <tbody id="incidentRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <h2 id="sec-cost">Cost attribution
       <span class="controls">
         <select id="usageWindow" style="width:auto;padding:4px 8px;font-size:16px">
@@ -504,6 +526,24 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       $('stats').innerHTML = cards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
       }).join('');
+    });
+  }
+
+  // ---- incidents ---------------------------------------------------------
+  function loadIncidents() {
+    var sel = $('incidentWindow');
+    return api('/incidents?sinceHours=' + sel.value + omitAdminParam()).then(function (r) {
+      var cards = [['Incidents', int(r.total), r.total > 0 ? 'warn' : '']].concat((r.byKind || []).map(function (k) {
+        return [k.kind, int(k.count) + ' <span class="assumed">· ' + int(k.accounts) + ' acct · ' + int(k.sessions) + ' sess</span>', ''];
+      }));
+      $('incidentStats').innerHTML = cards.map(function (c) {
+        return '<div class="stat"><div class="k">' + esc(c[0]) + '</div><div class="v ' + (c[2] || '') + '">' + c[1] + '</div></div>';
+      }).join('');
+      $('incidentRows').innerHTML = (r.recent || []).map(function (i) {
+        return '<tr><td class="muted" style="white-space:nowrap">' + dateTime(i.ts) + '</td><td>' + esc(i.kind) +
+          '</td><td>' + esc(i.account) + '</td><td class="muted">' + esc(i.sessionId ? String(i.sessionId).slice(0, 8) : '') +
+          '</td><td>' + esc(i.provider) + '</td><td>' + esc(i.model) + '</td><td class="muted">' + esc(i.detail) + '</td></tr>';
+      }).join('') || '<tr><td colspan="7" class="muted">No incidents in this window.</td></tr>';
     });
   }
 
@@ -1211,7 +1251,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   var autoTimer = null;
   function autoTick() {
     if (document.hidden || $('app').classList.contains('hidden')) return;
-    Promise.all([loadMetrics(), loadUsage(), loadUsageHistory(true), loadAccounts()])
+    Promise.all([loadMetrics(), loadUsage(), loadUsageHistory(true), loadAccounts(), loadIncidents()])
       .catch(function () {});
   }
   function setAuto(on) {
@@ -1230,7 +1270,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       setMsg($('authMsg'), 'Connected.', 'ok');
       setConnected(true);
       $('app').classList.remove('hidden');
-      return Promise.all([loadAccounts(), loadConfig(), loadUsage(), loadUsageHistory(), loadRetreats()]);
+      return Promise.all([loadAccounts(), loadConfig(), loadUsage(), loadUsageHistory(), loadRetreats(), loadIncidents()]);
     }).catch(function (e) {
       setMsg($('authMsg'), 'Failed: ' + e.message, 'err');
       setConnected(false);
@@ -1300,11 +1340,13 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('realSit').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('refreshIncidents').onclick = function () { loadIncidents().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('incidentWindow').addEventListener('change', function () { loadIncidents().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
   Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (cb) {
     cb.addEventListener('change', function () {
       Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = cb.checked; });
       savePref('omitAdmin', cb.checked);
-      Promise.all([loadUsage(), loadUsageHistory()]).catch(function (e) { setMsg($('authMsg'), e.message, 'err'); });
+      Promise.all([loadUsage(), loadUsageHistory(), loadIncidents()]).catch(function (e) { setMsg($('authMsg'), e.message, 'err'); });
     });
   });
   $('historyDays').addEventListener('change', function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });

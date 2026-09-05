@@ -81,11 +81,22 @@ interface OpenAIUsage {
 
 interface OpenAIChatResponse {
     choices?: Array<{
-        message?: { content?: string | null };
+        /** `reasoning` is OpenRouter's normalized field for a provider's
+         *  hidden thinking (a <think> block, or a native reasoning channel). */
+        message?: { content?: string | null; reasoning?: string | null };
         finish_reason?: string | null;
     }>;
     usage?: OpenAIUsage;
     error?: OpenAIInlineError;
+    /** OpenRouter: the upstream host that served the call, and the model it
+     *  actually ran (a `models` fallback may differ from the request). */
+    provider?: string;
+    model?: string;
+}
+
+function servedByOf(r: { provider?: string; model?: string }): string | undefined {
+    if (!r.provider && !r.model) return undefined;
+    return [r.provider, r.model].filter(Boolean).join('/');
 }
 
 export class OpenAIProvider implements LLMProvider {
@@ -188,11 +199,16 @@ export class OpenAIProvider implements LLMProvider {
         if (data.error) throw new Error(inlineErrorMessage(data.error, 'in body'));
         const choice = data.choices?.[0];
         const text = choice?.message?.content ?? '';
+        const servedBy = servedByOf(data);
 
         return {
             text,
             finishReason: choice?.finish_reason ?? null,
             ...usageToResult(data.usage),
+            diagnostics: {
+                reasoningChars: choice?.message?.reasoning?.length ?? 0,
+                ...(servedBy ? { servedBy } : {}),
+            },
         };
     }
 
@@ -212,6 +228,10 @@ export class OpenAIProvider implements LLMProvider {
         // with finish_reason + usage, then `data: [DONE]`.
         let finishReason: string | null = null;
         let usage: OpenAIUsage | undefined;
+        // Hidden reasoning is never spoken, but its size explains a blank turn
+        // (see CompletionDiagnostics), so count it as it streams past.
+        let reasoningChars = 0;
+        let servedBy: string | undefined;
 
         for await (const evt of iterateSseEvents(response)) {
             const raw = evt.data.trim();
@@ -219,16 +239,24 @@ export class OpenAIProvider implements LLMProvider {
             const parsed = safeJson<OpenAIStreamChunk>(raw);
             if (!parsed) continue;
             if (parsed.error) throw new Error(inlineErrorMessage(parsed.error, 'mid-stream'));
+            servedBy ??= servedByOf(parsed);
             const choice = parsed.choices?.[0];
             const text = choice?.delta?.content;
             if (typeof text === 'string' && text.length > 0) {
                 yield { text, done: false };
             }
+            if (typeof choice?.delta?.reasoning === 'string') reasoningChars += choice.delta.reasoning.length;
             if (choice?.finish_reason) finishReason = choice.finish_reason;
             if (parsed.usage) usage = parsed.usage;
         }
 
-        yield { text: '', done: true, finishReason, ...usageToResult(usage) };
+        yield {
+            text: '',
+            done: true,
+            finishReason,
+            ...usageToResult(usage),
+            diagnostics: { reasoningChars, ...(servedBy ? { servedBy } : {}) },
+        };
     }
 }
 
@@ -272,11 +300,13 @@ function usageToResult(usage: OpenAIUsage | undefined): {
 
 interface OpenAIStreamChunk {
     choices?: Array<{
-        delta?: { content?: string };
+        delta?: { content?: string; reasoning?: string | null };
         finish_reason?: string | null;
     }>;
     usage?: OpenAIUsage;
     error?: OpenAIInlineError;
+    provider?: string;
+    model?: string;
 }
 
 /**
@@ -347,6 +377,16 @@ const OPENROUTER_MANDATORY_REASONING = new Set(['moonshotai/kimi-k3']);
  *  prefix lands before the think block. 0/40 anomalies omitted vs 4/42 with. */
 const OPENROUTER_REASONING_UNSUPPORTED = new Set(['moonshotai/kimi-k2']);
 
+/** OpenRouter models that reason UNINVITED some of the time: their only host
+ *  offers no reasoning parameter, so it can't be turned down, and when the
+ *  template flips into a think block the whole content budget goes to it -
+ *  both blank Kimi K2 turns on 2026-09-05 billed exactly max_tokens with zero
+ *  content (finish "length"). Headroom lets the answer arrive behind the
+ *  preamble; a flipped turn then costs a few hundred extra output tokens on a
+ *  cheap model instead of a retry. The incident log's reasoning_chars says
+ *  how often it happens (meditation-pal-yi02). */
+const OPENROUTER_UNINVITED_REASONING = new Set(['moonshotai/kimi-k2']);
+
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v3.2';
 
@@ -356,17 +396,29 @@ const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v3.2';
  *  raises the ceiling only, not typical usage. */
 const MANDATORY_REASONING_HEADROOM = 1024;
 
+/** Headroom for OPENROUTER_UNINVITED_REASONING. Wider than the mandatory
+ *  case because the preamble length is unmeasured: the flipped Kimi K2 turns
+ *  spent a full 400-token budget without reaching content. ~$0.005 worst
+ *  case per flipped turn at K2's output price; the incident log's
+ *  reasoning_chars will say what it actually runs, then this can shrink. */
+const UNINVITED_REASONING_HEADROOM = 2048;
+
 /** OpenRouter: multi-vendor LLM proxy. */
 export class OpenRouterProvider extends OpenAIProvider {
     constructor(options: OpenAIProviderOptions = {}) {
         const model = options.model ?? OPENROUTER_DEFAULT_MODEL;
         const mandatoryReasoning = OPENROUTER_MANDATORY_REASONING.has(model);
+        const headroom = mandatoryReasoning
+            ? MANDATORY_REASONING_HEADROOM
+            : OPENROUTER_UNINVITED_REASONING.has(model)
+              ? UNINVITED_REASONING_HEADROOM
+              : 0;
         super({
             ...options,
             baseUrl: options.baseUrl ?? OPENROUTER_BASE_URL,
             model,
-            ...(mandatoryReasoning && {
-                reasoningHeadroom: options.reasoningHeadroom ?? MANDATORY_REASONING_HEADROOM,
+            ...(headroom > 0 && {
+                reasoningHeadroom: options.reasoningHeadroom ?? headroom,
             }),
             // aloud never wants chain-of-thought: it only adds latency and cost.
             // Several routable models (deepseek-v3.2) reason by default, and

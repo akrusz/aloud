@@ -179,11 +179,13 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/billing/x402/buy/:packId` | session + payment | USDC-on-Base pack purchase (402 → sign → settle). Config-gated; see [x402.md](x402.md) |
 | `/cloud/v1/gifts/*` | mixed | gift-credit purchase + redemption (`routes/gifts.ts`) |
 | `GET /cloud/v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
+| `POST /cloud/v1/incidents` | session | the app reports a cloud failure it handled quietly (kind from `CLIENT_INCIDENT_KINDS`, optional one-line detail, provider/model/session ids); feeds the admin Incidents section |
 | `GET /cloud/v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
 | `GET /cloud/v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
 | `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together). Response also carries `perHour.pooled` (unweighted total/total beside the account-weighted rates), `perHour.tokensPerTurn`, and `sessionRows`: itemized sessions for `ALOUD_ADMIN_EMAILS` accounts only - real users stay aggregate |
 | `GET /cloud/v1/admin/usage/history` | admin | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
 | `GET /cloud/v1/admin/usage/provider-daily` | admin | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
+| `GET /cloud/v1/admin/incidents` | admin | incident log (`?sinceHours=&excludeAdmin=1`): what the app handled quietly on the cloud path - blank completions with finish reason + tokens, upstream LLM/STT/TTS failures, refused 402s, and `client_*` rows the app reports itself (`POST /cloud/v1/incidents`). Grouped by kind plus the newest rows; content-free by construction (`credits/incidents.ts`) |
 | `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |
 | `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
 | `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |

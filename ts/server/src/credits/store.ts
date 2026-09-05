@@ -16,6 +16,7 @@
 // Type-only import: the raw usage telemetry row this store also persists.
 // Defined with its aggregation logic in usage.ts; here we need only the shape.
 import type { UsageEvent } from './usage.js';
+import type { Incident } from './incidents.js';
 
 export type LedgerKind =
     | 'signup_grant'
@@ -257,6 +258,14 @@ export interface CreditsStore {
     appendUsage(event: UsageEvent): Promise<void>;
     /** Every usage row across all accounts (trial-scale scan). */
     allUsage(): Promise<UsageEvent[]>;
+
+    // ---- Incident log (meditation-pal-xtgh) ---------------------------------
+    // What went wrong on metered calls, for the admin panel. Best-effort writes.
+
+    /** Append one incident row. */
+    appendIncident(incident: Incident): Promise<void>;
+    /** Incidents at or after `sinceTs`, newest first. */
+    incidentsSince(sinceTs: number): Promise<Incident[]>;
 
     // ---- Operator settings (durable runtime config) -------------------------
     // Key→value store for operator-tunable knobs (free-credit grant, hourly

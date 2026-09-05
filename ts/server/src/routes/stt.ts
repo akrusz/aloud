@@ -18,6 +18,7 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
+import { recordIncident } from '../credits/incidents.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
 import { int16ToFloat32, transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
@@ -82,6 +83,15 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
         const balance = pass ? 0 : await deps.ledger.balance(account.id);
         if (!pass && balance < cost.credits) {
+            void recordIncident(deps.store, {
+                accountId: account.id,
+                kind: 'insufficient_credits',
+                source: 'server',
+                provider: stt.provider,
+                model,
+                sessionId: c.req.query('session_id') || null,
+                detail: `stt: ${seconds.toFixed(1)}s needs ${cost.credits.toFixed(2)} > balance ${balance.toFixed(2)}`,
+            });
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
@@ -98,6 +108,15 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             text = await transcribeWhisper(samples, sampleRate, { ...stt, model }, language);
         } catch (err) {
             log.error('stt forward failed', { err: String(err) });
+            void recordIncident(deps.store, {
+                accountId: account.id,
+                kind: 'stt_error',
+                source: 'server',
+                provider: stt.provider,
+                model,
+                sessionId: c.req.query('session_id') || null,
+                detail: `${seconds.toFixed(1)}s: ${String(err)}`,
+            });
             return c.json(apiError('provider_error', 'STT upstream error'), ERROR_STATUS.provider_error);
         }
 

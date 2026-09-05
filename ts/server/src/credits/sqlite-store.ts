@@ -31,6 +31,7 @@ import type {
     RetreatPass,
     RetreatPassStatus,
 } from './store.js';
+import type { Incident, IncidentKind } from './incidents.js';
 import type { UsageEvent, UsageKind } from './usage.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
@@ -141,6 +142,20 @@ CREATE TABLE IF NOT EXISTS usage_events (
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
+-- Incident log (meditation-pal-xtgh): what went wrong on metered calls, for
+-- the admin panel. Content-free by construction (credits/incidents.ts).
+CREATE TABLE IF NOT EXISTS incidents (
+    id         TEXT PRIMARY KEY,
+    ts         REAL NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    session_id TEXT,
+    kind       TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    provider   TEXT NOT NULL,
+    model      TEXT NOT NULL,
+    detail     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_incidents_ts ON incidents(ts);
 -- NOTE: idx_usage_pass (on the pass_id column) is created in the constructor
 -- AFTER migrateAddUsagePassId(), not here. On a DB created before retreat passes
 -- the usage_events table predates pass_id, so indexing it inside SCHEMA (which
@@ -232,6 +247,20 @@ function rowToEntry(r: Row): LedgerEntry {
     };
     if (r['hold_id'] != null) entry.holdId = String(r['hold_id']);
     return entry;
+}
+
+function rowToIncident(r: Row): Incident {
+    return {
+        id: String(r['id']),
+        ts: Number(r['ts']),
+        accountId: String(r['account_id']),
+        sessionId: r['session_id'] != null ? String(r['session_id']) : null,
+        kind: String(r['kind']) as IncidentKind,
+        source: String(r['source']) as Incident['source'],
+        provider: String(r['provider']),
+        model: String(r['model']),
+        detail: String(r['detail']),
+    };
 }
 
 function rowToUsage(r: Row): UsageEvent {
@@ -750,6 +779,33 @@ export class SqliteCreditsStore implements CreditsStore {
     async allUsage(): Promise<UsageEvent[]> {
         const rows = this.db.prepare('SELECT * FROM usage_events ORDER BY ts').all() as Row[];
         return rows.map(rowToUsage);
+    }
+
+    async appendIncident(incident: Incident): Promise<void> {
+        this.db
+            .prepare(
+                `INSERT INTO incidents
+                 (id, ts, account_id, session_id, kind, source, provider, model, detail)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            )
+            .run(
+                incident.id,
+                incident.ts,
+                incident.accountId,
+                incident.sessionId,
+                incident.kind,
+                incident.source,
+                incident.provider,
+                incident.model,
+                incident.detail
+            );
+    }
+
+    async incidentsSince(sinceTs: number): Promise<Incident[]> {
+        const rows = this.db
+            .prepare('SELECT * FROM incidents WHERE ts >= ? ORDER BY ts DESC')
+            .all(sinceTs) as Row[];
+        return rows.map(rowToIncident);
     }
 
     async getSetting(key: string): Promise<string | undefined> {

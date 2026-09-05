@@ -18,6 +18,7 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
 import { recordUsage } from '../credits/usage.js';
+import { recordIncident } from '../credits/incidents.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
 import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
 import {
@@ -238,7 +239,17 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const cost = priceTtsChars(billedChars, { provider: resolved.provider, voiceId: resolved.voiceId });
         const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
         const balance = pass ? 0 : await deps.ledger.balance(account.id);
+        const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
         if (!pass && balance < cost.credits) {
+            void recordIncident(deps.store, {
+                accountId: account.id,
+                kind: 'insufficient_credits',
+                source: 'server',
+                provider: resolved.provider,
+                model: resolved.voiceId,
+                sessionId,
+                detail: `tts: ${billedChars}c needs ${cost.credits.toFixed(2)} > balance ${balance.toFixed(2)}`,
+            });
             return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
         }
 
@@ -247,6 +258,15 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             audio = await synth(text, body.rate ?? 1);
         } catch (err) {
             log.error('tts forward failed', { err: String(err) });
+            void recordIncident(deps.store, {
+                accountId: account.id,
+                kind: 'tts_error',
+                source: 'server',
+                provider: resolved.provider,
+                model: resolved.voiceId,
+                sessionId,
+                detail: `${billedChars}c: ${String(err)}`,
+            });
             return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
         }
 
@@ -256,7 +276,6 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // per-retreat spend and the daily-cap sum stay honest.
         const debit = pass ? 0 : Math.min(cost.credits, balance);
         if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${billedChars}c`);
-        const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
         await recordUsage(deps.store, {
             accountId: account.id,
             sessionId,

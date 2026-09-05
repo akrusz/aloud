@@ -902,6 +902,9 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         // Sending `reasoning` to the kimi-k2 endpoint intermittently flipped it
         // into a thinking template whose planning got spoken or blanked the turn.
         expect(body.reasoning).toBeUndefined();
+        // ...and it still flips on its own sometimes, so the content budget
+        // gets headroom for the uninvited preamble (OPENROUTER_UNINVITED_REASONING).
+        expect(body.max_tokens).toBe(300 + 2048);
     });
 
     it('OpenRouter adds reasoning headroom to max_tokens for mandatory-reasoning models', async () => {
@@ -1249,5 +1252,61 @@ describe('streaming cancellation', () => {
             })
         );
         expect((fetchImpl.mock.calls[0]?.[1] as RequestInit).signal).toBe(controller.signal);
+    });
+});
+
+/**
+ * Completion diagnostics (CompletionDiagnostics): a blank turn from an
+ * OpenRouter-routed model is explained by how much hidden reasoning streamed
+ * past and which upstream host served it. Both blank Kimi K2 turns on
+ * 2026-09-05 billed exactly max_tokens with no content; the incident log
+ * needs these two numbers to say why (meditation-pal-yi02 / xtgh).
+ */
+describe('completion diagnostics - hidden reasoning + serving host', () => {
+    it('counts streamed delta.reasoning and reports the OpenRouter provider/model', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockSseResponse([
+                'data: {"provider":"Novita","model":"moonshotai/kimi-k2","choices":[{"delta":{"reasoning":"Let me think about"}}]}',
+                'data: {"provider":"Novita","model":"moonshotai/kimi-k2","choices":[{"delta":{"reasoning":" this carefully"}}]}',
+                'data: {"choices":[{"delta":{},"finish_reason":"length"}],"usage":{"prompt_tokens":100,"completion_tokens":400}}',
+                'data: [DONE]',
+            ])
+        );
+        const provider = new OpenRouterProvider({
+            apiKey: 'k',
+            model: 'moonshotai/kimi-k2',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        const chunks = [];
+        for await (const c of provider.completeStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
+        expect(chunks.map((c) => c.text).join('')).toBe('');
+        const last = chunks[chunks.length - 1]!;
+        expect(last.finishReason).toBe('length');
+        expect(last.outputTokens).toBe(400);
+        expect(last.diagnostics).toEqual({
+            reasoningChars: 'Let me think about this carefully'.length,
+            servedBy: 'Novita/moonshotai/kimi-k2',
+        });
+    });
+
+    it('reports message.reasoning and provider on the non-streaming path, zero when absent', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockJsonResponse({
+                provider: 'Novita',
+                model: 'moonshotai/kimi-k2-0905',
+                choices: [{ message: { content: '', reasoning: 'hmm' }, finish_reason: 'length' }],
+            })
+        );
+        const provider = new OpenRouterProvider({ apiKey: 'k', fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await provider.complete([{ role: 'user', content: 'hi' }]);
+        expect(r.diagnostics).toEqual({ reasoningChars: 3, servedBy: 'Novita/moonshotai/kimi-k2-0905' });
+
+        const plain = new OpenAIProvider({
+            apiKey: 'k',
+            fetchImpl: vi.fn(async () =>
+                mockJsonResponse({ choices: [{ message: { content: 'hi' }, finish_reason: 'stop' }] })
+            ) as unknown as typeof fetch,
+        });
+        expect((await plain.complete([{ role: 'user', content: 'hi' }])).diagnostics).toEqual({ reasoningChars: 0 });
     });
 });

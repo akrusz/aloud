@@ -38,6 +38,7 @@ import {
     TIMER_COMPLETION_FALLBACKS,
     sessionLanguageOf,
     localizePool,
+    EMPTY_REPLY_FALLBACKS,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
@@ -121,6 +122,7 @@ import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
+import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isTauri, isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
@@ -1288,6 +1290,7 @@ export async function mountSessionView(
         // Worth saying: the alternative is a whole sit in silence with no clue.
         if ((err as { name?: string })?.name === 'NotAllowedError') {
             showErrorToast(t('Your browser blocked audio playback - allow auto-play for this site.'));
+            if (cannedVoice()) reportCloudIncident('client_playback_blocked', { model: cannedVoice() ?? '' });
             return;
         }
         const msg = err instanceof Error ? err.message : String(err);
@@ -1296,6 +1299,9 @@ export async function mountSessionView(
             void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             return;
         }
+        // A hosted voice that failed for any other reason (5xx, timeout,
+        // network): the sit continues text-first, the operator gets the row.
+        if (isCloudTtsError(msg)) reportCloudIncident('client_tts_error', { detail: msg, model: cannedVoice() ?? '' });
         const described = describeCloudError(msg);
         if (described) showErrorToast(described);
     }
@@ -1689,6 +1695,9 @@ export async function mountSessionView(
         // shouldn't snap straight back into silence on the same turn - it reads
         // as "I can't get out of silence mode."
         const wasSilent = silenceMode;
+        // aloud cloud is the convenience path: its glitches are smoothed over
+        // in the chair and logged for the operator (cloud-incidents.ts).
+        const cloudSmooth = setup.provider === 'aloud';
         busy = true;
         tapFlags({ busy: true });
         // Hoisted so the catch can discard a partially revealed bubble when the
@@ -1735,14 +1744,11 @@ export async function mountSessionView(
             // onSpeakStart fires with control tokens already stripped; status
             // stays "Thinking…" until a sentence actually speaks.
             armSlowResponseStatus();
-            const bubble = createAssistantReveal();
+            let bubble = createAssistantReveal();
             reveal = bubble;
             const turnStart = Date.now();
-            const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
-                provider,
-                tts,
-                session.getContextMessages(),
-                {
+            const attemptCompletion = (target: typeof bubble) =>
+                streamCompletionWithChunkedTts(provider, tts, session.getContextMessages(), {
                     system: systemPrompt,
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
@@ -1752,16 +1758,41 @@ export async function mountSessionView(
                         if (!superseded()) {
                             clearSlowResponseStatus();
                             setStatus(t('Speaking…'));
-                            bubble.reveal(sentence);
+                            target.reveal(sentence);
                         }
                     },
-                }
-            );
+                });
+            let { text: rawText, ttsDone, usage, finishReason } = await attemptCompletion(bubble);
             // A newer utterance took over mid-generation: drop this reply; the
             // live turn owns the typing dots + history.
             if (superseded()) {
                 bubble.discard();
                 return;
+            }
+            // A completion with NO text at all is a glitch, not a reply: some
+            // endpoints intermittently burn the whole budget on a hidden
+            // thinking preamble (Kimi K2, finish "length", meditation-pal-yi02).
+            // One quiet retry before anything is said or shown about it; the
+            // dots stay up, so from the chair it is just a slower turn.
+            // Cloud only: on a local/BYOK provider nothing is hidden - the user
+            // owns that setup and should see its failures as they happen.
+            if (cloudSmooth && !rawText.trim() && finishReason !== BILLING_PAUSED_FINISH) {
+                console.warn(
+                    `[turn] empty completion finish=${finishReason ?? 'null'} raw=0 chars - retrying once`
+                );
+                tapEvent('error', 'empty-completion-retry', { finish: finishReason ?? 'null' });
+                reportCloudIncident('client_llm_empty_retry', {
+                    detail: `finish=${finishReason ?? 'null'}`,
+                    model: setup.model,
+                });
+                bubble.discard();
+                bubble = createAssistantReveal();
+                reveal = bubble;
+                ({ text: rawText, ttsDone, usage, finishReason } = await attemptCompletion(bubble));
+                if (superseded()) {
+                    bubble.discard();
+                    return;
+                }
             }
             clearSlowResponseStatus();
             const turnLatencyMs = Date.now() - turnStart;
@@ -1810,15 +1841,55 @@ export async function mountSessionView(
             // past this bail): no question was asked, so the meditator's next
             // words are a normal turn, not an answer. (meditation-pal-9era)
             if (!ephemeral && !cleanText.trim()) {
-                if (rawText.trim()) tapEvent('signal', 'signal-only-reply', { raw: rawText });
+                if (rawText.trim()) {
+                    // The model chose to say nothing beyond its signals. That
+                    // is a legitimate turn shape (a bare "[WAIT:8m]" after
+                    // someone says they want to sit quietly), so go back to
+                    // listening with no reply and no complaint.
+                    tapEvent('signal', 'signal-only-reply', { raw: rawText });
+                    bubble.discard();
+                    hideTyping();
+                    pacing.onResponseEnd();
+                    setStatus(stt ? t('Listening…') : t('Mic unavailable'));
+                    return;
+                }
                 // finishReason is the one clue to WHY a completion came back
                 // blank ("length" = budget eaten, "error" = upstream failed,
-                // null = the stream ended without a done chunk); keep it
-                // visible in the device log (meditation-pal-yi02).
-                console.warn(`[turn] empty completion finish=${finishReason ?? 'null'} raw=${rawText.length} chars`);
-                throw new Error(
-                    t('The model returned an empty response. Try again, or check your provider in Settings.')
-                );
+                // null = the stream ended without a done chunk); keep it in
+                // the device log (meditation-pal-yi02).
+                console.warn(`[turn] empty completion finish=${finishReason ?? 'null'} raw=0 chars`);
+                if (!cloudSmooth) {
+                    throw new Error(
+                        t('The model returned an empty response. Try again, or check your provider in Settings.')
+                    );
+                }
+                // aloud cloud, blank twice running: the meditator gets a short
+                // canned acknowledgement in the facilitator's voice rather than
+                // an error toast - their words shouldn't land in dead air, and
+                // the next turn is a fresh request anyway. The operator sees
+                // it in the admin incident log instead.
+                tapEvent('error', 'empty-completion-fallback', { finish: finishReason ?? 'null' });
+                reportCloudIncident('client_llm_empty_fallback', {
+                    detail: `finish=${finishReason ?? 'null'}`,
+                    model: setup.model,
+                });
+                const pool = localizePool(EMPTY_REPLY_FALLBACKS, sessionLanguageOf(sessionLanguage));
+                const line = pool[Math.floor(Math.random() * pool.length)]!;
+                session.addAssistantMessage(line, undefined, usage);
+                bubble.anchor();
+                setStatus(t('Speaking…'));
+                bubble.reveal(line);
+                try {
+                    await tts.speak(line, { rate: setup.ttsRate });
+                } catch (err) {
+                    handleTtsError(err as Error);
+                }
+                bubble.finalize(line);
+                tapTurn('assistant', 'reply', line, { raw: '', latencyMs: Date.now() - turnStart });
+                if (superseded()) return;
+                pacing.onResponseEnd();
+                setStatus(stt ? t('Listening…') : t('Mic unavailable'));
+                return;
             }
             if (!ephemeral) session.addAssistantMessage(cleanText, undefined, usage);
             // Claim the bubble's transcript spot now (still hidden if nothing
@@ -1859,6 +1930,12 @@ export async function mountSessionView(
             hideTyping();
             const msg = (err as Error).message;
             tapEvent('error', 'turn-failed', { message: msg });
+            // 402s are already logged server-side; everything else that fails a
+            // cloud turn in the app (timeouts, network, upstream) goes to the
+            // operator's incident log.
+            if (cloudSmooth && !/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+                reportCloudIncident('client_llm_error', { detail: msg, model: setup.model });
+            }
             // Running out of credits is a graceful stop, not an error. Ephemeral
             // apology (NOT saved to history - we resume from the last real turn
             // once topped up or switched to local/BYOK), voiced via the free
@@ -2017,6 +2094,12 @@ export async function mountSessionView(
                             if (event.seconds) session.recordStt(event.seconds);
                         } else if (event.type === 'error') {
                             micError = describeSttError(event.error);
+                            // Hosted STT failures reach the operator's incident
+                            // log; device recognizers are the user's own.
+                            const sttMsg = event.error instanceof Error ? event.error.message : String(event.error);
+                            if (/Whisper endpoint (?!402)/.test(sttMsg)) {
+                                reportCloudIncident('client_stt_error', { detail: sttMsg });
+                            }
                         }
                     }
                 } catch (err) {
