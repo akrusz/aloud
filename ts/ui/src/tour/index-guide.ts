@@ -420,6 +420,9 @@ export async function resetAndStart(): Promise<void> {
     startGuide(1);
 }
 
+// The auto-start's delayed timer, so leaving the setup view can cancel it.
+let pendingAutoStart: ReturnType<typeof setTimeout> | null = null;
+
 export async function autoStart(): Promise<void> {
     installInfoBtnHandler();
     if (await sharedKv.get(GUIDE_DONE_KEY)) return;
@@ -427,7 +430,16 @@ export async function autoStart(): Promise<void> {
     // Anyone who has started a session knows the app - no tour. The marker is
     // set by markSessionStarted() on session-view mount.
     if (await sharedKv.get(CLIENT_ID_KEY)) return;
-    setTimeout(function () {
+    if (pendingAutoStart) clearTimeout(pendingAutoStart);
+    pendingAutoStart = setTimeout(function () {
+        pendingAutoStart = null;
+        // The awaits above (and show()'s voice-catalog fetch before its call)
+        // can outlast a quick Begin: a first-time user who taps it while the
+        // catalog loads has already left for the session view by the time
+        // this fires, and closeIfActive found nothing to close. Start only
+        // while the setup page is still on screen - the overlay lives on
+        // <body>, and with no targets it would sit over the whole sit.
+        if (!setupHeader()) return;
         startGuide();
     }, 250);
 }
@@ -446,5 +458,9 @@ export async function markSessionStarted(): Promise<void> {
 }
 
 export function closeIfActive(): void {
+    if (pendingAutoStart) {
+        clearTimeout(pendingAutoStart);
+        pendingAutoStart = null;
+    }
     if (guideActive) cleanup();
 }
