@@ -162,7 +162,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .row > div { flex: 1; min-width: 140px; }
   .row > button { flex: 0 0 auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
   /* Wide tables scroll inside their card instead of spilling past its edge. */
   .table-wrap { overflow-x: auto; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -175,7 +175,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
      never wraps and takes only what its button needs. */
   td.wrap { overflow-wrap: anywhere; }
   th.act, td.act { width: 1%; white-space: nowrap; text-align: right; }
-  th { color: var(--dim); font-weight: 600; font-size: 12px;
+  th { color: var(--dim); font-weight: 600; font-size: 13px;
        text-transform: uppercase; letter-spacing: .5px; }
   tbody tr { cursor: pointer; }
   tbody tr:hover { background: #221d19; }
@@ -239,8 +239,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <a href="#sec-free">Free credits</a>
     <a href="#sec-pause">Pause spending</a>
     <a href="#sec-grant">Grant credits</a>
-    <a href="#sec-retreats">Retreats</a>
     <a href="#sec-accounts">Accounts</a>
+    <a href="#sec-retreats">Retreats</a>
   </nav>
   <h1><span>aloud<span class="dot">.</span> admin</span><span class="controls"><label class="check hidden" id="liveWrap" style="font-size:13px;font-weight:400"><input type="checkbox" id="autoRefresh"> live (60s)</label><button id="signOut" class="ghost xs hidden" type="button">Sign out</button><button id="toggleCompact" class="ghost xs" type="button">Full view</button><button id="toggleHelp" class="ghost xs" type="button">Show explanations</button></span></h1>
   <p class="sub help-text">Operator console - spend, accounts, and credit grants. Token-gated; never share this URL with the token in it.</p>
@@ -386,12 +386,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <div class="card">
       <div id="historyChart"><p class="muted" style="margin:0">Connect to load.</p></div>
     </div>
-    <div class="card detail">
+    <div class="card">
       <div class="table-wrap"><table>
         <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Accounts</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Revenue $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
         <tbody id="historyRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
-      <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
+      <div id="historyPager" class="detail" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
 
     <h2 id="sec-free">Free credits</h2>
@@ -433,6 +433,19 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
+    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th class="act"></th></tr></thead>
+          <tbody id="acctRows"><tr><td colspan="9" class="muted">Connect to load accounts.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <h2 id="sec-retreats">Retreats <span class="controls"><button class="ghost" id="refreshRetreats" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
@@ -446,19 +459,6 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="retreatMsg"></div>
     </div>
     <div id="retreatList"></div>
-
-    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
-    <div class="card">
-      <div class="row" style="margin-bottom:12px">
-        <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th class="act"></th></tr></thead>
-          <tbody id="acctRows"><tr><td colspan="9" class="muted">Connect to load accounts.</td></tr></tbody>
-        </table>
-      </div>
-    </div>
   </div>
 
   <div id="modalRoot"></div>
@@ -888,6 +888,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // The table paginates (newest day first) so a 90-day window stays scannable;
   // the chart above always shows the whole window.
   var HISTORY_PAGE_SIZE = 10;
+  // Compact view keeps this many of the newest days visible; the rest of the
+  // page and the pager are .detail.
+  var COMPACT_HISTORY_ROWS = 5;
   var historyPage = 0;
 
   function renderHistory() {
@@ -899,9 +902,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     if (historyPage < 0) historyPage = 0;
     var page = days.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
 
-    $('historyRows').innerHTML = page.map(function (b) {
+    $('historyRows').innerHTML = page.map(function (b, idx) {
       var avgMin = b.sessions ? b.durationMin / b.sessions : 0;
-      return '<tr><td class="muted">' + dateUTC(b.dayStartTs) + '</td>' +
+      return '<tr' + (historyPage === 0 && idx >= COMPACT_HISTORY_ROWS ? ' class="detail"' : '') + '><td class="muted">' + dateUTC(b.dayStartTs) + '</td>' +
         '<td class="num">' + int(b.sessions) + '</td>' +
         '<td class="num">' + int(b.accounts) + '</td>' +
         '<td class="num">' + int(b.turns) + '</td>' +
