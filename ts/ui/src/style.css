@@ -1059,7 +1059,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    /* Edge-to-edge Android draws the 3-button nav bar over the bottom of the
+       viewport; a full-height panel ran under it (2026-09-04). */
+    padding: calc(1rem + var(--safe-top)) 1rem calc(1rem + var(--safe-bottom));
 }
 .session-info-overlay.hidden {
     display: none;
@@ -1082,8 +1084,8 @@
        in landscape can overflow: the body scrolls, head/actions stay put. */
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 2rem);
-    max-height: calc(100dvh - 2rem);
+    max-height: calc(100vh - 2rem - var(--safe-top) - var(--safe-bottom));
+    max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom));
 }
 .session-info-body {
     overflow-y: auto;

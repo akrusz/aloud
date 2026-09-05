@@ -41,6 +41,7 @@ import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { createSttForChoice, resolveSttChoice } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
+import { isCapacitor } from '../is-desktop.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
@@ -153,58 +154,6 @@ export async function mountNotingSessionView(
         if (themeBtn) initThemeToggle(themeBtn);
     }
 
-    // Session info panel behind the nav "ⓘ" button (and the mobile More sheet).
-    const infoPanel = mountSessionInfoPanel(root, (): SessionInfoRow[] => {
-        const providerLabel =
-            ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
-        const modelLabel = sessionModelLabel(setup.provider, setup.model);
-        const streams =
-            typeof (provider as { completeStream?: unknown } | null)?.completeStream === 'function';
-        return [
-            {
-                label: t('Model'),
-                value: modelLabel,
-                ...(isSlowModel(setup.model) ? { note: t(SLOW_MODEL_NOTE) } : {}),
-            },
-            { label: t('Mode'), value: t('Noting circle') },
-            {
-                label: t('Circle'),
-                value:
-                    participants.length === 1
-                        ? t('1 participant')
-                        : t('{n} participants', { n: participants.length }),
-            },
-            { label: t('Source'), value: providerLabel },
-            {
-                label: t('Delivery'),
-                value: streams ? t('Speaks as it generates') : t('Speaks after receiving full reply'),
-            },
-            // Actionable: the clock can be hidden from the input row, and this
-            // is then the only way back to its settings mid-circle.
-            {
-                label: t('Clock'),
-                value: sessionClock.faceLabel(),
-                onClick: () => void sessionClock.openPicker(),
-            },
-        ];
-    }, t('Session'), [
-        { label: t('Report a bug'), onClick: () => void openBugReport() },
-        // AI circle participants generate content too (a word or two at a
-        // time), so the Play GenAI-policy flag belongs here as well.
-        {
-            label: t('Report AI content'),
-            onClick: () =>
-                void openAiContentReport({
-                    sourceLabel:
-                        ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ??
-                        setup.provider,
-                    ownProvider: setup.provider !== 'aloud',
-                }),
-        },
-    ]);
-    document
-        .getElementById('session-info-btn')
-        ?.addEventListener('click', () => infoPanel.toggle());
 
     root.innerHTML = `
         <div class="session-container">
@@ -263,6 +212,62 @@ export async function mountNotingSessionView(
                 <button id="confirm-skip-save" type="button" class="btn-link hidden">${t('End Without Saving')}</button>
             </div>
         </div>`;
+
+    // Mounted AFTER the view's innerHTML above: mountSessionInfoPanel appends
+    // its overlay to root, and the assignment would wipe it - the nav ⓘ then
+    // toggled a panel that no longer existed (2026-09-04 device pass).
+    // Session info panel behind the nav "ⓘ" button (and the mobile More sheet).
+    const infoPanel = mountSessionInfoPanel(root, (): SessionInfoRow[] => {
+        const providerLabel =
+            ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
+        const modelLabel = sessionModelLabel(setup.provider, setup.model);
+        const streams =
+            typeof (provider as { completeStream?: unknown } | null)?.completeStream === 'function';
+        return [
+            {
+                label: t('Model'),
+                value: modelLabel,
+                ...(isSlowModel(setup.model) ? { note: t(SLOW_MODEL_NOTE) } : {}),
+            },
+            { label: t('Mode'), value: t('Noting circle') },
+            {
+                label: t('Circle'),
+                value:
+                    participants.length === 1
+                        ? t('1 participant')
+                        : t('{n} participants', { n: participants.length }),
+            },
+            { label: t('Source'), value: providerLabel },
+            {
+                label: t('Delivery'),
+                value: streams ? t('Speaks as it generates') : t('Speaks after receiving full reply'),
+            },
+            // Actionable: the clock can be hidden from the input row, and this
+            // is then the only way back to its settings mid-circle.
+            {
+                label: t('Clock'),
+                value: sessionClock.faceLabel(),
+                onClick: () => void sessionClock.openPicker(),
+            },
+        ];
+    }, t('Session'), [
+        { label: t('Report a bug'), onClick: () => void openBugReport() },
+        // AI circle participants generate content too (a word or two at a
+        // time), so the Play GenAI-policy flag belongs here as well.
+        {
+            label: t('Report AI content'),
+            onClick: () =>
+                void openAiContentReport({
+                    sourceLabel:
+                        ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ??
+                        setup.provider,
+                    ownProvider: setup.provider !== 'aloud',
+                }),
+        },
+    ]);
+    document
+        .getElementById('session-info-btn')
+        ?.addEventListener('click', () => infoPanel.toggle());
 
     const conversation = root.querySelector<HTMLElement>('#conversation')!;
     const statusEl = root.querySelector<HTMLElement>('#voice-status')!;
@@ -502,6 +507,33 @@ export async function mountNotingSessionView(
     }
 
     let userTurnStart = 0;
+    // A lock/unlock or app switch during the user's turn otherwise lands in
+    // userCadences as one huge sample, and the adaptive delay then stalls the
+    // circle for a minute after coming back (2026-09-04: 58s to the next
+    // turn). Restart the turn clock on foreground; the phone fires
+    // appStateChange, not visibilitychange, across a background round trip
+    // (see views/session.ts), browsers the reverse.
+    const restartUserTurnClock = (): void => {
+        if (!torn && !paused && userTurnStart > 0 && turnOrder[currentTurn] === 'user') {
+            userTurnStart = Date.now();
+        }
+    };
+    document.addEventListener(
+        'visibilitychange',
+        () => {
+            if (document.visibilityState === 'visible') restartUserTurnClock();
+        },
+        { signal: viewCleanup.signal }
+    );
+    let appStateListener: Promise<{ remove(): Promise<void> }> | null = null;
+    if (isCapacitor()) {
+        appStateListener = (async () => {
+            const { App } = await import('@capacitor/app');
+            return App.addListener('appStateChange', ({ isActive }) => {
+                if (isActive) restartUserTurnClock();
+            });
+        })();
+    }
 
     /** One STT capture: shows partials, returns the final text (or '' on
      *  silence/error). */
@@ -794,6 +826,7 @@ export async function mountNotingSessionView(
         }
         // Remove the window/document-level listeners (kasina drag, beforeunload).
         viewCleanup.abort();
+        void appStateListener?.then((h) => h.remove());
         const finalState = session.endSession();
         // Save only if there's a user turn (skip empty/abandoned circles).
         if (!skipSave && finalState && finalState.exchanges.some((ex) => ex.role === 'user')) {

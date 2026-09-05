@@ -288,6 +288,22 @@ describe('CapacitorSttEngine restart-stitching', () => {
     });
 });
 
+describe('stop() ends the turn immediately (meditation-pal-jvnu)', () => {
+    it('a stopped engine on a quiet mic finishes without waiting for a native event', async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(600); // past RESTART_GAP + ready
+        let settled = false;
+        void finished.then(() => {
+            settled = true;
+        });
+        await engine.stop();
+        await vi.advanceTimersByTimeAsync(50);
+        expect(settled).toBe(true);
+        expect(finals(events)).toHaveLength(0);
+    });
+});
+
 describe('stale silence errors (meditation-pal-wlp9)', () => {
     // Real ordering from logcat: the stale error landed ~12ms after the new
     // launch, before the new recognizer reported coming up.

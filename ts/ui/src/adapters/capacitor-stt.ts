@@ -81,6 +81,13 @@ export class CapacitorSttEngine implements SttEngine {
     private partialListener: PluginListenerHandle | null = null;
     private stateListener: PluginListenerHandle | null = null;
     private stopRequested = false;
+    // Wakes the live start() generator so stop() ends the turn NOW. Without it
+    // the generator sleeps until the recognizer's next event - on a quiet mic
+    // that's its ~10s NO_MATCH timeout - and the listen loop, which re-enters
+    // on the rebuilt engine only after this iteration ends, stays deaf for all
+    // of it. Measured 11s after a lock/unlock on 2026-09-04: the first words
+    // after coming back were never heard (meditation-pal-jvnu).
+    private wakeForStop: (() => void) | null = null;
 
     constructor(options: CapacitorSttEngineOptions = {}) {
         const submitDelayMs = options.submitDelayMs ?? 0;
@@ -129,6 +136,13 @@ export class CapacitorSttEngine implements SttEngine {
 
         const push = (event: SttEvent): void => {
             queue.push(event);
+            if (wake) {
+                const w = wake;
+                wake = null;
+                w();
+            }
+        };
+        this.wakeForStop = () => {
             if (wake) {
                 const w = wake;
                 wake = null;
@@ -531,6 +545,7 @@ export class CapacitorSttEngine implements SttEngine {
                 });
             }
         } finally {
+            this.wakeForStop = null;
             clearTimers();
             await this.partialListener?.remove().catch(() => {});
             await this.stateListener?.remove().catch(() => {});
@@ -541,6 +556,7 @@ export class CapacitorSttEngine implements SttEngine {
 
     async stop(): Promise<void> {
         this.stopRequested = true;
+        this.wakeForStop?.();
         // Never await: the plugin's stop() call never resolves on success
         // (Android impl calls stopListening() without call.resolve()), so an
         // await here hangs the caller forever.
