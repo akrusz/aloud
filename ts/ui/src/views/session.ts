@@ -1810,6 +1810,11 @@ export async function mountSessionView(
             // words are a normal turn, not an answer. (meditation-pal-9era)
             if (!ephemeral && !cleanText.trim()) {
                 if (rawText.trim()) tapEvent('signal', 'signal-only-reply', { raw: rawText });
+                // finishReason is the one clue to WHY a completion came back
+                // blank ("length" = budget eaten, "error" = upstream failed,
+                // null = the stream ended without a done chunk); keep it
+                // visible in the device log (meditation-pal-yi02).
+                console.warn(`[turn] empty completion finish=${finishReason ?? 'null'} raw=${rawText.length} chars`);
                 throw new Error(
                     t('The model returned an empty response. Try again, or check your provider in Settings.')
                 );
@@ -2410,7 +2415,7 @@ export async function mountSessionView(
                 ...session.getContextMessages(),
                 { role: 'user' as const, content: openerPrompt },
             ];
-            const { text: rawText, ttsDone, usage } = await streamCompletionWithChunkedTts(
+            const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
                 messages,
@@ -2433,7 +2438,11 @@ export async function mountSessionView(
             // An empty greeting is a failed opener: throw so the catch uses the
             // static fallback rather than a blank first turn. Tested on
             // cleanText, so a signal-only greeting falls back too (9era).
-            if (!cleanText.trim()) throw new Error('empty opener completion');
+            if (!cleanText.trim()) {
+                throw new Error(
+                    `empty opener completion (finish=${finishReason ?? 'null'} raw=${rawText.length} chars)`
+                );
+            }
             tapTurn('assistant', 'opener', cleanText, { raw: rawText });
             // The opener prompt was one-shot; record only the greeting.
             session.addAssistantMessage(cleanText, undefined, usage);
@@ -2482,7 +2491,7 @@ export async function mountSessionView(
             ];
             showTyping();
             armSlowResponseStatus();
-            const { text: rawText, ttsDone, usage } = await streamCompletionWithChunkedTts(
+            const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
                 messages,

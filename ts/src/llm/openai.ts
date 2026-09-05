@@ -85,6 +85,7 @@ interface OpenAIChatResponse {
         finish_reason?: string | null;
     }>;
     usage?: OpenAIUsage;
+    error?: OpenAIInlineError;
 }
 
 export class OpenAIProvider implements LLMProvider {
@@ -184,6 +185,7 @@ export class OpenAIProvider implements LLMProvider {
         }
 
         const data = (await response.json()) as OpenAIChatResponse;
+        if (data.error) throw new Error(inlineErrorMessage(data.error, 'in body'));
         const choice = data.choices?.[0];
         const text = choice?.message?.content ?? '';
 
@@ -216,6 +218,7 @@ export class OpenAIProvider implements LLMProvider {
             if (raw === '[DONE]') break;
             const parsed = safeJson<OpenAIStreamChunk>(raw);
             if (!parsed) continue;
+            if (parsed.error) throw new Error(inlineErrorMessage(parsed.error, 'mid-stream'));
             const choice = parsed.choices?.[0];
             const text = choice?.delta?.content;
             if (typeof text === 'string' && text.length > 0) {
@@ -273,6 +276,25 @@ interface OpenAIStreamChunk {
         finish_reason?: string | null;
     }>;
     usage?: OpenAIUsage;
+    error?: OpenAIInlineError;
+}
+
+/**
+ * An upstream failure reported INSIDE a 200 response. OpenRouter does this once
+ * the stream has started (a host dropping mid-generation arrives as a chunk with
+ * `error` and finish_reason "error"), and for some routing failures on the
+ * non-streaming path too. Ignoring the field turns the failure into a silent
+ * empty completion - "The model returned an empty response" with nothing in
+ * any log (meditation-pal-yi02) - so both paths throw on it instead.
+ */
+interface OpenAIInlineError {
+    message?: string;
+    code?: number | string;
+}
+
+function inlineErrorMessage(err: OpenAIInlineError, phase: string): string {
+    const detail = err.message ?? JSON.stringify(err);
+    return `OpenAI-compatible API error ${phase}${err.code !== undefined ? ` (${err.code})` : ''}: ${detail}`;
 }
 
 function safeJson<T>(s: string): T | null {

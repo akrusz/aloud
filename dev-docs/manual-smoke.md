@@ -117,7 +117,9 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       the screen ~30s, come back, and speak - it must transcribe. Debug log:
       `stt restarted after foreground` (`meditation-pal-wudm`). **Then repeat the
       same check inside a noting circle**, which is deliberately not covered by
-      that fix.
+      that fix. **Listen to the reply's loudness too** (seen quiet after a lock on
+      2026-09-04, `meditation-pal-wxj5`): if it's soft, press a volume key while
+      it speaks - a slider labelled Call rather than Media is the diagnosis.
 - [ ] **A session survives being killed.** Developer options → "Don't keep
       activities", background mid-session, return: the resume banner offers the
       sit back (`meditation-pal-v73p`).

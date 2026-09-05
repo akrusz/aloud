@@ -821,6 +821,39 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         );
     }
 
+    // OpenRouter reports an upstream host failing after the stream opened as a
+    // 200 chunk carrying `error` (finish_reason "error"). Left unread, that is a
+    // silent empty completion with nothing in any log (meditation-pal-yi02).
+    it('completeStream throws on an inline error chunk instead of ending empty', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockSseResponse([
+                'data: {"choices":[{"delta":{"content":""},"finish_reason":null}]}',
+                'data: {"error":{"message":"Provider returned error","code":502},"choices":[{"delta":{},"finish_reason":"error"}]}',
+                'data: [DONE]',
+            ])
+        );
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-test',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await expect(
+            collectStream(provider.completeStream([{ role: 'user', content: 'hi' }]))
+        ).rejects.toThrow(/mid-stream \(502\): Provider returned error/);
+    });
+
+    it('complete throws on a 200 body carrying an error instead of returning empty text', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockJsonResponse({ error: { message: 'No endpoints found', code: 404 } })
+        );
+        const provider = new OpenRouterProvider({
+            apiKey: 'sk-test',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await expect(provider.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow(
+            /in body \(404\): No endpoints found/
+        );
+    });
+
     it('OpenRouter uses openrouter.ai with deepseek default model', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse());
         const provider = new OpenRouterProvider({
