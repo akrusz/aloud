@@ -45,14 +45,20 @@ const SUMMARY_SYSTEM_PROMPT =
  * stays in character and deflects the recap as a meta-request from the meditator
  * ("that doesn't quite fit what we're doing here... what's here right now?").
  * Do not soften this back into an in-session ask.
+ *
+ * It breaks the wall by naming the sender (the app, not the meditator), never by
+ * asking the model to leave its role: "step out of the facilitator role" read
+ * as a request to refuse, and Kimi K2 opened the saved note with "I can't step
+ * out of the facilitator role, but I can summarize..." (meditation-pal-5srs).
+ * The recap is framed as the facilitator's own note, which needs no exit.
  */
 const SUMMARY_USER_PROMPT =
-    'The meditation session above has ended. Step out of the facilitator role ' +
-    'for a moment. You are not speaking to the meditator now, and this is not ' +
-    "part of the session. Write a brief recap for the meditator's history log: " +
-    'what was explored, where it landed, and any thread left open to pick up ' +
-    'later. 2-3 sentences (about 40-60 words), a neutral note to self. Output ' +
-    'only the recap, nothing else: no questions, no facilitation.';
+    'This message is from the app, not the meditator: the session above has ' +
+    "ended. Write the facilitator's private note on it for the meditator's " +
+    'history log - what was explored, where it landed, and any thread left ' +
+    'open to pick up later. 2-3 sentences (about 40-60 words), neutral, in the ' +
+    'third person. Output only the note: no preamble, no questions, no ' +
+    'facilitation.';
 
 /**
  * Don't spend an LLM call recapping a session that barely started; asking anyway

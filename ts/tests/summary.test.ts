@@ -47,8 +47,11 @@ describe('generateSessionSummary', () => {
         const msgs = calls[0]!.messages;
         expect(msgs[msgs.length - 1]!.role).toBe('user');
         const instruction = msgs[msgs.length - 1]!.content.toLowerCase();
-        expect(instruction).toContain('recap');
+        expect(instruction).toContain('note');
         expect(instruction).toContain('ended');
+        // ...and names the sender rather than asking the model to leave its
+        // role, which reads as something to refuse (meditation-pal-5srs).
+        expect(instruction).not.toContain('step out');
     });
 
     it('falls back to the standalone summary system prompt when none is given', async () => {
@@ -108,5 +111,6 @@ describe('generateSessionSummary', () => {
             const { provider } = fakeProvider(text);
             expect(await generateSessionSummary(provider, realSession)).toBe(text);
         });
+
     });
 });
