@@ -588,11 +588,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
      *  engines: local Whisper / aloud cloud). Web Speech and the native
      *  recognizer own their capture, so the pick couldn't take effect. */
     function micPickApplies(): boolean {
-        const choice = resolveSttChoice(settings.sttEngine, isWebMode());
-        return choice === 'whisper' || isHostedSttChoice(choice);
+        return pcmSttChosen(settings);
+    }
+
+    /** The speculation toggle drives the same PCM engines the mic pick does;
+     *  Web Speech and the native recognizer have no speculative pass to turn
+     *  off, so the switch would be dead there. */
+    function updateSpeculationVisibility(): void {
+        root.querySelector<HTMLElement>('#s-stt-speculation-group')?.classList.toggle('hidden', !micPickApplies());
     }
 
     function updateMicDeviceVisibility(): void {
+        updateSpeculationVisibility();
         const canEnumerate = !!navigator.mediaDevices?.enumerateDevices;
         // `.slot-hidden` (style.css) keeps the column's empty slot at wide
         // widths so Language/Recognition stay at a third each rather than
@@ -2185,6 +2192,14 @@ function renderSessionLogsSection(s: AppSettings): string {
  * expert toggles. Controls keep their ids: their wiring (wirePacingSection /
  * wireTtsSection / wireSessionLogsSection) finds them here just the same.
  */
+/** True when the resolved STT choice is one of the PCM engines that capture
+ *  through us (local Whisper / aloud cloud): the only ones the mic picker and
+ *  the speculation toggle can affect. */
+function pcmSttChosen(s: AppSettings): boolean {
+    const choice = resolveSttChoice(s.sttEngine, isWebMode());
+    return choice === 'whisper' || isHostedSttChoice(choice);
+}
+
 function renderAdvancedSettingsSection(s: AppSettings): string {
     return `
     <section class="settings-section">
@@ -2235,7 +2250,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                     <span class="form-hint">${t('Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.')}</span>
                 </div>
             </div>
-            <div class="form-row">
+            <div class="form-row${pcmSttChosen(s) ? '' : ' hidden'}" id="s-stt-speculation-group">
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-stt-speculation"${s.sttSpeculation ? ' checked' : ''}>
