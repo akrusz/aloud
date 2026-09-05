@@ -2241,7 +2241,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <input type="checkbox" id="s-stt-speculation"${s.sttSpeculation ? ' checked' : ''}>
                         <span>${t('Transcribe while you pause')}</span>
                     </label>
-                    <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Off uses less aloud cloud transcription but can cut you off at a longer pause.')}</span>
+                    <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁️ if using aloud cloud).')}</span>
                 </div>
             </div>
         </div>

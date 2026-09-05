@@ -85,4 +85,7 @@ export interface WebSessionRunResult extends SessionRunResult {
      *  lines), split by pass kind. Only the mic-capturing engines log these;
      *  Web Speech bills nothing. */
     sttBilled: { specSec: number; finalSec: number; specCalls: number; finalCalls: number; reusedFinals: number };
+    /** The raw [stt-cost] / [vad] / [stt-text] console lines, for reading a
+     *  run's endpointing and payload decisions after the fact. */
+    sttLog: string[];
 }

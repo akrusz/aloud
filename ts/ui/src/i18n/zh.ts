@@ -192,7 +192,7 @@ export const ZH: Record<string, string> = {
     "Emotions &amp; feeling tone:": "情绪与感受基调：",
     "Enable holding-space mode": "开启静默陪伴模式",
     "Transcribe while you pause": "停顿时同步转写",
-    "Shows your words as you speak and waits through mid-thought pauses. Off uses less aloud cloud transcription but can cut you off at a longer pause.": "边说边显示你的话，并在你思考停顿时耐心等待。关闭后可减少 aloud cloud 转写用量，但较长的停顿可能会被当作说完。",
+    "Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁️ if using aloud cloud).": "边说边显示你的话，并在你思考停顿时耐心等待。体验更流畅，但转写调用更多（使用 aloud cloud 时消耗更多 ☁️）。",
     "Enable providers that require API keys": "启用需要 API 密钥的服务商",
     "End": "结束",
     "End Session": "结束冥想",

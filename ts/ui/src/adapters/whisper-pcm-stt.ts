@@ -111,6 +111,18 @@ const TAIL_RETRANSCRIBE_ENERGY = 0.015;
 // soft word here", so anything it would have rescued survives - plus a full
 // second after it. ⭐ TWEAK ME (up) if trailing words ever go missing.
 const TAIL_KEEP_MS = 1000;
+// Interior quiet inside a held turn (a mid-thought pause the dangling-clause
+// hold waited through) is billed audio that carries no words. Runs of quiet
+// chunks longer than COMPACT_GAP_MS are collapsed to COMPACT_KEEP_MS, split
+// across both edges, before upload (submitPayload / compactQuietRuns). A chunk
+// is "quiet" only when BOTH the energy and the Silero probability say so, and
+// the energy bar sits below the hint bar on purpose: soft trailing words that
+// never cleared the VAD gate (meditation-pal-rcdz) must survive. Measured
+// 2026-09-05: a pause-heavy script billed 100s for 39s of speech, 46s of it
+// held pauses.
+const COMPACT_GAP_MS = 700;
+const COMPACT_KEEP_MS = 400;
+const COMPACT_QUIET_PROB = 0.2;
 // Audio (ms) kept before the pre-buffer's first speech-hint frame (same
 // TAIL_RETRANSCRIBE_* bar as the tail cut). On an ordinary turn most of the 2s
 // pre-buffer is billed room tone; this also covers Silero's trigger debounce
@@ -162,6 +174,9 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  use hosted STT - at the price of no preview and a turn that can be cut
      *  at a mid-thought pause the VAD alone can't tell from an ending. */
     speculation?: boolean;
+    /** Collapse long interior silences in the uploaded payload (default on).
+     *  Off exists for A/B measurement (soak harness), not as a user setting. */
+    compactSilence?: boolean;
     /** Custom fetch (tests). */
     fetchImpl?: typeof fetch;
     /** When present, each request carries `Authorization: Bearer <token>` - for
@@ -230,6 +245,9 @@ export class WhisperPcmSttEngine implements SttEngine {
     // (TAIL_RETRANSCRIBE_* bar). The trailing quiet past it is trimmed off the
     // billed payload - see TAIL_KEEP_MS and submitPayload().
     private lastHintChunk = 0;
+    // Per-chunk energy + Silero probability, aligned with `chunks`, for the
+    // interior-quiet compaction. Pre-buffer frames carry p = -1 (no verdict).
+    private chunkMeta: { e: number; p: number }[] = [];
     // How many of chunks' leading frames came from the onset pre-buffer,
     // recorded when speech starts. Only that prefix is scanned for the leading
     // quiet cut (LEAD_KEEP_MS) - everything after it is VAD-vetted.
@@ -282,6 +300,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             speculation: options.speculation ?? true,
+            compactSilence: options.compactSilence ?? true,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
             onAuthError: options.onAuthError ?? null,
@@ -351,6 +370,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     private keepChunk(frame: Float32Array, energy: number): void {
         this.chunks.push(frame);
         const prob = this.silero ? this.silero.lastProb : -1;
+        this.chunkMeta.push({ e: energy, p: prob });
         if (energy >= TAIL_RETRANSCRIBE_ENERGY || prob >= TAIL_RETRANSCRIBE_PROB) {
             this.lastHintChunk = this.chunks.length;
         }
@@ -386,13 +406,31 @@ export class WhisperPcmSttEngine implements SttEngine {
             }
             start = Math.max(0, firstHint - leadKeep);
         }
-        if (start === 0 && end >= this.chunks.length) return this.chunks;
         const secs = (frames: number) => ((frames * FRAME_SIZE) / rate).toFixed(1);
+        const chunkMs = (FRAME_SIZE / rate) * 1000;
+        let ranges: Array<[number, number]> = [[start, end]];
+        if (this.opts.compactSilence && end > start) {
+            const quietEnergy = Math.min(TAIL_RETRANSCRIBE_ENERGY, Math.max(NOISE_FLOOR_SEED * 2, this.noiseFloor * 2));
+            const quiet = this.chunkMeta
+                .slice(start, end)
+                .map((m) => m.e < quietEnergy && (m.p < 0 || m.p < COMPACT_QUIET_PROB));
+            ranges = compactQuietRuns(
+                quiet,
+                Math.round(COMPACT_GAP_MS / chunkMs),
+                Math.round(COMPACT_KEEP_MS / chunkMs)
+            ).map(([a, b]) => [a + start, b + start]);
+        }
+        const kept = ranges.reduce((n, [a, b]) => n + (b - a), 0);
+        if (ranges.length === 1 && start === 0 && end >= this.chunks.length) return this.chunks;
         console.info(
             `[stt-cost] trim lead=${secs(start)}s tail=${secs(this.chunks.length - end)}s ` +
-                `payload=${secs(end - start)}s of ${secs(this.chunks.length)}s buffered`
+                `compacted=${secs(end - start - kept)}s in ${ranges.length - 1} gap(s) ` +
+                `payload=${secs(kept)}s of ${secs(this.chunks.length)}s buffered`
         );
-        return this.chunks.slice(start, end);
+        if (ranges.length === 1) return this.chunks.slice(start, end);
+        const out: Float32Array[] = [];
+        for (const [a, b] of ranges) for (let i = a; i < b; i++) out.push(this.chunks[i]!);
+        return out;
     }
 
     /** Per-frame speech decision. With the model up: Silero's debounced
@@ -521,7 +559,10 @@ export class WhisperPcmSttEngine implements SttEngine {
                 this.startedWhileTtsActive = this.ttsActive;
                 this.speechStartMs = now;
                 // Prepend the retained onset ramp, then clear it.
-                for (const f of this.preBuffer) this.chunks.push(f);
+                for (const f of this.preBuffer) {
+                    this.chunks.push(f);
+                    this.chunkMeta.push({ e: frameRms(f), p: -1 });
+                }
                 this.prependedPreFrames = this.preBuffer.length;
                 this.preBuffer.length = 0;
             }
@@ -852,6 +893,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.peakEnergy = 0;
         this.energyHistory = [];
         this.lastHintChunk = 0;
+        this.chunkMeta = [];
         this.prependedPreFrames = 0;
         this.partialIncomplete = false;
         this.specInFlight = false;
@@ -863,6 +905,10 @@ export class WhisperPcmSttEngine implements SttEngine {
         // Transcribe a snapshot of captured frames - speculative passes and
         // the final submission. `label` feeds [stt-cost]: spec-vs-final is
         // invisible server-side.
+        // Audio seconds this turn has sent for transcription, every pass: on
+        // hosted STT each one is billed, so the session tally reports the sum,
+        // not just the final (m56t).
+        let turnBilledSec = 0;
         const transcribeChunks = async (
             frames: readonly Float32Array[],
             label: 'spec' | 'final'
@@ -944,6 +990,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 const data = (await response.json()) as { text?: string; error?: string };
                 if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
                 const seconds = downsampled.length / TARGET_SAMPLE_RATE;
+                turnBilledSec += seconds;
                 console.info(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
                 // Provenance for transcript anomalies: a user turn with no
                 // matching [stt-text] line did not come from the mic.
@@ -1115,13 +1162,13 @@ export class WhisperPcmSttEngine implements SttEngine {
                     yield { type: 'error', error: result.error };
                     return;
                 }
-                // Billable server-side compute: report transcribed audio
-                // duration (16 kHz mono) for session usage. Only the final pass
-                // counts; speculative passes aren't separately metered.
+                // Billable server-side compute: every pass this turn sent (16 kHz
+                // mono seconds), so the in-app tally matches what hosted STT
+                // charged rather than the final pass alone.
                 yield {
                     type: 'final',
                     text: result.text,
-                    seconds: result.seconds,
+                    seconds: turnBilledSec,
                     startedDuringTts: this.startedWhileTtsActive,
                 };
                 return;
@@ -1197,6 +1244,41 @@ export class WhisperPcmSttEngine implements SttEngine {
  * Only consulted from ensureCaptureGraph, i.e. from start()/prime() at a turn
  * boundary - so re-acquiring here can never clip a live utterance.
  */
+/**
+ * Index ranges to keep from a chunk sequence once every run of quiet chunks
+ * longer than `gap` is collapsed to `keep` chunks (half from each edge, so the
+ * cut lands inside the silence, never on a word). Runs of `gap` or fewer are
+ * untouched. Pure, for tests; submitPayload feeds it the per-chunk verdicts.
+ */
+export function compactQuietRuns(
+    quiet: readonly boolean[],
+    gap: number,
+    keep: number
+): Array<[number, number]> {
+    const n = quiet.length;
+    const ranges: Array<[number, number]> = [];
+    let cursor = 0;
+    let i = 0;
+    while (i < n) {
+        if (!quiet[i]) {
+            i++;
+            continue;
+        }
+        let j = i;
+        while (j < n && quiet[j]) j++;
+        const run = j - i;
+        if (run > gap && run > keep) {
+            const head = Math.ceil(keep / 2);
+            const tail = keep - head;
+            ranges.push([cursor, i + head]);
+            cursor = j - tail;
+        }
+        i = j;
+    }
+    ranges.push([cursor, n]);
+    return ranges.filter(([a, b]) => b > a);
+}
+
 export function streamNeedsRefresh(stream: MediaStream | null): boolean {
     if (!stream || !stream.active) return true;
     const track = stream.getAudioTracks()[0];

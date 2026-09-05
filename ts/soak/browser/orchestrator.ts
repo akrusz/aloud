@@ -387,5 +387,6 @@ export async function runWebSoakSession(
         voiceId: voice.id,
         sttEngine: opts.sttEngine,
         sttBilled: tallySttBilled(driver.consoleLines?.() ?? []),
+        sttLog: driver.consoleLines?.() ?? [],
     };
 }
