@@ -41,6 +41,8 @@ import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { createSttForChoice, resolveSttChoice } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
+import { narratorSilencedForCloud } from '../cloud-gate.js';
+import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { isCapacitor } from '../is-desktop.js';
 import { sessionStore } from '../state.js';
 import { markSessionStarted } from '../tour/index-guide.js';
@@ -105,6 +107,10 @@ export async function mountNotingSessionView(
     // 'aloud', and constructing it fetches a cloud token the session never needs
     // - which is what made an AI-free circle demand sign-in (meditation-pal-vr3w).
     const needsLlm = sessionNeedsLlm('noting', setup.notingParticipants);
+    // The account-free flow: a cloud narrator voice with nothing to bill it to
+    // (signed out / out of credits) and no other metered leg. The opener and
+    // timer notices then show as text only; the circle runs the same.
+    const narratorSilenced = await narratorSilencedForCloud(setup, appSettings, 'noting');
     let provider: LLMProvider | null = null;
     // Noting labels and the session recap run on a cheap, fast, non-reasoning
     // model (see buildUtilityProvider), not the possibly slow/always-thinking
@@ -291,6 +297,12 @@ export async function mountNotingSessionView(
     function surfaceCloudError(err: unknown): void {
         if (torn) return;
         const msg = err instanceof Error ? err.message : String(err);
+        // Non-billing cloud failures go to the operator's incident log
+        // (402s are recorded server-side already).
+        if (!/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+            if (isCloudTtsError(msg)) reportCloudIncident('client_tts_error', { detail: msg });
+            else if (/Whisper endpoint/.test(msg)) reportCloudIncident('client_stt_error', { detail: msg });
+        }
         const described = describeCloudError(msg);
         if (described && described !== lastCloudErrorToast) {
             lastCloudErrorToast = described;
@@ -479,7 +491,7 @@ export async function mountNotingSessionView(
         const text = pickTimerFallback(localizePool(pool, notingLanguage), sessionClock.timerMinutes());
         session.addAssistantMessage(text, 'Facilitator');
         appendMessage('facilitator', text, t('Facilitator'));
-        await speakVia(setup.voice, text);
+        await speakNarrator(text);
         void autosaveSession();
     }
 
@@ -623,6 +635,17 @@ export async function mountNotingSessionView(
         }
     }
 
+    /** The narrator's lines (opener, timer notices) in setup.voice. Silenced
+     *  in the account-free flow: a beat of quiet in place of the reading, so
+     *  the text can be taken in before the circle starts. */
+    async function speakNarrator(text: string): Promise<void> {
+        if (narratorSilenced) {
+            await sleep(Math.min(4000, 1500 + text.length * 25));
+            return;
+        }
+        await speakVia(setup.voice, text);
+    }
+
     async function speakVia(voiceId: string | null, text: string): Promise<void> {
         // TTS off: the circle runs silently, labels still appear and turns
         // still advance.
@@ -725,8 +748,8 @@ export async function mountNotingSessionView(
         const text = localizePool(NOTING_STATIC_OPENERS, notingLanguage)[0]!;
         session.addAssistantMessage(text, 'Facilitator');
         appendMessage('facilitator', text, t('Facilitator'));
-        setStatus(t('Speaking…'));
-        await speakVia(setup.voice, text);
+        setStatus(narratorSilenced ? '' : t('Speaking…'));
+        await speakNarrator(text);
     }
 
     // ---- mute / pause ----

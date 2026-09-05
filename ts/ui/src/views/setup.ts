@@ -49,7 +49,13 @@ import {
     type ScoredVoice,
     type ServerVoice,
 } from '../voice-picker.js';
-import { rateBadge, MODE_RATE_MULTIPLIER, withCloudOutline } from '../credit-rate.js';
+import {
+    rateBadge,
+    MODE_RATE_MULTIPLIER,
+    NOTING_NARRATOR_TTS_FRACTION,
+    withCloudOutline,
+} from '../credit-rate.js';
+import { narratorCanBill } from '../cloud-gate.js';
 import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
@@ -394,6 +400,10 @@ export async function mountSetupView(
     // Selected hosted model's credits/hr for the estimate. Wired to the model
     // picker once it mounts; 0 until then / for free providers.
     let getModelRate: () => number = () => 0;
+    // Whether a cloud narrator voice would actually be read in an AI-free
+    // noting circle (signed in with credits). Learned after /me; when false the
+    // narrator leg is 0, matching the session view (narratorSilencedForCloud).
+    let narratorBillable = true;
     // Wired to the mounted picker so the cloud-reachability watcher can repopulate it
     // once aloud cloud is up.
     let refreshModelPicker: (provider: string) => void = () => {};
@@ -459,14 +469,24 @@ export async function mountSetupView(
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
         const sttChoice = sttSel?.value ?? sttSetupSelected;
 
-        const llm = setup.provider === 'aloud' ? getModelRate() : 0;
+        const ai = needsLLM();
+        const llm = ai && setup.provider === 'aloud' ? getModelRate() : 0;
         const stt = cloudSttCreditsPerHour(sttChoice as SttEngineChoice);
-        const tts = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
+        const voiceRate = findVoice(stripVoicePrefix(setup.voice))?.creditsPerHour ?? 0;
+        // In an AI-free noting circle the narrator reads a few hundred
+        // characters per sit, not a conversation's worth - and nothing at all
+        // when there is no account to bill (the session view skips it).
+        const tts = ai
+            ? voiceRate
+            : narratorBillable
+              ? voiceRate * NOTING_NARRATOR_TTS_FRACTION
+              : 0;
         // The background-assistant leg (classifiers, summaries, recap) rides
         // every aloud-cloud session on top of the picked model's badge - so the
         // pill runs a touch above the badges' sum, which its title explains.
-        // Outside the mode multiplier: noting leans on it MORE, not less.
-        const util = setup.provider === 'aloud' ? cloudUtilityCreditsPerHour() : 0;
+        // Outside the mode multiplier: noting leans on it MORE, not less. An
+        // AI-free circle never calls it (no labels, no recap).
+        const util = ai && setup.provider === 'aloud' ? cloudUtilityCreditsPerHour() : 0;
         // Noting mode burns far less than the exploration-calibrated legs imply.
         const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1) + util;
 
@@ -843,7 +863,13 @@ export async function mountSetupView(
         updateSessionEstimate();
         // Learn retreat coverage (meditation-pal-414) so the pill can hide for
         // covered attendees. fetchMe is a no-op when signed out.
-        void fetchMe().then(() => updateSessionEstimate()).catch(() => {});
+        void fetchMe()
+            .then(() => narratorCanBill())
+            .then((ok) => {
+                narratorBillable = ok;
+                updateSessionEstimate();
+            })
+            .catch(() => {});
         // The rate now renders inside the Begin button as a passive label
         // (pointer-events: none), so it's no longer the old pill's tap-to-buy
         // shortcut. Buying credits lives behind the profile surface.
@@ -1298,9 +1324,11 @@ export async function mountSetupView(
             });
         });
         updateAddBtn();
-        // Participant edits can flip whether an LLM is needed.
+        // Participant edits can flip whether an LLM is needed, which also
+        // moves the estimate's model and narrator legs.
         updateBeginButton();
         updateAiNotes();
+        updateSessionEstimate();
     }
 
     function updateAddBtn(): void {

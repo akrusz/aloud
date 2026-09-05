@@ -18,7 +18,7 @@ vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
     return { ...actual, isTauri: vi.fn(() => false) };
 });
 
-import { sessionUsesCloud } from '../ui/src/cloud-gate.js';
+import { sessionUsesCloud, narratorIsOnlyCloudLeg } from '../ui/src/cloud-gate.js';
 import { isTauri } from '../ui/src/is-desktop.js';
 import type { SessionSetup } from '../ui/src/settings.js';
 import type { AppSettings } from '../ui/src/app-settings.js';
@@ -106,6 +106,54 @@ describe('sessionUsesCloud', () => {
         it('leaves exploration alone - it always needs the model', () => {
             isTauriMock.mockReturnValue(true);
             expect(sessionUsesCloud(setupWith('aloud'), settingsWith('whisper'), false)).toBe(true);
+        });
+    });
+
+    /**
+     * The narrator voice is the one metered leg an AI-free circle can do
+     * without: it reads a static opener, and the session view skips it when
+     * there is no account to bill. So it must still register as cloud use
+     * (a signed-in user IS charged for it) while the start gate lets the
+     * session through instead of demanding sign-in.
+     */
+    describe('narrator-only cloud use', () => {
+        const soundCircleWithCloudNarrator = {
+            provider: 'aloud',
+            voice: 'aloud:vega',
+            notingParticipants: [{ type: 'sound' }],
+        } as unknown as SessionSetup;
+
+        it('is the only leg for a sound-only circle with a cloud narrator', () => {
+            isTauriMock.mockReturnValue(true);
+            expect(
+                narratorIsOnlyCloudLeg(soundCircleWithCloudNarrator, settingsWith('whisper'), false, 'noting')
+            ).toBe(true);
+        });
+
+        it('is not the only leg once an AI participant, a cloud participant voice, or hosted STT joins', () => {
+            isTauriMock.mockReturnValue(true);
+            const withAi = {
+                ...soundCircleWithCloudNarrator,
+                notingParticipants: [{ type: 'llm' }],
+            } as unknown as SessionSetup;
+            expect(narratorIsOnlyCloudLeg(withAi, settingsWith('whisper'), false, 'noting')).toBe(false);
+            const withCloudVoice = {
+                ...soundCircleWithCloudNarrator,
+                notingParticipants: [{ type: 'fixed', voice: 'aloud:vega' }],
+            } as unknown as SessionSetup;
+            expect(narratorIsOnlyCloudLeg(withCloudVoice, settingsWith('whisper'), false, 'noting')).toBe(false);
+            expect(
+                narratorIsOnlyCloudLeg(soundCircleWithCloudNarrator, settingsWith('aloud'), true, 'noting')
+            ).toBe(false);
+        });
+
+        it('never applies outside noting, and not to a device narrator voice', () => {
+            isTauriMock.mockReturnValue(true);
+            expect(
+                narratorIsOnlyCloudLeg(soundCircleWithCloudNarrator, settingsWith('whisper'), false, 'exploration')
+            ).toBe(false);
+            const deviceVoice = { ...soundCircleWithCloudNarrator, voice: 'browser:Samantha' } as unknown as SessionSetup;
+            expect(narratorIsOnlyCloudLeg(deviceVoice, settingsWith('whisper'), false, 'noting')).toBe(false);
         });
     });
 });

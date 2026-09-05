@@ -61,6 +61,14 @@ export const MODE_RATE_MULTIPLIER: Record<'exploration' | 'noting' | 'felt_sense
     felt_sense: 1,
 };
 
+/** Share of a cloud voice's per-hour rate that an AI-free noting circle
+ *  actually spends on it: the narrator reads only the static opener plus at
+ *  most two timer notices, ~300 characters per sit, against the ~3,500
+ *  chars/session the voice badges are calibrated on (server
+ *  pricing/estimate.ts TTS_CHAR_PROFILES.typical). The participants' own voices
+ *  are separate legs. */
+export const NOTING_NARRATOR_TTS_FRACTION = 300 / 3_500;
+
 /** Badge text for a rate, e.g. "3☁️". A paid option too cheap to round to a
  *  whole credit reads "<1☁️" rather than "1☁️" (overstating by up to 12x at the
  *  Flash Lite end) or "" (which means free). Empty string only when free. */
