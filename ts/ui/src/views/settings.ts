@@ -1404,6 +1404,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 syncCheckinStepper();
             });
         }
+        const sttSpeculation = root.querySelector<HTMLInputElement>('#s-stt-speculation');
+        if (sttSpeculation) {
+            sttSpeculation.checked = settings.sttSpeculation;
+            sttSpeculation.addEventListener('change', () => {
+                settings.sttSpeculation = sttSpeculation.checked;
+                persist();
+            });
+        }
         const silenceModeEnabled = root.querySelector<HTMLInputElement>('#s-silence-mode-enabled');
         if (silenceModeEnabled) {
             silenceModeEnabled.checked = settings.silenceModeEnabled;
@@ -2225,6 +2233,15 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <span>${t('Resume long sessions from a recap')}</span>
                     </label>
                     <span class="form-hint">${t('Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.')}</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-stt-speculation"${s.sttSpeculation ? ' checked' : ''}>
+                        <span>${t('Transcribe while you pause')}</span>
+                    </label>
+                    <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Off uses less aloud cloud transcription but can cut you off at a longer pause.')}</span>
                 </div>
             </div>
         </div>

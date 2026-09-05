@@ -685,6 +685,7 @@ export async function mountSessionView(
         minSpeechDurationMs: pacingConfig.minSpeechDurationMs,
         micDeviceId: appSettings.micDeviceId,
         whisperModelSize: appSettings.sttWhisperModel,
+        speculation: appSettings.sttSpeculation,
         // Per-session pick (setup; original language on a resume), not the app
         // default: the recognizer must hear the language this sit runs in
         // (meditation-pal-c3a0.2).

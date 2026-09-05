@@ -37,3 +37,8 @@ describe('transcriptLooksIncomplete', () => {
         expect(transcriptLooksIncomplete('Yes.')).toBe(false);
     });
 });
+
+it('flags "then" as a dangling tail (measured cut at an 8s pause)', async () => {
+    const { transcriptLooksIncomplete } = await import('../src/facilitation/end-of-turn.js');
+    expect(transcriptLooksIncomplete('I think part of me is afraid that if I really feel this, then.')).toBe(true);
+});

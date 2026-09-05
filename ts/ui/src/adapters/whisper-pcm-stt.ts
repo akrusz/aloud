@@ -156,6 +156,12 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  latency), so it must sit well past any real ramble. Raising it mostly
      *  costs final-pass latency at submit. */
     maxUtteranceMs?: number;
+    /** Speculative passes on mid-utterance pauses (the live preview, and the
+     *  dangling-clause verdict that extends the silence window). Default on.
+     *  Off, a turn costs exactly one transcription - the cheapest way to
+     *  use hosted STT - at the price of no preview and a turn that can be cut
+     *  at a mid-thought pause the VAD alone can't tell from an ending. */
+    speculation?: boolean;
     /** Custom fetch (tests). */
     fetchImpl?: typeof fetch;
     /** When present, each request carries `Authorization: Bearer <token>` - for
@@ -275,6 +281,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             minSpeechDurationMs:
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
+            speculation: options.speculation ?? true,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
             onAuthError: options.onAuthError ?? null,
@@ -1007,6 +1014,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         );
                     }
                     if (
+                        this.opts.speculation &&
                         silence >= specAfterMs &&
                         !this.specInFlight &&
                         this.lastSpeechMs !== lastSpecSpeechMs &&

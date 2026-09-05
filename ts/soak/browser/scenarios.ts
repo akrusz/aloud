@@ -111,9 +111,67 @@ export const WEB_SCENARIOS: readonly WebScenario[] = [
     },
 ];
 
+/**
+ * Endpointing under mid-thought pauses (meditation-pal-0uw7 / m56t): the same
+ * reflective lines, each with a `say` [[slnc]] pause dropped after a dangling
+ * word, at lengths that straddle the adaptive silence window (3s base, up to
+ * 5s with speech, +4s when a speculative pass sees an unfinished clause).
+ * Run once with speculation on and once off: the finals-per-line column says
+ * where each configuration cuts the speaker, and sttBilled says what each
+ * paid. Two sentence-complete pauses are controls: a cut there is a legitimate
+ * end of turn, not an endpointing miss.
+ */
+const PAUSE_LINES: readonly string[] = [
+    "I'm noticing a kind of tightness in my [[slnc 2000]] chest, right around the center.",
+    "There's this feeling that comes up when I think about [[slnc 3500]] my brother, and how we left things.",
+    "It's hard to describe. It's sort of [[slnc 4500]] heavy, like something pressing down on me.",
+    'When I stay with it, I notice that I want to [[slnc 6000]] pull away from it and think about something else.',
+    "I think part of me is afraid that if I really feel this, then [[slnc 8000]] it won't stop.",
+    "Okay. That feels a little softer now. [[slnc 4500]] There's more room in my breath.",
+    "I'm going to stay with the [[slnc 5000]] warmth in my hands for a little while.",
+    "It's like the feeling has a color, and the color is [[slnc 7000]] something between grey and blue.",
+    "Thank you. That's enough for today.",
+];
+
+const PAUSES_BASE: Omit<WebScenario, 'id' | 'title'> = {
+    persona: SILENCE_SEEKER,
+    modeId: 'exploration',
+    focuses: ['emotions'],
+    directiveness: 1,
+    verbosity: 'low',
+    checkinTiming: 'fixed',
+    silenceCheckinSec: 300,
+    silenceModeEnabled: false,
+    script: [...PAUSE_LINES],
+    scriptWaitSec: 3,
+    silentFacilitator: true,
+    finalsSettleMs: 9000,
+    realMinutes: 8,
+    maxWaitSec: 5,
+    fakeMinutes: 8,
+    maxUserTurns: PAUSE_LINES.length,
+};
+
+export const PAUSE_SCENARIOS: readonly WebScenario[] = [
+    {
+        ...PAUSES_BASE,
+        id: 'pauses',
+        title: 'Mid-thought pauses with speculative passes ON (the default)',
+        sttSpeculation: true,
+    },
+    {
+        ...PAUSES_BASE,
+        id: 'pauses-nospec',
+        title: 'Mid-thought pauses with speculative passes OFF (one transcription per turn)',
+        sttSpeculation: false,
+    },
+];
+
 export function getWebScenarios(ids: string[] | 'all'): WebScenario[] {
+    // The pause experiments are opt-in by id: they measure a knob, not the
+    // product, and would double the matrix's wall time.
     if (ids === 'all') return [...WEB_SCENARIOS];
-    const byId = new Map(WEB_SCENARIOS.map((s) => [s.id, s]));
+    const byId = new Map([...WEB_SCENARIOS, ...PAUSE_SCENARIOS].map((s) => [s.id, s]));
     return ids.map((id) => {
         const s = byId.get(id);
         if (!s) {
@@ -190,6 +248,7 @@ export function configForScenario(
             autoQuitAfterSilence: false,
             showAllModels: true,
             enableByok: true,
+            ...(scenario.sttSpeculation !== undefined ? { sttSpeculation: scenario.sttSpeculation } : {}),
         },
     };
 }

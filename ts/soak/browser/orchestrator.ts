@@ -19,13 +19,53 @@
  * `interrupt`.
  */
 
-import type { SimUser, SimView } from '../sim-user.js';
+import type { SimAction, SimUser, SimView } from '../sim-user.js';
 import type { LlmCallStat, SessionEnd, SoakEvent, TurnRecord } from '../types.js';
 import type { SoakTapState } from '../../ui/src/soak-tap.js';
 import type { SessionDriver } from './driver.js';
 import type { SimVoice } from './voice.js';
 import type { SpokenLine, WebScenario, WebSessionRunResult } from './types.js';
-import { wordErrorRate } from './wer.js';
+import { stripSayMarkup, wordErrorRate } from './wer.js';
+
+/** Says each scripted line once, a fixed wait apart, then ends. The sim user
+ *  for WebScenario.script: no persona, no LLM, so a run is repeatable. */
+export class ScriptedSimUser implements SimUser {
+    private i = 0;
+    constructor(
+        private readonly lines: readonly string[],
+        private readonly waitSec = 3
+    ) {}
+    /** The next line, without consuming it: the loop asks again after a wait
+     *  the facilitator interrupted, and a script must not lose lines to that. */
+    peek(): SimAction {
+        const text = this.lines[this.i] ?? null;
+        return { waitSec: text === null ? 0 : this.waitSec, text, end: text === null, raw: text ?? 'END' };
+    }
+    advance(): void {
+        this.i += 1;
+    }
+    async nextAction(_view: SimView): Promise<SimAction> {
+        const action = this.peek();
+        this.advance();
+        return action;
+    }
+}
+
+/** Sum the client's [stt-cost] lines: what the mic-capturing engine says it
+ *  billed, by pass kind. The server can't tell a speculative pass from a
+ *  final, so this is the only place the split is visible. */
+export function tallySttBilled(lines: readonly string[]): WebSessionRunResult['sttBilled'] {
+    const out = { specSec: 0, finalSec: 0, specCalls: 0, finalCalls: 0, reusedFinals: 0 };
+    for (const line of lines) {
+        const m = /^\[stt-cost\] (spec|final) billed=([\d.]+)s/.exec(line);
+        if (m) {
+            const sec = Number(m[2]);
+            if (m[1] === 'spec') { out.specSec += sec; out.specCalls += 1; }
+            else { out.finalSec += sec; out.finalCalls += 1; }
+        } else if (/^\[stt-cost\] final reused/.test(line)) out.reusedFinals += 1;
+    }
+    return out;
+}
 
 /**
  * Everything the loop waits on. Tuned for a real recognizer over real audio;
@@ -55,8 +95,9 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 export interface WebOrchestratorOptions {
     scenario: WebScenario;
     runIndex?: number;
-    driver: SessionDriver;
+    driver: Pick<SessionDriver, 'readTap' | 'isEnded' | 'close'> & Partial<Pick<SessionDriver, 'consoleLines'>>;
     voice: SimVoice;
+    /** Ignored when the scenario carries a script. */
     simUser: SimUser;
     /** Facilitator model, for the report; the page owns the actual provider. */
     facilitatorModel: string;
@@ -68,7 +109,10 @@ export interface WebOrchestratorOptions {
 export async function runWebSoakSession(
     opts: WebOrchestratorOptions
 ): Promise<WebSessionRunResult> {
-    const { scenario, driver, voice, simUser } = opts;
+    const { scenario, driver, voice } = opts;
+    const simUser: SimUser = scenario.script
+        ? new ScriptedSimUser(scenario.script, scenario.scriptWaitSec ?? 3)
+        : opts.simUser;
     const log = opts.log ?? (() => {});
     const timing: WebLoopTiming = { ...DEFAULT_WEB_LOOP_TIMING, ...opts.timing };
     const startedAt = Date.now();
@@ -160,12 +204,12 @@ export async function runWebSoakSession(
         const sttBefore = tap.events.filter((e) => e.kind === 'stt' && e.detail === 'final').length;
         const echoBefore = tap.events.filter((e) => e.kind === 'audio' && e.detail === 'echo-dropped').length;
         const at = elapsedSec();
-        log(`${mmss()} meditator> ${text}`);
+        log(`${mmss()} meditator> ${stripSayMarkup(text) === text ? text : text}`);
         try {
             await voice.speak(text);
         } catch (err) {
             localEvent('error', 'voice-failed', { message: (err as Error).message });
-            spoken.push({ at, said: text, heard: null, echoDropped: false, wer: null, latencyMs: null });
+            spoken.push({ at, said: text, heard: null, echoDropped: false, wer: null, latencyMs: null, finals: 0 });
             return;
         }
         const playbackEnded = Date.now();
@@ -173,9 +217,28 @@ export async function runWebSoakSession(
         const deadline = playbackEnded + timing.heardTimeoutMs;
         for (;;) {
             await refresh();
-            const finals = tap.events.filter((e) => e.kind === 'stt' && e.detail === 'final');
+            let finals = tap.events.filter((e) => e.kind === 'stt' && e.detail === 'final');
             if (finals.length > sttBefore) {
-                const heard = String(finals[finals.length - 1]?.data?.text ?? '');
+                const latencyMs = Date.now() - playbackEnded;
+                // A scripted line with a mid-clause pause should come back as
+                // ONE final. Keep listening: a second final inside the settle
+                // window means the endpointer cut the line at the pause.
+                const settle = scenario.finalsSettleMs ?? 0;
+                if (settle > 0) {
+                    let quietSince = Date.now();
+                    let seen = finals.length;
+                    // Bounded: a runaway (the app answering its own echo) must
+                    // not hold the loop open for the whole sit.
+                    const hardStop = Date.now() + settle * 4;
+                    while (Date.now() - quietSince < settle && Date.now() < hardStop) {
+                        await sleep(timing.pollMs);
+                        await refresh();
+                        finals = tap.events.filter((e) => e.kind === 'stt' && e.detail === 'final');
+                        if (finals.length > seen) { seen = finals.length; quietSince = Date.now(); }
+                    }
+                }
+                const mine = finals.slice(sttBefore).map((e) => String(e.data?.text ?? ''));
+                const heard = mine.join(' ');
                 const wer = wordErrorRate(text, heard);
                 spoken.push({
                     at,
@@ -183,22 +246,23 @@ export async function runWebSoakSession(
                     heard,
                     echoDropped: false,
                     wer,
-                    latencyMs: Date.now() - playbackEnded,
+                    latencyMs,
+                    finals: mine.length,
                 });
-                log(`${mmss()} heard> "${heard}" (WER ${(wer * 100).toFixed(0)}%)`);
+                log(`${mmss()} heard> "${heard}" (WER ${(wer * 100).toFixed(0)}%${mine.length > 1 ? `, ${mine.length} finals` : ''})`);
                 return;
             }
             const echoes = tap.events.filter((e) => e.kind === 'audio' && e.detail === 'echo-dropped');
             if (echoes.length > echoBefore) {
                 // The guard mistook the meditator for the facilitator's own
                 // voice, which in a loopback run is a real failure mode.
-                spoken.push({ at, said: text, heard: null, echoDropped: true, wer: null, latencyMs: null });
+                spoken.push({ at, said: text, heard: null, echoDropped: true, wer: null, latencyMs: null, finals: 0 });
                 localEvent('audio', 'sim-line-echo-dropped', { text });
                 log(`${mmss()} heard> (dropped as echo)`);
                 return;
             }
             if (tap.flags.ended || Date.now() > deadline) {
-                spoken.push({ at, said: text, heard: null, echoDropped: false, wer: null, latencyMs: null });
+                spoken.push({ at, said: text, heard: null, echoDropped: false, wer: null, latencyMs: null, finals: 0 });
                 localEvent('stt', 'missed', { text });
                 log(`${mmss()} heard> (nothing)`);
                 return;
@@ -253,7 +317,8 @@ export async function runWebSoakSession(
             }
 
             const t0 = Date.now();
-            const action = await simUser.nextAction(buildView(situation));
+            const action =
+                simUser instanceof ScriptedSimUser ? simUser.peek() : await simUser.nextAction(buildView(situation));
             situation = undefined;
             const simLatency = Date.now() - t0;
             localEvent('sim', 'action', {
@@ -272,8 +337,10 @@ export async function runWebSoakSession(
                 if (tap.flags.ended) { endedBy = 'app-ended'; break; }
                 userTurns++;
                 await speakAndObserve(action.text);
+                if (simUser instanceof ScriptedSimUser) simUser.advance();
                 if (action.end) { endedBy = 'sim-end'; break; }
             } else if (action.end) {
+                if (simUser instanceof ScriptedSimUser) simUser.advance();
                 endedBy = 'sim-end';
                 break;
             } else {
@@ -319,5 +386,6 @@ export async function runWebSoakSession(
         spoken,
         voiceId: voice.id,
         sttEngine: opts.sttEngine,
+        sttBilled: tallySttBilled(driver.consoleLines?.() ?? []),
     };
 }

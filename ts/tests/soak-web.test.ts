@@ -276,3 +276,51 @@ describe('runAudioChecks', () => {
         expect(runAudioChecks(result).find((f) => f.id === 'barge-in')?.level).toBe('warn');
     });
 });
+
+describe('tier-2 pause experiments', () => {
+    it('strips say markup before scoring, and attributes a split line to both finals', async () => {
+        const driver = new FakeDriver();
+        // The recognizer returns the line in two finals, as an endpointer that
+        // cut at the pause would.
+        driver.mishear = (said) => said.replace(/\[\[slnc \d+\]\]/, '').replace(/\s+/g, ' ').trim();
+        const split = 'I want to [[slnc 6000]] pull away from it';
+        const original = driver.hear.bind(driver);
+        driver.hear = (said: string) => {
+            if (said === split) {
+                original('I want to');
+                original('pull away from it');
+            } else original(said);
+        };
+        const result = await run(driver, [split], { ...SCENARIO, finalsSettleMs: 20 });
+        expect(result.spoken[0]?.finals).toBe(2);
+        expect(result.spoken[0]?.heard).toBe('I want to pull away from it');
+        expect(result.spoken[0]?.wer).toBe(0);
+    });
+
+    it('counts one final for an unsplit line', async () => {
+        const driver = new FakeDriver();
+        const result = await run(driver, ['a plain line'], { ...SCENARIO, finalsSettleMs: 20 });
+        expect(result.spoken[0]?.finals).toBe(1);
+    });
+
+    it('speaks a scripted scenario in order without the LLM sim user, and maps the speculation knob', () => {
+        const [on, off] = getWebScenarios(['pauses', 'pauses-nospec']);
+        expect(on?.script?.length).toBeGreaterThan(3);
+        expect(configForScenario(on!, { provider: 'anthropic', model: 'm', sttEngine: 'aloud-gpt-transcribe' }).appSettings.sttSpeculation).toBe(true);
+        expect(configForScenario(off!, { provider: 'anthropic', model: 'm', sttEngine: 'aloud-gpt-transcribe' }).appSettings.sttSpeculation).toBe(false);
+        // The product matrix stays as it was: the experiments are opt-in.
+        expect(getWebScenarios('all').some((s) => s.id.startsWith('pauses'))).toBe(false);
+    });
+
+    it('tallies the client-side STT billing lines by pass kind', async () => {
+        const { tallySttBilled } = await import('../soak/browser/orchestrator.js');
+        const t = tallySttBilled([
+            '[stt-cost] spec billed=4.0s',
+            '[stt-cost] spec billed=9.5s',
+            '[stt-cost] final billed=12.0s',
+            '[stt-cost] final reused the speculative transcript - 0s billed',
+            '[vad] submit speech=1000ms',
+        ]);
+        expect(t).toEqual({ specSec: 13.5, finalSec: 12, specCalls: 2, finalCalls: 1, reusedFinals: 1 });
+    });
+});

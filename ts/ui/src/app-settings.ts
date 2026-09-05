@@ -110,6 +110,11 @@ export interface AppSettings {
      *  `ideal` constraint, so an unplugged saved mic falls back to the default
      *  instead of a dead mic. Web Speech and native mobile pick their own. */
     micDeviceId: string | null;
+    /** Speculative (mid-pause) transcription passes for the mic-capturing STT
+     *  paths: the live preview and the dangling-clause hold. Off saves the
+     *  re-sent audio on hosted STT (roughly half its billed seconds) at the
+     *  cost of a turn that can end at a mid-thought pause. Default on. */
+    sttSpeculation: boolean;
 
     // Pacing - used by both the session view's PacingController and
     // the STT adapter's client-side VAD.
@@ -158,6 +163,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     sttWhisperModel: 'base',
     sttEngine: null,
     micDeviceId: null,
+    sttSpeculation: true,
     silenceBaseMs: 3000,
     silenceMaxMs: 5000,
     responseDelayMs: 2000,

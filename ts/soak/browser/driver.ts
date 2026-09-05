@@ -34,8 +34,13 @@ export interface DriverOptions {
     appSettings: Record<string, unknown>;
     /** BYOK keys by provider name, written to `apikey:<provider>`. */
     apiKeys?: Record<string, string>;
+    /** Extra raw localStorage entries under the app's `aloud:` prefix, e.g. a
+     *  cloud session token (`server:token`) so hosted STT is signed in. */
+    rawKv?: Record<string, string>;
     /** Substring matched against input-device labels. */
     micLabel: string;
+    /** Speak browser TTS at volume 0 (WebScenario.silentFacilitator). */
+    muteTts?: boolean;
     headless?: boolean;
     log?: (line: string) => void;
 }
@@ -46,6 +51,10 @@ export interface SessionDriver {
     readTap(): Promise<SoakTapState>;
     /** True once the view has torn down (timer close, auto-quit, End). */
     isEnded(): Promise<boolean>;
+    /** Page console lines the harness cares about ([stt-cost], [vad]), in
+     *  order. The client's own billing/endpointing telemetry - the only view
+     *  of speculative-vs-final passes, which are indistinguishable server-side. */
+    consoleLines(): string[];
     /** End the sit from the app's side and tear the browser down. */
     close(): Promise<void>;
 }
@@ -89,10 +98,11 @@ export async function launchSession(opts: DriverOptions): Promise<SessionDriver>
             setup: opts.setup,
             settings: { ...opts.appSettings, ...extraSettings },
             keys: opts.apiKeys ?? {},
+            raw: opts.rawKv ?? {},
         });
         await context.addInitScript({
             content: `(() => {
-                const { prefix, setup, settings, keys } = ${payload};
+                const { prefix, setup, settings, keys, raw } = ${payload};
                 const merge = (key, patch) => {
                     let base = {};
                     try { base = JSON.parse(localStorage.getItem(prefix + key) || '{}'); } catch (e) { base = {}; }
@@ -103,10 +113,21 @@ export async function launchSession(opts: DriverOptions): Promise<SessionDriver>
                 for (const provider of Object.keys(keys)) {
                     localStorage.setItem(prefix + 'apikey:' + provider, keys[provider]);
                 }
+                for (const key of Object.keys(raw)) localStorage.setItem(prefix + key, raw[key]);
             })();`,
         });
     };
 
+    if (opts.muteTts) {
+        // Utterance timing and end events are untouched, so the app's
+        // speaking/idle flags still mean what they mean.
+        await context.addInitScript({
+            content: `(() => {
+                const speak = speechSynthesis.speak.bind(speechSynthesis);
+                speechSynthesis.speak = (u) => { u.volume = 0; return speak(u); };
+            })();`,
+        });
+    }
     try {
         return await bringUpSession(context, opts, seed, log);
     } catch (err) {
@@ -124,6 +145,11 @@ async function bringUpSession(
     await seed({});
     const page = await context.newPage();
     page.on('pageerror', (err) => log(`page error: ${err.message}`));
+    const consoleLines: string[] = [];
+    page.on('console', (msg) => {
+        const text = msg.text();
+        if (/^\[(stt-cost|vad|stt-text)\]/.test(text)) consoleLines.push(text);
+    });
     await page.goto(opts.baseUrl, { waitUntil: 'domcontentloaded' });
 
     // The capture device is a per-origin, per-profile id, so it can only be
@@ -190,6 +216,9 @@ async function bringUpSession(
         },
         async isEnded(): Promise<boolean> {
             return page.evaluate(() => window.__aloudSoak?.flags.ended ?? true);
+        },
+        consoleLines(): string[] {
+            return consoleLines;
         },
         async close(): Promise<void> {
             await context.close();

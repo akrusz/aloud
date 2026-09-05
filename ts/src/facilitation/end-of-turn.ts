@@ -30,6 +30,10 @@ const DANGLING_TAIL_WORDS = new Set([
     'unless',
     'until',
     'than',
+    // "if I really feel this, then" - measured cut at an 8s pause in the
+    // tier-2 pause experiment (2026-09-05): Whisper closed it with a period
+    // and nothing here caught it.
+    'then',
     // Prepositions.
     'with',
     'without',

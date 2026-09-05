@@ -47,7 +47,12 @@ type VadOpts = Partial<
         PacingConfig,
         'silenceBaseMs' | 'silenceMaxMs' | 'silenceRampRate' | 'minSpeechDurationMs'
     >
-> & { micDeviceId?: string | null; whisperModelSize?: string | null; language?: string | null };
+> & {
+    micDeviceId?: string | null;
+    whisperModelSize?: string | null;
+    language?: string | null;
+    speculation?: boolean;
+};
 
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 

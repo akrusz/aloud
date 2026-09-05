@@ -18,8 +18,14 @@ const CONTRACTIONS: Array<[RegExp, string]> = [
     [/\b(\w+)'d\b/g, '$1 would'],
 ];
 
+/** Drop `say` inline commands ([[slnc 3000]], [[rate 150]]) from a scripted
+ *  line: they shape the audio, they're not words. */
+export function stripSayMarkup(text: string): string {
+    return text.replace(/\[\[[^\]]*\]\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function normalizeForWer(text: string): string[] {
-    let t = text.toLowerCase();
+    let t = stripSayMarkup(text).toLowerCase();
     for (const [re, to] of CONTRACTIONS) t = t.replace(re, to);
     return t
         .replace(/[^a-z0-9\s]/g, ' ')

@@ -35,7 +35,7 @@ import { routeThroughLoopback, LOOPBACK_DEVICE, type AudioRouting } from './audi
 import { launchSession } from './driver.js';
 import { runWebSoakSession } from './orchestrator.js';
 import { runAudioChecks } from './checks.js';
-import { configForScenario, getWebScenarios, WEB_SCENARIOS } from './scenarios.js';
+import { configForScenario, getWebScenarios, PAUSE_SCENARIOS, WEB_SCENARIOS } from './scenarios.js';
 import { buildSimVoice } from './voice.js';
 import type { WebSessionRunResult } from './types.js';
 
@@ -62,8 +62,8 @@ function audioSection(result: WebSessionRunResult): string[] {
     const lines = [
         `**Audio round trip** (voice \`${result.voiceId}\` → \`${result.sttEngine}\`)`,
         '',
-        '| at | said | heard | WER |',
-        '|---|---|---|---|',
+        '| at | said | heard | WER | finals |',
+        '|---|---|---|---|---|',
     ];
     for (const s of result.spoken) {
         const t = Math.round(s.at);
@@ -74,11 +74,36 @@ function audioSection(result: WebSessionRunResult): string[] {
               ? '*(nothing)*'
               : s.heard.replace(/\|/g, '\\|');
         lines.push(
-            `| \`${at}\` | ${s.said.replace(/\|/g, '\\|')} | ${heard} | ${s.wer === null ? '—' : `${Math.round(s.wer * 100)}%`} |`
+            `| \`${at}\` | ${s.said.replace(/\|/g, '\\|')} | ${heard} | ${s.wer === null ? '—' : `${Math.round(s.wer * 100)}%`} | ${s.finals} |`
         );
     }
     lines.push('');
+    const b = result.sttBilled;
+    if (b && b.specCalls + b.finalCalls > 0) {
+        lines.push(
+            `STT billed by the client: ${(b.specSec + b.finalSec).toFixed(1)}s over ${b.specCalls + b.finalCalls} call(s) - ` +
+                `${b.specSec.toFixed(1)}s in ${b.specCalls} speculative, ${b.finalSec.toFixed(1)}s in ${b.finalCalls} final` +
+                `${b.reusedFinals ? `, ${b.reusedFinals} final(s) reused a speculative pass for free` : ''}.`,
+            ''
+        );
+    }
     return lines;
+}
+
+/** Hosted STT needs a signed-in cloud account. In dev the Hono server mints one
+ *  on request (ALOUD_ENABLE_DEV_AUTH), reached through the Vite proxy at the
+ *  same origin the page uses. */
+async function devCloudToken(baseUrl: string): Promise<string> {
+    const res = await fetch(new URL('/cloud/v1/auth/dev', baseUrl), { method: 'POST' });
+    if (!res.ok) {
+        throw new Error(
+            `Hosted STT needs a cloud sign-in and the dev sign-in endpoint answered ${res.status}. ` +
+                'Set ALOUD_ENABLE_DEV_AUTH=1 in ts/server/.env and restart the server.'
+        );
+    }
+    const body = (await res.json()) as { token?: string };
+    if (!body.token) throw new Error('dev sign-in returned no token');
+    return body.token;
 }
 
 /** Hoisted so a crashed run can still put the audio driver back. */
@@ -131,7 +156,7 @@ Options:
         return;
     }
     if (values.list) {
-        for (const s of WEB_SCENARIOS) {
+        for (const s of [...WEB_SCENARIOS, ...PAUSE_SCENARIOS]) {
             console.log(
                 `${s.id.padEnd(12)} ${s.title} (${s.realMinutes} real min, persona: ${s.persona.id})`
             );
@@ -169,6 +194,10 @@ Options:
     }
 
     const voice = buildSimVoice(values.voice as string);
+    const rawKv: Record<string, string> = {};
+    if ((values.stt as string).startsWith('aloud')) {
+        rawKv['server:token'] = await devCloudToken(values.url as string);
+    }
     const startedAt = new Date();
     const outDir =
         values.out ??
@@ -203,7 +232,7 @@ Options:
         for (const scenario of scenarios) {
             const tag = scenario.id;
             const log = (line: string): void => console.log(`[${tag}] ${line}`);
-            log(`starting (${scenario.realMinutes} real min, persona ${scenario.persona.id})`);
+            log(`starting (${scenario.realMinutes} real min, ${scenario.script ? `${scenario.script.length} scripted lines` : `persona ${scenario.persona.id}`})`);
             const { setup, appSettings } = configForScenario(scenario, {
                 provider: facilitatorName,
                 model: facilitator.model,
@@ -220,7 +249,9 @@ Options:
                     setup,
                     appSettings,
                     apiKeys,
+                    rawKv,
                     micLabel: values.device as string,
+                    ...(scenario.silentFacilitator ? { muteTts: true } : {}),
                     headless: values.headless as boolean,
                     log,
                 });

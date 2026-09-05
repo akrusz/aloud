@@ -168,7 +168,7 @@ the real web UI has selected as its microphone.
 | `orchestrator.ts` | The session loop: wait for a turn boundary, play one sim utterance, watch for the recognizer's final. All engine state comes back from the page. |
 | `voice.ts` | The meditator's mouth. `say` by default (free, offline, transcribes well); `openai:<voice>` runs the same gpt-4o-mini-tts the hosted voices use. |
 | `audio.ts` | Points both default devices at BlackHole and restores them afterwards. |
-| `scenarios.ts` | The tier-2 matrix (`baseline`, `silence`, `barge-in`, `mute`, `timer`, `felt-sense`) plus the scenario → localStorage mapping. |
+| `scenarios.ts` | The tier-2 matrix (`baseline`, `silence`, `barge-in`, `mute`, `timer`, `felt-sense`) plus the scenario → localStorage mapping. Also the opt-in endpointing experiments `pauses` / `pauses-nospec`: scripted lines with `say` `[[slnc]]` pauses after dangling words, speculation on vs off, the facilitator's voice muted (`silentFacilitator`) so the loopback can't feed it back. Run with `--stt=aloud-gpt-transcribe`; the report carries finals per line and the client's billed STT seconds by pass kind. |
 | `checks.ts`, `wer.ts` | Audio-path checks (miss rate, WER, echo-guard false positives, barge-in, mute command) and word-error scoring normalized for case, punctuation, contractions. |
 | `run.ts` | CLI. Sessions run one at a time, in real time - there's one pair of default devices. |
 
