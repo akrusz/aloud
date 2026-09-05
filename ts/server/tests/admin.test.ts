@@ -121,6 +121,8 @@ describe('admin routes — session (ALOUD_ADMIN_EMAILS) auth', () => {
         const html = renderAdminPanel('web-id.apps.googleusercontent.com');
         expect(html).toContain('"web-id.apps.googleusercontent.com"');
         expect(renderAdminPanel(undefined)).toContain('var GOOGLE_CLIENT_ID = ""');
+        // The badge rates ride in from the same estimate code the picker uses.
+        expect(html).toMatch(/var BADGES = \{"llm":\{"anthropic:claude-fable-5-1":\d/);
     });
 
     it('still rejects garbage bearers, and the static token keeps working alongside', async () => {
@@ -239,6 +241,28 @@ describe('admin routes — data', () => {
         const { buckets } = (await hist.json()) as { buckets: Array<{ sessions: number; events: number }> };
         expect(buckets.reduce((s, b) => s + b.events, 0)).toBe(1);
         expect(buckets.reduce((s, b) => s + b.sessions, 0)).toBe(1);
+    });
+
+    it('itemizes sessions for admin accounts only (privacy: real users stay aggregate)', async () => {
+        const h2 = makeApp({ token: TOKEN, adminEmails: 'admin@example.com' });
+        await seedAccount(h2.store, 'adm', 'admin@example.com');
+        await seedAccount(h2.store, 'usr', 'user@example.com');
+        const base = {
+            sessionId: null, passId: null, kind: 'llm' as const, provider: 'anthropic',
+            model: 'claude-opus-5', tokensIn: 100, tokensOut: 20, cacheRead: 0,
+            cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
+        };
+        const now = Date.now() / 1000;
+        for (const who of ['adm', 'usr']) {
+            for (let i = 0; i < 6; i++) {
+                await h2.store.appendUsage({ id: `${who}${i}`, accountId: who, ts: now - 600 + i * 100, ...base });
+            }
+        }
+        const res = await h2.app.request('/cloud/v1/admin/usage?sinceHours=1000000', { headers: authed() });
+        const body = (await res.json()) as { sessions: { count: number }; sessionRows: Array<{ accountId: string; llmModel: string }> };
+        expect(body.sessions.count).toBe(2);
+        expect(body.sessionRows.map((r) => r.accountId)).toEqual(['adm']);
+        expect(body.sessionRows[0]!.llmModel).toBe('claude-opus-5');
     });
 
     it('merges daily gross revenue into history buckets, filtered with excludeAdmin', async () => {

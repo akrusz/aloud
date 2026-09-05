@@ -247,6 +247,47 @@ export interface PerHourReport {
     };
     byService: PerHourLeg[];
     byModel: PerHourModel[];
+    /** The same headline rates as a plain total/total over the qualifying
+     *  sessions, no account weighting. Read beside the weighted ones: when the
+     *  two diverge, a few short high-rate sits are steering the weighted
+     *  figure (sqrt-of-spend weights an account by spend, not hours, so a
+     *  15-minute sit on an expensive model counts nearly as much as someone's
+     *  five-hour week). */
+    pooled: { creditsPerHour: number; costUsdPerHour: number; turnsPerHour: number };
+    /** LLM tokens per LLM call, pooled over the qualifying sessions. The
+     *  per-hour token cards scale with how fast people take turns; per turn,
+     *  the profile's shape (TYPICAL_SESSION / llmCalls) is directly comparable
+     *  whatever the pace. */
+    tokensPerTurn: { input: number; output: number; cacheRead: number; cacheCreation: number };
+}
+
+/** One qualifying session, itemized. Only produced for the accounts named in
+ *  UsageReportOptions.sessionRowsFor (the operator's own admin/testing
+ *  accounts): a per-session line is per-person data, and the panel is meant
+ *  to show real users only in aggregate. */
+export interface SessionRow {
+    accountId: string;
+    startTs: number;
+    minutes: number;
+    /** The facilitation model: the LLM model that cost the most in this
+     *  session, with its call count. The rest of the LLM calls are the utility
+     *  leg (Haiku classifiers / noting / summary, Flash Lite recap). */
+    llmProvider: string | null;
+    llmModel: string | null;
+    llmTurns: number;
+    utilityCalls: number;
+    credits: number;
+    costUsd: number;
+    creditsPerHour: number;
+    byService: Record<UsageKind, number>;
+    /** Over the facilitation model's calls only. */
+    tokensPerTurn: { input: number; output: number; cacheRead: number; cacheCreation: number };
+    sttSeconds: number;
+    sttCalls: number;
+    /** The voice that spoke the most characters. */
+    ttsProvider: string | null;
+    ttsVoice: string | null;
+    ttsChars: number;
 }
 
 export interface Distribution {
@@ -292,6 +333,9 @@ export interface UsageReport {
     };
     /** Observed credits/hr and $/hr over real sessions, overall + per leg. */
     perHour: PerHourReport;
+    /** Itemized qualifying sessions for the accounts in sessionRowsFor, newest
+     *  first. Empty unless the caller opted in. */
+    sessionRows: SessionRow[];
 }
 
 export interface UsageReportOptions {
@@ -303,6 +347,10 @@ export interface UsageReportOptions {
     allSessions?: boolean;
     /** Override what counts as a real session. */
     realSit?: Partial<RealSit>;
+    /** Accounts whose qualifying sessions are itemized in sessionRows. Meant
+     *  for the operator's own accounts (routes/admin adminAccountIds); never
+     *  pass real users here. */
+    sessionRowsFor?: Set<string>;
 }
 
 /**
@@ -642,6 +690,13 @@ export function buildUsageReport(
         }
     }
     const sttSecondsSorted = [...sttCallSeconds].sort((a, b) => a - b);
+    const pooledSum = (key: string): number => {
+        let sum = 0;
+        for (const a of accountOf.values()) sum += a.sums.get(key) ?? 0;
+        return sum;
+    };
+    const pooledTurns = pooledSum('turns');
+    const perTurn = (key: string): number => (pooledTurns > 0 ? pooledSum(key) / pooledTurns : 0);
     const sttHoursOf = (a: AccountAcc): number => a.sums.get('sttHours') ?? 0;
     const ttsHoursOf = (a: AccountAcc): number => a.sums.get('ttsHours') ?? 0;
     const perHour: PerHourReport = {
@@ -689,7 +744,24 @@ export function buildUsageReport(
                 unitsPerHour: rate(m.units, m.hours),
             }))
             .sort((a, b) => b.costUsdPerHour - a.costUsdPerHour),
+        pooled: {
+            creditsPerHour: rate(pooledSum('credits'), totalHours),
+            costUsdPerHour: rate(pooledSum('cost'), totalHours),
+            turnsPerHour: rate(pooledTurns, totalHours),
+        },
+        tokensPerTurn: {
+            input: perTurn('tokIn'),
+            output: perTurn('tokOut'),
+            cacheRead: perTurn('tokRead'),
+            cacheCreation: perTurn('tokCreate'),
+        },
     };
+    const sessionRows = opts.sessionRowsFor?.size
+        ? sessions
+              .filter((sess) => opts.sessionRowsFor!.has(sess[0]!.accountId))
+              .map((sess) => sessionRow(sess, durationMinOf(sess)))
+              .sort((a, b) => b.startTs - a.startTs)
+        : [];
 
     const hitRatioOf = (read: number, fresh: number, create: number): number => {
         const denom = fresh + read + create;
@@ -740,6 +812,80 @@ export function buildUsageReport(
             excludedShort,
         },
         perHour,
+        sessionRows,
+    };
+}
+
+/** Itemize one session (SessionRow). The facilitation model is the LLM model
+ *  with the most cost; everything else on the LLM leg is counted as utility. */
+function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
+    const hours = minutes / 60;
+    const per = (x: number): number => (hours > 0 ? x / hours : 0);
+    const llmCost = new Map<string, { provider: string; model: string; cost: number }>();
+    const ttsChars = new Map<string, { provider: string; voice: string; chars: number }>();
+    const byService: Record<UsageKind, number> = { llm: 0, stt: 0, tts: 0 };
+    let credits = 0;
+    let costUsd = 0;
+    let sttSeconds = 0;
+    let sttCalls = 0;
+    for (const e of s) {
+        credits += e.credits;
+        costUsd += e.providerCostUsd;
+        byService[e.kind] += e.credits;
+        if (e.kind === 'llm') {
+            const key = `${e.provider}:${e.model}`;
+            const m = llmCost.get(key) ?? { provider: e.provider, model: e.model, cost: 0 };
+            m.cost += e.providerCostUsd;
+            llmCost.set(key, m);
+        } else if (e.kind === 'stt') {
+            sttSeconds += e.seconds;
+            sttCalls += 1;
+        } else {
+            const key = `${e.provider}:${e.model}`;
+            const v = ttsChars.get(key) ?? { provider: e.provider, voice: e.model, chars: 0 };
+            v.chars += e.chars;
+            ttsChars.set(key, v);
+        }
+    }
+    const top = [...llmCost.values()].sort((a, b) => b.cost - a.cost)[0] ?? null;
+    const topVoice = [...ttsChars.values()].sort((a, b) => b.chars - a.chars)[0] ?? null;
+    const tok = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+    let llmTurns = 0;
+    let utilityCalls = 0;
+    for (const e of s) {
+        if (e.kind !== 'llm') continue;
+        if (top && e.provider === top.provider && e.model === top.model) {
+            llmTurns += 1;
+            tok.input += e.tokensIn;
+            tok.output += e.tokensOut;
+            tok.cacheRead += e.cacheRead;
+            tok.cacheCreation += e.cacheCreation;
+        } else utilityCalls += 1;
+    }
+    const perTurn = (x: number): number => (llmTurns > 0 ? x / llmTurns : 0);
+    return {
+        accountId: s[0]!.accountId,
+        startTs: s[0]!.ts,
+        minutes,
+        llmProvider: top?.provider ?? null,
+        llmModel: top?.model ?? null,
+        llmTurns,
+        utilityCalls,
+        credits,
+        costUsd,
+        creditsPerHour: per(credits),
+        byService,
+        tokensPerTurn: {
+            input: perTurn(tok.input),
+            output: perTurn(tok.output),
+            cacheRead: perTurn(tok.cacheRead),
+            cacheCreation: perTurn(tok.cacheCreation),
+        },
+        sttSeconds,
+        sttCalls,
+        ttsProvider: topVoice?.provider ?? null,
+        ttsVoice: topVoice?.voice ?? null,
+        ttsChars: [...ttsChars.values()].reduce((sum, v) => sum + v.chars, 0),
     };
 }
 

@@ -157,8 +157,10 @@ export function adminRoutes(deps: Deps): Hono {
         const now = Date.now() / 1000;
         const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
 
-        const events = await usageEvents(c, deps);
-        return c.json(buildUsageReport(events, now, windowSinceTs, { allSessions, realSit }));
+        // Itemized sessions only for the operator's own accounts: real users
+        // appear in aggregate, never as a per-sit line (privacy policy).
+        const [events, sessionRowsFor] = await Promise.all([usageEvents(c, deps), adminAccountIds(deps)]);
+        return c.json(buildUsageReport(events, now, windowSinceTs, { allSessions, realSit, sessionRowsFor }));
     });
 
     // Daily usage history for the trend charts: sessions, turns, spend, duration

@@ -565,3 +565,73 @@ describe('buildUsageReport - real-sit filter and account weighting', () => {
         expect(strict.perHour.turnsPerHour).toBeCloseTo(3, 9); // 2 turns / 0.667 h
     });
 });
+
+describe('buildUsageReport - pooled rates, per-turn tokens, itemized sessions', () => {
+    // Two accounts: a whale with one long cheap-per-hour sit and a sprinter
+    // with a short expensive one. sqrt-of-spend weighting pulls the headline
+    // toward the sprinter; pooled total/total does not.
+    const events = [
+        ...Array.from({ length: 10 }, (_, i) =>
+            ev({ accountId: 'whale', sessionId: 'w', ts: 1000 + i * 600, kind: 'llm', credits: 0.5, providerCostUsd: 0.025, tokensIn: 100, cacheRead: 3000, tokensOut: 80 })
+        ),
+        ...Array.from({ length: 10 }, (_, i) =>
+            ev({ accountId: 'sprint', sessionId: 's', ts: 50_000 + i * 40, kind: 'llm', credits: 1, providerCostUsd: 0.05, tokensIn: 300, cacheRead: 3000, tokensOut: 80 })
+        ),
+    ];
+
+    it('reports pooled total/total beside the weighted rate', () => {
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minMinutes: 0, minTurns: 0 } });
+        // whale: 5 credits over 1.5h; sprint: 10 credits over 0.1h → pooled 15/1.6
+        expect(r.perHour.pooled.creditsPerHour).toBeCloseTo(15 / 1.6, 6);
+        expect(r.perHour.pooled.turnsPerHour).toBeCloseTo(20 / 1.6, 6);
+        expect(r.perHour.creditsPerHour).toBeGreaterThan(r.perHour.pooled.creditsPerHour);
+    });
+
+    it('tokens per turn pool every qualifying LLM call', () => {
+        const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minMinutes: 0, minTurns: 0 } });
+        expect(r.perHour.tokensPerTurn.input).toBeCloseTo(200, 6);
+        expect(r.perHour.tokensPerTurn.cacheRead).toBeCloseTo(3000, 6);
+        expect(r.perHour.tokensPerTurn.output).toBeCloseTo(80, 6);
+    });
+
+    it('itemizes sessions only for the accounts opted in, never by default', () => {
+        const none = buildUsageReport(events, 1_000_000, 0, { realSit: { minMinutes: 0, minTurns: 0 } });
+        expect(none.sessionRows).toEqual([]);
+        const r = buildUsageReport(events, 1_000_000, 0, {
+            realSit: { minMinutes: 0, minTurns: 0 },
+            sessionRowsFor: new Set(['whale']),
+        });
+        expect(r.sessionRows.map((s) => s.accountId)).toEqual(['whale']);
+        const row = r.sessionRows[0]!;
+        expect(row.minutes).toBeCloseTo(90, 6);
+        expect(row.llmTurns).toBe(10);
+        expect(row.creditsPerHour).toBeCloseTo(5 / 1.5, 6);
+        expect(row.tokensPerTurn.input).toBeCloseTo(100, 6);
+    });
+
+    it('names the facilitation model by cost and counts the rest as utility', () => {
+        const sit = [
+            ev({ accountId: 'a', sessionId: 'x', ts: 0, kind: 'llm', provider: 'anthropic', model: 'claude-opus-5', providerCostUsd: 0.1, tokensIn: 500 }),
+            ev({ accountId: 'a', sessionId: 'x', ts: 60, kind: 'llm', provider: 'anthropic', model: 'claude-haiku-4-5-20251001', providerCostUsd: 0.001, tokensIn: 900 }),
+            ev({ accountId: 'a', sessionId: 'x', ts: 120, kind: 'llm', provider: 'anthropic', model: 'claude-haiku-4-5-20251001', providerCostUsd: 0.001, tokensIn: 900 }),
+            ev({ accountId: 'a', sessionId: 'x', ts: 180, kind: 'stt', provider: 'openai', model: 'gpt-transcribe', seconds: 30 }),
+            ev({ accountId: 'a', sessionId: 'x', ts: 240, kind: 'tts', provider: 'azure', model: 'A', chars: 100 }),
+            ev({ accountId: 'a', sessionId: 'x', ts: 300, kind: 'tts', provider: 'google', model: 'B', chars: 400 }),
+            ev({ accountId: 'a', sessionId: 'x', ts: 600, kind: 'llm', provider: 'anthropic', model: 'claude-opus-5', providerCostUsd: 0.1, tokensIn: 700 }),
+        ];
+        const r = buildUsageReport(sit, 1_000_000, 0, {
+            realSit: { minMinutes: 0, minTurns: 0 },
+            sessionRowsFor: new Set(['a']),
+        });
+        const row = r.sessionRows[0]!;
+        expect(row.llmModel).toBe('claude-opus-5');
+        expect(row.llmTurns).toBe(2);
+        expect(row.utilityCalls).toBe(2);
+        // Haiku's 900-token prompts stay out of the facilitation per-turn shape.
+        expect(row.tokensPerTurn.input).toBeCloseTo(600, 6);
+        expect(row.sttSeconds).toBe(30);
+        expect(row.sttCalls).toBe(1);
+        expect(row.ttsVoice).toBe('B');
+        expect(row.ttsChars).toBe(500);
+    });
+});

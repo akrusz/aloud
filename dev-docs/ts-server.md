@@ -181,7 +181,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
 | `GET /cloud/v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
 | `GET /cloud/v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
-| `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together) |
+| `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together). Response also carries `perHour.pooled` (unweighted total/total beside the account-weighted rates), `perHour.tokensPerTurn`, and `sessionRows`: itemized sessions for `ALOUD_ADMIN_EMAILS` accounts only - real users stay aggregate |
 | `GET /cloud/v1/admin/usage/history` | admin | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
 | `GET /cloud/v1/admin/usage/provider-daily` | admin | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
 | `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |

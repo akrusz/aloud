@@ -18,13 +18,45 @@
  * origins" on that client in the Google Cloud console.
  */
 
-import { TYPICAL_SESSION, TYPICAL_SESSION_MINUTES } from '../pricing/estimate.js';
+import {
+    TYPICAL_SESSION,
+    TYPICAL_SESSION_MINUTES,
+    TTS_CHAR_PROFILES,
+    UTILITY_CREDITS_PER_HOUR,
+    estimateModels,
+    estimateStt,
+    estimateVoices,
+} from '../pricing/estimate.js';
 
 export function renderAdminPanel(googleClientId?: string): string {
     return ADMIN_PANEL_TEMPLATE.replace(
         '"__GOOGLE_CLIENT_ID__"',
         JSON.stringify(googleClientId ?? '')
-    ).replace('"__ESTIMATE_PROFILE__"', JSON.stringify(assumedPerHour()));
+    )
+        .replace('"__ESTIMATE_PROFILE__"', JSON.stringify(assumedPerHour()))
+        .replace('"__BADGES__"', JSON.stringify(badgeRates()));
+}
+
+/**
+ * The credits/hr the app ADVERTISES, keyed the way usage rows are keyed
+ * (kind:provider:model), so the panel can print each measured rate beside its
+ * badge. Computed by the same estimate code the picker uses, never copied.
+ * Voices carry the talk band (spacious / typical / engaged) since the picker
+ * shows a range; the STT and utility legs are flat.
+ */
+function badgeRates(): {
+    llm: Record<string, number>;
+    tts: Record<string, { spacious: number; typical: number; engaged: number }>;
+    stt: number;
+    utility: number;
+} {
+    const llm: Record<string, number> = {};
+    for (const m of estimateModels()) llm[`${m.provider}:${m.model}`] = m.creditsPerHour;
+    const tts: Record<string, { spacious: number; typical: number; engaged: number }> = {};
+    for (const v of estimateVoices()) {
+        if (v.costUsdPerHourTypical > 0) tts[v.voiceId] = v.creditsPerHour;
+    }
+    return { llm, tts, stt: estimateStt().creditsPerHour, utility: UTILITY_CREDITS_PER_HOUR };
 }
 
 /**
@@ -35,14 +67,23 @@ export function renderAdminPanel(googleClientId?: string): string {
  */
 function assumedPerHour(): Record<string, number> {
     const perHour = 60 / TYPICAL_SESSION_MINUTES;
+    const perTurn = 1 / TYPICAL_SESSION.llmCalls;
     return {
         turns: TYPICAL_SESSION.llmCalls * perHour,
         sttSeconds: TYPICAL_SESSION.sttSeconds * perHour,
-        ttsChars: TYPICAL_SESSION.ttsChars * perHour,
+        // The voice badges price from TTS_CHAR_PROFILES, not TYPICAL_SESSION.ttsChars
+        // (a Gemma-era figure the Aug 18 reseed left as an upper bound), so
+        // the card compares against what users are actually shown: the band.
+        ttsCharsTypical: TTS_CHAR_PROFILES.typical * perHour,
+        ttsCharsEngaged: TTS_CHAR_PROFILES.engaged * perHour,
         input: TYPICAL_SESSION.llmTokensIn * perHour,
         output: TYPICAL_SESSION.llmTokensOut * perHour,
         cacheRead: TYPICAL_SESSION.llmCacheRead * perHour,
         cacheCreation: TYPICAL_SESSION.llmCacheCreation * perHour,
+        inputPerTurn: TYPICAL_SESSION.llmTokensIn * perTurn,
+        outputPerTurn: TYPICAL_SESSION.llmTokensOut * perTurn,
+        cacheReadPerTurn: TYPICAL_SESSION.llmCacheRead * perTurn,
+        cacheCreationPerTurn: TYPICAL_SESSION.llmCacheCreation * perTurn,
     };
 }
 
@@ -219,8 +260,11 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="8760">last year</option>
           <option value="1000000">all time</option>
         </select>
-        <select id="realSit" style="width:auto;padding:4px 8px;font-size:16px" title="One bar for every session-level number in this section - real sessions only (5+ turns and 5+ min), or everything unfiltered">
+        <select id="realSit" style="width:auto;padding:4px 8px;font-size:16px" title="One bar for every session-level number in this section. Real sessions need 5+ turns and at least this many minutes; 'all' is unfiltered">
           <option value="real" selected>real sessions (5+ turns and 5+ min)</option>
+          <option value="15">real sits, 15+ min</option>
+          <option value="25">real sits, 25+ min</option>
+          <option value="45">real sits, 45+ min</option>
           <option value="all">all sessions</option>
         </select>
         <label class="check" style="font-size:15px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
@@ -233,8 +277,15 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of the sessions above divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
       <div class="grid" id="perHourStats" style="margin-bottom:12px"></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">$/hr</th><th class="num">Volume/hr</th><th class="num">Hours</th></tr></thead>
-        <tbody id="perHourRows"><tr><td colspan="7" class="muted">Connect to load.</td></tr></tbody>
+        <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">Badge</th><th class="num">$/hr</th><th class="num">Volume/hr</th><th class="num">Hours</th></tr></thead>
+        <tbody id="perHourRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <p class="sub help-text" style="margin:0 0 10px">Your own sits, itemized - only sessions from accounts on <code>ALOUD_ADMIN_EMAILS</code> ever appear here; real users stay aggregate. One line per qualifying session, newest first, with the badge the app would have shown for that model + voice (typical talk band, plus the STT and utility legs when used). Tokens are per facilitation turn; utility counts the Haiku / Flash Lite calls riding alongside.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Start</th><th class="num">Min</th><th>Model</th><th class="num">Turns</th><th class="num">Util</th><th>Voice</th><th class="num">Cr/hr</th><th class="num">Badge</th><th class="num">LLM · STT · TTS cr/hr</th><th class="num">In / read / out tok per turn</th><th class="num">STT min</th><th class="num">STT calls</th><th class="num">TTS chars</th></tr></thead>
+        <tbody id="sessionRows"><tr><td colspan="13" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
     </div>
     <div class="card">
@@ -377,6 +428,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // What pricing/estimate.ts assumes per hour (server-injected from
   // TYPICAL_SESSION). The per-hour cards print measured / assumed.
   var EST = "__ESTIMATE_PROFILE__";
+  // Advertised credits/hr per model / voice (pricing/estimate.ts), for the
+  // measured-vs-badge columns.
+  var BADGES = "__BADGES__";
   var $ = function (id) { return document.getElementById(id); };
   var token = '';
 
@@ -425,6 +479,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   // decimal would round 1.4 and 1.04 to the same reading.
   function dec2(n) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function date(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' }); }
+  function dateTime(ts) { return new Date(ts * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   // History buckets are UTC days - label them in UTC so a bar's date matches
   // its bucket (a local-time label reads a full day early west of Greenwich).
   function dateUTC(ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
@@ -463,8 +518,9 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     return cb && cb.checked ? '&excludeAdmin=1' : '';
   }
   function loadUsage() {
-    var allParam = $('realSit').value === 'all' ? '&all=1' : '';
-    return api('/usage?sinceHours=' + $('usageWindow').value + allParam + omitAdminParam()).then(function (u) {
+    var sit = $('realSit').value;
+    var sitParam = sit === 'all' ? '&all=1' : sit === 'real' ? '' : '&sitMinutes=' + encodeURIComponent(sit);
+    return api('/usage?sinceHours=' + $('usageWindow').value + sitParam + omitAdminParam()).then(function (u) {
       var s = u.sessions;
       var cards = [
         ['Provider cost', usdp(u.totals.providerCostUsd)],
@@ -495,13 +551,17 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         if (kind === 'stt') return num1(units / 60) + ' min';
         return int(Math.round(units)) + ' chars';
       }
+      // Weighted (across accounts) beside pooled (total/total). When they
+      // diverge, a few short high-rate sits are steering the weighted figure.
+      var pooled = ph.pooled || { creditsPerHour: 0, costUsdPerHour: 0, turnsPerHour: 0 };
+      function vsPooled(a, b) { return a + ' <span class="assumed">· pooled ' + b + '</span>'; }
       var phCards = [
-        ['Credits / hr', dec1(ph.creditsPerHour)],
-        ['Provider $ / hr', usdp(ph.costUsdPerHour)],
+        ['Credits / hr', vsPooled(dec1(ph.creditsPerHour), dec1(pooled.creditsPerHour))],
+        ['Provider $ / hr', vsPooled(usdp(ph.costUsdPerHour), usdp(pooled.costUsdPerHour))],
         ['LLM cr/hr', svcRate('llm')],
         ['STT cr/hr', svcRate('stt')],
         ['TTS cr/hr', svcRate('tts')],
-        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">/ ' + num1(EST.turns) + '</span>'],
+        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">· pooled ' + num1(pooled.turnsPerHour) + ' / ' + num1(EST.turns) + '</span>'],
         ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60)],
         ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0))],
         ['Hours measured', (Number(ph.hours) || 0).toFixed(1)],
@@ -528,8 +588,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       phCards = phCards.concat([
         ['STT min / cloud hr', num1((Number(att.sttSecondsPerHour) || 0) / 60) +
           ' <span class="assumed">/ ' + num1(EST.sttSeconds / 60) + '</span>'],
+        // Against the badge's talk band (typical–engaged), which is what the
+        // picker shows, rather than TYPICAL_SESSION's upper-bound figure.
         ['TTS chars / voice hr', int(Math.round(Number(att.ttsCharsPerHour) || 0)) +
-          ' <span class="assumed">/ ' + int(Math.round(EST.ttsChars)) + '</span>'],
+          ' <span class="assumed">/ ' + int(Math.round(EST.ttsCharsTypical)) + '–' + int(Math.round(EST.ttsCharsEngaged)) + '</span>'],
         // Why the STT minutes are what they are (0uw7). Calls/turn much above 1
         // means we bill the same audio more than once (the speculative preview
         // pass re-sends the whole buffer); a big median with calls/turn near 1
@@ -544,15 +606,78 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['Cache read tok/hr', vsAssumed(tph.cacheRead, EST.cacheRead)],
         ['Cache write tok/hr', vsAssumed(tph.cacheCreation, EST.cacheCreation)],
       ]);
+      // Per turn, pooled: the shape of a call, independent of how fast people
+      // take turns. This is the row to reseed TYPICAL_SESSION's token fields
+      // from; the per-hour cards above double whenever the pace does.
+      var tpt = ph.tokensPerTurn || { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      phCards = phCards.concat([
+        ['Fresh in tok/turn', vsAssumed(tpt.input, EST.inputPerTurn)],
+        ['Output tok/turn', vsAssumed(tpt.output, EST.outputPerTurn)],
+        ['Cache read tok/turn', vsAssumed(tpt.cacheRead, EST.cacheReadPerTurn)],
+        ['Cache write tok/turn', vsAssumed(tpt.cacheCreation, EST.cacheCreationPerTurn)],
+      ]);
       $('perHourStats').innerHTML = phCards.map(function (c) {
         return '<div class="stat"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
       }).join('');
+      // The advertised rate for a usage row, or '' when the app has no badge
+      // for it (a model since dropped from the roster, a voice off the curated
+      // list). Voices print the picker's typical–engaged band.
+      function badgeFor(kind, provider, model) {
+        if (kind === 'llm') {
+          // The utility models are never picked as the facilitator; their
+          // badge is the flat utility leg, not their as-facilitator rate.
+          if (/haiku|flash-lite/.test(model)) return dec1(BADGES.utility) + ' util';
+          var b = BADGES.llm[provider + ':' + model];
+          return b == null ? '' : dec1(b);
+        }
+        if (kind === 'stt') return dec1(BADGES.stt);
+        var v = BADGES.tts[model];
+        return v ? dec1(v.typical) + '–' + dec1(v.engaged) : '';
+      }
       $('perHourRows').innerHTML = (ph.byModel || []).map(function (m) {
         return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) +
-          '</code></td><td class="num">' + dec1(m.creditsPerHour) + '</td><td class="num">' + usdp(m.costUsdPerHour) +
+          '</code></td><td class="num">' + dec1(m.creditsPerHour) + '</td><td class="num assumed">' + badgeFor(m.kind, m.provider, m.model) +
+          '</td><td class="num">' + usdp(m.costUsdPerHour) +
           '</td><td class="num">' + volume(m.kind, m.unitsPerHour) +
           '</td><td class="num">' + (Number(m.hours) || 0).toFixed(1) + '</td></tr>';
-      }).join('') || '<tr><td colspan="7" class="muted">No real sessions in this window.</td></tr>';
+      }).join('') || '<tr><td colspan="8" class="muted">No real sessions in this window.</td></tr>';
+
+      // ---- the operator's own sits, itemized ----
+      // Composed badge for one session: model + voice (typical band) + the STT
+      // and utility legs when the session used them - what the setup panel's
+      // session pill would have summed.
+      function sessionBadge(r) {
+        var total = 0, known = false;
+        if (r.llmModel) {
+          var b = BADGES.llm[r.llmProvider + ':' + r.llmModel];
+          if (b != null) { total += b; known = true; }
+        }
+        if (r.ttsVoice) {
+          var v = BADGES.tts[r.ttsVoice];
+          if (v) { total += v.typical; known = true; }
+        }
+        if (r.sttCalls > 0) total += BADGES.stt;
+        if (r.utilityCalls > 0) total += BADGES.utility;
+        return known ? dec1(total) : '';
+      }
+      $('sessionRows').innerHTML = (u.sessionRows || []).map(function (r) {
+        var hrs = r.minutes / 60;
+        var per = function (x) { return hrs > 0 ? x / hrs : 0; };
+        var tok = r.tokensPerTurn || {};
+        return '<tr><td class="muted">' + dateTime(r.startTs) + '</td>' +
+          '<td class="num">' + num1(r.minutes) + '</td>' +
+          '<td><code>' + esc(r.llmModel || '-') + '</code></td>' +
+          '<td class="num">' + int(r.llmTurns) + '</td>' +
+          '<td class="num">' + int(r.utilityCalls) + '</td>' +
+          '<td><code>' + esc(r.ttsVoice || '-') + '</code></td>' +
+          '<td class="num">' + dec1(r.creditsPerHour) + '</td>' +
+          '<td class="num assumed">' + sessionBadge(r) + '</td>' +
+          '<td class="num">' + dec1(per(r.byService.llm)) + ' · ' + dec1(per(r.byService.stt)) + ' · ' + dec1(per(r.byService.tts)) + '</td>' +
+          '<td class="num">' + int(Math.round(tok.input || 0)) + ' / ' + int(Math.round(tok.cacheRead || 0)) + ' / ' + int(Math.round(tok.output || 0)) + '</td>' +
+          '<td class="num">' + num1(r.sttSeconds / 60) + '</td>' +
+          '<td class="num">' + int(r.sttCalls) + '</td>' +
+          '<td class="num">' + int(r.ttsChars) + '</td></tr>';
+      }).join('') || '<tr><td colspan="13" class="muted">No qualifying sessions from admin accounts in this window' + (omitAdminParam() ? ' (omit admin is on)' : '') + '.</td></tr>';
 
       // ---- LLM prompt cache breakdown ----
       var lc = u.llmCache || { freshInputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheCreation1hTokens: 0, hitRatio: 0, costUsd: 0, costNoCacheUsd: 0, savedUsd: 0 };
