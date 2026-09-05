@@ -13,10 +13,10 @@
  * Writes are best-effort: a telemetry failure must NEVER break a paid request
  * (recordUsage swallows + logs). Reads power the admin cost dashboard.
  *
- * Sessions: there's no per-meditation-session id today (the LLM hold is
- * per-turn, STT/TTS aren't held), so buildUsageReport reconstructs sessions by
- * clustering an account's events with gaps under SESSION_GAP_SEC. sessionId is
- * carried for when the client starts sending a real one.
+ * Sessions: all three metered routes accept the client's meditation-session id
+ * (LLM/TTS body.sessionId, STT ?session_id) and buildUsageReport groups on it
+ * when present, falling back to clustering an account's events with gaps
+ * under SESSION_GAP_SEC for rows without one (older clients, BYOK lookups).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -30,7 +30,8 @@ export type UsageKind = 'llm' | 'stt' | 'tts';
 export interface UsageEvent {
     id: string;
     accountId: string;
-    /** Client-supplied meditation-session id, when available. Null today. */
+    /** Client-supplied meditation-session id; null on rows from clients that
+     *  didn't send one. */
     sessionId: string | null;
     /** Retreat pass that covered this call (meditation-pal-414), or null if
      *  metered normally. Lets the admin attribute per-retreat spend. */
