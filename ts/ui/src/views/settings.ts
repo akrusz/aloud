@@ -2254,7 +2254,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-stt-speculation"${s.sttSpeculation ? ' checked' : ''}>
-                        <span>${t('Transcribe while you pause')}</span>
+                        <span>${t('Transcribe during speech pauses')}</span>
                     </label>
                     <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁️ if using aloud cloud).')}</span>
                 </div>
