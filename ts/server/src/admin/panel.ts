@@ -391,7 +391,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Accounts</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Revenue $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
         <tbody id="historyRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
-      <div id="historyPager" class="detail" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
+      <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
     </div>
 
     <h2 id="sec-free">Free credits</h2>
@@ -887,24 +887,24 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
   // The table paginates (newest day first) so a 90-day window stays scannable;
   // the chart above always shows the whole window.
-  var HISTORY_PAGE_SIZE = 10;
-  // Compact view keeps this many of the newest days visible; the rest of the
-  // page and the pager are .detail.
-  var COMPACT_HISTORY_ROWS = 5;
+  // Page size follows the view: compact pages five days at a time, full ten,
+  // so the pager always matches what is on screen.
+  function historyPageSize() { return document.body.classList.contains('compact') ? 5 : 10; }
   var historyPage = 0;
 
   function renderHistory() {
     $('historyChart').innerHTML = barChart(HISTORY, $('historyMetric').value);
 
     var days = HISTORY.slice().reverse(); // newest first
-    var pages = Math.max(1, Math.ceil(days.length / HISTORY_PAGE_SIZE));
+    var size = historyPageSize();
+    var pages = Math.max(1, Math.ceil(days.length / size));
     if (historyPage > pages - 1) historyPage = pages - 1;
     if (historyPage < 0) historyPage = 0;
-    var page = days.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
+    var page = days.slice(historyPage * size, (historyPage + 1) * size);
 
-    $('historyRows').innerHTML = page.map(function (b, idx) {
+    $('historyRows').innerHTML = page.map(function (b) {
       var avgMin = b.sessions ? b.durationMin / b.sessions : 0;
-      return '<tr' + (historyPage === 0 && idx >= COMPACT_HISTORY_ROWS ? ' class="detail"' : '') + '><td class="muted">' + dateUTC(b.dayStartTs) + '</td>' +
+      return '<tr><td class="muted">' + dateUTC(b.dayStartTs) + '</td>' +
         '<td class="num">' + int(b.sessions) + '</td>' +
         '<td class="num">' + int(b.accounts) + '</td>' +
         '<td class="num">' + int(b.turns) + '</td>' +
@@ -1416,6 +1416,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       document.body.classList.toggle('compact');
       savePref('compact', document.body.classList.contains('compact'));
       sync();
+      // The history table pages by view size.
+      if (typeof HISTORY !== 'undefined' && HISTORY.length) { historyPage = 0; renderHistory(); }
     });
     if (loadPrefs().compact === false) document.body.classList.remove('compact');
     sync();
