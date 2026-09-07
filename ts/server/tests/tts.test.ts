@@ -383,7 +383,11 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         });
         expect(res.status).toBe(200);
         expect(res.headers.get('content-type')).toBe('audio/mpeg');
-        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
+        // The clip rides behind the lead-silence frames (meditation-pal-tur5).
+        const { AZURE_LEAD_SILENCE_MP3 } = await import('../src/providers/mp3-lead-silence.js');
+        const body = new Uint8Array(await res.arrayBuffer());
+        expect(Array.from(body.slice(0, AZURE_LEAD_SILENCE_MP3.length))).toEqual(Array.from(AZURE_LEAD_SILENCE_MP3));
+        expect(Array.from(body.slice(AZURE_LEAD_SILENCE_MP3.length))).toEqual(Array.from(FAKE_MP3));
 
         expect(googleCalls).toHaveLength(0);
         expect(azureCalls).toHaveLength(1);
@@ -504,5 +508,19 @@ describe('POST /cloud/v1/tts — up-front cost gate', () => {
         });
         expect(res.status).toBe(200);
         expect(googleCalls).toHaveLength(1);
+    });
+});
+
+describe('Azure lead silence (meditation-pal-tur5)', () => {
+    it('prepends the silent frames and leaves the clip intact', async () => {
+        const { AZURE_LEAD_SILENCE_MP3, withLeadSilence } = await import('../src/providers/mp3-lead-silence.js');
+        expect(AZURE_LEAD_SILENCE_MP3.length).toBeGreaterThan(2000);
+        // An MPEG-2 LSF frame sync, the same family Azure's 24kHz output uses.
+        expect(AZURE_LEAD_SILENCE_MP3[0]).toBe(0xff);
+        expect(AZURE_LEAD_SILENCE_MP3[1]! & 0xf0).toBe(0xf0);
+        const clip = new Uint8Array([0xff, 0xf3, 1, 2, 3]);
+        const out = withLeadSilence(clip);
+        expect(out.length).toBe(AZURE_LEAD_SILENCE_MP3.length + clip.length);
+        expect(Array.from(out.slice(-5))).toEqual([0xff, 0xf3, 1, 2, 3]);
     });
 });

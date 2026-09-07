@@ -21,6 +21,7 @@ import { recordUsage } from '../credits/usage.js';
 import { recordIncident } from '../credits/incidents.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
 import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
+import { withLeadSilence } from '../providers/mp3-lead-silence.js';
 import {
     CURATED_VOICES,
     PREVIEW_PHRASE,
@@ -80,7 +81,7 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
                       key,
                       deps.config.azureSpeechRegion,
                       resolved.style
-                  )
+                  ).then(withLeadSilence)
             : null;
     }
     const key = deps.config.googleTtsApiKey;
