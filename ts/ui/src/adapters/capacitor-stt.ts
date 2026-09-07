@@ -458,11 +458,21 @@ export class CapacitorSttEngine implements SttEngine {
             if (text === undefined) return;
             if (segmentStopped) {
                 // Post-'stopped' delivery of the utterance that just ended:
-                // adopt the (usually cleaner) text for the preview, but the
+                // adopt the (usually cleaner) text for the preview. On iOS the
                 // utterance is over - don't touch the end-of-turn window. On
                 // Android the session may go on to a NEW utterance, whose
                 // partials start from empty; 'started' folds this one first.
+                // And on Android this delivery IS the utterance: the
+                // recognizer holds a short utterance's text until its own
+                // end-of-speech, so nothing arrived live. The pause the turn
+                // is waiting out starts now, not at the last live partial
+                // (meditation-pal-cddo: a turn submitted 1.3s after the user
+                // said its last words, mid-thought).
                 segmentText = text;
+                if (nativeSessionEvents && stitching && text.trim()) {
+                    lastSpeechAt = Date.now();
+                    armEnd();
+                }
                 push({ type: 'partial', text: combined() });
                 if (!stitching) {
                     if (settleTimer !== null) clearTimeout(settleTimer);
@@ -491,6 +501,16 @@ export class CapacitorSttEngine implements SttEngine {
                     }
                     segmentStopped = false;
                     segmentHasSpeech = false;
+                }
+                if (status === 'started' && stitching && sawSpeech) {
+                    // Speech is in progress: the pause window cannot be
+                    // running. Text for this utterance may not arrive for a
+                    // second or more (or only at its end-of-speech), and the
+                    // window armed by the LAST utterance would close on the
+                    // user mid-sentence. Only once the turn has speech: before
+                    // that, a no-text 'started' must not schedule an empty
+                    // submit - the silence error ends an empty turn.
+                    armEnd();
                 }
                 return;
             }

@@ -408,6 +408,42 @@ describe('Android native session events', () => {
         expect(finals(events)).toEqual([{ type: 'final', text: 'I notice a tightness. in my chest' }]);
     });
 
+    it("'started' mid-turn re-arms the pause window even before any text arrives (cddo)", async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        partial('I notice');
+        stopped();
+        await vi.advanceTimersByTimeAsync(3000);
+        started(); // the user is talking again; the recognizer has no text yet
+        await vi.advanceTimersByTimeAsync(3500); // 6.5s past the last live partial
+        expect(finals(events)).toEqual([]); // the old window would have closed here
+        partial('a tightness');
+        stopped();
+        finalClose();
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'I notice a tightness' }]);
+    });
+
+    it("a post-'stopped' delivery of a new utterance restarts the pause window (cddo)", async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        partial('I notice');
+        stopped();
+        await vi.advanceTimersByTimeAsync(2000);
+        started();
+        stopped(); // a short utterance: end-of-speech lands before its text
+        partial('a tightness'); // the text arrives only now
+        await vi.advanceTimersByTimeAsync(3500); // 5.5s past the last LIVE partial
+        expect(finals(events)).toEqual([]);
+        finalClose();
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'I notice a tightness' }]);
+    });
+
     it('an empty partial (the recognizer hearing its own tone) does not arm the end-of-turn window', async () => {
         const engine = new CapacitorSttEngine(OPTS);
         const { events } = collect(engine);
