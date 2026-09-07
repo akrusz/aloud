@@ -24,6 +24,25 @@ import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 
+/**
+ * Join the transcript so far with the current recognizer segment. The
+ * on-device recognizer capitalizes the first word of every utterance, so a
+ * verbatim join reads "noticing the A little In my feet"
+ * (meditation-pal-7u9h); when the previous text is mid-sentence the new
+ * segment's first letter drops to lowercase, except "I" and its contractions.
+ */
+export function stitchUtterances(previous: string, next: string): string {
+    const prev = previous.trim();
+    let seg = next.trim();
+    if (!prev) return seg;
+    if (!seg) return prev;
+    const midSentence = !/[.!?…]["')\]]?$/.test(prev);
+    if (midSentence && /^[A-Z](?![A-Z])/.test(seg) && !/^I(?:'[a-z]+)?\b/.test(seg)) {
+        seg = seg.charAt(0).toLowerCase() + seg.slice(1);
+    }
+    return `${prev} ${seg}`;
+}
+
 export interface CapacitorSttEngineOptions {
     /** BCP-47 language tag. Defaults to the page's lang attribute or 'en-US'. */
     language?: string;
@@ -271,8 +290,7 @@ export class CapacitorSttEngine implements SttEngine {
             startTimer = null;
             endTimer = settleTimer = idleTimer = null;
         };
-        const combined = (): string =>
-            [accumulated, segmentText].map((s) => s.trim()).filter(Boolean).join(' ');
+        const combined = (): string => stitchUtterances(accumulated, segmentText);
 
         // End the turn: emit the stitched transcript (or note silence) and stop.
         const submit = (): void => {

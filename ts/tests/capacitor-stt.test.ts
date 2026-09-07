@@ -39,7 +39,7 @@ vi.mock('@capacitor-community/speech-recognition', () => ({
     },
 }));
 
-import { CapacitorSttEngine } from '../ui/src/adapters/capacitor-stt.js';
+import { CapacitorSttEngine, stitchUtterances } from '../ui/src/adapters/capacitor-stt.js';
 import type { SttEvent } from '../src/platform/stt.js';
 
 // Consume the engine's async iterator in the background, collecting events.
@@ -435,5 +435,21 @@ describe('Android native session events', () => {
         codedError(11, "Didn't understand, please try again.");
         await vi.advanceTimersByTimeAsync(100);
         expect(events2.filter((e) => e.type === 'error')).toHaveLength(1);
+    });
+});
+
+describe('stitchUtterances (meditation-pal-7u9h)', () => {
+    it('lowercases a recognizer-capitalized segment mid-sentence', () => {
+        expect(stitchUtterances('noticing the', 'A little')).toBe('noticing the a little');
+        expect(stitchUtterances('noticing the a little', 'In my feet')).toBe('noticing the a little in my feet');
+    });
+    it('keeps the capital after a sentence end and for I-forms', () => {
+        expect(stitchUtterances('It is quiet.', 'There is a hum')).toBe('It is quiet. There is a hum');
+        expect(stitchUtterances('and then', "I'm not sure")).toBe("and then I'm not sure");
+        expect(stitchUtterances('and then', 'I feel it')).toBe('and then I feel it');
+    });
+    it('passes single sides through untouched', () => {
+        expect(stitchUtterances('', 'Hello')).toBe('Hello');
+        expect(stitchUtterances('Hello', '')).toBe('Hello');
     });
 });
