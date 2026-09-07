@@ -1,8 +1,8 @@
 diff --git a/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java b/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
-index a99ea69..e21dc58 100644
+index a99ea69..88496c2 100644
 --- a/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
 +++ b/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
-@@ -39,6 +39,26 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -39,6 +39,34 @@ public class SpeechRecognition extends Plugin implements Constants {
  
      private final ReentrantLock lock = new ReentrantLock();
      private boolean listening = false;
@@ -20,6 +20,14 @@ index a99ea69..e21dc58 100644
 +    // instead the live session is asked to finish (stopListening) and this
 +    // intent launches from onResults/onError once it has.
 +    private Intent pendingIntent;
++    // True from a JS stop() (or a start() that found a session still open)
++    // until the next launch. In dictation mode stopListening() does not close
++    // the session - it runs on for seconds and keeps transcribing, which during
++    // the facilitator's reply means the speaker. Those partials must not reach
++    // JS: it re-adds its listeners for the next turn and would take them as the
++    // user's first words (meditation-pal-7nl2). `listening` can't serve here,
++    // onEndOfSpeech clears it mid-session.
++    private boolean stoppedByJs = false;
 +    // The recognition service plays a short earcon on the notification stream
 +    // at every session start and end (seen as USAGE_ASSISTANCE_SONIFICATION
 +    // AudioTracks from its process). Mute that stream while a session is
@@ -29,7 +37,7 @@ index a99ea69..e21dc58 100644
  
      private JSONArray previousPartialResults = new JSONArray();
  
-@@ -48,9 +68,7 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -48,9 +76,7 @@ public class SpeechRecognition extends Plugin implements Constants {
          bridge
              .getWebView()
              .post(() -> {
@@ -40,7 +48,7 @@ index a99ea69..e21dc58 100644
                  Logger.info(getLogTag(), "Instantiated SpeechRecognizer in load()");
              });
      }
-@@ -81,7 +99,8 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -81,7 +107,8 @@ public class SpeechRecognition extends Plugin implements Constants {
          String prompt = call.getString("prompt", null);
          boolean partialResults = call.getBoolean("partialResults", false);
          boolean popup = call.getBoolean("popup", false);
@@ -50,7 +58,7 @@ index a99ea69..e21dc58 100644
      }
  
      @PluginMethod
-@@ -157,6 +176,7 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -157,6 +184,7 @@ public class SpeechRecognition extends Plugin implements Constants {
          String prompt,
          final boolean partialResults,
          boolean showPopup,
@@ -58,7 +66,7 @@ index a99ea69..e21dc58 100644
          PluginCall call
      ) {
          Logger.info(getLogTag(), "Beginning to listen for audible speech");
-@@ -169,6 +189,17 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -169,6 +197,17 @@ public class SpeechRecognition extends Plugin implements Constants {
          intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partialResults);
          intent.putExtra("android.speech.extra.DICTATION_MODE", partialResults);
  
@@ -76,7 +84,7 @@ index a99ea69..e21dc58 100644
          if (prompt != null) {
              intent.putExtra(RecognizerIntent.EXTRA_PROMPT, prompt);
          }
-@@ -182,19 +213,19 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -182,19 +221,20 @@ public class SpeechRecognition extends Plugin implements Constants {
                      try {
                          SpeechRecognition.this.lock.lock();
  
@@ -90,6 +98,7 @@ index a99ea69..e21dc58 100644
 +                        if (sessionActive) {
 +                            android.util.Log.d("AloudSTT", "start deferred: session still open");
 +                            pendingIntent = intent;
++                            stoppedByJs = true;
 +                            if (SpeechRecognition.this.listening) {
 +                                speechRecognizer.stopListening();
 +                                SpeechRecognition.this.listening(false);
@@ -108,7 +117,7 @@ index a99ea69..e21dc58 100644
                          if (partialResults) {
                              call.resolve();
                          }
-@@ -213,10 +244,12 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -213,10 +253,17 @@ public class SpeechRecognition extends Plugin implements Constants {
              .post(() -> {
                  try {
                      SpeechRecognition.this.lock.lock();
@@ -120,10 +129,15 @@ index a99ea69..e21dc58 100644
 -                        SpeechRecognition.this.listening(false);
                      }
 +                    SpeechRecognition.this.listening(false);
++                    // A start() deferred behind this session is void now: JS
++                    // ended the turn. Launching it from onResults would open a
++                    // session nobody asked for, listening to the reply.
++                    SpeechRecognition.this.pendingIntent = null;
++                    SpeechRecognition.this.stoppedByJs = true;
                  } catch (Exception ex) {
                      throw ex;
                  } finally {
-@@ -225,6 +258,107 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -225,6 +272,108 @@ public class SpeechRecognition extends Plugin implements Constants {
              });
      }
  
@@ -173,6 +187,7 @@ index a99ea69..e21dc58 100644
 +        setNotificationsMuted(true);
 +        previousPartialResults = new JSONArray();
 +        pendingIntent = null;
++        stoppedByJs = false;
 +        speechRecognizer.startListening(intent);
 +        sessionActive = true;
 +        listening(true);
@@ -231,7 +246,7 @@ index a99ea69..e21dc58 100644
      private class SpeechRecognitionListener implements RecognitionListener {
  
          private PluginCall call;
-@@ -239,7 +373,15 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -239,7 +388,15 @@ public class SpeechRecognition extends Plugin implements Constants {
          }
  
          @Override
@@ -248,7 +263,7 @@ index a99ea69..e21dc58 100644
  
          @Override
          public void onBeginningOfSpeech() {
-@@ -262,6 +404,7 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -262,6 +419,7 @@ public class SpeechRecognition extends Plugin implements Constants {
  
          @Override
          public void onEndOfSpeech() {
@@ -256,7 +271,7 @@ index a99ea69..e21dc58 100644
              bridge
                  .getWebView()
                  .post(() -> {
-@@ -280,33 +423,80 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -280,37 +438,88 @@ public class SpeechRecognition extends Plugin implements Constants {
  
          @Override
          public void onError(int error) {
@@ -316,7 +331,8 @@ index a99ea69..e21dc58 100644
 +                // It still marks the session's end, so JS must hear it.
 +                JSArray jsArray = new JSArray(matches == null ? new ArrayList<String>() : matches);
  
-                 if (this.call != null) {
+-                if (this.call != null) {
++                if (this.call != null && !SpeechRecognition.this.stoppedByJs) {
                      if (!this.partialResults) {
                          this.call.resolve(new JSObject().put("status", "success").put("matches", jsArray));
                      } else {
@@ -339,7 +355,15 @@ index a99ea69..e21dc58 100644
          }
  
          @Override
-@@ -358,6 +548,20 @@ public class SpeechRecognition extends Plugin implements Constants {
+         public void onPartialResults(Bundle partialResults) {
++            if (SpeechRecognition.this.stoppedByJs) {
++                android.util.Log.d("AloudSTT", "partial dropped: session stopped by JS");
++                return;
++            }
+             ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+             JSArray matchesJSON = new JSArray(matches);
+ 
+@@ -358,6 +567,20 @@ public class SpeechRecognition extends Plugin implements Constants {
              case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
                  message = "No speech input";
                  break;
