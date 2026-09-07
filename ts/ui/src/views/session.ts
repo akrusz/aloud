@@ -126,7 +126,6 @@ import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isTauri, isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
-import { stopPlaybackKeepAlive } from '../audio-unlock.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import {
     armSoakTap,
@@ -3003,7 +3002,6 @@ export async function mountSessionView(
         torn = true;
         tapFlags({ ended: true });
         tapEvent('note', `session-ended${skipSave ? ' (unsaved)' : ''}`);
-        stopPlaybackKeepAlive();
         // Stop any in-flight turn from generating/speaking into a torn-down view.
         activeFullAbort?.abort();
         unsubscribeBalance?.();
