@@ -264,6 +264,10 @@ fn claude_proxy_models() -> Vec<Value> {
 
 // ---- OpenRouter (public) ----------------------------------------------------
 
+/// Variant suffixes no live voice session can use: `:batch` is the async
+/// half-price queue (minutes to hours), the others aren't ours to bill.
+const DROP_VARIANTS: [&str; 3] = [":free", ":extended", ":batch"];
+
 fn fetch_openrouter() -> Vec<Value> {
     let body = match get_json("https://openrouter.ai/api/v1/models", &[], 8) {
         Some(b) => b,
@@ -284,7 +288,7 @@ fn fetch_openrouter() -> Vec<Value> {
                     if !keep_orgs.contains(&org) {
                         return None;
                     }
-                    if id.ends_with(":free") || id.ends_with(":extended") {
+                    if DROP_VARIANTS.iter().any(|v| id.ends_with(v)) {
                         return None;
                     }
                     let label =

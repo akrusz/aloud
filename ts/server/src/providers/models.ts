@@ -127,6 +127,10 @@ function claudeProxyModels(): ModelOption[] {
 
 // ---- OpenRouter (public) ----------------------------------------------------
 
+/** Variant suffixes no live voice session can use: `:batch` is the async
+ *  half-price queue (minutes to hours), the others aren't ours to bill. */
+const DROP_VARIANTS = [':free', ':extended', ':batch'];
+
 async function fetchOpenrouter(): Promise<ModelOption[]> {
     const body = await getJson('https://openrouter.ai/api/v1/models', {});
     if (!body) return [];
@@ -141,7 +145,7 @@ async function fetchOpenrouter(): Promise<ModelOption[]> {
             ctx: Number(m['context_length'] ?? 0),
         }))
         .filter((m) => keepOrgs.has(m.id.split('/')[0] ?? ''))
-        .filter((m) => !m.id.endsWith(':free') && !m.id.endsWith(':extended'))
+        .filter((m) => !DROP_VARIANTS.some((v) => m.id.endsWith(v)))
         .sort((a, b) => b.ctx - a.ctx)
         .slice(0, 30)
         .map((m) => ({ value: m.id, label: m.label }));
