@@ -21,7 +21,7 @@
 const SILENT_WAV =
     'data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
 
-import { capacitorPlatform } from './is-desktop.js';
+import { capacitorPlatform, isTauri } from './is-desktop.js';
 
 let element: HTMLAudioElement | null = null;
 let context: AudioContext | null = null;
@@ -55,24 +55,27 @@ export function playbackAudioContext(): AudioContext | null {
 }
 
 /**
- * Keep the context's output track open for the whole session (Android).
- * Cloud TTS plays through this context there (cloud-tts.ts), and the phone
- * fades every freshly STARTED output track in over its first few hundred ms.
- * Chromium stops the track once the context has rendered silence for a while
- * (measured 2026-09-07: ~1s after a warm-up buffer ended, ~38s idle later
- * in the session) and restarts it on the next sound - the first reply after
- * a quiet stretch lost its first phoneme (meditation-pal-tur5). A looping
- * -80 dBFS noise floor is inaudible and keeps the track rendering. Stopped
- * by the session's teardown.
+ * Keep the output path awake for the whole session, on the platforms where
+ * cloud TTS plays through this context (Android, desktop - cloud-tts.ts).
+ * Two things eat the first phoneme of a reply after a quiet stretch
+ * (meditation-pal-tur5, "right" -> "ight"): Chromium stops the context's
+ * output track once it has rendered silence for a while and restarts it on
+ * the next sound, and the phone fades every freshly started track in - fixed
+ * by any non-silent signal; and the output hardware itself (a phone's speaker
+ * DSP, a laptop's amp, a Bluetooth link) gates or sleeps on near-silence,
+ * which a -80 dBFS noise floor did not prevent (the reply after the sit's
+ * longest silence still clipped, on both devices). So the keep-alive is a
+ * 25 Hz tone at -40 dBFS: well below what a speaker or earphone reproduces,
+ * far above what a gate treats as silence. Stopped by the session's teardown.
  */
 export function startPlaybackKeepAlive(): void {
     const ctx = playbackAudioContext();
     if (!ctx || keepAlive) return;
     try {
-        const seconds = 1;
+        const seconds = 1; // 25 whole cycles: loops seamlessly
         const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * seconds), ctx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 1e-4;
+        for (let i = 0; i < data.length; i++) data[i] = 0.01 * Math.sin((2 * Math.PI * 25 * i) / ctx.sampleRate);
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
@@ -104,8 +107,9 @@ export function primeAudioPlayback(): void {
     // Same gate, other half of the audio stack: a context first resumed outside
     // a gesture stays suspended on Safari, and the chime never sounds.
     playbackAudioContext();
-    if (capacitorPlatform() === 'android') startPlaybackKeepAlive();
+    if (capacitorPlatform() === 'android' || isTauri()) startPlaybackKeepAlive();
     const audio = playbackAudio();
+    console.info(`[audio] prime: element ${audio.paused ? 'paused' : 'playing'}`);
     // A prime mid-session would cut off the sentence being spoken.
     if (!audio.paused) return;
     try {

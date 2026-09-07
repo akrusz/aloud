@@ -276,8 +276,10 @@ export class CloudTtsEngine implements TtsEngine {
         // Android: one long-lived output track instead of one per clip (see
         // the header).
         if (isTauri() || capacitorPlatform() === 'android') {
+            console.debug(`[tts] web audio clip ${blob.size}B`);
             return this.playViaWebAudio(blob, abort, options?.onStart);
         }
+        console.debug(`[tts] element clip ${blob.size}B`);
 
         const url = URL.createObjectURL(blob);
         // The ONE shared element, primed by the Begin click - a per-utterance
