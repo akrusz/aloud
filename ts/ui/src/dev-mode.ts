@@ -13,6 +13,7 @@
 
 const DEV_MODE_KEY = 'aloud:devMode';
 const DEBUG_CHECKIN_KEY = 'aloud:debugCheckin';
+const DEBUG_AEC_OFF_KEY = 'aloud:debugAecOff';
 
 /** Taps on the About-box version line needed to toggle dev mode. */
 export const DEV_MODE_TAPS = 7;
@@ -60,6 +61,29 @@ export function setCheckinDebug(on: boolean): void {
     try {
         if (on) localStorage.setItem(DEBUG_CHECKIN_KEY, '1');
         else localStorage.removeItem(DEBUG_CHECKIN_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Developer switch: open the cloud-STT capture stream with
+ *  echoCancellation:false. On Android, EC puts the WebView in
+ *  MODE_IN_COMMUNICATION, so TTS during a cloud sit plays on the call stream
+ *  (meditation-pal-0ecr); this is the experiment that measures what the
+ *  platform AEC was buying us (judge by the "[vad] tts window" lines). Applies
+ *  at the next capture, i.e. the next session. */
+export function isAecOffDebug(): boolean {
+    try {
+        return localStorage.getItem(DEBUG_AEC_OFF_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+export function setAecOffDebug(on: boolean): void {
+    try {
+        if (on) localStorage.setItem(DEBUG_AEC_OFF_KEY, '1');
+        else localStorage.removeItem(DEBUG_AEC_OFF_KEY);
     } catch {
         /* ignore */
     }

@@ -32,7 +32,7 @@ import {
     devSetCloudBypass,
     type AppMode,
 } from '../app-mode.js';
-import { isDevMode, getCheckinDebugSetting, setCheckinDebug } from '../dev-mode.js';
+import { isDevMode, getCheckinDebugSetting, setCheckinDebug, isAecOffDebug, setAecOffDebug } from '../dev-mode.js';
 import {
     CLOUD_FAULT_NAMES,
     STT_FAULTS,
@@ -1502,6 +1502,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     function wireDeveloperSection(): void {
         const hud = root.querySelector<HTMLInputElement>('#s-dev-checkin-hud');
         hud?.addEventListener('change', () => setCheckinDebug(hud.checked));
+        const aec = root.querySelector<HTMLInputElement>('#s-dev-aec-off');
+        aec?.addEventListener('change', () => setAecOffDebug(aec.checked));
         const preview = root.querySelector<HTMLInputElement>('#s-dev-preview-update');
         preview?.addEventListener('change', () => {
             try {
@@ -2360,6 +2362,15 @@ function renderDeveloperSection(): string {
                 <label for="s-dev-preview-update">Preview update banner</label>
                 <input type="text" id="s-dev-preview-update" value="${escape(preview)}" placeholder="empty = off; 1 or a version">
                 <span class="form-hint">Fakes an available release (nothing installs). Same as ?previewUpdate.</span>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-dev-aec-off"${isAecOffDebug() ? ' checked' : ''}>
+                    <span>Cloud mic without echo cancellation</span>
+                </label>
+                <span class="form-hint">Next session's capture opens with echoCancellation off (Android call-stream experiment). Expect echo in the [vad] tts window lines.</span>
             </div>
         </div>
         ${devBuildRows}

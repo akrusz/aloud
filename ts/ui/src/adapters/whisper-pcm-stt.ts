@@ -23,6 +23,7 @@ import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn
 import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
 import { ensureMicPermission } from '../mic-permission.js';
+import { isAecOffDebug } from '../dev-mode.js';
 // Type-only: dynamic-imported in acquireSilero() so the ort runtime + model
 // assets stay out of the main bundle (and out of node-env tests).
 import type { SileroFrameVad } from './silero-vad.js';
@@ -701,7 +702,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         ...(this.opts.micDeviceId
                             ? { deviceId: { ideal: this.opts.micDeviceId } }
                             : {}),
-                        echoCancellation: true,
+                        echoCancellation: !isAecOffDebug(),
                         // macOS's voice processing includes a noise gate that can
                         // hard-zero soft speech MID-UTTERANCE - observed as RMS
                         // exactly 0.000 for seconds while the user was still
