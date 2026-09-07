@@ -71,6 +71,24 @@ in-utterance endpointer, so the adapter sends a long
 recognition service also plays an earcon on the notification stream at every
 session start and end (heard by its own endpointer - a restart loop with a
 beep every few seconds); the plugin mutes that stream while a session is open.
+Two rules from the 2026-09-07 pass (`meditation-pal-7nl2`, `cddo`):
+`stopListening()` does not close a dictation session either - it runs on for
+seconds, still transcribing the speaker during the reply - so the plugin drops
+partials after a JS `stop()` and a `stop()` voids any queued start; and the
+recognizer holds a short utterance's text until its own end-of-speech while
+signalling the next one's `started` up to 2.5s before any text, so the adapter
+re-arms its pause window from `started` and from post-`stopped` text, not from
+live partials alone.
+
+Cloud-mic sits have their own Android quirk, outside the plugin: the WebView's
+echo-cancelled capture holds the app in communication mode for the life of the
+process and plays TTS on the voice-call stream (the rocker reads Call - known,
+`meditation-pal-0ecr`). The audio service drops the WebView's speaker request
+while the app is backgrounded, so after a lock/unlock playback fell back to the
+earpiece; `MainActivity` re-requests the speaker on resume and on mode change
+(`meditation-pal-wxj5`). Diagnose routing with `dumpsys media.audio_flinger`
+(track rows carry stream type and usage per pid; `CFG_EVENT_CREATE_AUDIO_PATCH`
+names the device) and the communication-route log in `dumpsys audio`.
 To change the patch: edit under `node_modules`, then
 `npx patch-package @capacitor-community/speech-recognition --exclude 'android/build'`
 (the exclude keeps gradle's build artifacts out of the diff).
