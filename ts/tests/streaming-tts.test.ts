@@ -72,8 +72,8 @@ class RecordingTts implements TtsEngine {
 
 describe('splitOffSentences', () => {
     it('splits on .!? followed by whitespace', () => {
-        expect(splitOffSentences('Hello there. How are you? Good!')).toEqual({
-            complete: ['Hello there.', 'How are you?'],
+        expect(splitOffSentences('Hello there, my good friend. How are you feeling today? Good!')).toEqual({
+            complete: ['Hello there, my good friend.', 'How are you feeling today?'],
             remainder: 'Good!',
         });
     });
@@ -97,6 +97,20 @@ describe('splitOffSentences', () => {
         if (result.complete[0]) expect(result.complete[0]).toContain('I see');
     });
 
+    it('carries a short sentence into the next one instead of voicing it alone (1c9h)', () => {
+        expect(splitOffSentences('Nice. Just like that, stay with it. And ')).toEqual({
+            complete: ['Nice. Just like that, stay with it.'],
+            remainder: 'And ',
+        });
+    });
+
+    it('leaves a trailing short sentence in the remainder', () => {
+        expect(splitOffSentences('Let the breath find its own rhythm. Good. ')).toEqual({
+            complete: ['Let the breath find its own rhythm.'],
+            remainder: 'Good. ',
+        });
+    });
+
     it('handles an empty string', () => {
         expect(splitOffSentences('')).toEqual({ complete: [], remainder: '' });
     });
@@ -118,18 +132,18 @@ describe('streamCompletionWithChunkedTts', () => {
     it('chunks streaming output into sentence-sized TTS calls', async () => {
         const tts = new RecordingTts();
         const provider = new FakeStreamingProvider([
-            'Hello',
-            ' there.',
-            ' How are',
-            ' you?',
+            'Hello there, my',
+            ' good friend.',
+            ' How are you',
+            ' feeling today?',
             ' Good',
         ]);
         const result = await streamCompletionWithChunkedTts(provider, tts, [
             { role: 'user', content: 'hi' },
         ]);
         await result.ttsDone;
-        expect(result.text).toBe('Hello there. How are you? Good');
-        expect(tts.spoken).toEqual(['Hello there.', 'How are you?', 'Good']);
+        expect(result.text).toBe('Hello there, my good friend. How are you feeling today? Good');
+        expect(tts.spoken).toEqual(['Hello there, my good friend.', 'How are you feeling today?', 'Good']);
     });
 
     it('strips the [HOLD] token but still speaks the acknowledgment', async () => {
@@ -372,13 +386,13 @@ describe('streamCompletionWithChunkedTts', () => {
         const tts = new StartReportingTts();
         const startedSentences: string[] = [];
         const result = await streamCompletionWithChunkedTts(
-            new FakeStreamingProvider(['Hello there.', ' How are you?']),
+            new FakeStreamingProvider(['Hello there, my good friend.', ' How are you feeling today?']),
             tts,
             [{ role: 'user', content: 'hi' }],
             { onSpeakStart: (t) => startedSentences.push(t) }
         );
         await result.ttsDone;
-        expect(startedSentences).toEqual(['Hello there.', 'How are you?']);
+        expect(startedSentences).toEqual(['Hello there, my good friend.', 'How are you feeling today?']);
     });
 
     it('falls back to reporting onSpeakStart when speak resolves, exactly once', async () => {
@@ -387,13 +401,13 @@ describe('streamCompletionWithChunkedTts', () => {
         const tts = new RecordingTts();
         const startedSentences: string[] = [];
         const result = await streamCompletionWithChunkedTts(
-            new FakeStreamingProvider(['One. Two.']),
+            new FakeStreamingProvider(['The first sentence goes here. The second sentence goes here.']),
             tts,
             [{ role: 'user', content: 'hi' }],
             { onSpeakStart: (t) => startedSentences.push(t) }
         );
         await result.ttsDone;
-        expect(startedSentences).toEqual(['One.', 'Two.']);
+        expect(startedSentences).toEqual(['The first sentence goes here.', 'The second sentence goes here.']);
     });
 
     it('reports onSpeakStart with the clean text on the non-streaming fallback', async () => {
@@ -423,19 +437,19 @@ describe('streamCompletionWithChunkedTts', () => {
         }
         const tts = new PrefetchingTts();
         const result = await streamCompletionWithChunkedTts(
-            new FakeStreamingProvider(['First one. ', 'Second one. ', 'Third one.']),
+            new FakeStreamingProvider(['This is the very first one. ', 'This is the very second one. ', 'This is the very third one.']),
             tts,
             [{ role: 'user', content: 'hi' }]
         );
         await result.ttsDone;
         expect(events.filter((e) => e.startsWith('prefetch:'))).toEqual([
-            'prefetch:First one.',
-            'prefetch:Second one.',
-            'prefetch:Third one.',
+            'prefetch:This is the very first one.',
+            'prefetch:This is the very second one.',
+            'prefetch:This is the very third one.',
         ]);
         // All prefetches land before the first sentence finishes playing.
-        expect(events.indexOf('spoke:First one.')).toBeGreaterThan(
-            events.indexOf('prefetch:Third one.')
+        expect(events.indexOf('spoke:This is the very first one.')).toBeGreaterThan(
+            events.indexOf('prefetch:This is the very third one.')
         );
     });
 

@@ -277,8 +277,20 @@ export async function streamCompletionWithChunkedTts(
 }
 
 /**
+ * A completed sentence shorter than this rides along with the next one instead
+ * of going to TTS on its own. Azure's Harper (softvoice) voices a one- or
+ * two-word input TWICE about a third of the time - "Nice." comes back as two
+ * bursts with a 1.5s gap (meditation-pal-1c9h, measured 2026-09-07: 4/10 for
+ * "Nice.", 3/10 for "That's good.", 1/10 once merged with a 4-word sentence,
+ * 0/10 with an 8-word one). Merging also saves a synth round-trip per
+ * acknowledgment. A short sentence that ENDS the reply still speaks alone.
+ */
+export const MIN_TTS_SENTENCE_CHARS = 24;
+
+/**
  * Split a string into completed sentences + a trailing remainder.
  * "Hello there. How are " → { complete: ["Hello there."], remainder: "How are " }
+ * "Nice. Just like that. And " → { complete: ["Nice. Just like that."], remainder: "And " }
  */
 export function splitOffSentences(text: string): { complete: string[]; remainder: string } {
     // Sentence-ending .!? preceded by a non-punctuation char and followed by
@@ -291,6 +303,9 @@ export function splitOffSentences(text: string): { complete: string[]; remainder
     while ((match = re.exec(text)) !== null) {
         const end = match.index + match[0].length;
         const sentence = text.slice(lastEnd, end).trim();
+        // Too short to voice alone: leave lastEnd where it is so the next
+        // boundary carries this sentence along (or it stays in the remainder).
+        if (sentence.length < MIN_TTS_SENTENCE_CHARS) continue;
         if (sentence) sentences.push(sentence);
         lastEnd = end;
     }
