@@ -5095,6 +5095,17 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     display: none;
 }
 
+/* A phone turned sideways is wider than the phone breakpoint but still a
+   phone: without this the base font jumped 15px -> 18px on rotation
+   (meditation-pal-yc1u). Touch-only plus a short viewport picks out that case
+   and leaves tablets and desktops on the desktop base. Layout stays on the
+   width breakpoints below. */
+@media (pointer: coarse) and (hover: none) and (min-width: 768px) and (max-height: 600px) {
+    html {
+        font-size: calc(15px * var(--text-scale, 1));
+    }
+}
+
 @media (max-width: 767px) {
     /* Phone typography: the 18px desktop base reads oversized next to native
        apps. Keep the user's text-scale multiplier (matching the desktop html
