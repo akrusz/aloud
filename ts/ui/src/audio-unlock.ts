@@ -59,7 +59,21 @@ export function playbackAudioContext(): AudioContext | null {
 export function primeAudioPlayback(): void {
     // Same gate, other half of the audio stack: a context first resumed outside
     // a gesture stays suspended on Safari, and the chime never sounds.
-    playbackAudioContext();
+    const ctx = playbackAudioContext();
+    // Open the context's output track NOW, on silence. Android fades a fresh
+    // track in over its first few hundred ms, and cloud TTS plays through this
+    // context there (cloud-tts.ts): without this the first reply of a session
+    // lost its first phoneme (meditation-pal-tur5).
+    if (ctx) {
+        try {
+            const warm = ctx.createBufferSource();
+            warm.buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.3), ctx.sampleRate);
+            warm.connect(ctx.destination);
+            warm.start();
+        } catch {
+            // A context without buffer support (test doubles): nothing to warm.
+        }
+    }
     const audio = playbackAudio();
     // A prime mid-session would cut off the sentence being spoken.
     if (!audio.paused) return;

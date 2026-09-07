@@ -25,7 +25,7 @@ import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { capacitorPlatform, isTauri } from '../is-desktop.js';
-import { playbackAudio } from '../audio-unlock.js';
+import { playbackAudio, playbackAudioContext } from '../audio-unlock.js';
 import { withTimeout } from '../net-timeout.js';
 
 // Dead-server ceiling, not a latency budget: a synthesis request that hangs
@@ -341,9 +341,16 @@ export class CloudTtsEngine implements TtsEngine {
         });
     }
 
-    /** Lazily create (and reuse) the playback AudioContext. */
+    /** The playback AudioContext: the shared one primed on the Begin click
+     *  (its output track is already open, see audio-unlock.ts), else a
+     *  private one created here. */
     private ensureAudioContext(): AudioContext {
         if (!this.audioCtx) {
+            const shared = playbackAudioContext();
+            if (shared) {
+                this.audioCtx = shared;
+                return shared;
+            }
             const Ctor =
                 (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
                 (globalThis as unknown as { webkitAudioContext?: typeof AudioContext })
