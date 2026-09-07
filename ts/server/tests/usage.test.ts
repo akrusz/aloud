@@ -566,10 +566,10 @@ describe('buildUsageReport - real-sit filter and account weighting', () => {
     });
 });
 
-describe('buildUsageReport - pooled rates, per-turn tokens, itemized sessions', () => {
+describe('buildUsageReport - raw rates, per-turn tokens, itemized sessions', () => {
     // Two accounts: a whale with one long cheap-per-hour sit and a sprinter
     // with a short expensive one. sqrt-of-spend weighting pulls the headline
-    // toward the sprinter; pooled total/total does not.
+    // toward the sprinter; raw total/total does not.
     const events = [
         ...Array.from({ length: 10 }, (_, i) =>
             ev({ accountId: 'whale', sessionId: 'w', ts: 1000 + i * 600, kind: 'llm', credits: 0.5, providerCostUsd: 0.025, tokensIn: 100, cacheRead: 3000, tokensOut: 80 })
@@ -579,15 +579,15 @@ describe('buildUsageReport - pooled rates, per-turn tokens, itemized sessions', 
         ),
     ];
 
-    it('reports pooled total/total beside the weighted rate', () => {
+    it('reports raw total/total beside the weighted rate', () => {
         const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minMinutes: 0, minTurns: 0 } });
-        // whale: 5 credits over 1.5h; sprint: 10 credits over 0.1h → pooled 15/1.6
-        expect(r.perHour.pooled.creditsPerHour).toBeCloseTo(15 / 1.6, 6);
-        expect(r.perHour.pooled.turnsPerHour).toBeCloseTo(20 / 1.6, 6);
-        expect(r.perHour.creditsPerHour).toBeGreaterThan(r.perHour.pooled.creditsPerHour);
+        // whale: 5 credits over 1.5h; sprint: 10 credits over 0.1h → raw 15/1.6
+        expect(r.perHour.raw.creditsPerHour).toBeCloseTo(15 / 1.6, 6);
+        expect(r.perHour.raw.turnsPerHour).toBeCloseTo(20 / 1.6, 6);
+        expect(r.perHour.creditsPerHour).toBeGreaterThan(r.perHour.raw.creditsPerHour);
     });
 
-    it('tokens per turn pool every qualifying LLM call', () => {
+    it('tokens per turn cover every qualifying LLM call', () => {
         const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minMinutes: 0, minTurns: 0 } });
         expect(r.perHour.tokensPerTurn.input).toBeCloseTo(200, 6);
         expect(r.perHour.tokensPerTurn.cacheRead).toBeCloseTo(3000, 6);

@@ -254,8 +254,8 @@ export interface PerHourReport {
      *  figure (sqrt-of-spend weights an account by spend, not hours, so a
      *  15-minute sit on an expensive model counts nearly as much as someone's
      *  five-hour week). */
-    pooled: { creditsPerHour: number; costUsdPerHour: number; turnsPerHour: number };
-    /** LLM tokens per LLM call, pooled over the qualifying sessions. The
+    raw: { creditsPerHour: number; costUsdPerHour: number; turnsPerHour: number };
+    /** LLM tokens per LLM call, totalled over the qualifying sessions. The
      *  per-hour token cards scale with how fast people take turns; per turn,
      *  the profile's shape (TYPICAL_SESSION / llmCalls) is directly comparable
      *  whatever the pace. */
@@ -691,13 +691,13 @@ export function buildUsageReport(
         }
     }
     const sttSecondsSorted = [...sttCallSeconds].sort((a, b) => a - b);
-    const pooledSum = (key: string): number => {
+    const rawSum = (key: string): number => {
         let sum = 0;
         for (const a of accountOf.values()) sum += a.sums.get(key) ?? 0;
         return sum;
     };
-    const pooledTurns = pooledSum('turns');
-    const perTurn = (key: string): number => (pooledTurns > 0 ? pooledSum(key) / pooledTurns : 0);
+    const rawTurns = rawSum('turns');
+    const perTurn = (key: string): number => (rawTurns > 0 ? rawSum(key) / rawTurns : 0);
     const sttHoursOf = (a: AccountAcc): number => a.sums.get('sttHours') ?? 0;
     const ttsHoursOf = (a: AccountAcc): number => a.sums.get('ttsHours') ?? 0;
     const perHour: PerHourReport = {
@@ -745,10 +745,10 @@ export function buildUsageReport(
                 unitsPerHour: rate(m.units, m.hours),
             }))
             .sort((a, b) => b.costUsdPerHour - a.costUsdPerHour),
-        pooled: {
-            creditsPerHour: rate(pooledSum('credits'), totalHours),
-            costUsdPerHour: rate(pooledSum('cost'), totalHours),
-            turnsPerHour: rate(pooledTurns, totalHours),
+        raw: {
+            creditsPerHour: rate(rawSum('credits'), totalHours),
+            costUsdPerHour: rate(rawSum('cost'), totalHours),
+            turnsPerHour: rate(rawTurns, totalHours),
         },
         tokensPerTurn: {
             input: perTurn('tokIn'),

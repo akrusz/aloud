@@ -318,7 +318,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost - the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
     <div class="grid" id="usageStats"></div>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - total spend of the sessions above divided by their total wall-clock hours. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Observed burn rate - spend per wall-clock hour of the sessions above. <em>Weighted</em> averages each account's own rate (by sqrt-of-spend, so one heavy week can't dominate); <em>raw</em> is plain total ÷ total. The measured counterpart to the "~N credits/hr" estimates the app advertises; if a row runs well above its estimate, the estimate profile is wrong. Duration is first-to-last metered call, so trailing silence isn't counted and these read slightly high per sat hour.</p>
       <div class="grid" id="perHourStats" style="margin-bottom:12px"></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th>Provider</th><th>Model / voice</th><th class="num">Credits/hr</th><th class="num">Badge</th><th class="num">$/hr</th><th class="num">Volume/hr</th><th class="num">Hours</th></tr></thead>
@@ -646,17 +646,17 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         if (kind === 'stt') return num1(units / 60) + ' min';
         return int(Math.round(units)) + ' chars';
       }
-      // Weighted (across accounts) beside pooled (total/total). When they
-      // diverge, a few short high-rate sits are steering the weighted figure.
-      var pooled = ph.pooled || { creditsPerHour: 0, costUsdPerHour: 0, turnsPerHour: 0 };
-      function vsPooled(a, b) { return a + ' <span class="assumed">· pooled ' + b + '</span>'; }
+      // Weighted (per account) beside raw (total/total). When they diverge, a
+      // few short high-rate sits are steering the weighted figure.
+      var raw = ph.raw || { creditsPerHour: 0, costUsdPerHour: 0, turnsPerHour: 0 };
+      function vsRaw(a, b) { return a + ' <span class="assumed">· raw ' + b + '</span>'; }
       var phCards = [
-        ['Credits / hr', vsPooled(dec1(ph.creditsPerHour), dec1(pooled.creditsPerHour))],
-        ['Provider $ / hr', vsPooled(usdp(ph.costUsdPerHour), usdp(pooled.costUsdPerHour))],
+        ['Credits / hr (weighted)', vsRaw(dec1(ph.creditsPerHour), dec1(raw.creditsPerHour))],
+        ['Provider $ / hr (weighted)', vsRaw(usdp(ph.costUsdPerHour), usdp(raw.costUsdPerHour))],
         ['LLM cr/hr', svcRate('llm')],
         ['STT cr/hr', svcRate('stt')],
         ['TTS cr/hr', svcRate('tts')],
-        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">· pooled ' + num1(pooled.turnsPerHour) + ' / ' + num1(EST.turns) + '</span>', '', true],
+        ['Turns / hr', num1(ph.turnsPerHour) + ' <span class="assumed">· raw ' + num1(raw.turnsPerHour) + ' / ' + num1(EST.turns) + '</span>', '', true],
         ['STT min / hr', num1((Number(ph.sttSecondsPerHour) || 0) / 60), '', true],
         ['TTS chars / hr', int(Math.round(Number(ph.ttsCharsPerHour) || 0)), '', true],
         ['Hours measured', (Number(ph.hours) || 0).toFixed(1), '', true],
@@ -701,7 +701,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         ['Cache read tok/hr', vsAssumed(tph.cacheRead, EST.cacheRead)],
         ['Cache write tok/hr', vsAssumed(tph.cacheCreation, EST.cacheCreation)],
       ]);
-      // Per turn, pooled: the shape of a call, independent of how fast people
+      // Per turn, over every qualifying call: the shape of a call, independent of how fast people
       // take turns. This is the row to reseed TYPICAL_SESSION's token fields
       // from; the per-hour cards above double whenever the pace does.
       var tpt = ph.tokensPerTurn || { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
