@@ -10,6 +10,13 @@
  * through it instead - and the Firefox reason never applies there (a Tauri
  * webview is WebKit/WebView2/WebKitGTK).
  *
+ * Android (Capacitor) takes the Web Audio path too, for a different reason:
+ * a media element opens a fresh output track per clip, and this OEM fades a
+ * new track in over its first few hundred ms - the first phoneme of a reply
+ * was lost ("right" -> "ight") even behind the server's 200ms lead silence
+ * (meditation-pal-tur5). A running AudioContext holds ONE output track for
+ * the life of the session, so nothing reopens between replies.
+ *
  * The server's `rate` query param renders the WAV at the requested wpm, so
  * playbackRate stays untouched.
  */
@@ -17,7 +24,7 @@
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.js';
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
-import { isTauri } from '../is-desktop.js';
+import { capacitorPlatform, isTauri } from '../is-desktop.js';
 import { playbackAudio } from '../audio-unlock.js';
 import { withTimeout } from '../net-timeout.js';
 
@@ -266,7 +273,11 @@ export class CloudTtsEngine implements TtsEngine {
 
         // Desktop: play through Web Audio so the OS never sees a media element
         // (avoids the macOS "Apple Music / media library" consent prompt).
-        if (isTauri()) return this.playViaWebAudio(blob, abort, options?.onStart);
+        // Android: one long-lived output track instead of one per clip (see
+        // the header).
+        if (isTauri() || capacitorPlatform() === 'android') {
+            return this.playViaWebAudio(blob, abort, options?.onStart);
+        }
 
         const url = URL.createObjectURL(blob);
         // The ONE shared element, primed by the Begin click - a per-utterance
