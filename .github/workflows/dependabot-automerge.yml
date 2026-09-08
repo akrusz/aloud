@@ -1,0 +1,134 @@
+# Merges Dependabot's routine bumps so they stop queueing up. Runs after the
+# gate workflows finish on a Dependabot PR and squash-merges it when every
+# check that actually ran came back clean.
+#
+# Why workflow_run and not GitHub's native auto-merge: native auto-merge waits
+# only on *required* status checks, and rust-check.yml is path-filtered — it
+# doesn't run on TS-only PRs. Requiring `cargo-check` would deadlock every npm
+# PR; not requiring it would let a Rust PR merge with a red cargo check. So the
+# rule here is "nothing that ran is failing", which handles a check that was
+# never triggered without treating its absence as a pass.
+#
+# What it will NOT merge, i.e. what still needs you:
+#   - semver-major single bumps (vite 6->8, typescript 5->6, jose 5->6, …)
+#   - anything with a failing or still-pending check
+#   - PRs from anyone but dependabot[bot]
+#
+# Caveat on pre-1.0 crates: Cargo treats the minor as the breaking slot, so a
+# grouped bump like sysinfo 0.32 -> 0.39 is "minor" to Dependabot and auto-merges
+# on a green `cargo check`. That's deliberate — the check is the gate — but it's
+# the one place this workflow is more trusting than a human would be.
+#
+# Merging with GITHUB_TOKEN doesn't retrigger workflows (GitHub's recursion
+# guard), which is fine here: deploys are release-gated (deploy-release.yml), so
+# nothing ships until you cut a release. It does mean the merged commit skips
+# the main-branch Security audit run; the PR's own audit already gated it, and
+# the Monday cron re-checks main regardless.
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: ["CI", "Rust check", "Security audit"]
+    types: [completed]
+
+permissions:
+  contents: write # squash-merge
+  pull-requests: write # comment + merge the PR
+
+jobs:
+  automerge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.repository == github.event.workflow_run.head_repository.full_name
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      REPO: ${{ github.repository }}
+    steps:
+      # workflow_run gives us a SHA, not a PR. Resolve it, and bail quietly if
+      # the PR is already merged/closed by the time a later gate finishes.
+      - name: Resolve the pull request
+        id: pr
+        run: |
+          num=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+                  --jq '[.[] | select(.state == "open")][0].number // empty')
+          if [ -z "$num" ]; then
+            echo "No open PR for $SHA — nothing to do."
+            exit 0
+          fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+          gh pr view "$num" --repo "$REPO" --json title --jq '.title'
+
+      # Dependabot stamps every commit body with machine-readable trailers —
+      # one `update-type: version-update:semver-{major,minor,patch}` per
+      # dependency, so a grouped PR carries several. Read those rather than
+      # parsing the title: titles vary ("Bump"/"bump", "from 5 to 7" with no
+      # dots, a trailing directory) and grouped titles carry no versions at all.
+      - name: Reject semver-major bumps
+        id: semver
+        if: steps.pr.outputs.number
+        run: |
+          types=$(gh api "repos/$REPO/pulls/${{ steps.pr.outputs.number }}/commits" \
+                    --paginate --jq '.[].commit.message' \
+                  | grep -oE 'version-update:semver-[a-z]+' | sort -u)
+          # Transitive security bumps carry `dependency-type: indirect` and NO
+          # update-type at all, so a bare "no trailer -> hold" would park exactly
+          # the advisory fixes we most want landed. Fall back to the title, whose
+          # "from A to B" is stable across every Dependabot ecosystem.
+          if [ -z "$types" ]; then
+            title=$(gh pr view "${{ steps.pr.outputs.number }}" \
+                      --repo "$REPO" --json title --jq '.title')
+            if [[ "$title" =~ from\ ([0-9]+)(\.[0-9]+)*\ to\ ([0-9]+) ]]; then
+              if [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[3]}" ]; then
+                echo "No update-type trailer; title says ${BASH_REMATCH[1]} -> ${BASH_REMATCH[3]} — eligible."
+                echo "ok=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "::notice::Title says major ${BASH_REMATCH[1]} -> ${BASH_REMATCH[3]} — leaving it for a human."
+                echo "ok=false" >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "::notice::No update-type trailer and no versions in the title — leaving it alone."
+              echo "ok=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          echo "$types"
+          if grep -q 'semver-major' <<<"$types"; then
+            echo "::notice::Contains a major bump — leaving this one for a human."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      # The real gate. Every check run on this SHA must have concluded, and
+      # each conclusion must be clean. A check that never ran (path filters)
+      # simply isn't in the list, which is the behaviour we want. This
+      # workflow's own run is excluded so it isn't waiting on itself.
+      - name: Require every check that ran to be green
+        id: checks
+        if: steps.semver.outputs.ok == 'true'
+        run: |
+          runs=$(gh api "repos/$REPO/commits/$SHA/check-runs" \
+                   --paginate --jq '.check_runs[]
+                     | select(.name != "automerge")
+                     | "\(.status):\(.conclusion // "none"):\(.name)"')
+          echo "$runs"
+          if grep -qv '^completed:' <<<"$runs"; then
+            echo "Checks still running — a later gate will retrigger this."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Ev '^completed:(success|skipped|neutral):' <<<"$runs" | grep -q .; then
+            echo "::notice::A check is not green — not merging."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Squash-merge
+        if: steps.checks.outputs.ok == 'true'
+        run: |
+          gh pr merge "${{ steps.pr.outputs.number }}" \
+            --repo "$REPO" --squash --delete-branch

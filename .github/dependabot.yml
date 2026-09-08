@@ -3,15 +3,25 @@
 # dependencies, and — separately and immediately — opens PRs for any package
 # with a known security advisory. Reviewing/merging those PRs is the workflow;
 # the security *gate* that can block a PR lives in .github/workflows/security.yml.
+#
+# Every ecosystem groups minor+patch into a single weekly PR, which
+# dependabot-automerge.yml merges once CI is green. Majors stay ungrouped and
+# land one PR each, because they need a human to read the changelog. Ungrouped
+# majors are what the open-pull-requests-limit is really budgeting for.
 version: 2
 updates:
   # Desktop Rust shell — the largest new native surface (ort/onnxruntime,
-  # espeak-ng, rustls, whisper, tauri).
+  # espeak-ng, rustls, whisper, tauri). Note that pre-1.0 crates treat the
+  # *minor* as the breaking slot, so 0.32 -> 0.39 arrives here as "minor" and
+  # auto-merges on a green cargo check. That's the deal: the check is the gate.
   - package-ecosystem: cargo
     directory: "/ts/src-tauri"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types: ["minor", "patch"]
 
   # TS core + UI + the hosted server. One npm workspace rooted at /ts
   # (package.json declares workspaces: ["server"]), one lockfile — so this
@@ -22,9 +32,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
 
   # Keep the Actions themselves (checkout, setup-node, …) patched.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
