@@ -18,7 +18,6 @@
         "declarationMap": true,
         "sourceMap": true,
         "types": ["node"],
-        "baseUrl": ".",
         "paths": {
             "@aloud/core": ["../src/index.ts"],
             "@aloud/core/*": ["../src/*"]

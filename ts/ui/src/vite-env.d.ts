@@ -55,3 +55,7 @@ declare module '*?url' {
     const src: string;
     export default src;
 }
+
+/** Vite handles `import './style.css'` (main.ts); TS 6 errors on a side-effect
+ *  import it can't resolve, so give the extension an empty module. */
+declare module '*.css';

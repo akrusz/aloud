@@ -25,6 +25,11 @@ const H = vi.hoisted(() => ({
     stop: vi.fn(async () => undefined as unknown),
 }));
 
+// Platform switch for the Android describe below. vi.hoisted/vi.mock run before
+// anything in the file wherever they're written, and vitest 5 insists they be
+// written at the top level to say so.
+const P = vi.hoisted(() => ({ platform: 'web' }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => P.platform } }));
 vi.mock('@capacitor-community/speech-recognition', () => ({
     SpeechRecognition: {
         available: async () => ({ available: true }),
@@ -355,8 +360,6 @@ describe('stale silence errors (meditation-pal-wlp9)', () => {
  * The engine keys this on Capacitor.getPlatform() === 'android'.
  */
 describe('Android native session events', () => {
-    const P = vi.hoisted(() => ({ platform: 'web' }));
-    vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => P.platform } }));
     const started = (): void => H.listeners.get('listeningState')?.({ status: 'started' });
     const finalClose = (text?: string): void =>
         H.listeners.get('partialResults')?.({ matches: text === undefined ? [] : [text], final: true });

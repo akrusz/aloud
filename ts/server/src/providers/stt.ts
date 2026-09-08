@@ -27,7 +27,7 @@ export function int16ToFloat32(samples: Int16Array): Float32Array {
 }
 
 /** Encode mono Float32 PCM in [-1, 1] as a 16-bit little-endian WAV. */
-export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array {
+export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array<ArrayBuffer> {
     const dataBytes = samples.length * 2;
     const buf = new ArrayBuffer(44 + dataBytes);
     const view = new DataView(buf);
