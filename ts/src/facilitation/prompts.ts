@@ -353,7 +353,7 @@ Keep responses very brief - often just a few words or a short phrase.
 "What's there?" or "And now?" can be complete responses.
 `,
     medium: `Response length: Medium
-Responses can be up to 1-2 sentences if helpful. Brief but complete thoughts.
+Responses should be brief but complete thoughts. One medium length sentence, sometimes two.
 `,
     high: `Response length: Longer
 Feel free to offer slightly longer reflections when insightful,
