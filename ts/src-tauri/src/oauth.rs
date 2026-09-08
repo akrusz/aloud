@@ -42,9 +42,9 @@ fn b64url(bytes: &[u8]) -> String {
 
 /// `n` random bytes as a URL-safe base64 string (PKCE verifier / state nonce).
 fn random_b64url(n: usize) -> String {
-    use rand::RngCore;
+    use rand::Rng;
     let mut buf = vec![0u8; n];
-    rand::thread_rng().fill_bytes(&mut buf);
+    rand::rng().fill_bytes(&mut buf);
     b64url(&buf)
 }
 

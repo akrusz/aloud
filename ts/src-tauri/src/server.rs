@@ -168,9 +168,9 @@ async fn require_token(State(auth): State<Arc<AuthConfig>>, req: Request, next: 
 
 /// The per-launch API token: 32 random bytes as lowercase hex.
 fn random_token() -> String {
-    use rand::RngCore;
+    use rand::Rng;
     let mut buf = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut buf);
+    rand::rng().fill_bytes(&mut buf);
     buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
