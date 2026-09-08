@@ -27,7 +27,7 @@ jobs:
     # Fail fast if the deploy token isn't configured rather than half-running.
     environment: production
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # Empty = the triggering ref, which is what the manual button wants.
           ref: ${{ inputs.ref }}
