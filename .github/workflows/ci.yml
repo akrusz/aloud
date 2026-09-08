@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: ts
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           # Node 22 (>=22.5): the @aloud/server package uses the built-in
