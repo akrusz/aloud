@@ -41,7 +41,7 @@
         "cap:android:run": "npm run cap:require-cloud-url && npm run ui:build && cap sync android && cap run android"
     },
     "devDependencies": {
-        "@capacitor/cli": "^8.3.4",
+        "@capacitor/cli": "^8.5.1",
         "@tauri-apps/cli": "^2.11.2",
         "@types/node": "^22.10.0",
         "playwright-core": "^1.62.1",
