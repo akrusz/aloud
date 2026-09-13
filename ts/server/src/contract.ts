@@ -125,6 +125,14 @@ export interface CloudVoice {
      *  at rate 1 because a prosody tag would strip the style (routes/tts.ts
      *  effectiveRate). The client grays its speed control out. */
     fixedPace?: boolean;
+    /** The voice the server speaks when a request names none
+     *  (voice-catalog defaultVoice, given the providers with keys). The client
+     *  needs it to know which voice's `promptNote` applies to a no-voice pick. */
+    default?: boolean;
+    /** A rule for the LLM about the text this voice will read
+     *  (CuratedVoice.promptNote): appended to the system prompt while the
+     *  voice is the effective one. */
+    promptNote?: string;
 }
 
 // ---- Auth & account ---------------------------------------------------------

@@ -57,6 +57,32 @@ export interface CloudVoice {
     zhNative?: boolean;
     /** Pace fixed server-side (styled voices always synthesize at rate 1). */
     fixedPace?: boolean;
+    /** The voice a no-voice hosted request gets. */
+    default?: boolean;
+    /** A system-prompt rule about the text this voice reads (see
+     *  hostedVoicePromptNote). */
+    promptNote?: string;
+}
+
+/**
+ * The prompt note of the hosted voice that will actually speak, or '' when
+ * none applies: an explicit `aloud:` pick names it; no pick on the hosted
+ * pipeline means the catalog's default (views/session.ts buildTts); a browser
+ * or server voice never has one. Feeds PromptConfig.voiceNote.
+ */
+export function hostedVoicePromptNote(
+    voiceId: string | null,
+    provider: string,
+    hosted: readonly CloudVoice[]
+): string {
+    let entry: CloudVoice | undefined;
+    if (voiceId?.startsWith('aloud:')) {
+        const name = voiceId.slice('aloud:'.length);
+        entry = hosted.find((v) => v.name === name);
+    } else if (!voiceId && provider === 'aloud') {
+        entry = hosted.find((v) => v.default);
+    }
+    return entry?.promptNote ?? '';
 }
 
 /** Scored, sorted voice entry for the picker UI. */

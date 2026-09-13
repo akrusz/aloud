@@ -54,6 +54,11 @@ export interface CuratedVoice {
      *  flagged default (views/session.ts language swap), and the picker
      *  surfaces these first in zh sessions. */
     zhNative?: boolean;
+    /** A rule for the LLM about the text this voice will read, sent to the
+     *  client as CloudVoice.promptNote and appended to the system prompt while
+     *  the voice is in use. For a provider-side synthesis bug we'd rather steer
+     *  around than lose the voice over; drop it once the provider fixes it. */
+    promptNote?: string;
     /** Multiplied into the requested rate before synthesis, so the speed
      *  slider means roughly the same words-per-minute on every voice. The MAI
      *  and DragonHD voices read the audition sample in 19-24s where the norm
@@ -105,7 +110,21 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // app, and a zh session that never picks a voice now gets a voice that can
     // actually speak it. (zh sessions are further steered client-side to a
     // zhNative voice - Harper's zh reads accented to a native ear.)
-    { name: 'Harper', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', style: 'softvoice', default: true },
+    // Azure intermittently garbles Harper's synthesis of a reply that opens
+    // with "Right" (provider-side; still there 2026-09-13). The prompt note
+    // steers the LLM off that opener; meditation-pal-nkni tracks
+    // re-checking the bug or finding a replacement voice.
+    {
+        name: 'Harper',
+        provider: 'azure',
+        multilingual: true,
+        providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash',
+        gender: 'female',
+        tier: 'premium',
+        style: 'softvoice',
+        default: true,
+        promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
+    },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];

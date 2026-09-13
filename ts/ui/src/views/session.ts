@@ -139,6 +139,7 @@ import {
     buildScoredVoiceList,
     fetchServerVoices,
     fetchCloudVoices,
+    hostedVoicePromptNote,
     prefixedVoiceId,
     previewVoice as runVoicePreview,
     previewErrorMessage,
@@ -149,6 +150,7 @@ import {
     syncSpeedControlForVoice,
     voiceRateLabel,
     ENGINE_LABELS,
+    type CloudVoice,
     type ScoredVoice,
 } from '../voice-picker.js';
 
@@ -2385,6 +2387,15 @@ export async function mountSessionView(
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         scoredVoices = buildScoredVoiceList(server, true, hosted, sessionLanguage);
         updateVoicePickerLabel();
+        syncVoiceNote(hosted);
+    }
+
+    // A hosted voice can ask the LLM for a text rule (CloudVoice.promptNote,
+    // e.g. Harper's "don't open with Right"). The prompt is rebuilt from the
+    // builder's config every turn, so setting it here is enough; re-run on a
+    // mid-session pick.
+    function syncVoiceNote(hosted: readonly CloudVoice[]): void {
+        builder.config.voiceNote = hostedVoicePromptNote(setup.voice, setup.provider, hosted);
     }
 
     function updateVoicePickerLabel(): void {
@@ -2435,6 +2446,7 @@ export async function mountSessionView(
             // Rebuild the live engine, or a browser/server voice change would
             // update only the label and silently keep the old engine.
             void rebuildTts(setup.voice);
+            void fetchCloudVoices().then(syncVoiceNote);
         };
         const onSpeedInput = () => {
             const rate = Number(speedSlider.value);

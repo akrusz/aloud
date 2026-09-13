@@ -95,6 +95,22 @@ describe('GET /cloud/v1/voices', () => {
         expect(vega.creditsPerHourTypical).toBeLessThan(leda.creditsPerHourTypical);
     });
 
+    it('flags the effective default and carries per-voice prompt notes', async () => {
+        const all = createApp(
+            buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', OPENAI_TTS_API_KEY: 'k2', AZURE_SPEECH_KEY: 'k3' }))
+        );
+        const voices = (await (await all.request('/cloud/v1/voices')).json()) as CloudVoice[];
+        expect(voices.filter((v) => v.default).map((v) => v.name)).toEqual([defaultVoice().name]);
+        // Harper's Azure "Right" bug: the note the client folds into the prompt.
+        expect(voices.find((v) => v.name === 'Harper')!.promptNote).toMatch(/"Right"/);
+        expect(voices.find((v) => v.name === 'Leda')!.promptNote).toBeUndefined();
+
+        // Without the flagged default's key, the default flag follows the chain.
+        const googleOnly = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k' })));
+        const gv = (await (await googleOnly.request('/cloud/v1/voices')).json()) as CloudVoice[];
+        expect(gv.filter((v) => v.default).map((v) => v.name)).toEqual(['Leda']);
+    });
+
     it('is empty when TTS is not configured', async () => {
         const app = createApp(buildDeps(loadConfig({})));
         const res = await app.request('/cloud/v1/voices');

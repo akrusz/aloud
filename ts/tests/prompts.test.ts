@@ -129,6 +129,18 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         expect(prompt).toContain('do the thing');
     });
 
+    it('appends a voice note only when one is set (empty keeps the prompt identical)', () => {
+        const note = 'Never begin a reply with the word "Right".';
+        const withNote = new PromptBuilder({ config: { voiceNote: note, customInstructions: 'x' } });
+        const prompt = withNote.buildSystemPrompt();
+        expect(prompt).toContain(note);
+        // Before the meditator's own instructions, after every composed section.
+        expect(prompt.indexOf(note)).toBeLessThan(prompt.indexOf('Additional instructions'));
+        expect(new PromptBuilder({ config: { voiceNote: '' } }).buildSystemPrompt()).toBe(
+            new PromptBuilder().buildSystemPrompt()
+        );
+    });
+
     it('picks the nearest directiveness key', () => {
         const builder = new PromptBuilder({ config: { directiveness: 6 } });
         const prompt = builder.buildSystemPrompt();

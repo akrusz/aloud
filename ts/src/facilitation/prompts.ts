@@ -54,6 +54,11 @@ export interface PromptConfig {
      *  byte-identical to the pre-language prompt, so default sessions keep
      *  their prompt-cache prefix. */
     language: SessionLanguage;
+    /** A rule the selected TTS voice needs of the text it will read
+     *  (CloudVoice.promptNote, resolved client-side from the picked or default
+     *  hosted voice). Empty for every voice without one, so the prompt stays
+     *  byte-identical there (prompt-cache prefix). */
+    voiceNote: string;
 }
 
 export const defaultPromptConfig: PromptConfig = {
@@ -65,6 +70,7 @@ export const defaultPromptConfig: PromptConfig = {
     waitSignal: false,
     holdSignal: true,
     language: 'en',
+    voiceNote: '',
 };
 
 /** Returns a number in [0, 1). Injectable so randomness is testable. */
@@ -713,6 +719,12 @@ export class PromptBuilder {
         // (prompt-cache prefix, same rule as the holdSignal cut above).
         if (this.config.language === 'zh-CN') {
             parts.push(ZH_LANGUAGE_FRAGMENT);
+        }
+
+        // Voice-specific text rules (a hosted voice that mispronounces a word)
+        // sit last among the composed sections for the same reason.
+        if (this.config.voiceNote) {
+            parts.push(this.config.voiceNote);
         }
 
         if (composes?.custom !== false && this.config.customInstructions) {

@@ -18,7 +18,7 @@ import { meRoutes } from './routes/me.js';
 import { llmRoutes } from './routes/llm.js';
 import { sttRoutes } from './routes/stt.js';
 import { ttsRoutes } from './routes/tts.js';
-import { CURATED_VOICES } from './providers/voice-catalog.js';
+import { CURATED_VOICES, defaultVoice } from './providers/voice-catalog.js';
 import { voiceCreditsPerHourTypical } from './pricing/estimate.js';
 import type { CloudVoice } from './contract.js';
 import { billingRoutes } from './routes/billing.js';
@@ -92,6 +92,10 @@ export function createApp(deps: Deps): Hono {
             openai: Boolean(deps.config.openaiTtsApiKey),
             azure: Boolean(deps.config.azureSpeechKey),
         };
+        const available = new Set(
+            (Object.keys(hasKey) as (keyof typeof hasKey)[]).filter((k) => hasKey[k])
+        );
+        const fallback = defaultVoice(available).name;
         const voices: CloudVoice[] = CURATED_VOICES.filter((v) => hasKey[v.provider]).map((v) => ({
             name: v.name,
             gender: v.gender,
@@ -100,6 +104,8 @@ export function createApp(deps: Deps): Hono {
             ...(v.multilingual ? { multilingual: true } : {}),
             ...(v.zhNative ? { zhNative: true } : {}),
             ...(v.style ? { fixedPace: true } : {}),
+            ...(v.name === fallback ? { default: true } : {}),
+            ...(v.promptNote ? { promptNote: v.promptNote } : {}),
         }));
         return c.json(voices);
     });
