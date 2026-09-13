@@ -236,7 +236,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const config: Config = {
         port: Number(env['PORT'] ?? 8787),
         corsOrigins: list(env['ALOUD_CORS_ORIGINS']) || [],
-        sessionSecret: env['ALOUD_SESSION_SECRET'] ?? (strict ? '' : 'dev-insecure-secret'),
+        sessionSecret: env['ALOUD_SESSION_SECRET'] || (strict ? '' : 'dev-insecure-secret'),
         googleClientIds: list(env['GOOGLE_CLIENT_IDS']),
         appleClientIds: list(env['APPLE_CLIENT_IDS']),
         googleDesktopClientId: env['GOOGLE_DESKTOP_CLIENT_ID'] ?? '',

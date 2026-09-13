@@ -115,6 +115,13 @@ describe('strict (production) config gate', () => {
         );
     });
 
+    it('treats an EMPTY ALOUD_SESSION_SECRET as unset in dev (the .env.example ships it blank)', () => {
+        // jose 6 signs with WebCrypto, which rejects a zero-length HMAC key, so a
+        // blank secret turned every dev sign-in into a 500 after the token exchange.
+        expect(loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ALOUD_SESSION_SECRET: '' }).sessionSecret).not.toBe('');
+        expect(() => loadConfig({ ...PROD_OK, ALOUD_SESSION_SECRET: '' })).toThrow(/ALOUD_SESSION_SECRET/);
+    });
+
     it('counts any configured provider key, including OpenAI/Gemini', () => {
         const { ANTHROPIC_API_KEY: _drop, ...env } = PROD_OK;
         expect(() => loadConfig(env)).toThrow(/provider key/);
