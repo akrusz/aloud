@@ -111,6 +111,12 @@ dev builds only, same compile-time gate as the params - the `?mode=` override
 and the `?dev` cloud sign-in bypass. Invisible to anyone who just installed
 the app.
 
+One experiment switch also lives there with no URL twin: **Cloud mic without
+echo cancellation** (`isAecOffDebug`, `dev-mode.ts`, localStorage
+`aloud:debugAecOff`) opens the next session's PCM capture with
+`echoCancellation: false` - the Android call-stream measurement; judge it by the
+`[vad] tts window` lines.
+
 #### Simulate failures (dev builds)
 
 The same section carries four switches for states that are painful to reach on
@@ -195,6 +201,13 @@ npm run soak:web                      # tier 2: real UI, real audio (needs
 Then the by-hand pass: **[manual-smoke.md](manual-smoke.md)** - the desktop
 shell, permission refusals, real speakers, and phones, none of which the soak
 tiers can reach.
+
+**Dependency PRs mostly merge themselves.** Dependabot groups minor+patch into
+one weekly PR per ecosystem (`.github/dependabot.yml`), and
+`.github/workflows/dependabot-automerge.yml` squash-merges a Dependabot PR once
+every check that actually ran is green. Majors stay ungrouped and wait for you -
+as does anything red or still pending. Nothing ships from a merge: deploys are
+release-gated.
 
 ## Building & releasing
 
