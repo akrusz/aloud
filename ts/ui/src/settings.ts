@@ -9,7 +9,10 @@ import type {
     Quality,
     Verbosity,
 } from '../../src/facilitation/index.js';
+import type { KvStorage } from '../../src/platform/storage.js';
+import { createKv } from './adapters/kv.js';
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
+import { isCapacitor } from './is-desktop.js';
 import { loadAppSettings } from './app-settings.js';
 import type { Capability, Capabilities } from './capabilities.js';
 
@@ -322,10 +325,32 @@ const SETTINGS_KEY = 'preview:setup';
 // Lazy for the same reason as app-settings.ts: importing this module for a pure
 // helper must not construct a storage backend (LocalStorageKv throws outside a
 // browser).
-let lazyKv: LocalStorageKv | null = null;
-function kv(): LocalStorageKv {
-    if (!lazyKv) lazyKv = new LocalStorageKv();
+let lazyKv: KvStorage | null = null;
+function kv(): KvStorage {
+    if (!lazyKv) lazyKv = createKv();
     return lazyKv;
+}
+
+/** Mobile used to keep the setup in the webview's localStorage, which iOS can
+ *  evict (meditation-pal-76cs; same class as the auth token, 7n22). It now
+ *  rides the platform KV, so lift a setup written by an older build once
+ *  rather than resetting a tester's mode/intention/circle at the upgrade.
+ *  Native only, and only when the durable slot is empty. */
+let legacyLifted = false;
+async function loadRawSetup(): Promise<string | null> {
+    const raw = await kv().get(SETTINGS_KEY);
+    if (raw !== null || legacyLifted || !isCapacitor()) return raw;
+    legacyLifted = true;
+    try {
+        const legacy = new LocalStorageKv();
+        const old = await legacy.get(SETTINGS_KEY);
+        if (!old) return null;
+        await kv().set(SETTINGS_KEY, old);
+        await legacy.delete(SETTINGS_KEY);
+        return old;
+    } catch {
+        return null;
+    }
 }
 
 export async function loadSetup(): Promise<SessionSetup> {
@@ -346,7 +371,7 @@ export async function loadSetup(): Promise<SessionSetup> {
         model: s.defaultModel,
         language: s.language,
     };
-    const raw = await kv().get(SETTINGS_KEY);
+    const raw = await loadRawSetup();
     let merged = base;
     if (raw) {
         try {
