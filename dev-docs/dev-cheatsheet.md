@@ -50,6 +50,27 @@ The Vite proxy (`ui/vite.config.ts`) forwards:
 So browser preview needs only the Hono server running (next section). Run
 `cd ts/server && npm run dev` and load :4649.
 
+### Phone dev over USB (chrome://inspect port forwarding)
+
+To run the browser preview on a real phone (the mobile *web* path, not the
+Capacitor app): `npm run web:dev` on the laptop, plug the phone in, open
+`chrome://inspect#devices` in desktop Chrome, and add a port-forward rule
+`4649 → localhost:4649`. Then load **`http://localhost:4649`** on the phone.
+
+- **Use `localhost`, not the LAN IP.** `getUserMedia` (and SpeechRecognition)
+  only works on a secure origin; `localhost` counts, `192.168.x.x` over plain
+  http does not, so the LAN URL gives you an app with no mic.
+- One rule is enough: the phone hits Vite, and the Vite proxy carries `/app/v1`
+  and `/cloud/v1` to Hono on :8787 on the laptop.
+- **The tell that the tunnel dropped**: everything cloud-shaped fails at once
+  (voice preview *and* sign-in *and* the catalog) with `Failed to fetch`, while
+  the chrome://inspect UI still shows the mapping as active. That is the
+  forward, not the app - re-plug or toggle the rule, don't debug auth.
+  Cheapest check: load `/cloud/v1/tts/preview?voice=Leda` on the phone
+  directly - audio means the tunnel is up.
+- The same chrome://inspect page gives you DevTools on the phone's tab
+  (console, network) for either the browser preview or the Capacitor WebView.
+
 ### Dev URL params
 
 Boot-time overrides, all read off `:4649/?…`. Every one is **dev-only** - gated on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
