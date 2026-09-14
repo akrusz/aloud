@@ -39,6 +39,11 @@ export interface SessionClockChoice {
     showClock: boolean;
     /** End the session after the closing word (timer mode only). */
     endOnComplete: boolean;
+    /** Timer mode, mid-sit: keep the running countdown rather than restart
+     *  it. Only ever true when the picker was opened on an armed timer and the
+     *  user left "Continue" selected (iig5: toggling the readout used to
+     *  restart the count from now). */
+    keepRunning?: boolean;
 }
 
 function pad(n: number): string {
@@ -191,6 +196,7 @@ export class SessionClock {
             timerMin: this.timerMin,
             showClock: this.visible,
             endOnComplete: this.endOnComplete,
+            runningEndsAt: this.endsAt,
         });
         if (!choice) return;
         this.applyChoice(choice);
@@ -203,7 +209,10 @@ export class SessionClock {
         this.mode = choice.mode;
         this.visible = choice.showClock;
         this.endOnComplete = choice.endOnComplete;
-        if (choice.mode === 'timer') this.arm(choice.timerMin);
+        if (choice.mode === 'timer' && choice.keepRunning && this.endsAt !== null) {
+            // Nothing about the countdown changes; the picker was opened for
+            // the readout or the end-of-timer toggle.
+        } else if (choice.mode === 'timer') this.arm(choice.timerMin);
         else {
             this.timerMin = clampTimerMinutes(choice.timerMin);
             this.disarm();
@@ -211,7 +220,7 @@ export class SessionClock {
         // Setting a timer with the readout off would otherwise give no sign it
         // took, and the first confirmation would be the facilitator speaking
         // minutes later. Show the countdown briefly, then let it fade away.
-        if (choice.mode === 'timer' && !choice.showClock) this.reveal();
+        if (choice.mode === 'timer' && !choice.showClock && !choice.keepRunning) this.reveal();
         else this.render();
     }
 
@@ -268,6 +277,9 @@ export interface SessionClockModalConfig {
     timerMin: number;
     showClock: boolean;
     endOnComplete: boolean;
+    /** Epoch ms a timer already running ends. Offers a "Continue" chip, selected
+     *  by default, so confirming the picker mid-sit keeps the countdown. */
+    runningEndsAt?: number | null;
 }
 
 /**
@@ -285,6 +297,13 @@ export function showSessionClockModal(
         let timerMin = clampTimerMinutes(config.timerMin);
         let showClock = config.showClock;
         let endOnComplete = config.endOnComplete;
+        const running =
+            config.mode === 'timer' && config.runningEndsAt != null && config.runningEndsAt > Date.now()
+                ? config.runningEndsAt
+                : null;
+        // "Continue" is the default mid-sit: opening the picker to hide the
+        // readout must not cost the meditator their timer.
+        let keepRunning = running !== null;
 
         const overlay = document.createElement('div');
         overlay.id = OVERLAY_ID;
@@ -307,6 +326,7 @@ export function showSessionClockModal(
                 </div>
                 <div class="clock-timer-panel hidden" id="clock-timer-panel">
                     <div class="clock-presets">
+                        ${running !== null ? `<button type="button" class="clock-preset clock-preset-continue" id="clock-continue">${t('Continue')}</button>` : ''}
                         ${SESSION_TIMER_PRESETS.map(
                             (m) =>
                                 `<button type="button" class="clock-preset" data-min="${m}">${m}</button>`
@@ -349,6 +369,7 @@ export function showSessionClockModal(
         const endToggle = overlay.querySelector<HTMLInputElement>('#clock-end-on-complete')!;
         const panel = overlay.querySelector<HTMLElement>('#clock-timer-panel')!;
         const endsAt = overlay.querySelector<HTMLElement>('#clock-ends-at')!;
+        const continueBtn = overlay.querySelector<HTMLElement>('#clock-continue');
 
         function sync(): void {
             for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-mode')) {
@@ -357,15 +378,27 @@ export function showSessionClockModal(
                 btn.setAttribute('aria-checked', String(on));
             }
             panel.classList.toggle('hidden', mode !== 'timer');
-            for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset')) {
-                btn.classList.toggle('selected', Number(btn.dataset['min']) === timerMin);
+            const keep = keepRunning && mode === 'timer';
+            continueBtn?.classList.toggle('selected', keep);
+            for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset[data-min]')) {
+                btn.classList.toggle('selected', !keep && Number(btn.dataset['min']) === timerMin);
             }
             if (minutesInput.value !== String(timerMin)) minutesInput.value = String(timerMin);
             showToggle.checked = showClock;
             endToggle.checked = endOnComplete;
-            const end = new Date(Date.now() + timerMin * 60_000);
-            endsAt.textContent =
-                mode === 'timer' ? t('ends {time}', { time: formatWallClock(end) }) : '';
+            paintEndsAt();
+        }
+
+        // Continuing shows the real end of the running timer; anything else is
+        // a fresh duration counted from now.
+        function paintEndsAt(): void {
+            if (mode !== 'timer') {
+                endsAt.textContent = '';
+                return;
+            }
+            const end =
+                keepRunning && running !== null ? running : Date.now() + timerMin * 60_000;
+            endsAt.textContent = t('ends {time}', { time: formatWallClock(new Date(end)) });
         }
 
         const close = (result: SessionClockChoice | null): void => {
@@ -389,12 +422,18 @@ export function showSessionClockModal(
                 sync();
             });
         }
-        for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset')) {
+        continueBtn?.addEventListener('click', () => {
+            keepRunning = true;
+            mode = 'timer';
+            sync();
+        });
+        for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset[data-min]')) {
             btn.addEventListener('click', () => {
                 timerMin = clampTimerMinutes(Number(btn.dataset['min']));
                 // Picking a length is also how you pick the mode: nobody taps
                 // "30" meaning anything but "give me a 30 minute timer".
                 mode = 'timer';
+                keepRunning = false;
                 sync();
             });
         }
@@ -402,10 +441,10 @@ export function showSessionClockModal(
             const n = Number(minutesInput.value);
             if (!Number.isFinite(n) || n <= 0) return;
             timerMin = clampTimerMinutes(n);
-            endsAt.textContent = t('ends {time}', {
-                time: formatWallClock(new Date(Date.now() + timerMin * 60_000)),
-            });
-            for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset')) {
+            keepRunning = false;
+            continueBtn?.classList.remove('selected');
+            paintEndsAt();
+            for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-preset[data-min]')) {
                 btn.classList.toggle('selected', Number(btn.dataset['min']) === timerMin);
             }
         });
@@ -416,10 +455,12 @@ export function showSessionClockModal(
         });
         overlay.querySelector('.stepper-dec')?.addEventListener('click', () => {
             timerMin = clampTimerMinutes(timerMin - 1);
+            keepRunning = false;
             sync();
         });
         overlay.querySelector('.stepper-inc')?.addEventListener('click', () => {
             timerMin = clampTimerMinutes(timerMin + 1);
+            keepRunning = false;
             sync();
         });
         showToggle.addEventListener('change', () => {
@@ -429,7 +470,13 @@ export function showSessionClockModal(
             endOnComplete = endToggle.checked;
         });
         overlay.querySelector('#clock-modal-save')?.addEventListener('click', () => {
-            close({ mode, timerMin: clampTimerMinutes(timerMin), showClock, endOnComplete });
+            close({
+                mode,
+                timerMin: clampTimerMinutes(timerMin),
+                showClock,
+                endOnComplete,
+                keepRunning: keepRunning && mode === 'timer',
+            });
         });
 
         sync();

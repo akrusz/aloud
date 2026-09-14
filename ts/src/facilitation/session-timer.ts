@@ -31,8 +31,9 @@ export const SESSION_TIMER_EVENT_PREFIX = '[Timer:';
 export const SESSION_TIMER_MAX_CHARS = 400;
 
 /** Selectable timer lengths, in minutes. The modal offers these as one tap and
- *  takes any other whole number by hand. */
-export const SESSION_TIMER_PRESETS: readonly number[] = [5, 10, 15, 20, 30, 45, 60];
+ *  takes any other whole number by hand. Five chips, not seven: mid-sit the
+ *  row also has to fit a "Continue" chip for the running timer. */
+export const SESSION_TIMER_PRESETS: readonly number[] = [10, 20, 30, 45, 60];
 
 /** Bounds for a hand-entered duration. */
 export const SESSION_TIMER_MIN_MINUTES = 1;

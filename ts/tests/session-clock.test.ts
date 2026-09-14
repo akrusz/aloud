@@ -231,3 +231,36 @@ describe('SessionClock', () => {
         clock.destroy();
     });
 });
+
+describe('keepRunning (iig5)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('keeps the running deadline when the picker only toggled the readout', () => {
+        const el = fakeEl();
+        const clock = new SessionClock(el, Date.now(), TIMER_SETTINGS, () => undefined);
+        vi.advanceTimersByTime(10 * 60_000);
+        expect(Math.round(clock.remainingSec()! / 60)).toBe(10);
+
+        clock.applyChoice({
+            mode: 'timer',
+            timerMin: 20,
+            showClock: false,
+            endOnComplete: true,
+            keepRunning: true,
+        });
+        expect(Math.round(clock.remainingSec()! / 60)).toBe(10);
+        expect(clock.endsSessionOnComplete()).toBe(true);
+        // No reveal either: nothing new was set.
+        expect(el.classes.has('session-clock-reveal')).toBe(false);
+        clock.destroy();
+    });
+
+    it('re-arms when a duration is picked, even mid-sit', () => {
+        const clock = new SessionClock(fakeEl(), Date.now(), TIMER_SETTINGS, () => undefined);
+        vi.advanceTimersByTime(10 * 60_000);
+        clock.applyChoice({ mode: 'timer', timerMin: 30, showClock: true, endOnComplete: false });
+        expect(Math.round(clock.remainingSec()! / 60)).toBe(30);
+        clock.destroy();
+    });
+});
