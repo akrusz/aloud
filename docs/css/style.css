@@ -222,12 +222,14 @@ code {
 /* The mark rides the orb rather than sitting under it: the wordmark is a
    sticker slapped over the glow, which is both the stronger image and ~7rem
    of hero height back. The orb keeps the flow (it sets the block's height);
-   the title is lifted out of it and centred on top. */
+   the title is lifted out of it and centred on top.
+   The bottom margin clears the glow's falloff (halos reach ~160px out), so
+   the tagline doesn't sit inside it. */
 .hero-mark {
   position: relative;
   display: flex;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin-bottom: 3.5rem;
 }
 .hero-title {
   position: absolute;
@@ -1104,8 +1106,7 @@ code {
   .section-lead { margin-bottom: 1.75rem; }
 
   .hero { padding: 0.5rem 1.5rem 1.25rem; }
-  /* Half the height the wordmark used to occupy, given back around the orb:
-     the tagline sat inside the glow's falloff without it. */
+  /* Half the height the wordmark used to occupy, given back above the orb. */
   .hero-mark { margin-top: 1.5rem; margin-bottom: 2.75rem; }
   .hero-tagline { margin-bottom: 1rem; }
   .hero-pun { margin-bottom: 1.5rem; }
