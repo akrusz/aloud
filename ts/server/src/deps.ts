@@ -10,12 +10,19 @@ import { MemoryCreditsStore } from './credits/memory-store.js';
 import { SqliteCreditsStore } from './credits/sqlite-store.js';
 import { Ledger } from './credits/ledger.js';
 import { Forwarder } from './providers/forward.js';
-import { FreeGrantBreaker, RateGuard } from './quota/freetier.js';
+import { DailyCap, FreeGrantBreaker, RateGuard } from './quota/freetier.js';
 import { HttpModelProber, ModelLiveness } from './pricing/liveness.js';
 
 /** A busy sit makes 2-4 judge calls a minute; this leaves room for prefetching
  *  on speculative transcripts while still capping a runaway client. */
 const JUDGE_REQUESTS_PER_MINUTE = 90;
+
+/** The judge is free to any account, so this is the cost ceiling on a scripted
+ *  one: ~$0.10 a day. A heavy sit (short replies every 15s, each prefetched
+ *  once or twice) runs ~600 calls an hour, so this clears a full retreat day;
+ *  past it an account with no credits falls back to the LLM classifiers and
+ *  loses commands (routes/judge.ts lets one with a balance through). */
+const JUDGE_REQUESTS_PER_DAY = 5000;
 
 export interface Deps {
     config: Config;
@@ -27,6 +34,7 @@ export interface Deps {
      *  are cheap, frequent and optional, and must never be what gets an LLM
      *  turn refused - nor be starved by a turn's TTS sentences. */
     judgeGuard: RateGuard;
+    judgeDailyCap: DailyCap;
     grantBreaker: FreeGrantBreaker;
     /** Which allowlisted models the providers still serve. Everything reads
      *  live until index.ts's hourly sweep proves otherwise; tests never sweep,
@@ -52,6 +60,7 @@ export function buildDeps(config: Config, options: BuildDepsOptions = {}): Deps 
         forwarder: new Forwarder(config.providerKeys),
         rateGuard: new RateGuard(),
         judgeGuard: new RateGuard(JUDGE_REQUESTS_PER_MINUTE),
+        judgeDailyCap: new DailyCap(JUDGE_REQUESTS_PER_DAY),
         grantBreaker: new FreeGrantBreaker(config.freeGrantBudgetPerHour),
         liveness: new ModelLiveness(new HttpModelProber(config.providerKeys)),
     };

@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { createApp } from '../src/app.js';
 import { judgeRoutes } from '../src/routes/judge.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
+import { DailyCap } from '../src/quota/freetier.js';
 import type { AuthResponse, JudgeResponse } from '../src/contract.js';
 import { VOICE_COMMAND_IDS } from '@aloud/core/facilitation';
 
@@ -150,6 +151,25 @@ describe('POST /cloud/v1/judge', () => {
         });
         // Refused for its empty body, not for rate: the shared guard is untouched.
         expect(llm.status).toBe(400);
+    });
+
+    it('cuts an account with no credits off at the daily cap, and lets one with a balance through', async () => {
+        const store = new MemoryCreditsStore();
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_API_KEY: 'sk-test', TYPESAFE_API_KEY: 'ts-test' });
+        const deps = buildDeps(config, { store });
+        deps.judgeDailyCap = new DailyCap(1);
+        const a = createApp(deps);
+        const token = await devToken(a);
+        const me = (await (await a.request('/cloud/v1/me', { headers: { authorization: `Bearer ${token}` } })).json()) as {
+            id: string;
+        };
+        const balance = await deps.ledger.balance(me.id);
+        if (balance > 0) await deps.ledger.debit(me.id, balance, 'test:drain');
+
+        expect((await post(a, token, { classifier: 'resume', text: 'hi' })).status).toBe(200);
+        expect((await post(a, token, { classifier: 'resume', text: 'hi' })).status).toBe(429);
+        await deps.ledger.grant(me.id, 5, 'test:topup');
+        expect((await post(a, token, { classifier: 'resume', text: 'hi' })).status).toBe(200);
     });
 
     it('records one content-free judge_error a minute, with a count of the rest', async () => {

@@ -77,6 +77,13 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
         if (!deps.judgeGuard.allow(account.id)) {
             return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
         }
+        // The daily cap is the cost ceiling on accounts that pay nothing. One with
+        // credits is never cut off (the per-minute guard still bounds it), and
+        // isn't billed either: a credit funds ~1,000 calls, so there is nothing
+        // per-call to charge. The balance is only read once the cap is spent.
+        if (!deps.judgeDailyCap.allow(account.id) && (await deps.ledger.balance(account.id)) <= 0) {
+            return c.json(apiError('quota_exceeded', 'daily judge limit reached'), ERROR_STATUS.quota_exceeded);
+        }
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<JudgeRequest>;
         const text = typeof body.text === 'string' ? body.text.trim() : '';

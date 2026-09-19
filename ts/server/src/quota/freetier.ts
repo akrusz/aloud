@@ -146,3 +146,30 @@ export class RateGuard {
         return true;
     }
 }
+
+/**
+ * A per-account ceiling per UTC day, for calls too cheap to charge (the judge).
+ * In memory: a restart forgets the day's counts, which is fine for a cost
+ * ceiling and would not be for a quota someone is sold.
+ */
+export class DailyCap {
+    private counts = new Map<string, { day: number; n: number }>();
+
+    constructor(
+        private readonly maxPerDay: number,
+        private readonly now: () => number = Date.now
+    ) {}
+
+    /** Returns true if allowed (and counts it), false once the day is spent. */
+    allow(accountId: string): boolean {
+        const day = Math.floor(this.now() / 86_400_000);
+        const entry = this.counts.get(accountId);
+        if (!entry || entry.day !== day) {
+            this.counts.set(accountId, { day, n: 1 });
+            return true;
+        }
+        if (entry.n >= this.maxPerDay) return false;
+        entry.n++;
+        return true;
+    }
+}
