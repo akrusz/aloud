@@ -733,4 +733,8 @@ export const ZH: Record<string, string> = {
     "\"End the session\" / \"end without saving\"": "“结束冥想” / “不保存,直接结束”",
     "These understand natural language, so phrasing is flexible.": "这些指令能听懂自然语言,怎么说都可以。",
     "\"End the session\" / \"end and save\"": "“结束冥想” / “保存并结束”",
+    "Downloading the speech model…": "正在下载语音模型……",
+    "Downloading the speech model… {percent}%": "正在下载语音模型…… {percent}%",
+    "Loading the speech model…": "正在加载语音模型……",
+    "Couldn't download the speech model. Retrying - or switch Speech Recognition to aloud cloud.": "语音模型下载失败。正在重试，你也可以把语音识别切换为 aloud cloud。",
 };

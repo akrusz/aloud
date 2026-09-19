@@ -531,7 +531,8 @@ fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> Result<(), ()> {
 /// 404s), and the model params kick the loader NOW, during setup, instead of
 /// on the first utterance - which used to 503 and eat the user's first words
 /// after a model switch. Always 200 (no console noise); body says how far
-/// along the model is.
+/// along the model is, which is what the setup page holds Begin on
+/// (`ui/src/whisper-ready.ts`).
 async fn stt_whisper_warm(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
@@ -547,6 +548,9 @@ async fn stt_whisper_warm(
         Json(json!({
             "ready": state.whisper_ready.load(Ordering::SeqCst),
             "error": state.whisper_error.lock().unwrap().clone(),
+            "progress": state.whisper_progress.lock().unwrap().map(|(done, total)| {
+                json!({ "done": done, "total": total })
+            }),
         })),
     )
 }

@@ -69,6 +69,7 @@ import {
     cloudSttCreditsPerHour,
 } from '../adapters/stt-picker.js';
 import { probeMic, describeMicRequirement, type MicStatus } from '../mic-check.js';
+import { watchWhisperReady, describeWhisperWait, type WhisperStatus } from '../whisper-ready.js';
 import { t } from '../i18n.js';
 import { sessionStore } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
@@ -216,6 +217,27 @@ export async function mountSetupView(
         micStatus = status;
         renderMicNotice();
     });
+    // Local Whisper downloads its model in the background on first launch;
+    // Begin waits for it instead of starting a session that can't hear. Only
+    // watched while Whisper is the chosen source, and optimistic like the mic.
+    let whisperStatus: WhisperStatus = { state: 'ready' };
+    let whisperUnwatch: (() => void) | null = null;
+    function watchWhisper(choice: string): void {
+        whisperUnwatch?.();
+        whisperUnwatch = null;
+        whisperStatus = { state: 'ready' };
+        if (choice === 'whisper') {
+            whisperUnwatch = watchWhisperReady(
+                appSettings.sttWhisperModel,
+                appSettings.language,
+                (status) => {
+                    whisperStatus = status;
+                    renderWhisperNotice();
+                }
+            );
+        }
+        renderWhisperNotice();
+    }
     // Lazy-loaded; the setup form is interactive while voices fetch.
     let scoredVoices: ScoredVoice[] = [];
 
@@ -829,6 +851,7 @@ export async function mountSetupView(
             await saveAppSettings({ ...s, sttEngine: sttSel.value as SttEngineChoice });
             updateSttQualityNote(sttSel.value);
             updateSessionEstimate();
+            watchWhisper(sttSel.value);
         });
 
         // API key entry itself lives in Settings, not here.
@@ -958,7 +981,10 @@ export async function mountSetupView(
         // A known-bad mic blocks Begin outright: aloud has no text-only mode, so
         // there's nothing to start. Only the certain cases reach here (see
         // probeMic); the rest are caught by the Begin handler's own check.
-        const disabled = (needsLLM() && !providerAvailable()) || micStatus !== 'ok';
+        const disabled =
+            (needsLLM() && !providerAvailable()) ||
+            micStatus !== 'ok' ||
+            whisperStatus.state !== 'ready';
         beginBtn.disabled = disabled;
         beginBtn.classList.toggle('btn-disabled', disabled);
     }
@@ -971,6 +997,17 @@ export async function mountSetupView(
         if (banner && text) {
             banner.classList.toggle('hidden', !problem);
             text.textContent = problem ?? '';
+        }
+        updateBeginButton();
+    }
+
+    function renderWhisperNotice(): void {
+        const banner = root.querySelector<HTMLElement>('#setup-whisper-wait');
+        const text = root.querySelector<HTMLElement>('#setup-whisper-wait-text');
+        const wait = describeWhisperWait(whisperStatus);
+        if (banner && text) {
+            banner.classList.toggle('hidden', !wait);
+            text.textContent = wait ?? '';
         }
         updateBeginButton();
     }
@@ -1497,15 +1534,22 @@ export async function mountSetupView(
     // autoStart short-circuits when the user has already dismissed, completed,
     // or used the app.
     void autoStartGuide();
+    watchWhisper(sttSetupSelected);
 
     return {
         async show() {
             render();
+            watchWhisper(
+                root.querySelector<HTMLSelectElement>('#setup-stt-engine')?.value ??
+                    sttSetupSelected
+            );
             await loadVoiceCatalog();
             void autoStartGuide();
         },
         hide() {
             closeGuideIfActive();
+            whisperUnwatch?.();
+            whisperUnwatch = null;
             if (cloudUnwatch !== null) {
                 cloudUnwatch();
                 cloudUnwatch = null;
@@ -1782,6 +1826,9 @@ function renderSetupHTML(
              Begin's acquireMicOnce is the definitive check. -->
         <div id="setup-no-mic" class="no-voices-banner inline hidden" role="alert">
             <p id="setup-no-mic-text"></p>
+        </div>
+        <div id="setup-whisper-wait" class="no-voices-banner inline hidden" role="status">
+            <p id="setup-whisper-wait-text"></p>
         </div>
         <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline(t('Noting mode uses fewer ☁️. Participants speak brief labels, not full sentences.'))}</p>
 
