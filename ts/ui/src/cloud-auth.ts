@@ -394,7 +394,7 @@ export async function setEmailUpdates(optIn: boolean): Promise<AccountView> {
  * Return a valid server token. A cached one wins. Otherwise a hosted
  * (Google-configured) build can't mint one non-interactively and throws
  * CloudSignInRequiredError for the caller to surface sign-in; a dev build uses
- * the local dev route. The JWT is long-lived (7 days) so there's no proactive
+ * the local dev route. The JWT is long-lived (90 days, sliding) so there's no proactive
  * refresh: expiry surfaces as a proxy 401, which the caller clears and retries.
  */
 export async function ensureCloudToken(): Promise<string> {

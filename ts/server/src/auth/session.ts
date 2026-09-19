@@ -10,12 +10,16 @@
 import { SignJWT, jwtVerify } from 'jose';
 
 const ISSUER = 'aloud-cloud';
-const TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const TTL_SECONDS = 60 * 60 * 24 * 90; // 90 days
+
+/** The admin gate (routes/admin.ts) accepts a session token only this young, so
+ *  the long TTL above never becomes a 90-day operator credential. */
+export const ADMIN_MAX_TOKEN_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 /** Age past which an authenticated request gets a re-minted token in the
  *  X-Session-Refresh response header (auth/middleware.ts), adopted client-side
- *  (ui cloud-auth.ts fetchMe). Makes the 7-day TTL SLIDING for anyone opening the
- *  app weekly; only a 7+ day absence forces an interactive re-sign-in. A day, not
+ *  (ui cloud-auth.ts fetchMe). Makes the 90-day TTL SLIDING for anyone opening the
+ *  app in that time; only a 90+ day absence forces an interactive re-sign-in. A day, not
  *  every request, keeps the header off the hot path and token churn low. */
 export const REFRESH_AFTER_SECONDS = 60 * 60 * 24; // 1 day
 

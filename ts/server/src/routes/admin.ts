@@ -4,7 +4,7 @@
  * never open. Two ways in: the static operator token (scripts, curl), or a
  * signed-in session whose verified account email is on the admin list, which is
  * how the operator reaches the panel from a phone without carrying the token
- * (the device only ever holds a 7-day session JWT).
+ * (the device holds a session JWT, honoured here only while under 7 days old).
  *
  *   GET  /cloud/v1/admin              control panel HTML (panel.ts)
  *   GET  /cloud/v1/admin/metrics      ledger aggregates + abuse velocity signals
@@ -29,7 +29,7 @@ import { buildIncidentReport } from '../credits/incidents.js';
 import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
-import { verifySessionToken } from '../auth/session.js';
+import { ADMIN_MAX_TOKEN_AGE_SECONDS, verifySessionToken } from '../auth/session.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 import type { UsageEvent } from '../credits/usage.js';
 
@@ -59,7 +59,11 @@ async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
     const expected = deps.config.adminToken;
     if (expected && tokenOk(provided, expected)) return null;
     if (provided && deps.config.adminEmails.length > 0) {
-        const claims = await verifySessionToken(provided, deps.config.sessionSecret);
+        const verified = await verifySessionToken(provided, deps.config.sessionSecret);
+        const claims =
+            verified && Date.now() / 1000 - verified.issuedAtSeconds <= ADMIN_MAX_TOKEN_AGE_SECONDS
+                ? verified
+                : undefined;
         const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
         if (
             account &&

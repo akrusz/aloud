@@ -58,7 +58,7 @@ export function requireAuth(deps: Deps): MiddlewareHandler {
         if (!account || account.deletedAt != null) {
             return c.json(apiError('unauthenticated', 'sign in required'), ERROR_STATUS.unauthenticated);
         }
-        // Sliding session: a day-old token gets a fresh 7-day one in a response
+        // Sliding session: a day-old token gets a fresh 90-day one in a response
         // header, adopted client-side (cloud-auth.ts fetchMe), so weekly users
         // never see a re-sign-in. Set BEFORE next(): the LLM proxy streams its
         // body, and headers can't change once it starts.

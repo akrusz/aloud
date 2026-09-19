@@ -1,7 +1,7 @@
 /**
- * Sliding sessions (X-Session-Refresh). The 7-day session JWT re-mints on any
+ * Sliding sessions (X-Session-Refresh). The 90-day session JWT re-mints on any
  * authenticated request once it's a day old, so users who open the app at
- * least weekly never face an interactive re-sign-in; only a 7+ day absence
+ * least every 90 days never face an interactive re-sign-in; only a longer absence
  * expires the session for real.
  */
 

@@ -6,7 +6,7 @@
  *
  * The admin token is NEVER baked in. The operator pastes it once, or signs in
  * with Google when ALOUD_ADMIN_EMAILS is set (the on-the-go path: the device
- * then holds a 7-day session JWT, not the root token). Either way the credential
+ * then holds a session JWT the admin gate honours for 7 days, not the root token). Either way the credential
  * lives in localStorage for this origin and rides every call as a Bearer header.
  * Same-origin with the API, so no CORS in play.
  *
