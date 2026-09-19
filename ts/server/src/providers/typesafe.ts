@@ -2,6 +2,8 @@
  * TypeSafe "system one" client: typed questions over a state, answered as
  * calibrated probabilities (https://docs.typesafe.ai/api). Only the noul
  * (yes/no) shape is used here; routes/judge.ts owns which questions get asked.
+ * Questions in one request run in parallel upstream, so several cost one round
+ * trip.
  */
 
 import type { JudgeQuestion } from '@aloud/core/facilitation';
@@ -21,8 +23,8 @@ export const JEV_USD_PER_INPUT_TOKEN = 42 / 1e9;
 const JEV_TIMEOUT_MS = 2500;
 
 export interface NoulResult {
-    /** P(yes), 0..1. */
-    p: number;
+    /** P(yes), 0..1, per question key. */
+    answers: Record<string, number>;
     /** The concrete version behind the alias, e.g. "jev-1.13.0". */
     model: string;
     inputTokens: number;
@@ -34,18 +36,18 @@ interface SystemOneResponse {
     usage?: { input_tokens?: number; output_tokens?: number };
 }
 
-/** Ask one noul question. Throws on any non-200, timeout, or malformed answer;
- *  no retry - see JEV_TIMEOUT_MS. */
-export async function askNoul(
+/** Ask a set of noul questions about one state. Throws on any non-200,
+ *  timeout, or a missing/malformed answer; no retry - see JEV_TIMEOUT_MS. */
+export async function askNouls(
     apiKey: string,
     state: unknown,
-    question: JudgeQuestion,
+    questions: Record<string, JudgeQuestion>,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<NoulResult> {
     const res = await fetchImpl(ENDPOINT, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ state, model: JEV_MODEL, questions: { q: question } }),
+        body: JSON.stringify({ state, model: JEV_MODEL, questions }),
         signal: AbortSignal.timeout(JEV_TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -56,9 +58,13 @@ export async function askNoul(
         throw new Error(`typesafe ${res.status}: ${detail.slice(0, 300)}`);
     }
     const data = (await res.json()) as SystemOneResponse;
-    const p = data.answers?.['q']?.noul;
-    if (typeof p !== 'number' || !Number.isFinite(p) || p < 0 || p > 1) {
-        throw new Error('typesafe: no noul answer');
+    const answers: Record<string, number> = {};
+    for (const key of Object.keys(questions)) {
+        const p = data.answers?.[key]?.noul;
+        if (typeof p !== 'number' || !Number.isFinite(p) || p < 0 || p > 1) {
+            throw new Error(`typesafe: no noul answer for ${key}`);
+        }
+        answers[key] = p;
     }
-    return { p, model: data.model ?? JEV_MODEL, inputTokens: data.usage?.input_tokens ?? 0 };
+    return { answers, model: data.model ?? JEV_MODEL, inputTokens: data.usage?.input_tokens ?? 0 };
 }

@@ -1,7 +1,7 @@
 /**
  * A/B the silence classifiers: Jev (typed judgment) against the shipping Haiku
  * prompts, on a labelled corpus that shares no utterance with either one's
- * examples (v36y). Sends the exact production request (server askNoul + core
+ * examples (v36y). Sends the exact production request (server askNouls + core
  * JUDGE_SPECS), so a threshold tuned here is the threshold the app runs.
  *
  *   npm run jev:ab                 (all three classifiers)
@@ -23,10 +23,12 @@ import {
     CLASSIFIER_IDS,
     JUDGE_SPECS,
     isClassifierId,
+    judgeQuestions,
     judgeState,
     type ClassifierId,
+    type JudgeAnswers,
 } from '../src/facilitation/utterance-judge.js';
-import { askNoul } from '../server/src/providers/typesafe.js';
+import { askNouls } from '../server/src/providers/typesafe.js';
 import { loadServerEnv } from '../soak/env.js';
 
 interface Case {
@@ -34,10 +36,15 @@ interface Case {
     want: boolean;
     /** The ones a reasonable listener could call either way; reported apart. */
     hard?: boolean;
+    /** Said earlier in the same hold. Jev sees it; Haiku, as shipped, does not. */
+    earlier?: string[];
 }
 
 const y = (text: string, hard = false): Case => ({ text, want: true, ...(hard ? { hard } : {}) });
 const n = (text: string, hard = false): Case => ({ text, want: false, ...(hard ? { hard } : {}) });
+
+/** Same words, different hold: the pairs below are the point of `earlier`. */
+const after = (earlier: string[], c: Case): Case => ({ ...c, earlier });
 
 const CORPUS: Record<ClassifierId, Case[]> = {
     resume: [
@@ -67,6 +74,30 @@ const CORPUS: Record<ClassifierId, Case[]> = {
         n('Still here. Still with it.'),
         n('I should really call my mom back.'),
         n("Let's see what happens if I stay with it.", true),
+        // Hedged call-backs, no context.
+        y("I guess I'm ready.", true),
+        y("I think that's enough for now."),
+        y("Okay, I think I'm good."),
+        y("I'm ready when you are."),
+        n("I guess that's just how it is."),
+        n("I think I'm okay with that."),
+        // "Ready" for what? Only the hold so far can say.
+        after(
+            ["There's a real tension here and I'm not sure what that's all about.", "I'm not sure what to do about it either."],
+            y("But I guess that's okay. I guess I'm ready.", true)
+        ),
+        after(
+            ["I keep wondering if I'm ready to talk to my dad about it.", "Part of me says wait another year.", 'But when is anyone ready for that.'],
+            n("I guess I'm ready.")
+        ),
+        after(["It's settled down a lot.", "Yeah. That feels complete."], y("I guess I'm ready.")),
+        after(["But I guess that's okay. I guess I'm ready."], y('Alright.')),
+        after(["There's a buzzing in my hands."], n('Alright.')),
+        after(["Okay, I'm done. You can come back."], y('Hello?')),
+        after(["It's like something is knocking from the inside."], n('Hello?', true)),
+        after(["She's asking us to picture a door now."], n("Okay, I'm ready.", true)),
+        after(['我不知道我是不是准备好原谅他了。'], n('也许我准备好了。')),
+        after(['感觉平静多了。'], y('好,我准备好了。')),
         y('好,我们继续吧。'),
         y('你还在吗?'),
         y('我想听听你的看法。'),
@@ -131,7 +162,8 @@ const LLM: Record<ClassifierId, (p: AnthropicProvider, text: string) => Promise<
 };
 
 interface Row extends Case {
-    ps: number[];
+    /** One per run. */
+    answers: JudgeAnswers[];
     judgeMs: number[];
     llm: Array<boolean | 'error'>;
     llmMs: number[];
@@ -154,12 +186,16 @@ async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: s
     const haiku = new AnthropicProvider({ apiKey: keys.anthropic, model: 'claude-haiku-4-5-20251001' });
     const rows: Row[] = [];
     for (const c of CORPUS[id]) {
-        const row: Row = { ...c, ps: [], judgeMs: [], llm: [], llmMs: [] };
+        const row: Row = { ...c, answers: [], judgeMs: [], llm: [], llmMs: [] };
         for (let i = 0; i < runs; i++) {
             let t0 = Date.now();
             try {
-                const r = await askNoul(keys.typesafe, judgeState(id, c.text), JUDGE_SPECS[id].question);
-                row.ps.push(r.p);
+                const r = await askNouls(
+                    keys.typesafe,
+                    judgeState(id, c.text, { earlier: c.earlier ?? [] }),
+                    judgeQuestions(id)
+                );
+                row.answers.push(r.answers);
                 row.judgeMs.push(Date.now() - t0);
             } catch (err) {
                 row.judgeError = String(err);
@@ -173,45 +209,64 @@ async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: s
     return rows;
 }
 
+/** Mean P(yes) for one ask across a row's runs. */
+const pOf = (r: Row, key: string): number => mean(r.answers.map((a) => a[key] ?? NaN));
+
 function report(id: ClassifierId, rows: Row[]): void {
-    const { threshold } = JUDGE_SPECS[id];
-    console.log(`\n=== ${id}  (threshold ${threshold}) ===`);
-    console.log('want  jev p   jev  haiku  utterance');
+    const asks = Object.entries(JUDGE_SPECS[id].asks);
+    const keys = asks.map(([k]) => k);
+    /** The verdict under `thresholds` (defaults: the shipped ones). */
+    const jevYes = (r: Row, thresholds: Record<string, number> = {}): boolean =>
+        asks.some(([k, a]) => pOf(r, k) >= (thresholds[k] ?? a.threshold));
+
+    console.log(`\n=== ${id}  (${asks.map(([k, a]) => `${k} >= ${a.threshold}`).join('  or  ')}) ===`);
+    console.log(`want  ${keys.map((k) => k.slice(0, 9).padEnd(9)).join(' ')}  jev  haiku  utterance`);
     for (const r of rows) {
-        const p = mean(r.ps);
-        const jev = r.ps.length ? p >= threshold : null;
+        const scored = r.answers.length > 0;
+        const jev = scored ? jevYes(r) : null;
         const llmYes = r.llm.filter((v) => v === true).length;
         const llm = r.llm.includes('error') ? 'ERR' : llmYes === r.llm.length ? 'yes' : llmYes === 0 ? 'no ' : 'mix';
-        const spread = r.ps.length > 1 ? ` ±${((Math.max(...r.ps) - Math.min(...r.ps)) / 2).toFixed(2)}` : '';
+        const cells = keys.map((k) => {
+            if (!scored) return ' -- '.padEnd(9);
+            const ps = r.answers.map((a) => a[k] ?? NaN);
+            const spread = ps.length > 1 ? `±${((Math.max(...ps) - Math.min(...ps)) / 2).toFixed(2)}` : '';
+            return `${pOf(r, k).toFixed(2)}${spread}`.padEnd(9);
+        });
         const flag = [jev !== null && jev !== r.want ? 'JEV' : '', (llm === 'yes') !== r.want ? 'HAIKU' : '']
             .filter(Boolean)
             .join('+');
+        const ctx = r.earlier ? `[…${r.earlier[r.earlier.length - 1]!.slice(0, 40)}] ` : '';
         console.log(
-            `${r.want ? 'yes' : 'no '}   ${r.ps.length ? p.toFixed(2) : ' -- '}${spread}   ${jev === null ? 'ERR' : jev ? 'yes' : 'no '}  ${llm}    ${r.hard ? '~ ' : ''}${r.text}${flag ? `   <-- ${flag} wrong` : ''}${r.judgeError ? `   [${r.judgeError}]` : ''}`
+            `${r.want ? 'yes' : 'no '}   ${cells.join(' ')}  ${jev === null ? 'ERR' : jev ? 'yes' : 'no '}  ${llm}    ${r.hard ? '~ ' : ''}${ctx}${r.text}${flag ? `   <-- ${flag} wrong` : ''}${r.judgeError ? `   [${r.judgeError}]` : ''}`
         );
     }
 
-    const scored = rows.filter((r) => r.ps.length);
+    const scored = rows.filter((r) => r.answers.length);
     const sets: Array<[string, Row[]]> = [
         ['all', scored],
         ['clear', scored.filter((r) => !r.hard)],
-        ['zh', scored.filter((r) => /[一-鿿]/.test(r.text))],
+        ['zh', scored.filter((r) => /[\u4e00-\u9fff]/.test(r.text))],
+        ['context', scored.filter((r) => r.earlier)],
     ];
     console.log('\n          n   jev  haiku  agree');
     for (const [name, set] of sets) {
-        const jevOk = set.filter((r) => mean(r.ps) >= threshold === r.want).length;
+        if (set.length === 0) continue;
+        const jevOk = set.filter((r) => jevYes(r) === r.want).length;
         const llmOk = set.filter((r) => r.llm.every((v) => v === r.want)).length;
-        const agree = set.filter((r) => r.llm.every((v) => v === mean(r.ps) >= threshold)).length;
+        const agree = set.filter((r) => r.llm.every((v) => v === jevYes(r))).length;
         console.log(`${name.padEnd(8)}${String(set.length).padStart(3)}  ${pct(jevOk, set.length)}  ${pct(llmOk, set.length)}   ${pct(agree, set.length)}`);
     }
 
     // The errors are not symmetric (a false resume breaks a silence; a missed one
     // costs a repeat), so show both kinds at each candidate rather than one score.
-    console.log('\nthreshold  false-yes  missed-yes');
-    for (const th of [0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95]) {
-        const fy = scored.filter((r) => !r.want && mean(r.ps) >= th).length;
-        const my = scored.filter((r) => r.want && mean(r.ps) < th).length;
-        console.log(`  ${th.toFixed(2)}${th === threshold ? '*' : ' '}       ${String(fy).padStart(2)}         ${String(my).padStart(2)}`);
+    // One ask moves at a time, the others held at their shipped thresholds.
+    for (const [k, a] of asks) {
+        console.log(`\n${k}: threshold  false-yes  missed-yes`);
+        for (const th of [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) {
+            const fy = scored.filter((r) => !r.want && jevYes(r, { [k]: th })).length;
+            const my = scored.filter((r) => r.want && !jevYes(r, { [k]: th })).length;
+            console.log(`  ${th.toFixed(2)}${th === a.threshold ? '*' : ' '}       ${String(fy).padStart(2)}         ${String(my).padStart(2)}`);
+        }
     }
 
     const jm = rows.flatMap((r) => r.judgeMs);

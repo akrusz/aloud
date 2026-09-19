@@ -1602,7 +1602,11 @@ export async function mountSessionView(
         silenceBuffer.push(userText);
         setStatus(t('Holding space, one moment…'));
         const classifyStart = Date.now();
-        const verdict = await classifyResumeIntent(utilityProvider, userText, classifierOptions);
+        const verdict = await classifyResumeIntent(utilityProvider, userText, {
+            ...classifierOptions,
+            // Everything buffered in this hold before the utterance being judged.
+            judgeContext: { earlier: silenceBuffer.slice(0, -1) },
+        });
         tapCall('classify-resume', Date.now() - classifyStart);
         tapEvent('classifier', 'resume', { verdict, utterance: userText });
         // The user may have toggled out of the hold (or the view torn down)

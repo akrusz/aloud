@@ -6,7 +6,8 @@
  * adapter does, since the fallback call right behind this one does it anyway.
  */
 
-import type { ClassifierId, UtteranceJudge } from '../../../src/facilitation/index.js';
+import type { ClassifierId, JudgeAnswers, JudgeContext, UtteranceJudge } from '../../../src/facilitation/index.js';
+import { clampEarlier } from '../../../src/facilitation/index.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
@@ -24,27 +25,43 @@ export class CloudJudge implements UtteranceJudge {
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     }
 
-    async judge(classifier: ClassifierId, text: string): Promise<number> {
+    async judge(classifier: ClassifierId, text: string, context: JudgeContext = {}): Promise<JudgeAnswers> {
         const ac = new AbortController();
+        const earlier = clampEarlier(context.earlier);
         try {
-            return await withTimeout(this.request(classifier, text, ac.signal), JUDGE_TIMEOUT_MS, 'judge timed out');
+            return await withTimeout(
+                this.request(classifier, text, earlier, ac.signal),
+                JUDGE_TIMEOUT_MS,
+                'judge timed out'
+            );
         } finally {
             ac.abort();
         }
     }
 
-    private async request(classifier: ClassifierId, text: string, signal: AbortSignal): Promise<number> {
+    private async request(
+        classifier: ClassifierId,
+        text: string,
+        earlier: string[],
+        signal: AbortSignal
+    ): Promise<JudgeAnswers> {
         const token = await ensureCloudToken();
         const sessionId = getCloudSessionId();
         const res = await this.fetchImpl(cloudUrl(ENDPOINT), {
             method: 'POST',
             headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-            body: JSON.stringify({ classifier, text, ...(sessionId ? { sessionId } : {}) }),
+            body: JSON.stringify({
+                classifier,
+                text,
+                ...(earlier.length ? { earlier } : {}),
+                ...(sessionId ? { sessionId } : {}),
+            }),
             signal,
         });
         if (!res.ok) throw new Error(`judge returned ${res.status}`);
-        const data = (await res.json()) as { p?: unknown };
-        if (typeof data.p !== 'number') throw new Error('judge returned no probability');
-        return data.p;
+        // Shape only; core judgeVerdict rejects a missing or non-numeric ask.
+        const data = (await res.json()) as { answers?: JudgeAnswers };
+        if (!data.answers || typeof data.answers !== 'object') throw new Error('judge returned no answers');
+        return data.answers;
     }
 }

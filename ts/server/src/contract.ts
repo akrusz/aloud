@@ -73,13 +73,17 @@ export interface JudgeRequest {
     classifier: ClassifierId;
     /** One utterance. */
     text: string;
+    /** `resume` only: earlier utterances from the same hold, oldest first. The
+     *  server clamps count and length (core clampEarlier). */
+    earlier?: string[];
     /** See CompleteRequest.sessionId. */
     sessionId?: string;
 }
 
 export interface JudgeResponse {
-    /** P(yes), 0..1. The client applies the threshold. */
-    p: number;
+    /** P(yes), 0..1, per ask of the classifier (core JUDGE_SPECS[id].asks). The
+     *  client applies the thresholds. */
+    answers: Record<string, number>;
     model: string;
     /** Server-to-TypeSafe round trip, so the A/B can split it from the client's. */
     latencyMs: number;

@@ -13,7 +13,10 @@ import {
 import type { LLMProvider, CompletionResult, Message, CompletionOptions } from '../src/llm/index.js';
 import {
     JUDGE_SPECS,
+    judgeState,
     type ClassifierId,
+    type JudgeAnswers,
+    type JudgeContext,
     type JudgeReport,
     type UtteranceJudge,
 } from '../src/facilitation/utterance-judge.js';
@@ -153,12 +156,16 @@ describe('classifyHoldConfirm', () => {
 });
 
 describe('typed-judgment path (utterance-judge.ts)', () => {
-    const judgeOf = (p: number | Error): UtteranceJudge & { seen: Array<[ClassifierId, string]> } => ({
+    /** Answers every ask of the classifier with `p`, or with per-ask overrides. */
+    const judgeOf = (
+        p: number | Error | JudgeAnswers
+    ): UtteranceJudge & { seen: Array<[ClassifierId, string, JudgeContext | undefined]> } => ({
         seen: [],
-        async judge(id, text) {
-            this.seen.push([id, text]);
+        async judge(id, text, context) {
+            this.seen.push([id, text, context]);
             if (p instanceof Error) throw p;
-            return p;
+            if (typeof p !== 'number') return p;
+            return Object.fromEntries(Object.keys(JUDGE_SPECS[id].asks).map((k) => [k, p]));
         },
     });
 
@@ -167,7 +174,7 @@ describe('typed-judgment path (utterance-judge.ts)', () => {
         const judge = judgeOf(0.9);
         expect(await classifyResumeIntent(llm, "I'm back", { judge })).toBe('resume');
         expect(llm.calls).toBe(0);
-        expect(judge.seen).toEqual([['resume', "I'm back"]]);
+        expect(judge.seen).toEqual([['resume', "I'm back", undefined]]);
     });
 
     it("applies each classifier's own threshold", async () => {
@@ -207,7 +214,42 @@ describe('typed-judgment path (utterance-judge.ts)', () => {
         });
         expect(verdict).toBe('stay');
         expect(llm.calls).toBe(1);
-        expect(reports[0]).toMatchObject({ mode: 'shadow', verdict: 'no', judge: { p: 0.99, verdict: 'yes' } });
+        expect(reports[0]).toMatchObject({ mode: 'shadow', verdict: 'no', judge: { verdict: 'yes' } });
+    });
+
+    it('is a yes when any one ask clears its own threshold', async () => {
+        const llm = new StubProvider('NO');
+        expect(await classifyResumeIntent(llm, 'x', { judge: judgeOf({ addressed: 0.1, done: 0.45 }) })).toBe('resume');
+        expect(await classifyResumeIntent(llm, 'x', { judge: judgeOf({ addressed: 0.45, done: 0.1 }) })).toBe('stay');
+    });
+
+    it('treats a missing ask as a judge failure, not a no', async () => {
+        const reports: JudgeReport[] = [];
+        const verdict = await classifyResumeIntent(new StubProvider('YES'), 'x', {
+            judge: judgeOf({ done: 0.01 }),
+            onJudged: (r) => reports.push(r),
+        });
+        expect(verdict).toBe('resume');
+        expect(reports[0]!.judge).toHaveProperty('error');
+    });
+
+    it('hands the hold so far to the judge and not to the LLM', async () => {
+        const llm = new StubProvider('NO');
+        const judge = judgeOf(0.9);
+        await classifyResumeIntent(llm, 'Alright.', {
+            judge,
+            judgeMode: 'shadow',
+            judgeContext: { earlier: ["I guess I'm ready."] },
+        });
+        expect(judge.seen[0]![2]).toEqual({ earlier: ["I guess I'm ready."] });
+        expect(llm.seenMessages).toEqual([{ role: 'user', content: 'Alright.' }]);
+    });
+
+    it('builds state with the most recent earlier utterances, for resume only', () => {
+        const many = Array.from({ length: 10 }, (_, i) => `u${i}`);
+        expect(judgeState('resume', 'x', { earlier: many }).earlier_in_this_silence).toEqual(many.slice(-6));
+        expect(judgeState('resume', 'x')).not.toHaveProperty('earlier_in_this_silence');
+        expect(judgeState('hold-request', 'x', { earlier: many })).not.toHaveProperty('earlier_in_this_silence');
     });
 
     it('mirrors every example from the LLM prompts', () => {
@@ -217,10 +259,10 @@ describe('typed-judgment path (utterance-judge.ts)', () => {
             ['hold-request', HOLD_REQUEST_SYSTEM_PROMPT],
         ];
         for (const [id, prompt] of pairs) {
-            const { criteria } = JUDGE_SPECS[id].question;
+            const asks = Object.values(JUDGE_SPECS[id].asks);
             for (const m of prompt.matchAll(/^"(.+)" -> (YES|NO)$/gm)) {
-                const side = m[2] === 'YES' ? criteria.true : criteria.false;
-                expect(side.examples, `${id}: ${m[1]}`).toContain(m[1]);
+                const examples = asks.flatMap((a) => a.question.criteria[m[2] === 'YES' ? 'true' : 'false'].examples);
+                expect(examples, `${id}: ${m[1]}`).toContain(m[1]);
             }
         }
     });

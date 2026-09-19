@@ -32,9 +32,19 @@ export {
 } from './resume.js';
 export { classifyResumeIntent, classifyHoldConfirm, classifyHoldRequest } from './resume-intent.js';
 export type { ClassifyResumeIntentOptions } from './resume-intent.js';
-export { JUDGE_SPECS, CLASSIFIER_IDS, isClassifierId, judgeState } from './utterance-judge.js';
+export {
+    JUDGE_SPECS,
+    CLASSIFIER_IDS,
+    isClassifierId,
+    judgeState,
+    judgeQuestions,
+    judgeVerdict,
+    clampEarlier,
+} from './utterance-judge.js';
 export type {
     ClassifierId,
+    JudgeAnswers,
+    JudgeContext,
     JudgeMode,
     JudgeReport,
     JudgeSpec,

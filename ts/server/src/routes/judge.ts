@@ -2,7 +2,8 @@
  * POST /v1/judge, the typed-judgment path for the silence classifiers (v36y).
  * The client names a classifier and sends one utterance; the question itself
  * comes from core (JUDGE_SPECS), so this can't be driven as an open Jev proxy.
- * Returns P(yes) and leaves the threshold to the client, where the A/B reads it.
+ * Returns P(yes) per ask and leaves the thresholds to the client (core
+ * judgeVerdict), where the A/B reads them.
  *
  * Not charged: a call costs the server ~$0.00002, under anything the ledger can
  * express, and it stands in for a Haiku classifier call that was charged. Usage
@@ -11,17 +12,18 @@
  */
 
 import { Hono } from 'hono';
-import { JUDGE_SPECS, isClassifierId, judgeState } from '@aloud/core/facilitation';
+import { isClassifierId, judgeQuestions, judgeState } from '@aloud/core/facilitation';
 import { ERROR_STATUS, apiError, type JudgeRequest, type JudgeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { recordUsage } from '../credits/usage.js';
-import { askNoul, JEV_USD_PER_INPUT_TOKEN } from '../providers/typesafe.js';
+import { askNouls, JEV_USD_PER_INPUT_TOKEN } from '../providers/typesafe.js';
 import { log } from '../logger.js';
 
 /** One spoken utterance. Anything longer is not what this route is for. */
 const MAX_UTTERANCE_CHARS = 2000;
+const MAX_EARLIER_ITEMS = 50;
 
 export function judgeRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -43,9 +45,19 @@ export function judgeRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('bad_request', 'classifier and text required'), ERROR_STATUS.bad_request);
         }
 
+        // judgeState clamps it; this only keeps non-strings and an oversized
+        // array from getting that far.
+        const earlier = Array.isArray(body.earlier)
+            ? body.earlier.filter((e): e is string => typeof e === 'string').slice(-MAX_EARLIER_ITEMS)
+            : [];
+
         const t0 = Date.now();
         try {
-            const result = await askNoul(apiKey, judgeState(body.classifier, text), JUDGE_SPECS[body.classifier].question);
+            const result = await askNouls(
+                apiKey,
+                judgeState(body.classifier, text, { earlier }),
+                judgeQuestions(body.classifier)
+            );
             const latencyMs = Date.now() - t0;
             log.info('judge', { classifier: body.classifier, latencyMs, model: result.model });
             await recordUsage(deps.store, {
@@ -63,7 +75,7 @@ export function judgeRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 providerCostUsd: result.inputTokens * JEV_USD_PER_INPUT_TOKEN,
                 credits: 0,
             });
-            return c.json({ p: result.p, model: result.model, latencyMs } satisfies JudgeResponse);
+            return c.json({ answers: result.answers, model: result.model, latencyMs } satisfies JudgeResponse);
         } catch (err) {
             log.warn('judge failed', { err: String(err), classifier: body.classifier, latencyMs: Date.now() - t0 });
             return c.json(apiError('provider_error', 'upstream judge error'), ERROR_STATUS.provider_error);

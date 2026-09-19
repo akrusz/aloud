@@ -16,8 +16,9 @@ import {
 import type { LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
 import {
-    JUDGE_SPECS,
+    judgeVerdict,
     type ClassifierId,
+    type JudgeContext,
     type JudgeMode,
     type JudgeReport,
     type UtteranceJudge,
@@ -49,6 +50,8 @@ export interface ClassifyResumeIntentOptions {
      * hosted sessions, which leaves the LLM classifier as the only path.
      */
     judge?: UtteranceJudge;
+    /** Passed to the judge only; the LLM classifier stays history-free. */
+    judgeContext?: JudgeContext;
     /** Default 'decide'. Ignored without `judge`. */
     judgeMode?: JudgeMode;
     /** Every classification that had a judge, both sides timed. For the A/B. */
@@ -118,12 +121,11 @@ async function classifyYesNo(
     if (!judge) return llmYesNo(provider, text, system, options);
 
     const mode = options.judgeMode ?? 'decide';
-    const { threshold } = JUDGE_SPECS[id];
     const runJudge = async (): Promise<NonNullable<JudgeReport['judge']>> => {
         const t0 = Date.now();
         try {
-            const p = await judge.judge(id, text);
-            return { p, verdict: p >= threshold ? 'yes' : 'no', latencyMs: Date.now() - t0 };
+            const answers = await judge.judge(id, text, options.judgeContext);
+            return { answers, verdict: judgeVerdict(id, answers), latencyMs: Date.now() - t0 };
         } catch (err) {
             return { error: String(err), latencyMs: Date.now() - t0 };
         }
@@ -135,17 +137,17 @@ async function classifyYesNo(
 
     if (mode === 'shadow') {
         const [judged, llm] = await Promise.all([runJudge(), runLlm()]);
-        options.onJudged?.({ classifier: id, mode, threshold, verdict: llm.verdict, judge: judged, llm });
+        options.onJudged?.({ classifier: id, mode, verdict: llm.verdict, judge: judged, llm });
         return llm.verdict;
     }
 
     const judged = await runJudge();
     if ('verdict' in judged) {
-        options.onJudged?.({ classifier: id, mode, threshold, verdict: judged.verdict, judge: judged });
+        options.onJudged?.({ classifier: id, mode, verdict: judged.verdict, judge: judged });
         return judged.verdict;
     }
     const llm = await runLlm();
-    options.onJudged?.({ classifier: id, mode, threshold, verdict: llm.verdict, judge: judged, llm });
+    options.onJudged?.({ classifier: id, mode, verdict: llm.verdict, judge: judged, llm });
     return llm.verdict;
 }
 
