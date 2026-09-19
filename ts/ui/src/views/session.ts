@@ -148,6 +148,7 @@ import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messag
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isTauri, isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
+import { diag } from '../diag.js';
 import {
     armSoakTap,
     tapCall,
@@ -1631,7 +1632,7 @@ export async function mountSessionView(
                       // No utterance in the report, so this is safe in a console
                       // that bug reports can carry; the tap pairs it with the
                       // adjacent classifier event, which has the text.
-                      console.info('[judge]', JSON.stringify(report));
+                      diag('[judge]', JSON.stringify(report));
                       tapEvent('classifier', 'judge', { ...report });
                   },
               }
@@ -1751,7 +1752,7 @@ export async function mountSessionView(
 
     async function runVoiceCommand(cmd: DetectedCommand, userText: string): Promise<void> {
         const lang = sessionLanguageOf(appSettings.language);
-        console.info('[command]', JSON.stringify({ command: cmd.command, answers: cmd.answers, latencyMs: cmd.latencyMs }));
+        diag('[command]', JSON.stringify({ command: cmd.command, answers: cmd.answers, latencyMs: cmd.latencyMs }));
         tapEvent('note', `command:${cmd.command}`, { answers: cmd.answers, utterance: userText });
         // A command in reply to "shall I be quiet?" isn't an answer to it.
         if (awaitingHoldConfirm) {
@@ -1985,7 +1986,7 @@ export async function mountSessionView(
         // utterance arrives, superseding it hushes the audio after the current
         // sentence. Log the interrupting text so a logcat reader can tell a real
         // barge-in from an un-caught echo of the facilitator's own voice.
-        if (busy) console.info(`[turn] interrupting in-flight reply with: "${userText}"`);
+        if (busy) diag(`[turn] interrupting in-flight reply (${userText.length} chars)`);
         activeFullAbort?.abort();
         void tts.cancel();
         const myFullAbort = new AbortController();
@@ -2416,7 +2417,7 @@ export async function mountSessionView(
                 // request to go back under. One choke point covering every
                 // dispatch path below.
                 if (finalText.trim() && isEcho(finalText.trim(), finalStartedDuringTts)) {
-                    console.info(`[echo-guard] dropped TTS echo: "${finalText.trim()}"`);
+                    diag(`[echo-guard] dropped TTS echo (${finalText.trim().length} chars)`);
                     tapEvent('audio', 'echo-dropped', { text: finalText.trim() });
                     finalText = '';
                 }
@@ -3409,7 +3410,7 @@ export async function mountSessionView(
             // Diagnostic: distinguishes a guard-skip (low userTurns) from an
             // empty/failed recap (userTurns ok but chars=0) behind the same
             // "Exploration" fallback. Remove once the summary path is confirmed.
-            console.info(
+            diag(
                 `[summary] provider=${provider.constructor?.name ?? '?'} ` +
                     `userTurns=${finalState.exchanges.filter((e) => e.role === 'user').length} ` +
                     `chars=${summary.length}`

@@ -24,6 +24,7 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
 import { ensureMicPermission } from '../mic-permission.js';
 import { isAecOffDebug } from '../dev-mode.js';
+import { diag, diagOn } from '../diag.js';
 // Type-only: dynamic-imported in acquireSilero() so the ort runtime + model
 // assets stay out of the main bundle (and out of node-env tests).
 import type { SileroFrameVad } from './silero-vad.js';
@@ -423,7 +424,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         }
         const kept = ranges.reduce((n, [a, b]) => n + (b - a), 0);
         if (ranges.length === 1 && start === 0 && end >= this.chunks.length) return this.chunks;
-        console.info(
+        diag(
             `[stt-cost] trim lead=${secs(start)}s tail=${secs(this.chunks.length - end)}s ` +
                 `compacted=${secs(end - start - kept)}s in ${ranges.length - 1} gap(s) ` +
                 `payload=${secs(kept)}s of ${secs(this.chunks.length)}s buffered`
@@ -504,7 +505,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                     // tts=true here means the facilitator was audible when this
                     // fired, i.e. it may be the facilitator interrupting itself
                     // rather than the user (meditation-pal-oxmt).
-                    console.info(
+                    diag(
                         `[vad] barge-in energy=${energy.toFixed(4)} ` +
                             `gate=${echoGate.toFixed(4)} echoFloor=${this.echoFloor.toFixed(4)} ` +
                             `prob=${this.silero ? this.silero.lastProb.toFixed(2) : 'n/a'} ` +
@@ -594,9 +595,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                 this.utteranceDone = true;
                 // VAD tuning diagnostic: speech duration, required vs elapsed
                 // trailing silence, loudness, echo floor (for the gate margins),
-                // and inference backpressure. console.info so it shows without
-                // Verbose. (Temporary - remove once the VAD is dialed in.)
-                console.info(
+                // and inference backpressure.
+                diag(
                     `[vad] submit speech=${Math.round(speechDur)}ms ` +
                         `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
                         `peak=${this.peakEnergy.toFixed(3)} ` +
@@ -609,27 +609,29 @@ export class WhisperPcmSttEngine implements SttEngine {
                 // bucket, oldest first). The prob row shows what the model
                 // thought during the trailing "silence" - held speech vs a real
                 // pause; the energy row contextualizes the echo gate.
-                const buckets = new Array<number>(16).fill(0);
-                for (const { t, e } of this.energyHistory) {
-                    const idx = Math.floor((now - t) / 500);
-                    if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, e);
-                }
-                buckets.reverse();
-                console.info(
-                    `[vad] tail 8s->now (max rms / 0.5s): ` +
-                        buckets.map((b) => b.toFixed(3)).join(' ')
-                );
-                if (this.silero) {
-                    const probs = new Array<number>(16).fill(-1);
-                    for (const { t, p } of this.energyHistory) {
+                if (diagOn()) {
+                    const buckets = new Array<number>(16).fill(0);
+                    for (const { t, e } of this.energyHistory) {
                         const idx = Math.floor((now - t) / 500);
-                        if (idx >= 0 && idx < 16) probs[idx] = Math.max(probs[idx]!, p);
+                        if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, e);
                     }
-                    probs.reverse();
-                    console.info(
-                        `[vad] tail 8s->now (max speech-prob / 0.5s): ` +
-                            probs.map((v) => (v < 0 ? '----' : v.toFixed(2))).join(' ')
+                    buckets.reverse();
+                    diag(
+                        `[vad] tail 8s->now (max rms / 0.5s): ` +
+                            buckets.map((b) => b.toFixed(3)).join(' ')
                     );
+                    if (this.silero) {
+                        const probs = new Array<number>(16).fill(-1);
+                        for (const { t, p } of this.energyHistory) {
+                            const idx = Math.floor((now - t) / 500);
+                            if (idx >= 0 && idx < 16) probs[idx] = Math.max(probs[idx]!, p);
+                        }
+                        probs.reverse();
+                        diag(
+                            `[vad] tail 8s->now (max speech-prob / 0.5s): ` +
+                                probs.map((v) => (v < 0 ? '----' : v.toFixed(2))).join(' ')
+                        );
+                    }
                 }
             }
         } else if (this.ttsActive) {
@@ -656,7 +658,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.speechStarted &&
             now - this.speechStartMs >= this.opts.maxUtteranceMs
         ) {
-            console.info(
+            diag(
                 `[vad] submit: max utterance cap reached (${this.opts.maxUtteranceMs}ms)`
             );
             this.utteranceDone = true;
@@ -677,7 +679,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // replacing/muted line after a foreground is the fix doing its job,
             // and its absence means the track came back healthy on its own.
             const stale = this.stream?.getAudioTracks()[0];
-            console.info(
+            diag(
                 stale
                     ? `[vad] replacing capture stream: muted=${String(stale.muted)} ` +
                           `readyState=${stale.readyState} active=${String(this.stream?.active)}`
@@ -737,10 +739,10 @@ export class WhisperPcmSttEngine implements SttEngine {
             const track = stream.getAudioTracks()[0];
             // Did the platform honor the constraints? WebKit may bundle NS into
             // its voice-processing unit and ignore ns=false; this log is how we
-            // find out. Temporary, part of the VAD diagnostics.
+            // find out.
             if (track?.getSettings) {
                 const s = track.getSettings();
-                console.info(
+                diag(
                     `[vad] capture settings: ec=${String(s.echoCancellation)} ` +
                         `ns=${String(s.noiseSuppression)} agc=${String(s.autoGainControl)}`
                 );
@@ -757,7 +759,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 console.warn('[vad] capture track muted (no media flowing)');
             });
             track?.addEventListener('unmute', () => {
-                console.info('[vad] capture track unmuted');
+                diag('[vad] capture track unmuted');
             });
         }
 
@@ -858,7 +860,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             const w = this.echoWatch;
             this.echoWatch = null;
             const gate = Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX);
-            console.info(
+            diag(
                 `[vad] tts window: frames=${w.frames} ` +
                     `peak=${w.peak.toFixed(4)} mean=${(w.frames ? w.sum / w.frames : 0).toFixed(4)} ` +
                     `overGate=${w.overGate} gate=${gate.toFixed(4)} ` +
@@ -992,11 +994,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
                 const seconds = downsampled.length / TARGET_SAMPLE_RATE;
                 turnBilledSec += seconds;
-                console.info(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
+                diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
                 // Provenance for transcript anomalies: a user turn with no
                 // matching [stt-text] line did not come from the mic.
                 if (label === 'final') {
-                    console.info(`[stt-text] "${(data.text ?? '').trim()}"`);
+                    diag(`[stt-text] ${(data.text ?? '').trim().length} chars`);
                 }
                 return {
                     ok: true,
@@ -1128,14 +1130,14 @@ export class WhisperPcmSttEngine implements SttEngine {
                     );
                 let result: Awaited<ReturnType<typeof transcribeChunks>>;
                 if (lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints) {
-                    console.info('[stt-cost] final reused the speculative transcript - 0s billed');
-                    console.info(`[stt-text] "${lastSpecResult.text}"`);
+                    diag('[stt-cost] final reused the speculative transcript - 0s billed');
+                    diag(`[stt-text] ${lastSpecResult.text.length} chars`);
                     result = { ok: true, text: lastSpecResult.text, seconds: lastSpecResult.seconds };
                 } else {
                     result = await transcribeChunks(this.submitPayload(), 'final');
                 }
                 if (tailHasSpeechHints && lastSpecResult) {
-                    console.info('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
+                    diag('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
                 }
 
                 // The user kept talking past the submit decision - the turn
@@ -1145,7 +1147,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (this.postSubmitSpeech && !this.stopRequested) {
                     this.postSubmitSpeech = false;
                     this.utteranceDone = false;
-                    console.info('[vad] speech continued past submit - reopening the utterance');
+                    diag('[vad] speech continued past submit - reopening the utterance');
                     if (result.ok && result.text) {
                         emittedPartial = true;
                         lastSpecResult = { text: result.text, seconds: result.seconds };

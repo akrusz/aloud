@@ -23,6 +23,7 @@ import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
+import { diag } from '../diag.js';
 
 /**
  * Join the transcript so far with the current recognizer segment. The
@@ -299,10 +300,10 @@ export class CapacitorSttEngine implements SttEngine {
             clearTimers();
             const text = combined();
             if (text) {
-                console.info(`[stt-native] final: ${text.length} chars, ${segments} segment(s)`);
+                diag(`[stt-native] final: ${text.length} chars, ${segments} segment(s)`);
                 push({ type: 'final', text });
             } else {
-                console.info('[stt-native] turn ended with no speech');
+                diag('[stt-native] turn ended with no speech');
             }
             finish();
             // Fire-and-forget: the plugin's stop() never resolves (see stop()).
@@ -361,7 +362,7 @@ export class CapacitorSttEngine implements SttEngine {
             if (submitted || done || this.stopRequested || started) return;
             if (startRetries < MAX_START_RETRIES) {
                 startRetries++;
-                console.info(
+                diag(
                     `[stt-native] no start in ${STARTUP_WATCHDOG_MS}ms - relaunch ${startRetries}/${MAX_START_RETRIES}`
                 );
                 void restartSegment();
@@ -416,7 +417,7 @@ export class CapacitorSttEngine implements SttEngine {
             if (!text.trim()) return;
             if (!sawSpeech) {
                 sawSpeech = true;
-                console.info('[stt-native] first partial received');
+                diag('[stt-native] first partial received');
             }
             if (!segmentHasSpeech) {
                 segmentHasSpeech = true;
@@ -434,7 +435,7 @@ export class CapacitorSttEngine implements SttEngine {
             const text = ((data as { matches?: string[] }).matches ?? [])[0];
             const isFinal = (data as { final?: boolean }).final === true;
             if (submitted || done || (text === undefined && !isFinal)) return;
-            console.debug(`[stt-native] ${isFinal ? 'final' : 'partial'} ${text?.length ?? 'no'} chars`);
+            diag(`[stt-native] ${isFinal ? 'final' : 'partial'} ${text?.length ?? 'no'} chars`);
             if (isFinal) {
                 // The session closed (patched Android plugin). It usually
                 // brings no transcript of its own - the last partial stands -
@@ -485,7 +486,7 @@ export class CapacitorSttEngine implements SttEngine {
 
         this.stateListener = await SpeechRecognition.addListener('listeningState', (data) => {
             const status = (data as { status?: string }).status;
-            console.info(`[stt-native] state: ${status}`);
+            diag(`[stt-native] state: ${status}`);
             if (status === 'ready' || status === 'started') {
                 // 'ready' = the recognizer came up (patched plugin). 'started' =
                 // speech began - also proof of life, and the only signal on
@@ -532,7 +533,7 @@ export class CapacitorSttEngine implements SttEngine {
                     // ~650ms (meditation-pal-wlp9). Time-bounded so an engine
                     // that never reports ready (iOS) still ends a silent turn.
                     if (!started && Date.now() - segmentLaunchedAt < STALE_SILENCE_GUARD_MS) {
-                        console.info(`[stt-native] ignoring stale silence error: ${msg}`);
+                        diag(`[stt-native] ignoring stale silence error: ${msg}`);
                         return;
                     }
                     // If end-of-speech already scheduled this segment's wrap-up,
@@ -553,7 +554,7 @@ export class CapacitorSttEngine implements SttEngine {
                 // launch. Relaunch on the watchdog's retry budget.
                 if (busy && startRetries < MAX_START_RETRIES) {
                     startRetries++;
-                    console.info(
+                    diag(
                         `[stt-native] recognizer error "${msg}" - relaunch ${startRetries}/${MAX_START_RETRIES}`
                     );
                     void restartSegment();
@@ -658,7 +659,7 @@ export class CapacitorSttEngine implements SttEngine {
                 });
         };
 
-        console.info('[stt-native] start requested');
+        diag('[stt-native] start requested');
         bumpIdle();
         launchSegment();
 

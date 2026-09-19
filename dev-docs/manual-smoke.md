@@ -106,8 +106,9 @@ The one that keeps biting, and the one with the least coverage. A dev-installed
 Android build is enough for most of it - see [mobile.md](mobile.md).
 
 - [ ] **Native STT holds a pause.** Speak, pause ~2s mid-thought, keep going. It
-      must stay ONE turn. Logcat: `[stt-native] final … N segment(s)`, N > 1 means
-      the stitching did its job (`meditation-pal-cddo`).
+      must stay ONE turn. Logcat (dev mode on - diagnostic lines are silent
+      without it): `[stt-native] final … N segment(s)`, N > 1 means the
+      stitching did its job (`meditation-pal-cddo`).
 - [ ] **Cloud STT gets the mic.** Switch STT to aloud cloud and start a session;
       no permission error (`meditation-pal-t25n`).
 - [ ] **The facilitator doesn't interrupt itself.** Multi-sentence replies play

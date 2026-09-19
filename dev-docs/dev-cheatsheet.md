@@ -138,6 +138,12 @@ echo cancellation** (`isAecOffDebug`, `dev-mode.ts`, localStorage
 `echoCancellation: false` - the Android call-stream measurement; judge it by the
 `[vad] tts window` lines.
 
+Dev mode is also what turns the diagnostic console lines on in a release build
+(`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[judge]`,
+`[command]`. Dev builds always print them. They carry character counts, never
+transcript text. Failures stay on `console.warn`/`error`, which is what the
+bug-report block records.
+
 #### Simulate failures (dev builds)
 
 The same section carries four switches for states that are painful to reach on
