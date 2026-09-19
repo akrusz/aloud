@@ -412,13 +412,14 @@ export const COMMAND_LINES = {
     pauseUnsupported: (l: SessionLanguage) =>
         zhOr(l, "I can't change that with this microphone mode.", '这种麦克风模式下无法调整。'),
     nothingToRepeat: (l: SessionLanguage) => zhOr(l, "I haven't said anything yet.", '我还没有说过话。'),
-    // Four, not ten: read aloud, the full list is a lecture. The rest are in the
-    // session info panel, which this points at.
+    // A sample, not the list: read aloud, all of them is a lecture. One from each
+    // kind (voice, timer, screen, sound, ending); the rest are in the session
+    // info panel, which this points at.
     help: (l: SessionLanguage) =>
         zhOr(
             l,
-            'You can ask me to talk slower or faster, set a timer, repeat myself, or end the session. The full list is under the info button.',
-            '你可以让我说慢一点或快一点、设置计时、再说一遍,或者结束冥想。完整的指令在信息按钮里。'
+            'You can ask me to talk slower or faster, set a timer, hide the clock, mute the speaker or mic, end the session, and more. The full list is under the info button. You can even ask for two things at once.',
+            '你可以让我说慢一点或快一点、设置计时、隐藏时钟、关掉语音或麦克风、结束冥想,等等。完整的指令在信息按钮里。你还可以一次说两件事。'
         ),
     muted: (l: SessionLanguage) => zhOr(l, 'Muted.', '已静音。'),
     // Said aloud BEFORE the speaker goes off, and after it comes back on.

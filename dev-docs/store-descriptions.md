@@ -20,4 +20,6 @@ felt-sense mode is inspired by Gendlin's Focusing. this is a six-step method tha
 
 any mode can be used with a set length. the optional meditation timer lets the facilitator draw smoothly toward a close near the end and tells you vocally when your time is up.
 
+you can keep your eyes closed the whole time. just say "set a timer for ten minutes", "talk slower", "hide the clock" or "end the session", in your own words, even two at once.
+
 aloud uses text-to-speech, speech-to-text, and AI/LLM brains for some modes; you have full choice of providers. aloud offers the "aloud cloud" that connects you to curated providers without any additional setup. this costs us money to run, so it uses credits; you get some credits free just for connecting a Google or Apple account. Or, if you have keys for OpenRouter or other providers, you can use those instead.

@@ -63,6 +63,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 - say something like "hold on a bit" during a session and the facilitator will offer to go quiet; say yes and it holds the silence. say "come back" or similar to resume, and if it comes back too early, just tell it to stay quiet.
 - say "mute" to immediately turn off the microphone. click the mic button to resume.
+- signed in to aloud cloud, you can just ask for things: "set a timer for ten minutes", "talk slower", "hide the clock", "show me the orb", "end the session". two at once works too, and "what can I say?" gets you the list. with your own provider or a local model this is opt-in (settings → advanced → voice commands), since it sends what you say through aloud cloud.
 - click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
 - the ember controls add floating particles. just for cozy.
 - click the voice name in the controls bar to open a voice/speed picker.
