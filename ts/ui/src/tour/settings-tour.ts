@@ -6,7 +6,6 @@
  */
 
 import { sharedKv } from '../state.js';
-import { appUrl } from '../app-base.js';
 import { t } from '../i18n.js';
 
 const TOUR_DISMISSED_KEY = 'aloud-tour-dismissed';
@@ -27,13 +26,15 @@ let overlayEl: HTMLDivElement | null = null;
 let spotlightEl: HTMLDivElement | null = null;
 let cardEl: HTMLDivElement | null = null;
 let currentStep = 0;
+// aloud cloud brings its own voices, so choosing it drops the voice step - in
+// both directions, or Back from the closing card would land on it.
+let skipVoiceStep = false;
 let onCompleteCb: (() => void) | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface TourOptions {
     piperAvailable?: boolean;
     isMac?: boolean;
-    ollamaRec?: string | null;
     onComplete?: () => void;
 }
 
@@ -130,6 +131,7 @@ function footerHtml(opts: FooterOpts): string {
 
     html += '<div class="tour-dots">';
     for (let i = 0; i < TOTAL_STEPS; i++) {
+        if (i === 2 && skipVoiceStep) continue;
         html += '<div class="tour-dot' + (i === currentStep ? ' active' : '') + '"></div>';
     }
     html += '</div>';
@@ -163,8 +165,15 @@ function positionSpotlight(el: HTMLElement, fixed: boolean): void {
         spotlightEl.style.top = rect.top + window.scrollY - pad + 'px';
         spotlightEl.style.left = rect.left + window.scrollX - pad + 'px';
     }
+    // A settings section draws its divider as its own border-bottom, under its
+    // padding. Stop the box short of it, keeping a sliver of that padding as a
+    // gap so the rule reads as outside the highlight.
+    const cs = getComputedStyle(el);
+    const rule = parseFloat(cs.borderBottomWidth) || 0;
+    const below = rule ? parseFloat(cs.paddingBottom) || 0 : 0;
+    const padBottom = rule ? Math.min(pad, Math.max(0, below - 4)) : pad;
     spotlightEl.style.width = rect.width + pad * 2 + 'px';
-    spotlightEl.style.height = rect.height + pad * 2 + 'px';
+    spotlightEl.style.height = rect.height - rule - below + pad + padBottom + 'px';
     spotlightEl.style.display = '';
 }
 
@@ -232,6 +241,22 @@ function getProviderSection(): HTMLElement | null {
     return sel ? sel.closest<HTMLElement>('.settings-section') : null;
 }
 
+const API_KEY_PROVIDERS: ReadonlyArray<readonly [string, string]> = [
+    ['anthropic', 'Anthropic'],
+    ['openai', 'OpenAI'],
+    ['groq', 'Groq'],
+    ['openrouter', 'OpenRouter'],
+    ['venice', 'Venice'],
+];
+
+/** The settings menu is already filtered for this platform (no Ollama or
+ *  claude_proxy on web, BYOK opt-in there), so the tour offers only what it
+ *  lists: picking a missing option would blank the <select>. */
+function hasProvider(value: string): boolean {
+    const sel = document.getElementById('s-provider') as HTMLSelectElement | null;
+    return Boolean(sel && Array.from(sel.options).some((o) => o.value === value));
+}
+
 function showLLMStep(): void {
     currentStep = 1;
     const section = getProviderSection();
@@ -244,27 +269,36 @@ function showLLMStep(): void {
         positionSpotlight(section, false);
 
         let html = '<h3>' + t('Choose Your AI Provider') + '</h3>';
-        html += '<p>' + t('An LLM is the AI that guides your meditation. Pick what works for you:') + '</p>';
+        html += '<p>' + t('This powers facilitator intelligence and session flow.') + '</p>';
         html += '<div class="tour-choices">';
 
-        let ollamaDesc = t('Free &amp; private. Runs AI entirely on your computer.');
-        if (tourOptions.ollamaRec) {
-            ollamaDesc += ' ' + t('Recommended model:') + ' <strong>' + tourOptions.ollamaRec + '</strong>';
+        if (hasProvider('aloud')) {
+            html += '<button class="tour-choice" data-action="provider" data-value="aloud">';
+            html += '<strong>aloud cloud</strong>';
+            html += '<small>' + t('No setup. Sign in and go.') + '</small>';
+            html += '</button>';
         }
-        html += '<button class="tour-choice" data-action="provider" data-value="ollama">';
-        html += '<strong>' + t('Ollama: free, runs locally') + '</strong>';
-        html += '<small>' + ollamaDesc + '</small>';
-        html += '</button>';
 
-        html += '<button class="tour-choice" data-action="provider" data-value="claude_proxy">';
-        html += '<strong>' + t('I have a Claude subscription') + '</strong>';
-        html += '<small>' + t('Uses your Pro or Max plan via the locally-installed <code>claude</code> command-line tool - install Claude Code with <code>npm install -g @anthropic-ai/claude-code</code> (the CLI, not the Claude desktop app).') + '</small>';
-        html += '</button>';
+        if (hasProvider('ollama')) {
+            html += '<button class="tour-choice" data-action="provider" data-value="ollama">';
+            html += '<strong>Ollama</strong>';
+            html += '<small>' + t('Free, everything stays on your computer.') + '</small>';
+            html += '</button>';
+        }
 
-        html += '<button class="tour-choice" data-action="show-api-keys">';
-        html += '<strong>' + t('I have an API key') + '</strong>';
-        html += '<small>' + t('Anthropic, OpenAI, Groq, OpenRouter, or Venice') + '</small>';
-        html += '</button>';
+        if (hasProvider('claude_proxy')) {
+            html += '<button class="tour-choice" data-action="provider" data-value="claude_proxy">';
+            html += '<strong>' + t('Claude subscription') + '</strong>';
+            html += '<small>' + t('Uses your Pro or Max plan.') + '</small>';
+            html += '</button>';
+        }
+
+        if (API_KEY_PROVIDERS.some(([value]) => hasProvider(value))) {
+            html += '<button class="tour-choice" data-action="show-api-keys">';
+            html += '<strong>' + t('API key') + '</strong>';
+            html += '<small>' + t('Anthropic, OpenAI, Groq, OpenRouter, or Venice') + '</small>';
+            html += '</button>';
+        }
 
         html += '</div>';
         html += footerHtml({ back: true, skip: true });
@@ -281,11 +315,10 @@ function showApiKeyChoices(): void {
     let html = '<h3>' + t('Which provider?') + '</h3>';
     html += '<p>' + t('Select the provider you have an API key for:') + '</p>';
     html += '<div class="tour-choice-group">';
-    html += '<button class="tour-choice-sm" data-action="provider" data-value="anthropic">Anthropic</button>';
-    html += '<button class="tour-choice-sm" data-action="provider" data-value="openai">OpenAI</button>';
-    html += '<button class="tour-choice-sm" data-action="provider" data-value="groq">Groq</button>';
-    html += '<button class="tour-choice-sm" data-action="provider" data-value="openrouter">OpenRouter</button>';
-    html += '<button class="tour-choice-sm" data-action="provider" data-value="venice">Venice</button>';
+    for (const [value, label] of API_KEY_PROVIDERS) {
+        if (!hasProvider(value)) continue;
+        html += '<button class="tour-choice-sm" data-action="provider" data-value="' + value + '">' + label + '</button>';
+    }
     html += '</div>';
     html += footerHtml({ back: true, skip: true });
 
@@ -304,6 +337,7 @@ function chooseProvider(value: string): void {
     if (!sel) return;
     sel.value = value;
     sel.dispatchEvent(new Event('change'));
+    skipVoiceStep = value === 'aloud';
 
     // Hide the tour so the user can interact with the section freely.
     hideTour();
@@ -313,16 +347,15 @@ function chooseProvider(value: string): void {
         showVoiceStep();
     };
 
-    if (value === 'ollama') {
-        // Wait for a downloaded model before advancing.
-        waitForCondition(function () {
-            const m = findModelElement();
-            if (!m || m.options.length === 0) return false;
-            const text = m.options[0]?.textContent || '';
-            return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
-        }, resumeToVoice);
-    } else if (value === 'claude_proxy') {
-        // Wait for the dropdown to populate (claude CLI detected, models loaded).
+    if (value === 'aloud') {
+        // Nothing to fill in here: sign-in happens on the Account page or at
+        // Begin, and the hosted voices need no setup either.
+        showTour();
+        showDoneStep();
+    } else if (value === 'ollama' || value === 'claude_proxy') {
+        // Wait for a usable model: a downloaded one for Ollama, the `claude`
+        // CLI detected for the subscription. Until then the settings page's
+        // own status hint and Ollama section say what's missing.
         waitForCondition(function () {
             const m = findModelElement();
             if (!m || m.options.length === 0) return false;
@@ -518,7 +551,8 @@ function advanceStep(): void {
 
 function goBack(): void {
     if (currentStep > 0) {
-        goToStep(currentStep - 1);
+        const prev = currentStep - 1;
+        goToStep(prev === 2 && skipVoiceStep ? 1 : prev);
     }
 }
 
@@ -576,17 +610,6 @@ export async function startTour(options: TourOptions): Promise<void> {
     tourOptions = {};
     if (options.piperAvailable !== undefined) tourOptions.piperAvailable = options.piperAvailable;
     if (options.isMac !== undefined) tourOptions.isMac = options.isMac;
-
-    try {
-        const r = await fetch(appUrl('/providers'));
-        const data = (await r.json()) as {
-            ollama?: { recommendation?: { recommended_model?: string } };
-        };
-        const rec = data.ollama && data.ollama.recommendation;
-        tourOptions.ollamaRec = rec ? rec.recommended_model ?? null : null;
-    } catch {
-        // App backend not reachable - proceed without an Ollama recommendation.
-    }
     initTour();
 }
 
@@ -600,6 +623,7 @@ export async function resetAndStart(options: TourOptions): Promise<void> {
 
 function initTour(): void {
     currentStep = 0;
+    skipVoiceStep = false;
     createOverlay();
     window.addEventListener('resize', onResizeDebounced);
     window.addEventListener('scroll', onScroll);
