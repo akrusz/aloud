@@ -15,7 +15,9 @@
 
 const KEY_PREFIX = 'aloud:voiceHint:';
 
-export type VoiceHintId = 'speed' | 'timer' | 'mute';
+/** 'enable' is the one shown where commands are off (a BYOK/local sit that
+ *  hasn't opted in): whichever control they reached for, once. */
+export type VoiceHintId = 'speed' | 'timer' | 'mute' | 'enable';
 
 /** True the first time only. */
 export function claimVoiceHint(id: VoiceHintId): boolean {
@@ -54,6 +56,7 @@ export const VOICE_HINT_TEXT: Record<VoiceHintId, string> = {
     speed: 'You can just say "talk slower" or "faster"',
     timer: 'You can just say "set a timer for ten minutes"',
     mute: 'Muted. You can just say "mute"',
+    enable: 'Voice commands can do this. Turn them on under ⓘ',
 };
 
 /** The list behind the info panel's row: things to say, one per line. */

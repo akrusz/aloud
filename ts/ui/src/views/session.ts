@@ -79,13 +79,18 @@ import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { CloudJudge } from '../adapters/cloud-judge.js';
 import {
+    VOICE_COMMANDS_CONSENT,
+    VOICE_COMMANDS_SIGN_IN,
+    canReachJudge,
+    privacyPolicyLink,
+    showVoiceCommandExamples,
+    voiceCommandsAccess,
+} from '../voice-commands.js';
+import {
     claimVoiceHint,
     claimIntroSession,
     LISTENING_WITH_INVITE,
     VOICE_HINT_TEXT,
-    VOICE_COMMAND_EXAMPLES,
-    VOICE_COMMANDS_NOTE,
-    endExampleFor,
     type VoiceHintId,
 } from '../voice-command-hints.js';
 import { ensureCloudToken } from '../cloud-auth.js';
@@ -140,7 +145,7 @@ import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle } from '../theme.js';
 import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
-import { alertDialog } from '../dialog.js';
+import { alertDialog, confirmDialog } from '../dialog.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
@@ -536,17 +541,37 @@ export async function mountSessionView(
         recapProvider = utilityProvider;
     }
 
-    // Jev (TypeSafe) for the silence classifiers and the spoken commands. Hosted
-    // only: everywhere else there is no server to hold the key. Up here because
-    // status text and the info panel below both depend on it.
-    const jevMode = setup.provider === 'aloud' ? getJevClassifierMode() : 'off';
+    // Jev (TypeSafe) for the silence classifiers and the spoken commands. Always
+    // on for aloud cloud; an opt-in everywhere else (voice-commands.ts). Up here
+    // because status text and the info panel below both depend on it. `let`s:
+    // the info panel can turn it on mid-sit (enableVoiceCommands).
+    let judgeAccess = voiceCommandsAccess({
+        provider: setup.provider,
+        optedIn: appSettings.voiceCommandsViaCloud,
+        signedIn: await canReachJudge(),
+    });
+    // The dev override (on/shadow/off) is about the hosted rollout; an opt-in
+    // session asked for the judge by name.
+    const jevMode = judgeAccess === 'hosted' ? getJevClassifierMode() : 'on';
+    const judgeWanted = (): boolean =>
+        judgeAccess === 'opted-in' || (judgeAccess === 'hosted' && jevMode !== 'off');
     // One instance, so the classifiers and the commands share its failure backoff.
-    const cloudJudge = jevMode !== 'off' ? new CloudJudge() : null;
-    // The first few hosted sessions say so right where "Listening…" is.
+    let cloudJudge = judgeWanted() ? new CloudJudge() : null;
+    // The first few sessions with commands say so right where "Listening…" is.
     const inviteToCommands = cloudJudge !== null && claimIntroSession();
     // Asks the command judge while the recognizer is still waiting out the pause.
-    const commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge) : null;
-    const listeningStatus = (): string => t(inviteToCommands ? LISTENING_WITH_INVITE : 'Listening…');
+    let commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge) : null;
+    // They opted in and the sign-in lapsed: otherwise the only sign is a command
+    // that does nothing. Until their first turn, then it's just Listening….
+    let signInNudge = judgeAccess === 'signed-out';
+    const listeningStatus = (): string =>
+        t(
+            signInNudge
+                ? VOICE_COMMANDS_SIGN_IN
+                : inviteToCommands
+                  ? LISTENING_WITH_INVITE
+                  : 'Listening…'
+        );
 
     // Session facts live behind the nav "ⓘ" button rather than in the always-on
     // chrome. modelLabel is recomputed here so the saved record and the panel
@@ -646,16 +671,13 @@ export async function mountSessionView(
             rows.push({
                 label: t('Voice commands'),
                 value: t('See what you can say'),
-                onClick: () =>
-                    void alertDialog(
-                        `<strong>${t('Voice commands')}</strong><ul class="voice-command-list">` +
-                            [...VOICE_COMMAND_EXAMPLES, endExampleFor(appSettings.saveSessionLogs)]
-                                .map((line) => `<li>${t(line)}</li>`)
-                                .join('') +
-                            `</ul><p class="voice-command-note">${t(VOICE_COMMANDS_NOTE)}</p>`,
-                        undefined,
-                        { html: true }
-                    ),
+                onClick: () => void showVoiceCommandExamples(appSettings.saveSessionLogs),
+            });
+        } else if (judgeAccess === 'off' || judgeAccess === 'signed-out') {
+            rows.push({
+                label: t('Voice commands'),
+                value: t('Off'),
+                onClick: () => void offerVoiceCommands(),
             });
         }
         return rows;
@@ -1624,34 +1646,62 @@ export async function mountSessionView(
     // path.
     const classifierOptions: ClassifyResumeIntentOptions = {
         onUsage: (u) => session.recordLlmUsage(u),
-        ...(cloudJudge
-            ? {
-                  judge: cloudJudge,
-                  judgeMode: jevMode === 'on' ? ('decide' as const) : ('shadow' as const),
-                  onJudged: (report) => {
-                      // No utterance in the report, so this is safe in a console
-                      // that bug reports can carry; the tap pairs it with the
-                      // adjacent classifier event, which has the text.
-                      diag('[judge]', JSON.stringify(report));
-                      tapEvent('classifier', 'judge', { ...report });
-                  },
-              }
-            : {}),
     };
+    function attachJudge(judge: CloudJudge): void {
+        classifierOptions.judge = judge;
+        classifierOptions.judgeMode = jevMode === 'on' ? 'decide' : 'shadow';
+        classifierOptions.onJudged = (report) => {
+            // No utterance in the report, so this is safe in a console that bug
+            // reports can carry; the tap pairs it with the adjacent classifier
+            // event, which has the text.
+            diag('[judge]', JSON.stringify(report));
+            tapEvent('classifier', 'judge', { ...report });
+        };
+    }
+    if (cloudJudge) attachJudge(cloudJudge);
+
+    /** The info panel's "Off" row on a BYOK/local sit: say what turning it on
+     *  sends where, then switch it on for this sit and the ones after. */
+    async function offerVoiceCommands(): Promise<void> {
+        if (!(await canReachJudge())) {
+            await alertDialog(
+                t(VOICE_COMMANDS_SIGN_IN)
+            );
+            return;
+        }
+        const ok = await confirmDialog(
+            `<strong>${t('Voice commands')}</strong><p>${t('Say things like "set a timer for ten minutes" or "talk slower".')} ${t(VOICE_COMMANDS_CONSENT)}<br>${privacyPolicyLink()}</p>`,
+            { okLabel: t('Turn on'), html: true }
+        );
+        if (!ok || torn || cloudJudge) return;
+        // Re-read before writing, like the clock does.
+        void loadAppSettings().then((saved) => saveAppSettings({ ...saved, voiceCommandsViaCloud: true }));
+        judgeAccess = 'opted-in';
+        cloudJudge = new CloudJudge();
+        commandPrefetch = new CommandPrefetch(cloudJudge);
+        attachJudge(cloudJudge);
+        tapEvent('note', 'voice-commands-enabled-mid-sit');
+    }
 
     /** One-time "you can just say that" in the status line, after someone uses
      *  a control that has a command (voice-command-hints.ts). Only where the
      *  commands work. Whatever sets the status next replaces it, which is the
      *  right lifetime for a hint. */
     function hintVoiceCommand(id: VoiceHintId): void {
-        if (!cloudJudge || torn) return;
-        if (claimVoiceHint(id)) setStatus(t(VOICE_HINT_TEXT[id]));
+        if (torn) return;
+        // The bare word "mute" needs no judge (isMuteCommand), so that hint is
+        // true everywhere.
+        if (cloudJudge || id === 'mute') {
+            if (claimVoiceHint(id)) setStatus(t(VOICE_HINT_TEXT[id]));
+        } else if (judgeAccess === 'off' && claimVoiceHint('enable')) {
+            setStatus(t(VOICE_HINT_TEXT.enable));
+        }
     }
 
     // ---- spoken commands (core voice-command.ts) ---------------------------
-    // Hosted sessions only: the judge is the only thing that can tell "slow
-    // down a little" from "everything is slowing down", and there is no LLM twin
-    // to fall back on. Shadow mode leaves them on; it is about the classifiers.
+    // Judge sessions only (voice-commands.ts): it is the only thing that can tell
+    // "slow down a little" from "everything is slowing down", and there is no LLM
+    // twin to fall back on. Shadow mode leaves them on; it is about the classifiers.
     //
     // "End the session" is a bid, like [HOLD]: the app asks, and this flag routes
     // the NEXT utterance to classifyEndConfirm instead of a turn. It expires:
@@ -2297,6 +2347,7 @@ export async function mountSessionView(
             // A completed user turn is the activity signal for auto-quit, and
             // the sample the timer's approach notice sizes itself against.
             lastActivityAt = Date.now();
+            signInNudge = false;
             recordTurnGap();
             // Persist every round (user message + whatever response or error) so
             // an offline LLM call or a crash still leaves the transcript

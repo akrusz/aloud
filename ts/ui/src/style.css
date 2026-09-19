@@ -561,6 +561,11 @@
     margin: 0.9rem 0 0;
 }
 
+/* The "what can I say?" link inside the Settings checkbox label. */
+#s-voice-commands-examples {
+    color: var(--accent-text);
+}
+
 /* Settings note (Anthropic key explainer). */
 .settings-note {
     margin: 0.5rem 0;

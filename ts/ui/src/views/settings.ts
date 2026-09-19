@@ -89,6 +89,14 @@ import {
 import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
 import { confirmDialog, alertDialog } from '../dialog.js';
+import {
+    VOICE_COMMANDS_ALWAYS_ON,
+    VOICE_COMMANDS_CONSENT,
+    VOICE_COMMANDS_NEEDS_ACCOUNT,
+    canReachJudge,
+    privacyPolicyLink,
+    showVoiceCommandExamples,
+} from '../voice-commands.js';
 import { showSavedTick } from '../toast.js';
 
 export interface SettingsViewHandle {
@@ -239,6 +247,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             void modelPicker.refresh(settings.defaultProvider);
             syncOllamaSection();
             updateNonstreamVisibility();
+            void syncVoiceCommandsRow();
             // Markers don't change on a mere selection, but the status hint
             // tracks the newly-selected provider.
             updateProviderStatusHint();
@@ -1320,6 +1329,24 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     // ---- Pacing --------------------------------------------------------
 
+    /** One line for whoever is looking: aloud cloud has it regardless (checked,
+     *  locked), everyone else is choosing whether their words may go through
+     *  our server, and signed out there is nothing to choose yet. The stored
+     *  opt-in is never touched here, only how the box is shown. */
+    async function syncVoiceCommandsRow(): Promise<void> {
+        const box = root.querySelector<HTMLInputElement>('#s-voice-commands');
+        const hint = root.querySelector<HTMLElement>('#s-voice-commands-hint');
+        if (!box || !hint) return;
+        const hosted = settings.defaultProvider === 'aloud';
+        const signedIn = hosted || (await canReachJudge());
+        box.disabled = hosted || !signedIn;
+        box.checked = hosted || (signedIn && settings.voiceCommandsViaCloud);
+        if (hosted) hint.textContent = t(VOICE_COMMANDS_ALWAYS_ON);
+        else if (signedIn) hint.innerHTML = `${t(VOICE_COMMANDS_CONSENT)}<br>${privacyPolicyLink()}`;
+        else
+            hint.innerHTML = `${t(VOICE_COMMANDS_CONSENT)}<br><a href="#" data-nav="account">${t(VOICE_COMMANDS_NEEDS_ACCOUNT)}</a> ${privacyPolicyLink()}`;
+    }
+
     /** The non-streaming pause pair is Claude-subscription plumbing; showing
      *  it to everyone else is pure noise. Render gates it; this keeps it live
      *  when the default provider changes without a re-render. */
@@ -1427,6 +1454,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 settings.sttSpeculation = sttSpeculation.checked;
                 persist();
             });
+        }
+        const voiceCommands = root.querySelector<HTMLInputElement>('#s-voice-commands');
+        if (voiceCommands) {
+            voiceCommands.addEventListener('change', () => {
+                settings.voiceCommandsViaCloud = voiceCommands.checked;
+                persist();
+            });
+            // preventDefault also keeps the click from toggling the checkbox
+            // the link sits inside.
+            root.querySelector('#s-voice-commands-examples')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                void showVoiceCommandExamples(settings.saveSessionLogs);
+            });
+            void syncVoiceCommandsRow();
         }
         const silenceModeEnabled = root.querySelector<HTMLInputElement>('#s-silence-mode-enabled');
         if (silenceModeEnabled) {
@@ -2253,7 +2294,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
                         <span>${t('Enable holding-space mode')}</span>
                     </label>
-                    <span class="form-hint">${t('If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.')}</span>
+                    <span class="form-hint">${t('If requested, the facilitator goes silent until you ask it back.')}</span>
                 </div>
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
@@ -2261,6 +2302,17 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <span>${t('Resume long sessions from a recap')}</span>
                     </label>
                     <span class="form-hint">${t('Save tokens when resuming long sessions by sending the facilitator a recap plus your recent turns instead of the whole transcript. You always see the complete history.')}</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <!-- State and hint are painted by syncVoiceCommandsRow: they
+                         depend on the provider and on being signed in. -->
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-voice-commands">
+                        <span>${t('Voice commands')} · <a href="#" id="s-voice-commands-examples">${t('what can I say?')}</a></span>
+                    </label>
+                    <span class="form-hint" id="s-voice-commands-hint"></span>
                 </div>
             </div>
             <div class="form-row${pcmSttChosen(s) ? '' : ' hidden'}" id="s-stt-speculation-group">

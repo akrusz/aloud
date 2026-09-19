@@ -1,7 +1,7 @@
 /**
  * aloud cloud's typed-judgment endpoint (/cloud/v1/judge) as an UtteranceJudge:
- * the silence classifiers' fast path on hosted sessions (core
- * utterance-judge.ts). Any failure rejects and the caller falls back to the LLM
+ * the silence classifiers' fast path wherever the judge is on (voice-commands.ts;
+ * core utterance-judge.ts). Any failure rejects and the caller falls back to the LLM
  * classifier, so there is no retry here - not even the 401 re-sign-in the LLM
  * adapter does, since the fallback call right behind this one does it anyway.
  */
@@ -44,6 +44,10 @@ export class CloudJudge implements UtteranceJudge {
 
     async judge(classifier: JudgeId, text: string, context: JudgeContext = {}): Promise<JudgeAnswers> {
         if (this.now() < this.skipUntil) throw new Error('judge backing off');
+        // A local sit can run with no network at all; don't spend the timeout
+        // finding that out. Not counted as a failure, so coming back online
+        // is not met with a backoff.
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('offline');
         const ac = new AbortController();
         const earlier = clampEarlier(context.earlier);
         try {

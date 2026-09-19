@@ -92,3 +92,20 @@ describe('CloudJudge', () => {
         expect(await j.judge('resume', 'x')).toEqual({ addressed: 0.1, done: 0.8 });
     });
 });
+
+describe('CloudJudge offline', () => {
+    it('rejects without a request and without counting toward the backoff', async () => {
+        const online = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+        Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+        const j = judge();
+        try {
+            for (let i = 0; i < 5; i++) await expect(j.judge('resume', 'ok')).rejects.toThrow('offline');
+        } finally {
+            if (online) Object.defineProperty(globalThis, 'navigator', online);
+            else delete (globalThis as { navigator?: unknown }).navigator;
+        }
+        expect(calls).toHaveLength(0);
+        // Back online: straight through, no cooldown to wait out.
+        await expect(j.judge('resume', 'ok')).resolves.toBeTruthy();
+    });
+});

@@ -135,6 +135,11 @@ export interface AppSettings {
     checkinTiming: CheckinTiming;
     checkinContent: CheckinContent;
     silenceModeEnabled: boolean;
+    /** Spoken commands on sessions that don't run on aloud cloud (BYOK, local):
+     *  sends utterances to /cloud/v1/judge, which those sessions otherwise
+     *  never touch, so it is a consent and defaults off. aloud cloud sessions
+     *  ignore it (always on). See voice-commands.ts. */
+    voiceCommandsViaCloud: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -175,6 +180,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     checkinTiming: 'smart',
     checkinContent: 'smart',
     silenceModeEnabled: true,
+    voiceCommandsViaCloud: false,
 };
 
 /**
