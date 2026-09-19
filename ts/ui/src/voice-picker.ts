@@ -416,6 +416,15 @@ export function renderVoiceList(
         }
     }
 
+    // A tooltip alone is invisible until hovered; say it once, up top, whenever
+    // a flagged voice is actually listed.
+    if (voices.some((v) => v.glitchy && !hidden.has(v))) {
+        const notice = document.createElement('div');
+        notice.className = 'voice-list-notice';
+        notice.textContent = t('macOS 27 voices may interact poorly with Firefox.');
+        listEl.appendChild(notice);
+    }
+
     if (recommended.length > 0) {
         appendTierLabel(listEl, t('Best'));
         for (const v of recommended) appendRow(listEl, v, selectedName, options);

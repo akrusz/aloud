@@ -2391,6 +2391,12 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 }
 
 /* The collapsed-Piper expander line (voice-picker renderVoiceList). */
+.voice-list-notice {
+    padding: 0.6rem 1rem 0.2rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
 .voice-more-piper {
     display: block;
     width: 100%;
