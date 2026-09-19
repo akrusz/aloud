@@ -24,6 +24,7 @@ import {
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
     type ClassifyResumeIntentOptions,
+    CommandPrefetch,
     detectVoiceCommand,
     classifyEndConfirm,
     parseTimerRequest,
@@ -542,6 +543,8 @@ export async function mountSessionView(
     const cloudJudge = jevMode !== 'off' ? new CloudJudge() : null;
     // The first few hosted sessions say so right where "Listening…" is.
     const inviteToCommands = cloudJudge !== null && claimIntroSession();
+    // Asks the command judge while the recognizer is still waiting out the pause.
+    const commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge) : null;
     const listeningStatus = (): string => t(inviteToCommands ? LISTENING_WITH_INVITE : 'Listening…');
 
     // Session facts live behind the nav "ⓘ" button rather than in the always-on
@@ -2374,6 +2377,7 @@ export async function mountSessionView(
                                 currentPartial = null;
                                 continue;
                             }
+                            commandPrefetch?.note(event.text);
                             if (!currentPartial) {
                                 currentPartial = appendMessage('user', event.text, true);
                             } else {
@@ -2444,10 +2448,14 @@ export async function mountSessionView(
                     // timer set from inside a hold must not end it, and "end the
                     // session" must not be buffered as think-out-loud.
                     if (cloudJudge) {
+                        // Taken even when unused below, so a verdict never
+                        // outlives the utterance it was asked about.
+                        const early = commandPrefetch?.take(text) ?? null;
                         if (Date.now() < endConfirmUntil) {
                             if (await handleEndConfirm(text)) continue;
                         } else {
-                            const cmd = await detectVoiceCommand(cloudJudge, text);
+                            if (early) tapEvent('note', 'command:prefetched');
+                            const cmd = await (early ?? detectVoiceCommand(cloudJudge, text));
                             if (torn || muted) break;
                             if (cmd) {
                                 await runVoiceCommand(cmd, text);

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import {
+    CommandPrefetch,
     detectVoiceCommand,
     classifyEndConfirm,
     mightBeCommand,
@@ -63,6 +64,55 @@ describe('detectVoiceCommand', () => {
         expect(judge.calls).toBe(0);
         expect(mightBeCommand('Could you set a timer for twenty five minutes please?')).toBe(true);
         expect(mightBeCommand('定一个二十分钟的计时。')).toBe(true);
+    });
+});
+
+describe('CommandPrefetch', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('judges a settled partial once and hands the verdict to the matching final', async () => {
+        vi.useFakeTimers();
+        const judge = judgeOf({ ...none(), slower: 0.95 });
+        const pre = new CommandPrefetch(judge, 350);
+        pre.note('can you');
+        pre.note('can you slow');
+        pre.note('Can you slow down');
+        expect(judge.calls).toBe(0);
+        vi.advanceTimersByTime(350);
+        expect(judge.calls).toBe(1);
+        // Same words again (a repeated partial) is not a new request.
+        pre.note('can you slow down');
+        vi.advanceTimersByTime(350);
+        expect(judge.calls).toBe(1);
+
+        const hit = pre.take('Can you slow down?');
+        expect(hit).not.toBeNull();
+        expect((await hit)?.command).toBe('slower');
+        // Taken once; the next utterance starts clean.
+        expect(pre.take('Can you slow down?')).toBeNull();
+    });
+
+    it('gives nothing when the final says something else, or came before the partial settled', () => {
+        vi.useFakeTimers();
+        const judge = judgeOf({ ...none(), slower: 0.95 });
+        const pre = new CommandPrefetch(judge, 350);
+        pre.note('can you slow down');
+        vi.advanceTimersByTime(350);
+        expect(pre.take('can you slow down the breathing exercise')).toBeNull();
+
+        pre.note('end the session');
+        expect(pre.take('end the session')).toBeNull();
+        vi.advanceTimersByTime(1000);
+        expect(judge.calls).toBe(1);
+    });
+
+    it('never asks about a partial too long to be a command', () => {
+        vi.useFakeTimers();
+        const judge = judgeOf(none());
+        const pre = new CommandPrefetch(judge, 350);
+        pre.note('I keep coming back to this sense that something in me wants the whole thing to end and I do not know why');
+        vi.advanceTimersByTime(1000);
+        expect(judge.calls).toBe(0);
     });
 });
 
