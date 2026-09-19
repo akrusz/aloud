@@ -1,114 +1,143 @@
 # App store submission checklist
 
-The path from where aloud is now to live on the App Store and Google Play. This
-is the **map**; the how-to lives in [mobile.md](mobile.md) (build the native
-projects) and [mobile-signing.md](mobile-signing.md) (sign + upload). Tracks
-bead `meditation-pal-7rh`.
+What is left between aloud and live listings on Google Play and the App Store.
+This is the **map**; the how-to lives in [mobile.md](mobile.md) (build the native
+projects), [mobile-signing.md](mobile-signing.md) (sign + upload) and
+[mobile-signin-setup.md](mobile-signin-setup.md) (OAuth consoles). Tracks bead
+`meditation-pal-7rh`. Finished steps are deleted, not ticked: if it isn't here,
+it's done.
 
-Right-sized for a small project: get onto TestFlight / Play internal testing
-fast, validate on a real device, then go live. Phase 0 is the only part that can
-actually get you rejected; the rest is chores you work through once.
+## Where we are (2026-09-19)
 
-## Where we are
+**Android** is on Play **internal testing**, installed by a few hand-added
+testers. Signing, Play App Signing, the App-signing-key OAuth client (sign-in
+works in Play-delivered builds), the reviewer demo account + App access
+instructions, the content rating and the Data Safety form are all in. The six
+phone fixes that gated the beta are verified on a device.
 
-Already done:
+**iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
+on the simulator only, some App Store Connect info filled in. Google sign-in is
+**not** wired (no URL scheme in `Info.plist` yet).
 
-- [x] Native projects generated + committed (`ts/ios`, `ts/android`); iOS builds for the simulator.
-- [x] iOS Info.plist: mic + speech permission strings, Sign in with Apple wiring. Android manifest: `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, `INTERNET`. **The Google URL scheme is NOT in yet** - `Info.plist` carries only a comment marking the spot, because App Store Connect rejects a placeholder scheme (ITMS-90158). It needs the real reversed iOS client id from `tpj4` step 1; see [mobile-signin-setup.md](mobile-signin-setup.md) step 3.
-- [x] App icons (iOS set, Android adaptive). AGPL App Store exception (`LICENSE-EXCEPTION.md`, bead `84x`). *(Re-done 2026-07-23: the Capacitor projects were still shipping the stock placeholder icons; both now use the orb. Android adaptive foreground source: `assets/app-icon-android-fg.svg`.)*
-- [x] Privacy policy + terms live (`docs/privacy`, `docs/terms`). Android `targetSdk 36` clears Play's floor.
-- [x] Apple Developer Program membership (already used for macOS notarization).
+What the mobile build does: the LLM is **aloud cloud** (sign-in + credits).
+**Noting defaults to a circle of one sound participant**, which calls no model
+and needs no account; swapping in an AI companion puts you on cloud.
 
-What the beta build actually does on a phone: the LLM is **aloud cloud**
-(sign-in + credits). Exploration / FeltSense call cloud. **Noting defaults to a
-circle of one sound participant** ("plop", adaptive timing), which calls no model
-and needs no account (bead `vr3w`); swapping in an AI companion is one tap and
-puts you back on cloud. The bundled on-device model
-tier (beads `dbd` / `7ej`) is not shipped yet, so device RAM gates nothing here.
+Known and accepted: no barge-in on native STT (`x4h4`), no anonymous first sit on
+iPhone **web** (`2dy1`; the native apps are unaffected).
 
-### Status, 2026-08-21 - blocked on one device session
+## Android: the road to production
 
-Everything below is either done or waiting on hardware. **The gate right now is
-Phase 0**: six fixes are written, typechecked and unit-tested but have never run
-on a phone, and until they do nothing else is worth queueing behind them.
+The account is **personal and newer than Nov 13 2023**, so Play will not grant
+production access until a **closed test** has run with enough opted-in testers
+for **14 days in a row**. Internal testing does not count. The minimum was 20 and
+Google later lowered it to 12: read the current number off Play Console →
+Dashboard → "Apply for production access". This, not the code, is what sets the
+launch date.
 
-Run section 3 of [manual-smoke.md](manual-smoke.md) - it is ordered as exactly
-this verification list:
+- [ ] **Start the closed test.** Create a closed testing track, promote the
+      current build to it, add testers (an email list or a Google Group), share
+      the opt-in link. The 14 days count from when enough testers have opted in,
+      and they have to stay opted in.
+- [ ] **Listing pass** (see "Each store update" below for the copy): recheck
+      screenshots against the current UI (2+ phone, portrait 9:16), short + full
+      description, feature graphic and 512 icon (`assets/store/`), support +
+      privacy URLs.
+- [ ] **Long-sit audio check** on a Play-installed build: a 30-minute session
+      with the screen off, and one round trip through backgrounding. Short
+      sessions are good; this one was still owed.
+- [ ] **Apply for production access** once the 14 days are up. Play asks about
+      the test (how testers were recruited, what feedback changed), so keep a
+      few notes as feedback comes in.
+- [ ] **Production review** (a few days), then release. Update the site's
+      platform line (`docs/index.html`: "iOS and Android are in closed beta"),
+      the README platform notes and the store links once it is public.
+- [ ] **Promo video** (optional, its own session). Play takes a YouTube URL, not
+      a file. Screen-record one short real session on the phone (screen
+      recorder, audio source **"media and mic"** so both voices land in the
+      file), then `./scripts/build-promo-video.sh <recording.mp4>` tops and tails
+      it with `assets/store/video-title-card.png` / `video-end-card.png`. Upload
+      **unlisted** and paste the full `watch?v=` URL: Play rejects `youtu.be`
+      links, playlist or timestamp params, age-restricted videos and videos with
+      ads on. 30s to 2min; a proper landscape cut for the production listing.
 
-| Bead | What to prove |
-|---|---|
-| `cddo` | native STT holds a ~2s mid-thought pause as one turn |
-| `t25n` | cloud STT gets the mic (no permission error) |
-| `oxmt` | the facilitator doesn't interrupt itself on the loudspeaker |
-| `wudm` | mic survives backgrounding - **and check noting separately**, it's deliberately untouched |
-| `vr3w` | signed-out noting runs end to end (clear app data first) |
-| `7n22` | sign-in survives a force-stop; sign-**out** survives one too |
+## Each store update (do it in one pass)
 
-After that session the critical path is short and entirely console work, none of
-it code: **`tpj4`** (Google iOS OAuth client → the `Info.plist` URL scheme, Apple
-Services ID, both audiences into the server's `GOOGLE_CLIENT_IDS` /
-`APPLE_CLIENT_IDS`) and the **Play App-signing SHA-1** Android OAuth client - the
-gotcha in [mobile-signing.md](mobile-signing.md) where sign-in works in dev and
-fails in every Play-delivered build. Guideline 4.8 makes Apple sign-in mandatory
-on iOS because the build ships Google; the code for it already exists.
+- [ ] Bump `versionCode` **and** `versionName` in `ts/android/app/build.gradle`
+      (Play refuses a reused `versionCode`), then `scripts/android-aab.sh` and
+      upload the `.aab` to the track.
+- [ ] Release notes ("What's new") for the track.
+- [ ] **Store copy**: `dev-docs/store-descriptions.md` is the source, the
+      consoles are the deploy. Paste any changed paragraph into Play Console
+      (and App Store Connect once iOS is live).
+- [ ] **Data handling changed?** Then the Data Safety form (and Apple's App
+      Privacy labels) change with the privacy policy, in the same pass. The
+      answers on file are below.
+- [ ] Screenshots, if the setup or session screen changed.
 
-Android is closer than iOS: the upload keystore exists, `scripts/android-aab.sh`
-builds a signed `.aab`, and internal testing has no review wait. iOS additionally
-needs the URL scheme above before a build with working Google sign-in can go up.
+For the release after 2.9.0 specifically: the new voice-commands paragraph in
+the store description, and a look at Data Safety. Voice commands send what is
+said through aloud cloud to a classifier, which is the same "in-app messages,
+ephemeral, not shared" row hosted sessions already declare, so no change is
+expected. Confirm it reads true rather than assume.
 
-Known and accepted for the beta: no barge-in on native STT (`x4h4`), and no
-anonymous first sit on iPhone **web** (`2dy1` - punted deliberately; the native
-apps are unaffected).
+## Privacy answers on file
 
-## Phase 0 - Validate on a real device (the critical path)
+Both consoles are the deploy; editing this file changes nothing live. Kept here
+because Apple's labels are still to be filled from the same facts.
 
-The one thing paperwork can't stand in for. Needs hardware.
+- **Messages → other in-app messages**: collected, **ephemeral**, optional, app
+  functionality, not shared (LLM / STT / TTS / classifier vendors fall under the
+  service-provider exemption).
+- **Audio → voice recordings**: the same. It is a **three-path** answer, matching
+  `docs/privacy/index.html` → "Your voice": on-device (Whisper, desktop), the
+  **platform recognizer** the mobile apps default to (Android's may route audio
+  to Google: the labels cover what *we* collect, so that is disclosed in the
+  policy, not claimed as on-device), and aloud cloud (relayed, not retained).
+  Nothing may imply mobile speech never leaves the device.
+- **Email address**: collected, not ephemeral, optional, deletable. **Two
+  purposes**: account management *and* product-update emails (the signup opt-in,
+  `Account.emailUpdates`). On Play that is the **Developer communications**
+  purpose, with "Advertising or marketing" left unticked (Play means ads). Apple
+  has no such bucket and defines **Developer's Advertising or Marketing** to
+  cover exactly this, so on Apple that one is ticked. The labels differ because
+  the taxonomies do.
+- **Purchase history**: collected, not ephemeral, optional, deletable.
+- **Account deletion URL**: `https://aloud.rest/delete-account/`.
+- **GenAI policy**: in-session ⓘ → "Report AI content", on both session views.
 
-- [x] Dev-install on your Android: Developer options (tap Build number 7x) → USB debugging → `npx cap run android` (from `ts/`). Detail in [mobile.md](mobile.md). *(Working 2026-07-20.)*
-- [ ] Dev-install on an iPhone: Developer Mode → automatic signing → Run. Wanted but skippable for the first TestFlight; a base current iPhone is enough since the LLM is cloud.
-- [ ] Audio session holds: mic during TTS (barge-in), 30-min session with screen off, survives backgrounding. Beads `nn1` / `0ao`. *(Partly validated - short sessions good; long screen-off run still owed. Internal testing is the natural place to finish this.)*
-- [x] Native STT is good enough on real speech, or falls back to cloud cleanly. *(After the plugin patch + watchdog fix, 2026-07-21; cloud STT stays one tap away in the picker.)*
+## iOS
 
-## Phase 1 - Sign-in + signing setup
+Guideline 4.8: shipping Google sign-in on iOS makes Sign in with Apple
+mandatory. The Apple side exists already (automatic signing, the capability on
+the App ID, `PrivacyInfo.xcprivacy`, export-compliance flag).
 
-- [ ] Google / Apple sign-in consoles (bead `tpj4`): Google iOS OAuth client + both client ids in server `GOOGLE_CLIENT_IDS`; Apple Services ID + "Sign in with Apple" capability. Guideline 4.8: offering Google on iOS requires Apple too.
-- [ ] Google **Android** OAuth clients - one per signing cert: debug SHA-1 (dev installs) AND, once the Play app exists, the **App signing key** SHA-1 from Play Console → Protected with Play → Play Store distribution → Play app signing (store installs get re-signed by Google). See the gotcha in [mobile-signing.md](mobile-signing.md).
-- [x] iOS: automatic signing (team id now in `project.pbxproj`; distribution cert + profile auto-created, Sign in with Apple capability enabled on the App ID via `-allowProvisioningUpdates`, 2026-08-03). Server `APPLE_CLIENT_IDS` must include the bundle id for the native Apple button to work.
-- [ ] Android: create the upload keystore, enroll in Play App Signing, back the keystore up. Steps in [mobile-signing.md](mobile-signing.md). *(Gradle side is wired: `app/build.gradle` reads gitignored `android/keystore.properties` when present; `versionName` tracks the app version - bump it and `versionCode` each upload.)*
+- [ ] **Google iOS sign-in** (bead `tpj4`): create the Google iOS OAuth client,
+      put its **reversed client id** in `Info.plist` as the URL scheme (App
+      Store Connect rejects a placeholder, ITMS-90158, so the file carries only
+      a comment today), and add both audiences to the server's
+      `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`. Steps in
+      [mobile-signin-setup.md](mobile-signin-setup.md).
+- [ ] **Run it on a real iPhone**: Developer Mode → automatic signing → Run, then
+      section 3 of [manual-smoke.md](manual-smoke.md). Nothing on iOS has been
+      proven on hardware. TestFlight for Mac on Apple Silicon can stand in for a
+      first look, not for the audio path.
+- [ ] New TestFlight build with sign-in working → add **internal** testers (up to
+      100, no review). External testers need a one-time light Beta App Review.
+- [ ] **App Privacy labels**, from "Privacy answers on file" above.
+- [ ] **Reviewer note**: Noting works free with no account. It **defaults** to a
+      circle of one sound participant and a static opener, so a reviewer who
+      taps straight through never meets the sign-in modal. Say so, say that an
+      AI companion is what switches it to the paid cloud path, and give the demo
+      account for the credit flow (heads off a Guideline 5.1.1 "why must I sign
+      in" rejection). The Play App access text is the template.
+- [ ] Listing assets: screenshots in Apple's required sizes, description,
+      keywords, support + privacy URLs, age rating.
+- [ ] Submit for App Store review (a few days).
 
-## Phase 2 - First beta deploy (no store review)
+## Optional, not blocking
 
-Fastest route to real testers.
-
-- [ ] iOS: create the App Store Connect app record → Archive → Upload → add **internal** TestFlight testers (up to 100, no review). *(Record created; first build uploaded 2026-08-03: 2.6.1 (1), no Google URL scheme yet. Left: add internal testers; TestFlight for Mac on Apple Silicon can stand in for an iPhone.)*
-- [ ] Android: create the Play Console app → **internal testing** track → upload `.aab` → add testers by email (no review).
-
-## Phase 3 - Store paperwork (before production)
-
-Easy to forget, because it's separate from the privacy *page*.
-
-- [ ] Apple **App Privacy** labels + Google **Data Safety** form, filled from the real data flows (account email, transcribed audio, credits). **Email has two purposes, not one**: account management *and* product-update emails, since the signup opt-in (`Account.emailUpdates`, `sign-in-modal.ts` + the account page) keeps an opted-in address for that. In Play → Data safety → Personal info → Email address, add the **Developer communications** purpose and mark the collection **optional** (users can choose); in App Store Connect → App Privacy → Contact Info → Email Address, add **Developer's Advertising or Marketing**. The two labels differ because the taxonomies do, not because the behavior does: Play's "Advertising or marketing" means ads and promos and is **not** ticked, while Apple has no "developer communications" bucket and defines its marketing label to cover exactly this (email sent directly to users). Both consoles are the deploy - editing this file doesn't change the live answers. **Audio is a three-path answer**, matching `docs/privacy/index.html` → "Your voice": on-device (Whisper, desktop), the **platform recognizer** the mobile apps default to (Android's may route audio to Google - the app's own labels cover what *we* collect, so this is disclosed in the policy, not claimed as on-device), and aloud cloud (relayed to an STT provider, not retained). Nothing here should imply mobile speech never leaves the device - `580e049` removed exactly that claim from the UI.
-- [x] iOS **privacy manifest** (`ts/ios/App/App/PrivacyInfo.xcprivacy`): tracking = false, UserDefaults required-reason (CA92.1), wired into the App target. Collected-data-types left empty; the App Store Connect labels above are the source of truth.
-- [x] iOS **export compliance**: `ITSAppUsesNonExemptEncryption` = `false` in Info.plist (HTTPS-only is exempt) skips the per-upload prompt.
-- [ ] **Reviewer note**: Noting works free with no account - it **defaults** to a circle of one sound participant, which calls no model, and the opener is static, so a reviewer who taps straight through never meets the sign-in modal (`meditation-pal-vr3w`). Say so explicitly, and note that swapping in an AI companion is what switches it to the paid cloud path. Also give a demo path for the credit flow (heads off a Guideline 5.1.1 "why must I sign in" rejection).
-- [ ] Listing assets: screenshots (required sizes), description, keywords, support + privacy URLs, age / content rating. Copy direction in bead `7ej` (lead with values, no device-spec claims). Play also wants a 1024x500 feature graphic + 512 icon.
-- [ ] **Promo video** (optional; Play takes a YouTube URL, not a file). Beta-grade
-      recipe: screen-record one short real session on the phone (system settings →
-      screen recorder, audio source **"media and mic"** so both the facilitator's
-      TTS and your voice land in the file), then run
-      `./scripts/build-promo-video.sh <recording.mp4>` to top and tail it with
-      `assets/store/video-title-card.png` / `video-end-card.png`. Upload
-      **unlisted** to YouTube and paste the full `watch?v=` URL - Play rejects
-      `youtu.be` short links, playlist/timestamp params, age-restricted videos,
-      and videos with ads enabled. Aim for 30s-2min. Do a proper landscape cut
-      for the production listing.
-
-## Phase 4 - Go live (production)
-
-- [ ] iOS: submit for App Store review (a few days). External TestFlight testers need a one-time light Beta App Review; internal testers don't.
-- [ ] Android: promote internal → closed / open → production (review, a few days). If the Play account is personal and created after Nov 13 2023, production access needs 20 testers for 14 days first; internal testing doesn't.
-
-## Optional, not blocking the beta
-
-- [ ] Trademark the stylized "aloud." mark (bead `lkh`) - for clone takedowns later, not for approval.
-- [ ] Native StoreKit / Play Billing consumable credit packs (deferred; the beta uses the web Stripe link-out, which is sanctioned in the US/UK/EEA per bead `zp47`).
+- [ ] Trademark the stylized "aloud." mark (bead `lkh`): for clone takedowns
+      later, not for approval.
+- [ ] Native StoreKit / Play Billing credit packs. Deferred: the beta uses the
+      web Stripe link-out, sanctioned in the US/UK/EEA per bead `zp47`.
