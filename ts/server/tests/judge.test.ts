@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
+import { Hono } from 'hono';
 import { createApp } from '../src/app.js';
+import { judgeRoutes } from '../src/routes/judge.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import type { AuthResponse, JudgeResponse } from '../src/contract.js';
 import { VOICE_COMMAND_IDS } from '@aloud/core/facilitation';
@@ -133,6 +135,54 @@ describe('POST /cloud/v1/judge', () => {
         // One of resume's two asks missing: a partial answer is a failure, not a no.
         reply = () => new Response(JSON.stringify({ answers: { done: { type: 'noul', noul: 0.9 } } }), { status: 200 });
         expect((await post(a, token, { classifier: 'resume', text: 'hi' })).status).toBe(502);
+    });
+
+    it('has its own rate budget: exhausting it leaves LLM turns alone, and vice versa', async () => {
+        const { a } = app();
+        const token = await devToken(a);
+        let last = 200;
+        for (let i = 0; i < 95 && last === 200; i++) last = (await post(a, token, { classifier: 'resume', text: 'hi' })).status;
+        expect(last).toBe(429);
+        const llm = await a.request('/cloud/v1/llm/complete', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({}),
+        });
+        // Refused for its empty body, not for rate: the shared guard is untouched.
+        expect(llm.status).toBe(400);
+    });
+
+    it('records one content-free judge_error a minute, with a count of the rest', async () => {
+        const { a, store } = app();
+        const token = await devToken(a);
+        reply = () => new Response('you said: my secret utterance', { status: 529 });
+        for (let i = 0; i < 4; i++) await post(a, token, { classifier: 'command', text: 'my secret utterance' });
+        const rows = (await store.incidentsSince(0)).filter((r) => r.kind === 'judge_error');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ provider: 'typesafe', model: 'command', detail: 'http_529' });
+        expect(JSON.stringify(rows)).not.toContain('secret');
+    });
+
+    it('carries the suppressed count into the next window', async () => {
+        const store = new MemoryCreditsStore();
+        const deps = buildDeps(loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_API_KEY: 'sk-test', TYPESAFE_API_KEY: 'ts-test' }), { store });
+        const token = await devToken(createApp(deps));
+        let clock = 1_000_000;
+        const routes = new Hono().route('/j', judgeRoutes(deps, () => clock));
+        const fail = () =>
+            routes.request('/j', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({ classifier: 'resume', text: 'hi' }),
+            });
+        reply = () => new Response('', { status: 429 });
+        await fail();
+        await fail();
+        await fail();
+        clock += 61_000;
+        await fail();
+        const details = (await store.incidentsSince(0)).filter((r) => r.kind === 'judge_error').map((r) => r.detail);
+        expect(details.sort()).toEqual(['http_429', 'http_429 (+2 more since the last row)']);
     });
 
     it('advertises itself on /health only when configured', async () => {

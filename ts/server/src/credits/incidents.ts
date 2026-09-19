@@ -30,6 +30,10 @@ export const SERVER_INCIDENT_KINDS = [
     'llm_error',
     'stt_error',
     'tts_error',
+    /** TypeSafe (Jev) failed or timed out. Clients fall back without the user
+     *  noticing, so this row is the only sign of an outage. Throttled to one a
+     *  minute server-wide with a count (routes/judge.ts). */
+    'judge_error',
     /** A metered call was refused for lack of credits. */
     'insufficient_credits',
 ] as const;

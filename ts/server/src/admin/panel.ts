@@ -283,7 +283,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <button class="ghost" id="refreshIncidents" style="padding:3px 9px;font-size:13px">refresh</button>
       </span>
     </h2>
-    <p class="sub help-text" style="margin:-4px 0 10px">What the app handled quietly on the cloud path. <b>llm_empty</b>: a completion came back with no text (finish=length with tokens_out &gt; 0 means reasoning ate the budget). <b>llm/stt/tts_error</b>: the upstream call failed. <b>insufficient_credits</b>: a metered call was refused. <b>client_*</b> rows are reported by the app itself: a blank turn it retried or replaced with a canned line, a voice that failed to synthesize or play. Rows never contain what was said.</p>
+    <p class="sub help-text" style="margin:-4px 0 10px">What the app handled quietly on the cloud path. <b>llm_empty</b>: a completion came back with no text (finish=length with tokens_out &gt; 0 means reasoning ate the budget). <b>llm/stt/tts_error</b>: the upstream call failed. <b>judge_error</b>: TypeSafe (Jev) failed or timed out; sessions fell back silently, so this is the only sign (one row a minute, with a count). <b>insufficient_credits</b>: a metered call was refused. <b>client_*</b> rows are reported by the app itself: a blank turn it retried or replaced with a canned line, a voice that failed to synthesize or play. Rows never contain what was said.</p>
     <div class="card">
       <div class="pills" id="incidentStats"><span class="muted">Connect to load.</span></div>
       <div class="table-wrap">

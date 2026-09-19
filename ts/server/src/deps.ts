@@ -13,12 +13,20 @@ import { Forwarder } from './providers/forward.js';
 import { FreeGrantBreaker, RateGuard } from './quota/freetier.js';
 import { HttpModelProber, ModelLiveness } from './pricing/liveness.js';
 
+/** A busy sit makes 2-4 judge calls a minute; this leaves room for prefetching
+ *  on speculative transcripts while still capping a runaway client. */
+const JUDGE_REQUESTS_PER_MINUTE = 90;
+
 export interface Deps {
     config: Config;
     store: CreditsStore;
     ledger: Ledger;
     forwarder: Forwarder;
     rateGuard: RateGuard;
+    /** /cloud/v1/judge only. Separate from rateGuard on purpose: judge calls
+     *  are cheap, frequent and optional, and must never be what gets an LLM
+     *  turn refused - nor be starved by a turn's TTS sentences. */
+    judgeGuard: RateGuard;
     grantBreaker: FreeGrantBreaker;
     /** Which allowlisted models the providers still serve. Everything reads
      *  live until index.ts's hourly sweep proves otherwise; tests never sweep,
@@ -43,6 +51,7 @@ export function buildDeps(config: Config, options: BuildDepsOptions = {}): Deps 
         ledger: new Ledger(store),
         forwarder: new Forwarder(config.providerKeys),
         rateGuard: new RateGuard(),
+        judgeGuard: new RateGuard(JUDGE_REQUESTS_PER_MINUTE),
         grantBreaker: new FreeGrantBreaker(config.freeGrantBudgetPerHour),
         liveness: new ModelLiveness(new HttpModelProber(config.providerKeys)),
     };
