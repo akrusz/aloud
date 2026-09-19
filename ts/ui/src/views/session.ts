@@ -24,6 +24,13 @@ import {
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
     type ClassifyResumeIntentOptions,
+    detectVoiceCommand,
+    classifyEndConfirm,
+    parseTimerRequest,
+    steppedRate,
+    steppedPause,
+    COMMAND_LINES,
+    type DetectedCommand,
     defaultPacingConfig,
     defaultWaitSeconds,
     runSmartCheckin,
@@ -70,6 +77,16 @@ import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { CloudJudge } from '../adapters/cloud-judge.js';
+import {
+    claimVoiceHint,
+    claimIntroSession,
+    LISTENING_WITH_INVITE,
+    VOICE_HINT_TEXT,
+    VOICE_COMMAND_EXAMPLES,
+    VOICE_COMMANDS_NOTE,
+    endExampleFor,
+    type VoiceHintId,
+} from '../voice-command-hints.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
@@ -122,6 +139,7 @@ import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle } from '../theme.js';
 import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
+import { alertDialog } from '../dialog.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
@@ -516,6 +534,16 @@ export async function mountSessionView(
         recapProvider = utilityProvider;
     }
 
+    // Jev (TypeSafe) for the silence classifiers and the spoken commands. Hosted
+    // only: everywhere else there is no server to hold the key. Up here because
+    // status text and the info panel below both depend on it.
+    const jevMode = setup.provider === 'aloud' ? getJevClassifierMode() : 'off';
+    // One instance, so the classifiers and the commands share its failure backoff.
+    const cloudJudge = jevMode !== 'off' ? new CloudJudge() : null;
+    // The first few hosted sessions say so right where "Listening…" is.
+    const inviteToCommands = cloudJudge !== null && claimIntroSession();
+    const listeningStatus = (): string => t(inviteToCommands ? LISTENING_WITH_INVITE : 'Listening…');
+
     // Session facts live behind the nav "ⓘ" button rather than in the always-on
     // chrome. modelLabel is recomputed here so the saved record and the panel
     // agree, and stays current across an availability fallback.
@@ -610,6 +638,22 @@ export async function mountSessionView(
                 onClick: () => void sessionClock.openPicker(),
             }
         );
+        if (cloudJudge) {
+            rows.push({
+                label: t('Voice commands'),
+                value: t('See what you can say'),
+                onClick: () =>
+                    void alertDialog(
+                        `<strong>${t('Voice commands')}</strong><ul class="voice-command-list">` +
+                            [...VOICE_COMMAND_EXAMPLES, endExampleFor(appSettings.saveSessionLogs)]
+                                .map((line) => `<li>${t(line)}</li>`)
+                                .join('') +
+                            `</ul><p class="voice-command-note">${t(VOICE_COMMANDS_NOTE)}</p>`,
+                        undefined,
+                        { html: true }
+                    ),
+            });
+        }
         return rows;
     }
     const infoPanel = mountSessionInfoPanel(root, buildSessionInfoRows, t('Session'), [
@@ -1071,7 +1115,7 @@ export async function mountSessionView(
                 showErrorToast(
                     t("Couldn't start aloud cloud speech - check your connection and that you're signed in.")
                 );
-                setStatus(muted ? t('Muted') : t('Listening…'));
+                setStatus(muted ? t('Muted') : listeningStatus());
                 return;
             }
             const prev = stt;
@@ -1097,7 +1141,7 @@ export async function mountSessionView(
             // on the new `stt`. Restart it if it had already fallen out.
             void prev?.stop();
             if (!muted) {
-                setStatus(t('Listening…'));
+                setStatus(listeningStatus());
                 startMeter();
                 if (!listenLoopRunning) void listenLoop();
             } else {
@@ -1351,11 +1395,15 @@ export async function mountSessionView(
     // The clock in the input row: elapsed / time of day / countdown, switched by
     // tapping it. The mode and any timer length persist to app settings, so a
     // daily twenty-minute sit re-arms itself next session.
+    let clockChangeByVoice = false;
     const sessionClock = new SessionClock(
         timerEl,
         sessionStartMs,
         appSettings,
         (choice) => {
+            // The voice path persists through this same callback; only a timer
+            // armed in the picker is news.
+            if (choice.mode === 'timer' && !clockChangeByVoice) hintVoiceCommand('timer');
             appSettings.sessionClockMode = choice.mode;
             appSettings.sessionTimerMin = choice.timerMin;
             appSettings.showSessionClock = choice.showClock;
@@ -1401,7 +1449,7 @@ export async function mountSessionView(
         micBtn.title = hint;
         setStatus(t('Mic unavailable'));
     } else {
-        setStatus(t('Listening…'));
+        setStatus(listeningStatus());
     }
 
     function insertDivider(text: string): void {
@@ -1570,12 +1618,11 @@ export async function mountSessionView(
     // of the Haiku call (the dev flag can demote it to shadow or off); everywhere
     // else there is no server to hold the key, so the LLM classifier is the only
     // path.
-    const jevMode = setup.provider === 'aloud' ? getJevClassifierMode() : 'off';
     const classifierOptions: ClassifyResumeIntentOptions = {
         onUsage: (u) => session.recordLlmUsage(u),
-        ...(jevMode !== 'off'
+        ...(cloudJudge
             ? {
-                  judge: new CloudJudge(),
+                  judge: cloudJudge,
                   judgeMode: jevMode === 'on' ? ('decide' as const) : ('shadow' as const),
                   onJudged: (report) => {
                       // No utterance in the report, so this is safe in a console
@@ -1587,6 +1634,236 @@ export async function mountSessionView(
               }
             : {}),
     };
+
+    /** One-time "you can just say that" in the status line, after someone uses
+     *  a control that has a command (voice-command-hints.ts). Only where the
+     *  commands work. Whatever sets the status next replaces it, which is the
+     *  right lifetime for a hint. */
+    function hintVoiceCommand(id: VoiceHintId): void {
+        if (!cloudJudge || torn) return;
+        if (claimVoiceHint(id)) setStatus(t(VOICE_HINT_TEXT[id]));
+    }
+
+    // ---- spoken commands (core voice-command.ts) ---------------------------
+    // Hosted sessions only: the judge is the only thing that can tell "slow
+    // down a little" from "everything is slowing down", and there is no LLM twin
+    // to fall back on. Shadow mode leaves them on; it is about the classifiers.
+    //
+    // "End the session" is a bid, like [HOLD]: the app asks, and this flag routes
+    // the NEXT utterance to classifyEndConfirm instead of a turn. It expires:
+    // a "yes" to the facilitator five minutes later must not end the sit.
+    const END_CONFIRM_WINDOW_MS = 45_000;
+    let endConfirmUntil = 0;
+    // What a yes to the open question does. Plain "end the session" follows the
+    // save-logs setting; "end without saving" / "end and save" override it for
+    // this sit, the same two choices the End dialog offers by hand.
+    let endConfirmSkipSave = false;
+
+    /** Say what a command did. Takes the floor if the facilitator is mid-reply
+     *  (the same supersede respondTo does), records both sides so the model
+     *  doesn't later read itself announcing a timer nobody asked for, and keeps
+     *  a silence hold held - a command is not a call back. */
+    async function speakCommandLine(userText: string, line: string): Promise<void> {
+        if (busy) {
+            ++turnGen;
+            activeFullAbort?.abort();
+            void tts.cancel();
+            // The superseded turn no longer owns the flag (see respondTo's finally).
+            busy = false;
+        }
+        appendMessage('user', userText);
+        tapTurn('user', 'user', userText);
+        session.addUserMessage(userText);
+        await respondWithFacilitatorLine(line, 'command');
+        restoreHoldAfterNotice('command');
+    }
+
+    /** Mic off first, so nothing said while the acknowledgment plays is heard.
+     *  The spoken "Muted." is what makes a misfire noticeable with eyes shut:
+     *  unmuting is button-only. */
+    async function muteByVoice(userText: string, via: 'regex' | 'judge'): Promise<void> {
+        tapEvent('audio', 'mute-command', { text: userText, via });
+        tapFlags({ muted: true });
+        setMuted(true);
+        await speakCommandLine(userText, COMMAND_LINES.muted(sessionLanguageOf(appSettings.language)));
+    }
+
+    /** Say the last facilitator line again. Off the record on both sides: the
+     *  model already has the line once, and a transcript with it twice reads as
+     *  a glitch. */
+    async function repeatLastLine(userText: string): Promise<void> {
+        const last = [...session.getContextMessages()].reverse().find((m) => m.role === 'assistant')?.content;
+        if (!last) {
+            await speakCommandLine(userText, COMMAND_LINES.nothingToRepeat(sessionLanguageOf(appSettings.language)));
+            return;
+        }
+        if (busy) {
+            ++turnGen;
+            activeFullAbort?.abort();
+            void tts.cancel();
+            busy = false;
+        }
+        busy = true;
+        tapFlags({ busy: true });
+        tapEvent('note', 'command:repeat-spoken');
+        setStatus(t('Speaking…'));
+        try {
+            await tts.speak(last, { rate: setup.ttsRate });
+        } catch {
+            /* non-fatal */
+        } finally {
+            busy = false;
+            tapFlags({ busy: false });
+            pacing.onResponseEnd();
+            setStatus(idleStatus());
+            restoreHoldAfterNotice('command');
+        }
+    }
+
+    /** Move the pause-before-submit window a rung, live and for next time: it's
+     *  the same preference the Settings "pause" preset holds ("it cuts me off"
+     *  is rarely about one sit). */
+    async function adjustPause(userText: string, direction: 'sooner' | 'longer'): Promise<void> {
+        const lang = sessionLanguageOf(appSettings.language);
+        if (!stt?.setPauseWindow) {
+            await speakCommandLine(userText, COMMAND_LINES.pauseUnsupported(lang));
+            return;
+        }
+        const next = steppedPause(vadOpts.silenceBaseMs, direction);
+        if (!next) {
+            await speakCommandLine(userText, COMMAND_LINES[direction === 'sooner' ? 'soonest' : 'longest'](lang));
+            return;
+        }
+        // vadOpts too: a mid-session STT rebuild is constructed from it.
+        vadOpts.silenceBaseMs = next.baseMs;
+        vadOpts.silenceMaxMs = next.maxMs;
+        stt.setPauseWindow(next.baseMs, next.maxMs);
+        // Hosted sessions stream, so these are the pair in play (not the
+        // nonStreaming* one). Re-read before writing, like the clock does.
+        void loadAppSettings().then((saved) =>
+            saveAppSettings({ ...saved, silenceBaseMs: next.baseMs, silenceMaxMs: next.maxMs })
+        );
+        await speakCommandLine(userText, COMMAND_LINES[direction === 'sooner' ? 'respondSooner' : 'waitLonger'](lang));
+    }
+
+    async function runVoiceCommand(cmd: DetectedCommand, userText: string): Promise<void> {
+        const lang = sessionLanguageOf(appSettings.language);
+        console.info('[command]', JSON.stringify({ command: cmd.command, answers: cmd.answers, latencyMs: cmd.latencyMs }));
+        tapEvent('note', `command:${cmd.command}`, { answers: cmd.answers, utterance: userText });
+        // A command in reply to "shall I be quiet?" isn't an answer to it.
+        if (awaitingHoldConfirm) {
+            awaitingHoldConfirm = false;
+            tapFlags({ awaitingHoldConfirm: false });
+        }
+        lastActivityAt = Date.now();
+        switch (cmd.command) {
+            case 'slower':
+            case 'faster': {
+                const next = steppedRate(setup.ttsRate, cmd.command);
+                if (next === null) {
+                    await speakCommandLine(userText, COMMAND_LINES[cmd.command === 'slower' ? 'slowest' : 'fastest'](lang));
+                    return;
+                }
+                // Set first, so the acknowledgment is itself the demonstration.
+                setup.ttsRate = next;
+                updateVoicePickerLabel();
+                await speakCommandLine(userText, COMMAND_LINES[cmd.command](lang));
+                return;
+            }
+            case 'set_timer': {
+                const req = parseTimerRequest(userText);
+                if (!req) {
+                    await speakCommandLine(userText, COMMAND_LINES.timerNoDuration(lang));
+                    return;
+                }
+                clockChangeByVoice = true;
+                let line: string;
+                if (req.relative && sessionClock.remainingSec() !== null) {
+                    line = COMMAND_LINES.timerExtended(lang, sessionClock.extendTimer(req.minutes));
+                } else {
+                    const armed = sessionClock.setTimer(req.minutes);
+                    line = sessionClock.endsSessionOnComplete()
+                        ? COMMAND_LINES.timerSetEnds(lang, armed)
+                        : COMMAND_LINES.timerSet(lang, armed);
+                }
+                clockChangeByVoice = false;
+                await speakCommandLine(userText, line);
+                return;
+            }
+            case 'cancel_timer':
+                await speakCommandLine(
+                    userText,
+                    sessionClock.cancelTimer() ? COMMAND_LINES.timerCancelled(lang) : COMMAND_LINES.noTimer(lang)
+                );
+                return;
+            case 'time_check': {
+                const remaining = sessionClock.remainingSec();
+                const line =
+                    remaining !== null && remaining > 0
+                        ? COMMAND_LINES.timeLeft(lang, Math.round(remaining / 60))
+                        : COMMAND_LINES.timeElapsed(lang, Math.round(sessionClock.elapsedSec() / 60));
+                await speakCommandLine(userText, line);
+                return;
+            }
+            case 'repeat':
+                await repeatLastLine(userText);
+                return;
+            case 'respond_sooner':
+                await adjustPause(userText, 'sooner');
+                return;
+            case 'wait_longer':
+                await adjustPause(userText, 'longer');
+                return;
+            case 'mute':
+                await muteByVoice(userText, 'judge');
+                return;
+            case 'help':
+                await speakCommandLine(userText, COMMAND_LINES.help(lang));
+                return;
+            case 'end_session':
+            case 'end_discard':
+            case 'end_save': {
+                const defaultSkip = !appSettings.saveSessionLogs;
+                endConfirmSkipSave =
+                    cmd.command === 'end_discard' ? true : cmd.command === 'end_save' ? false : defaultSkip;
+                // Saving only comes up in the question when it's not what would
+                // have happened anyway.
+                const line =
+                    endConfirmSkipSave === defaultSkip
+                        ? COMMAND_LINES.endConfirm(lang)
+                        : endConfirmSkipSave
+                          ? COMMAND_LINES.endDiscardConfirm(lang)
+                          : COMMAND_LINES.endSaveConfirm(lang);
+                await speakCommandLine(userText, line);
+                // From the end of the question, not the start of speaking it.
+                endConfirmUntil = Date.now() + END_CONFIRM_WINDOW_MS;
+                return;
+            }
+        }
+    }
+
+    /** The reply to "Would you like to end the session?". True when it was
+     *  consumed here; false sends it on as an ordinary utterance. */
+    async function handleEndConfirm(userText: string): Promise<boolean> {
+        endConfirmUntil = 0;
+        if (!cloudJudge || isNonSpeechOnly(userText)) return false;
+        const verdict = await classifyEndConfirm(cloudJudge, userText);
+        tapEvent('note', `end-confirm:${verdict}`, { utterance: userText });
+        if (torn) return true;
+        if (verdict === 'yes') {
+            appendMessage('user', userText);
+            tapTurn('user', 'user', userText);
+            // Same terms as the timer's close and the idle auto-quit: they asked
+            // for this twice, so no dialog.
+            await endSession(undefined, endConfirmSkipSave);
+            return true;
+        }
+        if (verdict === 'no') {
+            await speakCommandLine(userText, COMMAND_LINES.endDeclined(sessionLanguageOf(appSettings.language)));
+            return true;
+        }
+        return false;
+    }
 
     // An utterance spoken while the facilitator holds silence. The meditator can
     // think out loud without the facilitator jumping in on every word: each
@@ -2156,11 +2433,28 @@ export async function mountSessionView(
                     // "mute" outranks every route below, silence mode included:
                     // it's the one thing you say when you want the app to stop
                     // hearing you, so it must not become a turn or wake a hold.
+                    // The bare word is matched here with no judge, so it works
+                    // on every provider and offline; natural phrasings ("turn
+                    // off the mic") come through the command judge just below.
                     if (isMuteCommand(text)) {
-                        tapEvent('audio', 'mute-command', { text });
-                        tapFlags({ muted: true });
-                        setMuted(true);
+                        await muteByVoice(text, 'regex');
                         break;
+                    }
+                    // Commands come next and also outrank the silence routes: a
+                    // timer set from inside a hold must not end it, and "end the
+                    // session" must not be buffered as think-out-loud.
+                    if (cloudJudge) {
+                        if (Date.now() < endConfirmUntil) {
+                            if (await handleEndConfirm(text)) continue;
+                        } else {
+                            const cmd = await detectVoiceCommand(cloudJudge, text);
+                            if (torn || muted) break;
+                            if (cmd) {
+                                await runVoiceCommand(cmd, text);
+                                if (torn || muted) break;
+                                continue;
+                            }
+                        }
                     }
                     // Precedence between the silence handlers lives in
                     // routeUtterance, where it can be tested without a mic.
@@ -2289,7 +2583,7 @@ export async function mountSessionView(
     // line when it ends, and a mute set mid-reply must survive that.
     function idleStatus(): string {
         if (muted) return t('Muted');
-        return stt ? t('Listening…') : t('Mic unavailable');
+        return stt ? listeningStatus() : t('Mic unavailable');
     }
 
     function setMuted(next: boolean): void {
@@ -2309,7 +2603,7 @@ export async function mountSessionView(
                 silenceMode
                     ? t("Holding space, say when you're ready to continue")
                     : stt
-                      ? t('Listening…')
+                      ? listeningStatus()
                       : t('Ready')
             );
             startMeter();
@@ -2317,7 +2611,11 @@ export async function mountSessionView(
         }
     }
 
-    micBtn.addEventListener('click', () => setMuted(!muted));
+    micBtn.addEventListener('click', () => {
+        setMuted(!muted);
+        // After, so it replaces the plain "Muted" setMuted just wrote.
+        if (muted) hintVoiceCommand('mute');
+    });
 
     // TTS toggle: when off, cancel in-flight speech and skip later speak()
     // calls. The .active class shows the wave icons; without it, the mute-line.
@@ -2336,7 +2634,7 @@ export async function mountSessionView(
             leftHoldAt = Date.now();
             pacing.exitSilenceMode();
             setHolding(false);
-            setStatus(stt ? t('Listening…') : t('Ready'));
+            setStatus(stt ? listeningStatus() : t('Ready'));
         } else {
             // Clicking the button IS the confirmation: bypass the auto-[HOLD]
             // bid/classify handshake (rlgm) and go straight into the hold.
@@ -2470,7 +2768,9 @@ export async function mountSessionView(
             void rebuildTts(setup.voice);
             void fetchCloudVoices().then(syncVoiceNote);
         };
+        let speedChanged = false;
         const onSpeedInput = () => {
+            speedChanged = true;
             const rate = Number(speedSlider.value);
             setup.ttsRate = rate;
             speedLabel.textContent = t('{rate} wpm', { rate });
@@ -2479,6 +2779,8 @@ export async function mountSessionView(
         const closeModal = () => {
             modal.classList.add('hidden');
             stopVoicePreview();
+            // Behind the modal the status line can't be seen; say it on the way out.
+            if (speedChanged) hintVoiceCommand('speed');
             // The loop is parked in its busy/modal wait and picks back up on its
             // own; restart it if it had exited.
             voiceModalOpen = false;
@@ -2805,15 +3107,15 @@ export async function mountSessionView(
     }
 
     /**
-     * A timer notice is the one thing allowed to speak into a silence hold, but
-     * it must not END the hold: respondWithFacilitatorLine calls
+     * A timer notice and a command's acknowledgment are the only things allowed
+     * to speak into a silence hold, but they must not END the hold: respondWithFacilitatorLine calls
      * pacing.onResponseEnd, which drops the controller back to Listening. Put
      * the hold back unless the meditator themselves came out of it while we
      * were speaking.
      */
-    function restoreHoldAfterNotice(): void {
+    function restoreHoldAfterNotice(after: 'timer' | 'command' = 'timer'): void {
         if (torn || !silenceMode) return;
-        tapEvent('hold', 'restored-after-timer');
+        tapEvent('hold', `restored-after-${after}`);
         pacing.enterSilenceMode();
         setStatus(t("Holding space, say when you're ready to continue"));
     }

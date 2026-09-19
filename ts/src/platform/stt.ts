@@ -53,6 +53,14 @@ export interface SttEngine {
      * no onset is buffered yet. Absent on engines that don't need it.
      */
     prime?(): Promise<void>;
+
+    /**
+     * Optional: change how much trailing silence ends an utterance, mid-session
+     * (the "wait longer before responding" voice command). Only engines that do
+     * their own endpointing have it; the browser and native recognizers decide
+     * for themselves.
+     */
+    setPauseWindow?(baseMs: number, maxMs: number): void;
 }
 
 // In-memory implementation for tests / dry-run CLI usage.

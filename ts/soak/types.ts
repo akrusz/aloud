@@ -45,6 +45,7 @@ export type TurnKind =
     | 'timer-approach'
     | 'timer-completion'
     | 'reentry'
+    | 'command'
     | 'user'
     | 'event';
 

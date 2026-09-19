@@ -1,6 +1,6 @@
 /**
- * POST /v1/judge, the typed-judgment path for the silence classifiers (v36y).
- * The client names a classifier and sends one utterance; the question itself
+ * POST /v1/judge, the typed-judgment path for the silence classifiers and spoken
+ * commands (v36y). The client names one (core JudgeId) and sends one utterance; the question itself
  * comes from core (JUDGE_SPECS), so this can't be driven as an open Jev proxy.
  * Returns P(yes) per ask and leaves the thresholds to the client (core
  * judgeVerdict), where the A/B reads them.
@@ -12,7 +12,7 @@
  */
 
 import { Hono } from 'hono';
-import { isClassifierId, judgeQuestions, judgeState } from '@aloud/core/facilitation';
+import { isJudgeId, judgeQuestions, judgeState } from '@aloud/core/facilitation';
 import { ERROR_STATUS, apiError, type JudgeRequest, type JudgeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
@@ -41,7 +41,7 @@ export function judgeRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<JudgeRequest>;
         const text = typeof body.text === 'string' ? body.text.trim() : '';
-        if (!isClassifierId(body.classifier) || !text || text.length > MAX_UTTERANCE_CHARS) {
+        if (!isJudgeId(body.classifier) || !text || text.length > MAX_UTTERANCE_CHARS) {
             return c.json(apiError('bad_request', 'classifier and text required'), ERROR_STATUS.bad_request);
         }
 

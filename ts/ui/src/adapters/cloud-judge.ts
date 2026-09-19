@@ -6,7 +6,7 @@
  * adapter does, since the fallback call right behind this one does it anyway.
  */
 
-import type { ClassifierId, JudgeAnswers, JudgeContext, UtteranceJudge } from '../../../src/facilitation/index.js';
+import type { JudgeAnswers, JudgeContext, JudgeId, UtteranceJudge } from '../../../src/facilitation/index.js';
 import { clampEarlier } from '../../../src/facilitation/index.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
@@ -41,7 +41,7 @@ export class CloudJudge implements UtteranceJudge {
         this.now = options.now ?? Date.now;
     }
 
-    async judge(classifier: ClassifierId, text: string, context: JudgeContext = {}): Promise<JudgeAnswers> {
+    async judge(classifier: JudgeId, text: string, context: JudgeContext = {}): Promise<JudgeAnswers> {
         if (this.now() < this.skipUntil) throw new Error('judge backing off');
         const ac = new AbortController();
         const earlier = clampEarlier(context.earlier);
@@ -64,7 +64,7 @@ export class CloudJudge implements UtteranceJudge {
     }
 
     private async request(
-        classifier: ClassifierId,
+        classifier: JudgeId,
         text: string,
         earlier: string[],
         signal: AbortSignal

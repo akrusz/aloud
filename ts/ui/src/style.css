@@ -546,6 +546,21 @@
     min-height: 1.2em;
 }
 
+/* The "Voice commands" list dialog (session info panel). */
+.voice-command-list {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+}
+
+.voice-command-list li + li {
+    margin-top: 0.45rem;
+}
+
+.voice-command-note {
+    margin: 0.9rem 0 0;
+}
+
 /* Settings note (Anthropic key explainer). */
 .settings-note {
     margin: 0.5rem 0;

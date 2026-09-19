@@ -4,6 +4,7 @@ import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import type { AuthResponse, JudgeResponse } from '../src/contract.js';
+import { VOICE_COMMAND_IDS } from '@aloud/core/facilitation';
 
 // Stub TypeSafe so the route never hits the network; records what was asked.
 let calls: Array<{ auth: string | null; body: any }> = [];
@@ -81,6 +82,17 @@ describe('POST /cloud/v1/judge', () => {
         expect(calls[0]!.body.state.earlier_in_this_silence).toEqual(['two', 'three', 'four', 'five', 'six', 'seven']);
         await post(a, token, { classifier: 'hold-confirm', text: 'Yes.', earlier });
         expect(calls[1]!.body.state).not.toHaveProperty('earlier_in_this_silence');
+    });
+
+    it('answers the voice-command set as one request, one ask per command', async () => {
+        const { a } = app();
+        const res = await post(a, await devToken(a), { classifier: 'command', text: 'Set a timer for ten minutes.' });
+        expect(res.status).toBe(200);
+        expect(Object.keys(((await res.json()) as JudgeResponse).answers).sort()).toEqual(
+            [...VOICE_COMMAND_IDS].sort()
+        );
+        expect(calls).toHaveLength(1);
+        expect((await post(a, await devToken(a), { classifier: 'end-confirm', text: 'Yes.' })).status).toBe(200);
     });
 
     it('records usage at provider cost without charging credits', async () => {

@@ -1182,6 +1182,13 @@ export class WhisperPcmSttEngine implements SttEngine {
         }
     }
 
+    /** Takes effect on the utterance in progress: the submit check reads these
+     *  every frame. */
+    setPauseWindow(baseMs: number, maxMs: number): void {
+        this.opts.silenceBaseMs = baseMs;
+        this.opts.silenceMaxMs = Math.max(baseMs, maxMs);
+    }
+
     async stop(): Promise<void> {
         this.stopRequested = true;
         this.capturing = false;

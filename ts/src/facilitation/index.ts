@@ -36,6 +36,9 @@ export {
     JUDGE_SPECS,
     CLASSIFIER_IDS,
     isClassifierId,
+    isJudgeId,
+    judgeSpec,
+    judgeTop,
     judgeState,
     judgeQuestions,
     judgeVerdict,
@@ -43,6 +46,7 @@ export {
 } from './utterance-judge.js';
 export type {
     ClassifierId,
+    JudgeId,
     JudgeAnswers,
     JudgeContext,
     JudgeMode,
@@ -54,6 +58,21 @@ export type {
 export { routeUtterance, HOLD_REENTRY_GRACE_MS } from './silence-dispatch.js';
 export type { UtteranceRoute, SilenceDispatchState } from './silence-dispatch.js';
 export { isMuteCommand } from './mute-command.js';
+export {
+    detectVoiceCommand,
+    classifyEndConfirm,
+    mightBeCommand,
+    parseTimerRequest,
+    steppedRate,
+    steppedPause,
+    PAUSE_LADDER,
+    COMMAND_LINES,
+    VOICE_COMMAND_IDS,
+    TTS_RATE_MIN,
+    TTS_RATE_MAX,
+    TTS_RATE_STEP,
+} from './voice-command.js';
+export type { VoiceCommandId, DetectedCommand, TimerRequest, PauseWindow } from './voice-command.js';
 export {
     sessionLanguageOf,
     localizePool,

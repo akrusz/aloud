@@ -189,6 +189,60 @@ export class SessionClock {
         return null;
     }
 
+    /** Seconds since the session began. */
+    elapsedSec(): number {
+        return (Date.now() - this.startMs) / 1000;
+    }
+
+    // ---- spoken commands (core voice-command.ts) ----------------------------
+    // Set and cancel go through the same choice the picker produces, persistence
+    // included, so a timer set by voice re-arms next session like one set by
+    // hand. Returns the minutes actually armed (after clamping), for the ack.
+
+    setTimer(min: number): number {
+        const choice: SessionClockChoice = {
+            mode: 'timer',
+            timerMin: clampTimerMinutes(min),
+            showClock: this.visible,
+            endOnComplete: this.endOnComplete,
+        };
+        this.applyChoice(choice);
+        this.onChange(choice);
+        return this.timerMin;
+    }
+
+    /**
+     * "Five more minutes": push the running countdown out, or start one when
+     * none is running. Not persisted - it's about this sit, and tomorrow's
+     * default should stay the length they chose on purpose. Returns minutes
+     * added.
+     */
+    extendTimer(min: number): number {
+        if (this.endsAt === null) return this.setTimer(min);
+        const added = clampTimerMinutes(min);
+        // Extending after the bell starts from now, not from a moment already past.
+        this.endsAt = Math.max(this.endsAt, Date.now()) + added * 60_000;
+        this.approachFired = false;
+        this.completionFired = false;
+        if (this.visible) this.render();
+        else this.reveal();
+        return added;
+    }
+
+    /** False when there was no timer to cancel. */
+    cancelTimer(): boolean {
+        if (this.endsAt === null) return false;
+        const choice: SessionClockChoice = {
+            mode: 'elapsed',
+            timerMin: this.timerMin,
+            showClock: this.visible,
+            endOnComplete: this.endOnComplete,
+        };
+        this.applyChoice(choice);
+        this.onChange(choice);
+        return true;
+    }
+
     /** Open the picker (also reachable by tapping the clock). */
     async openPicker(): Promise<void> {
         const choice = await showSessionClockModal({

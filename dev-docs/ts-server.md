@@ -175,7 +175,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
-| `POST /cloud/v1/judge` | session | silence classifier as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Not charged (~$0.00002/call); usage recorded as `typesafe` |
+| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Not charged (~$0.00002/call); usage recorded as `typesafe` |
 | `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
 | `POST /cloud/v1/billing/x402/buy/:packId` | session + payment | USDC-on-Base pack purchase (402 → sign → settle). Config-gated; see [x402.md](x402.md) |

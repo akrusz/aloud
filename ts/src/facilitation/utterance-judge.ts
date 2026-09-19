@@ -23,12 +23,25 @@
  * to hold the key and keep the LLM classifier.
  */
 
+import { COMMAND_SPECS } from './voice-command-specs.js';
+
 export type ClassifierId = 'resume' | 'hold-confirm' | 'hold-request';
 
 export const CLASSIFIER_IDS: readonly ClassifierId[] = ['resume', 'hold-confirm', 'hold-request'];
 
 export function isClassifierId(v: unknown): v is ClassifierId {
     return typeof v === 'string' && (CLASSIFIER_IDS as readonly string[]).includes(v);
+}
+
+/**
+ * Everything /cloud/v1/judge will answer: the three silence classifiers, which
+ * have an LLM twin to fall back on, plus the voice-command pair
+ * (voice-command.ts), which have none - no judge, no voice commands.
+ */
+export type JudgeId = ClassifierId | 'command' | 'end-confirm';
+
+export function isJudgeId(v: unknown): v is JudgeId {
+    return isClassifierId(v) || v === 'command' || v === 'end-confirm';
 }
 
 /** One side of a noul question, in the contrastive shape Jev's guide asks for. */
@@ -77,7 +90,7 @@ const RESUME_STAY_EXAMPLES = [
  * *_SYSTEM_PROMPT (prompts.ts), zh anchors included. "Let's keep going" is a yes for `resume` and a no for
  * `hold-request` on purpose: same words, opposite sides of the silence.
  */
-export const JUDGE_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
+const CLASSIFIER_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
     resume: {
         situation:
             'The meditator asked their meditation facilitator to stay silent. They are now ' +
@@ -234,6 +247,13 @@ export const JUDGE_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
     },
 };
 
+export function judgeSpec(id: JudgeId): JudgeSpec {
+    return isClassifierId(id) ? CLASSIFIER_SPECS[id] : COMMAND_SPECS[id];
+}
+
+/** The silence classifiers' specs. Other ids go through judgeSpec(). */
+export const JUDGE_SPECS = CLASSIFIER_SPECS;
+
 /**
  * What the app knows around an utterance. Only `resume` uses it: a hold is the
  * one place several utterances pile up with no reply between them, and the last
@@ -271,10 +291,10 @@ export interface JudgeState {
 }
 
 /** The request `state` for one utterance. */
-export function judgeState(id: ClassifierId, utterance: string, context: JudgeContext = {}): JudgeState {
+export function judgeState(id: JudgeId, utterance: string, context: JudgeContext = {}): JudgeState {
     const earlier = id === 'resume' ? clampEarlier(context.earlier) : [];
     return {
-        situation: JUDGE_SPECS[id].situation,
+        situation: judgeSpec(id).situation,
         ...(earlier.length ? { earlier_in_this_silence: earlier } : {}),
         utterance,
     };
@@ -284,19 +304,29 @@ export function judgeState(id: ClassifierId, utterance: string, context: JudgeCo
  * Yes when any ask clears its threshold. Throws on a missing or non-numeric
  * answer: a partial response is a judge failure (fall back to the LLM), not a no.
  */
-export function judgeVerdict(id: ClassifierId, answers: JudgeAnswers): 'yes' | 'no' {
-    let yes = false;
-    for (const [key, ask] of Object.entries(JUDGE_SPECS[id].asks)) {
+export function judgeVerdict(id: JudgeId, answers: JudgeAnswers): 'yes' | 'no' {
+    return judgeTop(id, answers) ? 'yes' : 'no';
+}
+
+/** The ask that cleared its threshold by the most probability, or null. Same
+ *  throw-on-partial rule as judgeVerdict. */
+export function judgeTop(id: JudgeId, answers: JudgeAnswers): string | null {
+    let top: string | null = null;
+    let topP = -1;
+    for (const [key, ask] of Object.entries(judgeSpec(id).asks)) {
         const p = answers[key];
         if (typeof p !== 'number' || !Number.isFinite(p)) throw new Error(`judge: no answer for ${id}.${key}`);
-        if (p >= ask.threshold) yes = true;
+        if (p >= ask.threshold && p > topP) {
+            top = key;
+            topP = p;
+        }
     }
-    return yes ? 'yes' : 'no';
+    return top;
 }
 
 /** The `questions` map for one classifier's request. */
-export function judgeQuestions(id: ClassifierId): Record<string, JudgeQuestion> {
-    return Object.fromEntries(Object.entries(JUDGE_SPECS[id].asks).map(([k, a]) => [k, a.question]));
+export function judgeQuestions(id: JudgeId): Record<string, JudgeQuestion> {
+    return Object.fromEntries(Object.entries(judgeSpec(id).asks).map(([k, a]) => [k, a.question]));
 }
 
 /**
@@ -305,7 +335,7 @@ export function judgeQuestions(id: ClassifierId): Record<string, JudgeQuestion> 
  * fast rather than retry.
  */
 export interface UtteranceJudge {
-    judge(id: ClassifierId, utterance: string, context?: JudgeContext): Promise<JudgeAnswers>;
+    judge(id: JudgeId, utterance: string, context?: JudgeContext): Promise<JudgeAnswers>;
 }
 
 /**
