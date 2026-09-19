@@ -5049,6 +5049,13 @@ input[type="range"].preview-range {
     z-index: 60;
 }
 
+/* The methods panel's "Take the full tour" link starts the very tour that
+   spotlights that panel, so during a tour it reads as a live link to where you
+   already are - and startGuide() ignores it. Hide it for the duration. */
+body.guide-running .info-panel-link {
+    display: none;
+}
+
 @media (max-width: 600px) {
     .tour-tooltip {
         max-width: calc(100vw - 1.5rem);

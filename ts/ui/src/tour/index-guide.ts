@@ -130,6 +130,7 @@ function cleanup(): void {
     if (cardEl) cardEl.remove();
     overlayEl = spotlightEl = cardEl = null;
     guideActive = false;
+    document.body.classList.remove('guide-running');
     if (prevTarget) {
         prevTarget.classList.remove('guide-elevated');
         prevTarget = null;
@@ -397,6 +398,7 @@ export function startGuide(startStep?: number): void {
     if (guideActive) return;
     installInfoBtnHandler();
     guideActive = true;
+    document.body.classList.add('guide-running');
     currentStep = 0;
     lastViewportWidth = window.innerWidth;
     createOverlay();
@@ -411,12 +413,17 @@ export function startGuide(startStep?: number): void {
 }
 
 // "Take the full tour" link - an explicit opt-in, so skip the welcome screen
-// and jump to the first section.
+// and jump to the first section. The link sits in the methods panel that the
+// tour's own first three steps spotlight, so a tour may already be running:
+// startGuide() no-ops while one is, which made the link a dead click (and
+// still cleared GUIDE_DONE_KEY on the way). CSS hides it during a tour;
+// closing any running tour here keeps the link honest either way.
 export async function resetAndStart(): Promise<void> {
     await sharedKv.delete(GUIDE_DONE_KEY);
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem(GUIDE_REMIND_KEY);
     }
+    if (guideActive) cleanup();
     startGuide(1);
 }
 
