@@ -91,24 +91,25 @@ export function setAecOffDebug(on: boolean): void {
 }
 
 /**
- * Jev on the silence classifiers, hosted sessions only (v36y): `shadow` runs it
- * beside the LLM classifier and logs both, `on` lets it decide with the LLM as
- * fallback. Read at session start.
+ * Jev on the silence classifiers, hosted sessions only (v36y). `on` is the
+ * default: Jev decides, the LLM classifier is the fallback. `shadow` runs both
+ * and acts on the LLM, for measuring a question change; `off` is the LLM alone.
+ * Read at session start.
  */
 export type JevClassifierMode = 'off' | 'shadow' | 'on';
 
 export function getJevClassifierMode(): JevClassifierMode {
     try {
         const v = localStorage.getItem(JEV_CLASSIFIERS_KEY);
-        return v === 'shadow' || v === 'on' ? v : 'off';
+        return v === 'shadow' || v === 'off' ? v : 'on';
     } catch {
-        return 'off';
+        return 'on';
     }
 }
 
 export function setJevClassifierMode(mode: JevClassifierMode): void {
     try {
-        if (mode === 'off') localStorage.removeItem(JEV_CLASSIFIERS_KEY);
+        if (mode === 'on') localStorage.removeItem(JEV_CLASSIFIERS_KEY);
         else localStorage.setItem(JEV_CLASSIFIERS_KEY, mode);
     } catch {
         /* ignore */

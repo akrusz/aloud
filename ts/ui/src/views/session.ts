@@ -1566,9 +1566,10 @@ export async function mountSessionView(
         });
     }
 
-    // Shared by the three silence classifiers. On a hosted session the dev flag
-    // can put Jev in front of (or beside) the Haiku call; everywhere else there
-    // is no server to hold the key, so the LLM classifier stays the only path.
+    // Shared by the three silence classifiers. A hosted session puts Jev in front
+    // of the Haiku call (the dev flag can demote it to shadow or off); everywhere
+    // else there is no server to hold the key, so the LLM classifier is the only
+    // path.
     const jevMode = setup.provider === 'aloud' ? getJevClassifierMode() : 'off';
     const classifierOptions: ClassifyResumeIntentOptions = {
         onUsage: (u) => session.recordLlmUsage(u),

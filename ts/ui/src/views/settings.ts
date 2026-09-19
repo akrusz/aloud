@@ -2386,11 +2386,11 @@ function renderDeveloperSection(): string {
             <div class="form-group form-group-half">
                 <label for="s-dev-jev">Jev silence classifiers</label>
                 <select id="s-dev-jev">
-                    ${(['off', 'shadow', 'on'] as const)
+                    ${(['on', 'shadow', 'off'] as const)
                         .map((m) => `<option value="${m}"${getJevClassifierMode() === m ? ' selected' : ''}>${m}</option>`)
                         .join('')}
                 </select>
-                <span class="form-hint">aloud cloud sessions only. Shadow logs Jev beside the Haiku verdict ([judge] console lines); on lets Jev decide, Haiku as fallback.</span>
+                <span class="form-hint">aloud cloud sessions only. On (default): Jev decides, Haiku is the fallback. Shadow: both run, Haiku decides. Every call logs a [judge] console line.</span>
             </div>
         </div>
         ${devBuildRows}

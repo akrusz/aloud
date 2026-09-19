@@ -18,22 +18,46 @@ const ENDPOINT = '/judge';
 // The server gives TypeSafe 2.5s; this covers that plus the hop to Fly.
 const JUDGE_TIMEOUT_MS = 4000;
 
+/**
+ * Every failure is a round trip the meditator waits through before the LLM
+ * fallback even starts, so an outage - or a server with no TypeSafe key - must
+ * not cost one per utterance. After this many failures in a row the judge sits
+ * out a cooldown that doubles each time it fails again, and any success clears
+ * it. Never off for good: a blip early in a long sit shouldn't cost the rest of
+ * it the better classifier.
+ */
+const FAILURES_BEFORE_BACKOFF = 2;
+const BACKOFF_BASE_MS = 30_000;
+const BACKOFF_MAX_MS = 5 * 60_000;
+
 export class CloudJudge implements UtteranceJudge {
     private readonly fetchImpl: typeof fetch;
+    private readonly now: () => number;
+    private failures = 0;
+    private skipUntil = 0;
 
-    constructor(options: { fetchImpl?: typeof fetch } = {}) {
+    constructor(options: { fetchImpl?: typeof fetch; now?: () => number } = {}) {
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+        this.now = options.now ?? Date.now;
     }
 
     async judge(classifier: ClassifierId, text: string, context: JudgeContext = {}): Promise<JudgeAnswers> {
+        if (this.now() < this.skipUntil) throw new Error('judge backing off');
         const ac = new AbortController();
         const earlier = clampEarlier(context.earlier);
         try {
-            return await withTimeout(
+            const answers = await withTimeout(
                 this.request(classifier, text, earlier, ac.signal),
                 JUDGE_TIMEOUT_MS,
                 'judge timed out'
             );
+            this.failures = 0;
+            return answers;
+        } catch (err) {
+            this.failures++;
+            const over = this.failures - FAILURES_BEFORE_BACKOFF;
+            if (over >= 0) this.skipUntil = this.now() + Math.min(BACKOFF_BASE_MS * 2 ** over, BACKOFF_MAX_MS);
+            throw err;
         } finally {
             ac.abort();
         }
