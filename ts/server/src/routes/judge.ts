@@ -60,7 +60,9 @@ export function judgeRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             );
             const latencyMs = Date.now() - t0;
             log.info('judge', { classifier: body.classifier, latencyMs, model: result.model });
-            await recordUsage(deps.store, {
+            // Not awaited: it never throws, and the meditator is waiting on this
+            // response, not on a telemetry write.
+            void recordUsage(deps.store, {
                 accountId: account.id,
                 kind: 'llm',
                 provider: 'typesafe',

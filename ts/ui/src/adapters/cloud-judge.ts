@@ -15,8 +15,9 @@ import { withTimeout } from '../net-timeout.js';
 
 const ENDPOINT = '/judge';
 
-// The server gives TypeSafe 2.5s; this covers that plus the hop to Fly.
-const JUDGE_TIMEOUT_MS = 4000;
+// The server gives TypeSafe 1.2s; this adds the hop to the server on a poor
+// connection. The wait is dead air before the fallback starts, so keep it tight.
+const JUDGE_TIMEOUT_MS = 2000;
 
 /**
  * Every failure is a round trip the meditator waits through before the LLM

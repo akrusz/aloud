@@ -16,11 +16,11 @@ export const JEV_MODEL = 'jev-latest';
 export const JEV_USD_PER_INPUT_TOKEN = 42 / 1e9;
 
 /**
- * A healthy call is ~100ms. The client falls back to the LLM classifier on any
- * failure, and the meditator is waiting on the verdict, so a slow judge has to
- * lose to that fallback quickly rather than be waited out.
+ * A healthy call is ~150ms (p95 ~300). The meditator is waiting on the verdict
+ * and every caller has somewhere to go without it (the LLM classifier, or "not a
+ * command"), so a slow judge has to lose quickly: 4x the p95, then give up.
  */
-const JEV_TIMEOUT_MS = 2500;
+const JEV_TIMEOUT_MS = 1200;
 
 export interface NoulResult {
     /** P(yes), 0..1, per question key. */
