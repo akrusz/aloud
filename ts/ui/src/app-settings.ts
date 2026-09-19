@@ -152,7 +152,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     saveSessionLogs: true,
     resumeFromSummary: true,
     autoQuitAfterSilence: true,
-    autoQuitSilenceMin: 120,
+    autoQuitSilenceMin: 60,
     ttsEngine: 'cloud',
     defaultVoice: null,
     // 140, not the engines' neutral 160 (rate multiplier 1 = 160 wpm): the

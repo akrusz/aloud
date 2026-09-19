@@ -3137,7 +3137,13 @@ export async function mountSessionView(
     const idleQuitTimer = setInterval(() => {
         if (torn || busy) return;
         if (!appSettings.autoQuitAfterSilence) return;
-        if (Date.now() - lastActivityAt < appSettings.autoQuitSilenceMin * 60_000) return;
+        // A silent sit on a timer longer than the window is not a walk-away:
+        // the window opens when the countdown ends, not before.
+        const remaining = sessionClock.remainingSec();
+        if (remaining !== null && remaining > 0) return;
+        const timerEndedAt = remaining === null ? 0 : Date.now() + remaining * 1000;
+        const idleSince = Math.max(lastActivityAt, timerEndedAt);
+        if (Date.now() - idleSince < appSettings.autoQuitSilenceMin * 60_000) return;
         void endSession(undefined, !appSettings.saveSessionLogs);
     }, AUTO_QUIT_POLL_MS);
 
