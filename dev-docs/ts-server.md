@@ -69,7 +69,7 @@ load logic is `loadConfig` in `config.ts`.
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
 | `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | server TTS | Azure AI Speech key + region (region defaults to `eastus`). Unset → the Azure voices drop out of `GET /cloud/v1/voices`, including the flagged default Harper, and `defaultVoice()` falls down `DEFAULT_VOICE_CHAIN` to Leda/Polaris. Azure bills SSML markup and counts each CJK char twice; `providers/tts.ts azureBilledChars` is what the meter charges on |
-| `TYPESAFE_API_KEY` | server judge | TypeSafe (Jev) key for `/cloud/v1/judge`, the typed-judgment path for the silence classifiers. Unset → the route reports not-configured and clients keep the Haiku classifier. Also read by `npm run jev:ab` |
+| `TYPESAFE_API_KEY` | server judge | TypeSafe (Jev) key for `/cloud/v1/judge`, the typed-judgment path for the silence classifiers and the spoken commands. Unset → the route reports not-configured, clients keep the Haiku classifier, and there are no spoken commands (they have no LLM twin). Also read by `npm run jev:ab` (classifiers) and `npm run jev:commands` (every command ask, through the gate) |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup - once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
@@ -175,7 +175,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
-| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Not charged (~$0.00007/call); usage recorded as `typesafe`. Own rate budget (`deps.judgeGuard`, 90/min/account), separate from the 60/min every other metered route shares. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
+| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), so it has its own per-minute guard plus a 5,000-a-day cap that only binds accounts with no credits (`deps.ts`). A command is two calls: the one-ask `command-gate`, then `command` if that says maybe. Not charged (~$0.00007/call); usage recorded as `typesafe`. Own rate budget (`deps.judgeGuard`, 90/min/account), separate from the 60/min every other metered route shares. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
 | `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
 | `POST /cloud/v1/billing/x402/buy/:packId` | session + payment | USDC-on-Base pack purchase (402 → sign → settle). Config-gated; see [x402.md](x402.md) |
@@ -213,8 +213,9 @@ header (never baked into the page):
 
 - **Paste `ALOUD_ADMIN_TOKEN`** - the original path; still what scripts/curl use.
 - **Sign in with Google** (`ALOUD_ADMIN_EMAILS`) - for the road: the device
-  holds a 7-day session JWT instead of the root token. The gate
-  (`routes/admin.ts` `authFailure`) requires the session account's email to be
+  holds a session JWT instead of the root token. User sessions slide for 90
+  days, but the gate (`routes/admin.ts` `authFailure`) honours a token only
+  while it is under 7 days old (`ADMIN_MAX_TOKEN_AGE_SECONDS`), and requires the session account's email to be
   on the list AND verified, so an email-signup squatting on an admin address
   can't pass. Remove the email from the env to revoke. The sign-in button uses
   the FIRST id in `GOOGLE_CLIENT_IDS` (the web client), and that OAuth client

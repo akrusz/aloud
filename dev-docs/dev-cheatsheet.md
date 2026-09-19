@@ -217,6 +217,11 @@ cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips ar
 # Model evals (by hand, NOT in CI - real API calls; see ts/evals/README.md)
 cd ts && npx tsx evals/protocol-eval.ts
 
+# Jev scoring (by hand, NOT in CI - real TypeSafe calls, a few cents). Rerun
+# after touching a judge question, example or threshold.
+cd ts && npm run jev:ab                # silence classifiers vs the Haiku prompts
+cd ts && npm run jev:commands          # every spoken-command ask, through the gate
+
 # Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
 # sessions; see dev-docs/soak-harness.md). Run before a release.
 npm run soak -- --battery=pre-release  # the release check; report in ts/soak-runs/

@@ -79,6 +79,13 @@ the WebAudio playback path exist only here.
       playback had gone dead, so check both.)
 - [ ] **Say "mute"** as a whole utterance. The mic goes off; only the button
       brings it back.
+- [ ] **Spoken commands** (signed in; on a BYOK/local sit, turn Voice commands
+      on first - Settings → Advanced, or the ⓘ panel's row mid-sit). Make the
+      very first thing you say a command: "can you cancel the timer?" A cold
+      judge used to lose exactly that one. Then two at once ("talk slower and
+      show me the orb"), "mute the speaker" / "unmute the speaker", and one
+      asked in a long rambling sentence: the facilitator should say it can't do
+      that itself and name the command, never claim it did.
 - [ ] **Silence mode round trip**: get a `[HOLD]` bid, say yes, sit quiet, think
       out loud once (it should NOT bring the facilitator back), then clearly ask
       to resume.
