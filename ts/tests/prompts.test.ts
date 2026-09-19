@@ -81,6 +81,17 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         }
     });
 
+    it('tells the model it cannot work the app, and where the meditator can', () => {
+        const voice = new PromptBuilder({ config: { appControls: 'voice' } }).buildSystemPrompt();
+        const screen = new PromptBuilder().buildSystemPrompt();
+        expect(voice).toContain('never say or imply that you did');
+        expect(voice).toContain('short spoken commands');
+        expect(voice).toContain('Never invent a command');
+        expect(screen).toContain('never say or imply that you did');
+        expect(screen).toContain('are on screen');
+        expect(screen).not.toContain('short spoken commands');
+    });
+
     it('leaves the prompt byte-identical when holdSignal is on', () => {
         expect(new PromptBuilder({ config: { holdSignal: true } }).buildSystemPrompt()).toBe(
             new PromptBuilder().buildSystemPrompt()

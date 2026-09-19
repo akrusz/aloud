@@ -245,6 +245,20 @@ export function setEmberLevel(level: number): void {
     regenerateEmbers();
 }
 
+/** Embers on or off as a whole (the spoken command). On comes back at the
+ *  level they last had, and the choice is saved like a press of +/-. */
+let levelBeforeOff = 1;
+export function setEmbersOn(on: boolean): void {
+    if (on === state.level > 0) return;
+    if (!on) levelBeforeOff = state.level;
+    setEmberLevel(on ? Math.max(1, levelBeforeOff) : 0);
+    try {
+        localStorage.setItem(STORAGE_KEY, String(Math.min(state.level, 4)));
+    } catch {
+        /* ignore */
+    }
+}
+
 export function getEmberLevel(): number {
     return state.level;
 }

@@ -61,6 +61,7 @@ export { isMuteCommand } from './mute-command.js';
 export {
     CommandPrefetch,
     detectVoiceCommand,
+    resolveCommands,
     classifyEndConfirm,
     mightBeCommand,
     parseTimerRequest,

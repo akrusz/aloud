@@ -256,6 +256,47 @@ describe('keepRunning (iig5)', () => {
         clock.destroy();
     });
 
+    it('hands a notice back when the view never got to say it, but not across a change of timer', () => {
+        const clock = new SessionClock(fakeEl(), Date.now(), TIMER_SETTINGS, () => undefined);
+        vi.advanceTimersByTime(20 * 60_000 + 1000);
+        const gen = clock.armGeneration();
+        expect(clock.timerDue(180)).toBe('completion');
+        // The meditator spoke while the closing word was being composed.
+        clock.requeue('completion', gen);
+        expect(clock.timerDue(180)).toBe('completion');
+
+        // Cancelled meanwhile: the old notice is about a timer that is gone.
+        clock.cancelTimer();
+        expect(clock.armGeneration()).not.toBe(gen);
+        clock.requeue('completion', gen);
+        expect(clock.timerDue(180)).toBe(null);
+        clock.destroy();
+    });
+
+    it('skips the approach notice when an extension still leaves them inside the lead', () => {
+        const clock = new SessionClock(fakeEl(), Date.now(), TIMER_SETTINGS, () => undefined);
+        vi.advanceTimersByTime(19 * 60_000);
+        expect(clock.timerDue(180)).toBe('approach');
+        // "One more minute": two left, lead is three. They were just told.
+        clock.extendTimer(1, 180);
+        expect(clock.timerDue(180)).toBe(null);
+        // "Ten more minutes" earns a fresh one.
+        clock.extendTimer(10, 180);
+        vi.advanceTimersByTime(9 * 60_000 + 1000);
+        expect(clock.timerDue(180)).toBe('approach');
+        clock.destroy();
+    });
+
+    it('counts extensions into the length the notices name, not into the saved preference', () => {
+        const saved: number[] = [];
+        const clock = new SessionClock(fakeEl(), Date.now(), TIMER_SETTINGS, (c) => saved.push(c.timerMin));
+        clock.extendTimer(5);
+        expect(clock.timerMinutes()).toBe(25);
+        clock.cancelTimer();
+        expect(saved).toEqual([20]);
+        clock.destroy();
+    });
+
     it('re-arms when a duration is picked, even mid-sit', () => {
         const clock = new SessionClock(fakeEl(), Date.now(), TIMER_SETTINGS, () => undefined);
         vi.advanceTimersByTime(10 * 60_000);

@@ -32,6 +32,8 @@ import {
     steppedPause,
     COMMAND_LINES,
     type DetectedCommand,
+    type VoiceCommandId,
+    type SessionLanguage,
     defaultPacingConfig,
     defaultWaitSeconds,
     runSmartCheckin,
@@ -138,11 +140,12 @@ import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { getApiKey } from '../api-keys.js';
 import {
     mountEmberContainer,
+    setEmbersOn,
     unmountEmberContainer,
     wireEmberControls,
 } from '../embers.js';
 import { initKasinaMode } from '../kasina.js';
-import { initThemeToggle } from '../theme.js';
+import { initThemeToggle, setTheme, toggleTheme, updateThemeIcon, type Theme } from '../theme.js';
 import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
 import { alertDialog, confirmDialog } from '../dialog.js';
@@ -413,6 +416,8 @@ export async function mountSessionView(
             customInstructions: setup.customInstructions,
             waitSignal: checkinTiming === 'smart',
             holdSignal: appSettings.silenceModeEnabled,
+            // Set for real once the judge gate is known, a few lines down.
+            appControls: 'screen',
             // zh sessions: respond-in-Chinese fragment + zh canned pools
             // (openers, check-ins, hold re-entry). meditation-pal-c3a0.3.
             language: sessionLanguageOf(sessionLanguage),
@@ -557,10 +562,12 @@ export async function mountSessionView(
         judgeAccess === 'opted-in' || (judgeAccess === 'hosted' && jevMode !== 'off');
     // One instance, so the classifiers and the commands share its failure backoff.
     let cloudJudge = judgeWanted() ? new CloudJudge() : null;
+    cloudJudge?.warm();
     // The first few sessions with commands say so right where "Listening…" is.
     const inviteToCommands = cloudJudge !== null && claimIntroSession();
     // Asks the command judge while the recognizer is still waiting out the pause.
     let commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge) : null;
+    builder.config.appControls = cloudJudge ? 'voice' : 'screen';
     // They opted in and the sign-in lapsed: otherwise the only sign is a command
     // that does nothing. Until their first turn, then it's just Listening….
     let signInNudge = judgeAccess === 'signed-out';
@@ -1678,8 +1685,10 @@ export async function mountSessionView(
         void loadAppSettings().then((saved) => saveAppSettings({ ...saved, voiceCommandsViaCloud: true }));
         judgeAccess = 'opted-in';
         cloudJudge = new CloudJudge();
+        cloudJudge.warm();
         commandPrefetch = new CommandPrefetch(cloudJudge);
         attachJudge(cloudJudge);
+        builder.config.appControls = 'voice';
         tapEvent('note', 'voice-commands-enabled-mid-sit');
     }
 
@@ -1776,18 +1785,12 @@ export async function mountSessionView(
 
     /** Move the pause-before-submit window a rung, live and for next time: it's
      *  the same preference the Settings "pause" preset holds ("it cuts me off"
-     *  is rarely about one sit). */
-    async function adjustPause(userText: string, direction: 'sooner' | 'longer'): Promise<void> {
+     *  is rarely about one sit). Returns the line to say. */
+    function adjustPause(direction: 'sooner' | 'longer'): string {
         const lang = sessionLanguageOf(appSettings.language);
-        if (!stt?.setPauseWindow) {
-            await speakCommandLine(userText, COMMAND_LINES.pauseUnsupported(lang));
-            return;
-        }
+        if (!stt?.setPauseWindow) return COMMAND_LINES.pauseUnsupported(lang);
         const next = steppedPause(vadOpts.silenceBaseMs, direction);
-        if (!next) {
-            await speakCommandLine(userText, COMMAND_LINES[direction === 'sooner' ? 'soonest' : 'longest'](lang));
-            return;
-        }
+        if (!next) return COMMAND_LINES[direction === 'sooner' ? 'soonest' : 'longest'](lang);
         // vadOpts too: a mid-session STT rebuild is constructed from it.
         vadOpts.silenceBaseMs = next.baseMs;
         vadOpts.silenceMaxMs = next.maxMs;
@@ -1797,43 +1800,53 @@ export async function mountSessionView(
         void loadAppSettings().then((saved) =>
             saveAppSettings({ ...saved, silenceBaseMs: next.baseMs, silenceMaxMs: next.maxMs })
         );
-        await speakCommandLine(userText, COMMAND_LINES[direction === 'sooner' ? 'respondSooner' : 'waitLonger'](lang));
+        return COMMAND_LINES[direction === 'sooner' ? 'respondSooner' : 'waitLonger'](lang);
     }
 
-    async function runVoiceCommand(cmd: DetectedCommand, userText: string): Promise<void> {
-        const lang = sessionLanguageOf(appSettings.language);
-        diag('[command]', JSON.stringify({ command: cmd.command, answers: cmd.answers, latencyMs: cmd.latencyMs }));
-        tapEvent('note', `command:${cmd.command}`, { answers: cmd.answers, utterance: userText });
-        // A command in reply to "shall I be quiet?" isn't an answer to it.
-        if (awaitingHoldConfirm) {
-            awaitingHoldConfirm = false;
-            tapFlags({ awaitingHoldConfirm: false });
-        }
-        lastActivityAt = Date.now();
-        switch (cmd.command) {
+    function setOrbShown(shown: boolean): void {
+        if (kasinaToggle.checked === shown) return;
+        kasinaToggle.checked = shown;
+        kasinaToggle.dispatchEvent(new Event('change'));
+    }
+
+    function setThemeByVoice(theme: Theme | 'toggle'): Theme {
+        const next = theme === 'toggle' ? toggleTheme() : setTheme(theme);
+        const btn = document.querySelector<HTMLElement>('[data-theme-toggle]');
+        if (btn) updateThemeIcon(btn);
+        return next;
+    }
+
+    /** One command's effect. Returns what to say about it; `after` runs once
+     *  that has been spoken (the speaker can't announce its own switching off
+     *  after the fact, and the end question's window opens when it ends). */
+    function applyCommand(
+        command: VoiceCommandId,
+        userText: string,
+        lang: SessionLanguage
+    ): { line: string; after?: () => void } {
+        switch (command) {
             case 'slower':
             case 'faster': {
-                const next = steppedRate(setup.ttsRate, cmd.command);
-                if (next === null) {
-                    await speakCommandLine(userText, COMMAND_LINES[cmd.command === 'slower' ? 'slowest' : 'fastest'](lang));
-                    return;
-                }
+                const next = steppedRate(setup.ttsRate, command);
+                if (next === null) return { line: COMMAND_LINES[command === 'slower' ? 'slowest' : 'fastest'](lang) };
                 // Set first, so the acknowledgment is itself the demonstration.
                 setup.ttsRate = next;
                 updateVoicePickerLabel();
-                await speakCommandLine(userText, COMMAND_LINES[cmd.command](lang));
-                return;
+                return { line: COMMAND_LINES[command === 'slower' ? 'slower' : 'faster'](lang) };
             }
             case 'set_timer': {
                 const req = parseTimerRequest(userText);
-                if (!req) {
-                    await speakCommandLine(userText, COMMAND_LINES.timerNoDuration(lang));
-                    return;
-                }
+                if (!req) return { line: COMMAND_LINES.timerNoDuration(lang) };
                 clockChangeByVoice = true;
                 let line: string;
                 if (req.relative && sessionClock.remainingSec() !== null) {
-                    line = COMMAND_LINES.timerExtended(lang, sessionClock.extendTimer(req.minutes));
+                    line = COMMAND_LINES.timerExtended(
+                        lang,
+                        sessionClock.extendTimer(
+                            req.minutes,
+                            timerApproachLeadSec(sessionClock.timerTotalSec() + req.minutes * 60, avgTurnSec())
+                        )
+                    );
                 } else {
                     const armed = sessionClock.setTimer(req.minutes);
                     line = sessionClock.endsSessionOnComplete()
@@ -1841,45 +1854,78 @@ export async function mountSessionView(
                         : COMMAND_LINES.timerSet(lang, armed);
                 }
                 clockChangeByVoice = false;
-                await speakCommandLine(userText, line);
-                return;
+                return { line };
             }
             case 'cancel_timer':
-                await speakCommandLine(
-                    userText,
-                    sessionClock.cancelTimer() ? COMMAND_LINES.timerCancelled(lang) : COMMAND_LINES.noTimer(lang)
-                );
-                return;
+                return {
+                    line: sessionClock.cancelTimer() ? COMMAND_LINES.timerCancelled(lang) : COMMAND_LINES.noTimer(lang),
+                };
             case 'time_check': {
                 const remaining = sessionClock.remainingSec();
-                const line =
-                    remaining !== null && remaining > 0
-                        ? COMMAND_LINES.timeLeft(lang, Math.round(remaining / 60))
-                        : COMMAND_LINES.timeElapsed(lang, Math.round(sessionClock.elapsedSec() / 60));
-                await speakCommandLine(userText, line);
-                return;
+                return {
+                    line:
+                        remaining !== null && remaining > 0
+                            ? COMMAND_LINES.timeLeft(lang, Math.round(remaining / 60))
+                            : COMMAND_LINES.timeElapsed(lang, Math.round(sessionClock.elapsedSec() / 60)),
+                };
             }
-            case 'repeat':
-                await repeatLastLine(userText);
-                return;
             case 'respond_sooner':
-                await adjustPause(userText, 'sooner');
-                return;
+                return { line: adjustPause('sooner') };
             case 'wait_longer':
-                await adjustPause(userText, 'longer');
-                return;
+                return { line: adjustPause('longer') };
             case 'mute':
-                await muteByVoice(userText, 'judge');
-                return;
+                // Mic off before the line, so nothing said while it plays is heard.
+                tapEvent('audio', 'mute-command', { text: userText, via: 'judge' });
+                tapFlags({ muted: true });
+                setMuted(true);
+                return { line: COMMAND_LINES.muted(lang) };
+            case 'mute_speaker':
+                return { line: COMMAND_LINES.speakerOff(lang), after: () => setTtsEnabled(false) };
+            case 'unmute_speaker':
+                setTtsEnabled(true);
+                return { line: COMMAND_LINES.speakerOn(lang) };
+            case 'show_clock':
+            case 'hide_clock': {
+                clockChangeByVoice = true;
+                sessionClock.setVisible(command === 'show_clock');
+                clockChangeByVoice = false;
+                const running = (sessionClock.remainingSec() ?? 0) > 0;
+                return {
+                    line:
+                        command === 'show_clock'
+                            ? COMMAND_LINES.clockShown(lang)
+                            : running
+                              ? COMMAND_LINES.clockHiddenTimerOn(lang)
+                              : COMMAND_LINES.clockHidden(lang),
+                };
+            }
+            case 'show_orb':
+                setOrbShown(true);
+                return { line: COMMAND_LINES.orbShown(lang) };
+            case 'hide_orb':
+                setOrbShown(false);
+                return { line: COMMAND_LINES.orbHidden(lang) };
+            case 'embers_on':
+                setEmbersOn(true);
+                return { line: COMMAND_LINES.embersOn(lang) };
+            case 'embers_off':
+                setEmbersOn(false);
+                return { line: COMMAND_LINES.embersOff(lang) };
+            case 'dark_mode':
+            case 'light_mode':
+            case 'toggle_theme': {
+                const theme = setThemeByVoice(
+                    command === 'dark_mode' ? 'dark' : command === 'light_mode' ? 'light' : 'toggle'
+                );
+                return { line: COMMAND_LINES[theme === 'dark' ? 'darkMode' : 'lightMode'](lang) };
+            }
             case 'help':
-                await speakCommandLine(userText, COMMAND_LINES.help(lang));
-                return;
+                return { line: COMMAND_LINES.help(lang) };
             case 'end_session':
             case 'end_discard':
             case 'end_save': {
                 const defaultSkip = !appSettings.saveSessionLogs;
-                endConfirmSkipSave =
-                    cmd.command === 'end_discard' ? true : cmd.command === 'end_save' ? false : defaultSkip;
+                endConfirmSkipSave = command === 'end_discard' ? true : command === 'end_save' ? false : defaultSkip;
                 // Saving only comes up in the question when it's not what would
                 // have happened anyway.
                 const line =
@@ -1888,12 +1934,34 @@ export async function mountSessionView(
                         : endConfirmSkipSave
                           ? COMMAND_LINES.endDiscardConfirm(lang)
                           : COMMAND_LINES.endSaveConfirm(lang);
-                await speakCommandLine(userText, line);
                 // From the end of the question, not the start of speaking it.
-                endConfirmUntil = Date.now() + END_CONFIRM_WINDOW_MS;
-                return;
+                return { line, after: () => (endConfirmUntil = Date.now() + END_CONFIRM_WINDOW_MS) };
             }
+            case 'repeat':
+                // Its own path (repeatLastLine): it speaks off the record.
+                return { line: '' };
         }
+    }
+
+    /** Carry out everything the utterance asked for (resolveCommands orders it)
+     *  and say so once: "Okay, slower. Here's the orb." */
+    async function runVoiceCommand(cmd: DetectedCommand, userText: string): Promise<void> {
+        const lang = sessionLanguageOf(appSettings.language);
+        diag('[command]', JSON.stringify({ commands: cmd.commands, answers: cmd.answers, latencyMs: cmd.latencyMs }));
+        tapEvent('note', `command:${cmd.commands.join('+')}`, { answers: cmd.answers, utterance: userText });
+        // A command in reply to "shall I be quiet?" isn't an answer to it.
+        if (awaitingHoldConfirm) {
+            awaitingHoldConfirm = false;
+            tapFlags({ awaitingHoldConfirm: false });
+        }
+        lastActivityAt = Date.now();
+        if (cmd.commands.length === 1 && cmd.commands[0] === 'repeat') {
+            await repeatLastLine(userText);
+            return;
+        }
+        const done = cmd.commands.map((c) => applyCommand(c, userText, lang));
+        await speakCommandLine(userText, done.map((d) => d.line).filter(Boolean).join(' '));
+        for (const d of done) d.after?.();
     }
 
     /** The reply to "Would you like to end the session?". True when it was
@@ -2680,10 +2748,13 @@ export async function mountSessionView(
     // TTS toggle: when off, cancel in-flight speech and skip later speak()
     // calls. The .active class shows the wave icons; without it, the mute-line.
     let ttsEnabled = true;
-    ttsToggle.addEventListener('click', () => {
-        ttsEnabled = !ttsEnabled;
+    function setTtsEnabled(on: boolean): void {
+        ttsEnabled = on;
         ttsToggle.classList.toggle('active', ttsEnabled);
         if (!ttsEnabled) void tts.cancel();
+    }
+    ttsToggle.addEventListener('click', () => {
+        setTtsEnabled(!ttsEnabled);
     });
 
     // Manual silence-mode toggle. Exiting is immediate here; while held, the
@@ -3083,6 +3154,9 @@ export async function mountSessionView(
         if (timerNoticeInFlight || busy) return;
         timerNoticeInFlight = true;
         const myGen = turnGen;
+        // The countdown this notice is about. A spoken "cancel the timer" or
+        // "five more minutes" while the line is being composed makes it stale.
+        const myArm = sessionClock.armGeneration();
         const myAbort = new AbortController();
         activeFullAbort = myAbort;
         const total = sessionClock.timerMinutes();
@@ -3118,7 +3192,18 @@ export async function mountSessionView(
                 }
             );
             tapCall(`timer-${kind}`, Date.now() - timerStart);
-            if (torn || myGen !== turnGen || busy) return;
+            if (torn) return;
+            if (myArm !== sessionClock.armGeneration()) {
+                tapEvent('timer', `${kind}-stale`);
+                return;
+            }
+            if (myGen !== turnGen || busy) {
+                // The meditator took the floor first. timerDue already marked
+                // this fired; hand it back so the next turn boundary says it.
+                tapEvent('timer', `${kind}-deferred`);
+                sessionClock.requeue(kind, myArm);
+                return;
+            }
             session.recordLlmUsage(usage);
             if (reply.kind === 'pass' && kind === 'approach') {
                 debugLog('timer approach → pass');
@@ -3141,7 +3226,9 @@ export async function mountSessionView(
             if (endsSession) void closeAfterTimer();
             else restoreHoldAfterNotice();
         } catch {
-            if (!torn && myGen === turnGen && !busy) {
+            if (!torn && myArm === sessionClock.armGeneration() && (myGen !== turnGen || busy)) {
+                sessionClock.requeue(kind, myArm);
+            } else if (!torn && myArm === sessionClock.armGeneration()) {
                 debugLog(`timer ${kind} → error (canned)`);
                 tapEvent('timer', `${kind}-error-canned`);
                 tapTurn('user', 'event', `[Timer: ${kind}]`);

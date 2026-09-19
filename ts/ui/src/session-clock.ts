@@ -102,6 +102,13 @@ export class SessionClock {
     /** Notices already handed to the view, so each fires once per arming. */
     private approachFired = false;
     private completionFired = false;
+    /** Bumped whenever the countdown is armed, extended or cancelled, so a
+     *  notice that was being composed for the old one can tell (armGeneration). */
+    private armGen = 0;
+    /** Minutes this countdown will have run in all, extensions included. Not
+     *  timerMin: that is the saved preference, and "five more minutes" is about
+     *  this sit only. */
+    private runMin = 0;
     private readonly tick: ReturnType<typeof setInterval>;
     /** Mid-reveal: the readout shows even though `visible` is false. */
     private revealing = false;
@@ -131,22 +138,44 @@ export class SessionClock {
     /** Start (or restart) the countdown, measured from now. */
     private arm(min: number): void {
         this.timerMin = clampTimerMinutes(min);
+        this.runMin = this.timerMin;
         this.endsAt = Date.now() + this.timerMin * 60_000;
         this.approachFired = false;
         this.completionFired = false;
+        this.armGen++;
     }
 
     private disarm(): void {
         this.endsAt = null;
+        this.armGen++;
     }
 
-    /** Total length of the armed timer, in seconds. */
+    /** Total length of the running countdown, in seconds. */
     timerTotalSec(): number {
-        return this.timerMin * 60;
+        return this.runMin * 60;
     }
 
+    /** Minutes the running countdown covers, for the notices ("that's your
+     *  twenty-five minutes" after a five-minute extension, not twenty). */
     timerMinutes(): number {
-        return this.timerMin;
+        return this.runMin;
+    }
+
+    /** Changes whenever the countdown a notice was due for stops being the one
+     *  that is running. */
+    armGeneration(): number {
+        return this.armGen;
+    }
+
+    /**
+     * Hand a notice back: timerDue marked it fired, but the view never got to
+     * say it (the meditator spoke while it was being composed). Ignored when
+     * the countdown has changed since, which is its own fresh set of notices.
+     */
+    requeue(kind: 'approach' | 'completion', gen: number): void {
+        if (gen !== this.armGen) return;
+        if (kind === 'completion') this.completionFired = false;
+        else this.approachFired = false;
     }
 
     /** Whether the completion notice should be the end of the session. Read at
@@ -217,12 +246,17 @@ export class SessionClock {
      * default should stay the length they chose on purpose. Returns minutes
      * added.
      */
-    extendTimer(min: number): number {
+    extendTimer(min: number, approachLeadSec = 0): number {
         if (this.endsAt === null) return this.setTimer(min);
         const added = clampTimerMinutes(min);
         // Extending after the bell starts from now, not from a moment already past.
         this.endsAt = Math.max(this.endsAt, Date.now()) + added * 60_000;
-        this.approachFired = false;
+        this.runMin += added;
+        this.armGen++;
+        // "One more minute" lands inside the approach lead: the acknowledgment
+        // just told them the time, so a "few minutes left" right behind it is
+        // noise. Only a longer extension earns a fresh approach notice.
+        this.approachFired = (this.remainingSec() ?? 0) <= approachLeadSec;
         this.completionFired = false;
         if (this.visible) this.render();
         else this.reveal();
@@ -241,6 +275,20 @@ export class SessionClock {
         this.applyChoice(choice);
         this.onChange(choice);
         return true;
+    }
+
+    /** Show or hide the readout, saved like the picker's toggle. The countdown
+     *  is untouched either way. */
+    setVisible(shown: boolean): void {
+        const choice: SessionClockChoice = {
+            mode: this.mode,
+            timerMin: this.timerMin,
+            showClock: shown,
+            endOnComplete: this.endOnComplete,
+            keepRunning: true,
+        };
+        this.applyChoice(choice);
+        this.onChange(choice);
     }
 
     /** Open the picker (also reachable by tapping the clock). */

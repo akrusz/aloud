@@ -68,6 +68,18 @@ export class CloudJudge implements UtteranceJudge {
         }
     }
 
+    /** Fire-and-forget at session start: the first call down a cold path (this
+     *  client's connection, a just-restarted server) is the slow one, ~1s against
+     *  a usual ~160ms, so spend it before anyone is waiting.
+     *  Outside judge() on purpose - a cold miss here must not count toward the
+     *  backoff. */
+    warm(): void {
+        const ac = new AbortController();
+        void withTimeout(this.request('command', 'hello', [], ac.signal), JUDGE_TIMEOUT_MS * 2, 'warm timed out')
+            .catch(() => undefined)
+            .finally(() => ac.abort());
+    }
+
     private async request(
         classifier: JudgeId,
         text: string,

@@ -64,7 +64,12 @@ export function applyTheme(theme: Theme): void {
 
 export function toggleTheme(): Theme {
     const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const next: Theme = current === 'dark' ? 'light' : 'dark';
+    return setTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+/** A manual pick, by the nav button or by voice: applied now and remembered on
+ *  the same terms as a toggle. */
+export function setTheme(next: Theme): Theme {
     applyTheme(next);
     localStorage.setItem(TOGGLE_KEY, JSON.stringify({ value: next, ts: Date.now() } satisfies ToggleRecord));
     return next;

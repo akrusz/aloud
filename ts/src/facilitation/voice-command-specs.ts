@@ -4,7 +4,9 @@
  * without an import cycle.
  *
  * One atomic yes/no ask per command, all sent in one request and answered in
- * parallel (~150ms for the set, about $0.00007). Measured before building: a
+ * parallel (~160ms for the set; ~4,200 input tokens with 24 asks, about $0.00018
+ * a call - each ask costs ~170 tokens however short it is, so the count of
+ * commands is what drives the price). Measured before building: a
  * single "which command?" choice is the obvious shape, but separate asks are
  * what worked on `resume`, each gets its own contrastive examples, and adding a
  * command can't shift the others' scores.
@@ -25,32 +27,46 @@ export type VoiceCommandId =
     | 'respond_sooner'
     | 'wait_longer'
     | 'mute'
+    | 'mute_speaker'
+    | 'unmute_speaker'
+    | 'show_clock'
+    | 'hide_clock'
+    | 'show_orb'
+    | 'hide_orb'
+    | 'embers_on'
+    | 'embers_off'
+    | 'dark_mode'
+    | 'light_mode'
+    | 'toggle_theme'
     | 'help';
 
-/** Meditation talk that borrows a command's vocabulary. Shared by every ask:
- *  the hard part is never telling commands apart, it's telling them from this. */
-const NOT_COMMANDS = [
-    "There's a warmth in my chest.",
-    'Everything feels like it is slowing down.',
-    'I wish this feeling would end.',
-    'Time seems to stretch out here.',
-    "I think I'm done with this feeling.",
-    '一切好像都慢下来了。',
-];
-
-function ask(question: string, what: string, examples: string[], notFor: string): JudgeQuestion {
+/**
+ * Lean on purpose. Every ask rides in every request, so a sentence here is paid
+ * for once per command, per utterance: the first version carried six shared
+ * counter-examples and a long focus line in each ask and cost ~290 tokens an
+ * ask (7k a call with 24 commands). Cutting to a question, two examples and a
+ * short exclusion lost only the asks Jev has no prior for (embers, the orb), and
+ * those got their detail back. Add words only where `npm run jev:commands`
+ * shows a need, and rerun it after any edit: one request, shared scores.
+ */
+function ask(
+    question: string,
+    examples: string[],
+    notFor: string,
+    /** The two below: only where the corpus showed the ask needs them. */
+    notExamples: string[] = [],
+    what = 'Yes.'
+): JudgeQuestion {
     return {
         type: 'noul',
         instructions: {
             question,
             inspect: '`utterance`',
-            focus:
-                'Only an instruction to the app about the session itself counts. Describing ' +
-                'experience, even in words like "slow", "end", "time" or "stop", is not a command.',
+            focus: 'Only an instruction to the app counts, not a description of experience.',
         },
         criteria: {
             true: { what, examples },
-            false: { what: 'Meditation content, or a different command.', not_for: notFor, examples: NOT_COMMANDS },
+            false: { what: 'Meditation talk, or a different command.', not_for: notFor, examples: notExamples },
         },
     };
 }
@@ -68,93 +84,236 @@ const COMMAND_THRESHOLD = 0.6;
  * a misfire costs a reach for the button. The bare word still goes through
  * isMuteCommand first, which needs no judge and works on every provider; this
  * ask is for the natural phrasings that regex was too strict to take.
+ *
+ * The speaker shares the bar for a different reason: "can you be quiet for a
+ * while" scores ~0.4 on it, where other asks' near misses sit under 0.15. That
+ * request belongs to [HOLD]. Real speaker requests land at 0.84 and up.
  */
 const MUTE_THRESHOLD = 0.75;
+
+/**
+ * The on-screen extras (clock readout, orb, embers, theme). Jev has never heard of "embers",
+ * so real requests land at 0.5-0.7 rather than 0.9, while meditation talk about
+ * light, dark, sparks and orbs stays under 0.1. A misfire is a visual flicker
+ * that a word undoes, so the bar sits lower than for the rest.
+ */
+const VISUAL_THRESHOLD = 0.45;
+const VISUAL_COMMANDS: readonly VoiceCommandId[] = [
+    'show_clock',
+    'hide_clock',
+    'show_orb',
+    'hide_orb',
+    'embers_on',
+    'embers_off',
+    'dark_mode',
+    'light_mode',
+    'toggle_theme',
+];
 
 const COMMANDS: Record<VoiceCommandId, JudgeQuestion> = {
     end_session: ask(
         'Is the meditator telling the app to end the meditation session now?',
-        'An instruction to end, finish or stop the session.',
-        ['End the session.', "Let's stop here for today.", '结束这次冥想。'],
-        'Being finished with a feeling, a thought or a silence. Naming whether to save it is a different command.'
+        ["Let's stop here for today.", '结束这次冥想。'],
+        'Being finished with a feeling, a thought or a silence.',
+        ['I wish this feeling would end.']
     ),
     end_discard: ask(
         'Is the meditator telling the app to end the session without saving it?',
-        'An instruction to end and discard, delete, or not save this session.',
-        ['End without saving.', "End the session and don't save it.", 'Discard this session.', '不保存,直接结束。'],
-        'Ending the session normally, with no mention of saving or discarding.'
+        ["End the session and don't save it.", '不保存,直接结束。'],
+        'Ending with no mention of saving or discarding.'
     ),
     end_save: ask(
         'Is the meditator telling the app to end the session and save it?',
-        'An instruction to end that explicitly asks to save or keep this session.',
-        ['End and save.', 'Save this one and end the session.', "Let's finish, and keep this session.", '保存并结束。'],
-        'Ending the session normally, with no mention of saving.'
+        ['Save this one and end the session.', '保存并结束。'],
+        'Ending with no mention of saving.'
     ),
     slower: ask(
         'Is the meditator asking the facilitator to speak more slowly?',
-        'A request for a slower speaking pace.',
-        ['Speak slower.', 'Can you slow down a bit?', '说慢一点。'],
-        'Their experience or breath slowing down. Also not a request to wait longer before replying.'
+        ['Can you slow down a bit?', '说慢一点。'],
+        'Their experience or breath slowing. Waiting longer before replying.'
     ),
     faster: ask(
         'Is the meditator asking the facilitator to speak faster?',
-        'A request for a faster speaking pace.',
-        ['Talk faster.', 'A bit quicker, please.', '说快一点。'],
-        'Their thoughts or heart racing. Also not a request to reply sooner after they stop talking.'
+        ['A bit quicker, please.', '说快一点。'],
+        'Their thoughts or heart racing. Replying sooner after they stop talking.'
     ),
     set_timer: ask(
-        'Is the meditator asking to set or change a session timer to a specific length?',
-        'A request to set, start, extend or change a timer, with a duration.',
-        ['Set a timer for twenty minutes.', 'Make it fifteen minutes instead.', '定一个十分钟的计时。'],
+        'Is the meditator asking to set, extend or change a session timer, with a duration?',
+        ['Set a timer for twenty minutes.', '定一个十分钟的计时。'],
         'Talking about how long something has lasted.'
     ),
     cancel_timer: ask(
         'Is the meditator asking to cancel or turn off the session timer?',
-        'A request to cancel, clear or turn off the timer.',
-        ['Cancel the timer.', 'Turn the timer off.', '取消计时。'],
-        'Wanting a feeling to stop.'
+        ['Turn the timer off.', '取消计时。'],
+        'Wanting a feeling to stop. Not wanting to see or look at the timer, which only hides it.',
+        ['Take the timer off the screen.']
     ),
     time_check: ask(
-        'Is the meditator asking how much time has passed or is left in the session?',
-        'A question about elapsed or remaining session time.',
-        ['How much time is left?', 'How long have we been going?', '还剩多少时间?'],
+        'Is the meditator asking how much session time has passed or is left?',
+        ['How much time is left?', '还剩多少时间?'],
         'Reflecting on time in their life.'
+    ),
+    // The readout only: a hidden clock still counts down and still speaks its
+    // notices (showSessionClock).
+    show_clock: ask(
+        'Is the meditator asking the app to show the session clock or timer on screen?',
+        ['Show the clock.', 'Put the time back on screen.', '显示时钟。'],
+        'Asking how much time is left.'
+    ),
+    hide_clock: ask(
+        'Is the meditator asking the app to hide the session clock or timer from the screen?',
+        ["I don't want to see the time.", '隐藏时钟。'],
+        'Cancelling the timer itself.'
     ),
     repeat: ask(
         'Is the meditator asking the facilitator to repeat what it just said?',
-        'A request to hear the last thing again.',
-        ['Say that again?', 'Can you repeat that?', "Sorry, I didn't catch that.", '再说一遍。'],
-        'Asking for more detail or a different explanation, which is a question for the facilitator to answer.'
+        ["Sorry, I didn't catch that.", '再说一遍。'],
+        'Asking for more detail or a different explanation.'
     ),
     respond_sooner: ask(
         'Is the meditator asking the app to reply sooner after they finish speaking?',
-        'A request for a shorter wait between them going quiet and the facilitator replying.',
-        ['Can you respond more quickly?', "You're taking too long to answer.", "Don't wait so long after I stop talking.", '回应快一点。'],
-        'How fast the voice speaks, which is a different command.'
+        ["You're taking too long to answer.", "Don't wait so long after I stop talking.", '回应快一点。'],
+        'How fast the voice speaks.',
+        [],
+        'A request for a shorter wait between them going quiet and the reply, or a complaint that replies are slow to come.'
     ),
     wait_longer: ask(
-        'Is the meditator asking the app to wait longer before replying, because it replies before they have finished?',
-        'A request for a longer pause before the facilitator replies, or a complaint about being cut off.',
-        ['Can you wait a little longer before responding?', 'You keep cutting me off.', 'Give me more time to finish my thoughts.', '等我说完再回应。'],
-        'Asking for a period of silence or for the facilitator to just listen, which is not about reply timing.'
-    ),
-    help: ask(
-        'Is the meditator asking what spoken commands the app understands?',
-        'A question about what they can say to, or ask of, the app itself.',
-        ['List voice commands.', 'What can I say?', 'What commands are there?', '列出语音指令。'],
-        'Asking the facilitator for guidance with their meditation.'
+        'Is the meditator asking the app to wait longer before replying, or complaining of being cut off?',
+        ['You keep cutting me off.', '等我说完再回应。'],
+        'Asking for a period of silence, or for the facilitator to just listen.'
     ),
     mute: ask(
         'Is the meditator telling the app to mute or turn off the microphone?',
-        'An instruction to mute, or to stop the app hearing them.',
-        ['Mute the mic.', 'Turn off the microphone.', 'Stop listening to me for now.', '把麦克风关掉。'],
-        'Asking the facilitator to be quiet or to just listen: there the mic stays on.'
+        ['Stop listening to me for now.', '把麦克风关掉。'],
+        'Asking the facilitator to be quiet or just listen. Turning off the voice or speaker.'
+    ),
+    // The facilitator keeps facilitating, in text: this is the speaker button,
+    // not a silence. "Be quiet for a while" is [HOLD]'s business.
+    mute_speaker: ask(
+        "Is the meditator telling the app to turn off the facilitator's spoken voice, so replies are text only?",
+        ['Mute the speaker.', '把语音关掉。'],
+        'Asking for a period of silence, or for the facilitator to just listen. Muting the microphone.'
+    ),
+    unmute_speaker: ask(
+        "Is the meditator telling the app to turn the facilitator's spoken voice back on?",
+        ['Unmute the speaker.', '把语音打开。'],
+        'Calling the facilitator back from a silence, or asking it to say more. Bringing back the clock or anything else on screen.'
+    ),
+    show_orb: ask(
+        'Is the meditator asking the app to show the orb, its glowing circle on screen for gazing at?',
+        ['Show the orb.', 'Bring up the orb.', 'Can I have the orb to look at?', '显示光球。'],
+        'A light, glow or shape in their own experience.',
+        [],
+        'A request to show, bring up or enlarge the orb.'
+    ),
+    hide_orb: ask(
+        'Is the meditator asking the app to hide the orb, its glowing circle on screen?',
+        ['Hide the orb.', 'Put the orb away.', '隐藏光球。'],
+        'A light or image in their experience fading.',
+        [],
+        'A request to hide, dismiss or put away the orb.'
+    ),
+    embers_on: ask(
+        'Is the meditator asking the app to turn on "embers", the decorative floating-sparks animation it draws on screen?',
+        ['Turn on embers.', 'Embers on.', 'Can I have the embers back?', '打开余烬。'],
+        'Warmth, fire or sparks in their own experience.',
+        ["There's a warm glow in my belly."],
+        // Jev has never heard of "embers"; without this the asks score ~0.4.
+        'A request to turn on, show or bring back the embers or sparks animation.'
+    ),
+    embers_off: ask(
+        'Is the meditator asking the app to turn off "embers", the decorative floating-sparks animation it draws on screen?',
+        ['Turn off embers.', 'No more embers.', 'Get rid of the sparks.', '关掉余烬。'],
+        'Warmth or fire dying down in their experience.',
+        ['The anger is burning itself out.'],
+        'A request to turn off, hide or remove the embers or sparks animation.'
+    ),
+    dark_mode: ask(
+        "Is the meditator asking the app to switch its screen to the dark theme?",
+        ['Dark mode.', '切换到深色模式。'],
+        'Darkness in their experience or mood. Switching theme without saying which.'
+    ),
+    light_mode: ask(
+        "Is the meditator asking the app to switch its screen to the light theme?",
+        ['Light mode.', '切换到浅色模式。'],
+        'Light in their experience. Switching theme without saying which.'
+    ),
+    toggle_theme: ask(
+        "Is the meditator asking the app to switch its colour theme, without naming dark or light?",
+        ['Switch the theme.', '切换主题。'],
+        'Naming dark or light. Changing the subject of the meditation.'
+    ),
+    help: ask(
+        'Is the meditator asking what spoken commands the app understands?',
+        ['What can I say?', '列出语音指令。'],
+        'Asking the facilitator for guidance with their meditation.'
     ),
 };
 
 export const VOICE_COMMAND_IDS = Object.keys(COMMANDS) as VoiceCommandId[];
 
-export const COMMAND_SPECS: Readonly<Record<'command' | 'end-confirm', JudgeSpec>> = {
+/**
+ * Nearly everything a meditator says in eighteen words or fewer is meditation,
+ * and the 24-ask request costs ~4,200 tokens whatever the answer. This one ask
+ * (~570 tokens) goes first, and only a maybe earns the full set.
+ *
+ * The bar is deliberately low: a miss here loses the command outright, a false
+ * pass costs one full check that then says no. On the corpus (npm run
+ * jev:commands) real commands score 0.4 and up, meditation talk 0.15 and under;
+ * the silence requests that leak through ("stop talking for a few minutes") are
+ * the full check's to turn down, as they always were.
+ */
+export const COMMAND_GATE_ASK = 'is_command';
+export const COMMAND_GATE_BAR = 0.2;
+
+export const COMMAND_SPECS: Readonly<Record<'command' | 'command-gate' | 'end-confirm', JudgeSpec>> = {
+    'command-gate': {
+        situation:
+            'A meditator is in a voice-only guided meditation session with an AI facilitator. ' +
+            'The app also accepts a few spoken commands.',
+        asks: {
+            [COMMAND_GATE_ASK]: {
+                question: {
+                    type: 'noul',
+                    instructions: {
+                        question:
+                            'Is the meditator giving the app an instruction or asking it about its own controls, rather than describing their experience?',
+                        inspect: '`utterance`',
+                        focus:
+                            'App controls: the timer and clock, speaking speed, reply timing, repeating, the ' +
+                            'microphone and speaker, the orb, embers and theme on screen, ending the session, ' +
+                            'and what commands exist.',
+                    },
+                    criteria: {
+                        true: {
+                            what: 'An instruction, question or complaint to the app about how it runs, however casually phrased.',
+                            examples: [
+                                'Can you slow down a bit?',
+                                'Never mind the timer.',
+                                'Put the orb away.',
+                                'You keep cutting me off.',
+                                "You're taking too long to answer.",
+                                'How much time is left?',
+                                'Can you repeat that?',
+                                '说慢一点。',
+                            ],
+                        },
+                        false: {
+                            what: 'Meditation talk, or a request about the meditation itself.',
+                            not_for:
+                                'Asking for silence or for the facilitator to just listen. Asking the facilitator to explain or say more.',
+                            examples: [
+                                'Everything feels like it is slowing down.',
+                                'I wish this feeling would end.',
+                                'Can you be quiet for a while?',
+                            ],
+                        },
+                    },
+                },
+                threshold: COMMAND_GATE_BAR,
+            },
+        },
+    },
     command: {
         situation:
             'A meditator is in a voice-only guided meditation session with an AI facilitator. ' +
@@ -162,7 +321,15 @@ export const COMMAND_SPECS: Readonly<Record<'command' | 'end-confirm', JudgeSpec
         asks: Object.fromEntries(
             VOICE_COMMAND_IDS.map((id) => [
                 id,
-                { question: COMMANDS[id], threshold: id === 'mute' ? MUTE_THRESHOLD : COMMAND_THRESHOLD },
+                {
+                    question: COMMANDS[id],
+                    threshold:
+                        id === 'mute' || id === 'mute_speaker'
+                            ? MUTE_THRESHOLD
+                            : VISUAL_COMMANDS.includes(id)
+                              ? VISUAL_THRESHOLD
+                              : COMMAND_THRESHOLD,
+                },
             ])
         ),
     },

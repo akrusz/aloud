@@ -49,6 +49,9 @@ export interface PromptConfig {
     /** Silence mode: teach the model the [HOLD] signal (HOLD_SIGNAL_FRAGMENT).
      *  On by default; mirrors AppSettings.silenceModeEnabled. */
     holdSignal: boolean;
+    /** How the meditator reaches the app's own controls (APP_CONTROLS_FRAGMENT):
+     *  spoken commands where a judge hears them, the screen everywhere else. */
+    appControls: 'voice' | 'screen';
     /** Facilitation language (language.ts). 'zh-CN' appends the respond-in-
      *  Chinese fragment and swaps every canned pool to its zh twin; 'en' is
      *  byte-identical to the pre-language prompt, so default sessions keep
@@ -69,6 +72,7 @@ export const defaultPromptConfig: PromptConfig = {
     customInstructions: '',
     waitSignal: false,
     holdSignal: true,
+    appControls: 'screen',
     language: 'en',
     voiceNote: '',
 };
@@ -96,6 +100,22 @@ Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a 
 When the silence ends, you'll receive everything they said while you were quiet.`;
 
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
+
+/**
+ * The model will happily say "I've cancelled the timer" and cancel nothing: a
+ * request that misses the command judge (too long, a judge outage, a session
+ * without one) arrives as an ordinary turn, and agreeing is the fluent reply.
+ * This makes it decline and point at what does work.
+ */
+export function appControlsFragment(via: 'voice' | 'screen'): string {
+    // The list is closed on purpose: told only "they can say it as a command",
+    // the model promised a "hide the clock" command that did not exist.
+    const how =
+        via === 'voice'
+            ? 'the app itself takes short spoken commands for exactly these: setting, extending or cancelling the timer, asking the time, showing or hiding the clock, your speaking speed, how long you wait before replying, repeating your last line, muting the microphone or the speaker, showing or hiding the orb, embers on or off, dark or light theme, and ending the session. If what they asked for is on that list, suggest they say it again on its own, for example "cancel the timer". If it is not, say the controls are on screen. Never invent a command'
+            : 'the controls for it are on screen';
+    return `App controls: the session timer and clock, how fast you speak, the microphone and speaker, the orb, embers and theme on screen, and ending the session all belong to the app. You cannot change any of them, so never say or imply that you did. If the meditator asks you to, tell them in one short sentence that you can't do that yourself and that ${how}. Then carry on with the session.`;
+}
 
 /** Appended only when smart check-in timing is on (PromptConfig.waitSignal):
  *  no point asking every model for [WAIT] tokens the app would ignore.
@@ -713,6 +733,8 @@ export class PromptBuilder {
                 `${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(defaultWaitSeconds(this.config.directiveness))}`
             );
         }
+
+        parts.push(appControlsFragment(this.config.appControls));
 
         // After every composed dimension so no later section can read as
         // superseding it; the en path pushes nothing and stays byte-identical

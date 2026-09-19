@@ -5,7 +5,7 @@
  *
  * Unlike isMuteCommand these are judged by a model (Jev, voice-command-specs.ts),
  * because natural phrasing is the point: "could you slow down a little" and
- * "you're going too fast" should both work. That makes them hosted-only - there
+ * "you're going too fast" should both work. That makes them judge-only - there
  * is no LLM twin to fall back to, so no judge means the utterance is an ordinary
  * turn. `mute` stays a regex for the opposite reason: it has to work everywhere,
  * instantly.
@@ -23,7 +23,13 @@ import {
     type JudgeAnswers,
     type UtteranceJudge,
 } from './utterance-judge.js';
-import { COMMAND_SPECS, VOICE_COMMAND_IDS, type VoiceCommandId } from './voice-command-specs.js';
+import {
+    COMMAND_GATE_ASK,
+    COMMAND_GATE_BAR,
+    COMMAND_SPECS,
+    VOICE_COMMAND_IDS,
+    type VoiceCommandId,
+} from './voice-command-specs.js';
 
 export { VOICE_COMMAND_IDS, type VoiceCommandId };
 
@@ -32,7 +38,9 @@ export { VOICE_COMMAND_IDS, type VoiceCommandId };
  * judge keeps its ~150ms off the turns where someone is actually waiting on a
  * reply to something they said.
  */
-const MAX_COMMAND_WORDS = 14;
+// 18, up from 14 when one utterance became able to carry two commands ("can you
+// talk slower and show me the orb").
+const MAX_COMMAND_WORDS = 18;
 const MAX_COMMAND_CJK_CHARS = 24;
 
 export function mightBeCommand(utterance: string): boolean {
@@ -59,14 +67,74 @@ function moreSpecific(top: VoiceCommandId, answers: JudgeAnswers): VoiceCommandI
 }
 
 export interface DetectedCommand {
+    /** The highest-scoring command. */
     command: VoiceCommandId;
+    /** Every command the utterance carried, in the order to carry them out
+     *  (resolveCommands). Always includes `command`'s family. */
+    commands: VoiceCommandId[];
     answers: JudgeAnswers;
     latencyMs: number;
 }
 
+/** Asks that can't both be meant. When both clear, the higher score is it. */
+const OPPOSITES: ReadonlyArray<readonly [VoiceCommandId, VoiceCommandId]> = [
+    ['slower', 'faster'],
+    ['respond_sooner', 'wait_longer'],
+    ['set_timer', 'cancel_timer'],
+    ['mute_speaker', 'unmute_speaker'],
+    ['show_clock', 'hide_clock'],
+    // "Show the clock" also reads as asking the time (~0.6); the clock answers it.
+    ['show_clock', 'time_check'],
+    ['show_orb', 'hide_orb'],
+    ['embers_on', 'embers_off'],
+    ['dark_mode', 'light_mode'],
+];
+
+const END_FAMILY: readonly VoiceCommandId[] = ['end_session', 'end_discard', 'end_save'];
+
 /**
- * The command in this utterance, or null. Never throws: a judge failure is
- * "not a command", and the utterance goes on to be a turn.
+ * Every ask is independent, so "talk slower and show me the orb" clears two of
+ * them in one request. This turns the cleared set into what to do, in order:
+ * - opposites keep the higher score, and a named theme beats "switch theme";
+ * - "say that again" and "what can I say?" only count alone, since each is a
+ *   whole reply of its own;
+ * - the speaker goes off after everything that gets acknowledged aloud, the mic
+ *   after that, and the end question last of all - and not with a mic mute,
+ *   which would leave nobody able to answer it.
+ */
+export function resolveCommands(answers: JudgeAnswers): VoiceCommandId[] {
+    const cleared = new Set(
+        VOICE_COMMAND_IDS.filter((id) => (answers[id] ?? 0) >= COMMAND_SPECS.command.asks[id]!.threshold)
+    );
+    for (const [a, b] of OPPOSITES) {
+        if (cleared.has(a) && cleared.has(b)) cleared.delete((answers[a] ?? 0) >= (answers[b] ?? 0) ? b : a);
+    }
+    if (cleared.has('dark_mode') || cleared.has('light_mode')) cleared.delete('toggle_theme');
+    const ending = END_FAMILY.filter((id) => cleared.has(id));
+    for (const id of END_FAMILY) cleared.delete(id);
+    if (cleared.size + ending.length > 1) {
+        cleared.delete('repeat');
+        cleared.delete('help');
+    }
+    if (ending.length > 0) cleared.delete('mute');
+    const last: VoiceCommandId[] = ['mute_speaker', 'mute'];
+    const ordered = VOICE_COMMAND_IDS.filter((id) => cleared.has(id) && !last.includes(id));
+    for (const id of last) if (cleared.has(id)) ordered.push(id);
+    if (ending.length > 0) {
+        const top = ending.reduce((x, y) => ((answers[y] ?? 0) > (answers[x] ?? 0) ? y : x));
+        ordered.push(moreSpecific(top, answers));
+    }
+    return ordered;
+}
+
+/**
+ * The command in this utterance, or null. Never throws: a judge that can't be
+ * reached is "not a command", and the utterance goes on to be a turn.
+ *
+ * One retry first, though. A timeout is not a no: the first call through a
+ * freshly started server runs ~1s, at the edge of its timeout, and the next one
+ * ~160ms. Unlike the silence classifiers there is no LLM behind this, so without
+ * the retry "can you cancel the timer?" became a turn the facilitator answered.
  */
 export async function detectVoiceCommand(
     judge: UtteranceJudge,
@@ -75,10 +143,18 @@ export async function detectVoiceCommand(
     if (!mightBeCommand(utterance)) return null;
     const t0 = Date.now();
     try {
-        const answers = await judge.judge('command', utterance);
+        // The cheap question first (COMMAND_GATE_ASK). Only a clear no stops here:
+        // a gate that can't be reached, or a server too old to know it, falls
+        // through to the full check rather than losing the command.
+        const gate = await judge.judge('command-gate', utterance).catch(() => null);
+        const pGate = gate?.[COMMAND_GATE_ASK];
+        if (typeof pGate === 'number' && pGate < COMMAND_GATE_BAR) return null;
+        const answers = await judge.judge('command', utterance).catch(() => judge.judge('command', utterance));
         const top = judgeTop('command', answers);
         if (!top || !(VOICE_COMMAND_IDS as string[]).includes(top)) return null;
-        return { command: moreSpecific(top as VoiceCommandId, answers), answers, latencyMs: Date.now() - t0 };
+        const commands = resolveCommands(answers);
+        if (commands.length === 0) return null;
+        return { command: moreSpecific(top as VoiceCommandId, answers), commands, answers, latencyMs: Date.now() - t0 };
     } catch {
         return null;
     }
@@ -345,6 +421,20 @@ export const COMMAND_LINES = {
             '你可以让我说慢一点或快一点、设置计时、再说一遍,或者结束冥想。完整的指令在信息按钮里。'
         ),
     muted: (l: SessionLanguage) => zhOr(l, 'Muted.', '已静音。'),
+    // Said aloud BEFORE the speaker goes off, and after it comes back on.
+    speakerOff: (l: SessionLanguage) => zhOr(l, "Voice off. I'll reply on screen.", '语音已关闭。我会在屏幕上回复。'),
+    speakerOn: (l: SessionLanguage) => zhOr(l, 'Voice back on.', '语音已打开。'),
+    clockShown: (l: SessionLanguage) => zhOr(l, 'Clock showing.', '时钟已显示。'),
+    // Says the part they can't see for themselves any more.
+    clockHidden: (l: SessionLanguage) => zhOr(l, 'Clock hidden.', '时钟已隐藏。'),
+    clockHiddenTimerOn: (l: SessionLanguage) =>
+        zhOr(l, 'Clock hidden. The timer is still running.', '时钟已隐藏。计时仍在继续。'),
+    orbShown: (l: SessionLanguage) => zhOr(l, "Here's the orb.", '光球来了。'),
+    orbHidden: (l: SessionLanguage) => zhOr(l, 'Orb away.', '光球已收起。'),
+    embersOn: (l: SessionLanguage) => zhOr(l, 'Embers on.', '余烬已打开。'),
+    embersOff: (l: SessionLanguage) => zhOr(l, 'Embers off.', '余烬已关闭。'),
+    darkMode: (l: SessionLanguage) => zhOr(l, 'Dark mode.', '深色模式。'),
+    lightMode: (l: SessionLanguage) => zhOr(l, 'Light mode.', '浅色模式。'),
     endDiscardConfirm: (l: SessionLanguage) =>
         zhOr(l, 'End the session without saving it?', '不保存,直接结束这次冥想吗?'),
     endSaveConfirm: (l: SessionLanguage) => zhOr(l, 'End the session and save it?', '保存并结束这次冥想吗?'),

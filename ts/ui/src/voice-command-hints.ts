@@ -66,8 +66,10 @@ export const VOICE_COMMAND_EXAMPLES: readonly string[] = [
     '"Say that again"',
     '"Set a timer for ten minutes"',
     '"Five more minutes" / "cancel the timer"',
-    '"How much time is left?"',
-    '"Mute"',
+    '"How much time is left?" / "hide the clock"',
+    '"Mute the mic" / "mute the speaker"',
+    '"Show the orb" / "hide the orb"',
+    '"Embers off" / "dark mode"',
 ];
 
 /** The list's last line offers whichever override isn't already the default. */
@@ -80,4 +82,4 @@ export function endExampleFor(savesByDefault: boolean): string {
 
 /** Under the list: the examples are not a syntax. */
 export const VOICE_COMMANDS_NOTE =
-  'These understand natural language, so phrasing is flexible.';
+  'These understand natural language, so phrasing is flexible. You can ask for two at once.';

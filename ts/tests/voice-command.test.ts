@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
     CommandPrefetch,
     detectVoiceCommand,
+    resolveCommands,
     classifyEndConfirm,
     mightBeCommand,
     parseTimerRequest,
@@ -29,7 +30,85 @@ function judgeOf(answers: JudgeAnswers | Error): UtteranceJudge & { calls: numbe
     };
 }
 
+describe('resolveCommands', () => {
+    it('carries out every command the utterance held', () => {
+        expect(resolveCommands({ ...none(), slower: 0.98, show_orb: 0.81 })).toEqual(['slower', 'show_orb']);
+    });
+
+    it('keeps the stronger of two opposites, and a named theme over "switch theme"', () => {
+        expect(resolveCommands({ ...none(), embers_on: 0.5, embers_off: 0.7 })).toEqual(['embers_off']);
+        expect(resolveCommands({ ...none(), dark_mode: 0.9, toggle_theme: 0.6 })).toEqual(['dark_mode']);
+    });
+
+    it('holds the visual toggles to a lower bar than the rest', () => {
+        expect(resolveCommands({ ...none(), embers_on: 0.5 })).toEqual(['embers_on']);
+        expect(resolveCommands({ ...none(), slower: 0.5 })).toEqual([]);
+    });
+
+    it('lets "say that again" and "what can I say?" stand only alone', () => {
+        expect(resolveCommands({ ...none(), repeat: 0.9 })).toEqual(['repeat']);
+        expect(resolveCommands({ ...none(), repeat: 0.9, slower: 0.9, help: 0.9 })).toEqual(['slower']);
+    });
+
+    it('mutes last, and asks about ending after everything else', () => {
+        expect(resolveCommands({ ...none(), mute: 0.9, mute_speaker: 0.9, cancel_timer: 0.9 })).toEqual([
+            'cancel_timer',
+            'mute_speaker',
+            'mute',
+        ]);
+        expect(resolveCommands({ ...none(), end_session: 0.9, end_discard: 0.9, faster: 0.9 })).toEqual([
+            'faster',
+            'end_discard',
+        ]);
+    });
+
+    it('shows the clock rather than also reading out the time', () => {
+        expect(resolveCommands({ ...none(), show_clock: 0.93, time_check: 0.61 })).toEqual(['show_clock']);
+    });
+
+    it('never mutes the mic under a question it needs an answer to', () => {
+        expect(resolveCommands({ ...none(), end_session: 0.9, mute: 0.9 })).toEqual(['end_session']);
+    });
+});
+
 describe('detectVoiceCommand', () => {
+    it('stops at the gate on a clear no, without sending the full set', async () => {
+        const asked: string[] = [];
+        const judge: UtteranceJudge = {
+            async judge(id) {
+                asked.push(id);
+                return id === 'command-gate' ? { is_command: 0.04 } : { ...none(), slower: 0.98 };
+            },
+        };
+        expect(await detectVoiceCommand(judge, "There's a warmth in my chest.")).toBeNull();
+        expect(asked).toEqual(['command-gate']);
+    });
+
+    it('goes on to the full check when the gate says maybe, or cannot be asked', async () => {
+        for (const gate of [{ is_command: 0.4 }, new Error('400: unknown classifier')]) {
+            const judge: UtteranceJudge = {
+                async judge(id) {
+                    if (id !== 'command-gate') return { ...none(), slower: 0.98 };
+                    if (gate instanceof Error) throw gate;
+                    return gate;
+                },
+            };
+            expect((await detectVoiceCommand(judge, 'Can you slow down?'))?.commands).toEqual(['slower']);
+        }
+    });
+
+    it('asks once more when the judge fails: a cold first call is not a no', async () => {
+        let calls = 0;
+        const flaky: UtteranceJudge = {
+            async judge() {
+                if (++calls === 1) throw new Error('timeout');
+                return { ...none(), cancel_timer: 0.98 };
+            },
+        };
+        expect((await detectVoiceCommand(flaky, 'Oh, can you cancel the timer?'))?.commands).toEqual(['cancel_timer']);
+        expect(calls).toBe(2);
+    });
+
     it('returns the ask that cleared its threshold', async () => {
         const cmd = await detectVoiceCommand(judgeOf({ ...none(), slower: 0.92 }), 'Can you slow down?');
         expect(cmd?.command).toBe('slower');
@@ -136,7 +215,9 @@ describe('command specs', () => {
         for (const q of Object.values(qs)) {
             expect(q.type).toBe('noul');
             expect(q.criteria.true.examples.length).toBeGreaterThan(0);
-            expect(q.criteria.false.examples.length).toBeGreaterThan(0);
+            // Counter-examples are opt-in per ask (jev:commands decides), but
+            // every ask says what it is not for.
+            expect(q.criteria.false.not_for).toBeTruthy();
         }
         expect(judgeSpec('end-confirm').asks['confirms']!.threshold).toBeGreaterThan(
             judgeSpec('end-confirm').asks['declines']!.threshold

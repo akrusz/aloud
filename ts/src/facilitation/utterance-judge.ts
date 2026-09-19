@@ -38,10 +38,10 @@ export function isClassifierId(v: unknown): v is ClassifierId {
  * have an LLM twin to fall back on, plus the voice-command pair
  * (voice-command.ts), which have none - no judge, no voice commands.
  */
-export type JudgeId = ClassifierId | 'command' | 'end-confirm';
+export type JudgeId = ClassifierId | 'command' | 'command-gate' | 'end-confirm';
 
 export function isJudgeId(v: unknown): v is JudgeId {
-    return isClassifierId(v) || v === 'command' || v === 'end-confirm';
+    return isClassifierId(v) || v === 'command' || v === 'command-gate' || v === 'end-confirm';
 }
 
 /** One side of a noul question, in the contrastive shape Jev's guide asks for. */
