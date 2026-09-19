@@ -4097,6 +4097,23 @@ p.clouds-hint-row {
     color: var(--text-primary);
 }
 
+/* The circled "?" as it appears mid-sentence in the tour cards, where they
+   point at the real .info-btn. Same ring, no button behaviour - and slightly
+   tighter, since it sits inside running text rather than after a label. */
+.info-btn-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    font-size: 0.8em;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: middle;
+}
+
 .info-panel {
     /* Lift slightly off the view background (--bg-secondary) so the panel
        reads as a distinct note, without matching the text fields (--bg-input).
@@ -5047,6 +5064,13 @@ input[type="range"].preview-range {
 .guide-elevated {
     position: relative;
     z-index: 60;
+}
+
+/* The methods panel's "Take the full tour" link starts the very tour that
+   spotlights that panel, so during a tour it reads as a live link to where you
+   already are - and startGuide() ignores it. Hide it for the duration. */
+body.guide-running .info-panel-link {
+    display: none;
 }
 
 @media (max-width: 600px) {
