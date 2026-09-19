@@ -18,6 +18,8 @@ import { assertSolvent, PACK_MARKUP } from './pricing/meter.js';
 import { loadRuntimeOverrides } from './admin/runtime-config.js';
 import { CREDIT_PACKS } from './billing/stripe.js';
 import { setStrictContentCheck, log } from './logger.js';
+import { askNouls } from './providers/typesafe.js';
+import { judgeQuestions, judgeState } from '@aloud/core/facilitation';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -111,6 +113,16 @@ async function main(): Promise<void> {
     };
     sweep();
     setInterval(sweep, 3_600_000).unref();
+
+    // A fresh process's first TypeSafe call runs ~1s (DNS, TLS, cold code) against
+    // ~160ms after, which is the whole of askNouls' timeout: the first spoken
+    // command after a deploy or restart timed out and became an ordinary turn.
+    // Spend that call here. Its own timeout failing is fine, the warming is done.
+    if (config.typesafeApiKey) {
+        void askNouls(config.typesafeApiKey, judgeState('command', 'hello'), judgeQuestions('command')).catch(
+            () => undefined
+        );
+    }
 
     const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
         log.info('aloud cloud up', {

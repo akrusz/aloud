@@ -5,7 +5,8 @@
  * Returns P(yes) per ask and leaves the thresholds to the client (core
  * judgeVerdict), where the A/B reads them.
  *
- * Not charged: a call costs the server ~$0.00002, under anything the ledger can
+ * Not charged: a silence-classifier call costs the server ~$0.00003 and a command
+ * check ~$0.00018 (24 asks, ~4,200 tokens), both under anything the ledger can
  * express, and it stands in for a Haiku classifier call that was charged. Usage
  * is still recorded so the cost report sees the volume. Like llm.ts this sees
  * meditation content: forwarded, never stored or logged.

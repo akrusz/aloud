@@ -18,7 +18,7 @@ import { HttpModelProber, ModelLiveness } from './pricing/liveness.js';
 const JUDGE_REQUESTS_PER_MINUTE = 90;
 
 /** The judge is free to any account, so this is the cost ceiling on a scripted
- *  one: ~$0.10 a day. A heavy sit (short replies every 15s, each prefetched
+ *  one: under $1 a day at the command check's ~$0.00018 a call. A heavy sit (short replies every 15s, each prefetched
  *  once or twice) runs ~600 calls an hour, so this clears a full retreat day;
  *  past it an account with no credits falls back to the LLM classifiers and
  *  loses commands (routes/judge.ts lets one with a balance through). */
