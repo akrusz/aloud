@@ -118,6 +118,15 @@ const TOTAL_STEPS = SECTIONS.length + 2; // welcome + sections + done
 function createOverlay(): void {
     overlayEl = document.createElement('div');
     overlayEl.className = 'tour-overlay';
+    // Tapping the dimmed area closes the tour, the way Escape does - which on
+    // a phone is the only way, since there's no Escape key and the overlay is
+    // what's swallowing every tap outside the spotlight. The spotlit target
+    // (z-index 60) and the card sit above the overlay (55), so taps on those
+    // never land here, and the spotlight ring is pointer-events: none.
+    // A scroll gesture is safe: the browser fires no click after a drag, so
+    // flicking the page during a step leaves the tour up. No px threshold of
+    // our own - it would only second-guess that.
+    overlayEl.addEventListener('click', dismissRemindLater);
     spotlightEl = document.createElement('div');
     spotlightEl.className = 'tour-spotlight';
     document.body.appendChild(overlayEl);
@@ -304,12 +313,11 @@ function showSection(index: number): void {
         scrollToSection(target, function () {
             positionSpotlight(target);
 
-            const html = footerHtml({
-                back: true,
-                next: index < SECTIONS.length - 1,
-                done: index === SECTIONS.length - 1,
-                skip: true,
-            });
+            // Every section ends in Next - including the last, which advances
+            // to showDone(). Ending a section on "Got it" instead would skip
+            // that card entirely and leave TOTAL_STEPS' last dot permanently
+            // dark (settings-tour.ts closes the same way).
+            const html = footerHtml({ back: true, next: true, skip: true });
             showCard(html, 'tour-tooltip');
             positionTooltip(target);
         });
