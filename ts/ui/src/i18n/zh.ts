@@ -541,6 +541,7 @@ export const ZH: Record<string, string> = {
     "This permanently deletes your account ({email}). Any remaining credits are forfeited and it can't be undone. You can sign up again later, but won't get the free credits a second time.\n\nType \"delete\" to confirm.": "这会永久删除你的账户（{email}）。剩余积分将被作废，且无法撤销。之后可以重新注册，但不会再次获得免费积分。\n\n输入 \"delete\" 以确认。",
     "This provider doesn't stream, so a shorter pause cuts latency.": "该服务商不支持流式输出，停顿短一些可以降低延迟。",
     "This voice may not speak the session language well": "这个语音可能说不好本次冥想的语言",
+    "macOS 27 voices may interact poorly with Firefox.": "macOS 27 的语音在 Firefox 中可能出现异常。",
     "Time in session": "冥想已进行",
     "Time of day": "当前时间",
     "Timer": "计时器",

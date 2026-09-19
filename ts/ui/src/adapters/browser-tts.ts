@@ -13,10 +13,23 @@ export interface BrowserTtsEngineOptions {
     defaultVoice?: string;
 }
 
+/**
+ * How long an utterance may sit without a `start` event before speak() gives
+ * up. A wedged synthesizer accepts speak() and then never fires anything
+ * (Firefox on macOS 27 after any mid-utterance cancel(), meditation-pal-cdzu),
+ * which left the caller awaiting forever.
+ */
+const START_TIMEOUT_MS = 10_000;
+/** After one timeout the synthesizer is presumed wedged: fail the following
+ *  utterances fast (a reply is one speak() per sentence) until one starts. */
+const START_TIMEOUT_WEDGED_MS = 2_000;
+
 export class BrowserTtsEngine implements TtsEngine {
     private currentUtterance: SpeechSynthesisUtterance | null = null;
     private currentResolve: (() => void) | null = null;
     private currentReject: ((err: Error) => void) | null = null;
+    private startTimer: ReturnType<typeof setTimeout> | null = null;
+    private startTimeoutMs = START_TIMEOUT_MS;
     private readonly defaultVoice: string | undefined;
 
     constructor(options: BrowserTtsEngineOptions = {}) {
@@ -54,7 +67,11 @@ export class BrowserTtsEngine implements TtsEngine {
             }
             // Report when audio actually starts (synthesis can lag speak() by a
             // beat), so the caller can reveal text in step with the voice.
-            if (options?.onStart) utterance.onstart = options.onStart;
+            utterance.onstart = () => {
+                this.clearStartTimer();
+                this.startTimeoutMs = START_TIMEOUT_MS;
+                options?.onStart?.();
+            };
             utterance.onend = () => this.finish(utterance);
             // Surface real synthesis failures instead of resolving as if the
             // voice spoke: Chrome/Edge fire `onerror` with synthesis-failed /
@@ -73,6 +90,14 @@ export class BrowserTtsEngine implements TtsEngine {
             // were mute on Android while in-session playback worked. A no-op
             // when the queue isn't paused.
             speechSynthesis.resume();
+            this.startTimer = setTimeout(() => {
+                if (this.currentUtterance !== utterance) return;
+                // Drop it from the queue so a merely slow voice can't start
+                // talking after the caller has moved on.
+                speechSynthesis.cancel();
+                this.startTimeoutMs = START_TIMEOUT_WEDGED_MS;
+                this.finish(utterance, 'start-timeout');
+            }, this.startTimeoutMs);
         });
     }
 
@@ -90,6 +115,7 @@ export class BrowserTtsEngine implements TtsEngine {
 
     private finish(utterance: SpeechSynthesisUtterance, error?: string): void {
         if (this.currentUtterance !== utterance) return;
+        this.clearStartTimer();
         this.currentUtterance = null;
         const resolve = this.currentResolve;
         const reject = this.currentReject;
@@ -104,6 +130,13 @@ export class BrowserTtsEngine implements TtsEngine {
             return;
         }
         if (resolve) resolve();
+    }
+
+    private clearStartTimer(): void {
+        if (this.startTimer !== null) {
+            clearTimeout(this.startTimer);
+            this.startTimer = null;
+        }
     }
 
     async listVoices(): Promise<TtsVoice[]> {

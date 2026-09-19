@@ -112,6 +112,9 @@ export interface ScoredVoice {
      *  dimmed with a language badge, sunk below its tier-mates, still pickable
      *  (the mismatch is a warning, not a wall). */
     langMismatch?: boolean;
+    /** Known to misbehave in this browser (see `isFirefoxOnMac`): dimmed like a
+     *  language mismatch and sunk below tier-mates, still pickable. */
+    glitchy?: boolean;
     /** Pace fixed server-side (styled Azure voices; CloudVoice.fixedPace) -
      *  the speed slider grays out while this voice is selected. */
     fixedPace?: boolean;
@@ -153,6 +156,16 @@ const MACOS_QUALITY_VOICES =
 /** True on macOS/iOS, where local speechSynthesis voices are Apple's. */
 function isMac(): boolean {
     return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
+}
+
+/**
+ * Firefox drives macOS voices badly since macOS 27: every utterance ends in a
+ * loud pop, and a mid-utterance cancel() wedges speechSynthesis until reload
+ * (meditation-pal-cdzu). Firefox freezes the OS version in its UA, so this
+ * can't be narrowed to the affected releases.
+ */
+function isFirefoxOnMac(): boolean {
+    return isMac() && typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent || '');
 }
 
 // ---------------------------------------------------------------------------
@@ -300,6 +313,7 @@ export function buildScoredVoiceList(
             browserVoice: v,
             ...(recommended ? { recommended: true } : {}),
             ...(speaks(v.lang) ? {} : { langMismatch: true }),
+            ...(isApple && isFirefoxOnMac() ? { glitchy: true } : {}),
         });
         seen.add(v.name);
     }
@@ -311,6 +325,9 @@ export function buildScoredVoiceList(
         const am = a.langMismatch ? 1 : 0;
         const bm = b.langMismatch ? 1 : 0;
         if (am !== bm) return am - bm;
+        const ag = a.glitchy ? 1 : 0;
+        const bg = b.glitchy ? 1 : 0;
+        if (ag !== bg) return ag - bg;
         // In a zh session, native-audited voices outrank the merely capable.
         if (sessionLang === 'zh') {
             const an = a.zhNative ? 1 : 0;
@@ -455,7 +472,7 @@ function appendRow(
     const row = document.createElement('div');
     row.className = 'voice-row';
     if (entry.needsDownload && !entry.downloaded) row.classList.add('voice-row-locked');
-    if (entry.langMismatch) row.classList.add('voice-row-lang-mismatch');
+    if (entry.langMismatch || entry.glitchy) row.classList.add('voice-row-lang-mismatch');
     if (entry.name === selectedName) row.classList.add('selected');
     row.dataset['voiceName'] = entry.name;
     // Speakers sharing a model file share data-model, so an in-flight download
@@ -500,6 +517,8 @@ function appendRow(
         // No badge (session pickers hide these behind "Show all voices", so a
         // per-row tag was noise); the dimmed style plus this tooltip carry it.
         row.title = t('This voice may not speak the session language well');
+    } else if (entry.glitchy) {
+        row.title = t('macOS 27 voices may interact poorly with Firefox.');
     }
     row.appendChild(nameSpan);
 

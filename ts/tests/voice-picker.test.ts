@@ -218,6 +218,22 @@ describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', ()
         const goog = scored.find((v) => v.name === 'Google US English')!;
         expect(goog.recommended).toBe(true); // Chrome cloud → Best
         expect(goog.displayEngine).toBeUndefined();
+        expect(sam.glitchy).toBeUndefined(); // not Firefox
+    });
+
+    it('flags macOS voices as glitchy in Firefox on a Mac', () => {
+        vi.stubGlobal('navigator', {
+            language: 'en-US',
+            platform: 'MacIntel',
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0',
+        });
+        vi.stubGlobal('speechSynthesis', {
+            getVoices: () => [
+                { name: 'Samantha', lang: 'en-US', localService: true, voiceURI: 'urn:moz-tts:osx:Samantha' },
+            ],
+        });
+        const scored = buildScoredVoiceList(null, true);
+        expect(scored.find((v) => v.name === 'Samantha')!.glitchy).toBe(true);
     });
 });
 
