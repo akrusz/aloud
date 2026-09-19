@@ -18,12 +18,12 @@
     },
     "dependencies": {
         "@hono/node-server": "^2.1.1",
-        "hono": "^4.13.7",
+        "hono": "^4.13.8",
         "jose": "^6.2.12",
         "tsx": "^4.23.13"
     },
     "devDependencies": {
         "typescript": "^6.0.3",
-        "vitest": "^5.0.0"
+        "vitest": "^5.0.1"
     }
 }
