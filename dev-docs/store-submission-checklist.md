@@ -28,17 +28,10 @@ iPhone **web** (`2dy1`; the native apps are unaffected).
 
 ## Android: the road to production
 
-The account is **personal and newer than Nov 13 2023**, so Play will not grant
-production access until a **closed test** has run with enough opted-in testers
-for **14 days in a row**. Internal testing does not count. The minimum was 20 and
-Google later lowered it to 12: read the current number off Play Console →
-Dashboard → "Apply for production access". This, not the code, is what sets the
-launch date.
+The Play account is personal but long predates Nov 13 2023, so the closed-test
+rule for new personal accounts (N opted-in testers for 14 days) **does not
+apply**: internal testing can be promoted straight to production review.
 
-- [ ] **Start the closed test.** Create a closed testing track, promote the
-      current build to it, add testers (an email list or a Google Group), share
-      the opt-in link. The 14 days count from when enough testers have opted in,
-      and they have to stay opted in.
 - [ ] **Listing pass** (see "Each store update" below for the copy): recheck
       screenshots against the current UI (2+ phone, portrait 9:16), short + full
       description, feature graphic and 512 icon (`assets/store/`), support +
@@ -46,12 +39,11 @@ launch date.
 - [ ] **Long-sit audio check** on a Play-installed build: a 30-minute session
       with the screen off, and one round trip through backgrounding. Short
       sessions are good; this one was still owed.
-- [ ] **Apply for production access** once the 14 days are up. Play asks about
-      the test (how testers were recruited, what feedback changed), so keep a
-      few notes as feedback comes in.
-- [ ] **Production review** (a few days), then release. Update the site's
-      platform line (`docs/index.html`: "iOS and Android are in closed beta"),
-      the README platform notes and the store links once it is public.
+- [ ] **Promote to production**: create the production release from the tested
+      build, pick countries, roll out. **Review takes a few days**, then it is
+      live. Once it is public, update the site's platform line
+      (`docs/index.html`: "iOS and Android are in closed beta"), the README
+      platform notes and the store links.
 - [ ] **Promo video** (optional, its own session). Play takes a YouTube URL, not
       a file. Screen-record one short real session on the phone (screen
       recorder, audio source **"media and mic"** so both voices land in the
