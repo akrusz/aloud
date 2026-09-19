@@ -15,6 +15,13 @@ import {
 } from './prompts.js';
 import type { LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
+import {
+    JUDGE_SPECS,
+    type ClassifierId,
+    type JudgeMode,
+    type JudgeReport,
+    type UtteranceJudge,
+} from './utterance-judge.js';
 
 /** CompletionResult usage split, in LlmUsage shape. */
 function resultUsage(r: {
@@ -37,6 +44,15 @@ export interface ClassifyResumeIntentOptions {
      * Fired only on success.
      */
     onUsage?: (usage: LlmUsage) => void;
+    /**
+     * Typed-judgment fast path (utterance-judge.ts). Omitted everywhere but
+     * hosted sessions, which leaves the LLM classifier as the only path.
+     */
+    judge?: UtteranceJudge;
+    /** Default 'decide'. Ignored without `judge`. */
+    judgeMode?: JudgeMode;
+    /** Every classification that had a judge, both sides timed. For the A/B. */
+    onJudged?: (report: JudgeReport) => void;
 }
 
 /**
@@ -61,7 +77,7 @@ export type ResumeVerdict = 'resume' | 'stay' | 'error';
  * they never asked to leave (tv9u). Two attempts, no backoff - the meditator is
  * waiting on this before the next utterance is judged.
  */
-async function classifyYesNo(
+async function llmYesNo(
     provider: LLMProvider,
     text: string,
     system: string,
@@ -80,6 +96,59 @@ async function classifyYesNo(
     return 'error';
 }
 
+async function timed<T>(run: () => Promise<T>): Promise<{ value: T; latencyMs: number }> {
+    const t0 = Date.now();
+    const value = await run();
+    return { value, latencyMs: Date.now() - t0 };
+}
+
+/**
+ * The judge, when there is one, in front of (or beside) the LLM. A judge failure
+ * is never a verdict: it falls through to the LLM, whose own 'error' keeps its
+ * meaning for the callers.
+ */
+async function classifyYesNo(
+    provider: LLMProvider,
+    text: string,
+    id: ClassifierId,
+    system: string,
+    options: ClassifyResumeIntentOptions
+): Promise<'yes' | 'no' | 'error'> {
+    const { judge } = options;
+    if (!judge) return llmYesNo(provider, text, system, options);
+
+    const mode = options.judgeMode ?? 'decide';
+    const { threshold } = JUDGE_SPECS[id];
+    const runJudge = async (): Promise<NonNullable<JudgeReport['judge']>> => {
+        const t0 = Date.now();
+        try {
+            const p = await judge.judge(id, text);
+            return { p, verdict: p >= threshold ? 'yes' : 'no', latencyMs: Date.now() - t0 };
+        } catch (err) {
+            return { error: String(err), latencyMs: Date.now() - t0 };
+        }
+    };
+    const runLlm = async (): Promise<NonNullable<JudgeReport['llm']>> => {
+        const { value, latencyMs } = await timed(() => llmYesNo(provider, text, system, options));
+        return { verdict: value, latencyMs };
+    };
+
+    if (mode === 'shadow') {
+        const [judged, llm] = await Promise.all([runJudge(), runLlm()]);
+        options.onJudged?.({ classifier: id, mode, threshold, verdict: llm.verdict, judge: judged, llm });
+        return llm.verdict;
+    }
+
+    const judged = await runJudge();
+    if ('verdict' in judged) {
+        options.onJudged?.({ classifier: id, mode, threshold, verdict: judged.verdict, judge: judged });
+        return judged.verdict;
+    }
+    const llm = await runLlm();
+    options.onJudged?.({ classifier: id, mode, threshold, verdict: llm.verdict, judge: judged, llm });
+    return llm.verdict;
+}
+
 /**
  * Does `text` (one utterance spoken during held silence) signal a wish to
  * resume? Provider failure surfaces as `error`, not a silent `stay`, so the
@@ -90,7 +159,7 @@ export async function classifyResumeIntent(
     text: string,
     options: ClassifyResumeIntentOptions = {}
 ): Promise<ResumeVerdict> {
-    const verdict = await classifyYesNo(provider, text, RESUME_INTENT_SYSTEM_PROMPT, options);
+    const verdict = await classifyYesNo(provider, text, 'resume', RESUME_INTENT_SYSTEM_PROMPT, options);
     return verdict === 'yes' ? 'resume' : verdict === 'no' ? 'stay' : 'error';
 }
 
@@ -106,7 +175,7 @@ export async function classifyHoldRequest(
     text: string,
     options: ClassifyResumeIntentOptions = {}
 ): Promise<boolean> {
-    return (await classifyYesNo(provider, text, HOLD_REQUEST_SYSTEM_PROMPT, options)) === 'yes';
+    return (await classifyYesNo(provider, text, 'hold-request', HOLD_REQUEST_SYSTEM_PROMPT, options)) === 'yes';
 }
 
 /**
@@ -120,5 +189,5 @@ export async function classifyHoldConfirm(
     text: string,
     options: ClassifyResumeIntentOptions = {}
 ): Promise<boolean> {
-    return (await classifyYesNo(provider, text, HOLD_CONFIRM_SYSTEM_PROMPT, options)) === 'yes';
+    return (await classifyYesNo(provider, text, 'hold-confirm', HOLD_CONFIRM_SYSTEM_PROMPT, options)) === 'yes';
 }

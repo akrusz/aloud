@@ -14,6 +14,7 @@
 const DEV_MODE_KEY = 'aloud:devMode';
 const DEBUG_CHECKIN_KEY = 'aloud:debugCheckin';
 const DEBUG_AEC_OFF_KEY = 'aloud:debugAecOff';
+const JEV_CLASSIFIERS_KEY = 'aloud:jevClassifiers';
 
 /** Taps on the About-box version line needed to toggle dev mode. */
 export const DEV_MODE_TAPS = 7;
@@ -84,6 +85,31 @@ export function setAecOffDebug(on: boolean): void {
     try {
         if (on) localStorage.setItem(DEBUG_AEC_OFF_KEY, '1');
         else localStorage.removeItem(DEBUG_AEC_OFF_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/**
+ * Jev on the silence classifiers, hosted sessions only (v36y): `shadow` runs it
+ * beside the LLM classifier and logs both, `on` lets it decide with the LLM as
+ * fallback. Read at session start.
+ */
+export type JevClassifierMode = 'off' | 'shadow' | 'on';
+
+export function getJevClassifierMode(): JevClassifierMode {
+    try {
+        const v = localStorage.getItem(JEV_CLASSIFIERS_KEY);
+        return v === 'shadow' || v === 'on' ? v : 'off';
+    } catch {
+        return 'off';
+    }
+}
+
+export function setJevClassifierMode(mode: JevClassifierMode): void {
+    try {
+        if (mode === 'off') localStorage.removeItem(JEV_CLASSIFIERS_KEY);
+        else localStorage.setItem(JEV_CLASSIFIERS_KEY, mode);
     } catch {
         /* ignore */
     }

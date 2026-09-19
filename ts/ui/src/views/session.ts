@@ -23,6 +23,7 @@ import {
     isMuteCommand,
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
+    type ClassifyResumeIntentOptions,
     defaultPacingConfig,
     defaultWaitSeconds,
     runSmartCheckin,
@@ -68,6 +69,7 @@ import {
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
+import { CloudJudge } from '../adapters/cloud-judge.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
@@ -84,7 +86,7 @@ import {
 import { isWebMode } from '../app-mode.js';
 import { describeCloudError, describeSttError } from '../stt-errors.js';
 import { simulateLlmFault } from '../dev-sim.js';
-import { isCheckinDebugOn } from '../dev-mode.js';
+import { isCheckinDebugOn, getJevClassifierMode } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
@@ -1564,6 +1566,27 @@ export async function mountSessionView(
         });
     }
 
+    // Shared by the three silence classifiers. On a hosted session the dev flag
+    // can put Jev in front of (or beside) the Haiku call; everywhere else there
+    // is no server to hold the key, so the LLM classifier stays the only path.
+    const jevMode = setup.provider === 'aloud' ? getJevClassifierMode() : 'off';
+    const classifierOptions: ClassifyResumeIntentOptions = {
+        onUsage: (u) => session.recordLlmUsage(u),
+        ...(jevMode !== 'off'
+            ? {
+                  judge: new CloudJudge(),
+                  judgeMode: jevMode === 'on' ? ('decide' as const) : ('shadow' as const),
+                  onJudged: (report) => {
+                      // No utterance in the report, so this is safe in a console
+                      // that bug reports can carry; the tap pairs it with the
+                      // adjacent classifier event, which has the text.
+                      console.info('[judge]', JSON.stringify(report));
+                      tapEvent('classifier', 'judge', { ...report });
+                  },
+              }
+            : {}),
+    };
+
     // An utterance spoken while the facilitator holds silence. The meditator can
     // think out loud without the facilitator jumping in on every word: each
     // utterance is shown and buffered, and a lightweight classification (no
@@ -1579,9 +1602,7 @@ export async function mountSessionView(
         silenceBuffer.push(userText);
         setStatus(t('Holding space, one moment…'));
         const classifyStart = Date.now();
-        const verdict = await classifyResumeIntent(utilityProvider, userText, {
-            onUsage: (u) => session.recordLlmUsage(u),
-        });
+        const verdict = await classifyResumeIntent(utilityProvider, userText, classifierOptions);
         tapCall('classify-resume', Date.now() - classifyStart);
         tapEvent('classifier', 'resume', { verdict, utterance: userText });
         // The user may have toggled out of the hold (or the view torn down)
@@ -1614,9 +1635,7 @@ export async function mountSessionView(
         awaitingHoldConfirm = false;
         tapFlags({ awaitingHoldConfirm: false });
         const confirmStart = Date.now();
-        const confirmed = await classifyHoldConfirm(utilityProvider, userText, {
-            onUsage: (u) => session.recordLlmUsage(u),
-        });
+        const confirmed = await classifyHoldConfirm(utilityProvider, userText, classifierOptions);
         tapCall('classify-confirm', Date.now() - confirmStart);
         tapEvent('classifier', 'hold-confirm', { confirmed, utterance: userText });
         if (torn) return;
@@ -1644,9 +1663,7 @@ export async function mountSessionView(
     async function handleReHoldRequest(userText: string): Promise<void> {
         if (isNonSpeechOnly(userText)) return;
         const reholdStart = Date.now();
-        const asking = await classifyHoldRequest(utilityProvider, userText, {
-            onUsage: (u) => session.recordLlmUsage(u),
-        });
+        const asking = await classifyHoldRequest(utilityProvider, userText, classifierOptions);
         tapCall('classify-rehold', Date.now() - reholdStart);
         tapEvent('classifier', 'rehold', { asking, utterance: userText });
         if (torn) return;

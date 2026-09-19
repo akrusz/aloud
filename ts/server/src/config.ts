@@ -151,6 +151,10 @@ export interface Config {
     azureSpeechKey?: string;
     azureSpeechRegion: string;
 
+    /** TypeSafe key. When set, /cloud/v1/judge answers the silence classifiers
+     *  with Jev; unset, clients keep the LLM classifier. */
+    typesafeApiKey?: string;
+
     /** Stripe, optional; billing routes report "not configured" without it. */
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
@@ -263,6 +267,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const openaiTtsKey = env['OPENAI_TTS_API_KEY'] || env['OPENAI_API_KEY'];
     if (openaiTtsKey) config.openaiTtsApiKey = openaiTtsKey;
     if (env['AZURE_SPEECH_KEY']) config.azureSpeechKey = env['AZURE_SPEECH_KEY'];
+    if (env['TYPESAFE_API_KEY']) config.typesafeApiKey = env['TYPESAFE_API_KEY'];
     if (env['STRIPE_SECRET_KEY']) config.stripeSecretKey = env['STRIPE_SECRET_KEY'];
     if (env['STRIPE_WEBHOOK_SECRET']) config.stripeWebhookSecret = env['STRIPE_WEBHOOK_SECRET'];
     if (env['X402_ENABLED'] === '1') config.x402Enabled = true;

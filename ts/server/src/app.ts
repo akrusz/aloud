@@ -18,6 +18,7 @@ import { meRoutes } from './routes/me.js';
 import { llmRoutes } from './routes/llm.js';
 import { sttRoutes } from './routes/stt.js';
 import { ttsRoutes } from './routes/tts.js';
+import { judgeRoutes } from './routes/judge.js';
 import { CURATED_VOICES, defaultVoice } from './providers/voice-catalog.js';
 import { voiceCreditsPerHourTypical } from './pricing/estimate.js';
 import type { CloudVoice } from './contract.js';
@@ -63,6 +64,7 @@ export function createApp(deps: Deps): Hono {
             // Which media capabilities the client can route here (vs native).
             stt: Boolean(deps.config.sttConfig),
             tts: Boolean(deps.config.googleTtsApiKey || deps.config.openaiTtsApiKey || deps.config.azureSpeechKey),
+            judge: Boolean(deps.config.typesafeApiKey),
         })
     );
 
@@ -115,6 +117,7 @@ export function createApp(deps: Deps): Hono {
     app.route('/cloud/v1/llm', llmRoutes(deps));
     app.route('/cloud/v1/stt', sttRoutes(deps));
     app.route('/cloud/v1/tts', ttsRoutes(deps));
+    app.route('/cloud/v1/judge', judgeRoutes(deps));
     app.route('/cloud/v1/billing', billingRoutes(deps));
     app.route('/cloud/v1/gifts', giftRoutes(deps));
     app.route('/cloud/v1/incidents', incidentRoutes(deps));

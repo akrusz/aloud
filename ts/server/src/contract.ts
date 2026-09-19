@@ -12,6 +12,7 @@
  */
 
 import type { Message } from '@aloud/core/llm';
+import type { ClassifierId } from '@aloud/core/facilitation';
 
 /** Providers aloud cloud will forward to. The web tier's ONLY LLM source is this
  *  server; on-device and bring-your-own-key live in the app-store / desktop
@@ -63,6 +64,25 @@ export interface CompleteChunk {
     text: string;
     done: boolean;
     result?: CompleteResponse;
+}
+
+// ---- POST /cloud/v1/judge ---------------------------------------------------------
+
+export interface JudgeRequest {
+    /** Which silence classifier; the question is server-side (core JUDGE_SPECS). */
+    classifier: ClassifierId;
+    /** One utterance. */
+    text: string;
+    /** See CompleteRequest.sessionId. */
+    sessionId?: string;
+}
+
+export interface JudgeResponse {
+    /** P(yes), 0..1. The client applies the threshold. */
+    p: number;
+    model: string;
+    /** Server-to-TypeSafe round trip, so the A/B can split it from the client's. */
+    latencyMs: number;
 }
 
 // ---- POST /cloud/v1/stt -----------------------------------------------------------

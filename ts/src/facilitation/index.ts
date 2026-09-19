@@ -31,6 +31,16 @@ export {
     type ResumeContextOptions,
 } from './resume.js';
 export { classifyResumeIntent, classifyHoldConfirm, classifyHoldRequest } from './resume-intent.js';
+export type { ClassifyResumeIntentOptions } from './resume-intent.js';
+export { JUDGE_SPECS, CLASSIFIER_IDS, isClassifierId, judgeState } from './utterance-judge.js';
+export type {
+    ClassifierId,
+    JudgeMode,
+    JudgeReport,
+    JudgeSpec,
+    JudgeQuestion,
+    UtteranceJudge,
+} from './utterance-judge.js';
 export { routeUtterance, HOLD_REENTRY_GRACE_MS } from './silence-dispatch.js';
 export type { UtteranceRoute, SilenceDispatchState } from './silence-dispatch.js';
 export { isMuteCommand } from './mute-command.js';

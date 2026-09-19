@@ -11,6 +11,12 @@ import {
     HOLD_REQUEST_SYSTEM_PROMPT,
 } from '../src/facilitation/prompts.js';
 import type { LLMProvider, CompletionResult, Message, CompletionOptions } from '../src/llm/index.js';
+import {
+    JUDGE_SPECS,
+    type ClassifierId,
+    type JudgeReport,
+    type UtteranceJudge,
+} from '../src/facilitation/utterance-judge.js';
 
 class StubProvider implements LLMProvider {
     readonly model = 'stub';
@@ -143,5 +149,79 @@ describe('classifyHoldConfirm', () => {
         await classifyHoldConfirm(provider, 'mm-hmm');
         expect(provider.seenSystem).toBe(HOLD_CONFIRM_SYSTEM_PROMPT);
         expect(provider.seenMaxTokens).toBe(10);
+    });
+});
+
+describe('typed-judgment path (utterance-judge.ts)', () => {
+    const judgeOf = (p: number | Error): UtteranceJudge & { seen: Array<[ClassifierId, string]> } => ({
+        seen: [],
+        async judge(id, text) {
+            this.seen.push([id, text]);
+            if (p instanceof Error) throw p;
+            return p;
+        },
+    });
+
+    it('decides from the probability and never calls the LLM', async () => {
+        const llm = new FlakyProvider(0, 'NO');
+        const judge = judgeOf(0.9);
+        expect(await classifyResumeIntent(llm, "I'm back", { judge })).toBe('resume');
+        expect(llm.calls).toBe(0);
+        expect(judge.seen).toEqual([['resume', "I'm back"]]);
+    });
+
+    it("applies each classifier's own threshold", async () => {
+        const llm = new StubProvider('YES');
+        const judge = judgeOf(0.6);
+        expect(await classifyResumeIntent(llm, 'x', { judge })).toBe('resume');
+        expect(await classifyHoldConfirm(llm, 'x', { judge })).toBe(false);
+        expect(await classifyHoldRequest(llm, 'x', { judge })).toBe(false);
+    });
+
+    it('falls back to the LLM when the judge fails, and reports both sides', async () => {
+        const reports: JudgeReport[] = [];
+        const verdict = await classifyResumeIntent(new StubProvider('YES'), 'x', {
+            judge: judgeOf(new Error('502')),
+            onJudged: (r) => reports.push(r),
+        });
+        expect(verdict).toBe('resume');
+        expect(reports).toHaveLength(1);
+        expect(reports[0]!.judge).toHaveProperty('error');
+        expect(reports[0]!.llm?.verdict).toBe('yes');
+    });
+
+    it("keeps the LLM's 'error' verdict when both fail", async () => {
+        const verdict = await classifyResumeIntent(new StubProvider(new Error('429')), 'x', {
+            judge: judgeOf(new Error('502')),
+        });
+        expect(verdict).toBe('error');
+    });
+
+    it('shadow mode runs both and acts on the LLM', async () => {
+        const reports: JudgeReport[] = [];
+        const llm = new FlakyProvider(0, 'NO');
+        const verdict = await classifyResumeIntent(llm, 'x', {
+            judge: judgeOf(0.99),
+            judgeMode: 'shadow',
+            onJudged: (r) => reports.push(r),
+        });
+        expect(verdict).toBe('stay');
+        expect(llm.calls).toBe(1);
+        expect(reports[0]).toMatchObject({ mode: 'shadow', verdict: 'no', judge: { p: 0.99, verdict: 'yes' } });
+    });
+
+    it('mirrors every example from the LLM prompts', () => {
+        const pairs: Array<[ClassifierId, string]> = [
+            ['resume', RESUME_INTENT_SYSTEM_PROMPT],
+            ['hold-confirm', HOLD_CONFIRM_SYSTEM_PROMPT],
+            ['hold-request', HOLD_REQUEST_SYSTEM_PROMPT],
+        ];
+        for (const [id, prompt] of pairs) {
+            const { criteria } = JUDGE_SPECS[id].question;
+            for (const m of prompt.matchAll(/^"(.+)" -> (YES|NO)$/gm)) {
+                const side = m[2] === 'YES' ? criteria.true : criteria.false;
+                expect(side.examples, `${id}: ${m[1]}`).toContain(m[1]);
+            }
+        }
     });
 });

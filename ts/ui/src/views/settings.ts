@@ -32,7 +32,16 @@ import {
     devSetCloudBypass,
     type AppMode,
 } from '../app-mode.js';
-import { isDevMode, getCheckinDebugSetting, setCheckinDebug, isAecOffDebug, setAecOffDebug } from '../dev-mode.js';
+import {
+    isDevMode,
+    getCheckinDebugSetting,
+    setCheckinDebug,
+    isAecOffDebug,
+    setAecOffDebug,
+    getJevClassifierMode,
+    setJevClassifierMode,
+    type JevClassifierMode,
+} from '../dev-mode.js';
 import {
     CLOUD_FAULT_NAMES,
     STT_FAULTS,
@@ -1504,6 +1513,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         hud?.addEventListener('change', () => setCheckinDebug(hud.checked));
         const aec = root.querySelector<HTMLInputElement>('#s-dev-aec-off');
         aec?.addEventListener('change', () => setAecOffDebug(aec.checked));
+        const jev = root.querySelector<HTMLSelectElement>('#s-dev-jev');
+        jev?.addEventListener('change', () => setJevClassifierMode(jev.value as JevClassifierMode));
         const preview = root.querySelector<HTMLInputElement>('#s-dev-preview-update');
         preview?.addEventListener('change', () => {
             try {
@@ -2371,6 +2382,15 @@ function renderDeveloperSection(): string {
                     <span>Cloud mic without echo cancellation</span>
                 </label>
                 <span class="form-hint">Next session's capture opens with echoCancellation off (Android call-stream experiment). Expect echo in the [vad] tts window lines.</span>
+            </div>
+            <div class="form-group form-group-half">
+                <label for="s-dev-jev">Jev silence classifiers</label>
+                <select id="s-dev-jev">
+                    ${(['off', 'shadow', 'on'] as const)
+                        .map((m) => `<option value="${m}"${getJevClassifierMode() === m ? ' selected' : ''}>${m}</option>`)
+                        .join('')}
+                </select>
+                <span class="form-hint">aloud cloud sessions only. Shadow logs Jev beside the Haiku verdict ([judge] console lines); on lets Jev decide, Haiku as fallback.</span>
             </div>
         </div>
         ${devBuildRows}
