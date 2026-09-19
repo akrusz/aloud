@@ -57,7 +57,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: September 13, 2026</p>
+    <p class="updated">Last updated: September 18, 2026</p>
 
     <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains, plainly, what happens to your data in each case.</p>
 
@@ -93,6 +93,7 @@
       <li><strong>Providers you connect yourself</strong> (e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq - with your own API key, or your Claude subscription via the <code>claude</code> CLI): your text goes directly to that provider's API under their privacy policy and terms. aloud neither receives nor stores it.</li>
       <li><strong>Via aloud cloud:</strong> your text is relayed through our service to the language-model provider and is not stored by us.</li>
     </ul>
+    <p>On aloud cloud, short things you say are also checked by a small classification model, so the app can recognize a spoken command (like "set a timer for ten minutes") or tell whether you're calling the facilitator back from a silence. That check includes what you just said and, during a silence, possibly the few things you said just before it. It's relayed the same way and is not stored by us. This doesn't happen in local or bring-your-own use.</p>
 
     <h3>Spoken responses</h3>
     <p>Facilitator responses are turned into speech. Depending on your setup this happens <strong>on your device</strong> (Piper, or your system's built-in voices), via a cloud voice service <strong>you connect</strong>, or <strong>via aloud cloud</strong>, which relays the response text to a text-to-speech provider. We don't store the audio or text.</p>
@@ -130,7 +131,7 @@
 
     <h2>Third-party services</h2>
     <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
-    <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use <strong>Anthropic, Google, OpenAI, and Novita (via OpenRouter)</strong> for language models. The Kimi model is an open model from Moonshot AI, but it runs on Novita's US infrastructure (with Groq, also US, as a fallback host); your sessions are not sent to Moonshot. We also use <strong>OpenAI</strong> for speech-to-text and <strong>Microsoft Azure AI Speech, Google Cloud Text-to-Speech, and OpenAI</strong> for voice. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
+    <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use <strong>Anthropic, Google, OpenAI, and Novita (via OpenRouter)</strong> for language models. The Kimi model is an open model from Moonshot AI, but it runs on Novita's US infrastructure (with Groq, also US, as a fallback host); your sessions are not sent to Moonshot. We also use <strong>OpenAI</strong> for speech-to-text and <strong>Microsoft Azure AI Speech, Google Cloud Text-to-Speech, and OpenAI</strong> for voice. We use <strong>TypeSafe</strong> (US-hosted) for the classification model that recognizes spoken commands. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
     <p>Behind the service itself: aloud cloud runs on <strong>Fly.io</strong> in the United States, and our account database (sign-in details, credits, and usage metering, never your session content) is backed up to <strong>Cloudflare R2</strong>. Both handle data for us as infrastructure providers under data processing agreements.</p>
 
     <h2>Your control</h2>
