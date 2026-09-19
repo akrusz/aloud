@@ -152,7 +152,8 @@ export interface Config {
     azureSpeechRegion: string;
 
     /** TypeSafe key. When set, /cloud/v1/judge answers the silence classifiers
-     *  with Jev; unset, clients keep the LLM classifier. */
+     *  and the spoken-command asks with Jev; unset, clients keep the LLM
+     *  classifier and there are no spoken commands. */
     typesafeApiKey?: string;
 
     /** Stripe, optional; billing routes report "not configured" without it. */

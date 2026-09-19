@@ -73,6 +73,15 @@ check each of these still reflects reality:
   reworded English pool entry needs its zh counterpart, in the same position
   (`localizePool` pairs by array identity, `pickTimerFallback` indexes by
   position). The zh strings are an unreviewed draft flagged for a native pass.
+- **`ts/src/facilitation/voice-command.ts`** - `COMMAND_LINES`, what the app
+  says back after a spoken command. These carry their **zh inline** (`zhOr`),
+  not through `registerZhPool`, because most of them take a number; a new
+  command's acknowledgment needs both languages written here. Its `help` line
+  is a *sample* of the commands, and the full list lives in the session info
+  panel - keep the two honest about what actually exists.
+- **`ts/ui/src/voice-command-hints.ts`** - the one-time status-line nudges that
+  teach the commands ("You can just say …"). A command that loses its by-hand
+  control, or a reworded command, lands here.
 - **`ts/server/.env.example`** - comments describing config keys and defaults.
 - **`THIRD-PARTY-NOTICES.md`** - if a vendored asset or bundled third-party
   component was added, removed, or upgraded.
@@ -97,6 +106,12 @@ check each of these still reflects reality:
   `ts-server.md` env table and audition table, `pricing/providers.ttsRateFor`
   and the estimate labels, and the **privacy policy's subprocessor list**
   (it names the voice/speech vendors, not just the LLM ones).
+- **Added/removed/reworded a spoken command** → its ask in
+  `voice-command-specs.ts` and a rerun of `npm run jev:commands` (the asks share
+  one request, so any edit rescores all of them), `COMMAND_LINES` (English *and*
+  the inline zh), the `help` sample, the session info panel's list, the
+  `voice-command-hints.ts` nudge if it has a by-hand twin, and the command
+  examples quoted in README, the site FAQ and the store description.
 - **Edited any user-facing English string** → see `zh.ts` in Part A. The
   translation is keyed on the English text; changing the text un-translates it.
 - **Changed platform support** (e.g. mobile ships) → the "coming soon" lines on the

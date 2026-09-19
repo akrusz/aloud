@@ -132,11 +132,21 @@ dev builds only, same compile-time gate as the params - the `?mode=` override
 and the `?dev` cloud sign-in bypass. Invisible to anyone who just installed
 the app.
 
-One experiment switch also lives there with no URL twin: **Cloud mic without
-echo cancellation** (`isAecOffDebug`, `dev-mode.ts`, localStorage
-`aloud:debugAecOff`) opens the next session's PCM capture with
-`echoCancellation: false` - the Android call-stream measurement; judge it by the
-`[vad] tts window` lines.
+Two experiment switches also live there with no URL twin:
+
+- **Cloud mic without echo cancellation** (`isAecOffDebug`, `dev-mode.ts`,
+  localStorage `aloud:debugAecOff`) opens the next session's PCM capture with
+  `echoCancellation: false` - the Android call-stream measurement; judge it by
+  the `[vad] tts window` lines.
+- **Jev silence classifiers** (`getJevClassifierMode`, `dev-mode.ts`,
+  localStorage `aloud:jevClassifiers`), aloud cloud sessions only, read at
+  session start: `on` (default) lets Jev decide with the LLM classifier as
+  fallback, `shadow` runs both and acts on the LLM - for measuring a question
+  change - and `off` is the LLM alone. Every call prints a `[judge]` line.
+  `off` drops the judge for the whole session, so it takes the spoken
+  commands with it (they have no LLM twin); `shadow` keeps them. The override
+  is the hosted rollout only - a BYOK/local sit that opted in gets the judge
+  regardless.
 
 Dev mode is also what turns the diagnostic console lines on in a release build
 (`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[judge]`,
