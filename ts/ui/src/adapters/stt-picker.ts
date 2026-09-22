@@ -34,6 +34,7 @@ import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import { simulateSttFault } from '../dev-sim.js';
+import { whisperWarmUrl } from '../whisper-ready.js';
 import type { SttEngineChoice } from '../app-settings.js';
 
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
@@ -59,7 +60,6 @@ export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 // Resolved through appUrl(): the desktop's embedded Rust backend
 // (127.0.0.1:<port>) under Tauri, or the relative /app path (Hono) on the web.
 const SERVER_WHISPER_PATH = '/stt/whisper';
-const SERVER_WHISPER_WARM_PATH = '/stt/whisper/warm';
 let cachedBackend: SttBackend | null = null;
 
 async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean> {
@@ -71,11 +71,9 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
         // session's model now, during setup - without the warm, the retarget
         // waited for the first utterance, which 503'd into a lost first turn
         // after a model/language change.
-        const params = vadOpts.whisperModelSize
-            ? `?model_size=${encodeURIComponent(vadOpts.whisperModelSize)}` +
-              `&lang=${encodeURIComponent(vadOpts.language ?? 'en')}`
-            : '';
-        const response = await fetch(appUrl(`${SERVER_WHISPER_WARM_PATH}${params}`));
+        const response = await fetch(
+            whisperWarmUrl(vadOpts.whisperModelSize, vadOpts.language ?? 'en')
+        );
         return response.ok;
     } catch {
         return false;
@@ -170,10 +168,7 @@ export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | 
         case 'web-speech':
             return new WebSpeechSttEngine(webSpeechOpts(vadOpts));
         case 'server-whisper':
-            return new WhisperPcmSttEngine({
-                ...vadOpts,
-                endpointUrl: appUrl(SERVER_WHISPER_PATH),
-            });
+            return localWhisperStt(vadOpts);
         case 'none':
             return null;
     }
@@ -194,30 +189,36 @@ export function sttLangTag(lang: string): string {
     }
 }
 
-/** Map the VAD pause settings onto Web Speech's submit-delay options (Chrome
- *  otherwise submits the instant it detects a pause). Mirrors the
- *  server-Whisper adaptive ramp: base + speech×ramp, capped at max. */
-function webSpeechOpts(vadOpts: VadOpts): WebSpeechSttEngineOptions {
-    const opts: WebSpeechSttEngineOptions = {};
+/** Map the VAD pause settings onto the self-endpointing recognizers' submit
+ *  window, mirroring the server-Whisper adaptive ramp (base + speech×ramp,
+ *  capped at max). Without it Chrome submits the instant it detects a pause,
+ *  and Android's recognizer on a ~1.5s one, shipping a mid-thought fragment. */
+function submitWindowOpts(
+    vadOpts: VadOpts
+): Pick<WebSpeechSttEngineOptions, 'submitDelayMs' | 'submitMaxDelayMs' | 'submitRampRate'> {
+    const opts: ReturnType<typeof submitWindowOpts> = {};
     if (vadOpts.silenceBaseMs !== undefined) opts.submitDelayMs = vadOpts.silenceBaseMs;
     if (vadOpts.silenceMaxMs !== undefined) opts.submitMaxDelayMs = vadOpts.silenceMaxMs;
     if (vadOpts.silenceRampRate !== undefined) opts.submitRampRate = vadOpts.silenceRampRate;
+    return opts;
+}
+
+function webSpeechOpts(vadOpts: VadOpts): WebSpeechSttEngineOptions {
+    const opts: WebSpeechSttEngineOptions = submitWindowOpts(vadOpts);
     // Without this the recognizer falls back to the page's hardcoded lang="en"
     // and the Language setting is a no-op on web.
     if (vadOpts.language) opts.lang = sttLangTag(vadOpts.language);
     return opts;
 }
 
-/** Same mapping for the native engine. Android's recognizer endpoints on a
- *  ~1.5s pause, so without this a mid-thought pause ships a fragment to the AI;
- *  the engine restart-stitches to hold the turn open for this window instead. */
 function capacitorOpts(vadOpts: VadOpts): CapacitorSttEngineOptions {
-    const opts: CapacitorSttEngineOptions = {};
-    if (vadOpts.silenceBaseMs !== undefined) opts.submitDelayMs = vadOpts.silenceBaseMs;
-    if (vadOpts.silenceMaxMs !== undefined) opts.submitMaxDelayMs = vadOpts.silenceMaxMs;
-    if (vadOpts.silenceRampRate !== undefined) opts.submitRampRate = vadOpts.silenceRampRate;
+    const opts: CapacitorSttEngineOptions = submitWindowOpts(vadOpts);
     if (vadOpts.language) opts.language = sttLangTag(vadOpts.language);
     return opts;
+}
+
+function localWhisperStt(vadOpts: VadOpts): SttEngine {
+    return new WhisperPcmSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) });
 }
 
 /**
@@ -256,9 +257,7 @@ async function buildSttForChoice(
         case 'whisper':
             // The probe doubles as the model warm-up (see above), so pass the
             // session's model params through.
-            return (await isServerWhisperReachable(vadOpts))
-                ? new WhisperPcmSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) })
-                : null;
+            return (await isServerWhisperReachable(vadOpts)) ? localWhisperStt(vadOpts) : null;
     }
 }
 

@@ -191,22 +191,18 @@ export class CloudTtsEngine implements TtsEngine {
         const inflight = SYNTH_INFLIGHT.get(cacheKey);
         if (inflight) return inflight;
         const request = (async (): Promise<Blob> => {
-            let { url, init } = await this.buildRequest(text, options);
-            let response = await withTimeout(
-                this.fetchImpl(url, init),
-                TTS_REQUEST_TIMEOUT_MS,
-                'aloud cloud TTS timed out.'
-            );
+            const timed = <T>(p: Promise<T>): Promise<T> =>
+                withTimeout(p, TTS_REQUEST_TIMEOUT_MS, 'aloud cloud TTS timed out.');
+            const send = async (): Promise<Response> => {
+                const { url, init } = await this.buildRequest(text, options);
+                return timed(this.fetchImpl(url, init));
+            };
+            let response = await send();
             // Self-heal a stale token: clear and re-sign-in once on a 401,
             // matching the LLM proxy.
             if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
                 await this.onAuthError();
-                ({ url, init } = await this.buildRequest(text, options));
-                response = await withTimeout(
-                    this.fetchImpl(url, init),
-                    TTS_REQUEST_TIMEOUT_MS,
-                    'aloud cloud TTS timed out.'
-                );
+                response = await send();
             }
             if (!response.ok) {
                 // Phrase as "endpoint <status>", mirroring the Whisper adapter,
@@ -217,11 +213,7 @@ export class CloudTtsEngine implements TtsEngine {
                     `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
                 );
             }
-            const blob = await withTimeout(
-                response.blob(),
-                TTS_REQUEST_TIMEOUT_MS,
-                'aloud cloud TTS timed out.'
-            );
+            const blob = await timed(response.blob());
             // Count the characters rendered. Fires for prefetches too: the
             // server did render, so it bills.
             this.onSynthesize?.(text.length);
@@ -285,7 +277,7 @@ export class CloudTtsEngine implements TtsEngine {
             : null;
 
         return new Promise<void>((resolve, reject) => {
-            const cleanup = () => {
+            const release = (): void => {
                 detachPlaybackHandlers(audio);
                 URL.revokeObjectURL(url);
                 if (this.currentAudio === audio) {
@@ -293,6 +285,9 @@ export class CloudTtsEngine implements TtsEngine {
                     this.currentUrl = null;
                     this.currentAbort = null;
                 }
+            };
+            const cleanup = (): void => {
+                release();
                 const r = this.currentResolve;
                 this.currentResolve = null;
                 if (r) r();
@@ -317,13 +312,7 @@ export class CloudTtsEngine implements TtsEngine {
                     cleanup();
                     return;
                 }
-                detachPlaybackHandlers(audio);
-                URL.revokeObjectURL(url);
-                if (this.currentAudio === audio) {
-                    this.currentAudio = null;
-                    this.currentUrl = null;
-                    this.currentAbort = null;
-                }
+                release();
                 this.currentResolve = null;
                 reject(err instanceof Error ? err : new Error(String(err)));
             });

@@ -24,6 +24,7 @@ import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 import { diag } from '../diag.js';
+import { EventQueue } from './event-queue.js';
 
 /**
  * Join the transcript so far with the current recognizer segment. The
@@ -173,33 +174,10 @@ export class CapacitorSttEngine implements SttEngine {
             return;
         }
 
-        const queue: SttEvent[] = [];
-        let done = false;
-        let wake: (() => void) | null = null;
-
-        const push = (event: SttEvent): void => {
-            queue.push(event);
-            if (wake) {
-                const w = wake;
-                wake = null;
-                w();
-            }
-        };
-        this.wakeForStop = () => {
-            if (wake) {
-                const w = wake;
-                wake = null;
-                w();
-            }
-        };
-        const finish = (): void => {
-            done = true;
-            if (wake) {
-                const w = wake;
-                wake = null;
-                w();
-            }
-        };
+        const events = new EventQueue<SttEvent>();
+        const push = (event: SttEvent): void => events.push(event);
+        const finish = (): void => events.finish();
+        this.wakeForStop = () => events.wake();
 
         // Clear any half-torn-down native session (the next start() fails
         // "RecognitionService busy" otherwise). The plugin's stop() NEVER
@@ -288,14 +266,13 @@ export class CapacitorSttEngine implements SttEngine {
             if (settleTimer !== null) clearTimeout(settleTimer);
             if (idleTimer !== null) clearTimeout(idleTimer);
             if (startTimer !== null) clearTimeout(startTimer);
-            startTimer = null;
-            endTimer = settleTimer = idleTimer = null;
+            endTimer = settleTimer = idleTimer = startTimer = null;
         };
         const combined = (): string => stitchUtterances(accumulated, segmentText);
 
         // End the turn: emit the stitched transcript (or note silence) and stop.
         const submit = (): void => {
-            if (submitted || done) return;
+            if (submitted || events.done) return;
             submitted = true;
             clearTimers();
             const text = combined();
@@ -359,7 +336,7 @@ export class CapacitorSttEngine implements SttEngine {
         // so a truly-dead recognizer ends the turn rather than spinning.
         const onStartTimeout = (): void => {
             startTimer = null;
-            if (submitted || done || this.stopRequested || started) return;
+            if (submitted || events.done || this.stopRequested || started) return;
             if (startRetries < MAX_START_RETRIES) {
                 startRetries++;
                 diag(
@@ -376,14 +353,14 @@ export class CapacitorSttEngine implements SttEngine {
         // stitched transcript. Bounded by the end-of-turn timer, which fires
         // submit() and flips `submitted`, so this can't loop forever.
         const restartSegment = async (): Promise<void> => {
-            if (submitted || done || this.stopRequested || relaunching) return;
+            if (submitted || events.done || this.stopRequested || relaunching) return;
             // Latched until the relaunch lands: the native stop() below can
             // itself fire onError (now a visible 'error' event, see the state
             // listener), which must not trigger a second, racing restart.
             relaunching = true;
             void SpeechRecognition.stop().catch(() => {});
             await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
-            if (submitted || done || this.stopRequested) {
+            if (submitted || events.done || this.stopRequested) {
                 relaunching = false;
                 return;
             }
@@ -406,10 +383,23 @@ export class CapacitorSttEngine implements SttEngine {
             launchSegment();
         };
 
+        // The recognizer gave up on silence. Mid-turn, keep the mic live for a
+        // continuation (the end-of-turn timer submits), marking the deaf point
+        // if 'stopped' didn't already - NO_MATCH can arrive without it - so
+        // restartSegment credits the gap. Nothing heard: end the empty turn.
+        const onSilence = (): void => {
+            if (stitching && sawSpeech && accumulated) {
+                if (stoppedAt === 0) stoppedAt = Date.now();
+                void restartSegment();
+            } else {
+                submit();
+            }
+        };
+
         // Live speech in the currently-active segment: advances the transcript
         // and resets the end-of-turn window.
         const onLiveSpeech = (text: string): void => {
-            if (submitted || done) return;
+            if (submitted || events.done) return;
             markStarted(); // a partial proves the recognizer came up
             // An empty partial is the recognizer hearing sound it can't
             // transcribe (its own start tone, the room). Not speech: it must
@@ -434,7 +424,7 @@ export class CapacitorSttEngine implements SttEngine {
         this.partialListener = await SpeechRecognition.addListener('partialResults', (data) => {
             const text = ((data as { matches?: string[] }).matches ?? [])[0];
             const isFinal = (data as { final?: boolean }).final === true;
-            if (submitted || done || (text === undefined && !isFinal)) return;
+            if (submitted || events.done || (text === undefined && !isFinal)) return;
             diag(`[stt-native] ${isFinal ? 'final' : 'partial'} ${text?.length ?? 'no'} chars`);
             if (isFinal) {
                 // The session closed (patched Android plugin). It usually
@@ -518,7 +508,7 @@ export class CapacitorSttEngine implements SttEngine {
             if (status === 'error') {
                 const msg = (data as { message?: string }).message ?? 'recognizer error';
                 const code = (data as { errorCode?: number }).errorCode;
-                if (submitted || done || this.stopRequested || relaunching) return;
+                if (submitted || events.done || this.stopRequested || relaunching) return;
                 // NO_MATCH / SPEECH_TIMEOUT: ordinary silence, not a fault. The
                 // code is authoritative when the plugin sends one; the text
                 // match covers iOS and unpatched builds.
@@ -539,15 +529,7 @@ export class CapacitorSttEngine implements SttEngine {
                     // If end-of-speech already scheduled this segment's wrap-up,
                     // let the settle path own it (fold + restart/submit).
                     if (settleTimer !== null) return;
-                    if (stitching && sawSpeech && accumulated) {
-                        // Silence during a turn in progress: keep the mic live
-                        // for a continuation; the end-of-turn timer submits.
-                        // Mark the deaf point so restartSegment credits the gap.
-                        if (stoppedAt === 0) stoppedAt = Date.now();
-                        void restartSegment();
-                    } else {
-                        submit(); // nothing heard: end the (empty) turn
-                    }
+                    onSilence();
                     return;
                 }
                 // BUSY / flaky client errors: the service didn't take the
@@ -568,7 +550,7 @@ export class CapacitorSttEngine implements SttEngine {
                 void SpeechRecognition.stop().catch(() => {});
                 return;
             }
-            if (status !== 'stopped' || submitted || done) return;
+            if (status !== 'stopped' || submitted || events.done) return;
             segmentStopped = true;
             // Mark when the mic went deaf so restartSegment can credit the gap.
             // Not on Android: the session (and the mic) outlives end-of-speech
@@ -598,7 +580,7 @@ export class CapacitorSttEngine implements SttEngine {
         const foldSegment = (): void => {
             if (settleTimer !== null) clearTimeout(settleTimer);
             settleTimer = null;
-            if (submitted || done) return;
+            if (submitted || events.done) return;
             if (segmentText) {
                 accumulated = combined();
                 segmentText = '';
@@ -645,17 +627,8 @@ export class CapacitorSttEngine implements SttEngine {
                         finish();
                         return;
                     }
-                    if (submitted || done) return;
-                    if (stitching && sawSpeech && accumulated) {
-                        // Silence during a turn in progress: the end-of-turn timer
-                        // will submit; keep the mic live for a continuation. Mark
-                        // the deaf point if 'stopped' didn't already (NO_MATCH can
-                        // arrive without it) so restartSegment credits the gap.
-                        if (stoppedAt === 0) stoppedAt = Date.now();
-                        void restartSegment();
-                    } else {
-                        submit(); // nothing heard: end the (empty) turn
-                    }
+                    if (submitted || events.done) return;
+                    onSilence();
                 });
         };
 
@@ -664,15 +637,7 @@ export class CapacitorSttEngine implements SttEngine {
         launchSegment();
 
         try {
-            while (true) {
-                while (queue.length > 0) {
-                    yield queue.shift()!;
-                }
-                if (done || this.stopRequested) return;
-                await new Promise<void>((resolve) => {
-                    wake = resolve;
-                });
-            }
+            yield* events.drain(() => this.stopRequested);
         } finally {
             this.wakeForStop = null;
             clearTimers();

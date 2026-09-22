@@ -22,6 +22,7 @@
 import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
 
 import { isIosWeb } from '../is-desktop.js';
+import { EventQueue } from './event-queue.js';
 
 // `SpeechRecognition` / `webkitSpeechRecognition` aren't in lib.dom - declare
 // just enough surface for the adapter.
@@ -147,9 +148,7 @@ export class WebSpeechSttEngine implements SttEngine {
         recognition.continuous = this.options.continuous;
         recognition.interimResults = this.options.interimResults;
 
-        const queue: SttEvent[] = [];
-        let done = false;
-        let wake: (() => void) | null = null;
+        const events = new EventQueue<SttEvent>();
 
         const { submitDelayMs, submitMaxDelayMs, submitRampRate } = this.options;
         let silenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -157,14 +156,7 @@ export class WebSpeechSttEngine implements SttEngine {
         let submitted = false;
         let speechStartMs = 0; // when this turn's speech began (for the ramp)
 
-        const push = (event: SttEvent): void => {
-            queue.push(event);
-            if (wake) {
-                const w = wake;
-                wake = null;
-                w();
-            }
-        };
+        const push = (event: SttEvent): void => events.push(event);
         const clearSilenceTimer = (): void => {
             if (silenceTimer) {
                 clearTimeout(silenceTimer);
@@ -173,12 +165,7 @@ export class WebSpeechSttEngine implements SttEngine {
         };
         const finish = (): void => {
             clearSilenceTimer();
-            done = true;
-            if (wake) {
-                const w = wake;
-                wake = null;
-                w();
-            }
+            events.finish();
         };
         // Emit the accumulated transcript and stop the recognizer (its onend
         // ends iteration). Guarded so the timer and onend can't both submit.
@@ -264,15 +251,7 @@ export class WebSpeechSttEngine implements SttEngine {
         }
 
         try {
-            while (true) {
-                while (queue.length > 0) {
-                    yield queue.shift()!;
-                }
-                if (done) return;
-                await new Promise<void>((resolve) => {
-                    wake = resolve;
-                });
-            }
+            yield* events.drain();
         } finally {
             clearSilenceTimer();
             recognition.onresult = null;
@@ -293,12 +272,6 @@ export class WebSpeechSttEngine implements SttEngine {
     }
 }
 
-/**
- * Web Speech output arrives lowercase, unpunctuated, and can run together across
- * segments. Collapse whitespace and capitalize sentence starts - no attempt to
- * restore punctuation, just to read less like a jumble. (Server Whisper already
- * returns cased, punctuated text and skips this.)
- */
 /** Does `next` continue `prev` - same words plus more? Case/punctuation-blind. */
 function extendsPrefix(next: string, prev: string): boolean {
     const bare = (s: string): string => s.toLowerCase().replace(/[^\w\s]/g, '').trim();
@@ -307,6 +280,12 @@ function extendsPrefix(next: string, prev: string): boolean {
     return a !== '' && b.length > a.length && b.startsWith(a);
 }
 
+/**
+ * Web Speech output arrives lowercase, unpunctuated, and can run together across
+ * segments. Collapse whitespace and capitalize sentence starts - no attempt to
+ * restore punctuation, just to read less like a jumble. (Server Whisper already
+ * returns cased, punctuated text and skips this.)
+ */
 function tidyTranscript(text: string): string {
     const collapsed = text.replace(/\s+/g, ' ').trim();
     if (!collapsed) return '';

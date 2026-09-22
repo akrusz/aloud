@@ -22,6 +22,15 @@ export type WhisperStatus =
 
 const POLL_MS = 1500;
 
+/** The shell's warm probe. Naming a model makes the shell start loading it;
+ *  with no size it only proves the local Whisper route is wired. */
+export function whisperWarmUrl(size: string | null | undefined, lang: string): string {
+    const query = size
+        ? `?model_size=${encodeURIComponent(size)}&lang=${encodeURIComponent(lang)}`
+        : '';
+    return appUrl(`/stt/whisper/warm${query}`);
+}
+
 interface WarmBody {
     ready?: boolean;
     error?: string | null;
@@ -47,11 +56,7 @@ export function parseWarmBody(body: WarmBody): WhisperStatus {
  */
 async function probeWhisper(size: string, lang: string): Promise<WhisperStatus> {
     try {
-        const res = await fetch(
-            appUrl(
-                `/stt/whisper/warm?model_size=${encodeURIComponent(size)}&lang=${encodeURIComponent(lang)}`
-            )
-        );
+        const res = await fetch(whisperWarmUrl(size, lang));
         if (!res.ok) return { state: 'ready' };
         return parseWarmBody((await res.json()) as WarmBody);
     } catch {

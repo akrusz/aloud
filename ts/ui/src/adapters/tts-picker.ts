@@ -11,7 +11,7 @@ import type { TtsEngine } from '../../../src/platform/tts.js';
 import { allVoices, findVoice, type VoiceEntry } from '../voices.js';
 
 import { BrowserTtsEngine } from './browser-tts.js';
-import { CloudTtsEngine } from './cloud-tts.js';
+import { CloudTtsEngine, type CloudTtsEngineOptions } from './cloud-tts.js';
 import { cloudUrl } from '../cloud-base.js';
 import { simulateTtsFault } from '../dev-sim.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
@@ -34,7 +34,7 @@ export interface CreateTtsOptions {
  * name; empty → the server's default Chirp3-HD voice.
  */
 export function createCloudAloudTts(voice = '', options: CreateTtsOptions = {}): TtsEngine {
-    const opts: ConstructorParameters<typeof CloudTtsEngine>[0] = {
+    const opts: CloudTtsEngineOptions = {
         voice,
         endpointUrl: cloudUrl('/tts'),
         usePost: true,
@@ -62,6 +62,18 @@ export function createCloudAloudPreviewTts(voice: string): TtsEngine {
         // of its server-owned phrase.
         usePost: false,
     });
+}
+
+/** A voice on the app backend's /app/v1/voices/preview (Piper, `say`, ...). */
+function serverVoiceTts(
+    name: string,
+    engine: string | undefined,
+    options: CreateTtsOptions
+): TtsEngine {
+    const opts: CloudTtsEngineOptions = { voice: name };
+    if (engine) opts.engine = engine;
+    if (options.onServerSynthesize) opts.onSynthesize = options.onServerSynthesize;
+    return new CloudTtsEngine(opts);
 }
 
 /**
@@ -110,20 +122,14 @@ async function buildTtsForVoice(
             voices.find((v) => v.id === voiceId) ??
             voices.find((v) => v.name === name && v.source === 'server') ??
             null;
-        const sttOptions: ConstructorParameters<typeof CloudTtsEngine>[0] = { voice: name };
-        if (voice?.engine) sttOptions.engine = voice.engine;
-        if (options.onServerSynthesize) sttOptions.onSynthesize = options.onServerSynthesize;
-        return { engine: new CloudTtsEngine(sttOptions), voice };
+        return { engine: serverVoiceTts(name, voice?.engine, options), voice };
     }
 
     // Legacy / unprefixed id - try the catalog one more time.
     const voices = await allVoices();
     const voice = findVoice(voices, voiceId);
     if (voice && voice.source === 'server') {
-        const sttOptions: ConstructorParameters<typeof CloudTtsEngine>[0] = { voice: voice.name };
-        if (voice.engine) sttOptions.engine = voice.engine;
-        if (options.onServerSynthesize) sttOptions.onSynthesize = options.onServerSynthesize;
-        return { engine: new CloudTtsEngine(sttOptions), voice };
+        return { engine: serverVoiceTts(voice.name, voice.engine, options), voice };
     }
     return {
         engine: voice ? new BrowserTtsEngine({ defaultVoice: voice.name }) : new BrowserTtsEngine(),
