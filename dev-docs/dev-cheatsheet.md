@@ -47,8 +47,8 @@ The Vite proxy (`ui/vite.config.ts`) forwards:
 - `/cloud/v1/*` → **Hono** on :8787 (same server; hosted accounts/credits/proxy).
 - `/ollama/*` → local Ollama daemon on :11434.
 
-So browser preview needs only the Hono server running (next section). Run
-`cd ts/server && npm run dev` and load :4649.
+So with `ui:dev` alone, start Hono separately (`npm run server:dev`) and load
+:4649.
 
 ### Phone dev over USB (chrome://inspect port forwarding)
 
@@ -73,7 +73,8 @@ Capacitor app): `npm run web:dev` on the laptop, plug the phone in, open
 
 ### Dev URL params
 
-Boot-time overrides, all read off `:4649/?…`. Every one is **dev-only** - gated on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
+Boot-time overrides, all read off `:4649/?…`. Every one is **dev-only** - gated
+on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
 deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
 
 | Param | Effect | Read in |
@@ -107,13 +108,10 @@ this one is **not** DEV-gated - deliberately, so you can preview inside a bundle
 desktop debug build (`scripts/dev-bundle.sh`), which is the only place the real
 updater button runs.
 
-The two entry points persist differently: the URL param lands in
-**sessionStorage** (so it survives the router normalizing the query string away,
-then dies with the tab), while the settings field writes the **localStorage**
-`aloud:previewUpdate` key and sticks until you empty the field. Clear a URL-set
-preview by closing the tab (a plain reload without the param keeps it - that's
-the point of sessionStorage); `localStorage.removeItem` won't touch it. Read in
-`about.ts` (`previewUpdateVersion`).
+The URL param persists in **sessionStorage** (a plain reload keeps it; close
+the tab to clear it), the settings field in **localStorage**
+`aloud:previewUpdate` until you empty the field. Read in `about.ts`
+(`previewUpdateVersion`).
 
 **Check-in / [WAIT] debug HUD** - `?debug=checkin` (also `1`, `pacing`) mounts a
 fixed monospace readout in the session view: active timing/content modes, the
@@ -146,7 +144,7 @@ Two experiment switches also live there with no URL twin:
   `off` drops the judge for the whole session, so it takes the spoken
   commands with it (they have no LLM twin); `shadow` keeps them. The override
   is the hosted rollout only - a BYOK/local sit that opted in gets the judge
-  regardless.
+  regardless. See [silence-mode.md](silence-mode.md).
 
 Dev mode is also what turns the diagnostic console lines on in a release build
 (`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[judge]`,
@@ -326,15 +324,10 @@ claude session in the same terminal with the punch list preloaded - fix and
 commit together, then exit to resume the release. The script refuses to
 proceed over an unclean tree, so a bailed-out fix can't ship half-done.
 
-**CI**: `tauri-release.yml` runs on `release: created` and builds the Tauri
-bundles for all three platforms via `tauri-action`, which also signs the
-self-updater artifacts and uploads a merged `latest.json`. macOS signs +
-notarizes via the `APPLE_*` / `MACOS_*` secrets; updater signing uses
-`TAURI_SIGNING_PRIVATE_KEY` (+ password); the desktop UI build bakes
-`VITE_ALOUD_CLOUD_URL` from the repo var `ALOUD_CLOUD_URL`.
-
-Full build/signing detail: [desktop.md](desktop.md) (Tauri - endpoint list,
-prereqs, release + cutover).
+**CI**: publishing the release runs `tauri-release.yml` (desktop bundles for all
+three platforms, signed updater artifacts) and `deploy-release.yml` (server,
+then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:
+[deploy.md](deploy.md).
 
 ### Mobile (Capacitor - iOS / Android)
 
@@ -368,13 +361,10 @@ leaves it uncommitted), and prints the latest stable release's notes for Play's
 "What's new" box. Full keystore/Play App Signing detail:
 [mobile-signing.md](mobile-signing.md).
 
-`VITE_ALOUD_CLOUD_URL` defaults from the committed `ts/ui/.env.production`
-(build-only; an env var overrides it), and the `cap:*` scripts refuse to run if
-neither supplies it (a mobile build without it has no backend). The mobile app wraps `ui/dist` in the OS WebView,
-runs in **web mode**, and talks to aloud cloud. Native adapters (storage, STT,
-keep-awake, in-app browser, sign-in) swap on `isCapacitor()`. `ts/ios/` and
-`ts/android/` are committed (hand-edited native config); the permission strings,
-icons, and full adapter map are documented in **[mobile.md](mobile.md)**.
+The mobile app wraps `ui/dist` in the OS WebView, runs in **web mode**, and
+talks to aloud cloud (`VITE_ALOUD_CLOUD_URL` from the committed
+`ts/ui/.env.production`). Adapters, native config and the patched speech plugin:
+**[mobile.md](mobile.md)**.
 
 ## Config & environment
 
@@ -390,9 +380,9 @@ icons, and full adapter map are documented in **[mobile.md](mobile.md)**.
   uses the Vite proxy); an env var / CI repo var overrides it.
 - **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono - both `/app` and `/cloud`
   proxy targets), `OLLAMA_URL`.
-- **BYOK keys** entered in the UI live in the browser's localStorage and are
-  forwarded per-request (`x-provider-key` for model lists; `x-api-key` for the
-  Anthropic proxy) - never persisted server-side.
+- **BYOK keys** entered in the UI live in the device's localStorage; sessions
+  call the provider directly. Only the model-list lookup relays one
+  (`x-provider-key` to `/app/v1/models`), and nothing is persisted server-side.
 
 ## Adding a hosted model
 
@@ -414,10 +404,9 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
 ## Dev gotchas
 
 - **UI strings are localized**: any user-visible literal in `ts/ui/src` goes
-  through `t()` (`ui/src/i18n.ts` - keyed on the English string, `{name}`
-  placeholders) with a matching entry in `ui/src/i18n/zh.ts`; static
-  `index.html` chrome uses `data-i18n` instead. Rewording English orphans the
-  zh entry - the guard in `tests/i18n.test.ts` fails until it's re-keyed.
+  through `t()` with a matching entry in `ui/src/i18n/zh.ts`; rewording English
+  orphans the zh entry and `tests/i18n.test.ts` fails until it's re-keyed. See
+  [language.md](language.md).
 - **`/cloud/v1/*` `ECONNREFUSED` in `tauri:dev`** → the Hono server isn't
   running. Start `cd ts/server && npm run dev`, or ignore it for local-only work.
 - **whisper.cpp's `whisper_model_load:` dump** is silenced

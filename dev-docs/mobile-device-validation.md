@@ -7,8 +7,8 @@ a per-category allowlist so the default is chosen by **category + cost**.
 
 ## First: STT and TTS vary very differently across same-OS devices
 
-You asked how much things vary between devices on the same OS. They differ by
-kind, and that changes how much manual testing you actually need:
+How much devices on the same OS differ depends on the kind of engine, and that
+decides how much manual testing is needed:
 
 | | What can differ on the SAME OS version | Same-OS variance | Testing strategy |
 |---|---|---|---|
@@ -29,7 +29,7 @@ specific manufacturer's stack.
   - (browser web-speech is *not* offered on native - the native plugin is better.)
 - **TTS**
   - `browser` - the WebView's `speechSynthesis`, i.e. the **native system voices**. **Free.** Current mobile default.
-  - cloud voices - OpenAI / Google TTS / ElevenLabs via `/cloud/v1`. **Costs credits** (TTS is the dominant cost line - bead `b7i`).
+  - hosted voices (Azure / Google / OpenAI) via `/cloud/v1`. **Costs credits** (TTS is the dominant cost line - bead `b7i`).
 
 ## STT validation - device buckets
 
@@ -67,7 +67,7 @@ queries) tend to fail - from bead `0ao`:
 
 **Record per bucket:** pass/fail on 1–5, offline yes/no (6), latency (7), + a
 one-line subjective quality note. **Decision:** native is the default for that
-category if it passes 1–5 **and** is offline; otherwise cloud Whisper is the
+category if it passes 1–5 **and** is offline; otherwise aloud cloud STT is the
 default there.
 
 ## TTS validation - device buckets

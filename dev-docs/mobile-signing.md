@@ -26,7 +26,7 @@ client secrets) out of git - see the checklist at the end.
 
 **Sign & upload (Xcode GUI - simplest first time)**
 
-1. `cd ts && npm run ui:build && npx cap sync ios`, then `npx cap open ios`.
+1. `cd ts && npm run cap:ios` (UI build + sync + open Xcode).
 2. Select the **App** target → **Signing & Capabilities**:
    - Check **Automatically manage signing**.
    - Pick your **Team**. Xcode creates the signing certificate + provisioning
@@ -54,7 +54,7 @@ in to the Apple ID) auto-creates the distribution cert + profile and even
 enables the Sign in with Apple capability on the App ID from App.entitlements.
 
 ```bash
-cd ts && VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev npm run cap:sync
+cd ts && npm run cap:sync
 cd ios/App
 xcodebuild archive -workspace App.xcworkspace -scheme App \
   -destination "generic/platform=iOS" -archivePath /tmp/App.xcarchive \

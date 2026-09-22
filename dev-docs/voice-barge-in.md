@@ -5,9 +5,9 @@ its TTS. It is **entirely client-side** - the backend just streams TTS audio and
 receives the next utterance; it's unaware a barge-in occurred. The energy/timing
 heuristics below are tuned for typical conversation volume.
 
-## Two pathways
+## Three pathways
 
-The path is chosen by STT backend (`ts/ui/src/views/session.ts`,
+The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
 `engineDrivenBargeIn = sttBackend === 'server-whisper'`):
 
 1. **Engine-driven (server-Whisper)** - `ts/ui/src/adapters/whisper-pcm-stt.ts`.
@@ -68,7 +68,7 @@ in [`ts/ui/src/assets/README.md`](../ts/ui/src/assets/README.md).
 
 ### Echo cancellation (first line of defense)
 
-Both pathways open their mic stream with `echoCancellation: true`. Echo
+Both detecting pathways open their mic stream with `echoCancellation: true`. Echo
 cancellation matters most here: the browser subtracts speaker output from the
 mic feed, so the facilitator's own TTS is far less likely to cross the barge-in
 threshold. The elevated threshold is the *second* line of defense, for

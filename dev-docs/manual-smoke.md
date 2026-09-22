@@ -18,39 +18,6 @@ per-device STT/TTS quality matrix.
 
 ---
 
-## Action plan - Android beta (written 2026-08-23)
-
-**Console work only you can do**, in this order. Google matches an Android OAuth
-client on (package, SHA-1); they're additive, so none of these disturb the others.
-Project **1033783393687**, package `app.aloud.meditation`
-(detail: [mobile-signin-setup.md](mobile-signin-setup.md) step 1b).
-
-1. **Play app-signing SHA-1** - enroll, then Play Console → Protected with Play
-   → Play Store distribution → Play app signing → copy the **app signing key
-   certificate** SHA-1 → register it as an Android OAuth client. **Do this before inviting testers**: without it their sign-in fails the
-   way it did on 2026-08-23, and Play re-signs with its own key so your local
-   registration doesn't cover them.
-2. **Upload keystore SHA-1** - same, for anything you sign yourself.
-3. Debug key is already registered (2026-08-23). iOS client (`tpj4`) is not needed
-   for an Android-only release.
-
-**Then the device pass**: section 3 below, all seven boxes. That's the Phase 0 gate
-in [store-submission-checklist.md](store-submission-checklist.md) - six of them are
-fixes that have never run on a phone.
-
-**Landed 2026-08-23, unverified by ear**: `wlp9` (every turn was dropping its first
-~650ms; fixed and confirmed in logcat, 0 cancels across 19 starts - what's untested
-is whether first words now reach the transcript) and `7bi9` (sign-in never fails
-silently now; a claimed cancel says "Sign-in didn't complete"). That build is
-installed on the phone as of tonight.
-
-**Worth settling early**: a few times the recognizer reported speech starting and
-then transcribed nothing. Read a known script for one session - if words go missing,
-that's a real bug and better found now than from beta feedback.
-
-**Build gotcha**: `npm run cap:android:run` rebuilds the web assets; pressing Run in
-Android Studio does *not* - it ships whatever was last synced.
-
 ## 0. Before you start
 
 ```bash
@@ -94,7 +61,7 @@ the WebAudio playback path exist only here.
 Failure states, in a dev build, via `?nomic=` (see `ui/src/mic-check.ts`):
 
 - [ ] `?nomic=denied` → setup shows the no-mic banner and **Begin is disabled**.
-- [ ] `?nomic=none` → same, with the no-device wording.
+- [ ] `?nomic=no-device` → same, with the no-device wording.
 
 ## 2. Browser
 
@@ -131,10 +98,10 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
 - [ ] **A session survives being killed.** Developer options → "Don't keep
       activities", background mid-session, return: the resume banner offers the
       sit back (`meditation-pal-v73p`).
-- [ ] **Signed-out noting works.** Clear app data. Setup → noting → remove the
-      default AI participant → Begin. Expect **no sign-in modal**, a full circle,
-      and a saved session with no cloud call. Then add an AI participant back and
-      confirm the modal **does** appear (`meditation-pal-vr3w`). This is the
+- [ ] **Signed-out noting works.** Clear app data. Setup → noting → Begin with
+      the default circle (one sound participant). Expect **no sign-in modal**, a
+      full circle, and a saved session with no cloud call. Then add an AI
+      participant and confirm the modal **does** appear (`meditation-pal-vr3w`). This is the
       claim the store reviewer note rests on.
 - [ ] **Sign-in survives a restart.** Sign in, force-stop, reopen - still signed
       in. Then sign out, force-stop, reopen - still signed **out**

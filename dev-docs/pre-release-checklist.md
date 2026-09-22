@@ -50,7 +50,7 @@ check each of these still reflects reality:
   match current branding and claims.
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
-- **`dev-docs/dev-cheatsheet.md`, `desktop.md`, `voice-barge-in.md`** - dev/build/feature docs.
+- **`dev-docs/`** - dev/build/feature docs (index: `dev-docs/README.md`).
   The cheatsheet's **dev URL params** table and **Developer mode** section drift
   fastest: a new `?param` or Settings → Developer switch belongs in both.
 - **`CLAUDE.md`** - the architecture section (commands, modules, data flow,
@@ -59,20 +59,14 @@ check each of these still reflects reality:
   surface to keep in sync.
 - **App UI text** - settings labels and hints, the tour/onboarding wizard,
   check-in prompts, welcome/empty-state copy.
-- **`ts/ui/src/i18n/zh.ts`** - the Chinese UI catalog. It is keyed on the
-  **English string verbatim**, so *any* edit to an English `t()` string orphans
-  its translation and silently reverts that string to English (`t()` falls
-  back by design). The orphan-guard in `tests/i18n.test.ts` fails CI when a
-  catalog key no longer appears anywhere in the source - on failure, re-key
-  the entry to the new English wording (or delete it). The guard matches file
-  text, not parsed strings, so a key assembled in an unusual new way could
-  still false-positive; the fix is a better variant in the test, not skipping.
-- **`ts/src/facilitation/language.ts`** - the zh twins of every canned pool
-  (check-ins, openers, timer lines, felt-sense/noting pools) and the
-  respond-in-Chinese prompt fragment. Same rule as the catalog: a new or
-  reworded English pool entry needs its zh counterpart, in the same position
-  (`localizePool` pairs by array identity, `pickTimerFallback` indexes by
-  position). The zh strings are an unreviewed draft flagged for a native pass.
+- **`ts/ui/src/i18n/zh.ts`** and **`ts/src/facilitation/language.ts`** - the
+  Chinese UI catalog and the zh twins of every canned pool. The catalog is
+  keyed on the English string, so rewording English reverts it to English
+  until re-keyed (`tests/i18n.test.ts` fails on the orphan). Pools pair by
+  position, so a reworded English entry keeps its old translation and a new one
+  needs its twin in the same slot (`tests/language.test.ts` checks lengths
+  only). Detail in [language.md](language.md); after zh changes, regenerate
+  `zh-translation-review.md` (`npm run zh:review-doc`).
 - **`ts/src/facilitation/voice-command.ts`** - `COMMAND_LINES`, what the app
   says back after a spoken command. These carry their **zh inline** (`zhOr`),
   not through `registerZhPool`, because most of them take a number; a new

@@ -24,8 +24,8 @@ config" section below is the record of those edits, for reference or a rebuild.
   provider, exactly like the hosted website.
 - **Backends**: there is no on-device backend. `/app/v1` (catalogs, system-info)
   and `/cloud/v1` (auth, credits, metered LLM/STT/TTS) both resolve **off-origin
-  to aloud cloud**, via `VITE_ALOUD_CLOUD_URL` baked into the build. You MUST
-  build with that set (see below) or the app has no backend.
+  to aloud cloud**, via `VITE_ALOUD_CLOUD_URL` baked into the build (see First
+  build).
 
 ### Native adapters (swap on `isCapacitor()`)
 
@@ -80,6 +80,13 @@ signalling the next one's `started` up to 2.5s before any text, so the adapter
 re-arms its pause window from `started` and from post-`stopped` text, not from
 live partials alone.
 
+To change the patch: edit under `node_modules`, then
+`npx patch-package @capacitor-community/speech-recognition --exclude 'android/build'`
+(the exclude keeps gradle's build artifacts out of the diff). Because
+postinstall runs it, `patch-package` is a **regular dependency**, not a dev one:
+the server image installs with `--omit=dev` and died on a missing binary until
+that moved (`ce07963`).
+
 Cloud-mic sits have their own Android quirk, outside the plugin: the WebView's
 echo-cancelled capture holds the app in communication mode for the life of the
 process and plays TTS on the voice-call stream (the rocker reads Call - known,
@@ -89,13 +96,6 @@ earpiece; `MainActivity` re-requests the speaker on resume and on mode change
 (`meditation-pal-wxj5`). Diagnose routing with `dumpsys media.audio_flinger`
 (track rows carry stream type and usage per pid; `CFG_EVENT_CREATE_AUDIO_PATCH`
 names the device) and the communication-route log in `dumpsys audio`.
-To change the patch: edit under `node_modules`, then
-`npx patch-package @capacitor-community/speech-recognition --exclude 'android/build'`
-(the exclude keeps gradle's build artifacts out of the diff).
-
-Because postinstall runs it, `patch-package` is a **regular dependency**, not a
-dev one: the server image installs with `--omit=dev` and died on a missing
-binary until that moved (`ce07963`).
 
 ## Prerequisites
 
@@ -117,12 +117,13 @@ binary until that moved (`ce07963`).
 
 ## First build
 
-The `cap:*` npm scripts build the UI and sync in one step, and refuse to run
-without `VITE_ALOUD_CLOUD_URL` (a build without it has no backend):
+The `cap:*` npm scripts build the UI and sync in one step. They take
+`VITE_ALOUD_CLOUD_URL` from the committed `ui/.env.production` (an env var
+overrides it) and refuse to run if neither sets it, since a build without it has
+no backend:
 
 ```bash
 cd ts
-export VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev
 npm run cap:android:run  # ui:build + cap sync android + Gradle build +
                          # install/launch on the connected device (adb).
                          # No Android Studio needed - the main way to run.
@@ -185,50 +186,18 @@ and the whole mic grant fails with `NotAllowedError` (bead `t25n`).
 
 ### Native sign-in (Google + Apple)
 
-The app-side is wired (`native-signin.ts`, via `@capgo/capacitor-social-login`);
-each provider hands an ID token to the existing `googleSignIn`/`appleSignIn`
-server calls. To turn it on you need the OAuth consoles + build-time client ids
-(bead `tpj4`) - the console-by-console walkthrough is in
-[mobile-signin-setup.md](mobile-signin-setup.md). App Store Guideline 4.8: if iOS offers Google it must offer Apple
-too - configure both for the store build.
-
-**Build-time env** (bake like `VITE_ALOUD_CLOUD_URL`):
-
-```
-VITE_GOOGLE_CLIENT_ID=<web client id>        # reused as the plugin webClientId
-VITE_GOOGLE_IOS_CLIENT_ID=<iOS client id>    # Google Cloud → iOS OAuth client
-VITE_APPLE_CLIENT_ID=<apple services id>     # Sign in with Apple Services ID
-# VITE_APPLE_REDIRECT_URL=<url>              # only for Apple-on-Android (iOS ignores)
-```
-
-**Google Cloud console:** create an **iOS OAuth client** for bundle
-`app.aloud.meditation`; keep the existing **web** client. Add **both** client ids
-to the server's `GOOGLE_CLIENT_IDS` (accepted token audiences) - the native
-iOS token's `aud` is the iOS client id, the Android/web token's is the web one.
-
-**iOS Info.plist** - add the Google **reversed-client-id** URL scheme (Google
-Cloud shows it for the iOS client; it looks like `com.googleusercontent.apps.NNN`):
-
-```xml
-<key>CFBundleURLTypes</key>
-<array><dict><key>CFBundleURLSchemes</key>
-  <array><string>com.googleusercontent.apps.YOUR-IOS-CLIENT-ID</string></array>
-</dict></array>
-```
-
-**Apple Developer:** enable the **Sign in with Apple** capability + entitlement
-on the app id (add the capability in Xcode too); create/confirm a **Services ID**
-(→ `VITE_APPLE_CLIENT_ID`); ensure the server's Apple verification accepts the
-app **bundle id** as the token audience for the native iOS flow.
+Wired in `native-signin.ts` via `@capgo/capacitor-social-login`; each provider
+hands an ID token to the same `googleSignIn` / `appleSignIn` server calls the web
+app uses. The consoles, the `Info.plist` URL scheme, build-time client ids and
+server audiences are in [mobile-signin-setup.md](mobile-signin-setup.md). App
+Store Guideline 4.8: if iOS offers Google it must offer Apple too.
 
 ### App icons
 
-iOS **rejects icons with an alpha channel**, so the transparent orb
-(`ts/ui/public/aloud.png`) can't be used directly. A flattened, alpha-stripped
-source is ready at `assets/aloud-orb-icon-opaque-1024.png` (orb on white, RGB,
-1024²). Use it for the iOS icon set; Android allows alpha + adaptive icons, so
-the transparent orb is fine there. Finalize the iOS background (white vs
-warm-gradient vs dark) before store submission. See bead `meditation-pal-3k5`.
+Generated, not hand-made: `scripts/generate-app-icons.sh` renders the iOS icon
+(from the opaque `assets/app-icon-ios.svg`, since iOS rejects alpha) and the
+Android launcher set (from `assets/app-icon-android-fg.svg`), after
+`npx tauri icon` for the desktop set. See the script header.
 
 ## Payments (beta)
 
@@ -261,8 +230,8 @@ device/simulator and are tracked separately:
   (`aloud-gpt-transcribe` STT - the choice labelled "aloud cloud" - / cloud
   voices) already work on mobile.
 - **Keep-awake** actually holding the screen on across a full session.
-- **Native Google/Apple sign-in** - app-side is wired (`native-signin.ts`);
-  needs the Google/Apple console setup + build-time client ids above, then a
+- **Native sign-in on iOS** - works on Android; iOS still needs the Google iOS
+  client + URL scheme ([mobile-signin-setup.md](mobile-signin-setup.md)) and a
   device to verify. `meditation-pal-tpj4`.
 
 ## Related beads
