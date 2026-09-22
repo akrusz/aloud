@@ -251,6 +251,20 @@ describe('previewErrorMessage', () => {
         expect(previewErrorMessage(new Error('TTS endpoint 401'))).toMatch(/sign in/i);
     });
 
+    it('blames the service, not the connection, when the server answered', () => {
+        // Field report: a 5xx from /tts/preview read as "check your connection"
+        // to someone whose connection was fine.
+        const server = previewErrorMessage(new Error('TTS endpoint 502: TTS upstream error'));
+        expect(server).toMatch(/voice service/i);
+        expect(server).toMatch(/502/);
+        expect(server).not.toMatch(/connection/i);
+        const client = previewErrorMessage(new Error('TTS endpoint 400: unknown preview voice'));
+        expect(client).toMatch(/400/);
+        expect(client).toMatch(/another voice/i);
+        expect(previewErrorMessage(new Error('TTS endpoint 429'))).toMatch(/wait a moment/i);
+        expect(previewErrorMessage(new Error('aloud cloud TTS timed out.'))).toMatch(/too long/i);
+    });
+
     it('falls back to a generic line for an unknown failure', () => {
         const msg = previewErrorMessage(new Error('something odd'));
         expect(msg).toMatch(/Couldn't play/i);

@@ -678,6 +678,16 @@ export function previewErrorMessage(err: unknown): string {
     if (/^speechSynthesis /.test(msg)) {
         return t("That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.");
     }
+    // The server answered, so "check your connection" would send the user
+    // chasing the wrong thing (a field report did exactly that): say the
+    // service had the problem, with the status so a report carries it.
+    if (/\b429\b/.test(msg)) return t('Too many previews at once - wait a moment and try again.');
+    const status = /\bendpoint (\d{3})\b/.exec(msg)?.[1];
+    if (status && /^5/.test(status)) {
+        return t('The voice service had a problem (error {status}). Try again in a moment.', { status });
+    }
+    if (status) return t("That voice couldn't be previewed (error {status}). Try another voice.", { status });
+    if (/timed out/i.test(msg)) return t('The voice service took too long to answer. Try again.');
     return t("Couldn't play that voice preview. Check your connection and try again.");
 }
 
