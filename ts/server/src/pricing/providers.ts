@@ -276,12 +276,13 @@ const MODELS: Record<string, ModelPricing> = {
     // Sol's $5/$30. Same caching contract as the 5.6 family: 0.1x reads, a
     // reported 1.25x write fee, no 1h tier. Reasoning defaults to `medium` but
     // takes 'none' (openai.ts lowestReasoningEffort). Requests over 272K input
-    // bill 2x, which a session never reaches. Expanded until it's been
-    // ear-tested (checklist item 5), in both languages.
+    // bill 2x, which a session never reaches. Took 5.6 Sol's curated slot and
+    // the zh default (2026-09-22): cheaper, faster, and it mirrors the
+    // meditator's words where 5.6 Sol only asks.
     'openai:gpt-6-sol': {
         provider: 'openai',
         model: 'gpt-6-sol',
-        expanded: true,
+        zhDefault: true, // zh pre-select: GPT reads native, the Claudes accented
         input: 2 / M,
         output: 10 / M,
         cacheRead: 0.2 / M,
@@ -307,10 +308,11 @@ const MODELS: Record<string, ModelPricing> = {
     // and reports them (prompt_tokens_details.cache_write_tokens), so
     // cacheCreation is a real accruing rate here. No 1h tier on automatic
     // caching, so cacheCreation1h mirrors the 5m rate and never accrues.
+    // Expanded since GPT-6 Sol took its slot.
     'openai:gpt-5.6-sol': {
         provider: 'openai',
         model: 'gpt-5.6-sol',
-        zhDefault: true, // zh pre-select: GPT reads native, the Claudes accented
+        expanded: true,
         input: 5 / M,
         output: 30 / M,
         cacheRead: 0.5 / M,
@@ -342,18 +344,6 @@ const MODELS: Record<string, ModelPricing> = {
         cacheRead: 0.5 / M,
         cacheCreation: 5 / M,
         cacheCreation1h: 5 / M, // no 1h write on automatic caching; never accrues
-    },
-    // A prior flagship at the Sonnet cost tier; same cacheCreation-at-input
-    // placeholder as 5.5.
-    'openai:gpt-5.4': {
-        provider: 'openai',
-        model: 'gpt-5.4',
-        expanded: true, // midrange price variant; Sonnet 5 holds that slot in the curated list
-        input: 2.5 / M,
-        output: 15 / M,
-        cacheRead: 0.25 / M,
-        cacheCreation: 2.5 / M,
-        cacheCreation1h: 2.5 / M, // no 1h write on automatic caching; never accrues
     },
     // Kimi K2 0711, the original K2 (no reasoning, ~1s to first token; K3's
     // mandatory reasoning ran 7-12s), via OpenRouter on Novita: the one

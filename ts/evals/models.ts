@@ -91,18 +91,11 @@ export const ROSTER: EvalModel[] = [
         note: 'Expanded-tier, kept for its different voice from 5.6 Sol.',
     },
     {
-        id: 'gpt-5.4',
-        model: 'gpt-5.4',
-        provider: 'openai',
-        shipped: true,
-        note: 'Expanded-tier prior flagship.',
-    },
-    {
         id: 'gpt-6-sol',
         model: 'gpt-6-sol',
         provider: 'openai',
         shipped: true,
-        note: 'Added 2026-09-22 (expanded) at $2/$10, well under 5.6 Sol. Candidate to take the zh default from 5.6 Sol if the voice holds.',
+        note: 'Added 2026-09-22 at $2/$10, well under 5.6 Sol, and took its curated slot and the zh default the same day. Mirrors the meditator more than 5.6 Sol; wordier (median 13 words).',
     },
     {
         id: 'gpt-6-luna',

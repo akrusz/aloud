@@ -77,7 +77,7 @@ describe('GPT-5.6 Terra (openai)', () => {
 });
 
 describe('GPT-6 Sol and Luna (openai)', () => {
-    it('are allowlisted at the 6-family rates with a 1.25x write fee, expanded in both languages', () => {
+    it('are allowlisted at the 6-family rates with a 1.25x write fee', () => {
         for (const [model, input, output] of [
             ['gpt-6-sol', 2, 10],
             ['gpt-6-luna', 0.1, 0.5],
@@ -88,9 +88,13 @@ describe('GPT-6 Sol and Luna (openai)', () => {
             expect(p!.output).toBeCloseTo(output / M, 12);
             expect(p!.cacheRead).toBeCloseTo((input * 0.1) / M, 12);
             expect(p!.cacheCreation).toBeCloseTo((input * 1.25) / M, 12);
-            expect(p!.expanded).toBe(true);
             expect(p!.zhCurated).toBeUndefined();
         }
+        // Sol took 5.6 Sol's curated slot and the zh default; Luna stays expanded.
+        expect(pricingFor('openai', 'gpt-6-sol')!.expanded).toBeUndefined();
+        expect(pricingFor('openai', 'gpt-6-sol')!.zhDefault).toBe(true);
+        expect(pricingFor('openai', 'gpt-6-luna')!.expanded).toBe(true);
+        expect(pricingFor('openai', 'gpt-5.6-sol')!.expanded).toBe(true);
     });
 });
 
@@ -98,14 +102,14 @@ describe('zh shortlist flags (2026-09-01 native-listener pass)', () => {
     it('flags exactly one zh default (Sol), swaps Sonnet/Haiku out and the GPTs + Kimi in', () => {
         const models = allowedModels();
         const zhDefaults = models.filter((m) => m.zhDefault);
-        expect(zhDefaults.map((m) => m.model)).toEqual(['gpt-5.6-sol']);
+        expect(zhDefaults.map((m) => m.model)).toEqual(['gpt-6-sol']);
         // The zh shortlist = curated minus zhExpanded plus zhCurated.
         const zhShortlist = models
             .filter((m) => (m.zhCurated ? true : !m.zhExpanded && !m.expanded))
             .map((m) => m.model)
             .sort();
         expect(zhShortlist).toEqual(
-            ['claude-fable-5-1', 'claude-opus-5-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
+            ['claude-fable-5-1', 'claude-opus-5-5', 'gpt-6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
         );
         // A zhCurated model must still be expanded for en - otherwise the flag
         // is dead weight and the en shortlist silently grew.

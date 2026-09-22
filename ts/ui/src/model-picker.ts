@@ -41,7 +41,6 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'gpt-5.6-sol': 'GPT-5.6 Sol',
     'gpt-5.6-terra': 'GPT-5.6 Terra',
     'gpt-5.5': 'GPT-5.5',
-    'gpt-5.4': 'GPT-5.4',
     'moonshotai/kimi-k2': 'Kimi K2',
 };
 

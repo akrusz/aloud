@@ -55,11 +55,11 @@ describe('ModelLiveness', () => {
     it("keeps a model on 'unknown' - even one previously marked gone stays gone until proven live", async () => {
         const verdicts: Record<string, ProbeResult> = {
             'anthropic:claude-opus-4-8': 'gone',
-            'openai:gpt-5.4': 'unknown',
+            'openai:gpt-5.5': 'unknown',
         };
         const liveness = new ModelLiveness(stubProber(verdicts));
         await liveness.sweep();
-        expect(liveness.isLive('openai', 'gpt-5.4')).toBe(true); // fail open
+        expect(liveness.isLive('openai', 'gpt-5.5')).toBe(true); // fail open
 
         // A later blanket-unknown sweep (say, an egress outage) changes nothing.
         verdicts['anthropic:claude-opus-4-8'] = 'unknown';
