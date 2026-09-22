@@ -15,6 +15,8 @@ import { appUrl } from './app-base.js';
 import { probeOllamaDirect } from './ollama-direct.js';
 import { confirmDialog, alertDialog } from './dialog.js';
 import { t } from './i18n.js';
+import { escapeHtml } from './escape-html.js';
+import { readNdjson } from './ndjson.js';
 
 interface Tier {
     model: string;
@@ -340,10 +342,10 @@ function renderTier(tier: Tier, recommendedModel: string | undefined): string {
     const actions = tier.installed
         ? `<div class="ollama-tier-actions">
             <span class="ollama-tier-installed">${t('Installed')}</span>
-            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeAttr(tier.model)}">${t('Remove')}</button>
+            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeHtml(tier.model)}">${t('Remove')}</button>
           </div>`
         : `<div class="ollama-tier-actions">
-            <button type="button" class="btn btn-small ollama-pull-btn" data-model="${escapeAttr(tier.model)}">${t('Download')}</button>
+            <button type="button" class="btn btn-small ollama-pull-btn" data-model="${escapeHtml(tier.model)}">${t('Download')}</button>
           </div>`;
 
     return `<div class="${rowClass}">
@@ -369,13 +371,13 @@ function renderOtherInstalled(m: OtherModel): string {
         </div>
         <div class="ollama-tier-actions">
             <span class="ollama-tier-installed">${t('Installed')}</span>
-            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeAttr(m.model)}">${t('Remove')}</button>
+            <button type="button" class="btn btn-small ollama-remove-btn" data-model="${escapeHtml(m.model)}">${t('Remove')}</button>
         </div>
     </div>`;
 }
 
 // ---------------------------------------------------------------------------
-// NDJSON stream consumer
+// NDJSON stream consumers
 // ---------------------------------------------------------------------------
 
 /** Read the `/app/v1/ollama/pull` NDJSON stream, advancing the progress bar and
@@ -385,25 +387,9 @@ async function consumePullStream(
     fillEl: HTMLElement | null,
     statusEl: HTMLElement | null
 ): Promise<void> {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf('\n')) >= 0) {
-            const line = buffer.slice(0, nl).trim();
-            buffer = buffer.slice(nl + 1);
-            if (!line) continue;
-            let msg: { status?: string; error?: string; total?: number; completed?: number };
-            try {
-                msg = JSON.parse(line);
-            } catch {
-                continue;
-            }
-            if (msg.status === 'error') throw new Error(msg.error ?? t('pull failed'));
+    await readNdjson(
+        body,
+        (msg) => {
             if (statusEl) statusEl.textContent = msg.status ?? '';
             if (
                 typeof msg.total === 'number' &&
@@ -414,8 +400,9 @@ async function consumePullStream(
                 const pct = Math.min(100, Math.round((msg.completed / msg.total) * 100));
                 fillEl.style.width = `${pct}%`;
             }
-        }
-    }
+        },
+        t('pull failed')
+    );
 }
 
 /**
@@ -427,60 +414,20 @@ async function consumeStatusStream(
     body: ReadableStream<Uint8Array>,
     statusEl: HTMLElement | null
 ): Promise<string | undefined> {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
     let finalMessage: string | undefined;
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf('\n')) >= 0) {
-            const line = buffer.slice(0, nl).trim();
-            buffer = buffer.slice(nl + 1);
-            if (!line) continue;
-            let msg: { status?: string; error?: string; message?: string };
-            try {
-                msg = JSON.parse(line);
-            } catch {
-                continue;
-            }
-            if (msg.status === 'error') throw new Error(msg.error ?? t('operation failed'));
+    await readNdjson(
+        body,
+        (msg) => {
             if (msg.status === 'done') {
                 finalMessage = msg.message ?? t('Done.');
                 if (statusEl) statusEl.textContent = finalMessage;
-                continue;
+                return;
             }
             if (statusEl && msg.status) statusEl.textContent = msg.status;
-        }
-    }
+        },
+        t('operation failed')
+    );
     return finalMessage;
-}
-
-// ---------------------------------------------------------------------------
-// Pure helpers (kept exported for tests)
-// ---------------------------------------------------------------------------
-
-export function escapeHtml(s: string): string {
-    return s.replace(/[&<>"']/g, (ch) => {
-        switch (ch) {
-            case '&':
-                return '&amp;';
-            case '<':
-                return '&lt;';
-            case '>':
-                return '&gt;';
-            case '"':
-                return '&quot;';
-            default:
-                return '&#39;';
-        }
-    });
-}
-
-function escapeAttr(s: string): string {
-    return escapeHtml(s);
 }
 
 export const __test = { renderHTML, renderTier };

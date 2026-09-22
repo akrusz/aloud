@@ -13,7 +13,6 @@ import {
     type ThemeMode,
     type TtsEngineChoice,
     type SttEngineChoice,
-    DEFAULT_APP_SETTINGS,
     LANGUAGES,
     applyChromeSettings,
     loadAppSettings,
@@ -60,32 +59,33 @@ import { appUrl } from '../app-base.js';
 import { openAbout, PREVIEW_UPDATE_KEY } from '../about.js';
 import {
     computeProviderMarker,
+    fetchKeyPresence,
+    fetchProviderStatus,
     stripMarker,
     type ProviderStatusMap,
 } from '../provider-markers.js';
-import { getApiKey, hasApiKey, setApiKey } from '../api-keys.js';
+import { getApiKey, setApiKey } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
 import {
-    buildScoredVoiceList,
-    downloadPercent,
-    downloadVoiceModel,
-    fetchServerVoices,
-    fetchCloudVoices,
+    downloadVoiceFromRow,
     invalidateServerVoicesCache,
+    loadScoredVoices,
     prefixedVoiceId,
     previewVoice as runPreview,
     previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
+    stripVoicePrefix,
     syncSpeedControlForVoice,
     voiceRateLabel,
-    setModelDownloadsDisabled,
     stopPreview,
     uninstallVoiceModel,
     updateVoiceSelection,
     type ScoredVoice,
 } from '../voice-picker.js';
+import { escapeHtml } from '../escape-html.js';
+import { readNdjson } from '../ndjson.js';
 import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
 import { confirmDialog, alertDialog } from '../dialog.js';
@@ -111,17 +111,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     await detectCapabilities();
     let scoredVoices: ScoredVoice[] = [];
 
-    // There's no global Save; controls auto-apply. Display (text scale, theme,
-    // balance pill) is the exception - live-resizing the UI mid-drag is
-    // disorienting, so those stay in the preview pane until "Apply". The
-    // bottom-bar button is Undo, reverting to the state at view open.
-    // (meditation-pal-odw)
-    const pendingChrome = {
-        textScale: settings.textScale,
-        themeMode: settings.themeMode,
-        showSessionBalance: settings.showSessionBalance,
-        showSessionClock: settings.showSessionClock,
-    };
+    // There's no global Save; controls auto-apply. Display is the exception -
+    // live-resizing the UI mid-drag is disorienting, so those stay in the
+    // preview pane until "Apply". The bottom-bar button is Undo, reverting to
+    // the state at view open.
+    const pendingChrome = pickChrome(settings);
 
     // Backs the ✘/✱ markers and the status hint, from /app/v1/providers plus
     // the BYOK key store (see provider-markers.ts). Unlike setup, settings only
@@ -132,13 +126,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     const ELEVENLABS_KEY_STORE = 'apikey:elevenlabs';
 
     /**
-     * Serialized view of everything Undo reverts: AppSettings except ttsEngine,
-     * plus the ElevenLabs API key.
-     *
-     * ttsEngine is excluded because "Manage TTS Engines" is a
-     * which-engine-am-I-configuring selector, not a change worth undoing.
-     * The ElevenLabs key IS a real change but lives in a separate store, so
-     * it's folded in explicitly. (meditation-pal-odw)
+     * Serialized view of everything Undo reverts: AppSettings except ttsEngine
+     * ("Manage TTS Engines" picks which engine to configure, not a change worth
+     * undoing), plus the ElevenLabs key, which lives in its own store.
      */
     function undoSnapshot(): string {
         const comparable: Partial<AppSettings> = { ...settings };
@@ -153,9 +143,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // loadVoiceCatalog doesn't mutate settings.
     const baseline = undoSnapshot();
 
-    // Everything auto-applies, and nothing used to SAY so - people hunted for
-    // a Save button. A debounced tick acknowledges each settled change; it
-    // stays quiet during mount/refresh (self-repair persists aren't the user
+    // A debounced tick acknowledges each settled change, since there's no Save
+    // button. Quiet during mount/refresh (self-repair persists aren't the user
     // saving anything) and during Display Apply, which has its own flash.
     let announceSaves = false;
     let savedTickTimer: number | undefined;
@@ -180,14 +169,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (undoBtn) undoBtn.disabled = !isUndoable();
     }
 
-    /** Are the Display controls showing an un-applied change (text scale, theme,
-     *  or the in-session balance toggle)? */
+    /** Are the Display controls showing an un-applied change? */
     function isDisplayDirty(): boolean {
-        return (
-            pendingChrome.textScale !== settings.textScale ||
-            pendingChrome.themeMode !== settings.themeMode ||
-            pendingChrome.showSessionBalance !== settings.showSessionBalance ||
-            pendingChrome.showSessionClock !== settings.showSessionClock
+        return (Object.keys(pendingChrome) as Array<keyof ChromePrefs>).some(
+            (k) => pendingChrome[k] !== settings[k]
         );
     }
 
@@ -223,6 +208,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireAdvancedReveal();
         wireDeveloperSection();
         wireFooter();
+    }
+
+    function wireInfoToggle(btnId: string, panelId: string): void {
+        const panel = root.querySelector<HTMLElement>(`#${panelId}`);
+        root.querySelector(`#${btnId}`)?.addEventListener('click', () => {
+            panel?.classList.toggle('hidden');
+        });
     }
 
     // ---- Provider section ----------------------------------------------
@@ -293,11 +285,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             attachApiKeyHelpers(p.value, cfg.url, cfg.prefix);
         }
 
-        const infoBtn = root.querySelector<HTMLButtonElement>('#llm-info-btn');
-        const infoPanel = root.querySelector<HTMLElement>('#llm-info-panel');
-        infoBtn?.addEventListener('click', () => {
-            infoPanel?.classList.toggle('hidden');
-        });
+        wireInfoToggle('llm-info-btn', 'llm-info-panel');
 
         // BYOK opt-in (hosted build only): rebuild the menu live so key-based
         // providers appear/disappear without a reload.
@@ -305,15 +293,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         byokToggle?.addEventListener('change', () => {
             settings.enableByok = byokToggle.checked;
             persist();
-            const opts = { webMode: isWebMode(), allowByok: settings.enableByok };
-            providerSel.innerHTML = ALL_PROVIDERS.filter((p) =>
-                isProviderAvailable(p, capabilitiesSync(), opts)
-            )
-                .map(
-                    (p) =>
-                        `<option value="${p.value}"${p.value === settings.defaultProvider ? ' selected' : ''}>${escape(t(p.label))}</option>`
-                )
-                .join('');
+            providerSel.innerHTML = providerOptionsHTML(settings);
             // If the selected default was a BYOK provider that just vanished,
             // fall back to whatever's now first.
             if (providerSel.value !== settings.defaultProvider && providerSel.value) {
@@ -333,23 +313,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
      * availability. Network failures leave the menu unmarked, never blocked.
      */
     async function refreshProviderMarkers(): Promise<void> {
-        const [statusResult] = await Promise.all([
-            fetch(appUrl('/providers'))
-                .then((r) => (r.ok ? (r.json() as Promise<ProviderStatusMap>) : null))
-                .catch(() => null),
-            refreshKeyPresence(),
+        const [statusResult, keys] = await Promise.all([
+            fetchProviderStatus(),
+            fetchKeyPresence(),
         ]);
+        keyPresent = keys;
         if (statusResult) providerStatus = statusResult;
         applyProviderMarkers();
-    }
-
-    async function refreshKeyPresence(): Promise<void> {
-        const entries = await Promise.all(
-            ALL_PROVIDERS.filter((p) => p.needsKey).map(
-                async (p) => [p.value, await hasApiKey(p.value)] as const
-            )
-        );
-        keyPresent = Object.fromEntries(entries);
     }
 
     /**
@@ -422,31 +392,27 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         }
         // An added/removed key flips a provider's ✘ marker and the hint. Cheap:
         // re-reads the local key store, no network.
-        await refreshKeyPresence();
+        keyPresent = await fetchKeyPresence();
         applyProviderMarkers();
     }
 
     // ---- API key helpers (Get a key + Paste) ---------------------------
 
     /**
-     * Attach a "Get a key" link and (when the browser exposes Web Clipboard) a
-     * Paste button that fills and saves the provider's key input.
+     * The helper strip every key row gets: a "Get a key" link (an <a>, so the
+     * desktop webview routes it to the system browser) and a status line,
+     * appended after the input. Callers add their own buttons to `actions`.
      */
-    function attachApiKeyHelpers(provider: Provider, url: string, prefix: string): void {
-        const inputEl = root.querySelector<HTMLInputElement>(`#s-key-${provider}`);
-        if (!inputEl) return;
-        const row = inputEl.parentElement;
-        if (!row) return;
-        // A non-null binding so nested function decls keep the narrowed type;
-        // TS doesn't propagate the early return's narrowing into them.
-        const input: HTMLInputElement = inputEl;
+    function mountKeyHelpers(
+        input: HTMLInputElement,
+        url: string
+    ): { actions: HTMLElement; status: HTMLElement } | null {
+        const row = input.parentElement;
+        if (!row) return null;
         row.classList.add('has-key-helper');
 
         const actions = document.createElement('div');
         actions.className = 'api-key-actions';
-
-        // An <a> rather than a button so the desktop webview routes it to the
-        // system browser.
         const getBtn = document.createElement('a');
         getBtn.href = url;
         getBtn.target = '_blank';
@@ -458,27 +424,38 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
         const status = document.createElement('span');
         status.className = 'api-key-paste-status';
+        row.append(actions, status);
+        return { actions, status };
+    }
 
-        // Paste is rendered only when the clipboard API exists. Reads can still
-        // fail at runtime (some Safari, the desktop WKWebView), in which case
-        // we fall back to a manual ⌘V/Ctrl+V placeholder hint.
-        const hasClipboard =
-            typeof navigator !== 'undefined' &&
-            !!navigator.clipboard &&
-            typeof navigator.clipboard.readText === 'function';
+    function addKeyButton(actions: HTMLElement, className: string, label: string): HTMLButtonElement {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `btn btn-small btn-secondary ${className}`;
+        btn.textContent = label;
+        actions.appendChild(btn);
+        return btn;
+    }
 
-        if (hasClipboard) {
-            const paste = document.createElement('button');
-            paste.type = 'button';
-            paste.className = 'btn btn-small btn-secondary api-key-paste-btn';
-            paste.textContent = t('Paste');
+    /**
+     * A provider key row: "Get a key", Paste (when the browser exposes the
+     * clipboard API), and Remove, each saving into the api-keys store.
+     */
+    function attachApiKeyHelpers(provider: Provider, url: string, prefix: string): void {
+        const input = root.querySelector<HTMLInputElement>(`#s-key-${provider}`);
+        if (!input) return;
+        const strip = mountKeyHelpers(input, url);
+        if (!strip) return;
+        const { actions, status } = strip;
+        const shortcut = pasteShortcut();
+
+        // Reads can still fail at runtime (some Safari, the desktop WKWebView),
+        // in which case we fall back to a manual ⌘V/Ctrl+V placeholder hint.
+        if (hasClipboard()) {
+            const paste = addKeyButton(actions, 'api-key-paste-btn', t('Paste'));
             paste.title = t('Paste from clipboard');
-            actions.appendChild(paste);
 
-            const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
-            const shortcut = isMac ? '⌘V' : 'Ctrl+V';
-
-            function markPasteUnavailable(): void {
+            const markPasteUnavailable = (): void => {
                 if (paste.dataset['unavailable']) return;
                 paste.dataset['unavailable'] = '1';
                 paste.disabled = true;
@@ -489,7 +466,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 );
                 paste.classList.add('is-unavailable');
                 showManualPasteHint(input, shortcut);
-            }
+            };
 
             // Chromium exposes clipboard-read via the Permissions API; when
             // it's denied we can mark the button dead up front.
@@ -533,16 +510,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 }
             });
         } else {
-            showManualPasteHint(input, /Mac/.test(navigator.platform || '') ? '⌘V' : 'Ctrl+V');
+            showManualPasteHint(input, shortcut);
         }
 
-        // Needed because clearing the field alone doesn't delete: the change
-        // handler below only saves non-empty values. Hidden when no key is
-        // stored.
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'btn btn-small btn-secondary api-key-remove-btn';
-        remove.textContent = t('Remove');
+        // Clearing the field alone doesn't delete (the change handler below
+        // only saves non-empty values), hence a Remove button, shown only
+        // while a key is stored.
+        const remove = addKeyButton(actions, 'api-key-remove-btn', t('Remove'));
         remove.title = t('Delete this stored key');
         remove.hidden = true;
         remove.addEventListener('click', async () => {
@@ -552,16 +526,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             status.classList.remove('is-warn', 'is-ok');
             await refreshApiKeyRows();
         });
-        actions.appendChild(remove);
         void getApiKey(provider).then((k) => {
             remove.hidden = !k;
         });
 
-        row.appendChild(actions);
-        row.appendChild(status);
-
-        // Manual-typing save. Keeps the input contents rather than clearing, so
-        // the user still sees the key they typed.
+        // Manual typing keeps the input contents, so the user still sees the
+        // key they typed.
         input.addEventListener('change', async () => {
             const raw = input.value.trim();
             if (raw) await setApiKey(provider, raw);
@@ -602,22 +572,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         );
     }
 
-    /** The mic picker only applies where WE open the capture stream (the PCM
-     *  engines: local Whisper / aloud cloud). Web Speech and the native
-     *  recognizer own their capture, so the pick couldn't take effect. */
-    function micPickApplies(): boolean {
-        return pcmSttChosen(settings);
-    }
-
-    /** The speculation toggle drives the same PCM engines the mic pick does;
-     *  Web Speech and the native recognizer have no speculative pass to turn
-     *  off, so the switch would be dead there. */
-    function updateSpeculationVisibility(): void {
-        root.querySelector<HTMLElement>('#s-stt-speculation-group')?.classList.toggle('hidden', !micPickApplies());
-    }
-
+    /** The mic picker and the speculation toggle only apply to the PCM engines
+     *  (see pcmSttChosen); Web Speech and the native recognizer own their
+     *  capture and have no speculative pass. */
     function updateMicDeviceVisibility(): void {
-        updateSpeculationVisibility();
+        const micPickApplies = pcmSttChosen(settings);
+        root.querySelector<HTMLElement>('#s-stt-speculation-group')?.classList.toggle('hidden', !micPickApplies);
         const canEnumerate = !!navigator.mediaDevices?.enumerateDevices;
         // `.slot-hidden` (style.css) keeps the column's empty slot at wide
         // widths so Language/Recognition stay at a third each rather than
@@ -625,7 +585,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         // display:none once the row stacks.
         root.querySelector<HTMLElement>('#s-mic-device-group')?.classList.toggle(
             'slot-hidden',
-            !micPickApplies() || !canEnumerate
+            !micPickApplies || !canEnumerate
         );
     }
 
@@ -662,7 +622,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             devices
                 .map(
                     (d, i) =>
-                        `<option value="${escape(d.deviceId)}">${escape(d.label || t('Microphone {n}', { n: i + 1 }))}</option>`
+                        `<option value="${escapeHtml(d.deviceId)}">${escapeHtml(d.label || t('Microphone {n}', { n: i + 1 }))}</option>`
                 )
                 .join('');
         // Show the stored pick when its device is present; otherwise display
@@ -739,8 +699,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         btn.dataset['action'] = info.installed ? 'remove' : 'download';
     }
 
-    /** Pre-fetch the selected model, showing ndjson progress on the button
-     *  (mirrors the Piper voice download flow). */
+    /** Pre-fetch the selected model, showing progress on the button. */
     async function downloadWhisperModel(btn: HTMLButtonElement): Promise<void> {
         const statusEl = root.querySelector<HTMLElement>('#s-whisper-model-status');
         whisperDownloadBusy = true;
@@ -753,32 +712,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 body: JSON.stringify({ size: settings.sttWhisperModel, lang: settings.language }),
             });
             if (!resp.ok || !resp.body) throw new Error(`server returned ${resp.status}`);
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            for (;;) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                let nl: number;
-                while ((nl = buffer.indexOf('\n')) >= 0) {
-                    const line = buffer.slice(0, nl).trim();
-                    buffer = buffer.slice(nl + 1);
-                    if (!line) continue;
-                    let msg: { status?: string; error?: string; completed?: number; total?: number };
-                    try {
-                        msg = JSON.parse(line);
-                    } catch {
-                        continue; // partial/garbled line
-                    }
-                    if (msg.status === 'error') throw new Error(msg.error || 'download failed');
+            await readNdjson(
+                resp.body,
+                (msg) => {
                     if (msg.status === 'downloading' && msg.total) {
                         btn.textContent = t('Downloading… {pct}%', {
                             pct: Math.round(((msg.completed ?? 0) / msg.total) * 100),
                         });
                     }
-                }
-            }
+                },
+                'download failed'
+            );
             statusEl?.classList.add('hidden');
         } catch (err) {
             if (statusEl) {
@@ -818,9 +762,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             persist();
             // The UI follows the session language. app.ts hears this event,
             // re-translates the chrome, and remounts this view - so nothing
-            // after the dispatch should touch the DOM being replaced. The
-            // whisper-badge/voice-catalog refreshes the pre-i18n handler did
-            // here now happen naturally in the remount.
+            // after the dispatch should touch the DOM being replaced.
             setUiLang(settings.language);
             window.dispatchEvent(new Event(LANGUAGE_CHANGED_EVENT));
         });
@@ -896,14 +838,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         updateVoiceButtonLabel(voiceBtn);
         voiceBtn.addEventListener('click', () => openVoiceModal(voiceBtn));
 
-        const infoBtn = root.querySelector<HTMLButtonElement>('#tts-info-btn');
-        const infoPanel = root.querySelector<HTMLElement>('#tts-info-panel');
-        infoBtn?.addEventListener('click', () => {
-            infoPanel?.classList.toggle('hidden');
-        });
+        wireInfoToggle('tts-info-btn', 'tts-info-panel');
 
-        // Same Get-a-key / Paste affordances as the LLM provider rows; visible
-        // only when TTS = elevenlabs.
+        // Visible only when TTS = elevenlabs.
         attachElevenLabsKeyHelpers();
         refreshElevenLabsRow();
     }
@@ -916,9 +853,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     function updateTtsEngineHint(): void {
         const hintEl = root.querySelector<HTMLElement>('#s-tts-engine-hint');
         if (!hintEl) return;
-        const isMac = /Mac/.test(
-            typeof navigator !== 'undefined' ? navigator.platform || '' : ''
-        );
         const openSettingsLink = isDesktopSync()
             ? ` <a href="#" data-open-voice-settings>${t('Download Premium voices')}</a>. ${t('In the System Voice row, click the <b>ⓘ</b> then click Voice.')}`
             : '';
@@ -926,7 +860,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             cloud: t('Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁️ entries.'),
             macos:
                 t('Built-in macOS voices. Zero latency, works offline.') +
-                (isMac ? openSettingsLink : ''),
+                (isMacPlatform() ? openSettingsLink : ''),
             browser:
                 t("Uses your browser's built-in speech synthesis. On Windows, Edge and the desktop app include high-quality natural voices."),
             elevenlabs:
@@ -954,45 +888,20 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Wire the ElevenLabs API key input. Its own slot in the same api-keys
-     * store the LLM keys use.
+     * The ElevenLabs key row. Same helpers as the LLM key rows, but the key
+     * isn't a Provider, so it lives straight in localStorage (and in Undo).
      */
     function attachElevenLabsKeyHelpers(): void {
         const input = root.querySelector<HTMLInputElement>('#s-elevenlabs-key');
         if (!input) return;
-        const row = input.parentElement;
-        if (!row) return;
-        row.classList.add('has-key-helper');
+        const strip = mountKeyHelpers(input, ELEVENLABS_KEY_INFO.url);
+        if (!strip) return;
+        const { actions, status } = strip;
+        const { prefix } = ELEVENLABS_KEY_INFO;
 
-        // Same structure as the LLM key rows, inlined: attachApiKeyHelpers()
-        // types its keyId as Provider, and 'elevenlabs' isn't one.
-        const actions = document.createElement('div');
-        actions.className = 'api-key-actions';
-
-        const getBtn = document.createElement('a');
-        getBtn.href = ELEVENLABS_KEY_INFO.url;
-        getBtn.target = '_blank';
-        getBtn.rel = 'noopener noreferrer';
-        getBtn.className = 'btn btn-small btn-secondary api-key-open-btn';
-        getBtn.textContent = t('Get a key ↗');
-        actions.appendChild(getBtn);
-
-        const status = document.createElement('span');
-        status.className = 'api-key-paste-status';
-
-        const hasClipboard =
-            typeof navigator !== 'undefined' &&
-            !!navigator.clipboard &&
-            typeof navigator.clipboard.readText === 'function';
-
-        if (hasClipboard) {
-            const paste = document.createElement('button');
-            paste.type = 'button';
-            paste.className = 'btn btn-small btn-secondary api-key-paste-btn';
-            paste.textContent = t('Paste');
-            actions.appendChild(paste);
-            const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
-            const shortcut = isMac ? '⌘V' : 'Ctrl+V';
+        if (hasClipboard()) {
+            const paste = addKeyButton(actions, 'api-key-paste-btn', t('Paste'));
+            const shortcut = pasteShortcut();
             paste.addEventListener('click', async () => {
                 try {
                     const text = (await navigator.clipboard.readText()).trim();
@@ -1002,15 +911,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                         return;
                     }
                     input.value = text;
-                    localStorage.setItem('apikey:elevenlabs', text);
+                    localStorage.setItem(ELEVENLABS_KEY_STORE, text);
                     updateUndoState();
-                    if (
-                        ELEVENLABS_KEY_INFO.prefix &&
-                        !text.startsWith(ELEVENLABS_KEY_INFO.prefix)
-                    ) {
-                        status.textContent = t('Pasted, but didn\'t start with "{prefix}".', {
-                            prefix: ELEVENLABS_KEY_INFO.prefix,
-                        });
+                    if (prefix && !text.startsWith(prefix)) {
+                        status.textContent = t('Pasted, but didn\'t start with "{prefix}".', { prefix });
                         status.classList.add('is-warn');
                     } else {
                         status.textContent = t('Pasted ✓');
@@ -1030,16 +934,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
         input.addEventListener('change', () => {
             const raw = input.value.trim();
-            if (raw) localStorage.setItem('apikey:elevenlabs', raw);
-            else localStorage.removeItem('apikey:elevenlabs');
+            if (raw) localStorage.setItem(ELEVENLABS_KEY_STORE, raw);
+            else localStorage.removeItem(ELEVENLABS_KEY_STORE);
             updateUndoState();
         });
 
-        const existing = localStorage.getItem('apikey:elevenlabs');
-        if (existing) input.placeholder = t('Saved, type to replace');
-
-        row.appendChild(actions);
-        row.appendChild(status);
+        if (localStorage.getItem(ELEVENLABS_KEY_STORE)) input.placeholder = t('Saved, type to replace');
     }
 
     /**
@@ -1078,24 +978,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         engine: string | undefined
     ): Promise<void> {
         const listEl = root.querySelector<HTMLElement>('#settings-voice-modal-list');
-        const model = btn.closest<HTMLElement>('.voice-row')?.dataset['model'];
-        const original = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '0%';
-        // Lock sibling speakers (same shared .onnx) while downloading.
-        if (listEl) setModelDownloadsDisabled(listEl, model, true, btn);
-        try {
-            await downloadVoiceModel(name, engine, (p) => {
-                btn.textContent = `${downloadPercent(p)}%`;
-            });
-        } catch (err) {
-            btn.disabled = false;
-            btn.textContent = original ?? t('Download');
-            if (listEl) setModelDownloadsDisabled(listEl, model, false, btn);
-            void alertDialog(t('Could not download: {message}', { message: (err as Error).message }));
-            return;
-        }
-        await refreshVoiceList();
+        if (await downloadVoiceFromRow(listEl, btn, name, engine)) await refreshVoiceList();
     }
 
     /** Drop the cached voice list, re-fetch, and re-render the modal list. */
@@ -1112,22 +995,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     async function loadVoiceCatalog(): Promise<void> {
-        if (
-            typeof speechSynthesis !== 'undefined' &&
-            speechSynthesis.getVoices().length === 0
-        ) {
-            await new Promise<void>((resolve) => {
-                const done = () => {
-                    speechSynthesis.removeEventListener('voiceschanged', done);
-                    resolve();
-                };
-                speechSynthesis.addEventListener('voiceschanged', done);
-                setTimeout(done, 600);
-            });
-        }
-        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         // App-level language here: this picker edits the app default voice.
-        scoredVoices = buildScoredVoiceList(server, true, hosted, settings.language);
+        scoredVoices = await loadScoredVoices(settings.language);
         const btn = root.querySelector<HTMLButtonElement>('#s-voice-btn');
         if (btn) updateVoiceButtonLabel(btn);
     }
@@ -1230,41 +1099,32 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const applyBtn = root.querySelector<HTMLButtonElement>('#s-apply-display');
         const appliedEl = root.querySelector<HTMLElement>('#display-applied');
         textScale.value = String(pendingChrome.textScale);
-        textScaleLabel.textContent = `${Math.round(pendingChrome.textScale * 100)}%`;
         // The platform base size (18px desktop, 15px phone) times the PENDING
         // scale. Derived from the live root font (base × applied scale) rather
         // than hardcoding the base, so the preview always matches what Apply
         // would produce.
-        const previewFontSize = (): string => {
+        const paintTextScale = (): void => {
+            textScaleLabel.textContent = `${Math.round(pendingChrome.textScale * 100)}%`;
+            if (!previewInner) return;
             const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
             const basePx = rootPx / (settings.textScale || 1);
-            return `${basePx * pendingChrome.textScale}px`;
+            previewInner.style.fontSize = `${basePx * pendingChrome.textScale}px`;
         };
-        if (previewInner) {
-            previewInner.style.fontSize = previewFontSize();
-        }
+        paintTextScale();
         textScale.addEventListener('input', () => {
             pendingChrome.textScale = Number(textScale.value);
-            textScaleLabel.textContent = `${Math.round(pendingChrome.textScale * 100)}%`;
-            if (previewInner) {
-                previewInner.style.fontSize = previewFontSize();
-            }
+            paintTextScale();
             updateApplyDisplayState();
         });
 
         const themeSel = root.querySelector<HTMLSelectElement>('#s-theme-mode')!;
         themeSel.value = pendingChrome.themeMode;
-        if (previewBox) {
-            previewBox.setAttribute('data-preview-theme', resolvePreviewTheme(pendingChrome.themeMode));
-        }
+        const paintPreviewTheme = (): void =>
+            previewBox?.setAttribute('data-preview-theme', resolvePreviewTheme(pendingChrome.themeMode));
+        paintPreviewTheme();
         themeSel.addEventListener('change', () => {
             pendingChrome.themeMode = themeSel.value as ThemeMode;
-            if (previewBox) {
-                previewBox.setAttribute(
-                    'data-preview-theme',
-                    resolvePreviewTheme(pendingChrome.themeMode)
-                );
-            }
+            paintPreviewTheme();
             updateApplyDisplayState();
         });
 
@@ -1272,10 +1132,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         // settings now differ from the entry snapshot, so Undo lights up via
         // persist() → updateUndoState().
         applyBtn?.addEventListener('click', () => {
-            settings.textScale = pendingChrome.textScale;
-            settings.themeMode = pendingChrome.themeMode;
-            settings.showSessionBalance = pendingChrome.showSessionBalance;
-            settings.showSessionClock = pendingChrome.showSessionClock;
+            Object.assign(settings, pendingChrome);
             applyChromeSettings(settings);
             // The "Applied" flash below is this button's acknowledgment; the
             // auto-save tick on top would be a double signal.
@@ -1292,7 +1149,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         updateApplyDisplayState();
 
         // A display preference, so it rides the same preview-then-Apply flow as
-        // text scale/theme (meditation-pal-14s). Only meaningful signed in.
+        // text scale/theme. Only meaningful signed in.
         const balanceToggle = root.querySelector<HTMLInputElement>('#s-show-session-balance');
         const balancePreview = root.querySelector<HTMLElement>('#preview-balance-field');
         if (balanceToggle) {
@@ -1391,36 +1248,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             syncPausePreset(); // drops a stale Custom entry
         });
 
-        wireStepper('s-silence-base', settings.silenceBaseMs / 1000, (v) => {
-            settings.silenceBaseMs = Math.round(v * 1000);
-            persist();
-            syncPausePreset();
-        });
-        wireStepper('s-silence-max', settings.silenceMaxMs / 1000, (v) => {
-            settings.silenceMaxMs = Math.round(v * 1000);
-            persist();
-            syncPausePreset();
-        });
-        wireStepper('s-nonstream-base', settings.nonStreamingSilenceBaseMs / 1000, (v) => {
-            settings.nonStreamingSilenceBaseMs = Math.round(v * 1000);
-            persist();
-        });
-        wireStepper('s-nonstream-max', settings.nonStreamingSilenceMaxMs / 1000, (v) => {
-            settings.nonStreamingSilenceMaxMs = Math.round(v * 1000);
-            persist();
-        });
-        wireStepper('s-silence-sec', settings.silenceCheckinSec, (v) => {
-            settings.silenceCheckinSec = Math.round(v);
-            persist();
-        });
+        bindStepper('s-silence-base', 'silenceBaseMs', 1000, syncPausePreset);
+        bindStepper('s-silence-max', 'silenceMaxMs', 1000, syncPausePreset);
+        bindStepper('s-nonstream-base', 'nonStreamingSilenceBaseMs', 1000);
+        bindStepper('s-nonstream-max', 'nonStreamingSilenceMaxMs', 1000);
+        bindStepper('s-silence-sec', 'silenceCheckinSec', 1);
 
         // One three-way control writing BOTH stored halves: timing follows the
         // pick, and content matches it ('simple' interval says the stock
         // phrase, Smart writes the line too). The stored fields stay split for
-        // the session code; the mixed combos just aren't offered - two radio
-        // groups and two hints was expert-matrix territory (field feedback).
-        // The interval stepper only means anything for 'simple', so it greys
-        // out on the other picks.
+        // the session code; the mixed combos just aren't offered. The interval
+        // stepper only means anything for 'simple', so it greys out otherwise.
         const checkinWrap = root
             .querySelector<HTMLInputElement>('#s-silence-sec')
             ?.closest<HTMLElement>('.stepper');
@@ -1447,14 +1285,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 syncCheckinStepper();
             });
         }
-        const sttSpeculation = root.querySelector<HTMLInputElement>('#s-stt-speculation');
-        if (sttSpeculation) {
-            sttSpeculation.checked = settings.sttSpeculation;
-            sttSpeculation.addEventListener('change', () => {
-                settings.sttSpeculation = sttSpeculation.checked;
-                persist();
-            });
-        }
+        bindCheckbox('s-stt-speculation', 'sttSpeculation');
         const voiceCommands = root.querySelector<HTMLInputElement>('#s-voice-commands');
         if (voiceCommands) {
             voiceCommands.addEventListener('change', () => {
@@ -1469,44 +1300,42 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
             void syncVoiceCommandsRow();
         }
-        const silenceModeEnabled = root.querySelector<HTMLInputElement>('#s-silence-mode-enabled');
-        if (silenceModeEnabled) {
-            silenceModeEnabled.checked = settings.silenceModeEnabled;
-            silenceModeEnabled.addEventListener('change', () => {
-                settings.silenceModeEnabled = silenceModeEnabled.checked;
-                persist();
-            });
-        }
+        bindCheckbox('s-silence-mode-enabled', 'silenceModeEnabled');
     }
 
     function wireSessionLogsSection(): void {
-        const saveLogs = root.querySelector<HTMLInputElement>('#s-save-session-logs');
-        if (saveLogs) {
-            saveLogs.checked = settings.saveSessionLogs;
-            saveLogs.addEventListener('change', () => {
-                settings.saveSessionLogs = saveLogs.checked;
-                persist();
-            });
-        }
-        const resumeSummary = root.querySelector<HTMLInputElement>('#s-resume-from-summary');
-        if (resumeSummary) {
-            resumeSummary.checked = settings.resumeFromSummary;
-            resumeSummary.addEventListener('change', () => {
-                settings.resumeFromSummary = resumeSummary.checked;
-                persist();
-            });
-        }
-        const autoQuit = root.querySelector<HTMLInputElement>('#s-auto-quit');
-        if (autoQuit) {
-            autoQuit.checked = settings.autoQuitAfterSilence;
-            autoQuit.addEventListener('change', () => {
-                settings.autoQuitAfterSilence = autoQuit.checked;
-                persist();
-            });
-        }
+        bindCheckbox('s-save-session-logs', 'saveSessionLogs');
+        bindCheckbox('s-resume-from-summary', 'resumeFromSummary');
+        bindCheckbox('s-auto-quit', 'autoQuitAfterSilence');
         wireStepper('s-auto-quit-min', settings.autoQuitSilenceMin, (v) => {
             settings.autoQuitSilenceMin = v;
             persist();
+        });
+    }
+
+    /** A checkbox mirroring one boolean setting. */
+    function bindCheckbox(id: string, key: BooleanSettingKey): void {
+        const box = root.querySelector<HTMLInputElement>(`#${id}`);
+        if (!box) return;
+        box.checked = settings[key];
+        box.addEventListener('change', () => {
+            settings[key] = box.checked;
+            persist();
+        });
+    }
+
+    /** A stepper mirroring one numeric setting, shown in units of `scale`
+     *  (1000 displays a millisecond setting in seconds); stores rounded. */
+    function bindStepper(
+        id: string,
+        key: NumericSettingKey,
+        scale: number,
+        after?: () => void
+    ): void {
+        wireStepper(id, settings[key] / scale, (v) => {
+            settings[key] = Math.round(v * scale);
+            persist();
+            after?.();
         });
     }
 
@@ -1576,21 +1405,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const bypass = root.querySelector<HTMLInputElement>('#s-dev-cloud-bypass');
             bypass?.addEventListener('change', () => devSetCloudBypass(bypass.checked));
 
-            const mic = root.querySelector<HTMLSelectElement>('#s-dev-sim-mic');
-            mic?.addEventListener('change', () => {
-                setSimMic((mic.value || null) as MicStatus | null);
-                renderSimBanner();
-            });
-            const stt = root.querySelector<HTMLSelectElement>('#s-dev-sim-stt');
-            stt?.addEventListener('change', () => {
-                setSttFault((stt.value || null) as SttFault | null);
-                renderSimBanner();
-            });
-            const cloud = root.querySelector<HTMLSelectElement>('#s-dev-sim-cloud');
-            cloud?.addEventListener('change', () => {
-                setCloudFault((cloud.value || null) as CloudFault | null);
-                renderSimBanner();
-            });
+            // '' is the "working" option, i.e. no simulation.
+            const simSelect = <T>(id: string, set: (v: T | null) => void): void => {
+                const sel = root.querySelector<HTMLSelectElement>(`#${id}`);
+                sel?.addEventListener('change', () => {
+                    set((sel.value || null) as T | null);
+                    renderSimBanner();
+                });
+            };
+            simSelect<MicStatus>('s-dev-sim-mic', setSimMic);
+            simSelect<SttFault>('s-dev-sim-stt', setSttFault);
+            simSelect<CloudFault>('s-dev-sim-cloud', setCloudFault);
             const noVoices = root.querySelector<HTMLInputElement>('#s-dev-sim-no-voices');
             noVoices?.addEventListener('change', () => {
                 setNoVoices(noVoices.checked);
@@ -1632,10 +1457,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             Object.assign(settings, restored.s);
             if (restored.elevenKey === null) localStorage.removeItem(ELEVENLABS_KEY_STORE);
             else localStorage.setItem(ELEVENLABS_KEY_STORE, restored.elevenKey);
-            pendingChrome.textScale = settings.textScale;
-            pendingChrome.themeMode = settings.themeMode;
-            pendingChrome.showSessionBalance = settings.showSessionBalance;
-            pendingChrome.showSessionClock = settings.showSessionClock;
+            Object.assign(pendingChrome, pickChrome(settings));
             applyChromeSettings(settings);
             void saveAppSettings(settings);
             if (revertedEl) {
@@ -1652,22 +1474,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
         // Relaunch the onboarding tour: reset the dismiss flags and walk the
         // wizard from the welcome step.
-        const tourBtn = root.querySelector<HTMLButtonElement>('#btn-show-tour');
-        if (tourBtn) {
-            tourBtn.addEventListener('click', () => {
-                const isMac = /Mac/.test(
-                    typeof navigator !== 'undefined' ? navigator.platform || '' : ''
-                );
-                // Piper is provided by the desktop (Rust) shell; the hosted web
-                // app has no local TTS, so the tour must not recommend it
-                // there. isDesktopSync is populated by the detectCapabilities()
-                // await above.
-                void resetSettingsTour({
-                    piperAvailable: isDesktopSync(),
-                    isMac,
-                });
-            });
-        }
+        // Piper is provided by the desktop (Rust) shell; the hosted web app has
+        // no local TTS, so the tour must not recommend it there.
+        root.querySelector('#btn-show-tour')?.addEventListener('click', () => {
+            void resetSettingsTour({ piperAvailable: isDesktopSync(), isMac: isMacPlatform() });
+        });
 
         // Only shown when the app backend actually answers: the browser preview
         // reaches it, a standalone hosted tab doesn't. Never probed on native
@@ -1739,9 +1550,72 @@ const ELEVENLABS_KEY_INFO = {
     prefix: 'sk_',
 };
 
+function hasClipboard(): boolean {
+    return (
+        typeof navigator !== 'undefined' &&
+        !!navigator.clipboard &&
+        typeof navigator.clipboard.readText === 'function'
+    );
+}
+
+function pasteShortcut(): string {
+    return /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘V' : 'Ctrl+V';
+}
+
+function isMacPlatform(): boolean {
+    return /Mac/.test(typeof navigator !== 'undefined' ? navigator.platform || '' : '');
+}
+
+type BooleanSettingKey = {
+    [K in keyof AppSettings]: AppSettings[K] extends boolean ? K : never;
+}[keyof AppSettings];
+type NumericSettingKey = {
+    [K in keyof AppSettings]: AppSettings[K] extends number ? K : never;
+}[keyof AppSettings];
+
+/** The Display settings that preview before "Apply" instead of auto-applying. */
+type ChromePrefs = Pick<
+    AppSettings,
+    'textScale' | 'themeMode' | 'showSessionBalance' | 'showSessionClock'
+>;
+
+function pickChrome(s: AppSettings): ChromePrefs {
+    return {
+        textScale: s.textScale,
+        themeMode: s.themeMode,
+        showSessionBalance: s.showSessionBalance,
+        showSessionClock: s.showSessionClock,
+    };
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
+
+/** `<option>`s for [value, label] pairs, marking `selected`. Labels are
+ *  escaped here, so pass them already translated. */
+function optionsHTML(opts: ReadonlyArray<readonly [string, string]>, selected: string | null): string {
+    return opts
+        .map(
+            ([v, label]) =>
+                `<option value="${escapeHtml(v)}"${v === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`
+        )
+        .join('');
+}
+
+/** The default-provider menu: only providers this environment can reach.
+ *  Capabilities are cached at app boot and read false while unresolved, so a
+ *  source stays hidden until the next render; in practice the probe finishes
+ *  before first paint. */
+function providerOptionsHTML(s: AppSettings): string {
+    const byokOpts = { webMode: isWebMode(), allowByok: s.enableByok };
+    return optionsHTML(
+        ALL_PROVIDERS.filter((p) => isProviderAvailable(p, capabilitiesSync(), byokOpts)).map(
+            (p) => [p.value, t(p.label)] as const
+        ),
+        s.defaultProvider
+    );
+}
 
 function renderHTML(s: AppSettings): string {
     return `
@@ -1758,7 +1632,7 @@ function renderHTML(s: AppSettings): string {
             ${renderAdvancedSettingsSection(s)}
             ${
                 // The auto-updater only applies to desktop / self-host builds.
-                isWebMode() ? '' : renderUpdatesSection(s)
+                isWebMode() ? '' : renderUpdatesSection()
             }
             ${
                 // Dev mode = tap the About-box version line 7 times (dev-mode.ts).
@@ -1793,23 +1667,11 @@ function renderHTML(s: AppSettings): string {
 }
 
 function renderProviderSection(s: AppSettings): string {
-    // Show only providers the environment can reach. Capabilities are cached at
-    // app boot and read false while unresolved, so a source stays hidden until
-    // the next render; in practice the probe finishes before first paint.
-    const caps = capabilitiesSync();
-    const byokOpts = { webMode: isWebMode(), allowByok: s.enableByok };
-    const providerOptions = ALL_PROVIDERS.filter((p) => isProviderAvailable(p, caps, byokOpts))
-        .map(
-            (p) =>
-                `<option value="${p.value}"${p.value === s.defaultProvider ? ' selected' : ''}>${escape(t(p.label))}</option>`
-        )
-        .join('');
-
     const keyRows = ALL_PROVIDERS.filter((p) => p.needsKey)
         .map(
             (p) => `
         <div class="form-group api-key-group hidden" id="s-key-row-${p.value}">
-            <label for="s-key-${p.value}">${t('{provider} API Key', { provider: escape(p.label) })}
+            <label for="s-key-${p.value}">${t('{provider} API Key', { provider: escapeHtml(p.label) })}
                 <span class="optional api-key-status"></span>
             </label>
             <input type="password" id="s-key-${p.value}" autocomplete="off"
@@ -1832,7 +1694,7 @@ function renderProviderSection(s: AppSettings): string {
         <div class="form-row provider-row">
             <div class="form-group form-group-half">
                 <label for="s-provider">${t('Default AI Provider')}</label>
-                <select id="s-provider" name="provider">${providerOptions}</select>
+                <select id="s-provider" name="provider">${providerOptionsHTML(s)}</select>
             </div>
             <div class="form-group form-group-half">
                 <label>${t('Default Model')}</label>
@@ -1852,9 +1714,7 @@ function renderProviderSection(s: AppSettings): string {
 }
 
 // Web-only BYOK opt-in: device-scoped keys and a footgun, so it lives in the
-// collapsed Advanced shelf (renderAdvancedSettingsSection - it used to have
-// its own reveal in the provider row, which made two identical "Show advanced
-// settings" buttons). The checkbox is wired in wireProviderSection by id.
+// collapsed Advanced shelf. The checkbox is wired in wireProviderSection by id.
 function renderByokOptIn(s: AppSettings): string {
     return `
             <div class="form-group">
@@ -1871,20 +1731,15 @@ function renderByokOptIn(s: AppSettings): string {
 }
 
 function renderLanguageSection(s: AppSettings): string {
-    const langOptions = LANGUAGES.map(
-        ([v, label]) =>
-            `<option value="${v}"${v === s.language ? ' selected' : ''}>${escape(label)}</option>`
-    ).join('');
+    const langOptions = optionsHTML(LANGUAGES, s.language);
     // Mode-aware sources: Whisper is local-only, browser speech appears when
     // the API exists, hosted is always offered. The value is the resolved
     // choice; there's no "automatic" entry.
     const sttSelected = resolveSttChoice(s.sttEngine, isWebMode());
-    const sttOptions = sttEngineOptions(isWebMode())
-        .map(
-            ({ value, label }) =>
-                `<option value="${value}"${value === sttSelected ? ' selected' : ''}>${escape(t(label))}</option>`
-        )
-        .join('');
+    const sttOptions = optionsHTML(
+        sttEngineOptions(isWebMode()).map(({ value, label }) => [value, t(label)] as const),
+        sttSelected
+    );
 
     // Two half-width rows: Language | Microphone, then Speech Recognition |
     // Whisper Model. The conditional columns (mic: only when the STT source
@@ -1893,7 +1748,7 @@ function renderLanguageSection(s: AppSettings): string {
     // layouts, and collapses once the row stacks (narrow/mobile).
     return `
     <section class="settings-section">
-        <h2>${escape(t('Language & Speech Recognition'))}</h2>
+        <h2>${escapeHtml(t('Language & Speech Recognition'))}</h2>
         <div class="form-row">
             <div class="form-group">
                 <!-- "(A/文)" on the control's label so someone who can't read
@@ -1954,12 +1809,10 @@ function renderTtsEngineControls(s: AppSettings): string {
         ['browser', 'Browser (speechSynthesis)'],
         ['elevenlabs', 'ElevenLabs (API)'],
     ];
-    const opts = engines
-        .map(
-            ([v, label]) =>
-                `<option value="${v}"${v === s.ttsEngine ? ' selected' : ''}>${escape(t(label))}</option>`
-        )
-        .join('');
+    const opts = optionsHTML(
+        engines.map(([v, label]) => [v, t(label)] as const),
+        s.ttsEngine
+    );
     return `
             <div class="form-group form-group-half" id="s-tts-engine-group">
                 <label for="s-tts-engine">${t('Manage TTS Engines')}</label>
@@ -2030,12 +1883,10 @@ function renderDisplaySection(s: AppSettings): string {
         ['dark', 'Always dark'],
         ['light', 'Always light'],
     ];
-    const themeOpts = themes
-        .map(
-            ([v, label]) =>
-                `<option value="${v}"${v === s.themeMode ? ' selected' : ''}>${escape(t(label))}</option>`
-        )
-        .join('');
+    const themeOpts = optionsHTML(
+        themes.map(([v, label]) => [v, t(label)] as const),
+        s.themeMode
+    );
     return `
     <section class="settings-section">
         <h2>${t('Display')}</h2>
@@ -2238,14 +2089,6 @@ function renderSessionLogsSection(s: AppSettings): string {
     </section>`;
 }
 
-/**
- * Collapsed shelf for the rarely-touched expert controls, so the main page
- * stays readable ("the settings screen is quite complex" - field feedback):
- * the exact pause steppers behind the Pacing preset, the web build's TTS
- * engine selector (no install work to manage there, unlike desktop), and the
- * expert toggles. Controls keep their ids: their wiring (wirePacingSection /
- * wireTtsSection / wireSessionLogsSection) finds them here just the same.
- */
 /** True when the resolved STT choice is one of the PCM engines that capture
  *  through us (local Whisper / aloud cloud): the only ones the mic picker and
  *  the speculation toggle can affect. */
@@ -2254,6 +2097,13 @@ function pcmSttChosen(s: AppSettings): boolean {
     return choice === 'whisper' || isHostedSttChoice(choice);
 }
 
+/**
+ * Collapsed shelf for the rarely-touched expert controls, so the main page
+ * stays readable: the exact pause steppers behind the Pacing preset, the web
+ * build's TTS engine selector (no install work to manage there, unlike
+ * desktop), and the expert toggles. Controls keep their ids: their section's
+ * wiring finds them here just the same.
+ */
 function renderAdvancedSettingsSection(s: AppSettings): string {
     return `
     <section class="settings-section">
@@ -2273,11 +2123,10 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                 ${pauseGroupHTML('s-nonstream', s.nonStreamingSilenceBaseMs / 1000, s.nonStreamingSilenceMaxMs / 1000)}
             </div>
             ${
-                // Web-only shelf residents: the BYOK opt-in (was its own reveal
-                // in the provider section) and the TTS engine selector, which
-                // on web only swaps hints + the ElevenLabs key row. Desktop's
-                // selector does real management (Piper installs, macOS voice
-                // settings) and stays in the TTS section.
+                // Web-only shelf residents: the BYOK opt-in and the TTS engine
+                // selector, which on web only swaps hints + the ElevenLabs key
+                // row. Desktop's selector does real management (Piper installs,
+                // macOS voice settings) and stays in the TTS section.
                 isWebMode()
                     ? `${renderByokOptIn(s)}
             <div class="form-row form-row-tts">${renderTtsEngineControls(s)}
@@ -2335,6 +2184,11 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
  * .DEV, the same gate as their readers in app-mode.ts), so a release build's
  * section carries only the harmless conveniences.
  */
+/** Developer-section options labelled by their own value. */
+function simOptionsHTML(values: readonly string[], selected: string | null): string {
+    return optionsHTML(values.map((v) => [v, v] as const), selected);
+}
+
 function renderDeveloperSection(): string {
     const preview = (() => {
         try {
@@ -2349,9 +2203,14 @@ function renderDeveloperSection(): string {
             <div class="form-group form-group-half">
                 <label for="s-dev-mode-override">App mode override</label>
                 <select id="s-dev-mode-override">
-                    <option value="auto"${devGetModeOverride() === 'auto' ? ' selected' : ''}>auto (build default)</option>
-                    <option value="web"${devGetModeOverride() === 'web' ? ' selected' : ''}>web</option>
-                    <option value="local"${devGetModeOverride() === 'local' ? ' selected' : ''}>local</option>
+                    ${optionsHTML(
+                        [
+                            ['auto', 'auto (build default)'],
+                            ['web', 'web'],
+                            ['local', 'local'],
+                        ],
+                        devGetModeOverride()
+                    )}
                 </select>
                 <span class="form-hint">Same as ?mode=. Dev builds only; reload to apply.</span>
             </div>
@@ -2370,10 +2229,7 @@ function renderDeveloperSection(): string {
                 <label for="s-dev-sim-mic">Microphone</label>
                 <select id="s-dev-sim-mic">
                     <option value="">working</option>
-                    ${MIC_SIM_STATUSES.map(
-                        (v) =>
-                            `<option value="${v}"${getSimMic() === v ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
+                    ${simOptionsHTML(MIC_SIM_STATUSES, getSimMic())}
                 </select>
                 <span class="form-hint">Blocks Begin with the setup notice. 'error' is invisible until Begin, like the real thing. Same as ?nomic=.</span>
             </div>
@@ -2381,10 +2237,7 @@ function renderDeveloperSection(): string {
                 <label for="s-dev-sim-stt">Speech recognition</label>
                 <select id="s-dev-sim-stt">
                     <option value="">working</option>
-                    ${STT_FAULTS.map(
-                        (v) =>
-                            `<option value="${v}"${getSttFault() === v ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
+                    ${simOptionsHTML(STT_FAULTS, getSttFault())}
                 </select>
                 <span class="form-hint">Every capture errors: status line, toast, and the trouble banner after two.</span>
             </div>
@@ -2394,10 +2247,7 @@ function renderDeveloperSection(): string {
                 <label for="s-dev-sim-cloud">aloud cloud</label>
                 <select id="s-dev-sim-cloud">
                     <option value="">working</option>
-                    ${CLOUD_FAULT_NAMES.map(
-                        (v) =>
-                            `<option value="${v}"${getCloudFault() === v ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
+                    ${simOptionsHTML(CLOUD_FAULT_NAMES, getCloudFault())}
                 </select>
                 <span class="form-hint">Fails the LLM and TTS legs both. insufficient_credits drives the spoken apology and buy prompt.</span>
             </div>
@@ -2423,7 +2273,7 @@ function renderDeveloperSection(): string {
             </div>
             <div class="form-group form-group-half">
                 <label for="s-dev-preview-update">Preview update banner</label>
-                <input type="text" id="s-dev-preview-update" value="${escape(preview)}" placeholder="empty = off; 1 or a version">
+                <input type="text" id="s-dev-preview-update" value="${escapeHtml(preview)}" placeholder="empty = off; 1 or a version">
                 <span class="form-hint">Fakes an available release (nothing installs). Same as ?previewUpdate.</span>
             </div>
         </div>
@@ -2438,9 +2288,7 @@ function renderDeveloperSection(): string {
             <div class="form-group form-group-half">
                 <label for="s-dev-jev">Jev silence classifiers</label>
                 <select id="s-dev-jev">
-                    ${(['on', 'shadow', 'off'] as const)
-                        .map((m) => `<option value="${m}"${getJevClassifierMode() === m ? ' selected' : ''}>${m}</option>`)
-                        .join('')}
+                    ${simOptionsHTML(['on', 'shadow', 'off'], getJevClassifierMode())}
                 </select>
                 <span class="form-hint">aloud cloud sessions only. On (default): Jev decides, Haiku is the fallback. Shadow: both run, Haiku decides. Every call logs a [judge] console line.</span>
             </div>
@@ -2449,13 +2297,13 @@ function renderDeveloperSection(): string {
     </section>`;
 }
 
-function renderUpdatesSection(_s: AppSettings): string {
+function renderUpdatesSection(): string {
     return `
     <section class="settings-section">
         <h2>${t('Updates')}</h2>
         <div class="form-group">
             <div class="settings-update-row">
-                <span class="settings-update-status" id="s-update-status">${t('Version {v}', { v: escape(__APP_VERSION__) })}</span>
+                <span class="settings-update-status" id="s-update-status">${t('Version {v}', { v: escapeHtml(__APP_VERSION__) })}</span>
                 <button type="button" class="btn btn-small btn-secondary" id="s-check-update">${t('Check for Updates')}</button>
             </div>
         </div>
@@ -2466,25 +2314,9 @@ function renderUpdatesSection(_s: AppSettings): string {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function stripVoicePrefix(voice: string | null): string | null {
-    if (!voice) return null;
-    const m = /^(server|browser|aloud):(.*)$/.exec(voice);
-    return m ? (m[2] ?? null) : voice;
-}
-
-function escape(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
-    );
-}
-
 /** Mask a stored key for display: first 4 + … + last 4, e.g. sk-a…wxyz. */
 function maskKey(key: string): string {
     const k = key.trim();
     if (k.length <= 8) return '••••';
     return `${k.slice(0, 4)}…${k.slice(-4)}`;
 }
-
-// Keep DEFAULT_APP_SETTINGS referenced so tree-shaking doesn't drop it
-// from the bundle when the only consumer of app-settings.ts is this file.
-void DEFAULT_APP_SETTINGS;

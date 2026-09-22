@@ -22,6 +22,8 @@ import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE, withCloudOutline } from './c
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 import { t } from './i18n.js';
+import { alertDialog } from './dialog.js';
+import { readNdjson } from './ndjson.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -147,6 +149,14 @@ export const PREVIEW_PHRASE = "Welcome to aloud. I'll be your facilitator.";
 export function prefixedVoiceId(engine: string | undefined, name: string): string {
     const prefix = engine === 'browser' ? 'browser:' : engine === 'aloud' ? 'aloud:' : 'server:';
     return `${prefix}${name}`;
+}
+
+/** A stored voice id as the raw name the picker lists (strips the engine
+ *  prefix prefixedVoiceId adds). */
+export function stripVoicePrefix(voice: string | null): string | null {
+    if (!voice) return null;
+    const m = /^(server|browser|aloud):(.*)$/.exec(voice);
+    return m ? (m[2] ?? null) : voice;
 }
 
 // Known high-quality macOS base voice names (without Premium/Enhanced suffix).
@@ -839,31 +849,10 @@ export async function downloadVoiceModel(
     });
     if (!resp.ok || !resp.body) throw new Error(`server returned ${resp.status}`);
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf('\n')) >= 0) {
-            const line = buffer.slice(0, nl).trim();
-            buffer = buffer.slice(nl + 1);
-            if (!line) continue;
-            let msg: {
-                status?: string;
-                error?: string;
-                total?: number;
-                completed?: number;
-                file?: string;
-            };
-            try {
-                msg = JSON.parse(line);
-            } catch {
-                continue; // ignore a partial/garbled line
-            }
-            if (msg.status === 'error') throw new Error(msg.error || 'download failed');
+    // "done"/"already_downloaded" need no action - the stream just ends.
+    await readNdjson(
+        resp.body,
+        (msg) => {
             if (msg.status === 'downloading' && onProgress) {
                 onProgress({
                     completed: msg.completed ?? 0,
@@ -871,9 +860,38 @@ export async function downloadVoiceModel(
                     file: msg.file ?? '',
                 });
             }
-            // "done"/"already_downloaded" need no action - the loop ends when
-            // the server closes the stream.
-        }
+        },
+        'download failed'
+    );
+}
+
+/**
+ * Download a picker row's Piper voice with live percent on its button, locking
+ * sibling speakers of the same model meanwhile. True once it's on disk; on
+ * failure the button is restored, the error alerted, and it resolves false.
+ */
+export async function downloadVoiceFromRow(
+    listEl: HTMLElement | null,
+    btn: HTMLButtonElement,
+    name: string,
+    engine: string | undefined
+): Promise<boolean> {
+    const model = btn.closest<HTMLElement>('.voice-row')?.dataset['model'];
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '0%';
+    if (listEl) setModelDownloadsDisabled(listEl, model, true, btn);
+    try {
+        await downloadVoiceModel(name, engine, (p) => {
+            btn.textContent = `${downloadPercent(p)}%`;
+        });
+        return true;
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = original ?? t('Download');
+        if (listEl) setModelDownloadsDisabled(listEl, model, false, btn);
+        void alertDialog(t('Could not download: {message}', { message: (err as Error).message }));
+        return false;
     }
 }
 
@@ -948,4 +966,24 @@ export async function fetchCloudVoices(force = false): Promise<CloudVoice[]> {
 
 export function invalidateCloudVoicesCache(): void {
     cloudVoicesCache = null;
+}
+
+/**
+ * The full picker catalog for `language`: hosted, app-backend, and browser
+ * voices, scored and sorted. Gives speechSynthesis a moment first, since it
+ * often loads its list async on first call.
+ */
+export async function loadScoredVoices(language: string): Promise<ScoredVoice[]> {
+    if (typeof speechSynthesis !== 'undefined' && speechSynthesis.getVoices().length === 0) {
+        await new Promise<void>((resolve) => {
+            const done = () => {
+                speechSynthesis.removeEventListener('voiceschanged', done);
+                resolve();
+            };
+            speechSynthesis.addEventListener('voiceschanged', done);
+            setTimeout(done, 600);
+        });
+    }
+    const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
+    return buildScoredVoiceList(server, true, hosted, language);
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { __test, escapeHtml } from '../ui/src/settings-ollama.js';
+import { __test } from '../ui/src/settings-ollama.js';
+import { escapeHtml } from '../ui/src/escape-html.js';
 
 const { renderHTML, renderTier } = __test;
 

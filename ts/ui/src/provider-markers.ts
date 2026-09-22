@@ -10,8 +10,10 @@
  * Unknown status (the probe failed) reads as available, so missing information
  * never blocks the UI.
  */
+import { appUrl } from './app-base.js';
+import { hasApiKey } from './api-keys.js';
 import { capabilitiesSync } from './capabilities.js';
-import { providerNeedsKey, type Provider } from './settings.js';
+import { ALL_PROVIDERS, providerNeedsKey, type Provider } from './settings.js';
 
 export interface ProviderInfo {
     available: boolean;
@@ -53,4 +55,24 @@ export function computeProviderMarker(
             : { suffix: ' ✘', unavailable: true };
     }
     return { suffix: '', unavailable: false };
+}
+
+/** GET /app/v1/providers, or null when the app backend isn't answering. */
+export async function fetchProviderStatus(): Promise<ProviderStatusMap | null> {
+    try {
+        const resp = await fetch(appUrl('/providers'));
+        return resp.ok ? ((await resp.json()) as ProviderStatusMap) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Which BYOK providers have a key stored, keyed by provider. */
+export async function fetchKeyPresence(): Promise<Record<string, boolean>> {
+    const entries = await Promise.all(
+        ALL_PROVIDERS.filter((p) => p.needsKey).map(
+            async (p) => [p.value, await hasApiKey(p.value)] as const
+        )
+    );
+    return Object.fromEntries(entries);
 }
