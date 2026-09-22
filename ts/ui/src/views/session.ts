@@ -756,8 +756,18 @@ export async function mountSessionView(
     let activeTtsAbort: AbortController | null = null;
     // The continuous-capture engine when that's the live backend; used for
     // barge-in wiring and per-device echo calibration (setTtsActive below).
-    let whisperEngine: WhisperPcmSttEngine | null =
-        continuousCapture && stt instanceof WhisperPcmSttEngine ? stt : null;
+    let whisperEngine = continuousWhisper(stt);
+    function continuousWhisper(engine: SttEngine | null): WhisperPcmSttEngine | null {
+        return continuousCapture && engine instanceof WhisperPcmSttEngine ? engine : null;
+    }
+    /** Swap in a new live engine; returns the old one for the caller to stop. */
+    function adoptStt(next: SttEngine): SttEngine | null {
+        const prev = stt;
+        stt = next;
+        whisperEngine = continuousWhisper(next);
+        wireWhisperBargeIn();
+        return prev;
+    }
     async function buildTts(voiceId: string | null) {
         // Server-side synthesis is billable compute; fold chars into usage.
         const ttsOpts = { onServerSynthesize: (chars: number) => session.recordTts(chars) };
@@ -1115,15 +1125,11 @@ export async function mountSessionView(
                 setStatus(muted ? t('Muted') : listeningStatus());
                 return;
             }
-            const prev = stt;
-            stt = next;
             sttChoice = choice;
             sttBackend = sttBackendForChoice(choice);
             engineDrivenBargeIn = sttBackend === 'server-whisper';
             continuousCapture = engineDrivenBargeIn;
-            whisperEngine =
-                continuousCapture && next instanceof WhisperPcmSttEngine ? next : null;
-            wireWhisperBargeIn();
+            const prev = adoptStt(next);
             await rebuildTts(setup.voice);
             // Persist so the next session opens on the engine that worked here.
             await persistSettings({ sttEngine: choice }).catch(() => {
@@ -1136,8 +1142,7 @@ export async function mountSessionView(
             void prev?.stop();
             if (!muted) {
                 setStatus(listeningStatus());
-                startMeter();
-                if (!listenLoopRunning) void listenLoop();
+                resumeCapture();
             } else {
                 setStatus(t('Muted'));
             }
@@ -1170,17 +1175,13 @@ export async function mountSessionView(
                 renderSttTrouble();
                 return;
             }
-            const prev = stt;
-            stt = next;
-            whisperEngine = continuousCapture && next instanceof WhisperPcmSttEngine ? next : null;
-            wireWhisperBargeIn();
+            const prev = adoptStt(next);
             stopMeter();
             // Ends the loop's in-flight iteration on the old engine; it re-enters
             // on the new `stt`, or is restarted below if it had already fallen out.
             void prev?.stop();
             if (torn || muted) return;
-            startMeter();
-            if (!listenLoopRunning) void listenLoop();
+            resumeCapture();
             debugLog('stt restarted after foreground');
         } catch (err) {
             console.warn('STT restart after foreground failed', err);
@@ -2672,9 +2673,13 @@ export async function mountSessionView(
             setStatus(
                 silenceMode ? holdingStatus() : listeningStatus()
             );
-            startMeter();
-            void listenLoop();
+            resumeCapture();
         }
+    }
+
+    function resumeCapture(): void {
+        startMeter();
+        void listenLoop();
     }
 
     micBtn.addEventListener('click', () => {
@@ -2970,8 +2975,7 @@ export async function mountSessionView(
     // Kick off always-on listening when the view mounts.
     if (stt) {
         setMicButtonState();
-        startMeter();
-        void listenLoop();
+        resumeCapture();
     }
 
     // Background check-in loop, polling the PacingController. When it decides
