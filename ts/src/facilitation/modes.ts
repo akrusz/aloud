@@ -385,7 +385,7 @@ function buildStageFrame(spec: ModeSpec): string {
             'You decide movement through the arc with a hidden control token at the very start of your reply (stripped before speech, like [HOLD]):',
             `- Start with ${NEXT_PREFIX} when the stage guidance says this stage's work is complete, shown by the meditator's own words, not by your hopes for them. The rest of that same reply should already be facilitating the next stage, naturally. The last stage has no ${NEXT_PREFIX}.`,
             `- Start with ${BACK_PREFIX} when the meditator needs the previous stage again (contact lost, too much too fast, or the stage guidance says so). The first stage has no ${BACK_PREFIX}.`,
-            '- When unsure, stay: no token. Moving too early is far worse than staying a little long.',
+            '- When unsure, stay: no token. Moving too early is worse than staying a little long.',
             '- Never mention stages, steps, or these tokens out loud. The arc is invisible; you simply speak naturally.',
             `- A stage token can combine with [HOLD] when silence is also right, e.g. "${NEXT_PREFIX} [HOLD] Take all the time you need."`,
         ].join('\n') + '\n'
