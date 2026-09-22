@@ -25,7 +25,7 @@ import type { Deps } from '../deps.js';
 import { verifyGoogleIdToken, exchangeGoogleCode } from '../auth/google.js';
 import { verifyAppleIdToken } from '../auth/apple.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
-import { ipRateLimit } from '../auth/middleware.js';
+import { bearer, forwardedIp, ipRateLimit } from '../auth/middleware.js';
 import { RateGuard } from '../quota/freetier.js';
 import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
@@ -41,9 +41,8 @@ const MIN_PASSWORD_LEN = 8;
 /** Account id from a valid bearer token on the request, if any. Used to link a
  *  freshly-verified identity to the already-signed-in account. */
 async function callerAccountId(c: Context, deps: Deps): Promise<string | undefined> {
-    const header = c.req.header('authorization') ?? c.req.header('Authorization');
-    const [scheme, token] = (header ?? '').split(' ');
-    if (scheme?.toLowerCase() !== 'bearer' || !token) return undefined;
+    const token = bearer(c);
+    if (!token) return undefined;
     const claims = await verifySessionToken(token, deps.config.sessionSecret);
     return claims?.accountId;
 }
@@ -58,9 +57,8 @@ async function finishFederatedSignIn(
     identity: { sub: string; email: string; emailVerified: boolean }
 ): Promise<Response> {
     // Client IP for velocity-based abuse detection (mass-account creation
-    // clusters by IP/subnet). x-forwarded-for is set by Fly/Render; first hop.
-    const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-    const signupIp = fwd || c.req.header('x-real-ip') || undefined;
+    // clusters by IP/subnet).
+    const signupIp = forwardedIp(c);
     const linkToAccountId = await callerAccountId(c, deps);
     try {
         const result = await connectIdentity(
@@ -173,8 +171,7 @@ export function authRoutes(deps: Deps): Hono {
             return errorJson(c, 'bad_request', 'an account with this email already exists - try signing in');
         }
 
-        const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-        const signupIp = fwd || c.req.header('x-real-ip') || undefined;
+        const signupIp = forwardedIp(c);
         const linkToAccountId = await callerAccountId(c, deps);
 
         try {
@@ -201,8 +198,7 @@ export function authRoutes(deps: Deps): Hono {
         const password = body.password ?? '';
         // One generic message for both "no such email" and "wrong password", so
         // the endpoint doesn't confirm which emails are registered.
-        const reject = () =>
-            errorJson(c, 'unauthenticated', 'incorrect email or password');
+        const reject = () => errorJson(c, 'unauthenticated', 'incorrect email or password');
 
         // Match the canonical mailbox used at signup, so any dot/+tag variant
         // logs into the one password identity.

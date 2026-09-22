@@ -19,20 +19,26 @@ function nowSeconds(): number {
     return Math.floor(Date.now() / 1000);
 }
 
-function bearer(c: Context): string | undefined {
+/** The request's bearer token, if it carries one. */
+export function bearer(c: Context): string | undefined {
     const header = c.req.header('authorization') ?? c.req.header('Authorization');
     if (!header) return undefined;
     const [scheme, token] = header.split(' ');
     return scheme?.toLowerCase() === 'bearer' && token ? token : undefined;
 }
 
-/** Best-effort client IP for rate-limit keying. x-forwarded-for is set by the
- *  proxy in front of us (Fly/Render); first hop is the caller. Falls back to a
- *  shared 'unknown' bucket rather than skipping the limit, so a deploy without
- *  the header still has SOME ceiling. */
-export function clientIp(c: Context): string {
+/** Best-effort client IP. x-forwarded-for is set by the proxy in front of us
+ *  (Fly/Render); first hop is the caller. */
+export function forwardedIp(c: Context): string | undefined {
     const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-    return fwd || c.req.header('x-real-ip') || 'unknown';
+    return fwd || c.req.header('x-real-ip') || undefined;
+}
+
+/** forwardedIp for rate-limit keying: falls back to a shared 'unknown' bucket
+ *  rather than skipping the limit, so a deploy without the header still has
+ *  SOME ceiling. */
+export function clientIp(c: Context): string {
+    return forwardedIp(c) ?? 'unknown';
 }
 
 /** Per-IP sliding-window rate limit for pre-auth surfaces (sign-in endpoints,
