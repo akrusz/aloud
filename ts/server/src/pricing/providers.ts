@@ -106,8 +106,23 @@ const M = 1_000_000;
  *    "Show all available models" toggle).
  */
 
-/** Keyed by `${provider}:${model}`. */
+/** Keyed by `${provider}:${model}`. Order is the picker's order (the client
+ *  renders it as sent), so it's curated by hand: the default first, since an
+ *  unmatched pick falls back to the first visible model. */
 const MODELS: Record<string, ModelPricing> = {
+    // Opus 5.5, the default. Thinking CAN'T be disabled (the disable 400s at
+    // every effort), so the core AnthropicProvider pins effort `low` like Fable
+    // (thinkingPolicy 'always-on'); the API default is `medium`.
+    'anthropic:claude-opus-5-5': {
+        provider: 'anthropic',
+        model: 'claude-opus-5-5',
+        default: true, // pre-selected default: capable, and cheaper than Fable
+        input: 4 / M,
+        output: 20 / M,
+        cacheRead: 0.2 / M,
+        cacheCreation: 5 / M, // 5m write, 1.25x input
+        cacheCreation1h: 8 / M, // 1h write, 2x input
+    },
     // Fable 5.1: the premium tier above Opus. Same 5m/1h caching as the Opus
     // family (verified on the metered request shape), but cache READS are only
     // 0.025x input, the rate that drives $/hr here. Opt-in, not the default:
@@ -121,19 +136,6 @@ const MODELS: Record<string, ModelPricing> = {
         cacheRead: 0.25 / M,
         cacheCreation: 12.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 20 / M, // 1h write, 2x input
-    },
-    // Opus 5.5, the default. Thinking CAN'T be disabled (the disable 400s at
-    // every effort), so the core AnthropicProvider pins effort `low` like Fable
-    // (thinkingPolicy 'always-on'); the API default is `medium`.
-    'anthropic:claude-opus-5-5': {
-        provider: 'anthropic',
-        model: 'claude-opus-5-5',
-        default: true, // pre-selected default: capable, and cheaper than Fable
-        input: 4 / M,
-        output: 20 / M,
-        cacheRead: 0.2 / M,
-        cacheCreation: 5 / M, // 5m write, 1.25x input
-        cacheCreation1h: 8 / M, // 1h write, 2x input
     },
     // Opus 5, expanded-tier: ear-tested in production, and a sitter who picked
     // it keeps it. Thinking is ON by default, so the core AnthropicProvider

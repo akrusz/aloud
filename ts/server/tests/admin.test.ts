@@ -122,7 +122,7 @@ describe('admin routes — session (ALOUD_ADMIN_EMAILS) auth', () => {
         expect(html).toContain('"web-id.apps.googleusercontent.com"');
         expect(renderAdminPanel(undefined)).toContain('var GOOGLE_CLIENT_ID = ""');
         // The badge rates ride in from the same estimate code the picker uses.
-        expect(html).toMatch(/var BADGES = \{"llm":\{"anthropic:claude-fable-5-1":\d/);
+        expect(html).toMatch(/var BADGES = \{"llm":\{"anthropic:claude-[^"]+":\d/);
     });
 
     it('still rejects garbage bearers, and the static token keeps working alongside', async () => {

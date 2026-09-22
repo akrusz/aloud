@@ -263,3 +263,9 @@ describe('POST /cloud/v1/llm/complete accepts every allowlisted provider', () =>
         expect(body.error?.code).toBe('model_not_allowed');
     });
 });
+
+describe('picker order', () => {
+    it('lists the default first, so the fallback to the first visible model is the default', () => {
+        expect(allowedModels()[0]!.default).toBe(true);
+    });
+});
