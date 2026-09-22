@@ -18,7 +18,7 @@ import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { isTauri } from '../is-desktop.js';
-import { playbackAudio } from '../audio-unlock.js';
+import { audioContextCtor, playbackAudio } from '../audio-unlock.js';
 import { withTimeout } from '../net-timeout.js';
 
 // Dead-server ceiling, not a latency budget: a synthesis request that hangs
@@ -333,10 +333,7 @@ export class CloudTtsEngine implements TtsEngine {
     /** Lazily create (and reuse) the playback AudioContext. */
     private ensureAudioContext(): AudioContext {
         if (!this.audioCtx) {
-            const Ctor =
-                (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-                (globalThis as unknown as { webkitAudioContext?: typeof AudioContext })
-                    .webkitAudioContext;
+            const Ctor = audioContextCtor();
             if (!Ctor) throw new Error('Web Audio is unavailable');
             this.audioCtx = new Ctor();
         }

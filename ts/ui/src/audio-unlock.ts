@@ -24,6 +24,15 @@ const SILENT_WAV =
 let element: HTMLAudioElement | null = null;
 let context: AudioContext | null = null;
 
+/** The AudioContext constructor, webkit-prefixed on older Safari; undefined
+ *  where Web Audio is unavailable. */
+export function audioContextCtor(): typeof AudioContext | undefined {
+    return (
+        (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
+        (globalThis as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    );
+}
+
 /** The shared playback element, created on first use. */
 export function playbackAudio(): HTMLAudioElement {
     if (!element) {
@@ -41,9 +50,7 @@ export function playbackAudio(): HTMLAudioElement {
  */
 export function playbackAudioContext(): AudioContext | null {
     if (!context) {
-        const Ctor =
-            (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-            (globalThis as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        const Ctor = audioContextCtor();
         if (!Ctor) return null;
         context = new Ctor();
     }

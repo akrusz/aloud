@@ -25,6 +25,7 @@ import { withTimeout } from '../net-timeout.js';
 import { ensureMicPermission } from '../mic-permission.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
+import { audioContextCtor } from '../audio-unlock.js';
 // Type-only: dynamic-imported in acquireSilero() so the ort runtime + model
 // assets stay out of the main bundle (and out of node-env tests).
 import type { SileroFrameVad } from './silero-vad.js';
@@ -136,6 +137,10 @@ const LEAD_KEEP_MS = 500;
 // mid-turn pauses exhaust pushes a long turn's whole transcription AFTER
 // submit, right where the user is waiting.
 const MAX_SPECULATIVE_PASSES = 6;
+
+type TranscribeResult =
+    | { ok: true; text: string; seconds: number }
+    | { ok: false; error: unknown };
 
 /** The subset of PacingConfig fields the VAD here cares about. */
 type VadFields = Pick<
@@ -341,9 +346,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         return (
             typeof navigator !== 'undefined' &&
             !!navigator.mediaDevices?.getUserMedia &&
-            (typeof AudioContext !== 'undefined' ||
-                typeof (globalThis as unknown as { webkitAudioContext?: unknown })
-                    .webkitAudioContext !== 'undefined')
+            audioContextCtor() !== undefined
         );
     }
 
@@ -435,6 +438,10 @@ export class WhisperPcmSttEngine implements SttEngine {
         return out;
     }
 
+    private echoGateLevel(): number {
+        return Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX);
+    }
+
     /** Per-frame speech decision. With the model up: Silero's debounced
      *  verdict, plus barge-in-grade energy while TTS plays (echo IS speech to
      *  Silero, so speaker separation needs the energy reference - 8h1x).
@@ -449,6 +456,19 @@ export class WhisperPcmSttEngine implements SttEngine {
         let threshold = Math.max(FALLBACK_ENERGY_THRESHOLD, this.noiseFloor * 3);
         if (echoGate > 0) threshold = Math.max(threshold, echoGate, BARGE_IN_THRESHOLD);
         return energy > threshold;
+    }
+
+    /** Trailing silence that ends the turn. Adaptive: each ms of speech buys
+     *  silenceRampRate ms of patience, capped at silenceMaxMs, plus the
+     *  dangling-clause extension. */
+    private submitWindowMs(): number {
+        const speechDur = this.lastSpeechMs - this.speechStartMs;
+        return (
+            Math.min(
+                this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
+                this.opts.silenceMaxMs
+            ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0)
+        );
     }
 
     /** Continuous audio callback - runs for the engine's whole lifetime. */
@@ -477,9 +497,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         // While TTS is audible, lift the gates above this device's measured echo
         // floor. Zero otherwise (no echo to reject), so a silent gap keeps the
         // normal sensitive thresholds. Capped below real-speech level.
-        const echoGate = this.ttsActive
-            ? Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX)
-            : 0;
+        const echoGate = this.ttsActive ? this.echoGateLevel() : 0;
 
         if (this.echoWatch) {
             const w = this.echoWatch;
@@ -547,14 +565,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.energyHistory.shift();
         }
 
-        // Speech signal: Silero's debounced per-chunk classification (energy
-        // fallback when the model couldn't load). While TTS plays the frame
-        // must also clear barge-in-grade energy - Silero scores the
-        // facilitator's echo as speech (it IS speech), so telling the
-        // speakers apart needs an energy reference, and anything quieter than
-        // the barge-in gate couldn't have interrupted anyway. Closes the
-        // session-start phantom turn (8h1x): greeting echo at ~0.016 RMS cleared
-        // the old 0.015 floor before the echo EMA had calibrated.
+        // The barge-in-grade energy bar during TTS (isSpeechFrame) closes the
+        // session-start phantom turn (8h1x): greeting echo at ~0.016 RMS
+        // cleared the old 0.015 floor before the echo EMA had calibrated.
         if (this.isSpeechFrame(energy, echoGate)) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
@@ -578,14 +591,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.keepChunk(frame, energy);
         } else if (this.speechStarted) {
             this.keepChunk(frame, energy);
-            // Adaptive silence: each ms of speech buys silenceRampRate ms of
-            // additional patience, capped at silenceMaxMs.
             const speechDur = this.lastSpeechMs - this.speechStartMs;
-            const needed =
-                Math.min(
-                    this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
-                    this.opts.silenceMaxMs
-                ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
+            const needed = this.submitWindowMs();
             const silence = now - this.lastSpeechMs;
             // Hold the submit while a speculative pass resolves: it may be about
             // to set partialIncomplete and extend `needed`. Without the gate a
@@ -610,26 +617,24 @@ export class WhisperPcmSttEngine implements SttEngine {
                 // thought during the trailing "silence" - held speech vs a real
                 // pause; the energy row contextualizes the echo gate.
                 if (diagOn()) {
-                    const buckets = new Array<number>(16).fill(0);
-                    for (const { t, e } of this.energyHistory) {
-                        const idx = Math.floor((now - t) / 500);
-                        if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, e);
-                    }
-                    buckets.reverse();
+                    const tail = (pick: (h: { e: number; p: number }) => number, floor: number) => {
+                        const buckets = new Array<number>(16).fill(floor);
+                        for (const h of this.energyHistory) {
+                            const idx = Math.floor((now - h.t) / 500);
+                            if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, pick(h));
+                        }
+                        return buckets.reverse();
+                    };
                     diag(
                         `[vad] tail 8s->now (max rms / 0.5s): ` +
-                            buckets.map((b) => b.toFixed(3)).join(' ')
+                            tail((h) => h.e, 0).map((b) => b.toFixed(3)).join(' ')
                     );
                     if (this.silero) {
-                        const probs = new Array<number>(16).fill(-1);
-                        for (const { t, p } of this.energyHistory) {
-                            const idx = Math.floor((now - t) / 500);
-                            if (idx >= 0 && idx < 16) probs[idx] = Math.max(probs[idx]!, p);
-                        }
-                        probs.reverse();
                         diag(
                             `[vad] tail 8s->now (max speech-prob / 0.5s): ` +
-                                probs.map((v) => (v < 0 ? '----' : v.toFixed(2))).join(' ')
+                                tail((h) => h.p, -1)
+                                    .map((v) => (v < 0 ? '----' : v.toFixed(2)))
+                                    .join(' ')
                         );
                     }
                 }
@@ -763,10 +768,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             });
         }
 
-        const AC =
-            (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-            (globalThis as unknown as { webkitAudioContext?: typeof AudioContext })
-                .webkitAudioContext;
+        const AC = audioContextCtor();
         if (!AC) throw new Error('AudioContext unavailable');
         if (!this.context || this.context.state === 'closed') {
             this.teardownGraph();
@@ -799,10 +801,9 @@ export class WhisperPcmSttEngine implements SttEngine {
         const stream = this.stream;
         if (!stream) throw new Error('capture stream unavailable');
         if (!this.processor) {
-            const nativeRate = this.context.sampleRate;
             this.preBufferFrames = Math.max(
                 1,
-                Math.round((PRE_BUFFER_MS / 1000) * nativeRate / FRAME_SIZE)
+                Math.round((PRE_BUFFER_MS / 1000) * this.nativeRate / FRAME_SIZE)
             );
             this.source = this.context.createMediaStreamSource(stream);
             // ScriptProcessorNode is deprecated in favour of AudioWorklet, but
@@ -859,7 +860,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // real-speech territory and overGate counts the frames that leaked.
             const w = this.echoWatch;
             this.echoWatch = null;
-            const gate = Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX);
+            const gate = this.echoGateLevel();
             diag(
                 `[vad] tts window: frames=${w.frames} ` +
                     `peak=${w.peak.toFixed(4)} mean=${(w.frames ? w.sum / w.frames : 0).toFixed(4)} ` +
@@ -868,6 +869,84 @@ export class WhisperPcmSttEngine implements SttEngine {
             );
         }
         this.ttsActive = active;
+    }
+
+    /** Transcribe a snapshot of captured frames - a speculative pass or the
+     *  final submission. `label` feeds [stt-cost]: spec-vs-final is invisible
+     *  server-side. */
+    private async transcribe(
+        frames: readonly Float32Array[],
+        label: 'spec' | 'final',
+        nativeRate: number
+    ): Promise<TranscribeResult> {
+        const downsampled = downsampleLinear(concatFloat32(frames), nativeRate, TARGET_SAMPLE_RATE);
+        // No samples → nothing to transcribe. A speculative pass can fire
+        // before any frame accumulates (or just after a barge-in clears
+        // them); POSTing an empty body just earns a 400 from the endpoint.
+        if (downsampled.length === 0) return { ok: true, text: '', seconds: 0 };
+        // Int16 on the wire (format=i16): the endpoints re-encode to
+        // 16-bit anyway, so this halves the upload for free.
+        const pcm16 = new Int16Array(downsampled.length);
+        for (let i = 0; i < downsampled.length; i++) {
+            const s = Math.max(-1, Math.min(1, downsampled[i]!));
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        try {
+            // session_id groups the cloud cost report (the desktop ignores
+            // it). lang is independent of model_size: the desktop shell
+            // keys the whisper model's language off it, the cloud route
+            // forwards it to the provider as a transcription hint.
+            const query = Object.entries({
+                session_id: getCloudSessionId(),
+                model_size: this.opts.whisperModelSize,
+                lang: this.opts.language,
+                model: this.opts.cloudModel,
+            })
+                .map(([k, v]) => (v ? `&${k}=${encodeURIComponent(v)}` : ''))
+                .join('');
+            const url = `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${query}`;
+            const send = (): Promise<Response> =>
+                withTimeout(
+                    (async () => {
+                        const headers: Record<string, string> = {
+                            'content-type': 'application/octet-stream',
+                        };
+                        if (this.opts.authProvider) {
+                            const token = await this.opts.authProvider();
+                            if (token) headers['authorization'] = `Bearer ${token}`;
+                        }
+                        return this.opts.fetchImpl(url, {
+                            method: 'POST',
+                            headers,
+                            body: pcm16.buffer as ArrayBuffer,
+                        });
+                    })(),
+                    TRANSCRIBE_TIMEOUT_MS,
+                    'aloud cloud transcription timed out.'
+                );
+            let response = await send();
+            // Self-heal a stale token: clear and re-sign-in once on a 401,
+            // matching the cloud LLM/TTS adapters. Hosted path only.
+            if (response.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
+                await this.opts.onAuthError();
+                response = await send();
+            }
+            if (!response.ok) {
+                const detail = await response.text().catch(() => '');
+                return { ok: false, error: new Error(`Whisper endpoint ${response.status}: ${detail}`) };
+            }
+            const data = (await response.json()) as { text?: string; error?: string };
+            if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
+            const text = (data.text ?? '').trim();
+            const seconds = downsampled.length / TARGET_SAMPLE_RATE;
+            diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
+            // Provenance for transcript anomalies: a user turn with no
+            // matching [stt-text] line did not come from the mic.
+            if (label === 'final') diag(`[stt-text] ${text.length} chars`);
+            return { ok: true, text, seconds };
+        } catch (err) {
+            return { ok: false, error: err };
+        }
     }
 
     async *start(): AsyncIterable<SttEvent> {
@@ -905,9 +984,6 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.bargeInChunks = 0;
         this.capturing = true;
 
-        // Transcribe a snapshot of captured frames - speculative passes and
-        // the final submission. `label` feeds [stt-cost]: spec-vs-final is
-        // invisible server-side.
         // Audio seconds this turn has sent for transcription, every pass: on
         // hosted STT each one is billed, so the session tally reports the sum,
         // not just the final (m56t).
@@ -915,99 +991,10 @@ export class WhisperPcmSttEngine implements SttEngine {
         const transcribeChunks = async (
             frames: readonly Float32Array[],
             label: 'spec' | 'final'
-        ): Promise<
-            { ok: true; text: string; seconds: number } | { ok: false; error: unknown }
-        > => {
-            const combined = concatFloat32(frames as Float32Array[]);
-            const downsampled =
-                nativeRate === TARGET_SAMPLE_RATE
-                    ? combined
-                    : downsampleLinear(combined, nativeRate, TARGET_SAMPLE_RATE);
-            // No samples → nothing to transcribe. A speculative pass can fire
-            // before any frame accumulates (or just after a barge-in clears
-            // them); POSTing an empty body just earns a 400 from the endpoint.
-            if (downsampled.length === 0) return { ok: true, text: '', seconds: 0 };
-            // Int16 on the wire (format=i16): the endpoints re-encode to
-            // 16-bit anyway, so this halves the upload for free.
-            const pcm16 = new Int16Array(downsampled.length);
-            for (let i = 0; i < downsampled.length; i++) {
-                const s = Math.max(-1, Math.min(1, downsampled[i]!));
-                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-            }
-            try {
-                // Tag with the session group when one is active (cloud cost
-                // report). The desktop STT ignores it.
-                const sessionId = getCloudSessionId();
-                const sessionParam = sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : '';
-                const modelParam = this.opts.whisperModelSize
-                    ? `&model_size=${encodeURIComponent(this.opts.whisperModelSize)}`
-                    : '';
-                // Independent of model_size: the desktop shell uses it to pick
-                // the whisper model's language, the cloud route forwards it to
-                // the provider as a transcription hint.
-                const langParam = this.opts.language
-                    ? `&lang=${encodeURIComponent(this.opts.language)}`
-                    : '';
-                const cloudModelParam = this.opts.cloudModel
-                    ? `&model=${encodeURIComponent(this.opts.cloudModel)}`
-                    : '';
-                const send = async (): Promise<Response> => {
-                    const headers: Record<string, string> = {
-                        'content-type': 'application/octet-stream',
-                    };
-                    if (this.opts.authProvider) {
-                        const token = await this.opts.authProvider();
-                        if (token) headers['authorization'] = `Bearer ${token}`;
-                    }
-                    return this.opts.fetchImpl(
-                        `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${sessionParam}${modelParam}${langParam}${cloudModelParam}`,
-                        {
-                            method: 'POST',
-                            headers,
-                            body: pcm16.buffer as ArrayBuffer,
-                        }
-                    );
-                };
-                let response = await withTimeout(
-                    send(),
-                    TRANSCRIBE_TIMEOUT_MS,
-                    'aloud cloud transcription timed out.'
-                );
-                // Self-heal a stale token: clear and re-sign-in once on a 401,
-                // matching the cloud LLM/TTS adapters. Hosted path only.
-                if (response.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
-                    await this.opts.onAuthError();
-                    response = await withTimeout(
-                        send(),
-                        TRANSCRIBE_TIMEOUT_MS,
-                        'aloud cloud transcription timed out.'
-                    );
-                }
-                if (!response.ok) {
-                    const detail = await response.text().catch(() => '');
-                    return {
-                        ok: false,
-                        error: new Error(`Whisper endpoint ${response.status}: ${detail}`),
-                    };
-                }
-                const data = (await response.json()) as { text?: string; error?: string };
-                if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
-                const seconds = downsampled.length / TARGET_SAMPLE_RATE;
-                turnBilledSec += seconds;
-                diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
-                // Provenance for transcript anomalies: a user turn with no
-                // matching [stt-text] line did not come from the mic.
-                if (label === 'final') {
-                    diag(`[stt-text] ${(data.text ?? '').trim().length} chars`);
-                }
-                return {
-                    ok: true,
-                    text: (data.text ?? '').trim(),
-                    seconds,
-                };
-            } catch (err) {
-                return { ok: false, error: err };
-            }
+        ): Promise<TranscribeResult> => {
+            const result = await this.transcribe(frames, label, nativeRate);
+            if (result.ok) turnBilledSec += result.seconds;
+            return result;
         };
 
         try {
@@ -1052,15 +1039,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                     const bufferedMs = (this.chunks.length * FRAME_SIZE * 1000) / nativeRate;
                     let specAfterMs = SPECULATIVE_SILENCE_MS;
                     if (bufferedMs > SPEC_EARLY_MAX_BUFFER_MS) {
-                        const speechDur = this.lastSpeechMs - this.speechStartMs;
-                        const needed =
-                            Math.min(
-                                this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
-                                this.opts.silenceMaxMs
-                            ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
                         specAfterMs = Math.max(
                             SPECULATIVE_SILENCE_MS,
-                            needed - SPEC_TERMINAL_LEAD_MS
+                            this.submitWindowMs() - SPEC_TERMINAL_LEAD_MS
                         );
                     }
                     if (
@@ -1128,7 +1109,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                             t > lastSpecAt &&
                             (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
                     );
-                let result: Awaited<ReturnType<typeof transcribeChunks>>;
+                let result: TranscribeResult;
                 if (lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints) {
                     diag('[stt-cost] final reused the speculative transcript - 0s billed');
                     diag(`[stt-text] ${lastSpecResult.text.length} chars`);
@@ -1242,19 +1223,6 @@ export class WhisperPcmSttEngine implements SttEngine {
 }
 
 /**
- * Whether a held capture stream is unusable and must be re-acquired.
- *
- * The trap is `muted`. Backgrounding an app on Android mutes the capture track
- * but leaves the stream `active` and the track `live`, and it stays muted after
- * returning to the foreground. A graph rebuilt on that track feeds digital
- * zeros forever, so the session goes deaf with no error anywhere
- * (meditation-pal-wudm). A track that `ended` fires its own reacquire handler;
- * a muted one fires nothing, so it has to be caught on the way in.
- *
- * Only consulted from ensureCaptureGraph, i.e. from start()/prime() at a turn
- * boundary - so re-acquiring here can never clip a live utterance.
- */
-/**
  * Index ranges to keep from a chunk sequence once every run of quiet chunks
  * longer than `gap` is collapsed to `keep` chunks (half from each edge, so the
  * cut lands inside the silence, never on a word). Runs of `gap` or fewer are
@@ -1289,6 +1257,19 @@ export function compactQuietRuns(
     return ranges.filter(([a, b]) => b > a);
 }
 
+/**
+ * Whether a held capture stream is unusable and must be re-acquired.
+ *
+ * The trap is `muted`. Backgrounding an app on Android mutes the capture track
+ * but leaves the stream `active` and the track `live`, and it stays muted after
+ * returning to the foreground. A graph rebuilt on that track feeds digital
+ * zeros forever, so the session goes deaf with no error anywhere
+ * (meditation-pal-wudm). A track that `ended` fires its own reacquire handler;
+ * a muted one fires nothing, so it has to be caught on the way in.
+ *
+ * Only consulted from ensureCaptureGraph, i.e. from start()/prime() at a turn
+ * boundary - so re-acquiring here can never clip a live utterance.
+ */
 export function streamNeedsRefresh(stream: MediaStream | null): boolean {
     if (!stream || !stream.active) return true;
     const track = stream.getAudioTracks()[0];
@@ -1302,7 +1283,7 @@ function frameRms(frame: Float32Array): number {
     return Math.sqrt(sum / frame.length);
 }
 
-function concatFloat32(chunks: Float32Array[]): Float32Array {
+function concatFloat32(chunks: readonly Float32Array[]): Float32Array {
     let total = 0;
     for (const c of chunks) total += c.length;
     const out = new Float32Array(total);

@@ -7,6 +7,8 @@
  * One stream per session; stop() tears down track + context, and is idempotent.
  */
 
+import { audioContextCtor } from './audio-unlock.js';
+
 export interface MicMeter {
     stop(): void;
 }
@@ -28,9 +30,7 @@ export async function startMicMeter(
     const stream = await navigator.mediaDevices.getUserMedia({
         audio: micDeviceId ? { deviceId: { ideal: micDeviceId } } : true,
     });
-    const AC =
-        (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-        (globalThis as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const AC = audioContextCtor();
     if (!AC) {
         for (const t of stream.getTracks()) t.stop();
         throw new Error('AudioContext unavailable');

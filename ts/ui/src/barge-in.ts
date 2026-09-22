@@ -13,6 +13,9 @@
  * The threshold/chunk-count defaults are tuned for typical conversation volume.
  */
 
+import type { TtsEngine, TtsOptions, TtsVoice } from '../../src/platform/index.js';
+import { audioContextCtor } from './audio-unlock.js';
+
 const FRAME_SIZE = 4096;
 const BARGE_IN_THRESHOLD = 0.04;
 const BARGE_IN_REQUIRED_CHUNKS = 3;
@@ -68,10 +71,7 @@ export class BargeInListener {
             return;
         }
 
-        const AC =
-            (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-            (globalThis as unknown as { webkitAudioContext?: typeof AudioContext })
-                .webkitAudioContext;
+        const AC = audioContextCtor();
         if (!AC) {
             this.releaseStream();
             return;
@@ -139,18 +139,16 @@ export class BargeInListener {
     }
 }
 
-/**
- * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
- * listener fires, tts.cancel() resolves the in-flight speak(). Pure
- * pass-through otherwise.
- */
-import type { TtsEngine, TtsOptions, TtsVoice } from '../../src/platform/index.js';
-
 export interface BargeInTtsOptions extends BargeInListenerOptions {
     /** Called after TTS has been cancelled due to barge-in detection. */
     onBargeIn?: () => void;
 }
 
+/**
+ * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
+ * listener fires, tts.cancel() resolves the in-flight speak(). Pure
+ * pass-through otherwise.
+ */
 export function wrapTtsWithBargeIn(
     inner: TtsEngine,
     options: BargeInTtsOptions = {}
