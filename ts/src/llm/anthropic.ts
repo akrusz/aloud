@@ -27,6 +27,7 @@ import type {
     StreamChunk,
 } from './base.js';
 import { systemNoteAsUserText } from './base.js';
+import { fetchWithRetry, retryOptions, type RetryOptions, type SleepFn } from './retry.js';
 import { iterateSseEvents, safeJson } from './sse.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -94,20 +95,6 @@ function isTuningRejection(detail: string): boolean {
     return /thinking|effort|output_config/i.test(detail);
 }
 
-/** Retryable upstream statuses: 429, and the transient 5xx family including
- *  Anthropic's 529 "overloaded". A non-429 4xx is the caller's fault (bad
- *  request, auth) and never retried. */
-const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 529]);
-
-/** Capped exponential backoff (ms) with jitter, honoring a numeric Retry-After.
- *  The cap keeps a long rate-limit window from hanging a turn for more than a
- *  few seconds before the error surfaces. */
-function backoffMs(attempt: number, retryAfter: string | null): number {
-    const ra = retryAfter ? Number(retryAfter) : NaN;
-    const base = Number.isFinite(ra) ? ra * 1000 : 400 * 2 ** attempt + Math.random() * 200;
-    return Math.min(base, 8000);
-}
-
 /**
  * Two ephemeral cache TTLs, both used: 5m (write 1.25x input) on the rolling
  * tail, refreshed by each turn's read so the prefix stays warm cheaply; 1h
@@ -157,14 +144,14 @@ export interface AnthropicProviderOptions {
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
     /**
-     * Retries on transient upstream failures (429 / 5xx / network), default 3.
-     * Anthropic, Haiku especially, returns 429 and 529 under load; without retry
-     * a single hiccup killed the turn, which made mid-session turns fail ~5/6 of
-     * the time. A non-429 4xx won't get better and is never retried.
+     * Retries on transient upstream failures (429 / 5xx / network), default 3
+     * (retry.ts). Anthropic, Haiku especially, returns 429 and 529 under load;
+     * without retry a single hiccup killed the turn, which made mid-session
+     * turns fail ~5/6 of the time.
      */
     maxRetries?: number;
     /** Override the inter-retry sleep (tests inject a no-op to stay fast). */
-    sleepImpl?: (ms: number) => Promise<void>;
+    sleepImpl?: SleepFn;
 }
 
 interface AnthropicUsage {
@@ -193,8 +180,7 @@ export class AnthropicProvider implements LLMProvider {
     private readonly baseUrl: string;
     private readonly directBrowserAccess: boolean;
     private readonly fetchImpl: typeof fetch;
-    private readonly maxRetries: number;
-    private readonly sleep: (ms: number) => Promise<void>;
+    private readonly retry: RetryOptions;
 
     constructor(options: AnthropicProviderOptions = {}) {
         const usingProxy = options.baseUrl !== undefined && options.baseUrl !== ANTHROPIC_API_URL;
@@ -210,37 +196,7 @@ export class AnthropicProvider implements LLMProvider {
         this.baseUrl = options.baseUrl ?? ANTHROPIC_API_URL;
         this.directBrowserAccess = options.directBrowserAccess ?? false;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
-        this.maxRetries = options.maxRetries ?? 3;
-        this.sleep = options.sleepImpl ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
-    }
-
-    /**
-     * fetch with bounded retry on RETRYABLE_STATUS and network throws, using
-     * capped backoff with jitter. Never retries a caller-aborted request or a
-     * non-429 4xx. The returned Response may still be an error (retries
-     * exhausted); the caller does the ok-check, preserving its error message.
-     */
-    private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-        for (let attempt = 0; ; attempt++) {
-            try {
-                const response = await this.fetchImpl(url, init);
-                if (
-                    response.ok ||
-                    !RETRYABLE_STATUS.has(response.status) ||
-                    attempt >= this.maxRetries
-                ) {
-                    return response;
-                }
-                const retryAfter = response.headers.get('retry-after');
-                // Drain the errored body so the socket can be reused.
-                await response.text().catch(() => {});
-                await this.sleep(backoffMs(attempt, retryAfter));
-            } catch (err) {
-                const aborted = (init.signal as AbortSignal | undefined)?.aborted;
-                if (aborted || attempt >= this.maxRetries) throw err;
-                await this.sleep(backoffMs(attempt, null));
-            }
-        }
+        this.retry = retryOptions(options);
     }
 
     /** Set once a model 400s on the thinking tuning; every later turn skips it. */
@@ -337,7 +293,7 @@ export class AnthropicProvider implements LLMProvider {
     ): Promise<Response> {
         for (;;) {
             const req = this.buildRequest(messages, options, stream, !this.tuningRejected);
-            const response = await this.fetchWithRetry(req.url, req.init);
+            const response = await fetchWithRetry(this.fetchImpl, req.url, req.init, this.retry);
             if (response.ok) return response;
             const detail = await response.text().catch(() => '');
             if (response.status === 400 && req.systemRole && isSystemRoleRejection(detail)) {

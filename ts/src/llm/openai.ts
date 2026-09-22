@@ -13,6 +13,7 @@ import {
     type Message,
     type StreamChunk,
 } from './base.js';
+import { fetchWithRetry, retryOptions, type RetryOptions, type SleepFn } from './retry.js';
 import { iterateSseEvents, safeJson } from './sse.js';
 
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -65,6 +66,11 @@ export interface OpenAIProviderOptions {
     reasoningHeadroom?: number;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
+    /** Retries on transient upstream failures (429 / 5xx / network), default 3
+     *  (retry.ts). */
+    maxRetries?: number;
+    /** Override the inter-retry sleep (tests inject a no-op to stay fast). */
+    sleepImpl?: SleepFn;
 }
 
 interface OpenAIUsage {
@@ -108,6 +114,7 @@ export class OpenAIProvider implements LLMProvider {
     private readonly extraBody: Record<string, unknown> | undefined;
     private readonly reasoningHeadroom: number;
     private readonly fetchImpl: typeof fetch;
+    private readonly retry: RetryOptions;
 
     constructor(options: OpenAIProviderOptions = {}) {
         const baseUrl = (options.baseUrl ?? OPENAI_BASE_URL).replace(/\/+$/, '');
@@ -125,6 +132,7 @@ export class OpenAIProvider implements LLMProvider {
         this.extraBody = options.extraBody;
         this.reasoningHeadroom = options.reasoningHeadroom ?? 0;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+        this.retry = retryOptions(options);
     }
 
     private buildRequest(
@@ -178,9 +186,11 @@ export class OpenAIProvider implements LLMProvider {
 
     /** POST /chat/completions; resolves to an ok response or throws. */
     private async post(messages: Message[], options: CompletionOptions, stream: boolean): Promise<Response> {
-        const response = await this.fetchImpl(
+        const response = await fetchWithRetry(
+            this.fetchImpl,
             `${this.baseUrl}/chat/completions`,
-            this.buildRequest(messages, options, stream)
+            this.buildRequest(messages, options, stream),
+            this.retry
         );
         if (!response.ok) {
             const detail = await response.text().catch(() => '');

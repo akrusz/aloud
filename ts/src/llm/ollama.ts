@@ -8,12 +8,21 @@ import {
     type Message,
     type StreamChunk,
 } from './base.js';
+import { fetchWithRetry, retryOptions, type RetryOptions, type SleepFn } from './retry.js';
 import { iterateNdjson } from './sse.js';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen3.5:4b';
 const DEFAULT_MAX_TOKENS = 300;
 const COLD_LOAD_PROBE_TIMEOUT_MS = 2000;
+/**
+ * Narrower than the cloud set (retry.ts): a proxy's 502/504 while the daemon
+ * starts, and 503 when its queue is full. Ollama's 500 means a model that
+ * failed to load (out of memory, unsupported), and each retry would sit
+ * through that load again only to fail the same way. A cold load itself is
+ * no error, just a slow response, so needs no retry.
+ */
+const OLLAMA_RETRYABLE_STATUS: ReadonlySet<number> = new Set([502, 503, 504]);
 /**
  * Context window (num_ctx) requested per call. Ollama defaults to 4096 unless
  * OLLAMA_CONTEXT_LENGTH is set, and overflow truncates the prompt SILENTLY, so
@@ -51,6 +60,11 @@ export interface OllamaProviderOptions {
     contextLength?: number;
     /** Override fetch for testing. */
     fetchImpl?: typeof fetch;
+    /** Retries on a daemon that is unreachable, starting, or busy, default 3
+     *  (retry.ts). */
+    maxRetries?: number;
+    /** Override the inter-retry sleep (tests inject a no-op to stay fast). */
+    sleepImpl?: SleepFn;
 }
 
 interface OllamaChatResponse {
@@ -73,6 +87,7 @@ export class OllamaProvider implements LLMProvider {
     readonly contextLength: number;
     private readonly baseUrl: string;
     private readonly fetchImpl: typeof fetch;
+    private readonly retry: RetryOptions;
 
     constructor(options: OllamaProviderOptions = {}) {
         this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -82,6 +97,7 @@ export class OllamaProvider implements LLMProvider {
         this.keepAlive = options.keepAlive ?? '30m';
         this.contextLength = options.contextLength ?? DEFAULT_NUM_CTX;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+        this.retry = retryOptions(options, { retryableStatus: OLLAMA_RETRYABLE_STATUS });
     }
 
     private buildBody(messages: Message[], options: CompletionOptions, stream: boolean): string {
@@ -121,12 +137,17 @@ export class OllamaProvider implements LLMProvider {
 
     /** POST /api/chat; resolves to an ok response or throws. */
     private async chat(messages: Message[], options: CompletionOptions, stream: boolean): Promise<Response> {
-        const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: this.buildBody(messages, options, stream),
-            ...(options.signal && { signal: options.signal }),
-        });
+        const response = await fetchWithRetry(
+            this.fetchImpl,
+            `${this.baseUrl}/api/chat`,
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: this.buildBody(messages, options, stream),
+                ...(options.signal && { signal: options.signal }),
+            },
+            this.retry
+        );
         if (!response.ok) {
             const detail = await response.text().catch(() => '');
             throw new Error(`Ollama error ${response.status}: ${detail}`);
