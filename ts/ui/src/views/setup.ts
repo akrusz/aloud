@@ -30,24 +30,20 @@ import {
 } from '../settings.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
-    buildScoredVoiceList,
-    downloadPercent,
-    downloadVoiceModel,
-    fetchServerVoices,
-    fetchCloudVoices,
+    downloadVoiceFromRow,
     invalidateServerVoicesCache,
+    loadScoredVoices,
     prefixedVoiceId,
     previewVoice as runPreview,
     previewErrorMessage,
     renderVoiceList,
     renderVoiceModalHTML,
+    stripVoicePrefix,
     syncSpeedControlForVoice,
     voiceRateLabel,
-    setModelDownloadsDisabled,
     stopPreview,
     updateVoiceSelection,
     type ScoredVoice,
-    type ServerVoice,
 } from '../voice-picker.js';
 import {
     rateBadge,
@@ -61,7 +57,6 @@ import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker, cloudUtilityCreditsPerHour } from '../model-picker.js';
 import { assetPath } from '../route-base.js';
-import { hasApiKey } from '../api-keys.js';
 import {
     sttEngineOptions,
     resolveSttChoice,
@@ -76,13 +71,15 @@ import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
-import { appUrl } from '../app-base.js';
 import {
     computeProviderMarker,
+    fetchKeyPresence,
+    fetchProviderStatus,
     stripMarker,
     type ProviderStatusMap,
 } from '../provider-markers.js';
 import { alertDialog } from '../dialog.js';
+import { escapeHtml } from '../escape-html.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clockModeLabel, showSessionClockModal } from '../session-clock.js';
@@ -375,24 +372,9 @@ export async function mountSetupView(
      * preview can drive browser TTS; server voices win any name collision.
      */
     async function loadVoiceCatalog(): Promise<void> {
-        // speechSynthesis often loads its list async on first call.
-        if (
-            typeof speechSynthesis !== 'undefined' &&
-            speechSynthesis.getVoices().length === 0
-        ) {
-            await new Promise<void>((resolve) => {
-                const done = () => {
-                    speechSynthesis.removeEventListener('voiceschanged', done);
-                    resolve();
-                };
-                speechSynthesis.addEventListener('voiceschanged', done);
-                setTimeout(done, 600);
-            });
-        }
-        const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         // Session language (the app-level Settings value, mirrored by
         // loadSetup) hides incompatible voices in the picker.
-        scoredVoices = buildScoredVoiceList(server, true, hosted, setup.language);
+        scoredVoices = await loadScoredVoices(setup.language);
         // Never leave the picker on a bare "Default": take the best (list is
         // sorted best-first) voice that doesn't need downloading.
         if (!stripVoicePrefix(setup.voice)) {
@@ -455,7 +437,7 @@ export async function mountSetupView(
         }
         // innerHTML so a paid pick's ☁️ badge gets the legibility outline;
         // voice names are catalog data, so escape before wrapping.
-        for (const btn of btns) btn.innerHTML = withCloudOutline(escapeAttr(text));
+        for (const btn of btns) btn.innerHTML = withCloudOutline(escapeHtml(text));
         // The voice leg feeds the combined estimate.
         updateSessionEstimate();
     }
@@ -559,30 +541,13 @@ export async function mountSetupView(
             if (!row) return;
             const name = row.dataset['voiceName'];
             if (!name) return;
-            // Stream the Piper model down with live percent, then re-render so
-            // the voice (and any model-sharing speakers) unlock.
+            // Download the Piper model, then re-render so the voice (and any
+            // model-sharing speakers) unlock.
             const downloadBtn = target2.closest<HTMLButtonElement>('.voice-row-download');
             if (downloadBtn) {
                 e.preventDefault();
-                const entry = findVoice(name);
-                const model = row.dataset['model'];
                 void (async () => {
-                    const original = downloadBtn.textContent;
-                    downloadBtn.disabled = true;
-                    downloadBtn.textContent = '0%';
-                    // Lock sibling speakers (same shared .onnx) while downloading.
-                    setModelDownloadsDisabled(listEl, model, true, downloadBtn);
-                    try {
-                        await downloadVoiceModel(name, entry?.engine, (p) => {
-                            downloadBtn.textContent = `${downloadPercent(p)}%`;
-                        });
-                    } catch (err) {
-                        downloadBtn.disabled = false;
-                        downloadBtn.textContent = original ?? t('Download');
-                        setModelDownloadsDisabled(listEl, model, false, downloadBtn);
-                        void alertDialog(t('Could not download: {message}', { message: (err as Error).message }));
-                        return;
-                    }
+                    if (!(await downloadVoiceFromRow(listEl, downloadBtn, name, findVoice(name)?.engine))) return;
                     invalidateServerVoicesCache();
                     await loadVoiceCatalog();
                     renderVoiceList(listEl, scoredVoices, currentName, { showEngine: true, hideIncompatible: true });
@@ -687,33 +652,25 @@ export async function mountSetupView(
         }
         updateCustomizeSummary();
 
-        // Focus checkboxes
-        root.querySelectorAll<HTMLInputElement>('input[name="focus"]').forEach((cb) => {
-            cb.checked = setup.focuses.includes(cb.value as Focus);
-            cb.addEventListener('change', () => {
-                const value = cb.value as Focus;
-                setup.focuses = cb.checked
-                    ? [...setup.focuses, value]
-                    : setup.focuses.filter((f) => f !== value);
-                persist();
-                updateCustomizeSummary();
-                cb.closest('.modifier-toggle')!.classList.toggle('selected', cb.checked);
+        // Focus + quality checkboxes, each group a list-valued setup field.
+        function wireModifierGroup<T extends string>(
+            name: string,
+            get: () => T[],
+            set: (list: T[]) => void
+        ): void {
+            root.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`).forEach((cb) => {
+                const value = cb.value as T;
+                cb.checked = get().includes(value);
+                cb.addEventListener('change', () => {
+                    set(cb.checked ? [...get(), value] : get().filter((v) => v !== value));
+                    persist();
+                    updateCustomizeSummary();
+                    cb.closest('.modifier-toggle')!.classList.toggle('selected', cb.checked);
+                });
             });
-        });
-
-        // Quality checkboxes
-        root.querySelectorAll<HTMLInputElement>('input[name="quality"]').forEach((cb) => {
-            cb.checked = setup.qualities.includes(cb.value as Quality);
-            cb.addEventListener('change', () => {
-                const value = cb.value as Quality;
-                setup.qualities = cb.checked
-                    ? [...setup.qualities, value]
-                    : setup.qualities.filter((q) => q !== value);
-                persist();
-                updateCustomizeSummary();
-                cb.closest('.modifier-toggle')!.classList.toggle('selected', cb.checked);
-            });
-        });
+        }
+        wireModifierGroup<Focus>('focus', () => setup.focuses, (l) => (setup.focuses = l));
+        wireModifierGroup<Quality>('quality', () => setup.qualities, (l) => (setup.qualities = l));
 
         // Directiveness
         const dirSlider = root.querySelector<HTMLInputElement>('#directiveness')!;
@@ -835,10 +792,6 @@ export async function mountSetupView(
         getModelRate = () => modelPicker.getRate();
         refreshModelPicker = (p) => void modelPicker.refresh(p);
 
-        // No language control here (removed 2026-08-31): the Settings value is
-        // canonical (loadSetup mirrors it), first-run detection picks it from
-        // the system locale, and very few people change language per session.
-
         // App-level (like the default voice), so saving here mirrors Settings.
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
         const sttQualityNote = root.querySelector<HTMLElement>('#setup-stt-quality-note');
@@ -866,17 +819,15 @@ export async function mountSetupView(
 
         // One Begin path handles fresh and continued sessions. A cold-boot resume
         // runs through the modal, so pendingContinue here is only ever a History
-        // "Continue" (or null): hand its queued state to onBegin as before.
+        // "Continue" (or null).
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
-            void (async () => {
-                const queued = pendingContinue?.state ?? null;
-                if (pendingContinue) {
-                    pendingContinue = null;
-                    clearContinueStorage();
-                }
-                onBegin(setup, queued);
-            })();
+            const queued = pendingContinue?.state ?? null;
+            if (pendingContinue) {
+                pendingContinue = null;
+                clearContinueStorage();
+            }
+            onBegin(setup, queued);
         });
         // Initial gate state (recomputed once /providers status arrives).
         updateBeginButton();
@@ -893,9 +844,6 @@ export async function mountSetupView(
                 updateSessionEstimate();
             })
             .catch(() => {});
-        // The rate now renders inside the Begin button as a passive label
-        // (pointer-events: none), so it's no longer the old pill's tap-to-buy
-        // shortcut. Buying credits lives behind the profile surface.
 
         // Continuation / resume banner. render() rebuilds the DOM, so re-wire the
         // ✕ and repaint from the in-memory pendingContinue every render (the
@@ -915,36 +863,19 @@ export async function mountSetupView(
     // ✘: it can't run without one.
     let keyPresent: Record<string, boolean> = {};
 
-    async function refreshKeyPresence(): Promise<void> {
-        const entries = await Promise.all(
-            ALL_PROVIDERS.filter((p) => p.needsKey).map(
-                async (p) => [p.value, await hasApiKey(p.value)] as const
-            )
-        );
-        keyPresent = Object.fromEntries(entries);
-    }
-
     async function refreshProviderAvailability(): Promise<void> {
-        await refreshKeyPresence();
-        try {
-            const resp = await fetch(appUrl('/providers'));
-            if (resp.ok) providerStatus = (await resp.json()) as ProviderStatusMap;
-        } catch {
-            // Backend not reachable: leave status unknown. The key-presence ✘
-            // marks still apply, and the session view surfaces a real error if
-            // a provider call fails later.
-        }
+        keyPresent = await fetchKeyPresence();
+        // Backend not reachable: leave status unknown. The key-presence ✘ marks
+        // still apply, and the session view surfaces a real error if a
+        // provider call fails later.
+        providerStatus = (await fetchProviderStatus()) ?? providerStatus;
         applyProviderIndicators();
         updateProviderHint();
         scheduleCloudWatch();
     }
 
-    /**
-     * Whether the chosen flow needs a working LLM. Shared with the cloud gate so
-     * the two can't disagree (meditation-pal-vr3w). A solo/empty circle used to
-     * count as needing one "for an AI-led intro"; that hasn't been true since
-     * the opener became static (NOTING_STATIC_OPENER).
-     */
+    /** Whether the chosen flow needs a working LLM. Shared with the cloud gate
+     *  so the two can't disagree. */
     function needsLLM(): boolean {
         return sessionNeedsLlm(setup.meditationType, setup.notingParticipants);
     }
@@ -1148,12 +1079,9 @@ export async function mountSetupView(
         root.querySelectorAll<HTMLElement>('#info-methods [data-method]').forEach((block) => {
             block.classList.toggle('hidden', block.dataset['method'] !== active);
         });
-        const exploration = root.querySelector<HTMLElement>('#exploration-panel');
-        const noting = root.querySelector<HTMLElement>('#noting-panel');
-        const feltSense = root.querySelector<HTMLElement>('#felt-sense-panel');
-        if (exploration) exploration.classList.toggle('hidden', active !== 'exploration');
-        if (noting) noting.classList.toggle('hidden', active !== 'noting');
-        if (feltSense) feltSense.classList.toggle('hidden', active !== 'felt_sense');
+        for (const [mode, panelId] of MODE_PANELS) {
+            root.querySelector(`#${panelId}`)?.classList.toggle('hidden', active !== mode);
+        }
         // Now that the active panel is visible, its intention box can measure.
         if (active === 'exploration') {
             autosizeIntention(root.querySelector<HTMLTextAreaElement>('#intention'));
@@ -1185,10 +1113,7 @@ export async function mountSetupView(
     const REACTIVE_LABELS = ['None', 'Low', 'High'];
 
     function voiceNameFromId(id: string | null): string {
-        if (!id) return '';
-        const name = id.replace(/^(browser:|server:|aloud:)/, '');
-        const found = scoredVoices.find((v) => v.name === name);
-        return found ? found.name : name;
+        return stripVoicePrefix(id) ?? '';
     }
     function participantLabel(p: NotingParticipantConfig, index: number): string {
         if (p.type === 'sound') return t(capitalize(p.sound));
@@ -1217,8 +1142,8 @@ export async function mountSetupView(
                 const delayVal = p.fixedDelaySec || 4;
                 return `<div class="participant-row" data-index="${i}">
                     <div class="participant-row-header">
-                        <span class="participant-label">${escapeAttr(participantLabel(p, i))}</span>
-                        <button type="button" class="participant-remove" title="${escapeAttr(t('Remove'))}">&times;</button>
+                        <span class="participant-label">${escapeHtml(participantLabel(p, i))}</span>
+                        <button type="button" class="participant-remove" title="${escapeHtml(t('Remove'))}">&times;</button>
                     </div>
                     <div class="participant-fields">
                         <div class="participant-field">
@@ -1231,7 +1156,7 @@ export async function mountSetupView(
                         </div>
                         <div class="participant-field participant-voice-field${p.type === 'sound' ? ' hidden' : ''}">
                             <label>${t('Voice')}</label>
-                            <button type="button" class="setup-voice-btn participant-voice-btn">${escapeAttr(voiceLabel)}</button>
+                            <button type="button" class="setup-voice-btn participant-voice-btn">${escapeHtml(voiceLabel)}</button>
                         </div>
                         <div class="participant-field">
                             <label>${t('Timing')}</label>
@@ -1243,9 +1168,9 @@ export async function mountSetupView(
                         <div class="participant-field participant-delay-field${p.timing === 'fixed' ? '' : ' hidden'}">
                             <label>${t('Seconds')}</label>
                             <div class="stepper">
-                                <button type="button" class="stepper-btn stepper-dec" aria-label="${escapeAttr(t('Decrease'))}">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-dec" aria-label="${escapeHtml(t('Decrease'))}">&minus;</button>
                                 <input type="number" class="participant-delay stepper-value" value="${delayVal}" min="1" max="30" step="1">
-                                <button type="button" class="stepper-btn stepper-inc" aria-label="${escapeAttr(t('Increase'))}">+</button>
+                                <button type="button" class="stepper-btn stepper-inc" aria-label="${escapeHtml(t('Increase'))}">+</button>
                             </div>
                         </div>
                         <div class="participant-field participant-reactive-field${p.type === 'llm' ? '' : ' hidden'}">
@@ -1258,15 +1183,15 @@ export async function mountSetupView(
                         <div class="participant-field participant-phrase-field${p.type === 'fixed' ? '' : ' hidden'}">
                             <label>${t('Phrase')}</label>
                             <div class="phrase-input-wrap">
-                                <input type="text" class="participant-phrase" placeholder="${escapeAttr(t('e.g. breathing'))}" maxlength="30" value="${escapeAttr(phraseVal)}">
-                                <button type="button" class="participant-phrase-preview btn btn-secondary btn-small" title="${escapeAttr(t('Preview phrase'))}">&#9654;</button>
+                                <input type="text" class="participant-phrase" placeholder="${escapeHtml(t('e.g. breathing'))}" maxlength="30" value="${escapeHtml(phraseVal)}">
+                                <button type="button" class="participant-phrase-preview btn btn-secondary btn-small" title="${escapeHtml(t('Preview phrase'))}">&#9654;</button>
                             </div>
                         </div>
                         <div class="participant-field participant-sound-field${p.type === 'sound' ? '' : ' hidden'}">
                             <label>${t('Sound')}</label>
                             <div class="phrase-input-wrap">
-                                <button type="button" class="btn btn-secondary btn-small participant-sound-btn sound-pick-btn">${escapeAttr(soundLabel)}</button>
-                                <button type="button" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeAttr(t('Play sound'))}">&#9654;</button>
+                                <button type="button" class="btn btn-secondary btn-small participant-sound-btn sound-pick-btn">${escapeHtml(soundLabel)}</button>
+                                <button type="button" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}">&#9654;</button>
                             </div>
                         </div>
                     </div>
@@ -1560,18 +1485,29 @@ export async function mountSetupView(
     };
 }
 
-function escapeAttr(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
-    );
-}
+const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
+    ['exploration', 'exploration-panel'],
+    ['noting', 'noting-panel'],
+    ['felt_sense', 'felt-sense-panel'],
+];
 
-/** SessionSetup.voice carries an engine prefix; the picker works with raw
- *  names. */
-function stripVoicePrefix(voice: string | null): string | null {
-    if (!voice) return null;
-    const m = /^(server|browser|aloud):(.*)$/.exec(voice);
-    return m ? (m[2] ?? null) : voice;
+/** The focus / vibe grids: one checkbox card per option, grouped by `name`. */
+function modifierTogglesHTML(
+    name: string,
+    items: ReadonlyArray<{ value: string; name: string; description: string }>
+): string {
+    return items
+        .map(
+            (item) => `
+        <label class="modifier-toggle">
+            <input type="checkbox" name="${name}" value="${item.value}">
+            <div class="modifier-info">
+                <span class="modifier-name">${escapeHtml(t(item.name))}</span>
+                <span class="modifier-desc">${escapeHtml(t(item.description))}</span>
+            </div>
+        </label>`
+        )
+        .join('');
 }
 
 /**
@@ -1598,7 +1534,6 @@ function renderSetupHTML(
     byokOpts: ProviderAvailabilityOpts,
     sttSelected: SttEngineChoice
 ): string {
-    const escapeHtml = escapeAttr;
     const sttSetupOptions = sttEngineOptions(isWebMode())
         .map(
             ({ value, label }) =>
@@ -1606,27 +1541,8 @@ function renderSetupHTML(
         )
         .join('');
 
-    const focusToggles = FOCUSES.map(
-        (f) => `
-        <label class="modifier-toggle">
-            <input type="checkbox" name="focus" value="${f.value}">
-            <div class="modifier-info">
-                <span class="modifier-name">${escapeHtml(t(f.name))}</span>
-                <span class="modifier-desc">${escapeHtml(t(f.description))}</span>
-            </div>
-        </label>`
-    ).join('');
-
-    const qualityToggles = QUALITIES.map(
-        (q) => `
-        <label class="modifier-toggle">
-            <input type="checkbox" name="quality" value="${q.value}">
-            <div class="modifier-info">
-                <span class="modifier-name">${escapeHtml(t(q.name))}</span>
-                <span class="modifier-desc">${escapeHtml(t(q.description))}</span>
-            </div>
-        </label>`
-    ).join('');
+    const focusToggles = modifierTogglesHTML('focus', FOCUSES);
+    const qualityToggles = modifierTogglesHTML('quality', QUALITIES);
 
     const dirTickCount = DIRECTIVENESS_VALUES.length - 1;
     const verbosityOptions = VERBOSITY_OPTIONS.map(
