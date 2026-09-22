@@ -344,15 +344,35 @@ fn run_whisper_loader(state: &AppState) {
 fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
     std::fs::create_dir_all(&state.model_dir).map_err(|e| e.to_string())?;
     let path = state.model_dir.join(file);
-    if !path.exists() {
+    let fetch = || {
         let url = format!("{WHISPER_MODEL_BASE_URL}{file}");
         log::info!("downloading whisper model {file} -> {}", path.display());
         download(&url, &path, state, |_, _| {})?;
         log::info!("whisper model downloaded: {file}");
+        Ok::<(), String>(())
+    };
+    let fresh = !path.exists();
+    if fresh {
+        fetch()?;
     }
-    let model_path = path.to_str().ok_or("model path not UTF-8")?;
-    let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
-        .map_err(|e| format!("load model: {e}"))?;
+    let ctx = match open_whisper(&path) {
+        Ok(ctx) => ctx,
+        // A file that was already here and won't load is either corrupt or an
+        // environment problem, and the two need opposite responses: a corrupt
+        // file must be replaced (a user once had to find the Settings button to
+        // delete and re-download one by hand - it had the exact official byte
+        // size, so only content tells), while deleting a good file on an
+        // environment error would re-download 150MB-1.5GB per retry. The
+        // manifest hash tells them apart; when it can't be fetched (offline),
+        // the error stands and the next backoff attempt checks again.
+        Err(e) if !fresh && !file_matches_manifest(file, &path).unwrap_or(true) => {
+            log::warn!("whisper model {file} fails its checksum; replacing it ({e})");
+            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+            fetch()?;
+            open_whisper(&path)?
+        }
+        Err(e) => return Err(e),
+    };
     // Install only if this is still the wanted model - a switch mid-load must
     // not briefly publish the superseded one as ready.
     let current = state.whisper_model.lock().unwrap();
@@ -366,18 +386,92 @@ fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
     Ok(false)
 }
 
+fn open_whisper(path: &Path) -> Result<WhisperContext, String> {
+    let model_path = path.to_str().ok_or("model path not UTF-8")?;
+    WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
+        .map_err(|e| format!("load model: {e}"))
+}
+
+/// The sha256 Hugging Face publishes for a model file, read from its git-lfs
+/// pointer (`/raw/main/<file>` serves the pointer; `/resolve/main/` the bytes).
+/// Fetched rather than pinned here so a re-uploaded model doesn't turn every
+/// download into a false "corrupt". Err = couldn't fetch or parse it.
+fn expected_sha256(file: &str) -> Result<String, String> {
+    let url = format!(
+        "{}{file}",
+        WHISPER_MODEL_BASE_URL.replacen("/resolve/", "/raw/", 1)
+    );
+    let pointer = ureq::get(&url)
+        .call()
+        .map_err(|e| e.to_string())?
+        .body_mut()
+        .read_to_string()
+        .map_err(|e| e.to_string())?;
+    parse_lfs_sha256(&pointer).ok_or_else(|| format!("no sha256 in lfs pointer for {file}"))
+}
+
+fn parse_lfs_sha256(pointer: &str) -> Option<String> {
+    pointer
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("oid sha256:"))
+        .map(|hex| hex.trim())
+        .filter(|hex| hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(|hex| hex.to_ascii_lowercase())
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn sha256_file(path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 65536];
+    loop {
+        let n = file.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex(&hasher.finalize()))
+}
+
+/// Whether an on-disk model matches the published hash. Err = manifest
+/// unavailable (offline), which is not evidence either way.
+fn file_matches_manifest(file: &str, path: &Path) -> Result<bool, String> {
+    let expected = expected_sha256(file)?;
+    Ok(sha256_file(path)? == expected)
+}
+
 /// Stream a URL to a file via a `.part` sibling, renamed on success so a
-/// half-finished download can't be mistaken for a complete model. Progress
-/// lands in `whisper_progress` for the 503 body / system-info, and in
-/// `on_progress` for the Settings download button's ndjson stream.
+/// half-finished download can't be mistaken for a complete model, and checked
+/// against the published sha256 before the rename so a corrupt transfer never
+/// becomes a model file at all. Progress lands in `whisper_progress` for the
+/// 503 body / system-info, and in `on_progress` for the Settings download
+/// button's ndjson stream.
 fn download(
     url: &str,
     dest: &Path,
     state: &AppState,
     mut on_progress: impl FnMut(u64, Option<u64>),
 ) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
     use std::io::{Read, Write};
     let tmp = dest.with_extension("part");
+    // Best-effort: the bytes' host is also the manifest's, so if this fails
+    // the download most likely will too, and when it doesn't, an unverified
+    // model beats none (a corrupt one is caught on its first load failure).
+    let file_name = dest.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let expected = match expected_sha256(file_name) {
+        Ok(hex) => Some(hex),
+        Err(e) => {
+            log::warn!("whisper model manifest unavailable, downloading unverified: {e}");
+            None
+        }
+    };
     let response = ureq::get(url).call().map_err(|e| e.to_string())?;
     let total: Option<u64> = response
         .headers()
@@ -388,6 +482,7 @@ fn download(
     let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
     let mut buf = [0u8; 65536];
     let mut done: u64 = 0;
+    let mut hasher = Sha256::new();
     *state.whisper_progress.lock().unwrap() = Some((0, total));
     let copied = loop {
         match reader.read(&mut buf) {
@@ -396,6 +491,7 @@ fn download(
                 if let Err(e) = file.write_all(&buf[..n]) {
                     break Err(e.to_string());
                 }
+                hasher.update(&buf[..n]);
                 done += n as u64;
                 *state.whisper_progress.lock().unwrap() = Some((done, total));
                 on_progress(done, total);
@@ -404,9 +500,49 @@ fn download(
         }
     };
     *state.whisper_progress.lock().unwrap() = None;
-    copied?;
+    let verified = copied.and_then(|()| match expected {
+        Some(want) if hex(&hasher.finalize()) != want => Err(format!(
+            "downloaded {file_name} failed its checksum ({done} bytes)"
+        )),
+        _ => Ok(()),
+    });
+    if let Err(e) = verified {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
     std::fs::rename(&tmp, dest).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod whisper_integrity_tests {
+    use super::*;
+
+    #[test]
+    fn parses_the_hf_lfs_pointer() {
+        let pointer = "version https://git-lfs.github.com/spec/v1\n\
+            oid sha256:A03779C86DF3323075F5E796CB2CE5029F00EC8869EEE3FDFB897AFE36C6D002\n\
+            size 147964211\n";
+        assert_eq!(
+            parse_lfs_sha256(pointer).as_deref(),
+            Some("a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002")
+        );
+        assert_eq!(parse_lfs_sha256("oid sha256:abc\n"), None);
+        assert_eq!(parse_lfs_sha256("<html>not found</html>"), None);
+    }
+
+    #[test]
+    fn hashes_a_file() {
+        let dir = std::env::temp_dir().join(format!("aloud-sha-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("abc.bin");
+        std::fs::write(&path, b"abc").unwrap();
+        assert_eq!(
+            sha256_file(&path).unwrap(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 /// `GET /app/v1/system-info` - platform + tool availability. A successful
