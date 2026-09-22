@@ -7,6 +7,7 @@
 
 import {
     PromptBuilder,
+    appControlsChangeNote,
     SessionManager,
     PacingController,
     TurnDecision,
@@ -40,7 +41,8 @@ import {
     buildSmartCheckinEvent,
     buildTimerApproachEvent,
     buildTimerCompletionEvent,
-    isSyntheticEventTurn,
+    spokenExchanges,
+    hasSpokenUserTurn,
     pickTimerFallback,
     timerApproachLeadSec,
     SESSION_TIMER_MAX_CHARS,
@@ -405,10 +407,22 @@ export async function mountSessionView(
         : null;
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession(undefined, mode.id);
+    // The system prompt is built once, on the opener's first call (after the
+    // voice note resolves), and frozen for the sit: any change to it re-bills
+    // the whole cached prefix. Anything that changes mid-sit rides the session
+    // log instead (a phase note, an event turn), never this.
+    let frozenSystemPrompt: string | null = null;
+    function systemPrompt(): string {
+        return (frozenSystemPrompt ??= builder.buildSystemPrompt(stager?.promptSection()));
+    }
     // Stamped at start (not save) so autosave carries it and a resume keeps the
     // language the sit began in.
     if (session.state) session.state.language = sessionLanguage;
-    if (stager) session.setModePhase(stager.phase.id);
+    if (stager) {
+        session.setModePhase(stager.phase.id);
+        // Lands right after the opener instruction.
+        session.queueSystemNote(stager.phaseNote(), 'phase');
+    }
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).
     void markSessionStarted();
@@ -1419,12 +1433,8 @@ export async function mountSessionView(
     if (continueFrom && continueFrom.exchanges.length > 0) {
         const oldDate = new Date(continueFrom.startTime * 1000).toLocaleString();
         insertDivider(t('continuing from {date}', { date: oldDate }));
-        for (const ex of continueFrom.exchanges) {
-            // Synthetic check-in / timer event turns are model context, not speech.
-            if (ex.role === 'user' && isSyntheticEventTurn(ex.content)) continue;
-            if (ex.role === 'user' || ex.role === 'assistant') {
-                appendMessage(ex.role, ex.content);
-            }
+        for (const ex of spokenExchanges(continueFrom.exchanges)) {
+            if (ex.role === 'user' || ex.role === 'assistant') appendMessage(ex.role, ex.content);
         }
         insertDivider(t('resumed'));
     }
@@ -1605,6 +1615,11 @@ export async function mountSessionView(
         commandPrefetch = new CommandPrefetch(cloudJudge);
         attachJudge(cloudJudge);
         builder.config.appControls = 'voice';
+        // The system prompt is frozen once the opener has run; the model hears
+        // about the change as a note instead.
+        if (frozenSystemPrompt !== null) {
+            session.queueSystemNote(appControlsChangeNote('voice'), 'setting');
+        }
         tapEvent('note', 'voice-commands-enabled-mid-sit');
     }
 
@@ -2057,7 +2072,7 @@ export async function mountSessionView(
             }
             if (superseded()) return;
 
-            const systemPrompt = builder.buildSystemPrompt(stager?.promptSection());
+            const system = systemPrompt();
             // Streaming + sentence-chunked TTS, falling back to non-streaming
             // when the provider has no completeStream: the first sentence starts
             // speaking before the rest finishes generating. Two signals, so a
@@ -2071,7 +2086,7 @@ export async function mountSessionView(
             const turnStart = Date.now();
             const attemptCompletion = (target: typeof bubble) =>
                 streamCompletionWithChunkedTts(provider, tts, session.getContextMessages(), {
-                    system: systemPrompt,
+                    system,
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
                     signal: myFullAbort.signal,
@@ -2130,6 +2145,7 @@ export async function mountSessionView(
             if (stager && !ephemeral && stage !== 'none') {
                 if (stager.apply(stage)) {
                     session.setModePhase(stager.phase.id);
+                    session.queueSystemNote(stager.phaseNote(), 'phase');
                     tapEvent('stage', stage, { phase: stager.phase.id });
                     tapFlags({ phase: stager.phase.id });
                     setPhaseHint();
@@ -2828,8 +2844,9 @@ export async function mountSessionView(
 
     /**
      * The facilitator's first line: a brief LLM welcome (or welcome-back on a
-     * resume) from a one-shot instruction that is NOT kept in history, falling
-     * back to a static line on any error.
+     * resume) from a one-shot instruction, falling back to a static line on any
+     * error. The instruction goes into the log as an 'opener' control entry,
+     * so turn 2's request extends this one and reads it from cache.
      */
     async function speakOpener(resuming: boolean): Promise<void> {
         const instruction = resuming
@@ -2837,6 +2854,7 @@ export async function mountSessionView(
               "Offer a brief, warm welcome back and gently acknowledge they're " +
               'picking up where they left off.'
             : builder.buildOpenerPrompt(setup.intention.trim());
+        session.addControlMessage('user', instruction, 'opener');
         const reveal = createAssistantReveal();
         try {
             setStatus(resuming ? t('Welcoming you back…') : t('Thinking…'));
@@ -2847,16 +2865,12 @@ export async function mountSessionView(
             if (!resuming && provider instanceof OllamaProvider) {
                 setFacilitatorHint(await provider.coldLoadMessage());
             }
-            const messages = [
-                ...session.getContextMessages(),
-                { role: 'user' as const, content: instruction },
-            ];
             const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
-                messages,
+                session.getContextMessages(),
                 {
-                    system: builder.buildSystemPrompt(stager?.promptSection()),
+                    system: systemPrompt(),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
                     onSpeakStart: (sentence) => {
@@ -3005,7 +3019,7 @@ export async function mountSessionView(
                 provider,
                 [...session.getContextMessages(), { role: 'user', content: eventText }],
                 {
-                    system: builder.buildSystemPrompt(stager?.promptSection()),
+                    system: systemPrompt(),
                     signal: myAbort.signal,
                     maxChars: SESSION_TIMER_MAX_CHARS,
                 }
@@ -3036,7 +3050,7 @@ export async function mountSessionView(
             tapEvent('timer', `${kind}-${reply.kind === 'speak' ? 'speak' : 'canned'}`);
             // The event turn enters history with the line, so later turns know
             // why the facilitator spoke about time unprompted.
-            session.addUserMessage(eventText);
+            session.addControlMessage('user', eventText, 'event');
             tapTurn('user', 'event', eventText);
             await speakNotice(line);
         } catch {
@@ -3190,7 +3204,7 @@ export async function mountSessionView(
                 provider,
                 [...session.getContextMessages(), { role: 'user', content: eventText }],
                 {
-                    system: builder.buildSystemPrompt(stager?.promptSection()),
+                    system: systemPrompt(),
                     signal: myAbort.signal,
                 }
             );
@@ -3224,7 +3238,7 @@ export async function mountSessionView(
                 tapEvent('checkin', 'speak', { streak: smartCheckinStreak });
                 // Event turn enters history only when the model speaks, so
                 // the next turn's model sees why the facilitator piped up.
-                session.addUserMessage(eventText);
+                session.addControlMessage('user', eventText, 'event');
                 tapTurn('user', 'event', eventText);
                 await respondWithFacilitatorLine(reply.text, 'checkin');
             } else {
@@ -3342,7 +3356,7 @@ export async function mountSessionView(
             if (restoredThemeBtn) initThemeToggle(restoredThemeBtn);
         }
 
-        if (!skipSave && finalState && hasUserContent(finalState.exchanges)) {
+        if (!skipSave && finalState && hasSpokenUserTurn(finalState.exchanges)) {
             // LLM summary for the history row; falls back to the intention.
             setStatus(t('Saving session…'));
             let summary = '';
@@ -3352,7 +3366,7 @@ export async function mountSessionView(
                 // reference as session.state, so recording still mutates it
                 // after endSession()).
                 summary = await generateSessionSummary(utilityProvider, finalState.exchanges, {
-                    systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
+                    systemPrompt: systemPrompt(),
                     onUsage: (u) => session.recordLlmUsage(u),
                 });
             } catch {
@@ -3363,7 +3377,7 @@ export async function mountSessionView(
             // "Exploration" fallback. Remove once the summary path is confirmed.
             diag(
                 `[summary] provider=${provider.constructor?.name ?? '?'} ` +
-                    `userTurns=${finalState.exchanges.filter((e) => e.role === 'user').length} ` +
+                    `userTurns=${spokenExchanges(finalState.exchanges).filter((e) => e.role === 'user').length} ` +
                     `chars=${summary.length}`
             );
             finalState.notes = summary || setup.intention.trim();
@@ -3384,10 +3398,6 @@ export async function mountSessionView(
         onEnd(destination);
     }
 
-    function hasUserContent(exchanges: ReadonlyArray<{ role: string }>): boolean {
-        // Skips empty sessions started and immediately ended by a stray click.
-        return exchanges.some((e) => e.role === 'user');
-    }
 
     /**
      * Persist the in-progress session to local storage without an LLM summary,
@@ -3399,7 +3409,7 @@ export async function mountSessionView(
     async function autosaveSession(): Promise<void> {
         if (!appSettings.saveSessionLogs) return;
         const state = session.state;
-        if (!state || !hasUserContent(state.exchanges)) return;
+        if (!state || !hasSpokenUserTurn(state.exchanges)) return;
         // Provisional endTime so an interrupted session still shows a sensible
         // duration in history; the live state stays active (endTime null) so the
         // running loop is unaffected. A clean end overwrites this row.
@@ -3440,14 +3450,14 @@ export async function mountSessionView(
         if (!appSettings.saveSessionLogs) return;
         if (summaryRefreshing || busy || torn) return;
         const state = session.state;
-        if (!state || !hasUserContent(state.exchanges)) return;
+        if (!state || !hasSpokenUserTurn(state.exchanges)) return;
         const exCount = state.exchanges.length;
         // Only re-summarize once a few new exchanges have landed.
         if (exCount - summaryAtExchangeCount < SUMMARY_MIN_NEW_EXCHANGES) return;
         summaryRefreshing = true;
         try {
             const recap = await generateSessionSummary(recapProvider, state.exchanges, {
-                systemPrompt: builder.buildSystemPrompt(stager?.promptSection()),
+                systemPrompt: systemPrompt(),
                 onUsage: (u) => session.recordLlmUsage(u),
             });
             if (!torn && recap) {

@@ -6,12 +6,36 @@
 
 import { realClock, type Clock } from '../clock.js';
 import type { CompletionResult, StreamChunk } from '../llm/index.js';
+import { isSyntheticEventTurn } from './session-timer.js';
 
 export type Role = 'user' | 'assistant' | 'system';
 
+/**
+ * What a non-spoken exchange is for. Unset = a real turn (the meditator's words
+ * or the facilitator's reply).
+ *  - 'opener': the one-shot instruction that produced the greeting.
+ *  - 'event': a check-in or timer event that the facilitator answered aloud.
+ *  - 'phase': a staged-mode phase note (role 'system').
+ *  - 'setting': a mid-sit change the frozen system prompt can't take (role
+ *    'system'), e.g. voice commands switched on.
+ *  - 'context': resume scaffolding (recap, hand-off note).
+ */
+export type ExchangeKind = 'opener' | 'event' | 'phase' | 'setting' | 'context';
+
+/** The kinds that travel as a mid-conversation system note. */
+export type SystemNoteKind = Extract<ExchangeKind, 'phase' | 'setting'>;
+
+/**
+ * One entry of the session log. The log is exactly what the model was sent,
+ * append-only: a turn's request is the previous request plus what happened
+ * since, so the prompt cache always extends (meditation-pal-8qai). Views that
+ * show speech filter the control entries out (spokenExchanges).
+ */
 export interface Exchange {
-    role: Exclude<Role, 'system'>;
+    role: Role;
     content: string;
+    /** Set on control entries (never spoken or shown); see ExchangeKind. */
+    kind?: ExchangeKind;
     /** Unix timestamp in seconds. */
     timestamp: number;
     /** Display name, e.g. participant name in noting circles. */
@@ -75,6 +99,29 @@ export function emptyUsage(): SessionUsage {
         sttSeconds: 0,
         ttsChars: 0,
     };
+}
+
+/**
+ * True for an entry that is model context rather than speech. Sessions saved
+ * before `kind` existed mark event turns only by their text prefix.
+ */
+export function isControlExchange(ex: Pick<Exchange, 'role' | 'content' | 'kind'>): boolean {
+    if (ex.kind !== undefined || ex.role === 'system') return true;
+    return ex.role === 'user' && isSyntheticEventTurn(ex.content);
+}
+
+/** The spoken turns only: what transcripts, recaps, and exports show. */
+export function spokenExchanges<T extends Pick<Exchange, 'role' | 'content' | 'kind'>>(
+    exchanges: readonly T[]
+): T[] {
+    return exchanges.filter((ex) => !isControlExchange(ex));
+}
+
+/** Did the meditator say anything? Gates saving a session at all. */
+export function hasSpokenUserTurn(
+    exchanges: ReadonlyArray<Pick<Exchange, 'role' | 'content' | 'kind'>>
+): boolean {
+    return exchanges.some((ex) => ex.role === 'user' && !isControlExchange(ex));
 }
 
 export interface SessionState {
@@ -150,6 +197,8 @@ export class SessionManager {
     private readonly generateSessionId: () => string;
 
     private _state: SessionState | null = null;
+    /** System notes waiting for the next user entry, by kind, in order. */
+    private readonly pendingNotes = new Map<SystemNoteKind, string>();
 
     constructor(options: SessionManagerOptions = {}) {
         this.contextStrategy = options.contextStrategy ?? 'full';
@@ -184,6 +233,7 @@ export class SessionManager {
             ...(meditationType !== undefined && { meditationType }),
             usage: emptyUsage(),
         };
+        this.pendingNotes.clear();
         return this._state;
     }
 
@@ -207,6 +257,38 @@ export class SessionManager {
             timestamp: this.clock(),
             ...(name !== undefined && { name }),
         });
+        this.flushSystemNotes();
+    }
+
+    /**
+     * Append a control entry: model context that is never spoken or shown
+     * (ExchangeKind). A 'user' control entry flushes pending system notes like
+     * a spoken turn does.
+     */
+    addControlMessage(role: 'user' | 'assistant', content: string, kind: ExchangeKind): void {
+        this.requireActive().exchanges.push({ role, content, kind, timestamp: this.clock() });
+        if (role === 'user') this.flushSystemNotes();
+    }
+
+    /**
+     * Queue a system note (a staged-mode phase, a mid-sit setting change). It
+     * lands right after the next user entry, not now: a phase moves on the
+     * facilitator's reply, and a system message the API accepts
+     * mid-conversation must follow a user message. A newer note of the same
+     * kind replaces one still pending.
+     */
+    queueSystemNote(content: string, kind: SystemNoteKind): void {
+        this.pendingNotes.delete(kind);
+        this.pendingNotes.set(kind, content);
+    }
+
+    private flushSystemNotes(): void {
+        if (this.pendingNotes.size === 0) return;
+        const exchanges = this.requireActive().exchanges;
+        for (const [kind, content] of this.pendingNotes) {
+            exchanges.push({ role: 'system', content, kind, timestamp: this.clock() });
+        }
+        this.pendingNotes.clear();
     }
 
     /**
@@ -277,13 +359,15 @@ export class SessionManager {
                 role: ex.role,
                 content: ex.content,
                 timestamp: ex.timestamp ?? 0,
+                ...(ex.kind !== undefined && { kind: ex.kind }),
                 ...(ex.name !== undefined && { name: ex.name }),
             });
         }
     }
 
     /**
-     * Conversation history shaped for an LLM provider (role/content only).
+     * Conversation history shaped for an LLM provider (role/content only):
+     * the whole log, control entries included, exactly as recorded.
      *
      * The 'rolling' strategy returns at most `windowSize` MESSAGES, trimmed
      * forward to the nearest user-message boundary: a window opening on an
@@ -305,7 +389,7 @@ export class SessionManager {
         if (this._state === null) return null;
         for (let i = this._state.exchanges.length - 1; i >= 0; i--) {
             const ex = this._state.exchanges[i];
-            if (ex && ex.role === 'user') return ex.content;
+            if (ex && ex.role === 'user' && !isControlExchange(ex)) return ex.content;
         }
         return null;
     }

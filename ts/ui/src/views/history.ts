@@ -7,7 +7,7 @@
 
 import {
     getMode,
-    isSyntheticEventTurn,
+    spokenExchanges,
     type SessionState,
     type Exchange,
 } from '../../../src/facilitation/index.js';
@@ -159,12 +159,6 @@ function flashLabel(btn: HTMLButtonElement, text: string): void {
     setTimeout(() => (btn.textContent = original), 1500);
 }
 
-/** The turns a person would read: synthetic event turns (check-ins, timer
- *  notices) are model context, not the user speaking. */
-function spokenExchanges(exchanges: readonly Exchange[]): Exchange[] {
-    return exchanges.filter((ex) => !(ex.role === 'user' && isSyntheticEventTurn(ex.content)));
-}
-
 function speakerLabel(ex: Exchange): string {
     return ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
 }
@@ -233,7 +227,7 @@ function sessionTypeAndSummary(session: SessionState): { typeLabel: string; summ
 function renderItem(session: SessionState): string {
     const dateText = formatDate(session.startTime);
     const durationText = formatDuration(session);
-    const turnCount = session.exchanges.length;
+    const turnCount = spokenExchanges(session.exchanges).length;
     const { typeLabel, summary } = sessionTypeAndSummary(session);
     const meta =
         `${durationText} · ${t('{n} exchanges', { n: turnCount })}` +

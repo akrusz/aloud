@@ -81,6 +81,20 @@ function systemPromptFor(fx: Fixture): string {
     return new PromptBuilder({ mode, config: fx.config }).buildSystemPrompt(stageSection);
 }
 
+/** The fixture's history as a session log. A staged fixture's phase travels as
+ *  a system note, as in a live sit; placed after the first user turn, as if
+ *  the phase has been in force for the whole excerpt. */
+function messagesFor(fx: Fixture): Message[] {
+    const messages = messagesFor(fx);
+    const mode = getMode(fx.mode);
+    if (mode?.phases) {
+        const note = new StagedModeController(mode, fx.phase).phaseNote();
+        const firstUser = messages.findIndex((m) => m.role === 'user');
+        messages.splice(firstUser + 1, 0, { role: 'system', content: note });
+    }
+    return messages;
+}
+
 // --- Scoring ----------------------------------------------------------------
 
 interface Check {
@@ -165,7 +179,7 @@ async function runTrial(
     run: number
 ): Promise<Trial> {
     const system = systemPromptFor(fx);
-    const messages: Message[] = fx.history.map((h) => ({ role: h.role, content: h.content }));
+    const messages = messagesFor(fx);
     const started = Date.now();
     try {
         const result = await provider.complete(messages, { system, maxTokens: 400 });

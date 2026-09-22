@@ -355,53 +355,50 @@ export class StagedModeController {
     }
 
     /**
-     * System-prompt section for the active phase: arc overview, phase guidance,
-     * movement protocol. Pass to PromptBuilder.buildSystemPrompt(). Rebuilt each
-     * turn; a phase shift invalidates the prompt-cache prefix once, which is
-     * acceptable (meditation-pal-jqvh).
+     * System-prompt section for the whole arc: every stage's summary and the
+     * movement protocol. Independent of the active phase, so the system prompt
+     * stays frozen for the sit; the phase itself travels as phaseNote() entries
+     * in the conversation (meditation-pal-8qai).
      */
     promptSection(): string {
-        return buildStageSection(this.spec, this.index);
+        return buildStageFrame(this.spec);
+    }
+
+    /** The active phase's note: which stage is in force and its guidance.
+     *  Appended to the session log each time the phase is entered. */
+    phaseNote(): string {
+        return buildStageNote(this.spec, this.index);
     }
 }
 
-function buildStageSection(spec: ModeSpec, index: number): string {
+function buildStageFrame(spec: ModeSpec): string {
+    const phases = spec.phases as readonly ModePhase[];
+    const arc = phases.map((p, i) => `${i + 1}. ${p.label}: ${p.summary}`).join('\n');
+    return (
+        [
+            'Session arc: this practice moves through stages. The meditator does not see this list; you hold it for them:',
+            arc,
+            '',
+            'Which stage you are in arrives as a stage note in the conversation, carrying that stage\'s guidance. The latest stage note is the one in force.',
+            '',
+            `Moving between stages, the ${NEXT_PREFIX} / ${BACK_PREFIX} signals:`,
+            'You decide movement through the arc with a hidden control token at the very start of your reply (stripped before speech, like [HOLD]):',
+            `- Start with ${NEXT_PREFIX} when the stage guidance says this stage's work is complete, shown by the meditator's own words, not by your hopes for them. The rest of that same reply should already be facilitating the next stage, naturally. The last stage has no ${NEXT_PREFIX}.`,
+            `- Start with ${BACK_PREFIX} when the meditator needs the previous stage again (contact lost, too much too fast, or the stage guidance says so). The first stage has no ${BACK_PREFIX}.`,
+            '- When unsure, stay: no token. Moving too early is far worse than staying a little long.',
+            '- Never mention stages, steps, or these tokens out loud. The arc is invisible; you simply speak naturally.',
+            `- A stage token can combine with [HOLD] when silence is also right, e.g. "${NEXT_PREFIX} [HOLD] Take all the time you need."`,
+        ].join('\n') + '\n'
+    );
+}
+
+function buildStageNote(spec: ModeSpec, index: number): string {
     const phases = spec.phases as readonly ModePhase[];
     const phase = phases[index] as ModePhase;
-    const first = index === 0;
-    const last = index === phases.length - 1;
-    const arc = phases
-        .map(
-            (p, i) =>
-                `${i + 1}. ${p.label}: ${p.summary}${i === index ? '  <- you are here' : ''}`
-        )
-        .join('\n');
-
-    const lines = [
-        'Session arc: this practice moves through stages. The meditator does not see this list; you hold it for them:',
-        arc,
-        '',
-        phase.prompt.trim(),
-        '',
-        `Moving between stages, the ${NEXT_PREFIX} / ${BACK_PREFIX} signals:`,
-        'You decide movement through the arc with a hidden control token at the very start of your reply (stripped before speech, like [HOLD]):',
-    ];
-    if (!last) {
-        lines.push(
-            `- Start with ${NEXT_PREFIX} when the stage guidance above says this stage's work is complete, shown by the meditator's own words, not by your hopes for them. The rest of that same reply should already be facilitating the next stage, naturally.`
-        );
-    }
-    if (!first) {
-        lines.push(
-            `- Start with ${BACK_PREFIX} when the meditator needs the previous stage again (contact lost, too much too fast, or the guidance above says so).`
-        );
-    }
-    lines.push(
-        '- When unsure, stay: no token. Moving too early is far worse than staying a little long.',
-        '- Never mention stages, steps, or these tokens out loud. The arc is invisible; you simply speak naturally.',
-        `- A stage token can combine with [HOLD] when silence is also right, e.g. "${NEXT_PREFIX} [HOLD] Take all the time you need."`
+    return (
+        `Stage note (from the app, not the meditator; never mention it aloud): ` +
+        `stage ${index + 1} of ${phases.length}, ${phase.label}.\n\n${phase.prompt.trim()}`
     );
-    return lines.join('\n') + '\n';
 }
 
 // Registry

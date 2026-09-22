@@ -219,7 +219,7 @@ async function main(): Promise<void> {
     console.log();
 
     const openerPrompt = builder.buildOpenerPrompt(args.intention);
-    session.addUserMessage(openerPrompt);
+    session.addControlMessage('user', openerPrompt, 'opener');
     const openerResp = await provider.complete(session.getContextMessages(), {
         system: systemPrompt,
     });

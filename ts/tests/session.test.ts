@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { SessionManager } from '../src/facilitation/session.js';
+import {
+    SessionManager,
+    hasSpokenUserTurn,
+    isControlExchange,
+    spokenExchanges,
+} from '../src/facilitation/session.js';
 import { createFakeClock } from '../src/clock.js';
 
 function makeManager(opts?: ConstructorParameters<typeof SessionManager>[0]) {
@@ -304,5 +309,55 @@ describe('SessionManager — meditation type and mode phase', () => {
     it('setModePhase is a no-op with no session', () => {
         const { manager } = makeManager();
         expect(() => manager.setModePhase('sensing')).not.toThrow();
+    });
+});
+
+describe('SessionManager — control entries and system notes', () => {
+    it('logs control entries for the model and hides them from spoken views', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.addControlMessage('user', 'Greet the meditator.', 'opener');
+        manager.addAssistantMessage('Welcome.');
+        manager.addControlMessage('user', '[Check-in: quiet for 2m]', 'event');
+        manager.addAssistantMessage('Still here.');
+        const exchanges = manager.state!.exchanges;
+        expect(manager.getContextMessages().map((m) => m.content)).toEqual([
+            'Greet the meditator.',
+            'Welcome.',
+            '[Check-in: quiet for 2m]',
+            'Still here.',
+        ]);
+        expect(spokenExchanges(exchanges).map((e) => e.content)).toEqual(['Welcome.', 'Still here.']);
+        expect(hasSpokenUserTurn(exchanges)).toBe(false);
+        expect(manager.getLastUserMessage()).toBeNull();
+        manager.addUserMessage('hello');
+        expect(hasSpokenUserTurn(manager.state!.exchanges)).toBe(true);
+    });
+
+    it('still recognizes event turns saved before entries had a kind', () => {
+        expect(isControlExchange({ role: 'user', content: '[Timer: 5 minutes remain]' })).toBe(true);
+        expect(isControlExchange({ role: 'user', content: 'a timer went off' })).toBe(false);
+    });
+
+    it('lands a queued system note right after the next user entry', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.queueSystemNote('phase one', 'phase');
+        manager.addControlMessage('user', 'Greet.', 'opener');
+        manager.addAssistantMessage('[NEXT] Welcome.');
+        manager.queueSystemNote('phase two', 'phase');
+        // A newer note of the same kind replaces a pending one.
+        manager.queueSystemNote('phase three', 'phase');
+        manager.addAssistantMessage('A check-in line.');
+        manager.addUserMessage('hi');
+        expect(manager.getContextMessages()).toEqual([
+            { role: 'user', content: 'Greet.' },
+            { role: 'system', content: 'phase one' },
+            { role: 'assistant', content: '[NEXT] Welcome.' },
+            { role: 'assistant', content: 'A check-in line.' },
+            { role: 'user', content: 'hi' },
+            { role: 'system', content: 'phase three' },
+        ]);
+        expect(manager.state!.exchanges[5]!.kind).toBe('phase');
     });
 });

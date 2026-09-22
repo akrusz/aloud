@@ -61,11 +61,23 @@ describe('buildResumeContext', () => {
         const s = session({ exchanges: ex, notes: 'explored the breath' });
         const ctx = buildResumeContext(s, true);
         expect(ctx).toHaveLength(RESUME_RECENT_KEEP + 1); // recap + recent
-        expect(ctx[0]!.role).toBe('assistant');
+        expect(ctx[0]!.role).toBe('user');
+        expect(ctx[0]!.kind).toBe('context');
         expect(ctx[0]!.content).toContain('explored the breath');
         // The tail is verbatim and in order.
         expect(ctx[ctx.length - 1]!.content).toBe(ex[ex.length - 1]!.content);
         expect(ctx[1]!.content).toBe(ex[ex.length - RESUME_RECENT_KEEP]!.content);
+    });
+
+    it('keeps the last RESUME_RECENT_KEEP spoken turns with the control entries among them', () => {
+        const ex = longTranscript();
+        // A phase note and an event inside the recent stretch.
+        ex.splice(ex.length - 2, 0, { role: 'system', content: 'Stage note', kind: 'phase', timestamp: 0 });
+        ex.splice(ex.length - 1, 0, { role: 'user', content: '[Check-in: quiet]', kind: 'event', timestamp: 0 });
+        const ctx = buildResumeContext(session({ exchanges: ex, notes: 'a recap' }), true);
+        expect(ctx).toHaveLength(RESUME_RECENT_KEEP + 3); // recap + recent + 2 control
+        expect(ctx.find((m) => m.kind === 'phase')?.role).toBe('system');
+        expect(ctx.find((m) => m.kind === 'event')?.content).toBe('[Check-in: quiet]');
     });
 
     it('replays whole when the transcript is below the character threshold, even with a recap', () => {

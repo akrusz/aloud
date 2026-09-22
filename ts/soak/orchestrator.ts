@@ -108,7 +108,12 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     const stager = mode.phases ? new StagedModeController(mode) : null;
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession(undefined, mode.id);
-    if (stager) session.setModePhase(stager.phase.id);
+    if (stager) {
+        session.setModePhase(stager.phase.id);
+        session.queueSystemNote(stager.phaseNote(), 'phase');
+    }
+    // Frozen for the sit, as in views/session.ts: phase moves ride the log.
+    const systemPrompt = builder.buildSystemPrompt(stager?.promptSection());
 
     const fake = createFakeClock(0);
     const now = (): number => fake.clock();
@@ -228,7 +233,6 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         utteranceAdvance(userText);
         session.addUserMessage(userText);
 
-        const systemPrompt = builder.buildSystemPrompt(stager?.promptSection());
         let raw: string;
         let latencyMs: number;
         let usage: LlmUsage;
@@ -252,6 +256,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             const applied = stager.apply(stage);
             if (applied) {
                 session.setModePhase(stager.phase.id);
+                session.queueSystemNote(stager.phaseNote(), 'phase');
                 event('stage', stage, { phase: stager.phase.id });
             } else {
                 event('stage', 'clamped', { signal: stage, phase: stager.phase.id });
@@ -315,7 +320,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             const { reply, usage } = await runSmartCheckin(
                 facilitator,
                 [...session.getContextMessages(), { role: 'user', content: eventText }],
-                { system: builder.buildSystemPrompt(stager?.promptSection()) }
+                { system: systemPrompt }
             );
             calls.push({ kind: 'checkin', latencyMs: Date.now() - t0 });
             session.recordLlmUsage(usage);
@@ -333,7 +338,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             smartCheckinPasses = 0;
             if (reply.kind === 'speak') {
                 event('checkin', 'speak', { streak: smartCheckinStreak });
-                session.addUserMessage(eventText);
+                session.addControlMessage('user', eventText, 'event');
                 record('user', 'event', eventText);
                 speakCannedLine('checkin', reply.text);
             } else {
@@ -374,7 +379,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 facilitator,
                 [...session.getContextMessages(), { role: 'user', content: eventText }],
                 {
-                    system: builder.buildSystemPrompt(stager?.promptSection()),
+                    system: systemPrompt,
                     maxChars: SESSION_TIMER_MAX_CHARS,
                 }
             );
@@ -388,12 +393,12 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             if (reply.kind === 'pass') event('timer', 'pass-on-completion');
             const line = reply.kind === 'speak' ? reply.text : canned;
             event('timer', `${kind}-${reply.kind === 'speak' ? 'speak' : 'canned'}`);
-            session.addUserMessage(eventText);
+            session.addControlMessage('user', eventText, 'event');
             record('user', 'event', eventText);
             speakCannedLine(spokenKind, line);
         } catch (err) {
             event('timer', `${kind}-error-canned`, { message: (err as Error).message });
-            session.addUserMessage(eventText);
+            session.addControlMessage('user', eventText, 'event');
             record('user', 'event', eventText);
             speakCannedLine(spokenKind, canned);
         }
@@ -485,15 +490,13 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         await respondTo(userText);
     }
 
-    // ---- Opener (generateOpener in the view: one-shot prompt, not kept). ----
+    // ---- Opener (speakOpener in the view: the instruction is an 'opener' log entry). ----
     try {
         const openerPrompt = builder.buildOpenerPrompt(scenario.intention ?? '');
+        session.addControlMessage('user', openerPrompt, 'opener');
         try {
             const { result, latencyMs } = await timedComplete('opener', () =>
-                facilitator.complete(
-                    [...session.getContextMessages(), { role: 'user', content: openerPrompt }],
-                    { system: builder.buildSystemPrompt(stager?.promptSection()) }
-                )
+                facilitator.complete(session.getContextMessages(), { system: systemPrompt })
             );
             const { cleanText } = parseTurnSignals(result.text);
             // cleanText, not result.text: a greeting of nothing but control

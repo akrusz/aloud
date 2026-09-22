@@ -13,7 +13,7 @@
  * whole, since that's more faithful and nearly free.
  */
 
-import type { SessionState } from './session.js';
+import { isControlExchange, type Exchange, type SessionState } from './session.js';
 
 /**
  * Compress only above this many characters of conversation text (~2k tokens).
@@ -23,14 +23,13 @@ import type { SessionState } from './session.js';
  * The single tuning knob.
  */
 export const RESUME_COMPRESS_CHARS = 10000;
-/** When compressing, keep this many recent messages verbatim (the live thread);
- *  everything earlier is represented by the recap. */
+/** When compressing, keep this many recent spoken messages verbatim (the live
+ *  thread), with the control entries among them; everything earlier is
+ *  represented by the recap. */
 export const RESUME_RECENT_KEEP = 6;
 
-export interface ResumeMessage {
-    role: 'user' | 'assistant';
-    content: string;
-}
+/** A log entry to seed the resumed session with (SessionManager.loadExchanges). */
+export type ResumeMessage = Pick<Exchange, 'role' | 'content' | 'kind'>;
 
 export interface ResumeContextOptions {
     /** Model that facilitated the PRIOR session (`SessionState.model`). If it
@@ -62,6 +61,7 @@ export function buildResumeContext(
     const exchanges: ResumeMessage[] = prior.exchanges.map((e) => ({
         role: e.role,
         content: e.content,
+        ...(e.kind !== undefined && { kind: e.kind }),
     }));
     const recap = prior.notes?.trim() ?? '';
     const compress = useSummary && !!recap && transcriptChars(exchanges) > RESUME_COMPRESS_CHARS;
@@ -74,21 +74,34 @@ export function buildResumeContext(
         const who = handedOff ? ` facilitated by ${priorLabel}` : '';
         return [
             {
-                role: 'assistant',
+                role: 'user',
+                kind: 'context',
                 content: `[Continuing from a previous session${who}. Recap: ${recap}]`,
             },
-            ...exchanges.slice(-RESUME_RECENT_KEEP),
+            ...recentTail(exchanges),
         ];
     }
 
     if (handedOff) {
         return [
             {
-                role: 'assistant',
+                role: 'user',
+                kind: 'context',
                 content: `[Continuing a session that was previously facilitated by ${priorLabel}.]`,
             },
             ...exchanges,
         ];
+    }
+    return exchanges;
+}
+
+/** The log from the RESUME_RECENT_KEEP-th last spoken entry on. */
+function recentTail(exchanges: ResumeMessage[]): ResumeMessage[] {
+    let spoken = 0;
+    for (let i = exchanges.length - 1; i >= 0; i--) {
+        if (!isControlExchange(exchanges[i]!) && ++spoken === RESUME_RECENT_KEEP) {
+            return exchanges.slice(i);
+        }
     }
     return exchanges;
 }

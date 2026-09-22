@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { AnthropicProvider } from '../src/llm/anthropic.js';
+import { AnthropicProvider, supportsMidConversationSystem } from '../src/llm/anthropic.js';
 import { OllamaProvider, contextLengthForRam } from '../src/llm/ollama.js';
 import {
     OpenAIProvider,
@@ -8,7 +8,7 @@ import {
     VeniceProvider,
     GroqProvider,
 } from '../src/llm/openai.js';
-import type { StreamChunk } from '../src/llm/base.js';
+import { withSystemMessage, type Message, type StreamChunk } from '../src/llm/base.js';
 
 function mockSseResponse(events: string[]): Response {
     // Each SSE event is joined as one or more lines, separated by blank line.
@@ -375,7 +375,7 @@ describe('AnthropicProvider', () => {
         });
     });
 
-    it('merges consecutive same-role messages so roles strictly alternate', async () => {
+    it('sends one message per entry, never merging (a merge rewrites a cached block)', async () => {
         const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
@@ -390,10 +390,11 @@ describe('AnthropicProvider', () => {
         const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
         expect(body.messages.map((m: { role: string }) => m.role)).toEqual([
             'user',
+            'user',
             'assistant',
             'user',
         ]);
-        expect(body.messages[0].content).toBe('first thought\n\nsecond thought');
+        expect(body.messages[0].content).toBe('first thought');
     });
 
     it('omits the system field when no system prompt provided', async () => {
@@ -1351,5 +1352,90 @@ describe('completion diagnostics - hidden reasoning + serving host', () => {
             ) as unknown as typeof fetch,
         });
         expect((await plain.complete([{ role: 'user', content: 'hi' }])).diagnostics).toEqual({ reasoningChars: 0 });
+    });
+});
+
+describe('mid-conversation system entries (phase notes)', () => {
+    const OK = { content: [{ type: 'text', text: 'ok' }] };
+    const log: Message[] = [
+        { role: 'user', content: 'opener instruction' },
+        { role: 'system', content: 'Stage note: one' },
+        { role: 'assistant', content: 'welcome' },
+        { role: 'user', content: 'hello' },
+        { role: 'system', content: 'Stage note: two' },
+    ];
+
+    function capture(model: string, responses?: Response[]) {
+        const bodies: Array<{ messages: Array<{ role: string; content: unknown }> }> = [];
+        const queue = [...(responses ?? [])];
+        const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+            bodies.push(JSON.parse(init!.body as string));
+            return queue.shift() ?? mockJsonResponse(OK);
+        });
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            model,
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+            maxRetries: 0,
+        });
+        return { provider, bodies };
+    }
+
+    it('knows which models take them', () => {
+        expect(supportsMidConversationSystem('claude-fable-5-1')).toBe(true);
+        expect(supportsMidConversationSystem('claude-mythos-5')).toBe(true);
+        expect(supportsMidConversationSystem('claude-opus-5-5')).toBe(true);
+        expect(supportsMidConversationSystem('claude-opus-5')).toBe(true);
+        expect(supportsMidConversationSystem('claude-opus-4-8')).toBe(true);
+        expect(supportsMidConversationSystem('claude-opus-4-7')).toBe(false);
+        expect(supportsMidConversationSystem('claude-sonnet-5')).toBe(false);
+        expect(supportsMidConversationSystem('claude-haiku-4-5')).toBe(false);
+    });
+
+    it('sends them as system messages where the model takes them', async () => {
+        const { provider, bodies } = capture('claude-fable-5-1');
+        await provider.complete(log, { system: 'S' });
+        expect(bodies[0]!.messages.map((m) => m.role)).toEqual(['user', 'system', 'assistant', 'user', 'system']);
+        // A system message carries no breakpoint: the tail's lands on the user
+        // turn it follows.
+        expect(bodies[0]!.messages[4]!.content).toBe('Stage note: two');
+        expect(JSON.stringify(bodies[0]!.messages[3]!.content)).toContain('cache_control');
+    });
+
+    it('renders them as user text on models without the feature', async () => {
+        const { provider, bodies } = capture('claude-sonnet-5');
+        await provider.complete(log, { system: 'S' });
+        const msgs = bodies[0]!.messages;
+        expect(msgs.map((m) => m.role)).toEqual(['user', 'user', 'assistant', 'user', 'user']);
+        expect(msgs[1]!.content).toBe('<system-reminder>\nStage note: one\n</system-reminder>');
+    });
+
+    it('renders one as user text where its placement is invalid', async () => {
+        // The reply to the second note was discarded (a superseded turn), so a
+        // user turn follows it directly.
+        const { provider, bodies } = capture('claude-fable-5-1');
+        await provider.complete([...log, { role: 'user', content: 'again' }], { system: 'S' });
+        const roles = bodies[0]!.messages.map((m) => m.role);
+        expect(roles).toEqual(['user', 'system', 'assistant', 'user', 'user', 'user']);
+    });
+
+    it('falls back to user text for the session when the model rejects them', async () => {
+        const rejection = mockJsonResponse(
+            { type: 'error', error: { type: 'invalid_request_error', message: "role 'system' is not supported on this model" } },
+            { status: 400 }
+        );
+        const { provider, bodies } = capture('claude-opus-5', [rejection]);
+        await provider.complete(log, { system: 'S' });
+        await provider.complete(log, { system: 'S' });
+        expect(bodies).toHaveLength(3);
+        expect(bodies[0]!.messages[1]!.role).toBe('system');
+        expect(bodies[1]!.messages[1]!.role).toBe('user');
+        expect(bodies[2]!.messages[1]!.role).toBe('user');
+    });
+
+    it('rides as user text on OpenAI-compatible and Ollama chats', () => {
+        const out = withSystemMessage(log, 'S');
+        expect(out.map((m) => m.role)).toEqual(['system', 'user', 'user', 'assistant', 'user', 'user']);
+        expect(out[2]!.content).toContain('<system-reminder>');
     });
 });

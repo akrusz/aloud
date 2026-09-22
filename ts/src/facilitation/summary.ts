@@ -11,7 +11,7 @@
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
-import { llmUsageOf, type LlmUsage } from './session.js';
+import { isControlExchange, llmUsageOf, type ExchangeKind, type LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
 const SUMMARY_SYSTEM_PROMPT =
@@ -87,10 +87,10 @@ export interface GenerateSummaryOptions {
  */
 export async function generateSessionSummary(
     provider: LLMProvider,
-    messages: ReadonlyArray<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    messages: ReadonlyArray<{ role: 'user' | 'assistant' | 'system'; content: string; kind?: ExchangeKind }>,
     options: GenerateSummaryOptions = {}
 ): Promise<string> {
-    const userTurns = messages.reduce((n, m) => (m.role === 'user' ? n + 1 : n), 0);
+    const userTurns = messages.filter((m) => m.role === 'user' && !isControlExchange(m)).length;
     if (userTurns < MIN_USER_TURNS_FOR_SUMMARY) return '';
 
     const llmMessages: Message[] = [...messages.map((m) => ({ role: m.role, content: m.content }))];

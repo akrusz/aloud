@@ -19,7 +19,7 @@ import { mountHistoryView } from './views/history.js';
 import { mountSettingsView } from './views/settings.js';
 import { mountAccountView } from './views/account.js';
 import type { SessionSetup } from './settings.js';
-import type { SessionState } from '../../src/facilitation/session.js';
+import { hasSpokenUserTurn, type SessionState } from '../../src/facilitation/session.js';
 import { applyChromeSettings, loadAppSettings } from './app-settings.js';
 import { detectCapabilities } from './capabilities.js';
 import { isCloudBuild } from './cloud-base.js';
@@ -160,7 +160,7 @@ async function seedInterruptedResume(): Promise<void> {
     const id = await getActiveSessionId();
     if (!id) return;
     const state = await sessionStore.load(id);
-    if (!state || !state.exchanges.some((e) => e.role === 'user')) {
+    if (!state || !hasSpokenUserTurn(state.exchanges)) {
         // Nothing worth resuming - drop the pointer so we don't check again.
         await clearActiveSession();
         return;

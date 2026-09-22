@@ -15,7 +15,12 @@ export {
     SessionManager,
     emptyUsage,
     llmUsageOf,
+    isControlExchange,
+    spokenExchanges,
+    hasSpokenUserTurn,
     type Exchange,
+    type ExchangeKind,
+    type SystemNoteKind,
     type SessionState,
     type SessionUsage,
     type LlmUsage,
@@ -162,6 +167,7 @@ export {
 
 export {
     PromptBuilder,
+    appControlsChangeNote,
     defaultPromptConfig,
     parseHoldSignal,
     stripHoldPrefix,

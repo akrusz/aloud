@@ -59,7 +59,10 @@ to compose, so `SessionClock.armGeneration` lets the view drop one whose timer
 was cancelled or extended meanwhile, and `requeue` hands back one the meditator
 talked over, so it is said at the next turn boundary instead of lost.
 
-`isSyntheticEventTurn` keeps event turns out of transcripts.
+A spoken event enters the session log as an `'event'` control entry
+(`SessionManager.addControlMessage`); `spokenExchanges` keeps it out of
+transcripts (`isSyntheticEventTurn` still catches ones saved before `kind`). A
+`[PASS]`ed event is never logged.
 `parseSmartCheckinReply` / `runSmartCheckin` take a `maxChars` so a closing word
 can run longer than a check-in.
 

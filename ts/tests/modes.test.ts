@@ -270,26 +270,30 @@ describe('StagedModeController', () => {
         expect(c.phase.id).toBe('two');
     });
 
-    it('promptSection carries the arc, the active guidance, and the protocol', () => {
+    it('promptSection carries the whole arc and the protocol, independent of the phase', () => {
         const c = new StagedModeController(TINY_STAGED, 'two');
         const section = c.promptSection();
-        expect(section).toContain('Guidance two.');
         expect(section).not.toContain('Guidance one.');
+        expect(section).not.toContain('Guidance two.');
         expect(section).toContain('1. first: the first step');
-        expect(section).toContain('2. second: the middle step  <- you are here');
-        expect(section).toContain(NEXT_PREFIX);
-        expect(section).toContain(BACK_PREFIX);
+        expect(section).toContain('2. second: the middle step');
+        expect(section).toContain(`Start with ${NEXT_PREFIX}`);
+        expect(section).toContain(`Start with ${BACK_PREFIX}`);
         expect(section).toContain('When unsure, stay');
+        // Frozen for the sit: a phase move must not touch the system prompt.
+        c.apply('advance');
+        expect(c.promptSection()).toBe(section);
+        expect(new StagedModeController(TINY_STAGED).promptSection()).toBe(section);
     });
 
-    it('omits [NEXT] guidance on the last phase and [BACK] on the first', () => {
-        const first = new StagedModeController(TINY_STAGED).promptSection();
-        expect(first).not.toContain(`Start with ${BACK_PREFIX}`);
-        expect(first).toContain(`Start with ${NEXT_PREFIX}`);
-
-        const last = new StagedModeController(TINY_STAGED, 'three').promptSection();
-        expect(last).not.toContain(`Start with ${NEXT_PREFIX}`);
-        expect(last).toContain(`Start with ${BACK_PREFIX}`);
+    it('phaseNote names the active stage and carries its guidance only', () => {
+        const c = new StagedModeController(TINY_STAGED, 'two');
+        const note = c.phaseNote();
+        expect(note).toContain('stage 2 of 3, second');
+        expect(note).toContain('Guidance two.');
+        expect(note).not.toContain('Guidance one.');
+        c.apply('advance');
+        expect(c.phaseNote()).toContain('Guidance three.');
     });
 });
 
@@ -337,10 +341,9 @@ describe('PromptBuilder with a mode', () => {
         const c = new StagedModeController(FELT_SENSE_MODE);
         const builder = new PromptBuilder({ mode: FELT_SENSE_MODE });
         const prompt = builder.buildSystemPrompt(c.promptSection());
-        expect(prompt).toContain('Settling in (clearing a space)');
-        expect(prompt.indexOf('felt-sense session')).toBeLessThan(
-            prompt.indexOf('Settling in (clearing a space)')
-        );
+        expect(prompt).toContain('Session arc');
+        expect(prompt.indexOf('felt-sense session')).toBeLessThan(prompt.indexOf('Session arc'));
+        expect(c.phaseNote()).toContain('Settling in (clearing a space)');
     });
 
     it('mode pools drive the opener and check-ins', () => {

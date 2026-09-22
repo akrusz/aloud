@@ -12,6 +12,11 @@
  * (order: tools, system, messages), so it would precede the 1h anchor, which
  * Anthropic 400s ("a 1h cache_control block must not come after a 5m block").
  * That error appeared once sessions grew long enough for the anchor (~msg 16).
+ *
+ * The cache only pays if each request starts byte-identically with the last, so
+ * the conversation is rendered 1:1 from the session log: no merging, no stubs,
+ * and a `system` entry (a staged-mode phase note) renders the same way every
+ * time it is resent (renderConversation).
  */
 
 import type {
@@ -21,6 +26,7 @@ import type {
     Message,
     StreamChunk,
 } from './base.js';
+import { systemNoteAsUserText } from './base.js';
 import { iterateSseEvents, safeJson } from './sse.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -61,6 +67,26 @@ export function thinkingPolicy(model: string): ThinkingPolicy {
     if (gen[1] === 'opus' && version >= 5.5) return 'always-on';
     if (version >= 5) return 'opt-out';
     return 'none';
+}
+
+/**
+ * Does the model take `role: "system"` entries inside `messages`
+ * (mid-conversation system messages)? Fable, Mythos, and Opus 4.8+; not
+ * Sonnet or Haiku. A model this guesses wrong on is caught by `send()`: the
+ * 400 gets one retry with system entries rendered as user text, and the
+ * provider stays that way for the session.
+ */
+export function supportsMidConversationSystem(model: string): boolean {
+    const m = model.toLowerCase();
+    if (/^claude-(fable|mythos)-/.test(m)) return true;
+    const gen = /^claude-opus-(\d+)(?:-(\d)(?!\d))?/.exec(m);
+    if (!gen) return false;
+    return Number(gen[1]) + Number(gen[2] ?? 0) / 10 >= 4.8;
+}
+
+/** Does a 400 body reject a mid-conversation system message? */
+function isSystemRoleRejection(detail: string): boolean {
+    return /role\W+system/i.test(detail);
 }
 
 /** Does a 400 body blame the thinking/effort tuning (vs. the prompt itself)? */
@@ -219,14 +245,20 @@ export class AnthropicProvider implements LLMProvider {
 
     /** Set once a model 400s on the thinking tuning; every later turn skips it. */
     private tuningRejected = false;
+    /** Set once a model 400s on a mid-conversation system message. */
+    private systemRoleRejected = false;
 
     private buildRequest(
         messages: Message[],
         options: CompletionOptions,
         stream: boolean,
         tune: boolean
-    ): { url: string; init: RequestInit; tuned: boolean } {
-        const convo = normalizeConversation(messages);
+    ): { url: string; init: RequestInit; tuned: boolean; systemRole: boolean } {
+        const systemRole =
+            !this.systemRoleRejected &&
+            supportsMidConversationSystem(this.model) &&
+            messages.some((m, i) => i > 0 && m.role === 'system');
+        const convo = renderConversation(messages, systemRole);
         const lastIndex = convo.length - 1;
         // The 1h anchor: largest ANCHOR_STEP boundary strictly behind the tail.
         // Stable for a stretch of ANCHOR_STEP messages (re-read each turn,
@@ -235,13 +267,17 @@ export class AnthropicProvider implements LLMProvider {
         // window. -1 skips it until the convo needs hold-protection and clears
         // the cacheable minimum.
         const anchorBoundary = Math.floor((lastIndex - 1) / ANCHOR_STEP) * ANCHOR_STEP;
-        const anchorIndex = anchorBoundary >= ANCHOR_STEP ? anchorBoundary : -1;
+        const anchorIndex = cacheableAtOrBefore(
+            convo,
+            anchorBoundary >= ANCHOR_STEP ? anchorBoundary : -1
+        );
+        const tailIndex = cacheableAtOrBefore(convo, lastIndex);
 
         // Tail → 5m rolling breakpoint, anchor → 1h, rest plain. The tail writes
         // a cache entry for the full system+conversation prefix so the NEXT turn
         // reads it at ~0.1x instead of re-billing the transcript.
         const anthropicMessages = convo.map((m, i) => {
-            const ttl = i === lastIndex ? CACHE_5M : i === anchorIndex ? CACHE_1H : null;
+            const ttl = i === tailIndex ? CACHE_5M : i === anchorIndex ? CACHE_1H : null;
             return ttl
                 ? { role: m.role, content: [{ type: 'text', text: m.content, cache_control: ttl }] }
                 : { role: m.role, content: m.content };
@@ -283,35 +319,37 @@ export class AnthropicProvider implements LLMProvider {
                 ...(options.signal && { signal: options.signal }),
             },
             tuned: policy !== 'none',
+            systemRole,
         };
     }
 
     /**
-     * One request, tuned per thinkingPolicy, with a single untuned retry when
-     * the model rejects the tuning - the safety net for a family whose rules
-     * don't match the policy's guess. Resolves to an ok response or throws.
+     * One request, tuned per thinkingPolicy and with mid-conversation system
+     * messages where supportsMidConversationSystem says so. A 400 that rejects
+     * either guess gets a retry without it, and the provider stays that way for
+     * the session - the safety net for a family whose rules don't match.
+     * Resolves to an ok response or throws.
      */
     private async send(
         messages: Message[],
         options: CompletionOptions,
         stream: boolean
     ): Promise<Response> {
-        const first = this.buildRequest(messages, options, stream, !this.tuningRejected);
-        let response = await this.fetchWithRetry(first.url, first.init);
-        if (response.status === 400 && first.tuned) {
+        for (;;) {
+            const req = this.buildRequest(messages, options, stream, !this.tuningRejected);
+            const response = await this.fetchWithRetry(req.url, req.init);
+            if (response.ok) return response;
             const detail = await response.text().catch(() => '');
-            if (!isTuningRejection(detail)) {
-                throw new Error(`Anthropic API error ${response.status}: ${detail}`);
+            if (response.status === 400 && req.systemRole && isSystemRoleRejection(detail)) {
+                this.systemRoleRejected = true;
+                continue;
             }
-            this.tuningRejected = true;
-            const plain = this.buildRequest(messages, options, stream, false);
-            response = await this.fetchWithRetry(plain.url, plain.init);
-        }
-        if (!response.ok) {
-            const detail = await response.text().catch(() => '');
+            if (response.status === 400 && req.tuned && isTuningRejection(detail)) {
+                this.tuningRejected = true;
+                continue;
+            }
             throw new Error(`Anthropic API error ${response.status}: ${detail}`);
         }
-        return response;
     }
 
     async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
@@ -375,27 +413,56 @@ export class AnthropicProvider implements LLMProvider {
 }
 
 /**
- * Reshape a conversation for the Messages API: strip system messages (the
- * system prompt travels in the `system` param), merge consecutive same-role
- * messages (Anthropic requires strict alternation), and prepend a user stub
- * when the conversation opens with an assistant message, as the summary-based
- * resume flow does. Doing it here keeps every caller safe.
+ * The session log as Messages API turns, one message per entry. Nothing is
+ * merged or inserted (consecutive same-role messages are legal; the API joins
+ * them), so the rendering of an entry never depends on what comes after it
+ * and each request extends the previous one byte for byte.
+ *
+ * A `system` entry (a phase note) stays a system message only where the API
+ * takes it: `systemRole` on, after a user message, and last or followed by an
+ * assistant turn. Anywhere else, and on every model without the feature, it
+ * rides as user text. Placement is re-judged each request, so an entry whose
+ * reply was discarded switches to user text once a later user turn follows
+ * it: one cache miss from that point, in a rare path.
+ *
+ * A leading system entry is dropped (the system prompt travels in `system`)
+ * and an assistant opening gets a user stub; neither happens with a session
+ * log, which starts with the opener instruction.
  */
-function normalizeConversation(messages: Message[]): Message[] {
+function renderConversation(messages: Message[], systemRole: boolean): Message[] {
     const out: Message[] = [];
-    for (const m of messages) {
-        if (m.role === 'system') continue;
-        const prev = out[out.length - 1];
-        if (prev && prev.role === m.role) {
-            out[out.length - 1] = { role: prev.role, content: `${prev.content}\n\n${m.content}` };
-        } else {
+    messages.forEach((m, i) => {
+        if (m.role !== 'system') {
             out.push({ role: m.role, content: m.content });
+            return;
         }
-    }
+        if (i === 0) return;
+        const next = messages[i + 1];
+        const placed =
+            messages[i - 1]?.role === 'user' && (next === undefined || next.role === 'assistant');
+        out.push(
+            systemRole && placed
+                ? { role: 'system', content: m.content }
+                : { role: 'user', content: systemNoteAsUserText(m.content) }
+        );
+    });
     if (out[0]?.role === 'assistant') {
         out.unshift({ role: 'user', content: '[Resuming a previous session.]' });
     }
     return out;
+}
+
+/**
+ * Index of the last message at or before `index` that isn't a system message
+ * (-1 for none). Breakpoints stay off system messages (the API 400s
+ * cache_control on the turn-scoped kind), so a trailing phase note's falls on
+ * the user turn it follows; the note itself is read fresh once, then cached by
+ * the next turn's breakpoint.
+ */
+function cacheableAtOrBefore(convo: Message[], index: number): number {
+    let i = index;
+    while (i >= 0 && convo[i]!.role === 'system') i--;
+    return i;
 }
 
 /**

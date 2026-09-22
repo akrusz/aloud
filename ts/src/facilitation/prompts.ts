@@ -117,6 +117,15 @@ export function appControlsFragment(via: 'voice' | 'screen'): string {
     return `App controls: the session timer and clock, how fast you speak, the microphone and speaker, the orb, embers and theme on screen, and ending the session all belong to the app. You cannot change any of them, so never say or imply that you did. If the meditator asks you to, tell them in one short sentence that you can't do that yourself and that ${how}. Then carry on with the session.`;
 }
 
+/** A mid-sit switch of how the app takes commands, as a system note: the
+ *  system prompt is frozen for the sit, so the change can't go there. */
+export function appControlsChangeNote(via: 'voice' | 'screen'): string {
+    return (
+        `Setting change (from the app, not the meditator; never mention it aloud): voice commands are now ${via === 'voice' ? 'on' : 'off'}. ` +
+        `This replaces the App controls guidance in your instructions.\n\n${appControlsFragment(via)}`
+    );
+}
+
 /** Appended only when smart check-in timing is on (PromptConfig.waitSignal):
  *  no point asking every model for [WAIT] tokens the app would ignore.
  *  Followed by waitBiasFragment, which folds the guidance slider into the
@@ -673,10 +682,10 @@ export class PromptBuilder {
     /**
      * Build the complete system prompt from composable pieces.
      *
-     * @param stageSection For staged modes: the active phase's rendered section
+     * @param stageSection For staged modes: the arc section
      *   (StagedModeController.promptSection()), placed right after the base
-     *   prompt. A phase shift invalidates the prompt-cache prefix once, which
-     *   is acceptable.
+     *   prompt. Phase-independent: the system prompt must not change mid-sit,
+     *   or every later turn re-bills the cached prefix.
      */
     buildSystemPrompt(stageSection?: string): string {
         const composes = this.mode?.composes;

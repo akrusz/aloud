@@ -20,6 +20,7 @@ import type {
     LLMProvider,
     Message,
 } from './base.js';
+import { systemNoteAsUserText } from './base.js';
 
 const DEFAULT_MODEL = 'sonnet';
 const DEFAULT_MAX_TOKENS = 300;
@@ -153,10 +154,15 @@ export class ClaudeProxyProvider implements LLMProvider {
 /**
  * Encode multi-turn history as one prompt string: the CLI takes a single prompt
  * argument, so prior turns go inline as a "User: ... / Assistant: ..."
- * transcript. System messages are dropped; --system-prompt carries that.
+ * transcript. A leading system message is dropped (--system-prompt carries
+ * that); a later one (a phase note) goes inline as user text.
  */
 function formatHistory(messages: readonly Message[]): string {
-    const convo = messages.filter((m) => m.role !== 'system');
+    const convo = messages
+        .filter((m, i) => !(i === 0 && m.role === 'system'))
+        .map((m) =>
+            m.role === 'system' ? { role: 'user' as const, content: systemNoteAsUserText(m.content) } : m
+        );
     if (convo.length === 0) return '';
     if (convo.length === 1 && convo[0]!.role === 'user') {
         return convo[0]!.content;
