@@ -111,11 +111,28 @@ function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): nu
  *  lazily after a restart. */
 const CANNED_AUDIO = new Map<string, Uint8Array>();
 
-/** Synthesized voice-preview audio, keyed `${provider}:${voiceId}`. Same rationale as
- *  CANNED_AUDIO: the phrase is fixed (PREVIEW_PHRASE) and the voice must be
- *  curated, so each is synthesized at most once per process and then served
- *  free to anyone: a handful of short clips per deploy. */
+/** Synthesized voice-preview audio, keyed `${provider}:${voiceId}:${style}:${rate}`.
+ *  Same rationale as CANNED_AUDIO: the phrase is fixed (PREVIEW_PHRASE), the
+ *  voice must be curated and the rate is quantized (previewRate), so each is
+ *  synthesized at most once per process and then served free to anyone: a
+ *  handful of short clips per voice per deploy. */
 const PREVIEW_AUDIO = new Map<string, Uint8Array>();
+
+/** The preview's speed step, so the free endpoint can honor the speed slider
+ *  (a session at 0.8 should audition at 0.8: Google paces slow speech
+ *  differently, it doesn't stretch it) without letting a caller mint unbounded
+ *  distinct free syntheses. Takes the client's WPM (>5, ≈160 neutral, the same
+ *  convention as the app backend's GET preview) or a multiplier, clamps to the
+ *  providers' shared range and snaps to PREVIEW_RATE_STEP: at most 7 clips per
+ *  voice. Absent or unparseable means neutral. */
+const PREVIEW_RATE_STEP = 0.25;
+export function previewRate(raw: string | undefined): number {
+    const n = Number(raw);
+    if (!raw || !Number.isFinite(n) || n <= 0) return 1;
+    const multiplier = n > 5 ? n / 160 : n;
+    const clamped = Math.min(2, Math.max(0.5, multiplier));
+    return Math.round(clamped / PREVIEW_RATE_STEP) * PREVIEW_RATE_STEP;
+}
 
 export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -161,10 +178,11 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     // Public, UNAUTHENTICATED, UNMETERED preview of a curated voice. No sign-in
     // and no balance gate by design: the spoken text is the server-owned
     // PREVIEW_PHRASE and the voice must be curated, so a caller can't turn this
-    // into free synthesis of arbitrary input. Cached in PREVIEW_AUDIO, so
-    // signed-out visitors audition voices for a few short clips per deploy.
-    // Real metered synthesis stays on the authed POST / below. GET so the
-    // result is cacheable downstream.
+    // into free synthesis of arbitrary input, and `rate` is snapped to a few
+    // steps (previewRate). Cached in PREVIEW_AUDIO, so signed-out visitors
+    // audition voices for a few short clips per deploy. Real metered synthesis
+    // stays on the authed POST / below. GET so the result is cacheable
+    // downstream.
     app.get('/preview', async (c) => {
         const curated = CURATED_VOICES.find((v) => v.name === (c.req.query('voice') ?? ''));
         if (!curated) {
@@ -178,11 +196,12 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
         }
 
-        const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}`;
+        const rate = previewRate(c.req.query('rate'));
+        const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}:${rate}`;
         let audio = PREVIEW_AUDIO.get(cacheKey);
         if (!audio) {
             try {
-                audio = await synth(PREVIEW_PHRASE, 1);
+                audio = await synth(PREVIEW_PHRASE, rate);
             } catch (err) {
                 log.error('preview tts synth failed', { err: String(err) });
                 return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);

@@ -5,6 +5,7 @@ import { createApp } from '../src/app.js';
 import { MAX_TTS_CHARS, type AuthResponse } from '../src/contract.js';
 import { azureBilledChars } from '../src/providers/tts.js';
 import { priceTtsChars } from '../src/pricing/meter.js';
+import { previewRate } from '../src/routes/tts.js';
 
 // MP3 bytes Google would return, base64-encoded as audioContent.
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
@@ -288,6 +289,27 @@ describe('GET /cloud/v1/tts/preview', () => {
             (c) => (c.body as { voice: { name: string } }).voice.name === 'en-US-Neural2-F'
         );
         expect(vegaCalls).toHaveLength(1);
+    });
+
+    it('honors the speed slider, quantized, and caches per step', async () => {
+        const a = app();
+        const rateSent = () =>
+            (googleCalls.at(-1)!.body as { audioConfig: { speakingRate: number } }).audioConfig.speakingRate;
+        // The client sends WPM on the GET path: 128 wpm = 0.8x, snapped to 0.75.
+        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=128');
+        expect(rateSent()).toBe(0.75);
+        // A multiplier is taken as-is, then snapped; a nearby value shares the clip.
+        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=1.3');
+        expect(rateSent()).toBe(1.25);
+        const before = googleCalls.length;
+        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=1.2');
+        expect(googleCalls).toHaveLength(before);
+        // Out of range clamps rather than 400s: a bad number is still a preview.
+        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=400');
+        expect(rateSent()).toBe(2);
+        expect(previewRate(undefined)).toBe(1);
+        expect(previewRate('abc')).toBe(1);
+        expect(previewRate('0.1')).toBe(0.5);
     });
 
     it('400s on a non-curated voice (no free arbitrary synthesis)', async () => {
