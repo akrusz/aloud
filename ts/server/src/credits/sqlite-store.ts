@@ -16,7 +16,7 @@
  * but the synchronous API is stable enough for trial-scale single-process use.
  */
 
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type {
     Account,
     CreditsStore,
@@ -195,6 +195,10 @@ CREATE INDEX IF NOT EXISTS idx_retreat_invites_email ON retreat_invites(email);
 
 type Row = Record<string, string | number | bigint | Uint8Array | null>;
 
+function isConstraintViolation(err: unknown): boolean {
+    return String(err).includes('UNIQUE') || String(err).includes('constraint');
+}
+
 function rowToAccount(r: Row): Account {
     const account: Account = {
         id: String(r['id']),
@@ -342,8 +346,7 @@ export class SqliteCreditsStore implements CreditsStore {
      *  (SCHEMA's CREATE only covers fresh DBs). Existing rows default to 0: no 1h
      *  writes were billed before the anchor shipped. */
     private migrateAddUsageCacheCreation1h(): void {
-        const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
-        if (cols.some((c) => String(c['name']) === 'cache_creation_1h')) return;
+        if (this.hasColumn('usage_events', 'cache_creation_1h')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN cache_creation_1h INTEGER NOT NULL DEFAULT 0');
     }
 
@@ -351,16 +354,14 @@ export class SqliteCreditsStore implements CreditsStore {
      *  (meditation-pal-414). SCHEMA's CREATE only covers fresh DBs; no-op once
      *  the column is there. */
     private migrateAddUsagePassId(): void {
-        const cols = this.db.prepare('PRAGMA table_info(usage_events)').all() as Row[];
-        if (cols.some((c) => String(c['name']) === 'pass_id')) return;
+        if (this.hasColumn('usage_events', 'pass_id')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN pass_id TEXT');
     }
 
     /** Add accounts.email_updates to a DB predating the update-emails opt-in.
      *  Existing rows default to 0: nobody is opted in without checking the box. */
     private migrateAddEmailUpdates(): void {
-        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
-        if (cols.some((c) => String(c['name']) === 'email_updates')) return;
+        if (this.hasColumn('accounts', 'email_updates')) return;
         this.db.exec('ALTER TABLE accounts ADD COLUMN email_updates INTEGER NOT NULL DEFAULT 0');
     }
 
@@ -374,8 +375,7 @@ export class SqliteCreditsStore implements CreditsStore {
      *  created on the next boot once the operator resolves the duplicate in the
      *  admin panel. Self-healing. */
     private migrateAddCanonicalEmail(): void {
-        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
-        if (!cols.some((c) => String(c['name']) === 'canonical_email')) {
+        if (!this.hasColumn('accounts', 'canonical_email')) {
             this.db.exec('ALTER TABLE accounts ADD COLUMN canonical_email TEXT');
         }
         // Backfill rows missing it (none on a fresh DB, all on an existing one).
@@ -404,8 +404,7 @@ export class SqliteCreditsStore implements CreditsStore {
      *  (meditation-pal-8jc). SCHEMA's CREATE only covers fresh DBs, so a deployed
      *  prod DB needs this ALTER. No-op once the column is there. */
     private migrateAddDeletedAt(): void {
-        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
-        if (cols.some((c) => String(c['name']) === 'deleted_at')) return;
+        if (this.hasColumn('accounts', 'deleted_at')) return;
         this.db.exec('ALTER TABLE accounts ADD COLUMN deleted_at REAL');
     }
 
@@ -419,9 +418,7 @@ export class SqliteCreditsStore implements CreditsStore {
      * already-migrated DB.
      */
     private migrateLegacyGoogleSub(): void {
-        const cols = this.db.prepare('PRAGMA table_info(accounts)').all() as Row[];
-        const hasLegacy = cols.some((c) => String(c['name']) === 'google_sub');
-        if (!hasLegacy) return;
+        if (!this.hasColumn('accounts', 'google_sub')) return;
 
         // Backfill identities from the legacy column (idempotent via OR IGNORE).
         this.db.exec(`
@@ -465,14 +462,29 @@ export class SqliteCreditsStore implements CreditsStore {
         }
     }
 
+    /** The first row `sql` selects, mapped; undefined when there is none. */
+    private one<T>(sql: string, map: (r: Row) => T, ...params: SQLInputValue[]): T | undefined {
+        const row = this.db.prepare(sql).get(...params) as Row | undefined;
+        return row ? map(row) : undefined;
+    }
+
+    /** Every row `sql` selects, mapped. */
+    private many<T>(sql: string, map: (r: Row) => T, ...params: SQLInputValue[]): T[] {
+        return (this.db.prepare(sql).all(...params) as Row[]).map(map);
+    }
+
+    private hasColumn(table: string, column: string): boolean {
+        const cols = this.db.prepare(`PRAGMA table_info(${table})`).all() as Row[];
+        return cols.some((c) => String(c['name']) === column);
+    }
+
     /** Release the file handle (tests and graceful shutdown). */
     close(): void {
         this.db.close();
     }
 
     async getAccountById(id: string): Promise<Account | undefined> {
-        const row = this.db.prepare('SELECT * FROM accounts WHERE id = ?').get(id) as Row | undefined;
-        return row ? rowToAccount(row) : undefined;
+        return this.one('SELECT * FROM accounts WHERE id = ?', rowToAccount, id);
     }
 
     async createAccount(account: Account): Promise<void> {
@@ -501,21 +513,17 @@ export class SqliteCreditsStore implements CreditsStore {
     async findLiveAccountByEmail(email: string): Promise<Account | undefined> {
         // Oldest live row wins if duplicates coexist (index temporarily absent).
         // rowid is monotonic with INSERT, so it stands in for created_at.
-        const row = this.db
-            .prepare(
-                `SELECT * FROM accounts
-                 WHERE canonical_email = ? AND deleted_at IS NULL
-                 ORDER BY rowid LIMIT 1`
-            )
-            .get(normalizeEmail(email)) as Row | undefined;
-        return row ? rowToAccount(row) : undefined;
+        return this.one(
+            `SELECT * FROM accounts
+             WHERE canonical_email = ? AND deleted_at IS NULL
+             ORDER BY rowid LIMIT 1`,
+            rowToAccount,
+            normalizeEmail(email)
+        );
     }
 
     async getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined> {
-        const row = this.db
-            .prepare('SELECT * FROM identities WHERE provider = ? AND sub = ?')
-            .get(provider, sub) as Row | undefined;
-        return row ? rowToIdentity(row) : undefined;
+        return this.one('SELECT * FROM identities WHERE provider = ? AND sub = ?', rowToIdentity, provider, sub);
     }
 
     async createIdentity(identity: Identity): Promise<void> {
@@ -537,7 +545,7 @@ export class SqliteCreditsStore implements CreditsStore {
                 );
         } catch (err) {
             // Match MemoryCreditsStore: a duplicate identity is a domain error.
-            if (String(err).includes('UNIQUE') || String(err).includes('constraint')) {
+            if (isConstraintViolation(err)) {
                 throw new Error('identity already linked to an account');
             }
             throw err;
@@ -545,10 +553,7 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async getIdentitiesForAccount(accountId: string): Promise<Identity[]> {
-        const rows = this.db
-            .prepare('SELECT * FROM identities WHERE account_id = ? ORDER BY created_at')
-            .all(accountId) as Row[];
-        return rows.map(rowToIdentity);
+        return this.many('SELECT * FROM identities WHERE account_id = ? ORDER BY created_at', rowToIdentity, accountId);
     }
 
     async markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void> {
@@ -626,42 +631,38 @@ export class SqliteCreditsStore implements CreditsStore {
         } catch (err) {
             // Idempotent on the funding payment: a webhook retry for the same
             // checkout session must not create a second gift.
-            if (String(err).includes('UNIQUE') || String(err).includes('constraint')) return;
+            if (isConstraintViolation(err)) return;
             throw err;
         }
     }
 
     async getGiftById(id: string): Promise<Gift | undefined> {
-        const row = this.db.prepare('SELECT * FROM gifts WHERE id = ?').get(id) as Row | undefined;
-        return row ? rowToGift(row) : undefined;
+        return this.one('SELECT * FROM gifts WHERE id = ?', rowToGift, id);
     }
 
     async getGiftByStripeSession(stripeSessionId: string): Promise<Gift | undefined> {
-        const row = this.db
-            .prepare('SELECT * FROM gifts WHERE stripe_session_id = ?')
-            .get(stripeSessionId) as Row | undefined;
-        return row ? rowToGift(row) : undefined;
+        return this.one('SELECT * FROM gifts WHERE stripe_session_id = ?', rowToGift, stripeSessionId);
     }
 
     async getPendingGiftsForEmail(email: string): Promise<Gift[]> {
-        const rows = this.db
-            .prepare("SELECT * FROM gifts WHERE recipient_email = ? AND status = 'pending' ORDER BY created_at")
-            .all(email) as Row[];
-        return rows.map(rowToGift);
+        return this.many(
+            "SELECT * FROM gifts WHERE recipient_email = ? AND status = 'pending' ORDER BY created_at",
+            rowToGift, email
+        );
     }
 
     async getReturnedGiftsForBuyer(buyerAccountId: string): Promise<Gift[]> {
-        const rows = this.db
-            .prepare("SELECT * FROM gifts WHERE buyer_account_id = ? AND status = 'returned' ORDER BY created_at")
-            .all(buyerAccountId) as Row[];
-        return rows.map(rowToGift);
+        return this.many(
+            "SELECT * FROM gifts WHERE buyer_account_id = ? AND status = 'returned' ORDER BY created_at",
+            rowToGift, buyerAccountId
+        );
     }
 
     async pendingGiftsCreatedBefore(cutoff: number): Promise<Gift[]> {
-        const rows = this.db
-            .prepare("SELECT * FROM gifts WHERE status = 'pending' AND created_at <= ? ORDER BY created_at")
-            .all(cutoff) as Row[];
-        return rows.map(rowToGift);
+        return this.many(
+            "SELECT * FROM gifts WHERE status = 'pending' AND created_at <= ? ORDER BY created_at",
+            rowToGift, cutoff
+        );
     }
 
     async resolveGift(
@@ -671,11 +672,10 @@ export class SqliteCreditsStore implements CreditsStore {
     ): Promise<boolean> {
         // Conditional on still-pending, so concurrent accept/decline/expire can't
         // double-resolve and thus can't double-grant. changes() = rows updated.
-        this.db
+        const result = this.db
             .prepare("UPDATE gifts SET status = ?, resolved_at = ? WHERE id = ? AND status = 'pending'")
             .run(status, resolvedAt, id);
-        const changed = this.db.prepare('SELECT changes() AS n').get() as { n: number };
-        return changed.n > 0;
+        return Number(result.changes) > 0;
     }
 
     async transitionGift(
@@ -685,11 +685,10 @@ export class SqliteCreditsStore implements CreditsStore {
         resolvedAt: number
     ): Promise<boolean> {
         // Atomic CAS: only the caller that finds it in `from` makes the change.
-        this.db
+        const result = this.db
             .prepare('UPDATE gifts SET status = ?, resolved_at = ? WHERE id = ? AND status = ?')
             .run(to, resolvedAt, id, from);
-        const changed = this.db.prepare('SELECT changes() AS n').get() as { n: number };
-        return changed.n > 0;
+        return Number(result.changes) > 0;
     }
 
     async appendEntry(entry: LedgerEntry): Promise<void> {
@@ -717,7 +716,7 @@ export class SqliteCreditsStore implements CreditsStore {
             // bug, so only these external-ref kinds are forgiven.
             if (
                 (entry.kind === 'purchase' || entry.kind === 'refund') &&
-                (String(err).includes('UNIQUE') || String(err).includes('constraint'))
+                isConstraintViolation(err)
             ) {
                 return;
             }
@@ -729,20 +728,15 @@ export class SqliteCreditsStore implements CreditsStore {
         // ORDER BY rowid = insertion order (oldest first), per the store
         // contract. The UUID `id` is random, so it can't order; SQLite's implicit
         // rowid is monotonic with INSERT.
-        const rows = this.db
-            .prepare('SELECT * FROM ledger WHERE account_id = ? ORDER BY rowid')
-            .all(accountId) as Row[];
-        return rows.map(rowToEntry);
+        return this.many('SELECT * FROM ledger WHERE account_id = ? ORDER BY rowid', rowToEntry, accountId);
     }
 
     async allAccounts(): Promise<Account[]> {
-        const rows = this.db.prepare('SELECT * FROM accounts').all() as Row[];
-        return rows.map(rowToAccount);
+        return this.many('SELECT * FROM accounts', rowToAccount);
     }
 
     async allEntries(): Promise<LedgerEntry[]> {
-        const rows = this.db.prepare('SELECT * FROM ledger').all() as Row[];
-        return rows.map(rowToEntry);
+        return this.many('SELECT * FROM ledger', rowToEntry);
     }
 
     async appendUsage(event: UsageEvent): Promise<void> {
@@ -777,8 +771,7 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async allUsage(): Promise<UsageEvent[]> {
-        const rows = this.db.prepare('SELECT * FROM usage_events ORDER BY ts').all() as Row[];
-        return rows.map(rowToUsage);
+        return this.many('SELECT * FROM usage_events ORDER BY ts', rowToUsage);
     }
 
     async appendIncident(incident: Incident): Promise<void> {
@@ -802,10 +795,7 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async incidentsSince(sinceTs: number): Promise<Incident[]> {
-        const rows = this.db
-            .prepare('SELECT * FROM incidents WHERE ts >= ? ORDER BY ts DESC')
-            .all(sinceTs) as Row[];
-        return rows.map(rowToIncident);
+        return this.many('SELECT * FROM incidents WHERE ts >= ? ORDER BY ts DESC', rowToIncident, sinceTs);
     }
 
     async getSetting(key: string): Promise<string | undefined> {
@@ -843,17 +833,11 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async getRetreatPass(id: string): Promise<RetreatPass | undefined> {
-        const row = this.db.prepare('SELECT * FROM retreat_passes WHERE id = ?').get(id) as
-            | Row
-            | undefined;
-        return row ? rowToRetreatPass(row) : undefined;
+        return this.one('SELECT * FROM retreat_passes WHERE id = ?', rowToRetreatPass, id);
     }
 
     async listRetreatPasses(): Promise<RetreatPass[]> {
-        const rows = this.db
-            .prepare('SELECT * FROM retreat_passes ORDER BY created_at DESC')
-            .all() as Row[];
-        return rows.map(rowToRetreatPass);
+        return this.many('SELECT * FROM retreat_passes ORDER BY created_at DESC', rowToRetreatPass);
     }
 
     async revokeRetreatPass(id: string): Promise<void> {
@@ -887,32 +871,34 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async listRetreatMembers(passId: string): Promise<RetreatMembership[]> {
-        const rows = this.db
-            .prepare('SELECT * FROM retreat_memberships WHERE pass_id = ? ORDER BY joined_at')
-            .all(passId) as Row[];
-        return rows.map((r) => ({
-            passId: String(r['pass_id']),
-            accountId: String(r['account_id']),
-            joinedAt: Number(r['joined_at']),
-        }));
+        return this.many(
+            'SELECT * FROM retreat_memberships WHERE pass_id = ? ORDER BY joined_at',
+            (r) => ({
+                passId: String(r['pass_id']),
+                accountId: String(r['account_id']),
+                joinedAt: Number(r['joined_at']),
+            }),
+            passId
+        );
     }
 
     async activeRetreatPassForAccount(
         accountId: string,
         now: number
     ): Promise<RetreatPass | undefined> {
-        const row = this.db
-            .prepare(
-                `SELECT p.* FROM retreat_passes p
-                 JOIN retreat_memberships m ON m.pass_id = p.id
-                 WHERE m.account_id = ?
-                   AND p.status = 'active'
-                   AND p.starts_at <= ? AND p.ends_at >= ?
-                 ORDER BY p.ends_at DESC
-                 LIMIT 1`
-            )
-            .get(accountId, now, now) as Row | undefined;
-        return row ? rowToRetreatPass(row) : undefined;
+        return this.one(
+            `SELECT p.* FROM retreat_passes p
+             JOIN retreat_memberships m ON m.pass_id = p.id
+             WHERE m.account_id = ?
+               AND p.status = 'active'
+               AND p.starts_at <= ? AND p.ends_at >= ?
+             ORDER BY p.ends_at DESC
+             LIMIT 1`,
+            rowToRetreatPass,
+            accountId,
+            now,
+            now
+        );
     }
 
     async usageCreditsSince(accountId: string, sinceTs: number): Promise<number> {
@@ -933,17 +919,11 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     async listRetreatInvites(passId: string): Promise<RetreatInvite[]> {
-        const rows = this.db
-            .prepare('SELECT * FROM retreat_invites WHERE pass_id = ? ORDER BY invited_at')
-            .all(passId) as Row[];
-        return rows.map(rowToInvite);
+        return this.many('SELECT * FROM retreat_invites WHERE pass_id = ? ORDER BY invited_at', rowToInvite, passId);
     }
 
     async invitesForEmail(email: string): Promise<RetreatInvite[]> {
-        const rows = this.db
-            .prepare('SELECT * FROM retreat_invites WHERE email = ? ORDER BY invited_at')
-            .all(email) as Row[];
-        return rows.map(rowToInvite);
+        return this.many('SELECT * FROM retreat_invites WHERE email = ? ORDER BY invited_at', rowToInvite, email);
     }
 
     async removeRetreatInvite(passId: string, email: string): Promise<void> {
