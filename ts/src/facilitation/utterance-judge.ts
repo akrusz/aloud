@@ -19,8 +19,8 @@
  *   asks, so raising the bar "to be safe" only misses call-backs (0.85 missed a
  *   third of them and bought no fewer false resumes).
  *
- * Hosted sessions only. BYOK, Ollama and the desktop-local path have no server
- * to hold the key and keep the LLM classifier.
+ * Judge sessions only: aloud cloud always, BYOK/local only when opted in and
+ * signed in (ui voice-commands.ts). Everything else keeps the LLM classifier.
  */
 
 import { COMMAND_SPECS } from './voice-command-specs.js';
@@ -35,7 +35,7 @@ export function isClassifierId(v: unknown): v is ClassifierId {
 
 /**
  * Everything /cloud/v1/judge will answer: the three silence classifiers, which
- * have an LLM twin to fall back on, plus the voice-command pair
+ * have an LLM twin to fall back on, plus the voice-command ones
  * (voice-command.ts), which have none - no judge, no voice commands.
  */
 export type JudgeId = ClassifierId | 'command' | 'command-gate' | 'end-confirm';
@@ -86,11 +86,13 @@ const RESUME_STAY_EXAMPLES = [
 ];
 
 /**
- * Between a classifier's asks, the examples cover every one in the matching
- * *_SYSTEM_PROMPT (prompts.ts), zh anchors included. "Let's keep going" is a yes for `resume` and a no for
- * `hold-request` on purpose: same words, opposite sides of the silence.
+ * The silence classifiers' specs; other ids go through judgeSpec(). Between a
+ * classifier's asks, the examples cover every one in the matching
+ * *_SYSTEM_PROMPT (prompts.ts), zh anchors included. "Let's keep going" is a
+ * yes for `resume` and a no for `hold-request` on purpose: same words, opposite
+ * sides of the silence.
  */
-const CLASSIFIER_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
+export const JUDGE_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
     resume: {
         situation:
             'The meditator asked their meditation facilitator to stay silent. They are now ' +
@@ -248,11 +250,8 @@ const CLASSIFIER_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
 };
 
 export function judgeSpec(id: JudgeId): JudgeSpec {
-    return isClassifierId(id) ? CLASSIFIER_SPECS[id] : COMMAND_SPECS[id];
+    return isClassifierId(id) ? JUDGE_SPECS[id] : COMMAND_SPECS[id];
 }
-
-/** The silence classifiers' specs. Other ids go through judgeSpec(). */
-export const JUDGE_SPECS = CLASSIFIER_SPECS;
 
 /**
  * What the app knows around an utterance. Only `resume` uses it: a hold is the

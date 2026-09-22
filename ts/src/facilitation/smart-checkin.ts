@@ -17,7 +17,7 @@
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
-import type { LlmUsage } from './session.js';
+import { llmUsageOf, type LlmUsage } from './session.js';
 import { matchWaitToken, scrubControlTokens } from './modes.js';
 import { HOLD_PREFIX } from './prompts.js';
 import { stripThinkTags } from './strip-think-tags.js';
@@ -153,12 +153,6 @@ export async function runSmartCheckin(
     });
     return {
         reply: parseSmartCheckinReply(result.text, options.maxChars),
-        usage: {
-            tokensIn: result.inputTokens ?? null,
-            tokensOut: result.outputTokens ?? null,
-            cacheRead: result.cacheReadTokens ?? null,
-            cacheCreation: result.cacheCreationTokens ?? null,
-            cacheCreation1h: result.cacheCreation1hTokens ?? null,
-        },
+        usage: llmUsageOf(result),
     };
 }

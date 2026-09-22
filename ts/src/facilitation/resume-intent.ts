@@ -13,7 +13,7 @@ import {
     HOLD_CONFIRM_SYSTEM_PROMPT,
     HOLD_REQUEST_SYSTEM_PROMPT,
 } from './prompts.js';
-import type { LlmUsage } from './session.js';
+import { llmUsageOf, type LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
 import {
     judgeVerdict,
@@ -24,31 +24,14 @@ import {
     type UtteranceJudge,
 } from './utterance-judge.js';
 
-/** CompletionResult usage split, in LlmUsage shape. */
-function resultUsage(r: {
-    inputTokens?: number | null;
-    outputTokens?: number | null;
-    cacheReadTokens?: number | null;
-    cacheCreationTokens?: number | null;
-}): LlmUsage {
-    return {
-        tokensIn: r.inputTokens ?? null,
-        tokensOut: r.outputTokens ?? null,
-        cacheRead: r.cacheReadTokens ?? null,
-        cacheCreation: r.cacheCreationTokens ?? null,
-    };
-}
-
 export interface ClassifyResumeIntentOptions {
     /**
      * Reports this call's off-transcript usage for session usage tracking.
      * Fired only on success.
      */
     onUsage?: (usage: LlmUsage) => void;
-    /**
-     * Typed-judgment fast path (utterance-judge.ts). Omitted everywhere but
-     * hosted sessions, which leaves the LLM classifier as the only path.
-     */
+    /** Typed-judgment fast path (utterance-judge.ts). Without it the LLM
+     *  classifier is the only path. */
     judge?: UtteranceJudge;
     /** Passed to the judge only; the LLM classifier stays history-free. */
     judgeContext?: JudgeContext;
@@ -90,19 +73,13 @@ async function llmYesNo(
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
             const result = await provider.complete(messages, { system, maxTokens: 10 });
-            options.onUsage?.(resultUsage(result));
+            options.onUsage?.(llmUsageOf(result));
             return stripThinkTags(result.text).trim().toUpperCase().startsWith('YES') ? 'yes' : 'no';
         } catch {
             /* retry once, then surface 'error' */
         }
     }
     return 'error';
-}
-
-async function timed<T>(run: () => Promise<T>): Promise<{ value: T; latencyMs: number }> {
-    const t0 = Date.now();
-    const value = await run();
-    return { value, latencyMs: Date.now() - t0 };
 }
 
 /**
@@ -131,8 +108,9 @@ async function classifyYesNo(
         }
     };
     const runLlm = async (): Promise<NonNullable<JudgeReport['llm']>> => {
-        const { value, latencyMs } = await timed(() => llmYesNo(provider, text, system, options));
-        return { verdict: value, latencyMs };
+        const t0 = Date.now();
+        const verdict = await llmYesNo(provider, text, system, options);
+        return { verdict, latencyMs: Date.now() - t0 };
     };
 
     if (mode === 'shadow') {

@@ -5,6 +5,7 @@
  */
 
 import { realClock, type Clock } from '../clock.js';
+import type { CompletionResult, StreamChunk } from '../llm/index.js';
 
 export type Role = 'user' | 'assistant' | 'system';
 
@@ -51,6 +52,17 @@ export interface LlmUsage {
     /** Subset of cacheCreation written at the 1h TTL (2x input vs the 5m
      *  default's 1.25x). Absent when the turn used no 1h breakpoint. */
     cacheCreation1h?: number | null;
+}
+
+/** The usage split of a completion result or final stream chunk. */
+export function llmUsageOf(r: CompletionResult | StreamChunk): LlmUsage {
+    return {
+        tokensIn: r.inputTokens ?? null,
+        tokensOut: r.outputTokens ?? null,
+        cacheRead: r.cacheReadTokens ?? null,
+        cacheCreation: r.cacheCreationTokens ?? null,
+        cacheCreation1h: r.cacheCreation1hTokens ?? null,
+    };
 }
 
 export function emptyUsage(): SessionUsage {

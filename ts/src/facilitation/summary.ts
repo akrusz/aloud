@@ -11,23 +11,8 @@
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
-import type { LlmUsage } from './session.js';
+import { llmUsageOf, type LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
-
-/** CompletionResult usage split, in LlmUsage shape. */
-function resultUsage(r: {
-    inputTokens?: number | null;
-    outputTokens?: number | null;
-    cacheReadTokens?: number | null;
-    cacheCreationTokens?: number | null;
-}): LlmUsage {
-    return {
-        tokensIn: r.inputTokens ?? null,
-        tokensOut: r.outputTokens ?? null,
-        cacheRead: r.cacheReadTokens ?? null,
-        cacheCreation: r.cacheCreationTokens ?? null,
-    };
-}
 
 const SUMMARY_SYSTEM_PROMPT =
     'You are a helpful assistant. The conversation above is a ' +
@@ -116,7 +101,7 @@ export async function generateSessionSummary(
             system: options.systemPrompt ?? SUMMARY_SYSTEM_PROMPT,
             maxTokens: options.maxTokens ?? 200,
         });
-        options.onUsage?.(resultUsage(result));
+        options.onUsage?.(llmUsageOf(result));
         return stripThinkTags(result.text).trim().replace(RECAP_LABEL_RE, '');
     } catch (err) {
         // A failed recap falls back to the intention/label, indistinguishable

@@ -9,7 +9,7 @@
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
-import type { LlmUsage } from './session.js';
+import { llmUsageOf, type LlmUsage } from './session.js';
 import {
     registerZhPool,
     ZH_NOTING_CHECK_IN_PROMPTS,
@@ -180,12 +180,7 @@ export async function generateNotingLabel(
 
     try {
         const result = await provider.complete(messages, { system, maxTokens });
-        onUsage?.({
-            tokensIn: result.inputTokens ?? null,
-            tokensOut: result.outputTokens ?? null,
-            cacheRead: result.cacheReadTokens ?? null,
-            cacheCreation: result.cacheCreationTokens ?? null,
-        });
+        onUsage?.(llmUsageOf(result));
         const cleaned = stripThinkTags(result.text)
             .trim()
             .replace(/^["']+|["']+$/g, '') // strip surrounding quotes

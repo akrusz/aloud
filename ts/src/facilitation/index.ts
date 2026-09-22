@@ -14,6 +14,7 @@ export {
 export {
     SessionManager,
     emptyUsage,
+    llmUsageOf,
     type Exchange,
     type SessionState,
     type SessionUsage,
