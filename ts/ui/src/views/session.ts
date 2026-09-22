@@ -117,6 +117,7 @@ import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import {
     type SessionSetup,
+    type Provider,
     dirStepToBackend,
     ALL_PROVIDERS,
     GUIDANCE_LEVEL_LABELS,
@@ -184,11 +185,20 @@ import {
     type ScoredVoice,
 } from '../voice-picker.js';
 
-// Anthropic blocks browser-origin requests; OpenAI/OpenRouter/Venice/Groq
-// accept browser CORS. So Anthropic routes through the app-backend proxy, the
-// rest go BYOK direct. Mobile (Capacitor) will need another path for Anthropic
-// (@capacitor/http or a hosted proxy).
 const OLLAMA_PROXY_URL = '/ollama';
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+
+async function requireApiKey(provider: Provider): Promise<string> {
+    const key = await getApiKey(provider);
+    if (!key) {
+        throw new Error(
+            t('No API key set for {provider}. Add it in Settings, or pick a different provider.', {
+                provider,
+            })
+        );
+    }
+    return key;
+}
 
 export async function buildProvider(setup: SessionSetup): Promise<LLMProvider> {
     // Dev-build simulation hook (no-op everywhere else): draining a real
@@ -220,28 +230,15 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
                 contextLength: contextLengthForRam(systemRamGb()),
                 ...modelOpt,
             });
-        case 'anthropic': {
-            // BYOK direct, like the other key providers: Anthropic allows
-            // browser-origin requests that carry
-            // anthropic-dangerous-direct-browser-access. This used to route
-            // through an app-backend relay, which only ever existed in the
-            // desktop shell - so on the hosted web app every turn 404'd
-            // (meditation-pal-aq4e). The key now goes straight to Anthropic and
-            // touches no server of ours at all.
-            const anthropicKey = await getApiKey('anthropic');
-            if (!anthropicKey) {
-                throw new Error(
-                    t('No API key set for {provider}. Add it in Settings, or pick a different provider.', {
-                        provider: 'anthropic',
-                    })
-                );
-            }
+        case 'anthropic':
+            // BYOK direct: Anthropic accepts browser-origin requests that carry
+            // anthropic-dangerous-direct-browser-access, and there is no relay
+            // on the web build to go through instead (meditation-pal-aq4e).
             return new AnthropicProvider({
-                apiKey: anthropicKey,
+                apiKey: await requireApiKey('anthropic'),
                 directBrowserAccess: true,
                 ...modelOpt,
             });
-        }
         case 'claude_proxy':
             // The `claude` CLI is a subprocess: the app backend runs it and
             // exposes the result over /app/v1/llm/claude_proxy.
@@ -251,15 +248,7 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
         case 'venice':
         case 'groq': {
             // BYOK direct from the browser; these accept CORS.
-            const apiKey = await getApiKey(setup.provider);
-            if (!apiKey) {
-                throw new Error(
-                    t('No API key set for {provider}. Add it in Settings, or pick a different provider.', {
-                        provider: setup.provider,
-                    })
-                );
-            }
-            const opts = { apiKey, ...modelOpt };
+            const opts = { apiKey: await requireApiKey(setup.provider), ...modelOpt };
             if (setup.provider === 'openai') return new OpenAIProvider(opts);
             if (setup.provider === 'openrouter') return new OpenRouterProvider(opts);
             if (setup.provider === 'venice') return new VeniceProvider(opts);
@@ -288,7 +277,7 @@ export async function buildUtilityProvider(
         case 'aloud': {
             // The server holds the key; the client only names provider + model.
             await ensureCloudToken();
-            return new CloudLlmProvider({ provider: 'anthropic', model: 'claude-haiku-4-5-20251001' });
+            return new CloudLlmProvider({ provider: 'anthropic', model: HAIKU_MODEL });
         }
         case 'anthropic': {
             const anthropicKey = await getApiKey('anthropic');
@@ -299,7 +288,7 @@ export async function buildUtilityProvider(
             return new AnthropicProvider({
                 apiKey: anthropicKey,
                 directBrowserAccess: true,
-                model: 'claude-haiku-4-5-20251001',
+                model: HAIKU_MODEL,
             });
         }
         case 'claude_proxy':
@@ -311,23 +300,12 @@ export async function buildUtilityProvider(
 }
 
 /**
- * The utility model for the IN-SESSION recap refreshes only (nrj6). Those send
- * the whole transcript every SUMMARY_MIN_NEW_EXCHANGES and are most of the
- * utility leg's cost - several thousand input tokens a call, a few times an
- * hour, against the classifiers' handful of tokens. Flash Lite is ~10x cheaper
- * per input token and the recap is throwaway: it's background context for
- * summary-based resume, replaced by the next refresh, and superseded at the end
- * by the Haiku end-of-session summary that's actually shown in history. The
- * user-facing one stays on Haiku.
- *
- * Hosted only. Everywhere else the utility provider already is the facilitation
- * provider (or a local one), and there's nothing to save.
- *
- * WHICH cheap model is the server's call, not this view's: it's the entry
- * flagged `utility` in server/src/pricing/providers.ts, read off the same
- * /me/models payload the picker caches. Moving the job is a one-line flag move
- * there. If the catalog can't be reached we fall back to `utility` (Haiku) -
- * dearer, but a recap that costs more beats one that doesn't happen.
+ * The model for the IN-SESSION recap refreshes only (nrj6). They resend the
+ * whole transcript and are most of the utility leg's cost, and the recap is
+ * throwaway (the end-of-session summary shown in history stays on Haiku), so
+ * hosted sessions run them on the cheapest model. Which one is the server's
+ * call: the entry flagged `utility` in server/src/pricing/providers.ts. If the
+ * catalog can't be reached this falls back to `utility`.
  */
 export async function buildRecapProvider(
     setup: SessionSetup,
@@ -455,6 +433,9 @@ export async function mountSessionView(
     // id/alias actually in use.
     let activeModel = setup.model;
     let modelLabel = sessionModelLabel(setup.provider, activeModel);
+    function recomputeModelLabel(): void {
+        modelLabel = sessionModelLabel(setup.provider, activeModel);
+    }
     if (continueFrom && continueFrom.exchanges.length > 0) {
         session.loadExchanges(
             buildResumeContext(continueFrom, appSettings.resumeFromSummary, {
@@ -478,20 +459,8 @@ export async function mountSessionView(
             <section class="controls">
                 <button id="back" type="button" data-nav="setup">${t('Back to setup')}</button>
             </section>`;
-        return {
-            teardown() {
-                /* nothing to tear down */
-            },
-            requestLeave() {
-                /* no live session to guard */
-            },
-            showInfo() {
-                /* no panel when the provider failed to build */
-            },
-            toggleKasina() {
-                /* no orb on the error view */
-            },
-        };
+        const noop = (): void => {};
+        return { teardown: noop, requestLeave: noop, showInfo: noop, toggleKasina: noop };
     }
 
     // The pause-detection window (the STT VAD's trailing-silence submit window,
@@ -501,8 +470,7 @@ export async function mountSessionView(
     // by subscription, not per request, so a too-early submit that a resumed
     // utterance supersedes (respondTo's turnGen/activeFullAbort) costs nothing.
     // Hence a shorter default window there, to cut latency.
-    const providerStreams =
-        typeof (provider as { completeStream?: unknown }).completeStream === 'function';
+    const providerStreams = canStream(provider);
     const silenceBaseMs = providerStreams
         ? appSettings.silenceBaseMs
         : appSettings.nonStreamingSilenceBaseMs;
@@ -531,20 +499,12 @@ export async function mountSessionView(
     // Auxiliary calls run on a cheap, fast model (see buildUtilityProvider).
     // Falls back to the facilitation provider on any setup hiccup so a
     // helper-model problem can never block the session itself.
-    let utilityProvider = provider;
-    try {
-        utilityProvider = await buildUtilityProvider(setup, provider);
-    } catch {
-        utilityProvider = provider;
-    }
+    const utilityProvider = await buildUtilityProvider(setup, provider).catch(() => provider);
     // Background recaps run cheaper still (buildRecapProvider); same
     // never-block-the-session fallback.
-    let recapProvider = utilityProvider;
-    try {
-        recapProvider = await buildRecapProvider(setup, utilityProvider);
-    } catch {
-        recapProvider = utilityProvider;
-    }
+    const recapProvider = await buildRecapProvider(setup, utilityProvider).catch(
+        () => utilityProvider
+    );
 
     // Jev (TypeSafe) for the silence classifiers and the spoken commands. Always
     // on for aloud cloud; an opt-in everywhere else (voice-commands.ts). Up here
@@ -581,19 +541,10 @@ export async function mountSessionView(
         );
 
     // Session facts live behind the nav "ⓘ" button rather than in the always-on
-    // chrome. modelLabel is recomputed here so the saved record and the panel
-    // agree, and stays current across an availability fallback.
-    function recomputeModelLabel(): void {
-        modelLabel = sessionModelLabel(setup.provider, activeModel);
-    }
-    recomputeModelLabel();
+    // chrome.
     function buildSessionInfoRows(): SessionInfoRow[] {
         const providerLabel =
             ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
-        // Streaming providers let the facilitator start speaking mid-reply; the
-        // subscription (claude_proxy) returns the whole turn at once, so there's
-        // a longer silent wait before it speaks.
-        const streams = typeof (provider as { completeStream?: unknown }).completeStream === 'function';
         // Dimension rows only appear when the mode composes them into the
         // prompt (felt sense defines its own attention, tone, guidance, and
         // brevity, plus its own check-in timing default).
@@ -664,7 +615,7 @@ export async function mountSessionView(
             { label: t('Source'), value: t(providerLabel) },
             {
                 label: t('Delivery'),
-                value: streams ? t('Speaks as it generates') : t('Waits for full reply, then speaks'),
+                value: canStream(provider) ? t('Speaks as it generates') : t('Waits for full reply, then speaks'),
             },
             // Actionable: the clock can be hidden from the input row, and this
             // is then the only way back to its settings mid-session.
@@ -3665,6 +3616,10 @@ export async function mountSessionView(
             kasinaToggle.dispatchEvent(new Event('change'));
         },
     };
+}
+
+function canStream(provider: LLMProvider): boolean {
+    return typeof (provider as { completeStream?: unknown }).completeStream === 'function';
 }
 
 /** Message shown in the end-session confirm for an external nav request
