@@ -17,13 +17,8 @@ import { rateSuffix } from './credit-rate.js';
 import { setCloudSttCreditsPerHour } from './adapters/stt-picker.js';
 import { loadAppSettings, saveAppSettings } from './app-settings.js';
 import { t, uiLang } from './i18n.js';
-import type { Provider } from './settings.js';
-
-/** Providers that authenticate with a user-supplied key (BYOK). The hosted
- *  service ('aloud'), local Ollama, and the subscription claude_proxy don't. */
-function providerNeedsKey(provider: string): boolean {
-    return !['aloud', 'ollama', 'claude_proxy'].includes(provider);
-}
+import { escapeHtml } from './escape-html.js';
+import { providerNeedsKey, type Provider } from './settings.js';
 
 /** Display names for the aloud cloud allowlist, so the dropdown reads "Claude
  *  Opus 5" not "claude-opus-5". Unknown ids fall back to prettyModelName.
@@ -61,18 +56,12 @@ export function prettyModelName(model: string): string {
 }
 
 /**
- * ⭐ TWEAK ME to change which models carry the "may be slower" note. Purely
- * local, no network. We disable reasoning wherever possible (Opus included), so
- * most heavy models answer at normal speed. Fable used to be the exception
- * (reasoning can't be turned off), but pinned to effort `low` Fable 5.1 lands
- * its first token within ~0.3s of Opus 5 on a facilitation turn (measured
- * 2026-09-01: 1.4s vs 1.7s median on the API, ~1s behind through the claude
- * CLI), so it no longer earns the note; Fable 5 was ~1s slower still. Mythos
- * stays listed on the same reasoning until it is measured. (Kimi K2 0711
- * doesn't reason at all; its K3 successor was dropped from the hosted list over
- * exactly that 7-12s always-on delay.) Substring-matched against the model
- * id/alias, so one entry covers every variant - cloud "provider/model" values
- * and bare claude_proxy aliases alike.
+ * ⭐ TWEAK ME to change which models carry the "may be slower" note. Reasoning
+ * is disabled wherever possible, so only models that must think before their
+ * first token belong here (Fable at effort `low` measured close enough to Opus
+ * on 2026-09-01 to drop off; Mythos stays until measured). Substring-matched
+ * against the model id/alias, so one entry covers every variant - cloud
+ * "provider/model" values and bare claude_proxy aliases alike.
  */
 export const SLOW_MODEL_MARKERS: readonly string[] = ['mythos'];
 
@@ -191,8 +180,6 @@ async function setShowAllModels(value: boolean): Promise<void> {
 const cache = new Map<string, ModelOption[]>();
 let providerStatusCache: Record<string, { available: boolean; models?: string[] }> | null = null;
 
-/** Fetch model options for a provider. Null when the endpoint isn't reachable
- *  (e.g. no app backend), so callers can render an empty state. */
 /** ☁️/hr the background-assistant leg (Haiku classifiers/summaries + the Flash
  *  Lite recap) adds to every aloud-cloud session, on top of the picked model's
  *  badge. Seed matches the server's UTILITY_CREDITS_PER_HOUR; /me/models
@@ -209,6 +196,8 @@ export function cloudUtilityCreditsPerHour(): number {
     return utilityCreditsPerHour;
 }
 
+/** Fetch model options for a provider. Null when the endpoint isn't reachable
+ *  (e.g. no app backend), so callers can render an empty state. */
 export async function fetchModels(provider: string): Promise<ModelOption[] | null> {
     if (cache.has(provider)) return cache.get(provider)!;
 
@@ -339,7 +328,7 @@ export function mountModelPicker(
     initialProvider: string,
     initialValue: string,
     onChange: (value: string) => void
-): { refresh: (provider: string) => Promise<void>; getValue: () => string; getRate: () => number } {
+): { refresh: (provider: string) => Promise<void>; getRate: () => number } {
     let currentValue = initialValue;
     // Loaded options, so getRate() can map the selection to credits/hr without
     // another fetch.
@@ -367,19 +356,19 @@ export function mountModelPicker(
                 ? models.filter((m) => !expandedHere(m) || m.value === currentValue)
                 : models;
         const optionsHTML = visible
-            .map((m) => `<option value="${attr(m.value)}">${escape(m.label)}</option>`)
+            .map((m) => `<option value="${escapeHtml(m.value)}">${escapeHtml(m.label)}</option>`)
             .join('');
         // Under the hosted selector, the tier toggle (it took over the slot the
         // rate legend used to fill; the ☁️ badges read fine without it).
         const toggle =
             provider === 'aloud'
-                ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escape(
+                ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escapeHtml(
                       showAll ? t('Show fewer models ▲') : t('Show all available models ▼')
                   )}</button></p>`
                 : '';
         container.innerHTML = `
-            <select id="model-select" data-provider="${attr(provider)}">${optionsHTML}</select>${toggle}
-            <p class="model-slow-note hidden" id="model-slow-note">${escape(t(SLOW_MODEL_NOTE))}</p>`;
+            <select id="model-select" data-provider="${escapeHtml(provider)}">${optionsHTML}</select>${toggle}
+            <p class="model-slow-note hidden" id="model-slow-note">${escapeHtml(t(SLOW_MODEL_NOTE))}</p>`;
         const sel = container.querySelector<HTMLSelectElement>('#model-select')!;
         const slowNote = container.querySelector<HTMLElement>('#model-slow-note')!;
         container
@@ -463,12 +452,12 @@ export function mountModelPicker(
      */
     async function renderUnavailable(provider: string): Promise<void> {
         const reason =
-            providerNeedsKey(provider) && !(await hasApiKey(provider as Provider))
+            providerNeedsKey(provider as Provider) && !(await hasApiKey(provider as Provider))
                 ? t('Add an API key to load models.')
                 : t("Couldn't load {provider} models. Check the key or your connection.", {
                       provider,
                   });
-        container.innerHTML = `<p class="model-unavailable" id="model-none"><span>${escape(reason)}</span></p>`;
+        container.innerHTML = `<p class="model-unavailable" id="model-none"><span>${escapeHtml(reason)}</span></p>`;
     }
 
     /** Ollama empty state: naming a model is useless when the daemon has none to
@@ -533,19 +522,8 @@ export function mountModelPicker(
     void refresh(initialProvider);
     return {
         refresh,
-        getValue: () => currentValue,
         // Credits/hr of the selected hosted model, 0 for free providers, summed
         // into the setup session estimate.
         getRate: () => currentModels.find((m) => m.value === currentValue)?.creditsPerHour ?? 0,
     };
-}
-
-function attr(s: string): string {
-    return escape(s);
-}
-
-function escape(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
-    );
 }

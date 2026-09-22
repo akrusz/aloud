@@ -1,7 +1,6 @@
 /**
- * Buy-credits modal (meditation-pal-8sj / 44o). Lists the packs and, on pick,
- * either starts a Stripe Checkout (card) or pays USDC on Base via x402 (du9
- * Phase 2). Reuses the `.voice-modal-*` classes and floats above whatever view
+ * Buy-credits modal. Lists the packs and, on pick, either starts a Stripe
+ * Checkout (card) or pays USDC on Base via x402. Reuses the `.voice-modal-*` classes and floats above whatever view
  * is mounted, so it can fire mid-session (out-of-credits) or from Settings.
  *
  * Card: on web the tab redirects to Stripe and the outcome comes back via
@@ -28,6 +27,7 @@ import { creditAmount, withCloudOutline } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { openExternal } from './external-links.js';
 import { t } from './i18n.js';
+import { escapeHtml } from './escape-html.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -102,12 +102,16 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         let settled = false;
         let unsubscribeBalance: (() => void) | null = null;
         let pollTimer: ReturnType<typeof setInterval> | null = null;
+        const stopPolling = (): void => {
+            if (pollTimer !== null) clearInterval(pollTimer);
+            pollTimer = null;
+        };
         const close = (result: boolean): void => {
             if (settled) return;
             settled = true;
             document.removeEventListener('keydown', onKey);
             unsubscribeBalance?.();
-            if (pollTimer !== null) clearInterval(pollTimer);
+            stopPolling();
             releaseFocus();
             overlay.remove();
             resolve(result);
@@ -259,16 +263,14 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             const deadline = Date.now() + 3 * 60 * 1000;
             pollTimer = setInterval(() => {
                 if (Date.now() > deadline) {
-                    if (pollTimer !== null) clearInterval(pollTimer);
-                    pollTimer = null;
+                    stopPolling();
                     return;
                 }
                 void fetchMe()
                     .then(() => {
                         const now = getKnownBalance();
                         if (typeof startBalance === 'number' && typeof now === 'number' && now > startBalance) {
-                            if (pollTimer !== null) clearInterval(pollTimer);
-                            pollTimer = null;
+                            stopPolling();
                             showSuccess(t('Payment received. Balance {balance}.', { balance: creditAmount(now, 0) }));
                             setTimeout(() => close(true), 1600);
                         }
@@ -300,41 +302,36 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 }
                 return;
             }
-            // Card: resolve the recipient, then head to Stripe.
-            const to = recipient();
-            if (to.error) {
-                showError(to.error);
-                return;
-            }
-            setPacksDisabled(true);
-            startCheckout({ packId: pack.id }, to.email)
-                .then((url) => goToCheckout(url))
-                .catch((err: unknown) => {
-                    setPacksDisabled(false);
-                    showError(err instanceof Error ? err.message : String(err));
-                });
+            cardCheckout({ packId: pack.id });
         };
 
-        // Custom amounts are card-only (USDC stays pack-based); otherwise the
-        // card branch of buy().
+        // Custom amounts are card-only (USDC stays pack-based).
         const buyCustom = (credits: number): void => {
             showError('');
+            cardCheckout({ credits }, overlay.querySelector<HTMLButtonElement>('#buy-credits-custom-btn'));
+        };
+
+        /** Card: resolve the recipient, then head to Stripe. `extraBtn` is
+         *  disabled along with the packs while the session is created. */
+        function cardCheckout(
+            item: Parameters<typeof startCheckout>[0],
+            extraBtn: HTMLButtonElement | null = null
+        ): void {
             const to = recipient();
             if (to.error) {
                 showError(to.error);
                 return;
             }
-            const customBtn = overlay.querySelector<HTMLButtonElement>('#buy-credits-custom-btn');
             setPacksDisabled(true);
-            if (customBtn) customBtn.disabled = true;
-            startCheckout({ credits }, to.email)
+            if (extraBtn) extraBtn.disabled = true;
+            startCheckout(item, to.email)
                 .then((url) => goToCheckout(url))
                 .catch((err: unknown) => {
                     setPacksDisabled(false);
-                    if (customBtn) customBtn.disabled = false;
+                    if (extraBtn) extraBtn.disabled = false;
                     showError(err instanceof Error ? err.message : String(err));
                 });
-        };
+        }
 
         const packsHost = overlay.querySelector<HTMLElement>('#buy-credits-packs')!;
         const customHost = overlay.querySelector<HTMLElement>('#buy-credits-custom')!;
@@ -449,11 +446,4 @@ function renderPacks(host: HTMLElement, packs: CreditPack[], onPick: (pack: Cred
         btn.addEventListener('click', () => onPick(pack));
         host.appendChild(btn);
     }
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(
-        /[&<>"']/g,
-        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c
-    );
 }

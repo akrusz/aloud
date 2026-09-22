@@ -6,6 +6,7 @@
  */
 
 import { t } from '../i18n.js';
+import { escapeHtml } from '../escape-html.js';
 
 export interface LoginViewHandle {
     show(error?: string | null): void;
@@ -41,10 +42,4 @@ export function mountLoginView(root: HTMLElement): LoginViewHandle {
             root.innerHTML = '';
         },
     };
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
-    );
 }

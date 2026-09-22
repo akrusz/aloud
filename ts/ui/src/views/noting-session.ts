@@ -54,16 +54,12 @@ import {
     wireEmberControls,
 } from '../embers.js';
 import { initKasinaMode } from '../kasina.js';
-import {
-    type SessionSetup,
-    type NotingParticipantConfig,
-    ALL_PROVIDERS,
-    sessionNeedsLlm,
-} from '../settings.js';
+import { type SessionSetup, ALL_PROVIDERS, sessionNeedsLlm } from '../settings.js';
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { t } from '../i18n.js';
+import { escapeHtml } from '../escape-html.js';
 import { playbackAudio, playbackAudioContext } from '../audio-unlock.js';
 
 export interface NotingSessionViewHandle {
@@ -160,7 +156,6 @@ export async function mountNotingSessionView(
         if (themeBtn) initThemeToggle(themeBtn);
     }
 
-
     root.innerHTML = `
         <div class="session-container">
             <div class="conversation" id="conversation"></div>
@@ -219,13 +214,12 @@ export async function mountNotingSessionView(
             </div>
         </div>`;
 
-    // Mounted AFTER the view's innerHTML above: mountSessionInfoPanel appends
-    // its overlay to root, and the assignment would wipe it - the nav ⓘ then
-    // toggled a panel that no longer existed (2026-09-04 device pass).
+    const providerLabel =
+        ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
     // Session info panel behind the nav "ⓘ" button (and the mobile More sheet).
+    // Mounted AFTER the innerHTML above, which would otherwise wipe the overlay
+    // it appends to root.
     const infoPanel = mountSessionInfoPanel(root, (): SessionInfoRow[] => {
-        const providerLabel =
-            ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
         const modelLabel = sessionModelLabel(setup.provider, setup.model);
         const streams =
             typeof (provider as { completeStream?: unknown } | null)?.completeStream === 'function';
@@ -264,9 +258,7 @@ export async function mountNotingSessionView(
             label: t('Report AI content'),
             onClick: () =>
                 void openAiContentReport({
-                    sourceLabel:
-                        ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ??
-                        setup.provider,
+                    sourceLabel: providerLabel,
                     ownProvider: setup.provider !== 'aloud',
                 }),
         },
@@ -968,10 +960,4 @@ function mountError(
         showInfo() { /* no panel on the error view */ },
         toggleKasina() { /* no orb on the error view */ },
     };
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'
-    );
 }

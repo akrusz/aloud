@@ -16,6 +16,7 @@ import { appUrl } from '../app-base.js';
 import { confirmDialog } from '../dialog.js';
 import { isTauri } from '../is-desktop.js';
 import { t, uiLocale } from '../i18n.js';
+import { escapeHtml } from '../escape-html.js';
 
 export interface HistoryViewHandle {
     show(): Promise<void>;
@@ -115,8 +116,8 @@ export async function mountHistoryView(
     }
 
     function continueSession(session: SessionState): void {
-        // Setup picks this up via loadQueuedContinuation() and threads it
-        // through onBegin.
+        // Setup picks this up in initPendingContinue and threads it through
+        // onBegin.
         if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem('continueFrom', session.sessionId);
             const { summary } = sessionTypeAndSummary(session);
@@ -127,26 +128,14 @@ export async function mountHistoryView(
     }
 
     function copyTranscript(session: SessionState, btn: HTMLButtonElement): void {
-        const lines: string[] = [];
-        for (const ex of session.exchanges) {
-            if (ex.role === 'user' && isSyntheticEventTurn(ex.content)) continue;
-            const role = ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
-            lines.push(`${role}\n${ex.content}`);
-        }
-        const text = lines.join('\n\n');
+        const text = spokenExchanges(session.exchanges)
+            .map((ex) => `${speakerLabel(ex)}\n${ex.content}`)
+            .join('\n\n');
         if (!text) return;
-        const original = btn.textContent;
-        const restore = () => setTimeout(() => (btn.textContent = original), 1500);
         navigator.clipboard
             .writeText(text)
-            .then(() => {
-                btn.textContent = t('Copied');
-                restore();
-            })
-            .catch(() => {
-                btn.textContent = t('Copy failed');
-                restore();
-            });
+            .then(() => flashLabel(btn, t('Copied')))
+            .catch(() => flashLabel(btn, t('Copy failed')));
     }
 
     await loadAndRender();
@@ -156,17 +145,28 @@ export async function mountHistoryView(
 /** Reveal this session's JSON file on disk (desktop only). A missing file
  *  (never saved) flips the label briefly rather than failing silently. */
 function revealSessionFile(session: SessionState, btn: HTMLButtonElement): void {
-    const original = btn.textContent;
     fetch(appUrl(`/open-session-file/${encodeURIComponent(session.sessionId)}`), { method: 'POST' })
         .then((res) => {
-            if (res.ok) return;
-            btn.textContent = t('Not on disk');
-            setTimeout(() => (btn.textContent = original), 1500);
+            if (!res.ok) flashLabel(btn, t('Not on disk'));
         })
-        .catch(() => {
-            btn.textContent = t("Couldn't open");
-            setTimeout(() => (btn.textContent = original), 1500);
-        });
+        .catch(() => flashLabel(btn, t("Couldn't open")));
+}
+
+/** Swap a button's label for a moment, then put it back. */
+function flashLabel(btn: HTMLButtonElement, text: string): void {
+    const original = btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => (btn.textContent = original), 1500);
+}
+
+/** The turns a person would read: synthetic event turns (check-ins, timer
+ *  notices) are model context, not the user speaking. */
+function spokenExchanges(exchanges: readonly Exchange[]): Exchange[] {
+    return exchanges.filter((ex) => !(ex.role === 'user' && isSyntheticEventTurn(ex.content)));
+}
+
+function speakerLabel(ex: Exchange): string {
+    return ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
 }
 
 /** Download all saved sessions as one JSON file (web only; desktop reveals the
@@ -240,12 +240,12 @@ function renderItem(session: SessionState): string {
         (typeLabel ? ` · ${t(typeLabel)}` : '');
 
     return `
-    <div class="session-item" data-session-id="${attr(session.sessionId)}" data-summary="${attr(summary)}">
+    <div class="session-item" data-session-id="${escapeHtml(session.sessionId)}">
         <div class="session-item-header">
             <div class="session-item-info">
-                <span class="session-date">${escape(dateText)}</span>
-                <span class="session-meta">${escape(meta)}</span>
-                ${summary ? `<span class="session-summary">${escape(summary)}</span>` : ''}
+                <span class="session-date">${escapeHtml(dateText)}</span>
+                <span class="session-meta">${escapeHtml(meta)}</span>
+                ${summary ? `<span class="session-summary">${escapeHtml(summary)}</span>` : ''}
             </div>
             <span class="session-expand">&#9662;</span>
         </div>
@@ -267,17 +267,14 @@ function renderTranscript(exchanges: readonly Exchange[]): string {
     if (exchanges.length === 0) {
         return `<p class="loading-text">${t('No exchanges recorded.')}</p>`;
     }
-    return exchanges
-        // Synthetic check-in events are model context, not the user speaking.
-        .filter((ex) => !(ex.role === 'user' && isSyntheticEventTurn(ex.content)))
-        .map((ex) => {
-            const role = ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
-            return `
+    return spokenExchanges(exchanges)
+        .map(
+            (ex) => `
             <div class="transcript-message">
-                <div class="transcript-role ${ex.role}">${escape(role)}</div>
-                <div class="transcript-text">${escape(ex.content)}</div>
-            </div>`;
-        })
+                <div class="transcript-role ${ex.role}">${escapeHtml(speakerLabel(ex))}</div>
+                <div class="transcript-text">${escapeHtml(ex.content)}</div>
+            </div>`
+        )
         .join('');
 }
 
@@ -297,16 +294,6 @@ function formatDuration(s: SessionState): string {
     const secs = seconds % 60;
     if (mins === 0) return t('{s}s', { s: secs });
     return t('{m}m {s}s', { m: mins, s: secs });
-}
-
-function escape(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
-    );
-}
-
-function attr(s: string): string {
-    return escape(s);
 }
 
 function cssEscape(s: string): string {

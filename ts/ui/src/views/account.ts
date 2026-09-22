@@ -1,8 +1,8 @@
 /**
- * Account page (meditation-pal-bd5 / -8jc) - the signed-in user's identity +
- * money home, split out from Settings (app-behavior only). Email + connected
- * sign-ins, balance + Buy, returned gifts to re-gift or claim, and a collapsed
- * Danger zone with account deletion.
+ * Account page - the signed-in user's identity + money home, split out from
+ * Settings (app-behavior only). Email + connected sign-ins, balance + Buy,
+ * returned gifts to re-gift or claim, and a collapsed Danger zone with
+ * account deletion.
  */
 
 import { detectCapabilities, watchCloudReachable } from '../capabilities.js';
@@ -28,6 +28,7 @@ import { showSignInModal } from '../sign-in-modal.js';
 import { confirmTypedDialog, alertDialog } from '../dialog.js';
 import { showSuccessToast, showErrorToast } from '../toast.js';
 import { t } from '../i18n.js';
+import { escapeHtml } from '../escape-html.js';
 
 export async function mountAccountView(root: HTMLElement): Promise<void> {
     root.innerHTML = `
@@ -90,7 +91,7 @@ async function render(root: HTMLElement): Promise<void> {
             <h2>${t('Account Name')}</h2>
             <hr class="account-rule">
             <div class="account-row">
-                <span class="account-email">${escape(account.email)}</span>
+                <span class="account-email">${escapeHtml(account.email)}</span>
                 <button type="button" class="btn btn-secondary" id="acct-signout">${t('Sign out')}</button>
             </div>
             <h2 class="account-subhead">${t('Cloud Balance')}</h2>
@@ -113,7 +114,7 @@ async function render(root: HTMLElement): Promise<void> {
             <p class="form-hint">${
                 hasPassword
                     ? t('Change the password used to sign in with your email.')
-                    : t('Add a password to enable signing in with email, in addition to your {provider} account.', { provider: escape(federated) })
+                    : t('Add a password to enable signing in with email, in addition to your {provider} account.', { provider: escapeHtml(federated) })
             }</p>
             <div class="account-password-row">
                 <input type="password" id="acct-password" class="signin-input"
@@ -250,7 +251,7 @@ function wireGiftableList(root: HTMLElement, gifts: ReturnedGiftView[]): void {
         row.innerHTML = `
             <div class="gift-row-info">
                 <span class="gift-row-amount">${withCloudOutline(creditAmount(gift.credits, 0))}</span>
-                <span class="provider-hint gift-row-from"> ${t('· was for {email}', { email: escape(gift.toEmail) })}</span>
+                <span class="provider-hint gift-row-from"> ${t('· was for {email}', { email: escapeHtml(gift.toEmail) })}</span>
             </div>
             <div class="gift-row-actions">
                 <input type="email" class="gift-regift-email" placeholder="${t('re-gift to email…')}"
@@ -326,11 +327,4 @@ function wireDangerZone(root: HTMLElement, email: string): void {
             await render(root); // back to the signed-out state
         })();
     });
-}
-
-function escape(s: string): string {
-    return s.replace(
-        /[&<>"']/g,
-        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c
-    );
 }
