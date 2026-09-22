@@ -428,22 +428,16 @@ export const NOTING_MODE: ModeSpec = {
     checkIns: NOTING_CHECK_IN_PROMPTS,
 };
 
-// Lazy, not a module-level Map: language.ts's zh-pool registry closed an import
-// cycle (felt-sense → prompts → language → session-timer → smart-checkin →
-// here), so FELT_SENSE_MODE can be mid-initialization (TDZ) while this module
-// runs. By any getMode call every module has finished loading.
-let modesMap: Map<string, ModeSpec> | null = null;
-function modes(): ReadonlyMap<string, ModeSpec> {
-    if (!modesMap) {
-        modesMap = new Map([EXPLORATION_MODE, NOTING_MODE, FELT_SENSE_MODE].map((m) => [m.id, m]));
-    }
-    return modesMap;
-}
+// Built at load, so felt-sense.ts must never value-import this module back:
+// the cycle would leave FELT_SENSE_MODE uninitialized (TDZ) here.
+const MODES: ReadonlyMap<string, ModeSpec> = new Map(
+    [EXPLORATION_MODE, NOTING_MODE, FELT_SENSE_MODE].map((m) => [m.id, m])
+);
 
 export function getMode(id: string | undefined): ModeSpec | undefined {
-    return id !== undefined ? modes().get(id) : undefined;
+    return id !== undefined ? MODES.get(id) : undefined;
 }
 
 export function listModes(): ModeSpec[] {
-    return [...modes().values()];
+    return [...MODES.values()];
 }

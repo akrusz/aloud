@@ -149,12 +149,11 @@ function waitTokenUnit(seconds: number): string {
  * guidance level.
  */
 export function waitBiasFragment(defaultSec: number): string {
-    const def = defaultSec;
-    const token = waitTokenUnit(def);
-    if (def <= 120) {
+    const token = waitTokenUnit(defaultSec);
+    if (defaultSec <= 120) {
         return `This session is set for an actively-present facilitator: default to short waits around [WAIT:${token}] and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
     }
-    if (def >= 480) {
+    if (defaultSec >= 480) {
         return `This session is set for long, protected silences: default to waits around [WAIT:${token}] and let silences run; shorten only when something clearly needs tending.`;
     }
     return `Default to moderate waits around [WAIT:${token}], adjusting as the moment suggests.`;
@@ -645,6 +644,11 @@ function nearestDirectivenessKey(target: number): number {
 
 // Prompt builder
 
+/** Last sentence of every opener prompt (buildOpenerPrompt). */
+const OPENER_CLOSING =
+    'Do not mention the session settings directly. ' +
+    'Speak naturally, as you would to begin a conversation.';
+
 export interface PromptBuilderOptions {
     config?: Partial<PromptConfig>;
     random?: Random;
@@ -798,10 +802,7 @@ export class PromptBuilder {
             if (intention) {
                 parts.push(`The meditator has set an intention: "${intention}". You can weave it in gently.`);
             }
-            parts.push(
-                'Do not mention the session settings directly. ' +
-                    'Speak naturally, as you would to begin a conversation.'
-            );
+            parts.push(OPENER_CLOSING);
             return parts.join(' ');
         }
         const parts: string[] = [
@@ -839,11 +840,7 @@ export class PromptBuilder {
             parts.push('You can suggest where to begin or what to notice.');
         }
 
-        parts.push(
-            'Do not mention the session settings directly. ' +
-                'Speak naturally, as you would to begin a conversation.'
-        );
-
+        parts.push(OPENER_CLOSING);
         return parts.join(' ');
     }
 

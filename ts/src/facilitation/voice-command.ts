@@ -36,10 +36,9 @@ export { VOICE_COMMAND_IDS, type VoiceCommandId };
 /**
  * Commands are short. Past this an utterance is reflection, and skipping the
  * judge keeps its ~150ms off the turns where someone is actually waiting on a
- * reply to something they said.
+ * reply to something they said. Roomy enough for two commands at once ("can you
+ * talk slower and show me the orb").
  */
-// 18, up from 14 when one utterance became able to carry two commands ("can you
-// talk slower and show me the orb").
 const MAX_COMMAND_WORDS = 18;
 const MAX_COMMAND_CJK_CHARS = 24;
 
@@ -51,6 +50,11 @@ export function mightBeCommand(utterance: string): boolean {
     return text.split(/\s+/).length <= MAX_COMMAND_WORDS;
 }
 
+/** Did `id`'s ask clear its own threshold? */
+function clears(id: VoiceCommandId, answers: JudgeAnswers): boolean {
+    return (answers[id] ?? 0) >= COMMAND_SPECS.command.asks[id]!.threshold;
+}
+
 /**
  * "End without saving" is also, truthfully, "end the session": both asks score
  * ~0.96 on it and the plain one can edge ahead. When a save/discard variant
@@ -60,9 +64,7 @@ export function mightBeCommand(utterance: string): boolean {
  */
 function moreSpecific(top: VoiceCommandId, answers: JudgeAnswers): VoiceCommandId {
     if (top !== 'end_session' && top !== 'end_discard' && top !== 'end_save') return top;
-    const cleared = (['end_discard', 'end_save'] as const).filter(
-        (id) => (answers[id] ?? 0) >= COMMAND_SPECS.command.asks[id]!.threshold
-    );
+    const cleared = (['end_discard', 'end_save'] as const).filter((id) => clears(id, answers));
     return cleared.length === 1 ? cleared[0]! : 'end_session';
 }
 
@@ -103,9 +105,7 @@ const END_FAMILY: readonly VoiceCommandId[] = ['end_session', 'end_discard', 'en
  *   which would leave nobody able to answer it.
  */
 export function resolveCommands(answers: JudgeAnswers): VoiceCommandId[] {
-    const cleared = new Set(
-        VOICE_COMMAND_IDS.filter((id) => (answers[id] ?? 0) >= COMMAND_SPECS.command.asks[id]!.threshold)
-    );
+    const cleared = new Set(VOICE_COMMAND_IDS.filter((id) => clears(id, answers)));
     for (const [a, b] of OPPOSITES) {
         if (cleared.has(a) && cleared.has(b)) cleared.delete((answers[a] ?? 0) >= (answers[b] ?? 0) ? b : a);
     }
@@ -373,18 +373,24 @@ export function steppedPause(currentBaseMs: number, direction: 'sooner' | 'longe
 
 // ---- what the app says back -------------------------------------------------
 // Canned, like HOLD_REENTRY_LINES: the app knows what it just did and the model
-// doesn't. Short enough to land and get out of the way. Functions rather than
-// registerZhPool pools because most of them carry a number.
+// doesn't. Short enough to land and get out of the way. Functions of the
+// language rather than registerZhPool pools because some carry a number.
 
 const zhOr = (language: SessionLanguage, en: string, zh: string): string => (language === 'zh-CN' ? zh : en);
+
+/** A line with no number in it. */
+const fixed =
+    (en: string, zh: string) =>
+    (l: SessionLanguage): string =>
+        zhOr(l, en, zh);
 
 const minutesEn = (n: number): string => (n === 1 ? '1 minute' : `${n} minutes`);
 
 export const COMMAND_LINES = {
-    slower: (l: SessionLanguage) => zhOr(l, 'Okay, slower.', '好,慢一点。'),
-    faster: (l: SessionLanguage) => zhOr(l, 'Okay, a little faster.', '好,快一点。'),
-    slowest: (l: SessionLanguage) => zhOr(l, "That's as slow as I go.", '这已经是最慢的了。'),
-    fastest: (l: SessionLanguage) => zhOr(l, "That's as fast as I go.", '这已经是最快的了。'),
+    slower: fixed('Okay, slower.', '好,慢一点。'),
+    faster: fixed('Okay, a little faster.', '好,快一点。'),
+    slowest: fixed("That's as slow as I go.", '这已经是最慢的了。'),
+    fastest: fixed("That's as fast as I go.", '这已经是最快的了。'),
     timerSet: (l: SessionLanguage, min: number) => zhOr(l, `Timer set for ${minutesEn(min)}.`, `计时${min}分钟。`),
     // With "end the session when the time is up" on. The setting is theirs and a
     // voice-set timer keeps it; this is so the ending isn't a surprise.
@@ -395,50 +401,44 @@ export const COMMAND_LINES = {
             `计时${min}分钟。时间到后会结束冥想。`
         ),
     timerExtended: (l: SessionLanguage, min: number) => zhOr(l, `${minutesEn(min)} more.`, `再加${min}分钟。`),
-    timerNoDuration: (l: SessionLanguage) =>
-        zhOr(l, "I didn't catch how long. Try: set a timer for ten minutes.", '我没听清多长时间。可以说:计时十分钟。'),
-    timerCancelled: (l: SessionLanguage) => zhOr(l, 'Timer cancelled.', '计时已取消。'),
-    noTimer: (l: SessionLanguage) => zhOr(l, "There's no timer running.", '现在没有计时。'),
+    timerNoDuration: fixed("I didn't catch how long. Try: set a timer for ten minutes.", '我没听清多长时间。可以说:计时十分钟。'),
+    timerCancelled: fixed('Timer cancelled.', '计时已取消。'),
+    noTimer: fixed("There's no timer running.", '现在没有计时。'),
     timeLeft: (l: SessionLanguage, min: number) =>
         min < 1 ? zhOr(l, 'Less than a minute left.', '还剩不到一分钟。') : zhOr(l, `About ${minutesEn(min)} left.`, `还剩大约${min}分钟。`),
     timeElapsed: (l: SessionLanguage, min: number) =>
         min < 1
             ? zhOr(l, "We've just started.", '我们才刚开始。')
             : zhOr(l, `We've been going about ${minutesEn(min)}.`, `我们已经进行了大约${min}分钟。`),
-    respondSooner: (l: SessionLanguage) => zhOr(l, "Okay, I'll come in sooner.", '好,我会回应得快一些。'),
-    waitLonger: (l: SessionLanguage) => zhOr(l, "Okay, I'll give you more room.", '好,我会多等一会儿。'),
-    soonest: (l: SessionLanguage) => zhOr(l, "That's as quick as I can be.", '这已经是最快的了。'),
-    longest: (l: SessionLanguage) => zhOr(l, "That's the longest I can wait.", '这已经是最久的了。'),
-    pauseUnsupported: (l: SessionLanguage) =>
-        zhOr(l, "I can't change that with this microphone mode.", '这种麦克风模式下无法调整。'),
-    nothingToRepeat: (l: SessionLanguage) => zhOr(l, "I haven't said anything yet.", '我还没有说过话。'),
+    respondSooner: fixed("Okay, I'll come in sooner.", '好,我会回应得快一些。'),
+    waitLonger: fixed("Okay, I'll give you more room.", '好,我会多等一会儿。'),
+    soonest: fixed("That's as quick as I can be.", '这已经是最快的了。'),
+    longest: fixed("That's the longest I can wait.", '这已经是最久的了。'),
+    pauseUnsupported: fixed("I can't change that with this microphone mode.", '这种麦克风模式下无法调整。'),
+    nothingToRepeat: fixed("I haven't said anything yet.", '我还没有说过话。'),
     // A sample, not the list: read aloud, all of them is a lecture. One from each
     // kind (voice, timer, screen, sound, ending); the rest are in the session
     // info panel, which this points at.
-    help: (l: SessionLanguage) =>
-        zhOr(
-            l,
-            'You can ask me to talk slower or faster, set a timer, hide the clock, mute the speaker or mic, end the session, and more. The full list is under the info button. You can even ask for two things at once.',
-            '你可以让我说慢一点或快一点、设置计时、隐藏时钟、关掉语音或麦克风、结束冥想,等等。完整的指令在信息按钮里。你还可以一次说两件事。'
-        ),
-    muted: (l: SessionLanguage) => zhOr(l, 'Muted.', '已静音。'),
+    help: fixed(
+        'You can ask me to talk slower or faster, set a timer, hide the clock, mute the speaker or mic, end the session, and more. The full list is under the info button. You can even ask for two things at once.',
+        '你可以让我说慢一点或快一点、设置计时、隐藏时钟、关掉语音或麦克风、结束冥想,等等。完整的指令在信息按钮里。你还可以一次说两件事。'
+    ),
+    muted: fixed('Muted.', '已静音。'),
     // Said aloud BEFORE the speaker goes off, and after it comes back on.
-    speakerOff: (l: SessionLanguage) => zhOr(l, "Voice off. I'll reply on screen.", '语音已关闭。我会在屏幕上回复。'),
-    speakerOn: (l: SessionLanguage) => zhOr(l, 'Voice back on.', '语音已打开。'),
-    clockShown: (l: SessionLanguage) => zhOr(l, 'Clock showing.', '时钟已显示。'),
+    speakerOff: fixed("Voice off. I'll reply on screen.", '语音已关闭。我会在屏幕上回复。'),
+    speakerOn: fixed('Voice back on.', '语音已打开。'),
+    clockShown: fixed('Clock showing.', '时钟已显示。'),
     // Says the part they can't see for themselves any more.
-    clockHidden: (l: SessionLanguage) => zhOr(l, 'Clock hidden.', '时钟已隐藏。'),
-    clockHiddenTimerOn: (l: SessionLanguage) =>
-        zhOr(l, 'Clock hidden. The timer is still running.', '时钟已隐藏。计时仍在继续。'),
-    orbShown: (l: SessionLanguage) => zhOr(l, "Here's the orb.", '光球来了。'),
-    orbHidden: (l: SessionLanguage) => zhOr(l, 'Orb away.', '光球已收起。'),
-    embersOn: (l: SessionLanguage) => zhOr(l, 'Embers on.', '余烬已打开。'),
-    embersOff: (l: SessionLanguage) => zhOr(l, 'Embers off.', '余烬已关闭。'),
-    darkMode: (l: SessionLanguage) => zhOr(l, 'Dark mode.', '深色模式。'),
-    lightMode: (l: SessionLanguage) => zhOr(l, 'Light mode.', '浅色模式。'),
-    endDiscardConfirm: (l: SessionLanguage) =>
-        zhOr(l, 'End the session without saving it?', '不保存,直接结束这次冥想吗?'),
-    endSaveConfirm: (l: SessionLanguage) => zhOr(l, 'End the session and save it?', '保存并结束这次冥想吗?'),
-    endConfirm: (l: SessionLanguage) => zhOr(l, 'Would you like to end the session?', '要结束这次冥想吗?'),
-    endDeclined: (l: SessionLanguage) => zhOr(l, "Okay, we'll keep going.", '好,我们继续。'),
+    clockHidden: fixed('Clock hidden.', '时钟已隐藏。'),
+    clockHiddenTimerOn: fixed('Clock hidden. The timer is still running.', '时钟已隐藏。计时仍在继续。'),
+    orbShown: fixed("Here's the orb.", '光球来了。'),
+    orbHidden: fixed('Orb away.', '光球已收起。'),
+    embersOn: fixed('Embers on.', '余烬已打开。'),
+    embersOff: fixed('Embers off.', '余烬已关闭。'),
+    darkMode: fixed('Dark mode.', '深色模式。'),
+    lightMode: fixed('Light mode.', '浅色模式。'),
+    endDiscardConfirm: fixed('End the session without saving it?', '不保存,直接结束这次冥想吗?'),
+    endSaveConfirm: fixed('End the session and save it?', '保存并结束这次冥想吗?'),
+    endConfirm: fixed('Would you like to end the session?', '要结束这次冥想吗?'),
+    endDeclined: fixed("Okay, we'll keep going.", '好,我们继续。'),
 } as const;
