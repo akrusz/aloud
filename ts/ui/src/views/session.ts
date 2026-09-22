@@ -271,7 +271,7 @@ export async function buildUtilityProvider(
         case 'aloud': {
             // The server holds the key; the client only names provider + model.
             await ensureCloudToken();
-            return new CloudLlmProvider({ provider: 'anthropic', model: HAIKU_MODEL });
+            return new CloudLlmProvider({ provider: 'anthropic', model: HAIKU_MODEL, purpose: 'utility' });
         }
         case 'anthropic': {
             const anthropicKey = await getApiKey('anthropic');
@@ -312,6 +312,7 @@ export async function buildRecapProvider(
     return new CloudLlmProvider({
         provider: flagged.provider as CloudProviderId,
         model: flagged.model,
+        purpose: 'utility',
     });
 }
 

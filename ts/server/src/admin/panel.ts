@@ -330,7 +330,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       </table></div>
     </div>
     <div class="card detail">
-      <p class="sub help-text" style="margin:0 0 10px">Your own sits, itemized - only sessions from accounts on <code>ALOUD_ADMIN_EMAILS</code> ever appear here; real users stay aggregate. One line per qualifying session, newest first, with the badge the app would have shown for that model + voice (typical talk band, plus the STT and utility legs when used). Tokens are per facilitation turn; utility counts the Haiku / Flash Lite calls riding alongside.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Your own sits, itemized - only sessions from accounts on <code>ALOUD_ADMIN_EMAILS</code> ever appear here; real users stay aggregate. One line per qualifying session, newest first, with the badge the app would have shown for that model + voice (typical talk band, plus the STT and utility legs when used). Tokens are per facilitation turn; utility counts the background calls riding alongside (judge, classifiers, noting, recaps).</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Start</th><th class="num">Min</th><th>Model</th><th class="num">Turns</th><th class="num">Util</th><th>Voice</th><th class="num">Cr/hr</th><th class="num">Badge</th><th class="num" title="LLM · STT · TTS credits per hour">L·S·T cr/hr</th><th class="num" title="Fresh input / cache read / output tokens per turn">tok/turn in·rd·out</th><th class="num">STT min</th><th class="num">STT calls</th><th class="num">TTS chars</th></tr></thead>
         <tbody id="sessionRows"><tr><td colspan="13" class="muted">Connect to load.</td></tr></tbody>
@@ -750,11 +750,11 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       // The advertised rate for a usage row, or '' when the app has no badge
       // for it (a model since dropped from the roster, a voice off the curated
       // list). Voices print the picker's typical–engaged band.
-      function badgeFor(kind, provider, model) {
+      function badgeFor(kind, provider, model, utility) {
         if (kind === 'llm') {
-          // The utility models are never picked as the facilitator; their
-          // badge is the flat utility leg, not their as-facilitator rate.
-          if (/haiku|flash-lite/.test(model)) return dec1(BADGES.utility) + ' util';
+          // Background calls are priced as the flat utility leg, not at the
+          // model's as-facilitator rate.
+          if (utility) return dec1(BADGES.utility) + ' util';
           var b = BADGES.llm[provider + ':' + model];
           return b == null ? '' : dec1(b);
         }
@@ -763,8 +763,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         return v ? dec1(v.typical) + '–' + dec1(v.engaged) : '';
       }
       $('perHourRows').innerHTML = (ph.byModel || []).map(function (m) {
-        return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) +
-          '</code></td><td class="num">' + dec1(m.creditsPerHour) + '</td><td class="num assumed">' + badgeFor(m.kind, m.provider, m.model) +
+        return '<tr><td>' + (SVC[m.kind] || m.kind) + (m.utility ? ' util' : '') + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) +
+          '</code></td><td class="num">' + dec1(m.creditsPerHour) + '</td><td class="num assumed">' + badgeFor(m.kind, m.provider, m.model, m.utility) +
           '</td><td class="num">' + usdp(m.costUsdPerHour) +
           '</td><td class="num">' + volume(m.kind, m.unitsPerHour) +
           '</td><td class="num">' + (Number(m.hours) || 0).toFixed(1) + '</td></tr>';

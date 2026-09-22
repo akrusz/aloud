@@ -113,6 +113,7 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
                 provider: 'typesafe',
                 model: result.model,
                 sessionId,
+                purpose: 'utility',
                 tokensIn: result.inputTokens,
                 providerCostUsd: result.inputTokens * JEV_USD_PER_INPUT_TOKEN,
                 credits: 0,

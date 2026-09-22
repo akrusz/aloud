@@ -40,6 +40,9 @@ export interface CloudLlmProviderOptions {
     provider: CloudProviderId;
     model: string;
     maxTokens?: number;
+    /** Tags the server's usage record, so the cost report can tell background
+     *  calls from facilitator turns. Default 'facilitation'. */
+    purpose?: 'facilitation' | 'utility';
     fetchImpl?: typeof fetch;
 }
 
@@ -66,12 +69,14 @@ export class CloudLlmProvider implements LLMProvider {
     readonly model: string;
     private readonly provider: CloudProviderId;
     private readonly maxTokens: number;
+    private readonly purpose: 'facilitation' | 'utility';
     private readonly fetchImpl: typeof fetch;
 
     constructor(options: CloudLlmProviderOptions) {
         this.provider = options.provider;
         this.model = options.model;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+        this.purpose = options.purpose ?? 'facilitation';
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     }
 
@@ -84,6 +89,7 @@ export class CloudLlmProvider implements LLMProvider {
             maxTokens: options.maxTokens ?? this.maxTokens,
             ...(options.system ? { system: options.system } : {}),
             stream,
+            purpose: this.purpose,
             // Group with the rest of the session for the cost report.
             ...(sessionId ? { sessionId } : {}),
         });

@@ -44,6 +44,10 @@ export interface CompleteRequest {
      *  inferring boundaries by time gaps. A random per-session token: no PII, no
      *  content, aggregate stats only. */
     sessionId?: string;
+    /** 'utility' for the background calls (classifiers, noting labels,
+     *  recaps), so the cost report can tell them from facilitator turns.
+     *  Telemetry only: billing is the same either way. */
+    purpose?: 'facilitation' | 'utility';
 }
 
 /** Non-streaming response, or the shape carried by the terminal SSE event. */

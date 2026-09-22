@@ -32,7 +32,7 @@ import type {
     RetreatPassStatus,
 } from './store.js';
 import type { Incident, IncidentKind } from './incidents.js';
-import type { UsageEvent, UsageKind } from './usage.js';
+import type { LlmPurpose, UsageEvent, UsageKind } from './usage.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
@@ -138,7 +138,8 @@ CREATE TABLE IF NOT EXISTS usage_events (
     pass_id           TEXT,
     -- Subset of cache_creation written at the 1h TTL (the anchor breakpoint),
     -- billed at 2x input. Added after the table existed → also a migration.
-    cache_creation_1h INTEGER NOT NULL DEFAULT 0
+    cache_creation_1h INTEGER NOT NULL DEFAULT 0,
+    purpose           TEXT -- LLM rows: 'facilitation' | 'utility'; NULL predates the tag
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
@@ -273,6 +274,7 @@ function rowToUsage(r: Row): UsageEvent {
         accountId: String(r['account_id']),
         sessionId: r['session_id'] != null ? String(r['session_id']) : null,
         passId: r['pass_id'] != null ? String(r['pass_id']) : null,
+        purpose: r['purpose'] != null ? (String(r['purpose']) as LlmPurpose) : null,
         ts: Number(r['ts']),
         kind: String(r['kind']) as UsageKind,
         provider: String(r['provider']),
@@ -335,6 +337,7 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddCanonicalEmail();
         this.migrateAddUsagePassId();
         this.migrateAddUsageCacheCreation1h();
+        this.migrateAddUsagePurpose();
         this.migrateAddEmailUpdates();
         // Index on pass_id AFTER the column migration above: on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
@@ -348,6 +351,13 @@ export class SqliteCreditsStore implements CreditsStore {
     private migrateAddUsageCacheCreation1h(): void {
         if (this.hasColumn('usage_events', 'cache_creation_1h')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN cache_creation_1h INTEGER NOT NULL DEFAULT 0');
+    }
+
+    /** Add usage_events.purpose to a DB predating the tag. Existing rows stay
+     *  NULL, which the report reads as "guess" (facilitationFilter). */
+    private migrateAddUsagePurpose(): void {
+        if (this.hasColumn('usage_events', 'purpose')) return;
+        this.db.exec('ALTER TABLE usage_events ADD COLUMN purpose TEXT');
     }
 
     /** Add usage_events.pass_id to a DB predating retreat passes
@@ -746,8 +756,8 @@ export class SqliteCreditsStore implements CreditsStore {
                  (id, account_id, session_id, ts, kind, provider, model,
                   tokens_in, tokens_out, cache_read, cache_creation,
                   seconds, chars, provider_cost_usd, credits, pass_id,
-                  cache_creation_1h)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                  cache_creation_1h, purpose)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .run(
                 event.id,
@@ -766,7 +776,8 @@ export class SqliteCreditsStore implements CreditsStore {
                 event.providerCostUsd,
                 event.credits,
                 event.passId,
-                event.cacheCreation1h ?? 0
+                event.cacheCreation1h ?? 0,
+                event.purpose ?? null
             );
     }
 

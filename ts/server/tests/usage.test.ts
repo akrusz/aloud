@@ -20,6 +20,7 @@ function ev(over: Partial<UsageEvent> = {}): UsageEvent {
         accountId: 'a1',
         sessionId: null,
         passId: null,
+        purpose: null,
         ts: 1000,
         kind: 'llm',
         provider: 'google',
@@ -633,5 +634,41 @@ describe('buildUsageReport - raw rates, per-turn tokens, itemized sessions', () 
         expect(row.sttCalls).toBe(1);
         expect(row.ttsVoice).toBe('B');
         expect(row.ttsChars).toBe(500);
+    });
+
+    it('trusts the purpose tag, even when one model runs both roles', () => {
+        const haiku = { accountId: 'a', sessionId: 'y', kind: 'llm' as const, provider: 'anthropic', model: 'claude-haiku-4-5-20251001' };
+        const sit = [
+            ev({ ...haiku, ts: 0, purpose: 'facilitation', providerCostUsd: 0.001, tokensIn: 100 }),
+            ev({ ...haiku, ts: 60, purpose: 'utility', providerCostUsd: 0.01, tokensIn: 5000 }),
+            ev({ ...haiku, ts: 120, purpose: 'facilitation', providerCostUsd: 0.001, tokensIn: 300 }),
+            ev({ accountId: 'a', sessionId: 'y', ts: 180, kind: 'llm', provider: 'typesafe', model: 'jev', purpose: 'utility' }),
+        ];
+        const r = buildUsageReport(sit, 1_000_000, 0, {
+            realSit: { minMinutes: 0, minTurns: 0 },
+            sessionRowsFor: new Set(['a']),
+        });
+        const row = r.sessionRows[0]!;
+        expect(row.llmTurns).toBe(2);
+        expect(row.utilityCalls).toBe(2);
+        expect(row.tokensPerTurn.input).toBeCloseTo(200, 6);
+        expect(r.perHour.raw.turnsPerHour * (3 / 60)).toBeCloseTo(2, 6);
+        const haikuRows = r.perHour.byModel.filter((m) => m.model === haiku.model);
+        expect(haikuRows.map((m) => m.utility).sort()).toEqual([false, true]);
+        expect(r.perHour.byModel.find((m) => m.provider === 'typesafe')!.utility).toBe(true);
+    });
+
+    it('never counts untagged judge rows as turns', () => {
+        const sit = [
+            ev({ accountId: 'a', sessionId: 'z', ts: 0, kind: 'llm', provider: 'typesafe', model: 'jev', providerCostUsd: 0.5 }),
+            ev({ accountId: 'a', sessionId: 'z', ts: 60, kind: 'llm', provider: 'anthropic', model: 'claude-opus-5', providerCostUsd: 0.1 }),
+        ];
+        const r = buildUsageReport(sit, 1_000_000, 0, {
+            realSit: { minMinutes: 0, minTurns: 0 },
+            sessionRowsFor: new Set(['a']),
+        });
+        expect(r.sessionRows[0]!.llmModel).toBe('claude-opus-5');
+        expect(r.sessionRows[0]!.llmTurns).toBe(1);
+        expect(r.sessions.turns.max).toBe(1);
     });
 });

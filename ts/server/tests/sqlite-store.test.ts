@@ -40,6 +40,7 @@ function usageEvent(over: Partial<UsageEvent> = {}): UsageEvent {
         accountId: 'acct-1',
         sessionId: null,
         passId: null,
+        purpose: 'utility',
         ts: 1000,
         kind: 'llm',
         provider: 'google',
@@ -235,6 +236,7 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
             tokensIn: 0,
             cacheRead: 0,
             chars: 420,
+            purpose: null,
             sessionId: 'sess-9',
             providerCostUsd: 0.0126,
             credits: 0.252,
@@ -407,6 +409,30 @@ describe('SqliteCreditsStore — canonical-email unique index (duplicate-account
             first.close();
             const reopened = new SqliteCreditsStore(path);
             expect((await reopened.findLiveAccountByEmail('j.a.n.e@gmail.com'))?.id).toBe('a');
+            reopened.close();
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('SqliteCreditsStore usage purpose migration', () => {
+    it('adds usage_events.purpose to a DB that predates it, old rows NULL', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'aloud-purpose-'));
+        const path = join(dir, 'db.sqlite');
+        try {
+            const first = new SqliteCreditsStore(path);
+            await first.createAccount(ACCOUNT);
+            await first.appendUsage(usageEvent({ id: 'old' }));
+            first.close();
+            const raw = new DatabaseSync(path);
+            raw.exec('ALTER TABLE usage_events DROP COLUMN purpose');
+            raw.close();
+            const reopened = new SqliteCreditsStore(path);
+            await reopened.appendUsage(usageEvent({ id: 'new', purpose: 'facilitation' }));
+            const all = await reopened.allUsage();
+            expect(all.find((e) => e.id === 'old')!.purpose).toBeNull();
+            expect(all.find((e) => e.id === 'new')!.purpose).toBe('facilitation');
             reopened.close();
         } finally {
             rmSync(dir, { recursive: true, force: true });

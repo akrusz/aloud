@@ -102,6 +102,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         // Opaque per-session grouping id, when the client sends one (usage.ts).
         const sessionId = sessionIdOf(body.sessionId);
+        const purpose = body.purpose === 'utility' || body.purpose === 'facilitation' ? body.purpose : null;
         const incident = serverIncidents(deps.store, { accountId: account.id, provider, model, sessionId });
 
         // A retreat pass (meditation-pal-414) covers this turn: forward with no
@@ -163,6 +164,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 provider,
                 model,
                 sessionId,
+                purpose,
                 tokensIn: usage.tokensIn ?? 0,
                 tokensOut: usage.tokensOut ?? 0,
                 cacheRead: usage.cacheRead ?? 0,

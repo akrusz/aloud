@@ -27,6 +27,10 @@ import type { ProviderId } from '../contract.js';
 
 export type UsageKind = 'llm' | 'stt' | 'tts';
 
+/** What an LLM call was for: a facilitator turn, or the background calls
+ *  riding alongside it (classifiers, the Jev judge, noting labels, recaps). */
+export type LlmPurpose = 'facilitation' | 'utility';
+
 export interface UsageEvent {
     id: string;
     accountId: string;
@@ -36,6 +40,9 @@ export interface UsageEvent {
     /** Retreat pass that covered this call (meditation-pal-414), or null if
      *  metered normally. Lets the admin attribute per-retreat spend. */
     passId: string | null;
+    /** LLM rows only, and null on rows from clients that predate the tag:
+     *  facilitationFilter falls back to a per-session guess for those. */
+    purpose: LlmPurpose | null;
     /** Seconds since epoch. */
     ts: number;
     kind: UsageKind;
@@ -64,8 +71,8 @@ export interface UsageEvent {
 type UsageCounts = 'tokensIn' | 'tokensOut' | 'cacheRead' | 'cacheCreation' | 'cacheCreation1h' | 'seconds' | 'chars';
 
 /** Fields a call site supplies; id/ts/sessionId/passId and the counts default here. */
-export type UsageInput = Omit<UsageEvent, 'id' | 'ts' | 'sessionId' | 'passId' | UsageCounts> &
-    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId' | UsageCounts>>;
+export type UsageInput = Omit<UsageEvent, 'id' | 'ts' | 'sessionId' | 'passId' | 'purpose' | UsageCounts> &
+    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId' | 'purpose' | UsageCounts>>;
 
 /** Record one metered call. Best-effort: never throws into the request path, so
  *  a telemetry write can't cost a user their (already-charged) turn. */
@@ -77,6 +84,7 @@ export async function recordUsage(
         id: randomUUID(),
         sessionId: input.sessionId ?? null,
         passId: input.passId ?? null,
+        purpose: input.purpose ?? null,
         ts: input.ts ?? Date.now() / 1000,
         accountId: input.accountId,
         kind: input.kind,
@@ -97,6 +105,26 @@ export async function recordUsage(
     } catch (err) {
         log.warn('usage telemetry write failed (ignored)', { err: String(err), kind: input.kind });
     }
+}
+
+/**
+ * Which of one session's events are facilitator turns. Tagged rows say so
+ * themselves; an untagged one (older clients) counts as a turn only if it's
+ * the session's costliest untagged model, and judge rows never do.
+ */
+export function facilitationFilter(session: UsageEvent[]): (e: UsageEvent) => boolean {
+    const untaggedCost = new Map<string, number>();
+    for (const e of session) {
+        if (e.kind !== 'llm' || e.purpose || e.provider === 'typesafe') continue;
+        const key = `${e.provider}:${e.model}`;
+        untaggedCost.set(key, (untaggedCost.get(key) ?? 0) + e.providerCostUsd);
+    }
+    const guess = [...untaggedCost.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    return (e) => {
+        if (e.kind !== 'llm') return false;
+        if (e.purpose) return e.purpose === 'facilitation';
+        return `${e.provider}:${e.model}` === guess;
+    };
 }
 
 // ---- aggregation (pure; mirrors metrics.ts) --------------------------------
@@ -169,6 +197,9 @@ export interface PerHourLeg {
 export interface PerHourModel extends PerHourLeg {
     provider: string;
     model: string;
+    /** An LLM model's background calls, split from its facilitator turns when
+     *  the same model ran both. */
+    utility: boolean;
     /** Hours in this row's denominator: total duration of qualifying sessions
      *  that used this model/voice at least once (not the whole window's hours,
      *  so a rarely-picked voice still shows its true burn rate). */
@@ -197,7 +228,7 @@ export interface PerHourReport {
     hours: number;
     creditsPerHour: number;
     costUsdPerHour: number;
-    /** Facilitator turns (LLM calls) per hour. Estimate assumes ~40. */
+    /** Facilitator turns per hour (facilitationFilter). Estimate assumes ~40. */
     turnsPerHour: number;
     /** Billed STT audio seconds per hour. Well above the estimate's assumption
      *  means either chattier users or VAD padding billing silence as audio. */
@@ -269,9 +300,9 @@ export interface SessionRow {
     accountId: string;
     startTs: number;
     minutes: number;
-    /** The facilitation model: the LLM model that cost the most in this
-     *  session, with its call count. The rest of the LLM calls are the utility
-     *  leg (Haiku classifiers / noting / summary, Flash Lite recap). */
+    /** The facilitation model (the costliest one, if the sit switched), with
+     *  its turn count. utilityCalls counts the background calls (judge,
+     *  classifiers, noting, recaps). */
     llmProvider: string | null;
     llmModel: string | null;
     llmTurns: number;
@@ -322,7 +353,7 @@ export interface UsageReport {
         count: number;
         costUsd: Distribution;
         credits: Distribution;
-        /** Facilitator turns per session, one per LLM call (STT/TTS legs don't
+        /** Facilitator turns per session (utility calls and STT/TTS legs don't
          *  count). The conversational length of a real session. */
         turns: Distribution;
         /** Mean wall-clock minutes per session (first→last event). */
@@ -375,7 +406,7 @@ export interface UsageHistoryBucket {
     /** UTC start-of-day, seconds since epoch. The bucket's x-axis key. */
     dayStartTs: number;
     sessions: number;
-    /** Facilitator turns (LLM calls) across the day's sessions. */
+    /** Facilitator turns across the day's sessions. */
     turns: number;
     /** Metered calls (all legs) across the day's sessions. */
     events: number;
@@ -549,14 +580,15 @@ export function buildUsageReport(
     // One bar for everything session-level below: distributions and per-hour
     // rates describe the SAME population.
     const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
+    const turnsIn = (s: UsageEvent[]): number => s.filter(facilitationFilter(s)).length;
     const isRealSit = (s: UsageEvent[]): boolean =>
         (realSit.minMinutes <= 0 || durationMin(s) >= realSit.minMinutes) &&
-        (realSit.minTurns <= 0 || s.filter((e) => e.kind === 'llm').length >= realSit.minTurns);
+        (realSit.minTurns <= 0 || turnsIn(s) >= realSit.minTurns);
     const sessions = opts.allSessions ? allSessions : allSessions.filter(isRealSit);
     const excludedShort = allSessions.length - sessions.length;
     const sessionCosts = sessions.map((s) => s.reduce((sum, e) => sum + e.providerCostUsd, 0));
     const sessionCredits = sessions.map((s) => s.reduce((sum, e) => sum + e.credits, 0));
-    const sessionTurns = sessions.map((s) => s.filter((e) => e.kind === 'llm').length);
+    const sessionTurns = sessions.map(turnsIn);
     const sessionDurations = sessions.map(durationMin);
     const meanDurationMin =
         sessionDurations.length > 0
@@ -609,7 +641,7 @@ export function buildUsageReport(
         }
         return den > 0 ? num / den : 0;
     };
-    const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; credits: number; cost: number; hours: number; units: number }>();
+    const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; utility: boolean; credits: number; cost: number; hours: number; units: number }>();
     // Token volume rides the same per-account accumulators as everything else,
     // so it shares one population and one weighting. The window-wide llmCache
     // aggregate can't stand in: it counts every event, including the sessions
@@ -629,6 +661,7 @@ export function buildUsageReport(
     const sttCallSeconds: number[] = [];
     for (const s of sessions) {
         const sessionHours = durationMin(s) / 60;
+        const isTurn = facilitationFilter(s);
         const usedStt = s.some((e) => e.kind === 'stt');
         const usedTts = s.some((e) => e.kind === 'tts');
         if (usedStt) sttHours += sessionHours;
@@ -638,7 +671,7 @@ export function buildUsageReport(
                 if (e.kind === 'stt') {
                     sttCalls += 1;
                     sttCallSeconds.push(e.seconds);
-                } else if (e.kind === 'llm') sttSessionTurns += 1;
+                } else if (isTurn(e)) sttSessionTurns += 1;
             }
         }
         // Sessions cluster per account, so the first event names the owner.
@@ -650,7 +683,9 @@ export function buildUsageReport(
         for (const e of s) {
             addToAccount(accountId, 'credits', e.credits);
             addToAccount(accountId, 'cost', e.providerCostUsd);
-            if (e.kind === 'llm') {
+            // Turns and tokens are the facilitator's alone: TYPICAL_SESSION,
+            // which they're read against, prices the utility leg flat.
+            if (isTurn(e)) {
                 addToAccount(accountId, 'turns', 1);
                 addToAccount(accountId, 'tokIn', e.tokensIn);
                 addToAccount(accountId, 'tokOut', e.tokensOut);
@@ -660,15 +695,16 @@ export function buildUsageReport(
             } else if (e.kind === 'stt') {
                 addToAccount(accountId, 'sttSeconds', e.seconds);
                 addToAccount(accountId, 'sttCalls', 1);
-            }
-            else addToAccount(accountId, 'ttsChars', e.chars);
+            } else if (e.kind === 'tts') addToAccount(accountId, 'ttsChars', e.chars);
             addToAccount(accountId, `svc:${e.kind}`, e.credits);
             addToAccount(accountId, `svcCost:${e.kind}`, e.providerCostUsd);
-            const key = `${e.kind}:${e.provider}:${e.model}`;
+            const utility = e.kind === 'llm' && !isTurn(e);
+            const key = `${e.kind}:${e.provider}:${e.model}:${utility}`;
             const m = phModels.get(key) ?? {
                 kind: e.kind,
                 provider: e.provider,
                 model: e.model,
+                utility,
                 credits: 0,
                 cost: 0,
                 hours: 0,
@@ -732,6 +768,7 @@ export function buildUsageReport(
                 kind: m.kind,
                 provider: m.provider,
                 model: m.model,
+                utility: m.utility,
                 creditsPerHour: rate(m.credits, m.hours),
                 costUsdPerHour: rate(m.cost, m.hours),
                 hours: m.hours,
@@ -810,9 +847,9 @@ export function buildUsageReport(
     };
 }
 
-/** Itemize one session (SessionRow). The facilitation model is the LLM model
- *  with the most cost; everything else on the LLM leg is counted as utility. */
+/** Itemize one session (SessionRow). */
 function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
+    const isTurn = facilitationFilter(s);
     const hours = minutes / 60;
     const per = (x: number): number => (hours > 0 ? x / hours : 0);
     const llmCost = new Map<string, { provider: string; model: string; cost: number }>();
@@ -826,7 +863,7 @@ function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
         credits += e.credits;
         costUsd += e.providerCostUsd;
         byService[e.kind] += e.credits;
-        if (e.kind === 'llm') {
+        if (isTurn(e)) {
             const key = `${e.provider}:${e.model}`;
             const m = llmCost.get(key) ?? { provider: e.provider, model: e.model, cost: 0 };
             m.cost += e.providerCostUsd;
@@ -834,7 +871,7 @@ function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
         } else if (e.kind === 'stt') {
             sttSeconds += e.seconds;
             sttCalls += 1;
-        } else {
+        } else if (e.kind === 'tts') {
             const key = `${e.provider}:${e.model}`;
             const v = ttsChars.get(key) ?? { provider: e.provider, voice: e.model, chars: 0 };
             v.chars += e.chars;
@@ -848,7 +885,7 @@ function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
     let utilityCalls = 0;
     for (const e of s) {
         if (e.kind !== 'llm') continue;
-        if (top && e.provider === top.provider && e.model === top.model) {
+        if (isTurn(e)) {
             llmTurns += 1;
             tok.input += e.tokensIn;
             tok.output += e.tokensOut;
@@ -929,8 +966,9 @@ export function buildUsageHistory(
         if (!b) continue; // first event sits past the trimmed window edge
         b.sessions += 1;
         b.events += s.length;
+        const isTurn = facilitationFilter(s);
         for (const e of s) {
-            if (e.kind === 'llm') b.turns += 1;
+            if (isTurn(e)) b.turns += 1;
             b.providerCostUsd += e.providerCostUsd;
             b.credits += e.credits;
         }
