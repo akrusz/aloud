@@ -16,10 +16,11 @@ import type { AppSettings } from './app-settings.js';
 import { isHostedSttChoice, resolveSttChoice } from './adapters/stt-picker.js';
 import { isWebMode, isDevBypass } from './app-mode.js';
 import { detectCapabilities } from './capabilities.js';
-import { getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
+import { fetchMe, getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
 import { getKnownBalance } from './cloud-balance.js';
 import { showSignInModal } from './sign-in-modal.js';
 import { choiceDialog } from './dialog.js';
+import { showBuyCreditsModal } from './buy-credits-modal.js';
 import { t } from './i18n.js';
 
 /** Whether this session will hit a metered cloud service: the 'aloud' LLM
@@ -136,10 +137,40 @@ async function showNarratorSilencedNotice(): Promise<void> {
     }
 }
 
+/** Whether a fresh /me says this account can't pay for a session: a known
+ *  balance at or below zero, with no retreat pass covering it. Unknown (signed
+ *  out, /me failed, an older server without the field) never blocks - the
+ *  server still refuses metered calls, so failing open only costs the old
+ *  in-session apology. A small positive balance passes: a turn's settle clamps
+ *  at zero rather than overdrawing, so those last credits are still usable. */
+export function blocksForCredits(
+    account: { creditsRemaining?: number; retreatCovered?: boolean } | null
+): boolean {
+    if (!account || account.retreatCovered === true) return false;
+    return typeof account.creditsRemaining === 'number' && account.creditsRemaining <= 0;
+}
+
+/** Out of credits at Begin: offer a top-up instead of starting a session whose
+ *  first line would be the out-of-credits apology. Proceeds only if a purchase
+ *  settles in place (USDC); a card pack navigates away to Stripe. */
+async function ensureCredits(): Promise<boolean> {
+    let account: Awaited<ReturnType<typeof fetchMe>>;
+    try {
+        account = await fetchMe();
+    } catch {
+        return true;
+    }
+    if (!blocksForCredits(account)) return true;
+    return showBuyCreditsModal({
+        title: t("You're out of clouds"),
+        subtitle: t('Top up to keep going, or switch to a local/BYOK provider in Settings.'),
+    });
+}
+
 /**
- * Returns true to proceed, false if the user dismissed sign-in (the caller
- * aborts the start and leaves them on setup). True with no work when the session
- * uses no cloud service, a token is cached, or the build ships no sign-in.
+ * Returns true to proceed, false if the user dismissed sign-in or the top-up
+ * (the caller aborts the start and leaves them on setup). True with no work
+ * when the session uses no cloud service or the build ships no sign-in.
  */
 export async function ensureCloudAccess(
     setup: SessionSetup,
@@ -154,7 +185,7 @@ export async function ensureCloudAccess(
         if (!(await narratorCanBill())) await showNarratorSilencedNotice();
         return true;
     }
-    if (await getCloudToken()) return true;
+    if (await getCloudToken()) return ensureCredits();
     // DEV cloud-bypass (?dev): let the session start and lean on the lazy
     // /auth/dev sign-in (ensureCloudToken) instead of the modal.
     if (isDevBypass()) return true;
@@ -163,5 +194,5 @@ export async function ensureCloudAccess(
     // with none falls back to lazy dev sign-in.
     await detectCapabilities();
     if (!isInteractiveSignInConfigured()) return true;
-    return showSignInModal();
+    return (await showSignInModal()) && ensureCredits();
 }

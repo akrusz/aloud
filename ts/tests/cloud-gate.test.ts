@@ -18,7 +18,7 @@ vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
     return { ...actual, isTauri: vi.fn(() => false) };
 });
 
-import { sessionUsesCloud, narratorIsOnlyCloudLeg } from '../ui/src/cloud-gate.js';
+import { sessionUsesCloud, narratorIsOnlyCloudLeg, blocksForCredits } from '../ui/src/cloud-gate.js';
 import { isTauri } from '../ui/src/is-desktop.js';
 import type { SessionSetup } from '../ui/src/settings.js';
 import type { AppSettings } from '../ui/src/app-settings.js';
@@ -155,5 +155,25 @@ describe('sessionUsesCloud', () => {
             const deviceVoice = { ...soundCircleWithCloudNarrator, voice: 'browser:Samantha' } as unknown as SessionSetup;
             expect(narratorIsOnlyCloudLeg(deviceVoice, settingsWith('whisper'), false, 'noting')).toBe(false);
         });
+    });
+});
+
+describe('blocksForCredits', () => {
+    it('blocks a known balance at or below zero', () => {
+        expect(blocksForCredits({ creditsRemaining: 0 })).toBe(true);
+        expect(blocksForCredits({ creditsRemaining: -1.72 })).toBe(true);
+    });
+
+    it('lets a small positive balance through (the last turn settles at zero)', () => {
+        expect(blocksForCredits({ creditsRemaining: 0.05 })).toBe(false);
+    });
+
+    it('never blocks a retreat attendee, whatever the balance', () => {
+        expect(blocksForCredits({ creditsRemaining: 0, retreatCovered: true })).toBe(false);
+    });
+
+    it('fails open when the balance is unknown', () => {
+        expect(blocksForCredits(null)).toBe(false);
+        expect(blocksForCredits({})).toBe(false);
     });
 });
