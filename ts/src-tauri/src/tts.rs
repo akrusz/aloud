@@ -107,26 +107,18 @@ pub fn list_voices(engine: Option<&str>, lang: Option<&str>, piper_dir: &Path) -
         Some(_) => {} // elevenlabs/unknown: no local catalogue
         None => {
             voices.extend(piper_voices(piper_dir));
-            let seen: std::collections::HashSet<String> = voices
-                .iter()
-                .filter_map(|v| v.get("name").and_then(Value::as_str).map(String::from))
-                .collect();
-            for v in macos_voices() {
-                let name = v.get("name").and_then(Value::as_str).unwrap_or("");
-                if !seen.contains(name) {
-                    voices.push(v);
-                }
-            }
+            let seen: std::collections::HashSet<String> =
+                voices.iter().filter_map(|v| v["name"].as_str().map(String::from)).collect();
+            voices.extend(
+                macos_voices()
+                    .into_iter()
+                    .filter(|v| !seen.contains(v["name"].as_str().unwrap_or(""))),
+            );
         }
     }
 
     if let Some(lang) = lang {
-        voices.retain(|v| {
-            v.get("lang")
-                .and_then(Value::as_str)
-                .map(|l| l.split('_').next().unwrap_or(l) == lang)
-                .unwrap_or(false)
-        });
+        voices.retain(|v| v["lang"].as_str().is_some_and(|l| l.split('_').next() == Some(lang)));
     }
 
     Value::Array(voices)
@@ -158,26 +150,21 @@ fn piper_voices(piper_dir: &Path) -> Vec<Value> {
 
 #[cfg(target_os = "macos")]
 fn macos_voices() -> Vec<Value> {
-    use std::process::Command;
-    let output = match Command::new("say").arg("-v").arg("?").output() {
-        Ok(o) => o,
-        Err(_) => return Vec::new(),
+    let Ok(output) = std::process::Command::new("say").args(["-v", "?"]).output() else {
+        return Vec::new();
     };
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut voices = Vec::new();
-    for line in stdout.lines() {
-        // "Voice Name    xx_XX    # description". Names can contain
-        // spaces/parentheses, so split on 2+ spaces before the lang code.
-        if let Some((name, rest)) = split_macos_voice_line(line) {
-            let mut entry = json!({ "name": name, "lang": rest, "engine": "macos" });
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(split_macos_voice_line)
+        .map(|(name, lang)| {
+            let mut entry = json!({ "name": name, "lang": lang, "engine": "macos" });
             // Premium voices sort into the top tier.
             if name.to_lowercase().contains("premium") {
                 entry["recommended"] = json!(true);
             }
-            voices.push(entry);
-        }
-    }
-    voices
+            entry
+        })
+        .collect()
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -227,11 +214,10 @@ pub fn synth_preview(
     rate: Option<u32>,
 ) -> Result<Vec<u8>, String> {
     let engine = engine
-        .map(str::to_string)
-        .or_else(|| engine_for_voice(voice).map(str::to_string))
+        .or_else(|| engine_for_voice(voice))
         .ok_or_else(|| format!("no engine for voice '{voice}'"))?;
 
-    match engine.as_str() {
+    match engine {
         "piper" => synth_piper(piper_dir, cache, voice, text, rate),
         "macos" => synth_macos(voice, text, rate),
         other => Err(format!("unsupported engine '{other}'")),
@@ -266,20 +252,13 @@ fn synth_piper(
         *guard = None;
         guard
     });
-    let need_load = guard
-        .as_ref()
-        .map(|(name, _)| name != v.model)
-        .unwrap_or(true);
-    if need_load {
+    if guard.as_ref().map_or(true, |(name, _)| name != v.model) {
         let piper = Piper::new(&onnx, &config).map_err(|e| format!("load Piper model: {e}"))?;
         *guard = Some((v.model.to_string(), piper));
     }
     let (_, piper) = guard.as_mut().unwrap();
 
-    let speaker_id = match v.speaker {
-        Some(key) => Some(resolve_speaker_id(piper, key)?),
-        None => None,
-    };
+    let speaker_id = v.speaker.map(|key| resolve_speaker_id(piper, key)).transpose()?;
 
     let (samples, sample_rate) = piper
         .create(text, false, speaker_id, length_scale, None, None)

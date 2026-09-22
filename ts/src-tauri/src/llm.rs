@@ -1,5 +1,5 @@
-//! Desktop LLM bridge, serving `/app/v1/llm/claude_proxy/complete` plus an
-//! Anthropic HTTP relay.
+//! Desktop LLM bridge, serving `/app/v1/llm/claude_proxy/complete` and
+//! `/probe`.
 //!
 //! The webview can't shell out, so the embedded server does: spawn
 //! `claude -p … --output-format json` and return the `{text, finish_reason,
@@ -71,35 +71,12 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
         )
     })?;
 
-    let prompt = format_history(&req.messages);
     let model = req.model.as_deref().filter(|s| !s.is_empty()).unwrap_or(DEFAULT_MODEL);
-
-    let mut cmd = Command::new(binary);
-    // An app-owned, per-user scratch dir (under the app data dir) - never the
-    // .app's launch cwd, never a world-writable temp dir:
-    //   - the CLI reads CLAUDE.md/.claude from its working dir, so an empty
-    //     app-owned dir blocks config injection (on a shared /tmp another local
-    //     user could plant config the CLI would obey);
-    //   - it's outside home/Documents, so the CLI's first-run project scan
-    //     doesn't trip the macOS "allow access to your files" prompt.
-    cmd.current_dir(cwd);
-    cmd.arg("-p")
-        .arg("--tools")
-        .arg("")
-        .arg("--no-session-persistence")
-        .arg("--disable-slash-commands")
-        .arg("--output-format")
-        .arg("json")
-        .arg("--model")
-        .arg(model);
+    let mut cmd = claude_command(&binary, cwd, model);
     if let Some(system) = req.system.as_deref().filter(|s| !s.is_empty()) {
         cmd.arg("--system-prompt").arg(system);
     }
-    cmd.arg(&prompt);
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    // On timeout the `cmd.output()` future is dropped mid-flight; without this
-    // the CLI is orphaned and keeps burning quota in the background.
-    cmd.kill_on_drop(true);
+    cmd.arg(format_history(&req.messages));
 
     let output = match timeout(TIMEOUT, cmd.output()).await {
         Ok(Ok(o)) => o,
@@ -117,31 +94,49 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     let data: Value = serde_json::from_slice(&output.stdout)
         .map_err(|e| ProxyError::new(500, format!("claude CLI returned invalid JSON: {e}")))?;
 
-    if data.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
-        let detail = data
-            .get("result")
-            .or_else(|| data.get("api_error_status"))
-            .and_then(Value::as_str)
-            .unwrap_or("unknown");
+    if is_error(&data) {
+        let detail = error_detail(&data).unwrap_or("unknown");
         return Err(ProxyError::new(500, format!("claude CLI error: {detail}")));
     }
 
-    let text = data.get("result").and_then(Value::as_str).unwrap_or("");
-    let finish_reason = data.get("stop_reason").cloned().unwrap_or(Value::Null);
-    let tokens_used = match data.get("usage") {
-        Some(u) => {
-            let input = u.get("input_tokens").and_then(Value::as_u64).unwrap_or(0);
-            let output = u.get("output_tokens").and_then(Value::as_u64).unwrap_or(0);
-            json!(input + output)
-        }
-        None => Value::Null,
-    };
-
+    let tokens_used = data.get("usage").map(|u| {
+        u["input_tokens"].as_u64().unwrap_or(0) + u["output_tokens"].as_u64().unwrap_or(0)
+    });
     Ok(json!({
-        "text": text,
-        "finish_reason": finish_reason,
+        "text": data["result"].as_str().unwrap_or(""),
+        "finish_reason": data["stop_reason"],
         "tokens_used": tokens_used,
     }))
+}
+
+/// The `claude -p` invocation shared by completions and probes, taking `model`
+/// and printing JSON. `cwd` is an app-owned, per-user scratch dir (under the
+/// app data dir) - never the .app's launch cwd, never a world-writable temp dir:
+///   - the CLI reads CLAUDE.md/.claude from its working dir, so an empty
+///     app-owned dir blocks config injection (on a shared /tmp another local
+///     user could plant config the CLI would obey);
+///   - it's outside home/Documents, so the CLI's first-run project scan
+///     doesn't trip the macOS "allow access to your files" prompt.
+fn claude_command(binary: &Path, cwd: &Path, model: &str) -> Command {
+    let mut cmd = Command::new(binary);
+    cmd.current_dir(cwd)
+        .args(["-p", "--tools", "", "--no-session-persistence", "--disable-slash-commands"])
+        .args(["--output-format", "json", "--model", model])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        // On timeout the `output()` future is dropped mid-flight; without this
+        // the CLI is orphaned and keeps burning quota in the background.
+        .kill_on_drop(true);
+    cmd
+}
+
+/// The CLI can report failure in-band (`is_error`), even on a zero exit.
+fn is_error(v: &Value) -> bool {
+    v["is_error"].as_bool().unwrap_or(false)
+}
+
+fn error_detail(v: &Value) -> Option<&str> {
+    v.get("result").or_else(|| v.get("api_error_status")).and_then(Value::as_str)
 }
 
 /// Error string of a failed CLI run: stderr, or when that's empty (with
@@ -244,24 +239,11 @@ pub async fn claude_probe(model: &str, cwd: &Path) -> Value {
 }
 
 async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
-    let binary = match which::which("claude") {
-        Ok(b) => b,
-        Err(_) => return ProbeStatus::CliMissing,
+    let Ok(binary) = which::which("claude") else {
+        return ProbeStatus::CliMissing;
     };
-    let mut cmd = Command::new(binary);
-    cmd.current_dir(cwd);
-    cmd.arg("-p")
-        .arg("--tools")
-        .arg("")
-        .arg("--no-session-persistence")
-        .arg("--disable-slash-commands")
-        .arg("--output-format")
-        .arg("json")
-        .arg("--model")
-        .arg(model)
-        .arg("Reply with just: ok");
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    cmd.kill_on_drop(true);
+    let mut cmd = claude_command(&binary, cwd, model);
+    cmd.arg("Reply with just: ok");
 
     let output = match timeout(PROBE_TIMEOUT, cmd.output()).await {
         Ok(Ok(o)) => o,
@@ -269,21 +251,13 @@ async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
         Ok(Err(_)) | Err(_) => return ProbeStatus::Unknown,
     };
 
-    if output.status.success() {
-        // A zero exit can still carry an in-band `is_error` payload.
-        if let Ok(v) = serde_json::from_slice::<Value>(&output.stdout) {
-            if v.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
-                let detail = v
-                    .get("result")
-                    .or_else(|| v.get("api_error_status"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
-                return classify_probe_detail(detail);
-            }
-        }
-        return ProbeStatus::Available;
+    if !output.status.success() {
+        return classify_probe_detail(&cli_failure_detail(&output));
     }
-    classify_probe_detail(&cli_failure_detail(&output))
+    match serde_json::from_slice::<Value>(&output.stdout) {
+        Ok(v) if is_error(&v) => classify_probe_detail(error_detail(&v).unwrap_or("")),
+        _ => ProbeStatus::Available,
+    }
 }
 
 /// Map a CLI error string to a verdict. Only a clear model-availability signal

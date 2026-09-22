@@ -34,7 +34,6 @@ fn save_geometry_throttled(app: &tauri::AppHandle) {
   let _ = app.save_window_state(GEOMETRY_FLAGS);
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// macOS Finder/Launchpad/Dock launches inherit a minimal PATH
 /// (`/usr/bin:/bin:/usr/sbin:/sbin`) with no Homebrew, `~/.local/bin`,
 /// npm-global, or version-manager shims, so `which::which("claude")` (and
@@ -98,6 +97,7 @@ fn repair_path() {
 #[cfg(not(target_os = "macos"))]
 fn repair_path() {}
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Must run before any which::which / CLI spawn (providers probe, claude, ollama).
   repair_path();
