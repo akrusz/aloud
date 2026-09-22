@@ -1,4 +1,4 @@
-# Deploying the aloud web demo
+# Deploying aloud cloud and the web app
 
 The runbook for the live deploy: a static UI talking to aloud cloud
 (`@aloud/server`) over HTTPS, with accounts + credits.
@@ -8,7 +8,7 @@ Two halves, deployed together (see [Release deploys](#release-deploys-one-tag-sh
 | Half | What | Where | TLS |
 |---|---|---|---|
 | **Server** | `@aloud/server` (Hono): auth, credit ledger, metered LLM/STT/TTS proxy | a small always-on box - **Fly.io** here (Render/any VPS also fine) | Fly terminates TLS |
-| **UI** | `ui/dist` (static Vite build) | a static host (see [UI hosting](#ui-hosting--an-open-decision)) | host-provided |
+| **UI** | `ui/dist` (static Vite build) | GitHub Pages at `aloud.rest/app` (see [UI hosting](#ui-hosting-aloudrestapp)) | host-provided |
 
 They're stitched together by two settings: the UI is **built** with
 `VITE_ALOUD_CLOUD_URL` = the server's public origin, and the server is
@@ -137,14 +137,12 @@ ledger) - treat a deploy as a production change, not a save button.
    out." (This is how a half-finished schema change once rode along with an
    unrelated deploy and crashed the boot.)
 
-2. **A release marked `complete` does NOT mean the server booted.** Because
-   `min_machines_running = 0`, the machine only actually starts on the first
-   request. `fly releases` showing "complete" just means the *config* rolled out.
-   A broken image can sit there looking fine until someone hits it and it
-   crash-loops. **So always actually wake + check after deploying:**
+2. **A release marked `complete` does NOT mean the server booted.** `fly
+   releases` showing "complete" means the *config* rolled out; a broken image
+   can still crash-loop. **So always hit it and watch the boot after deploying:**
 
    ```bash
-   curl https://aloud-cloud.fly.dev/health     # forces a cold start
+   curl https://aloud-cloud.fly.dev/health
    fly logs -a aloud-cloud                      # watch it boot; look for "aloud cloud up"
    ```
 
@@ -167,10 +165,11 @@ ledger) - treat a deploy as a production change, not a save button.
 
 The credit ledger is a SQLite file (`SqliteCreditsStore`, `node:sqlite`) on the
 mounted volume at `/data/aloud.db`. This is the durable swap for the in-memory
-dev store - **balances survive restarts/redeploys/suspends**. Because a Fly
+dev store - **balances survive restarts and redeploys**. Because a Fly
 volume binds to one machine, this app is **single-machine by design**
-(`min_machines_running = 0`, `auto_stop = suspend` for cost). That's correct at
-trial scale. To scale out later: implement `CreditsStore` over Postgres
+(`min_machines_running = 1`, kept warm so the first turn after an idle stretch
+has no cold start; `auto_stop_machines = "stop"`, never `"suspend"`, see below).
+That's correct at trial scale. To scale out later: implement `CreditsStore` over Postgres
 (`ts/server/src/credits/store.ts` is the whole interface - the ledger logic on
 top is storage-agnostic) and drop the `[mounts]` block.
 
@@ -227,85 +226,55 @@ To force a full rebuild from R2 on the server: stop the machine, delete (or
 recreate) the volume, and redeploy - the entrypoint restores automatically because
 `/data/aloud.db` will be missing.
 
-### Durability validation (meditation-pal-b8hf)
+### Durability validation
 
 A real credit purchase was once acknowledged by the webhook and then **lost**
-across an idle suspend + redeploy (meditation-pal-5iv4). The mitigations are
-`auto_stop_machines = "stop"` (clean SIGTERM shutdown, not a frozen VM) and
-`PRAGMA synchronous = FULL` (fsync the WAL every commit). Both tests below have
-passed and credits are selling. **Re-run them after any change to `fly.toml`'s
+across an idle suspend + redeploy (meditation-pal-5iv4). The fixes are
+`auto_stop_machines = "stop"` (a clean SIGTERM, so SQLite closes and Litestream
+does a final sync, instead of a frozen VM) and `PRAGMA synchronous = FULL`
+(fsync the WAL every commit). **Re-validate after any change to `fly.toml`'s
 machine lifecycle, `litestream.yml`, or the entrypoint** - those are exactly the
 knobs that can silently undo the fix.
 
-The harness is `ts/server/scripts/durability-probe.sh`: it writes an isolated
-marker (a retreat pass - same SQLite file + WAL as the ledger, so it's a faithful
-proxy without polluting the ledger), then asserts it survived. Get an admin
-credential first - either the `ALOUD_ADMIN_TOKEN` secret, or copy a signed-in
-admin session JWT from the panel console with
-`localStorage.getItem('aloud-admin-token')`:
+The harness is `ts/server/scripts/durability-probe.sh` (`write` / `check` /
+`cleanup`): it writes an isolated marker (a retreat pass, same SQLite file + WAL
+as the ledger, without polluting it) and asserts it survived. It needs
+`ALOUD_ADMIN_TOKEN` (or a signed-in admin session JWT from the panel console,
+`localStorage.getItem('aloud-admin-token')`); `ALOUD_BASE_URL` points it at a
+non-prod app.
+
+**Precheck - is the fix running?** `fly config show` collapses `"stop"` to the
+legacy boolean `true` (only `"suspend"` renders as a string); the machine-level
+value is unambiguous:
 
 ```bash
-export ALOUD_ADMIN_TOKEN=…          # token or panel session JWT
-cd ts/server/scripts
-```
-
-**Precheck - confirm the fix is actually running.** The mitigations only count if
-the deployed image has them (a GitHub-Actions deploy is fine - same `flyctl` - but only if it built the branch that carries the commits):
-
-```bash
-fly config show -a aloud-cloud | grep -i auto_stop    # shows true (== stop) or "suspend"
-# ground truth at the machine level (prints ['stop'] or ['suspend']):
 fly machine list -j -a aloud-cloud | python3 -c "import sys,json; print([s.get('autostop') for m in json.load(sys.stdin) for s in (m.get('config') or {}).get('services',[])])"
 ```
 
-Note `fly config show` collapses `"stop"` to the legacy boolean `true` (`true` ==
-stop; only `"suspend"` renders as a string), so `true` here is correct. The
-machine-level `autostop` is the unambiguous check. (`synchronous = FULL` rides in
-the image; if `autostop` is right, the build was current.)
+**Test 1 - a write survives a power-down + redeploy.** Run
+`./durability-probe.sh write`, let the machine stop, redeploy onto the same
+volume, then `./durability-probe.sh check` (and `cleanup`). An explicit `fly
+machine stop` is a clean SIGTERM and proves less than an automatic power-down,
+and with `min_machines_running = 1` prod's warm machine is never auto-stopped,
+so use a staging app at 0. For teeth, run it once on `"suspend"` and confirm it
+**fails**. A failure on `"stop"` means escalate to Postgres (meditation-pal-sk9s).
 
-**Test 1 - write survives an idle power-down + redeploy** (mirrors 5iv4). The
-distinction that makes this meaningful: an explicit `fly machine stop` - and a
-redeploy of a *running* machine - is a **clean** SIGTERM shutdown that was probably
-always durable. The bug was an **idle auto power-down** (previously `suspend`). So
-don't stop it by hand; let Fly power it down on its own:
-
-```bash
-./durability-probe.sh write                           # commit the marker
-# leave the app idle and watch for Fly to power the machine down on its own:
-fly logs -a aloud-cloud | grep -iE "suspend|stopping"  # wait for the power-down line
-fly deploy --config server/fly.toml                   # redeploy onto the same volume
-./durability-probe.sh check                           # PASS = the row survived
-./durability-probe.sh cleanup
-```
-
-For teeth, run it once against the **pre-fix** config (`auto_stop = "suspend"`) and
-confirm it **FAILs** - that reproduces 5iv4 and proves the probe can actually detect
-the loss - then flip to `"stop"` and confirm it **PASSes**. A pass on a clean
-manual stop alone doesn't prove much.
-
-A `FAIL` on the fixed config means writes still roll back - leave 5iv4 open and
-escalate to the Postgres migration (meditation-pal-sk9s).
-
-**Test 2 - restore after total volume loss** (proves the Litestream DR claim).
-**Destructive - run on a throwaway/staging app, never prod**, since it deletes the
-volume. Stand up a staging app that mirrors `fly.toml` + the `R2_*` secrets
-(point its replica at a *separate* R2 prefix so it can't touch prod's backup),
-then:
+**Test 2 - restore after total volume loss** (the Litestream DR claim).
+**Destructive: staging app only**, with its replica on a separate R2 prefix:
 
 ```bash
 export ALOUD_BASE_URL=https://<staging-app>.fly.dev
 ./durability-probe.sh write
-# let Litestream replicate the marker to R2 BEFORE destroying the volume:
-fly ssh console -a <staging-app> -C "litestream snapshots /data/aloud.db"   # confirm a fresh snapshot
+fly ssh console -a <staging-app> -C "litestream snapshots /data/aloud.db"   # wait for a fresh snapshot
 fly machine stop -a <staging-app> <machine-id>
 fly volume destroy -a <staging-app> <volume-id>                            # simulate hardware loss
 fly volume create aloud_data --size 1 --region sjc -a <staging-app>
 fly deploy --config server/fly.toml -a <staging-app>                       # entrypoint runs `litestream restore`
-./durability-probe.sh check                                                # PASS = restore brought the marker back
+./durability-probe.sh check
 ```
 
-A `FAIL` here means the backup/restore path is broken (the more dangerous bug - you'd discover it only during a real disaster). Fix `litestream.yml` / the
-entrypoint until it passes, then re-confirm with `litestream snapshots`.
+A failure here is the more dangerous bug (you'd find it only in a real
+disaster): fix `litestream.yml` / the entrypoint until it passes.
 
 ### Render / VPS alternative
 

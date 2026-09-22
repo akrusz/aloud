@@ -85,49 +85,22 @@ The whole meditation loop can run through the server:
 | LLM (premium) | Anthropic | `ANTHROPIC_API_KEY` |
 | LLM (value tier) | Google Gemini (direct) | `GEMINI_API_KEY` |
 | STT | OpenAI Whisper (default) | `OPENAI_API_KEY` |
-| TTS | Google Cloud TTS | `GOOGLE_TTS_API_KEY` |
-
-### Minimal "actually forward an LLM turn" setup
-
-```bash
-cd ts/server
-cp .env.example .env
-# edit .env: set ANTHROPIC_API_KEY=sk-ant-...   (or GROQ / OPENROUTER)
-npm run dev
-# /health now shows that provider under "providers"
-```
-
-`/cloud/v1/llm/complete` still requires a valid session (a Bearer token from
-`POST /cloud/v1/auth/google`), so end-to-end forwarding needs a real Google ID
-token. The route-level logic is unit-tested against the in-memory store in
-`tests/app.test.ts` without network.
+| TTS | Azure AI Speech (default voice Harper), Google Cloud TTS, OpenAI | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`, `GOOGLE_TTS_API_KEY`, `OPENAI_API_KEY` |
 
 ## Running the full loop locally (UI ↔ server)
 
-The browser UI can drive the metered proxy end-to-end. The `aloud cloud`
-provider in Setup/Settings routes LLM turns through this server instead of
-BYOK or a local provider.
+Put one real provider key in `.env` (e.g. `ANTHROPIC_API_KEY`; `/health` then
+lists it under `providers`), and run `npm run web:dev` from the repo root (Vite
+on :4649 proxying `/app/v1` + `/cloud/v1` to Hono on :8787). In the UI pick
+provider **aloud cloud**, choose a model (populated live from
+`GET /cloud/v1/me/models`), and start a session; the first LLM turn signs in
+via the dev route below and caches the token.
 
-```bash
-# Terminal 1 - the server (needs a real provider key to actually complete)
-cd ts/server
-cp .env.example .env        # set ANTHROPIC_API_KEY (or GROQ / OPENROUTER)
-npm run dev                 # :8787
-
-# Terminal 2 - the UI (Vite proxies /app/v1 + /cloud/v1 → :8787; override via ALOUD_CLOUD_URL)
-cd ts
-npm run ui:dev              # :4649
-```
-
-In the UI: pick provider **aloud cloud**, choose a model (the picker is
-populated live from `GET /cloud/v1/me/models`), start a session. On first LLM
-turn the UI auto-signs-in via the dev route and caches the token.
-
-**On the hosted provider, STT and TTS also route through the server** - `/cloud/v1/stt` (OpenAI Whisper by default) and `/cloud/v1/tts` (Google), so the whole
-pipeline runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
-`STT_*` overrides - see `config.ts` `resolveSttConfig`); TTS needs
-`GOOGLE_TTS_API_KEY` (without it the client falls back to browser
-`speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
+**On the hosted provider, STT and TTS also route through the server**
+(`/cloud/v1/stt`, OpenAI by default, and `/cloud/v1/tts`), so the whole pipeline
+runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
+`STT_*` overrides - see `config.ts` `resolveSttConfig`); TTS needs at least one
+TTS key (with none, the client falls back to browser `speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
 and `tts-picker.createCloudAloudTts`, selected in `views/session.ts` when
 `setup.provider === 'aloud'`.
 
@@ -174,7 +147,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON) |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
-| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → Google Cloud TTS → audio/mpeg; cost in headers |
+| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / OpenAI) → audio/mpeg; cost in headers |
 | `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), so it has its own per-minute guard plus a 5,000-a-day cap that only binds accounts with no credits (`deps.ts`). A command is two calls: the one-ask `command-gate`, then `command` if that says maybe. Not charged (~$0.00007/call); usage recorded as `typesafe`. Own rate budget (`deps.judgeGuard`, 90/min/account), separate from the 60/min every other metered route shares. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
 | `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
@@ -243,7 +216,7 @@ response (`isMeteredBlocked` short-circuits before the hold). So users keep thei
 granted credits, the facilitator says "come back later," TTS speaks it, and the
 session saves normally. STT/TTS stay open so that message can be heard; tester
 emails bypass the pause entirely. In-flight clients only see it on their next
-turn (live-reload is a follow-up - meditation-pal).
+turn.
 
 ## Hosted voices & auditioning new ones
 
@@ -257,7 +230,8 @@ resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a
 sortable, filterable page with a player per voice, a shortlist that emits
-paste-ready `CURATED_VOICES` lines, and `space`/`j`/`k`/`s` shortcuts.
+paste-ready `CURATED_VOICES` lines, and keyboard shortcuts (`e` play/pause,
+`w`/`s` prev/next, `f` shortlist; space is left alone so it still scrolls).
 
 Run it from **anywhere in the repo** through the npm delegate. Note the `--`,
 which passes the rest of the arguments through; and note that there is also a
@@ -280,9 +254,6 @@ it, so building up google, then openai, then a new candidate as its key arrives
 works, and a quick spot-check does not destroy a roster that took minutes to
 render. `--fresh` starts over. State lives in `voice-previews/rows.json`.
 
-Keys on the page: `e` play/pause, `w`/`s` prev/next, `f` shortlist (space is
-left alone so it still scrolls).
-
 `curated` is the default and shows **only the voices already in
 `CURATED_VOICES`** - it is the set-the-defaults pass, not the discovery one.
 To find new voices, name a source. Google alone has ~130 English voices across
@@ -304,8 +275,9 @@ partial run still produces a usable page. The keys are documented in
 | `GEMINI_API_KEY` | Gemini TTS - already set for the LLM | per second | [AI Studio](https://aistudio.google.com/apikey) |
 | `CARTESIA_API_KEY` | Cartesia Sonic 3 | per char | [play.cartesia.ai](https://play.cartesia.ai/keys) |
 | `INWORLD_API_KEY` | Inworld TTS | per char | [platform.inworld.ai](https://platform.inworld.ai) |
-| `DEEPGRAM_API_KEY` | Deepgram Aura-2 | per char | [console](https://console.deepgram.com/signup) | These adapters are audition-only on
-purpose - promoting one means adding it to `src/providers/tts.ts`, the
+| `DEEPGRAM_API_KEY` | Deepgram Aura-2 | per char | [console](https://console.deepgram.com/signup) |
+
+These adapters are audition-only on purpose - promoting one means adding it to `src/providers/tts.ts`, the
 `TtsProvider` union, and `pricing/providers.ttsRateFor` before it can bill.
 
 Two things the page exists to make visible:
@@ -335,22 +307,9 @@ for the shipping sources. Costs a few cents (one short clip per voice per treatm
 
 ## Known limits
 
-The launch gaps (durable store, real OAuth in the UI, prompt caching, deploy
-infra) are all closed - the server is live on Fly with a SQLite ledger, Google /
-Apple / email sign-in, Anthropic 5m+1h prompt caching (`ts/src/llm/anthropic.ts`),
-and Stripe. What's left:
-
 - **Single-machine by design.** The ledger is one SQLite file on one Fly volume.
   Scaling out means implementing `CreditsStore` (`credits/store.ts`) over
   Postgres. See [deploy.md](deploy.md) → Durability & scale.
 - **x402 is flag-gated off** pending mainnet ops (tax, off-ramp, refunds). See
   [x402.md](x402.md).
 - **In-flight clients don't see a live spend-pause** until their next turn.
-
-## Test/lint matrix (what "green" means here)
-
-```bash
-cd ts        && npm run typecheck && npm test   # core + ui
-cd ts/server && npm run typecheck && npm test   # server
-cd ts        && npm run ui:build                # vite build of ui/dist
-```

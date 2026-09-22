@@ -34,69 +34,57 @@ port is **pinned** on purpose: Tauri's `devUrl` is a fixed string, so if Vite
 were allowed to drift to another port the window would silently load the wrong
 server. 4649 is aloud's dev port (see `ui/vite.config.ts`).
 
-## Dev vs. production backend
-
-The app's own backend (`/app/v1/*` - STT/TTS/providers/shell escapes) is served
-by the **Rust shell** in both dev and production. The
-shell starts an embedded `axum` server on an ephemeral loopback port and injects
-its base as `window.__ALOUD_API_BASE__`, which `appUrl()` reads - so `/app/v1/*`
-calls hit Rust whether the webview is the Vite dev server (`tauri:dev`) or the
-bundled static UI (`tauri:build`). Hosted features (`/cloud/v1/*` - accounts,
-credits, hosted voices) always go to the aloud cloud, baked in at build time
-via `VITE_ALOUD_CLOUD_URL`.
-
-(The browser-only dev path - `npm run ui:dev` without Tauri - has no Rust shell;
-there the Vite proxy forwards both `/app/v1` and `/cloud/v1` to the Hono server
-on :8787. See `dev-cheatsheet.md`.)
-
 ## App backend (`/app/v1/*`, native Rust)
 
-Decision (see `meditation-pal-nn1`): desktop uses **native Rust in Tauri** for
-local inference - `whisper-rs` (whisper.cpp) for STT, Piper (ONNX) for TTS - plus trivial command/HTTP shims for providers, the `claude` CLI subprocess, and
-the config-folder shell escapes. The web target does **not** share this: web
-users get cloud forwarding (`ts/server`) or browser-native STT/TTS, so the two
-targets split cleanly and the Rust choice doesn't force a parallel Node
-inference backend.
+The app's own backend (STT/TTS/providers/shell escapes) is served by the **Rust
+shell** in both dev and production. It starts an embedded `axum` server
+(`src-tauri/src/server.rs`) on an ephemeral loopback port and injects its base as
+`window.__ALOUD_API_BASE__` via an `initialization_script`; `appUrl()`
+(`ui/src/app-base.ts`) reads it, so `/app/v1/*` calls hit Rust whether the
+webview is the Vite dev server (`tauri:dev`) or the bundled UI (`tauri:build`).
+Empty means relative paths, which is the browser case: there the Vite proxy
+forwards `/app/v1` and `/cloud/v1` to Hono on :8787. Hosted features
+(`/cloud/v1/*`) always go to aloud cloud, via `cloudUrl()` and the build-time
+`VITE_ALOUD_CLOUD_URL`.
 
-The UI abstracts the local backend base via `ui/src/app-base.ts` (`appUrl()`),
-mirroring `cloud-base.ts` (`cloudUrl()`) for the hosted `/cloud/v1/*` server. In a
-Tauri build the Rust shell starts an embedded `axum` server (`src-tauri/server.rs`)
-on an ephemeral loopback port and injects `window.__ALOUD_API_BASE__` via an
-`initialization_script`; `appUrl()` reads it (empty → relative paths in dev/web).
+Why native Rust (`meditation-pal-nn1`): `whisper-rs` (whisper.cpp) for STT and
+Piper (ONNX) for TTS, plus thin shims for providers, the `claude` CLI and the
+config-folder shell escapes. The web target doesn't share any of it (web users
+get cloud forwarding or browser-native STT/TTS), so the Rust choice doesn't
+force a parallel Node inference backend.
 
-Endpoints (served at `/app/v1/*`):
+Endpoints:
 
-- ✅ `/app/v1/system-info` - platform + tool availability (`which`).
-- ✅ `/app/v1/stt/whisper` - local Whisper via `whisper-rs` (whisper.cpp). The
+- `/app/v1/system-info` - platform + tool availability (`which`).
+- `/app/v1/stt/whisper` - local Whisper via `whisper-rs` (whisper.cpp). The
   request's `model_size`/`lang` params pick the model file (see first-run notes
   above). Body is raw mono PCM: Int16 with `?format=i16` (what current clients
   send - half the bytes), Float32 otherwise.
-- ✅ `/app/v1/stt/whisper/warm` - the session-start probe: GET with the
+- `/app/v1/stt/whisper/warm` - the session-start probe: GET with the
   session's `model_size`/`lang` proves the route exists (web Hono 404s) and
   starts loading that model during setup, so the first utterance never 503s.
-- ✅ `/app/v1/stt/whisper/models` - per Settings size for the given `?lang=`:
+- `/app/v1/stt/whisper/models` - per Settings size for the given `?lang=`:
   mapped file, on-disk state, approx download MB. Drives the Settings badges
   ("downloaded" / "N MB download") and the Download/Remove button state.
-- ✅ `/app/v1/stt/whisper/download-model` + `/app/v1/stt/whisper/remove-model` -
+- `/app/v1/stt/whisper/download-model` + `/app/v1/stt/whisper/remove-model` -
   the Settings button: explicit pre-fetch (streamed NDJSON progress, same shape
   as the Piper flow below) and delete (unloads too if it's the loaded model).
   Wired in `views/settings.ts` (`downloadWhisperModel`/`removeWhisperModel`).
-- ✅ `/app/v1/voices` + `/app/v1/voices/preview` - Piper (ONNX via `piper-rs`:
+- `/app/v1/voices` + `/app/v1/voices/preview` - Piper (ONNX via `piper-rs`:
   `ort` + espeak-ng) cross-platform, plus macOS `say` as a Darwin-only local
   engine. See `src-tauri/src/tts.rs`.
-- ✅ `/app/v1/tts/download-model` + `/app/v1/tts/uninstall-model` - Piper models are
+- `/app/v1/tts/download-model` + `/app/v1/tts/uninstall-model` - Piper models are
   downloaded **explicitly** via the picker's Download button (streamed NDJSON
-  progress), never on demand: a
-  session must not stall on a 100 MB fetch mid-synthesis, and the explicit
-  install/uninstall UX is preserved. Multi-speaker voices share one `.onnx`, so
+  progress), never on demand: a session must not stall on a 100 MB fetch
+  mid-synthesis. Multi-speaker voices share one `.onnx`, so
   downloading/uninstalling any speaker affects the whole family; the picker
   re-reads `/app/v1/voices` afterward and all sharing speakers flip state together
   (the `downloaded` flag is per model file). The TS button is wired in
   `views/setup.ts` and `views/settings.ts` via `downloadVoiceModel()` /
   `uninstallVoiceModel()` in `voice-picker.ts`.
-- ✅ `/app/v1/providers` + `/app/v1/models/<provider>` - `src-tauri/src/providers.rs`.
+- `/app/v1/providers` + `/app/v1/models/<provider>` - `src-tauri/src/providers.rs`.
   Includes the elaborate Ollama recommendation system (total RAM via `sysinfo`,
-  fast-GPU detection, curated tier catalog from `DEFAULT_OLLAMA_TIERS`, per-tier
+  fast-GPU detection, curated tier catalog from `DEFAULT_TIERS`, per-tier
   `fits`/`installed` annotations, `other_installed`, version + outdated against
   `MIN_OLLAMA_VERSION`). The TS settings page renders this via
   `ui/src/settings-ollama.ts` (visible only when provider = ollama).
@@ -105,32 +93,29 @@ Endpoints (served at `/app/v1/*`):
   queries each provider's models API (openai/anthropic/openrouter/venice/groq +
   static claude_proxy), shaping `[{value,label}]`. Empty → the picker's
   free-form text input.
-- ✅ `/app/v1/ollama/pull` (streamed NDJSON progress) + `/app/v1/ollama/delete` - `src-tauri/src/ollama.rs`. Proxies the local Ollama daemon's HTTP API; UI
+- `/app/v1/ollama/pull` (streamed NDJSON progress) + `/app/v1/ollama/delete` - `src-tauri/src/ollama.rs`. Proxies the local Ollama daemon's HTTP API; UI
   drives per-model progress bars + Remove buttons.
-- ✅ `/app/v1/ollama/restart` + `/app/v1/ollama/upgrade` + `/app/v1/install/{tool}` - `src-tauri/src/ollama_tools.rs`. Manage the daemon itself (vs its models):
+- `/app/v1/ollama/restart` + `/app/v1/ollama/upgrade` + `/app/v1/install/{tool}` - `src-tauri/src/ollama_tools.rs`. Manage the daemon itself (vs its models):
   restart detects how Ollama runs and brings it back; upgrade/install use brew
   (macOS) or install.sh (Linux), 400 + download URL where there's no automatic
   path. All stream NDJSON; the settings controls bar drives them.
-- ✅ `/app/v1/llm/claude_proxy/complete` - spawns the local `claude` CLI via
+- `/app/v1/llm/claude_proxy/complete` - spawns the local `claude` CLI via
   `tokio::process` with the provider's flags, prompt encoding, JSON parsing, and
   90 s timeout. See `src-tauri/src/llm.rs`.
-- ✅ `/app/v1/sessions` (+ `/sessions/{id}`) - desktop session persistence: one
+- `/app/v1/sessions` (+ `/sessions/{id}`) - desktop session persistence: one
   JSON file per session under `<app-data>/sessions/`, so saved sessions are
   durable, openable files rather than webview localStorage. `{id}` is charset-
   restricted (`safe_session_id`) so an untrusted client can't escape the dir. The
   UI side is `ui/src/adapters/backend-session-store.ts` (`BackendSessionStore`),
   swapped in by `state.ts` only under `isTauri()`.
-- ✅ `/app/v1/google-oauth` - desktop Google sign-in via the loopback PKCE flow
+- `/app/v1/google-oauth` - desktop Google sign-in via the loopback PKCE flow
   (the webview can't run the web GIS popup); hands the result to aloud cloud's
   `/cloud/v1/auth/google/desktop`.
-- ✅ `/app/v1/open-config-folder`, `/app/v1/open-sessions-folder`,
+- `/app/v1/open-config-folder`, `/app/v1/open-sessions-folder`,
   `/app/v1/open-session-file/{id}`, `/app/v1/open-voice-settings` - cross-platform
   `reveal_path()` helper reveals the app data dir, the sessions dir, or one
   session's JSON; voice-settings opens macOS System Settings → Spoken Content on
   Darwin, 400s elsewhere.
-- ⬜ `/app/v1/tts-engines` - listed in the bead but has no fetch site in the TS UI
-  (only mentioned in code comments as a future option), so deferred until a
-  consumer actually needs it.
 
 ## Config notes
 
@@ -177,9 +162,8 @@ below).
   so the app reaches the hosted `/cloud/v1` service for accounts + credits;
   local providers work without it.
 
-**Artifact names** are now tauri's standard `aloud_<version>_<arch>.{dmg,AppImage}`
-/ `aloud_<version>_<arch>-setup.exe` (not the old `aloud-<version>-macOS.dmg`
-form). The website's `docs/js/download.js` matches these names - keep the two in
+**Artifact names** are tauri's standard `aloud_<version>_<arch>.{dmg,AppImage}`
+/ `aloud_<version>_<arch>-setup.exe`. The website's `docs/js/download.js` matches these names - keep the two in
 sync if bundle naming changes.
 
 `scripts/release.sh` reads the version from `tauri.conf.json` (the source of
@@ -218,7 +202,7 @@ cd ts && npm run tauri signer generate -- -w ~/.tauri/aloud.key
   private key out of the repo - it's the sole thing preventing a forged update.
 
 > **Local-build caveat:** `bundle.createUpdaterArtifacts` is `true`, so a full
-> `npm run tauri:build` now requires `TAURI_SIGNING_PRIVATE_KEY` (+ password) in
+> `npm run tauri:build` requires `TAURI_SIGNING_PRIVATE_KEY` (+ password) in
 > the environment, or it fails at the signing step. `npm run tauri:dev` is
 > unaffected (it doesn't bundle). To bundle locally without the key, export a
 > throwaway key or temporarily flip `createUpdaterArtifacts` off.
