@@ -331,7 +331,7 @@ export async function openBugReport(): Promise<void> {
     await offerReport(await bugReport());
 }
 
-/** Desktop: the native Help > "Report a Bug…" menu item (src-tauri lib.rs)
+/** macOS desktop: the native Help > "Report a Bug…" menu item (src-tauri lib.rs)
  *  emits `report-bug`; open the same composer. Call once at boot. */
 export function initNativeBugReportMenu(): void {
     if (!isTauri()) return;

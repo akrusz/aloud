@@ -173,8 +173,10 @@ pub fn run() {
       // and add Help > "Report a Bug…", so a report is reachable from any
       // page, not just the in-session info panel. The webview side listens
       // for the event and opens the prefilled composer (ui/src/bug-report.ts
-      // initNativeBugReportMenu).
-      #[cfg(desktop)]
+      // initNativeBugReportMenu). macOS only: on Windows/Linux the menu is a
+      // bar inside the window (and copy/paste works without it there); About
+      // carries the bug report.
+      #[cfg(target_os = "macos")]
       {
         use tauri::menu::{Menu, MenuItem, Submenu};
         let handle = app.handle();

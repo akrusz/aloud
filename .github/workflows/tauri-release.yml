@@ -107,6 +107,13 @@ jobs:
       - name: Build, sign & upload
         uses: tauri-apps/tauri-action@v0
         env:
+          # whisper.cpp (ggml) defaults to GGML_NATIVE=ON: it tunes for the
+          # BUILD machine's CPU. On the x86 runners that means AVX-512, and the
+          # shipped app then dies with 0xc000001d (illegal instruction) on the
+          # first transcription on any CPU without it (most laptops). OFF
+          # targets the portable AVX2 baseline. macOS stays native because the
+          # arm64 runners are M1, the Apple Silicon floor.
+          GGML_NATIVE: ${{ matrix.platform == 'macos-latest' && 'ON' || 'OFF' }}
           # Required by tauri-action to upload bundles + updater artifacts to the
           # triggering release. Auto-provided to every run; must be mapped in here
           # explicitly or the action fails with "GITHUB_TOKEN is required".

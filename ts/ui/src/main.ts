@@ -16,7 +16,7 @@ import { initNativeBugReportMenu } from './bug-report.js';
 // First, so the bug-report "Recent errors" block sees boot-time failures too.
 installErrorLog();
 
-// Desktop: Help > "Report a Bug…" opens the same composer from any page.
+// macOS desktop: Help > "Report a Bug…" opens the same composer from any page.
 initNativeBugReportMenu();
 
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
