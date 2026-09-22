@@ -40,9 +40,7 @@ export interface SessionClockChoice {
     /** End the session after the closing word (timer mode only). */
     endOnComplete: boolean;
     /** Timer mode, mid-sit: keep the running countdown rather than restart
-     *  it. Only ever true when the picker was opened on an armed timer and the
-     *  user left "Continue" selected (iig5: toggling the readout used to
-     *  restart the count from now). */
+     *  it (the picker's "Continue", or toggling the readout). */
     keepRunning?: boolean;
 }
 
@@ -229,14 +227,7 @@ export class SessionClock {
     // hand. Returns the minutes actually armed (after clamping), for the ack.
 
     setTimer(min: number): number {
-        const choice: SessionClockChoice = {
-            mode: 'timer',
-            timerMin: clampTimerMinutes(min),
-            showClock: this.visible,
-            endOnComplete: this.endOnComplete,
-        };
-        this.applyChoice(choice);
-        this.onChange(choice);
+        this.commit({ ...this.current(), mode: 'timer', timerMin: clampTimerMinutes(min) });
         return this.timerMin;
     }
 
@@ -266,41 +257,33 @@ export class SessionClock {
     /** False when there was no timer to cancel. */
     cancelTimer(): boolean {
         if (this.endsAt === null) return false;
-        const choice: SessionClockChoice = {
-            mode: 'elapsed',
-            timerMin: this.timerMin,
-            showClock: this.visible,
-            endOnComplete: this.endOnComplete,
-        };
-        this.applyChoice(choice);
-        this.onChange(choice);
+        this.commit({ ...this.current(), mode: 'elapsed' });
         return true;
     }
 
     /** Show or hide the readout, saved like the picker's toggle. The countdown
      *  is untouched either way. */
     setVisible(shown: boolean): void {
-        const choice: SessionClockChoice = {
-            mode: this.mode,
-            timerMin: this.timerMin,
-            showClock: shown,
-            endOnComplete: this.endOnComplete,
-            keepRunning: true,
-        };
-        this.applyChoice(choice);
-        this.onChange(choice);
+        this.commit({ ...this.current(), showClock: shown, keepRunning: true });
     }
 
     /** Open the picker (also reachable by tapping the clock). */
     async openPicker(): Promise<void> {
-        const choice = await showSessionClockModal({
+        const choice = await showSessionClockModal({ ...this.current(), runningEndsAt: this.endsAt });
+        if (choice) this.commit(choice);
+    }
+
+    private current(): SessionClockChoice {
+        return {
             mode: this.mode,
             timerMin: this.timerMin,
             showClock: this.visible,
             endOnComplete: this.endOnComplete,
-            runningEndsAt: this.endsAt,
-        });
-        if (!choice) return;
+        };
+    }
+
+    /** Apply and persist, as every user-facing change does. */
+    private commit(choice: SessionClockChoice): void {
         this.applyChoice(choice);
         this.onChange(choice);
     }
@@ -311,13 +294,13 @@ export class SessionClock {
         this.mode = choice.mode;
         this.visible = choice.showClock;
         this.endOnComplete = choice.endOnComplete;
-        if (choice.mode === 'timer' && choice.keepRunning && this.endsAt !== null) {
-            // Nothing about the countdown changes; the picker was opened for
-            // the readout or the end-of-timer toggle.
-        } else if (choice.mode === 'timer') this.arm(choice.timerMin);
-        else {
+        if (choice.mode !== 'timer') {
             this.timerMin = clampTimerMinutes(choice.timerMin);
             this.disarm();
+        } else if (!(choice.keepRunning && this.endsAt !== null)) {
+            // keepRunning on a live countdown: the picker was opened for the
+            // readout or the end-of-timer toggle, so the countdown stands.
+            this.arm(choice.timerMin);
         }
         // Setting a timer with the readout off would otherwise give no sign it
         // took, and the first confirmation would be the facilitator speaking
