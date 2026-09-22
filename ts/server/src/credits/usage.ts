@@ -411,6 +411,11 @@ function distribution(values: number[]): Distribution {
     };
 }
 
+/** Wall-clock minutes of a session, first to last event. */
+function durationMin(s: UsageEvent[]): number {
+    return s.length < 2 ? 0 : (s[s.length - 1]!.ts - s[0]!.ts) / 60;
+}
+
 /** Group an account's events into sessions by time-gap, honoring an explicit
  *  sessionId when present. Returns one bucket of events per session. */
 function clusterSessions(events: UsageEvent[]): UsageEvent[][] {
@@ -541,20 +546,18 @@ export function buildUsageReport(
     }
 
     const allSessions = clusterSessions(inWindow);
-    const durationMinOf = (s: UsageEvent[]): number =>
-        s.length < 2 ? 0 : (s[s.length - 1]!.ts - s[0]!.ts) / 60;
     // One bar for everything session-level below: distributions and per-hour
     // rates describe the SAME population.
     const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
     const isRealSit = (s: UsageEvent[]): boolean =>
-        (realSit.minMinutes <= 0 || durationMinOf(s) >= realSit.minMinutes) &&
+        (realSit.minMinutes <= 0 || durationMin(s) >= realSit.minMinutes) &&
         (realSit.minTurns <= 0 || s.filter((e) => e.kind === 'llm').length >= realSit.minTurns);
     const sessions = opts.allSessions ? allSessions : allSessions.filter(isRealSit);
     const excludedShort = allSessions.length - sessions.length;
     const sessionCosts = sessions.map((s) => s.reduce((sum, e) => sum + e.providerCostUsd, 0));
     const sessionCredits = sessions.map((s) => s.reduce((sum, e) => sum + e.credits, 0));
     const sessionTurns = sessions.map((s) => s.filter((e) => e.kind === 'llm').length);
-    const sessionDurations = sessions.map(durationMinOf);
+    const sessionDurations = sessions.map(durationMin);
     const meanDurationMin =
         sessionDurations.length > 0
             ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length
@@ -562,28 +565,19 @@ export function buildUsageReport(
 
     // ---- observed per-hour burn, over the same session population, averaged
     // across accounts --------------------------------------------------------
-    const totalHours = sessions.reduce((sum, s) => sum + durationMinOf(s), 0) / 60;
+    const totalHours = sessions.reduce((sum, s) => sum + durationMin(s), 0) / 60;
     const rate = (x: number, hours: number): number => (hours > 0 ? x / hours : 0);
 
-    /**
-     * Per-hour rates are a mean ACROSS ACCOUNTS, each weighted by the square
-     * root of its spend — not a straight total/total, which is really "the
-     * heaviest user's habits" whenever one account dominates the window (as one
-     * did the first time these numbers were read for calibration, at ~93% of
-     * measured hours).
-     *
-     * Sqrt, rather than one-account-one-vote: a user with 40 sits has genuinely
-     * seen more of the product than someone with one, and should count for
-     * more — just not 40x more. Beyond ~4x spend the extra influence tapers
-     * hard, so a single power user shifts the number without setting it.
-     *
-     * With one account in the window this is identical to the unweighted rate,
-     * so nothing changes until there's a population to average over.
-     */
-    /** Per-account accumulators behind every weighted per-hour rate. Named
-     *  rather than spelled inline because weightedRate's hoursOf callback is
-     *  handed a whole accumulator: some denominators are a.hours, others read
-     *  a leg's own hours back out of a.sums. */
+    // Per-hour rates are a mean ACROSS ACCOUNTS, each weighted by the square
+    // root of its spend, not a straight total/total, which is really "the
+    // heaviest user's habits" whenever one account dominates the window. Sqrt
+    // rather than one-account-one-vote: a user with 40 sits has seen more of
+    // the product and should count for more, just not 40x more. With one
+    // account in the window this equals the unweighted rate.
+    //
+    // AccountAcc is named because weightedRate's hoursOf gets a whole
+    // accumulator: some denominators are a.hours, others a leg's own hours
+    // read back out of a.sums.
     interface AccountAcc {
         weightBasis: number;
         hours: number;
@@ -634,7 +628,7 @@ export function buildUsageReport(
     let sttSessionTurns = 0;
     const sttCallSeconds: number[] = [];
     for (const s of sessions) {
-        const sessionHours = durationMinOf(s) / 60;
+        const sessionHours = durationMin(s) / 60;
         const usedStt = s.some((e) => e.kind === 'stt');
         const usedTts = s.some((e) => e.kind === 'tts');
         if (usedStt) sttHours += sessionHours;
@@ -759,7 +753,7 @@ export function buildUsageReport(
     const sessionRows = opts.sessionRowsFor?.size
         ? sessions
               .filter((sess) => opts.sessionRowsFor!.has(sess[0]!.accountId))
-              .map((sess) => sessionRow(sess, durationMinOf(sess)))
+              .map((sess) => sessionRow(sess, durationMin(sess)))
               .sort((a, b) => b.startTs - a.startTs)
         : [];
 
@@ -892,6 +886,12 @@ function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
 /** Seconds in a UTC day: the history bucket width. */
 const DAY_SEC = 24 * 60 * 60;
 
+/** UTC start of today and of the first of the last `days` days. */
+function dayWindow(now: number, days: number): { todayStart: number; firstDay: number } {
+    const todayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
+    return { todayStart, firstDay: todayStart - (Math.max(1, Math.floor(days)) - 1) * DAY_SEC };
+}
+
 /** Daily time-series for the admin trend charts. Reconstructs sessions over the
  *  whole window, then attributes each to the UTC day of its FIRST event, so a
  *  session is counted once, on the day it began, and never splits at midnight.
@@ -905,9 +905,7 @@ export function buildUsageHistory(
     now: number,
     days: number
 ): UsageHistoryBucket[] {
-    const dayCount = Math.max(1, Math.floor(days));
-    const todayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
-    const firstDay = todayStart - (dayCount - 1) * DAY_SEC;
+    const { todayStart, firstDay } = dayWindow(now, days);
 
     const buckets = new Map<number, UsageHistoryBucket>();
     for (let d = firstDay; d <= todayStart; d += DAY_SEC) {
@@ -936,7 +934,7 @@ export function buildUsageHistory(
             b.providerCostUsd += e.providerCostUsd;
             b.credits += e.credits;
         }
-        if (s.length >= 2) b.durationMin += (s[s.length - 1]!.ts - s[0]!.ts) / 60;
+        b.durationMin += durationMin(s);
         const set = dayAccounts.get(day) ?? new Set<string>();
         set.add(s[0]!.accountId);
         dayAccounts.set(day, set);
@@ -974,9 +972,7 @@ export function buildProviderDailyCosts(
     now: number,
     days: number
 ): ProviderDailyCost[] {
-    const dayCount = Math.max(1, Math.floor(days));
-    const todayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
-    const firstDay = todayStart - (dayCount - 1) * DAY_SEC;
+    const { todayStart, firstDay } = dayWindow(now, days);
 
     const rows = new Map<string, ProviderDailyCost>();
     for (const e of events) {
