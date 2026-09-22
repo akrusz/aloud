@@ -612,6 +612,40 @@ describe('OllamaProvider', () => {
         );
         expect(body.stream).toBe(true);
     });
+
+    describe('coldLoadMessage', () => {
+        it('reports a cold model and stays quiet once it is loaded', async () => {
+            const withLoaded = (models: string[]) =>
+                new OllamaProvider({
+                    model: 'qwen3.5:4b',
+                    fetchImpl: (async () =>
+                        mockJsonResponse({ models: models.map((name) => ({ name })) })) as unknown as typeof fetch,
+                });
+            expect(await withLoaded([]).coldLoadMessage()).toMatch(/Loading qwen3.5:4b/);
+            expect(await withLoaded(['qwen3.5:4b']).coldLoadMessage()).toBeNull();
+        });
+
+        it('sends a timeout signal and yields null when the probe aborts', async () => {
+            // A wedged daemon never answers on its own; the abort must end it.
+            const fetchImpl = vi.fn(
+                (_url: string, init?: RequestInit) =>
+                    new Promise<Response>((_, reject) => {
+                        init?.signal?.addEventListener('abort', () =>
+                            reject(init.signal!.reason)
+                        );
+                    })
+            );
+            const provider = new OllamaProvider({
+                fetchImpl: fetchImpl as unknown as typeof fetch,
+            });
+            const pending = provider.coldLoadMessage();
+            const signal = (fetchImpl.mock.calls[0]![1] as RequestInit).signal!;
+            expect(signal.aborted).toBe(false);
+            // Fire the abort ourselves instead of waiting out the real 2s.
+            signal.dispatchEvent(new Event('abort'));
+            expect(await pending).toBeNull();
+        });
+    });
 });
 
 describe('OpenAIProvider', () => {

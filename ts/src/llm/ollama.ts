@@ -11,6 +11,7 @@ import type {
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen3.5:4b';
 const DEFAULT_MAX_TOKENS = 300;
+const COLD_LOAD_PROBE_TIMEOUT_MS = 2000;
 /**
  * Context window (num_ctx) requested per call. Ollama defaults to 4096 unless
  * OLLAMA_CONTEXT_LENGTH is set, and overflow truncates the prompt SILENTLY, so
@@ -233,10 +234,14 @@ export class OllamaProvider implements LLMProvider {
      *
      * One HTTP call, so it's fine before every completion. After first use the
      * model stays loaded, so later checks return null and the banner clears.
+     * Bounded at 2s: the caller awaits this before the turn itself, so a
+     * wedged daemon must cost a missing hint, not a hung session.
      */
     async coldLoadMessage(): Promise<string | null> {
         try {
-            const response = await this.fetchImpl(`${this.baseUrl}/api/ps`);
+            const response = await this.fetchImpl(`${this.baseUrl}/api/ps`, {
+                signal: AbortSignal.timeout(COLD_LOAD_PROBE_TIMEOUT_MS),
+            });
             if (!response.ok) return null;
             const data = (await response.json()) as OllamaPsResponse;
             const loaded = data.models?.map((m) => m.name) ?? [];
