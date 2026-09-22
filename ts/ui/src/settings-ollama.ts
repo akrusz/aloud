@@ -192,7 +192,7 @@ export function mountOllamaSettings(
     async function pullModel(btn: HTMLButtonElement): Promise<void> {
         const model = btn.dataset['model'];
         if (!model) return;
-        const tile = btn.closest<HTMLElement>('.ollama-tier, .ollama-other-row');
+        const tile = btn.closest<HTMLElement>('.ollama-tier-row');
         const progressEl = tile?.querySelector<HTMLElement>('.ollama-pull-progress');
         const fillEl = progressEl?.querySelector<HTMLElement>('.ollama-pull-bar-fill');
         const statusEl = progressEl?.querySelector<HTMLElement>('.ollama-pull-status');
