@@ -1,6 +1,6 @@
 /**
- * Allowlist coverage for the July 2026 model additions: GPT-5.6 Sol (openai
- * direct), Claude Opus 5 (anthropic), and Kimi K2 (moonshotai via openrouter).
+ * Allowlist coverage for the 2026 model additions: GPT-5.6 Sol (openai
+ * direct), Claude Opus 5 / 5.5 (anthropic), and Kimi K2 (moonshotai via openrouter).
  * Guards the exact pinned ids the picker and the debit math both key on.
  */
 import { describe, it, expect } from 'vitest';
@@ -87,7 +87,7 @@ describe('zh shortlist flags (2026-09-01 native-listener pass)', () => {
             .map((m) => m.model)
             .sort();
         expect(zhShortlist).toEqual(
-            ['claude-fable-5-1', 'claude-opus-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
+            ['claude-fable-5-1', 'claude-opus-5-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'moonshotai/kimi-k2'].sort()
         );
         // A zhCurated model must still be expanded for en - otherwise the flag
         // is dead weight and the en shortlist silently grew.
@@ -120,8 +120,22 @@ describe('GPT-5 Nano (openai)', () => {
     });
 });
 
+describe('Opus 5.5 (anthropic)', () => {
+    it('is allowlisted at the $4/$20 Opus 5.5 rates and is the picker default', () => {
+        const p = pricingFor('anthropic', 'claude-opus-5-5');
+        expect(p).toBeDefined();
+        expect(p!.input).toBeCloseTo(4 / M, 12);
+        expect(p!.output).toBeCloseTo(20 / M, 12);
+        expect(p!.cacheRead).toBeCloseTo(0.2 / M, 12);
+        expect(p!.cacheCreation).toBeCloseTo(5 / M, 12);
+        expect(p!.cacheCreation1h).toBeCloseTo(8 / M, 12);
+        expect(p!.default).toBe(true);
+        expect(p!.expanded).toBeUndefined();
+    });
+});
+
 describe('Opus 5 (anthropic)', () => {
-    it('is allowlisted at the Opus rates and is the picker default', () => {
+    it('is allowlisted at the Opus rates, expanded-tier behind Opus 5.5', () => {
         const p = pricingFor('anthropic', 'claude-opus-5');
         expect(p).toBeDefined();
         expect(p!.input).toBeCloseTo(5 / M, 12);
@@ -129,7 +143,8 @@ describe('Opus 5 (anthropic)', () => {
         expect(p!.cacheRead).toBeCloseTo(0.5 / M, 12);
         expect(p!.cacheCreation).toBeCloseTo(6.25 / M, 12);
         expect(p!.cacheCreation1h).toBeCloseTo(10 / M, 12);
-        expect(p!.default).toBe(true);
+        expect(p!.default).toBeUndefined();
+        expect(p!.expanded).toBe(true);
 
         // Opus 4.8 and Opus 4.5 were swapped out for their same-price
         // successors, then deliberately RE-ADDED as expanded-tier (July 2026,

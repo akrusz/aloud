@@ -147,13 +147,20 @@ describe('AnthropicProvider', () => {
         // Always-on models get the low-effort pin and no thinking param. The
         // BYOK list serves new ids straight off /v1/models, so the rule is by
         // family: a point release must work with no code edit.
-        for (const model of ['claude-fable-5', 'claude-fable-5-1', 'claude-fable-6', 'claude-mythos-5-1']) {
+        // Opus joins them at 5.5, where the disable 400s at every effort.
+        for (const model of [
+            'claude-fable-5', 'claude-fable-5-1', 'claude-fable-6', 'claude-mythos-5-1',
+            'claude-opus-5-5', 'claude-opus-6',
+        ]) {
             const body = await bodyFor(model);
             expect(body['thinking']).toBeUndefined();
             expect(body['output_config']).toEqual({ effort: 'low' });
         }
         // Same for the opt-out family's point releases.
         expect((await bodyFor('claude-opus-5-1'))['thinking']).toEqual({ type: 'disabled' });
+        expect((await bodyFor('claude-sonnet-5-5'))['thinking']).toEqual({ type: 'disabled' });
+        // A date stamp is not a point release.
+        expect((await bodyFor('claude-opus-4-20250514'))['thinking']).toBeUndefined();
     });
 
     it('retries once without the tuning when a model 400s on it, then stays untuned', async () => {
@@ -171,7 +178,7 @@ describe('AnthropicProvider', () => {
             .mockImplementation(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
-            model: 'claude-opus-7', // a future opt-out guess that turns out wrong
+            model: 'claude-sonnet-7', // a future opt-out guess that turns out wrong
             maxRetries: 0,
             fetchImpl: fetchImpl as unknown as typeof fetch,
         });

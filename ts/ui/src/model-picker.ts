@@ -31,6 +31,7 @@ function providerNeedsKey(provider: string): boolean {
 const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-fable-5-1': 'Claude Fable 5.1',
     'claude-fable-5': 'Claude Fable 5',
+    'claude-opus-5-5': 'Claude Opus 5.5',
     'claude-opus-5': 'Claude Opus 5',
     'claude-opus-4-8': 'Claude Opus 4.8',
     'claude-opus-4-5': 'Claude Opus 4.5',

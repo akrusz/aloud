@@ -44,7 +44,7 @@ describe('GET /cloud/v1/me/models', () => {
         expect(Number.isInteger(body.sttCreditsPerHour)).toBe(false);
     });
 
-    it('flags exactly one default model, Opus 5 (the picker pre-selection)', async () => {
+    it('flags exactly one default model, Opus 5.5 (the picker pre-selection)', async () => {
         const app = createApp(buildDeps(loadConfig({})));
         const res = await app.request('/cloud/v1/me/models');
         const body = (await res.json()) as {
@@ -52,7 +52,7 @@ describe('GET /cloud/v1/me/models', () => {
         };
         const defaults = body.models.filter((m) => m.default);
         expect(defaults).toHaveLength(1);
-        expect(defaults[0]).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5' });
+        expect(defaults[0]).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5-5' });
     });
 
     it('keeps a curated (non-expanded) tier the picker shows by default', async () => {
@@ -66,7 +66,7 @@ describe('GET /cloud/v1/me/models', () => {
         // (and Fable, deliberately surfaced). Expanded models exist behind the
         // "Show all available models" toggle.
         expect(curated).toEqual(
-            expect.arrayContaining(['claude-fable-5-1', 'claude-opus-5', 'claude-sonnet-5'])
+            expect.arrayContaining(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5'])
         );
         expect(curated.length).toBeLessThanOrEqual(6);
         expect(body.models.some((m) => m.expanded)).toBe(true);

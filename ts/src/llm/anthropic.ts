@@ -33,11 +33,11 @@ const DEFAULT_MAX_TOKENS = 300;
  * allowlist, so a new release (fable-5-1, opus-5-1, ...) is served correctly
  * the day it shows up on /v1/models instead of after a code edit:
  *
- *  - always-on (Fable, Mythos): thinking can't be disabled (`{type:"disabled"}`
- *    400s), so pin `output_config.effort` to `low` - the shortest
+ *  - always-on (Fable, Mythos, Opus 5.5+): thinking can't be disabled
+ *    (`{type:"disabled"}` 400s at every effort on Opus 5.5), so pin `output_config.effort` to `low` - the shortest
  *    think-before-speak, capping both the preamble latency and thinking tokens
  *    (billed as output).
- *  - opt-out (Opus/Sonnet 5+, and Haiku 5+ by extension): omitting `thinking`
+ *  - opt-out (Opus 5.0-5.4, Sonnet/Haiku 5+): omitting `thinking`
  *    runs adaptive thinking, costing a silent delay plus output-billed thinking
  *    tokens every turn, so send an explicit disable. NO effort override
  *    alongside: Opus 5 accepts the disable only at effort `high` or lower
@@ -55,8 +55,11 @@ export type ThinkingPolicy = 'always-on' | 'opt-out' | 'none';
 export function thinkingPolicy(model: string): ThinkingPolicy {
     const m = model.toLowerCase();
     if (/^claude-(fable|mythos)-/.test(m)) return 'always-on';
-    const gen = /^claude-(opus|sonnet|haiku)-(\d+)/.exec(m);
-    if (gen && Number(gen[2]) >= 5) return 'opt-out';
+    const gen = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d)(?!\d))?/.exec(m);
+    if (!gen) return 'none';
+    const version = Number(gen[2]) + Number(gen[3] ?? 0) / 10;
+    if (gen[1] === 'opus' && version >= 5.5) return 'always-on';
+    if (version >= 5) return 'opt-out';
     return 'none';
 }
 

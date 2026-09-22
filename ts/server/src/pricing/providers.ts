@@ -115,7 +115,7 @@ const MODELS: Record<string, ModelPricing> = {
     // bills through cacheCreation1h like the others - but cache READS are
     // 0.025x input on 5.1 ($0.25/M, a quarter of Fable 5's $1), which is the
     // rate that drives $/hr here. Offered but NOT the default: it's slow
-    // (always reasons) and the priciest tier, so Opus 5 is pre-selected (see
+    // (always reasons) and the priciest tier, so Opus 5.5 is pre-selected (see
     // `default` below) and Fable is opt-in. Same tokenizer as Fable 5 (~30%
     // more tokens than 4.6 for the same text), which inflates token COUNTS,
     // not the per-token rates below, so no adjustment here.
@@ -128,18 +128,32 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 12.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 20 / M, // 1h write, 2x input
     },
-    // Opus 5 (replaced Opus 4.8 here, July 2026): a drop-in successor at
-    // IDENTICAL rates ($5/$25 per 1M, same cache multipliers), so the debit math
-    // and the shown credits/hr don't move. Swapped rather than listed alongside
-    // 4.8, as Sonnet 5 replaced Sonnet 4.6 below - two same-price Opus entries
-    // would only clutter the picker. Thinking is ON by default here, so the core
-    // AnthropicProvider sends an explicit disable (thinkingPolicy 'opt-out') to keep
-    // the voice loop prompt. Its 512-token cache minimum (half of 4.8's) makes
-    // short early turns cacheable - cheaper, never costlier.
+    // Opus 5.5 (replaced Opus 5 as the default, Sept 2026): 20% cheaper at
+    // $4/$20 per 1M with the same cache multipliers ($0.20 reads), same
+    // tokenizer. Thinking CAN'T be disabled (the disable 400s at every effort),
+    // so the core AnthropicProvider pins effort `low` like Fable
+    // (thinkingPolicy 'always-on'); the API default is `medium`.
+    'anthropic:claude-opus-5-5': {
+        provider: 'anthropic',
+        model: 'claude-opus-5-5',
+        default: true, // pre-selected default: capable, and cheaper than Fable
+        input: 4 / M,
+        output: 20 / M,
+        cacheRead: 0.2 / M,
+        cacheCreation: 5 / M, // 5m write, 1.25x input
+        cacheCreation1h: 8 / M, // 1h write, 2x input
+    },
+    // Opus 5, expanded-tier since Opus 5.5 took the default (Sept 2026), kept
+    // the way 4.8 was: ear-tested in production, and a sitter who picked it
+    // keeps it. It replaced Opus 4.8 (July 2026) at IDENTICAL rates ($5/$25
+    // per 1M, same cache multipliers). Thinking is ON by default here, so the
+    // core AnthropicProvider sends an explicit disable (thinkingPolicy
+    // 'opt-out') to keep the voice loop prompt. Its 512-token cache minimum
+    // (half of 4.8's) makes short early turns cacheable.
     'anthropic:claude-opus-5': {
         provider: 'anthropic',
         model: 'claude-opus-5',
-        default: true, // pre-selected default: capable, faster + cheaper than Fable
+        expanded: true,
         input: 5 / M,
         output: 25 / M,
         cacheRead: 0.5 / M,
