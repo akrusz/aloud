@@ -34,11 +34,11 @@ const DEFAULT_MAX_TOKENS = 300;
  * the day it shows up on /v1/models instead of after a code edit:
  *
  *  - always-on (Fable, Mythos, Opus 5.5+): thinking can't be disabled
- *    (`{type:"disabled"}` 400s at every effort on Opus 5.5), so pin `output_config.effort` to `low` - the shortest
- *    think-before-speak, capping both the preamble latency and thinking tokens
- *    (billed as output).
- *  - opt-out (Opus 5.0-5.4, Sonnet/Haiku 5+): omitting `thinking`
- *    runs adaptive thinking, costing a silent delay plus output-billed thinking
+ *    (`{type:"disabled"}` 400s at every effort on Opus 5.5), so pin
+ *    `output_config.effort` to `low` - the shortest think-before-speak, capping
+ *    both the preamble latency and thinking tokens (billed as output).
+ *  - opt-out (Opus 5.0-5.4, Sonnet/Haiku 5+): omitting `thinking` runs
+ *    adaptive thinking, costing a silent delay plus output-billed thinking
  *    tokens every turn, so send an explicit disable. NO effort override
  *    alongside: Opus 5 accepts the disable only at effort `high` or lower
  *    (omitting `output_config` leaves it at the `high` default), and

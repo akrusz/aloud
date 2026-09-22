@@ -1,9 +1,8 @@
 /**
  * Session language: which language the FACILITATION runs in (the meditator's
- * speech, the model's replies, every canned line that reaches their ears).
- * Since 2026-08-31 the UI follows it too - one language control drives both -
- * but that layer lives in `ui/src/i18n.ts` and knows nothing about this module
- * (meditation-pal-c3a0).
+ * speech, the model's replies, every canned line that reaches their ears). The
+ * same setting drives the UI, but that layer lives in `ui/src/i18n.ts` and
+ * knows nothing about this module (meditation-pal-c3a0).
  *
  * Three surfaces hang off the setting:
  *   - the system prompt gains a respond-in-Chinese fragment (prompts.ts
@@ -56,9 +55,9 @@ The hidden control tokens are the one exception: [HOLD], [NEXT], [BACK], [PASS],
 // THIS MODULE IMPORTS NOTHING, deliberately. The pool owners (prompts.ts,
 // session-timer.ts, felt-sense.ts, noting.ts) import their zh twins from here
 // and register the en→zh pairing themselves (registerZhPool, at the end of
-// each module body). An earlier version imported the en pools here to build
-// the map centrally, which closed an import cycle whose TDZ crash depended on
-// module load ORDER - fine under vitest, dead on a different entry point.
+// each module body). Importing the en pools here instead closes an import
+// cycle whose TDZ crash depends on module load ORDER - fine under vitest, dead
+// on a different entry point.
 export const ZH_EMPTY_REPLY_FALLBACKS: readonly string[] = [
     '我陪着你，继续。',
     '嗯。',

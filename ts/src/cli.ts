@@ -33,15 +33,7 @@ import {
 // Node-only, imported directly to keep node:* out of the browser barrel.
 import { ClaudeProxyProvider } from './llm/claude-proxy.js';
 
-type ProviderName =
-    | 'anthropic'
-    | 'ollama'
-    | 'openai'
-    | 'openrouter'
-    | 'venice'
-    | 'groq'
-    | 'claude_proxy';
-const VALID_PROVIDERS: readonly ProviderName[] = [
+const VALID_PROVIDERS = [
     'anthropic',
     'ollama',
     'openai',
@@ -49,7 +41,8 @@ const VALID_PROVIDERS: readonly ProviderName[] = [
     'venice',
     'groq',
     'claude_proxy',
-];
+] as const;
+type ProviderName = (typeof VALID_PROVIDERS)[number];
 
 interface CliArgs {
     provider: ProviderName;
@@ -177,32 +170,18 @@ function requireKey(name: string): string {
 
 function buildProvider(args: CliArgs): LLMProvider {
     const modelOption = args.model !== undefined ? { model: args.model } : {};
+    const keyed = (envVar: string) => ({ apiKey: requireKey(envVar), ...modelOption });
     switch (args.provider) {
         case 'anthropic':
-            return new AnthropicProvider({
-                apiKey: requireKey('ANTHROPIC_API_KEY'),
-                ...modelOption,
-            });
+            return new AnthropicProvider(keyed('ANTHROPIC_API_KEY'));
         case 'openai':
-            return new OpenAIProvider({
-                apiKey: requireKey('OPENAI_API_KEY'),
-                ...modelOption,
-            });
+            return new OpenAIProvider(keyed('OPENAI_API_KEY'));
         case 'openrouter':
-            return new OpenRouterProvider({
-                apiKey: requireKey('OPENROUTER_API_KEY'),
-                ...modelOption,
-            });
+            return new OpenRouterProvider(keyed('OPENROUTER_API_KEY'));
         case 'venice':
-            return new VeniceProvider({
-                apiKey: requireKey('VENICE_API_KEY'),
-                ...modelOption,
-            });
+            return new VeniceProvider(keyed('VENICE_API_KEY'));
         case 'groq':
-            return new GroqProvider({
-                apiKey: requireKey('GROQ_API_KEY'),
-                ...modelOption,
-            });
+            return new GroqProvider(keyed('GROQ_API_KEY'));
         case 'ollama':
             return new OllamaProvider(modelOption);
         case 'claude_proxy':
