@@ -70,6 +70,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
+ "libc",
  "log",
  "piper-rs",
  "rand",
@@ -90,6 +91,7 @@ dependencies = [
  "ureq",
  "which 8.0.6",
  "whisper-rs",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

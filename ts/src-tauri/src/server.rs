@@ -383,6 +383,7 @@ fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
 }
 
 fn open_whisper(path: &Path) -> Result<WhisperContext, String> {
+    let _busy = crate::crash::busy(crate::crash::Phase::WhisperLoad);
     let model_path = path.to_str().ok_or("model path not UTF-8")?;
     WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
         .map_err(|e| format!("load model: {e}"))
@@ -568,6 +569,11 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
             "version": sysinfo::System::long_os_version(),
             "webview": tauri::webview_version().ok(),
         },
+        // For the bug report: the CPU and the instruction sets the native
+        // engines are built against (a missing one is an instant crash), plus
+        // the last native crash recorded by src/crash.rs.
+        "cpu": cpu_info(),
+        "last_crash": crate::crash::last_crash(),
         "has_homebrew": which::which("brew").is_ok(),
         // STT health for the bug-report diagnostics block: ready, still
         // loading (error null), or failed-and-retrying (error set), plus the
@@ -585,6 +591,32 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
             "ollama": tool("ollama"),
         },
     }))
+}
+
+fn cpu_info() -> Value {
+    use sysinfo::{CpuRefreshKind, RefreshKind, System};
+    let sys = System::new_with_specifics(RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing()));
+    #[allow(unused_mut)]
+    let mut features: Vec<&str> = Vec::new();
+    #[cfg(target_arch = "x86_64")]
+    {
+        macro_rules! probe {
+            ($($f:tt),*) => { $(if std::is_x86_feature_detected!($f) { features.push($f); })* };
+        }
+        probe!("avx", "avx2", "fma", "f16c", "bmi2", "avx512f");
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        macro_rules! probe {
+            ($($f:tt),*) => { $(if std::arch::is_aarch64_feature_detected!($f) { features.push($f); })* };
+        }
+        probe!("dotprod", "fp16", "i8mm");
+    }
+    json!({
+        "brand": sys.cpus().first().map(|c| c.brand().trim().to_string()),
+        "arch": std::env::consts::ARCH,
+        "features": features,
+    })
 }
 
 fn default_lang() -> String {
@@ -1314,6 +1346,7 @@ fn transcribe(
         ));
     }
 
+    let _busy = crate::crash::busy(crate::crash::Phase::Whisper);
     let mut wstate = ctx.create_state().map_err(|e| e.to_string())?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_language(Some(lang));

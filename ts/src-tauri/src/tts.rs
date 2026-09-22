@@ -252,6 +252,7 @@ fn synth_piper(
         *guard = None;
         guard
     });
+    let _busy = crate::crash::busy(crate::crash::Phase::Piper);
     if guard.as_ref().map_or(true, |(name, _)| name != v.model) {
         let piper = Piper::new(&onnx, &config).map_err(|e| format!("load Piper model: {e}"))?;
         *guard = Some((v.model.to_string(), piper));

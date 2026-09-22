@@ -1,3 +1,4 @@
+mod crash;
 mod llm;
 mod oauth;
 mod ollama;
@@ -143,6 +144,7 @@ pub fn run() {
       // (Whisper, Piper) cache under the app data dir; the server derives
       // per-engine subdirs from it.
       let data_dir = app.path().app_data_dir().expect("resolve app data dir");
+      crash::install(&data_dir, &app.package_info().version.to_string());
       let (port, token) = server::start(data_dir);
       // The per-launch token gates every /app/v1 request (server.rs
       // require_token). Hex-only, so splicing it into the literal is safe.

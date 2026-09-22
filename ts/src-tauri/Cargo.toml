@@ -57,6 +57,22 @@ piper-rs = "0.2"
 # Used by /api/providers to detect total system RAM for the Ollama
 # recommendation system (which model tier fits this machine).
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+# Crash breadcrumbs (src/crash.rs): unix signal handlers + dladdr. Already in
+# the tree via tauri; listed for direct use.
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# Crash breadcrumbs (src/crash.rs): unhandled-exception filter, module lookup,
+# raw file write. Same major as tauri's tree, so no new crate.
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Diagnostics_Debug",
+  "Win32_System_IO",
+  "Win32_System_Kernel",
+  "Win32_System_LibraryLoader",
+] }
 
 # Desktop-only plugins. The self-updater (the in-app "Update" button) checks a
 # signed latest.json on GitHub releases, downloads the platform bundle, verifies

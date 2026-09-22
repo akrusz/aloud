@@ -32,6 +32,33 @@ function platformLabel(): string {
     return 'Web';
 }
 
+/** A native crash recorded by the desktop shell (src-tauri crash.rs), read
+ *  back on the next launch. */
+interface LastCrash {
+    version?: string;
+    time?: number | null;
+    kind?: string;
+    at?: string;
+    during?: string[];
+}
+
+function crashLine(c: LastCrash): string {
+    const parts = [`v${c.version ?? '?'}`];
+    if (c.time) {
+        const mins = Math.max(0, Math.round((Date.now() / 1000 - c.time) / 60));
+        parts.push(
+            mins < 120
+                ? `${mins}m ago`
+                : mins < 2880
+                  ? `${Math.round(mins / 60)}h ago`
+                  : `${Math.round(mins / 1440)}d ago`
+        );
+    }
+    parts.push(`${c.kind ?? 'unknown'}${c.at ? ` at ${c.at}` : ''}`);
+    if (c.during?.length) parts.push(`during ${c.during.join('+')}`);
+    return parts.join(', ');
+}
+
 /**
  * Speech/mic health, one line per probe, each independently best-effort so a
  * hung backend or a missing API never blocks the composer. This is the block
@@ -50,6 +77,7 @@ async function sttDiagnostics(): Promise<string[]> {
         // settings unreadable - skip
     }
     let whisperReady = false;
+    let lastCrash: LastCrash | null = null;
     if (isTauri()) {
         try {
             const res = await withTimeout(
@@ -60,6 +88,8 @@ async function sttDiagnostics(): Promise<string[]> {
             const info = (await res.json()) as {
                 whisper?: { ready?: boolean; error?: string | null };
                 os?: { version?: string | null; webview?: string | null };
+                cpu?: { brand?: string | null; arch?: string; features?: string[] };
+                last_crash?: LastCrash | null;
             };
             // The real OS + webview build - the UA below can't carry either
             // (WebKit freezes its UA at "Mac OS X 10_15_7"), and ort-web
@@ -67,6 +97,16 @@ async function sttDiagnostics(): Promise<string[]> {
             if (info.os?.version) {
                 const wv = info.os.webview ? `, webview ${info.os.webview}` : '';
                 lines.push(`OS: ${info.os.version}${wv}`);
+            }
+            if (info.cpu) {
+                const { brand, arch, features = [] } = info.cpu;
+                lines.push(
+                    `CPU: ${brand || '?'} (${arch ?? '?'}: ${features.join(' ') || 'none detected'})`
+                );
+            }
+            if (info.last_crash) {
+                lastCrash = info.last_crash;
+                lines.push(`Last crash: ${crashLine(lastCrash)}`);
             }
             const w = info.whisper;
             if (w) {
@@ -83,7 +123,13 @@ async function sttDiagnostics(): Promise<string[]> {
         // but content-bad model before (d30z: transcription dead until a manual
         // delete + re-download). Half a second of silence through the real
         // endpoint proves the whole path decodes.
-        if (whisperReady) {
+        // The roundtrip runs real native inference, so on a build that crashed
+        // mid-transcription it would take the app (and this report) down again.
+        const crashedInWhisper =
+            lastCrash?.version === __APP_VERSION__ && lastCrash.during?.includes('whisper');
+        if (whisperReady && crashedInWhisper) {
+            lines.push('Whisper roundtrip: skipped (the last crash was mid-transcription)');
+        } else if (whisperReady) {
             try {
                 const t0 = performance.now();
                 const res = await withTimeout(

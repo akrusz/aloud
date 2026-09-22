@@ -55,7 +55,13 @@ force a parallel Node inference backend.
 
 Endpoints:
 
-- `/app/v1/system-info` - platform + tool availability (`which`).
+- `/app/v1/system-info` - platform + tool availability (`which`), plus bug
+  report diagnostics: CPU model + instruction sets (`cpu`) and the last native
+  crash (`last_crash`). `src-tauri/src/crash.rs` records that crash:
+  last-chance handlers write `last-crash.txt` in the app data dir, with a
+  `during` of whisper/whisper-load/piper when the crash hit one of those. A
+  Whisper crash on the current version makes the bug report skip its Whisper
+  test run, since running it would crash the app again.
 - `/app/v1/stt/whisper` - local Whisper via `whisper-rs` (whisper.cpp). The
   request's `model_size`/`lang` params pick the model file (see first-run notes
   above). Body is raw mono PCM: Int16 with `?format=i16` (what current clients
