@@ -34,12 +34,22 @@ params, gotchas. It's the one to keep open.
 | [ts-server.md](ts-server.md) | Running aloud cloud (`@aloud/server`) - the operational quick-reference. Design rationale is in `ts/server/README.md`. |
 | [x402.md](x402.md) | USDC-on-Base credit purchases. **Built, flag-gated OFF** - what remains is a live testnet round-trip plus mainnet ops. |
 
+## Engine behavior
+
+| Doc | |
+|---|---|
+| [silence-mode.md](silence-mode.md) | `[HOLD]` as a bid, the three silence classifiers, and the Jev judge in front of them. |
+| [pacing.md](pacing.md) | Check-ins (canned vs smart content, fixed vs `[WAIT]` timing) and the spoken session timer. |
+| [voice-commands.md](voice-commands.md) | Mic pre-flight, the bare "mute", and the judge-backed spoken commands. |
+| [voice-barge-in.md](voice-barge-in.md) | How interrupting the facilitator mid-sentence works. Entirely client-side; the pathway depends on the STT backend. |
+| [language.md](language.md) | English / 中文: the prompt fragment, zh pools, STT locale, and the `t()` catalog. |
+
 ## Reference
 
 | Doc | |
 |---|---|
 | [style.md](style.md) | Brand and color system. Prefer this over what's "natural" to grep - old warm/amber values still lurk. |
-| [voice-barge-in.md](voice-barge-in.md) | How interrupting the facilitator mid-sentence works. Entirely client-side; two pathways by STT backend. |
+| [zh-translation-review.md](zh-translation-review.md) | Generated (`npm run zh:review-doc`): every zh string beside its English source, for a native reviewer. Don't hand-edit. |
 
 ## Working notes
 
