@@ -26,11 +26,9 @@ import {
     MAX_CUSTOM_CREDITS,
 } from '../billing/stripe.js';
 import { x402Configured, x402Routes } from '../billing/x402.js';
+import { EMAIL_RE } from '../auth/email-key.js';
 import { log } from '../logger.js';
 import { errorJson } from '../http.js';
-
-/** Loose email shape check for gift recipients (mirrors routes/auth.ts). */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** A client-supplied post-checkout return path, sanitised to one clean relative
  *  path ending in '/'. Anything not starting with a single '/' (absolute URLs,
@@ -55,7 +53,8 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         let pack;
         if (body.credits !== undefined) {
             if (!isValidCustomCredits(body.credits)) {
-                return errorJson(c, 'bad_request', `credits must be a whole number from ${MIN_CUSTOM_CREDITS} to ${MAX_CUSTOM_CREDITS}`);
+                const range = `${MIN_CUSTOM_CREDITS} to ${MAX_CUSTOM_CREDITS}`;
+                return errorJson(c, 'bad_request', `credits must be a whole number from ${range}`);
             }
             pack = customPack(body.credits);
         } else {

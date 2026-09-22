@@ -29,13 +29,10 @@ import { bearer, forwardedIp, ipRateLimit } from '../auth/middleware.js';
 import { RateGuard } from '../quota/freetier.js';
 import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
-import { normalizeEmail } from '../auth/email-key.js';
+import { EMAIL_RE, normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 import { errorJson } from '../http.js';
 
-/** Loose shape check, enough to reject obvious garbage; real validity is proven
- *  later if/when the address is used. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
 
 /** Account id from a valid bearer token on the request, if any. Used to link a

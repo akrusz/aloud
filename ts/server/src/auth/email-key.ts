@@ -14,6 +14,10 @@
 
 import { createHash } from 'node:crypto';
 
+/** Loose email shape check, enough to reject obvious garbage; real validity is
+ *  proven later if/when the address is used. */
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 
 /** Collapse address variants that reach the same mailbox to one canonical form. */

@@ -84,7 +84,7 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // the moment STT pricing moves. Unrounded, like the model rates.
             sttCreditsPerHour: estimateStt().creditsPerHour,
             // The background-assistant leg (Haiku classifiers/summaries + the
-            // Flash Lite recap) every aloud-cloud session carries on top of the
+            // recap model) every aloud-cloud session carries on top of the
             // picked model's badge. The setup footer adds it to the composed
             // estimate; it stays off the per-model badges (nrj6).
             utilityCreditsPerHour: UTILITY_CREDITS_PER_HOUR,

@@ -23,12 +23,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Deps } from '../deps.js';
 import type { Account, Gift } from './store.js';
+import { EMAIL_RE } from '../auth/email-key.js';
 
 /** Unaccepted gifts bounce back to the buyer (as 'returned') after this long. */
 export const GIFT_EXPIRY_SECONDS = 30 * 24 * 3600; // 30 days
-
-/** Loose shape check for a re-gift target, enough to reject garbage. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function norm(email: string): string {
     return email.trim().toLowerCase();
