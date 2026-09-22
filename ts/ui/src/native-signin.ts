@@ -27,7 +27,13 @@
  */
 
 import type { SignInHandlers } from './google-signin.js';
-import { googleClientId, appleClientId, googleSignIn, appleSignIn } from './cloud-auth.js';
+import {
+    googleClientId,
+    appleClientId,
+    googleSignIn,
+    appleSignIn,
+    type AuthResponse,
+} from './cloud-auth.js';
 import { isCapacitor, capacitorPlatform } from './is-desktop.js';
 
 function googleIosClientId(): string {
@@ -147,94 +153,104 @@ export function nativeAuthErrorMessage(err: unknown, provider: string): string {
         : `${provider} sign-in failed. Try again, or use email below.`;
 }
 
-function makeButton(label: string, extraClass: string): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `btn btn-secondary ${extraClass}`;
-    btn.textContent = label;
-    return btn;
+interface NativeProvider {
+    name: 'Google' | 'Apple';
+    configured: () => boolean;
+    buttonClass: string;
+    /** The plugin flow, resolving to the OIDC ID token (null/undefined if none). */
+    login: (social: SocialLogin) => Promise<string | null | undefined>;
+    /** Trade the token for an aloud session. */
+    exchange: (idToken: string) => Promise<AuthResponse>;
+    missingToken: string;
 }
+
+const GOOGLE: NativeProvider = {
+    name: 'Google',
+    configured: isNativeGoogleConfigured,
+    buttonClass: 'signin-google-native-btn',
+    login: async (social) => {
+        // No explicit scopes: both platforms default to email/profile/openid,
+        // and passing ANY scopes on Android trips the plugin's "modify the
+        // main activity" guard (custom scopes need onActivityResult wiring in
+        // MainActivity; the defaults don't).
+        const { result } = await social.login({ provider: 'google', options: {} });
+        // Online mode returns idToken; we never hit the offline branch
+        // (serverAuthCode) because we initialize with mode:'online'.
+        return 'idToken' in result ? result.idToken : null;
+    },
+    exchange: googleSignIn,
+    missingToken: 'Google sign-in did not return an ID token.',
+};
+
+const APPLE: NativeProvider = {
+    name: 'Apple',
+    configured: isNativeAppleConfigured,
+    buttonClass: 'signin-apple-native-btn',
+    login: async (social) => {
+        const { result } = await social.login({
+            provider: 'apple',
+            options: { scopes: ['email', 'name'] },
+        });
+        return result.idToken;
+    },
+    exchange: appleSignIn,
+    missingToken: 'Apple sign-in did not return an identity token.',
+};
 
 /** Returns false without rendering when not applicable, so the caller drops the
  *  host element. */
-export async function renderNativeGoogleSignInButton(
+export function renderNativeGoogleSignInButton(
     container: HTMLElement,
     handlers: SignInHandlers
 ): Promise<boolean> {
-    if (!isNativeGoogleConfigured()) return false;
-    const btn = makeButton('Continue with Google', 'signin-google-native-btn');
-    btn.addEventListener('click', () => void runNativeGoogle(btn, handlers));
-    container.appendChild(btn);
-    return true;
-}
-
-async function runNativeGoogle(btn: HTMLButtonElement, handlers: SignInHandlers): Promise<void> {
-    const original = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Signing in…';
-    try {
-        let idToken: string | null;
-        try {
-            const SocialLogin = await ensureInit();
-            // No explicit scopes: both platforms default to email/profile/openid,
-            // and passing ANY scopes on Android trips the plugin's "modify the
-            // main activity" guard (custom scopes need onActivityResult wiring in
-            // MainActivity; the defaults don't).
-            const { result } = await SocialLogin.login({
-                provider: 'google',
-                options: {},
-            });
-            // Online mode returns idToken; we never hit the offline branch
-            // (serverAuthCode) because we initialize with mode:'online'.
-            idToken = 'idToken' in result ? result.idToken : null;
-        } catch (err) {
-            console.warn(`[native-signin] google failed: ${describeAuthError(err)}`);
-            handlers.onError?.(new Error(nativeAuthErrorMessage(err, 'Google')));
-            return;
-        }
-        if (!idToken) throw new Error('Google sign-in did not return an ID token.');
-        handlers.onSignedIn(await googleSignIn(idToken));
-    } catch (err) {
-        handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-        btn.disabled = false;
-        btn.textContent = original;
-    }
+    return renderNativeButton(GOOGLE, container, handlers);
 }
 
 /** Returns false when not applicable. Pair with Google on iOS (App Store
  *  Guideline 4.8). */
-export async function renderNativeAppleSignInButton(
+export function renderNativeAppleSignInButton(
     container: HTMLElement,
     handlers: SignInHandlers
 ): Promise<boolean> {
-    if (!isNativeAppleConfigured()) return false;
-    const btn = makeButton('Continue with Apple', 'signin-apple-native-btn');
-    btn.addEventListener('click', () => void runNativeApple(btn, handlers));
+    return renderNativeButton(APPLE, container, handlers);
+}
+
+async function renderNativeButton(
+    provider: NativeProvider,
+    container: HTMLElement,
+    handlers: SignInHandlers
+): Promise<boolean> {
+    if (!provider.configured()) return false;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-secondary ${provider.buttonClass}`;
+    btn.textContent = `Continue with ${provider.name}`;
+    btn.addEventListener('click', () => void runNativeSignIn(provider, btn, handlers));
     container.appendChild(btn);
     return true;
 }
 
-async function runNativeApple(btn: HTMLButtonElement, handlers: SignInHandlers): Promise<void> {
+async function runNativeSignIn(
+    provider: NativeProvider,
+    btn: HTMLButtonElement,
+    handlers: SignInHandlers
+): Promise<void> {
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Signing in…';
     try {
         let idToken: string | null | undefined;
         try {
-            const SocialLogin = await ensureInit();
-            const { result } = await SocialLogin.login({
-                provider: 'apple',
-                options: { scopes: ['email', 'name'] },
-            });
-            idToken = result.idToken;
+            idToken = await provider.login(await ensureInit());
         } catch (err) {
-            console.warn(`[native-signin] apple failed: ${describeAuthError(err)}`);
-            handlers.onError?.(new Error(nativeAuthErrorMessage(err, 'Apple')));
+            console.warn(
+                `[native-signin] ${provider.name.toLowerCase()} failed: ${describeAuthError(err)}`
+            );
+            handlers.onError?.(new Error(nativeAuthErrorMessage(err, provider.name)));
             return;
         }
-        if (!idToken) throw new Error('Apple sign-in did not return an identity token.');
-        handlers.onSignedIn(await appleSignIn(idToken));
+        if (!idToken) throw new Error(provider.missingToken);
+        handlers.onSignedIn(await provider.exchange(idToken));
     } catch (err) {
         handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {

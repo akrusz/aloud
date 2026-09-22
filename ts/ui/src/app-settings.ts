@@ -15,11 +15,9 @@ export type ThemeMode = 'auto' | 'dark' | 'light';
 export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenlabs';
 /** Speech-to-text source. Always an explicit pick (no hidden "automatic") so
  *  the user controls where audio goes and knows when it costs credits. A stored
- *  null means the mode's flow default: Whisper locally -> browser speech ->
- *  hosted (resolveSttChoice in adapters/stt-picker). */
-/** 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe and is the one hosted
- *  choice, labelled "aloud cloud" (see stt-picker.ts sttEngineOptions). The id
- *  keeps the model in the name because a stored pick outlives the model. */
+ *  null means the mode's flow default (resolveSttChoice in adapters/stt-picker).
+ *  'aloud-gpt-transcribe' is the one hosted choice, labelled "aloud cloud"; the
+ *  id keeps the model in the name because a stored pick outlives the model. */
 export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud-gpt-transcribe' | 'capacitor';
 
 /** When the facilitator checks in during silence: never, after a fixed
@@ -185,15 +183,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
 /**
  * Session languages on offer. Single source of truth: the Settings dropdown
- * renders these and `detectLocale()` validates against them. There is no
- * per-session pick - setup's selector was removed 2026-08-31.
+ * renders these and `detectLocale()` validates against them.
  *
  * Deliberately just the languages the app actually FACILITATES in (canned
- * pools, prompt fragment, mute command - src/facilitation/language.ts). The
- * pre-c3a0 list offered ~30 recognizer languages, which half-worked: STT heard
- * you and the model usually mirrored you, but every canned line stayed English.
- * The STT plumbing still accepts any 2-letter code, so restoring a language is
- * one row here plus its facilitation strings (the old list is in git history).
+ * pools, prompt fragment, mute command - src/facilitation/language.ts). A
+ * recognizer-only language half-works: STT hears you and the model usually
+ * mirrors you, but every canned line stays English. The STT plumbing accepts
+ * any 2-letter code, so adding a language is one row here plus its
+ * facilitation strings.
  */
 export const LANGUAGES: ReadonlyArray<[string, string]> = [
     ['en', 'English'],
