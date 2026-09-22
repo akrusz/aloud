@@ -6,7 +6,6 @@
  */
 
 import { Hono } from 'hono';
-import { ERROR_STATUS, apiError } from '../contract.js';
 import type { GiftView, ReturnedGiftView, RegiftRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
@@ -19,6 +18,7 @@ import {
     pendingGiftsForAccount,
 } from '../credits/gifts.js';
 import { log } from '../logger.js';
+import { errorJson } from '../http.js';
 
 export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -47,7 +47,7 @@ export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!result.ok) {
             // Already-resolved or not-yours get the same error, so neither leaks
             // which; the client just refreshes its gift list.
-            return c.json(apiError('bad_request', 'gift is no longer available'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'gift is no longer available');
         }
         log.info('gift accepted', { accountId: account.id, credits: result.credits });
         return c.json({ creditsRemaining: await deps.ledger.balance(account.id) });
@@ -56,9 +56,7 @@ export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     app.post('/:id/decline', requireAuth(deps), async (c) => {
         const account = c.get('account');
         const result = await declineGift(deps, account, c.req.param('id'), Date.now() / 1000);
-        if (!result.ok) {
-            return c.json(apiError('bad_request', 'gift is no longer available'), ERROR_STATUS.bad_request);
-        }
+        if (!result.ok) return errorJson(c, 'bad_request', 'gift is no longer available');
         log.info('gift declined', { accountId: account.id });
         return c.json({ ok: true });
     });
@@ -92,7 +90,7 @@ export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 result.reason === 'bad_email'
                     ? 'enter a valid email address'
                     : 'gift is no longer available';
-            return c.json(apiError('bad_request', msg), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', msg);
         }
         log.info('gift re-gifted', { accountId: account.id, credits: result.credits });
         return c.json({ ok: true });
@@ -102,9 +100,7 @@ export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     app.post('/:id/claim', requireAuth(deps), async (c) => {
         const account = c.get('account');
         const result = await claimReturned(deps, account, c.req.param('id'), Date.now() / 1000);
-        if (!result.ok) {
-            return c.json(apiError('bad_request', 'gift is no longer available'), ERROR_STATUS.bad_request);
-        }
+        if (!result.ok) return errorJson(c, 'bad_request', 'gift is no longer available');
         log.info('gift claimed to balance', { accountId: account.id, credits: result.credits });
         return c.json({ creditsRemaining: await deps.ledger.balance(account.id) });
     });

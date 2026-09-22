@@ -5,7 +5,6 @@
  */
 
 import { Hono } from 'hono';
-import { ERROR_STATUS, apiError } from '../contract.js';
 import type { UpdateMeRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
@@ -31,6 +30,7 @@ import {
     UTILITY_CREDITS_PER_HOUR,
     estimateVoices,
 } from '../pricing/estimate.js';
+import { errorJson } from '../http.js';
 
 export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -50,9 +50,7 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     // sold). Returns the refreshed account view.
     app.patch('/', requireAuth(deps), async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as UpdateMeRequest;
-        if (typeof body.emailUpdates !== 'boolean') {
-            return c.json(apiError('bad_request', 'nothing to update'), ERROR_STATUS.bad_request);
-        }
+        if (typeof body.emailUpdates !== 'boolean') return errorJson(c, 'bad_request', 'nothing to update');
         const account = c.get('account');
         await deps.store.setAccountEmailUpdates(account.id, body.emailUpdates);
         return c.json(await buildAccountView(deps, { ...account, emailUpdates: body.emailUpdates }));

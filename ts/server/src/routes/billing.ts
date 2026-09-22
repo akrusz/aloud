@@ -9,12 +9,7 @@
 
 import { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
-import {
-    ERROR_STATUS,
-    apiError,
-    type CheckoutRequest,
-    type CheckoutResponse,
-} from '../contract.js';
+import type { CheckoutRequest, CheckoutResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
@@ -32,6 +27,7 @@ import {
 } from '../billing/stripe.js';
 import { x402Configured, x402Routes } from '../billing/x402.js';
 import { log } from '../logger.js';
+import { errorJson } from '../http.js';
 
 /** Loose email shape check for gift recipients (mirrors routes/auth.ts). */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -52,32 +48,25 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     app.post('/checkout', requireAuth(deps), async (c) => {
         const secret = deps.config.stripeSecretKey;
-        if (!secret) {
-            return c.json(apiError('internal', 'billing not configured on this server'), ERROR_STATUS.internal);
-        }
+        if (!secret) return errorJson(c, 'internal', 'billing not configured on this server');
         const account = c.get('account');
         const body = (await c.req.json().catch(() => ({}))) as Partial<CheckoutRequest>;
         // A custom amount (server-priced) takes precedence over a preset pack id.
         let pack;
         if (body.credits !== undefined) {
             if (!isValidCustomCredits(body.credits)) {
-                return c.json(
-                    apiError('bad_request', `credits must be a whole number from ${MIN_CUSTOM_CREDITS} to ${MAX_CUSTOM_CREDITS}`),
-                    ERROR_STATUS.bad_request
-                );
+                return errorJson(c, 'bad_request', `credits must be a whole number from ${MIN_CUSTOM_CREDITS} to ${MAX_CUSTOM_CREDITS}`);
             }
             pack = customPack(body.credits);
         } else {
             pack = body.packId ? packById(body.packId) : undefined;
-            if (!pack) {
-                return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
-            }
+            if (!pack) return errorJson(c, 'bad_request', 'unknown packId');
         }
         // Validate the gift recipient now so a typo fails at checkout rather than
         // minting an undeliverable gift after payment.
         const giftToEmail = body.giftToEmail ? body.giftToEmail.trim().toLowerCase() : '';
         if (giftToEmail && !EMAIL_RE.test(giftToEmail)) {
-            return c.json(apiError('bad_request', 'gift recipient email is not valid'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'gift recipient email is not valid');
         }
         const origin = deps.config.corsOrigins[0] ?? '';
         // Where Stripe returns the user. The client passes its own app path (e.g.
@@ -100,19 +89,19 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json({ checkoutUrl: url } satisfies CheckoutResponse);
         } catch (err) {
             log.error('checkout failed', { err: String(err) });
-            return c.json(apiError('internal', 'could not start checkout'), ERROR_STATUS.internal);
+            return errorJson(c, 'internal', 'could not start checkout');
         }
     });
 
     // Stripe calls this: no user auth, trust comes from signature verification.
     app.post('/webhook', async (c) => {
         const secret = deps.config.stripeWebhookSecret;
-        if (!secret) return c.json(apiError('internal', 'webhook not configured'), ERROR_STATUS.internal);
+        if (!secret) return errorJson(c, 'internal', 'webhook not configured');
 
         const sig = c.req.header('stripe-signature');
         const payload = await c.req.text();
         if (!sig || !verifyStripeSignature(payload, sig, secret)) {
-            return c.json(apiError('unauthenticated', 'bad signature'), ERROR_STATUS.unauthenticated);
+            return errorJson(c, 'unauthenticated', 'bad signature');
         }
 
         const event = JSON.parse(payload) as unknown;
@@ -200,7 +189,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         app.route('/x402', x402Routes(deps, x402));
     } else {
         app.post('/x402/buy/:packId', (c) =>
-            c.json(apiError('internal', 'x402 billing not configured on this server'), ERROR_STATUS.internal)
+            errorJson(c, 'internal', 'x402 billing not configured on this server')
         );
     }
 

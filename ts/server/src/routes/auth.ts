@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { ERROR_STATUS, apiError } from '../contract.js';
+import { apiError } from '../contract.js';
 import type {
     AppleAuthRequest,
     AuthResponse,
@@ -31,6 +31,7 @@ import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
+import { errorJson } from '../http.js';
 
 /** Loose shape check, enough to reject obvious garbage; real validity is proven
  *  later if/when the address is used. */
@@ -75,10 +76,10 @@ async function finishFederatedSignIn(
         return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
     } catch (err) {
         if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
-            return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', err.message);
         }
         log.error(`${provider} connect failed`, { err: String(err) });
-        return c.json(apiError('internal', 'could not complete sign-in'), ERROR_STATUS.internal);
+        return errorJson(c, 'internal', 'could not complete sign-in');
     }
 }
 
@@ -94,16 +95,14 @@ export function authRoutes(deps: Deps): Hono {
 
     app.post('/google', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<GoogleAuthRequest>;
-        if (!body.idToken) {
-            return c.json(apiError('bad_request', 'idToken required'), ERROR_STATUS.bad_request);
-        }
+        if (!body.idToken) return errorJson(c, 'bad_request', 'idToken required');
 
         let identity;
         try {
             identity = await verifyGoogleIdToken(body.idToken, deps.config.googleClientIds);
         } catch (err) {
             log.warn('google verify failed', { err: String(err) });
-            return c.json(apiError('unauthenticated', 'invalid Google sign-in'), ERROR_STATUS.unauthenticated);
+            return errorJson(c, 'unauthenticated', 'invalid Google sign-in');
         }
         return finishFederatedSignIn(c, deps, 'google', identity);
     });
@@ -114,17 +113,11 @@ export function authRoutes(deps: Deps): Hono {
     app.post('/google/desktop', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<GoogleDesktopAuthRequest>;
         if (!body.code || !body.codeVerifier || !body.redirectUri) {
-            return c.json(
-                apiError('bad_request', 'code, codeVerifier, redirectUri required'),
-                ERROR_STATUS.bad_request
-            );
+            return errorJson(c, 'bad_request', 'code, codeVerifier, redirectUri required');
         }
         const { googleDesktopClientId, googleDesktopClientSecret } = deps.config;
         if (!googleDesktopClientId || !googleDesktopClientSecret) {
-            return c.json(
-                apiError('internal', 'desktop Google sign-in is not configured'),
-                ERROR_STATUS.internal
-            );
+            return errorJson(c, 'internal', 'desktop Google sign-in is not configured');
         }
         let identity;
         try {
@@ -138,23 +131,21 @@ export function authRoutes(deps: Deps): Hono {
             identity = await verifyGoogleIdToken(idToken, deps.config.googleClientIds);
         } catch (err) {
             log.warn('google desktop verify failed', { err: String(err) });
-            return c.json(apiError('unauthenticated', 'invalid Google sign-in'), ERROR_STATUS.unauthenticated);
+            return errorJson(c, 'unauthenticated', 'invalid Google sign-in');
         }
         return finishFederatedSignIn(c, deps, 'google', identity);
     });
 
     app.post('/apple', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<AppleAuthRequest>;
-        if (!body.idToken) {
-            return c.json(apiError('bad_request', 'idToken required'), ERROR_STATUS.bad_request);
-        }
+        if (!body.idToken) return errorJson(c, 'bad_request', 'idToken required');
 
         let identity;
         try {
             identity = await verifyAppleIdToken(body.idToken, deps.config.appleClientIds);
         } catch (err) {
             log.warn('apple verify failed', { err: String(err) });
-            return c.json(apiError('unauthenticated', 'invalid Apple sign-in'), ERROR_STATUS.unauthenticated);
+            return errorJson(c, 'unauthenticated', 'invalid Apple sign-in');
         }
         return finishFederatedSignIn(c, deps, 'apple', identity);
     });
@@ -165,14 +156,9 @@ export function authRoutes(deps: Deps): Hono {
         const body = (await c.req.json().catch(() => ({}))) as Partial<EmailAuthRequest>;
         const email = (body.email ?? '').trim().toLowerCase();
         const password = body.password ?? '';
-        if (!EMAIL_RE.test(email)) {
-            return c.json(apiError('bad_request', 'a valid email is required'), ERROR_STATUS.bad_request);
-        }
+        if (!EMAIL_RE.test(email)) return errorJson(c, 'bad_request', 'a valid email is required');
         if (password.length < MIN_PASSWORD_LEN) {
-            return c.json(
-                apiError('bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`),
-                ERROR_STATUS.bad_request
-            );
+            return errorJson(c, 'bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`);
         }
         // The canonical mailbox is the identity key, so j.o.h.n+x@gmail.com and
         // john@gmail.com are one password identity (sign up once, log in with any
@@ -184,10 +170,7 @@ export function authRoutes(deps: Deps): Hono {
             (await deps.store.getIdentity('email', canonicalSub)) ||
             (await deps.store.findLiveAccountByEmail(email))
         ) {
-            return c.json(
-                apiError('bad_request', 'an account with this email already exists - try signing in'),
-                ERROR_STATUS.bad_request
-            );
+            return errorJson(c, 'bad_request', 'an account with this email already exists - try signing in');
         }
 
         const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
@@ -208,7 +191,7 @@ export function authRoutes(deps: Deps): Hono {
             return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
         } catch (err) {
             log.error('email signup failed', { err: String(err) });
-            return c.json(apiError('internal', 'could not create the account'), ERROR_STATUS.internal);
+            return errorJson(c, 'internal', 'could not create the account');
         }
     });
 
@@ -219,7 +202,7 @@ export function authRoutes(deps: Deps): Hono {
         // One generic message for both "no such email" and "wrong password", so
         // the endpoint doesn't confirm which emails are registered.
         const reject = () =>
-            c.json(apiError('unauthenticated', 'incorrect email or password'), ERROR_STATUS.unauthenticated);
+            errorJson(c, 'unauthenticated', 'incorrect email or password');
 
         // Match the canonical mailbox used at signup, so any dot/+tag variant
         // logs into the one password identity.
@@ -239,30 +222,21 @@ export function authRoutes(deps: Deps): Hono {
     // mailbox or mint free credits. Under the same /email/* IP rate limit.
     app.post('/email/set-password', async (c) => {
         const accountId = await callerAccountId(c, deps);
-        if (!accountId) {
-            return c.json(apiError('unauthenticated', 'sign in first'), ERROR_STATUS.unauthenticated);
-        }
+        if (!accountId) return errorJson(c, 'unauthenticated', 'sign in first');
         const account = await deps.store.getAccountById(accountId);
-        if (!account || account.deletedAt != null) {
-            return c.json(apiError('unauthenticated', 'sign in first'), ERROR_STATUS.unauthenticated);
-        }
+        if (!account || account.deletedAt != null) return errorJson(c, 'unauthenticated', 'sign in first');
         const body = (await c.req.json().catch(() => ({}))) as Partial<SetPasswordRequest>;
         const password = body.password ?? '';
         if (password.length < MIN_PASSWORD_LEN) {
-            return c.json(
-                apiError('bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`),
-                ERROR_STATUS.bad_request
-            );
+            return errorJson(c, 'bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`);
         }
         try {
             await setAccountPassword(deps, account, await hashPassword(password));
             return c.json(await issueAuthResponse(deps, account, false));
         } catch (err) {
-            if (err instanceof IdentityConflictError) {
-                return c.json(apiError('bad_request', err.message), ERROR_STATUS.bad_request);
-            }
+            if (err instanceof IdentityConflictError) return errorJson(c, 'bad_request', err.message);
             log.error('set-password failed', { err: String(err) });
-            return c.json(apiError('internal', 'could not set the password'), ERROR_STATUS.internal);
+            return errorJson(c, 'internal', 'could not set the password');
         }
     });
 

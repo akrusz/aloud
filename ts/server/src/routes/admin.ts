@@ -20,7 +20,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { LedgerEntry } from '../credits/store.js';
 import { buildMetrics, buildDailyRevenue } from '../admin/metrics.js';
@@ -32,6 +31,7 @@ import { renderAdminPanel } from '../admin/panel.js';
 import { ADMIN_MAX_TOKEN_AGE_SECONDS, verifySessionToken } from '../auth/session.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 import type { UsageEvent } from '../credits/usage.js';
+import { errorJson } from '../http.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
     if (!provided) return false;
@@ -74,7 +74,7 @@ async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
             return null;
         }
     }
-    return c.json(apiError('unauthenticated', 'admin access required'), ERROR_STATUS.unauthenticated);
+    return errorJson(c, 'unauthenticated', 'admin access required');
 }
 
 /** Account ids on the ALOUD_ADMIN_EMAILS allowlist, for the excludeAdmin
@@ -296,7 +296,7 @@ export function adminRoutes(deps: Deps): Hono {
         if (fail) return fail;
 
         const account = await deps.store.getAccountById(c.req.param('id'));
-        if (!account) return c.json(apiError('bad_request', 'no such account'), ERROR_STATUS.bad_request);
+        if (!account) return errorJson(c, 'bad_request', 'no such account');
         const entries = await deps.store.listEntries(account.id);
         const balance = entries.reduce((s, e) => s + e.amount, 0);
         const identities = await deps.store.getIdentitiesForAccount(account.id);
@@ -313,10 +313,8 @@ export function adminRoutes(deps: Deps): Hono {
         if (fail) return fail;
 
         const account = await deps.store.getAccountById(c.req.param('id'));
-        if (!account) return c.json(apiError('bad_request', 'no such account'), ERROR_STATUS.bad_request);
-        if (account.deletedAt != null) {
-            return c.json(apiError('bad_request', 'account is already deleted'), ERROR_STATUS.bad_request);
-        }
+        if (!account) return errorJson(c, 'bad_request', 'no such account');
+        if (account.deletedAt != null) return errorJson(c, 'bad_request', 'account is already deleted');
         await deleteAccount(deps, account);
         return c.json({ id: account.id, deleted: true });
     });
@@ -343,7 +341,7 @@ export function adminRoutes(deps: Deps): Hono {
         try {
             body = (await c.req.json()) as typeof body;
         } catch {
-            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'invalid JSON body');
         }
 
         const patch: ConfigPatch = {};
@@ -353,22 +351,19 @@ export function adminRoutes(deps: Deps): Hono {
             // Non-negative integers only: these are whole-credit knobs, and a
             // stray float/negative shouldn't silently corrupt the grant budget.
             if (!Number.isInteger(n) || n < 0) {
-                return c.json(
-                    apiError('bad_request', `${key} must be a non-negative integer`),
-                    ERROR_STATUS.bad_request
-                );
+                return errorJson(c, 'bad_request', `${key} must be a non-negative integer`);
             }
             patch[key] = n;
         }
         if (body.meteredPaused !== undefined) {
             if (typeof body.meteredPaused !== 'boolean') {
-                return c.json(apiError('bad_request', 'meteredPaused must be a boolean'), ERROR_STATUS.bad_request);
+                return errorJson(c, 'bad_request', 'meteredPaused must be a boolean');
             }
             patch.meteredPaused = body.meteredPaused;
         }
         if (body.testerEmails !== undefined) {
             if (!Array.isArray(body.testerEmails) || body.testerEmails.some((e) => typeof e !== 'string')) {
-                return c.json(apiError('bad_request', 'testerEmails must be an array of strings'), ERROR_STATUS.bad_request);
+                return errorJson(c, 'bad_request', 'testerEmails must be an array of strings');
             }
             patch.testerEmails = body.testerEmails as string[];
         }
@@ -388,21 +383,19 @@ export function adminRoutes(deps: Deps): Hono {
         try {
             body = (await c.req.json()) as typeof body;
         } catch {
-            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'invalid JSON body');
         }
         const email = typeof body.email === 'string' ? body.email.trim() : '';
         const credits = Number(body.credits);
-        if (!email) return c.json(apiError('bad_request', 'email is required'), ERROR_STATUS.bad_request);
+        if (!email) return errorJson(c, 'bad_request', 'email is required');
         if (!Number.isFinite(credits) || credits <= 0) {
-            return c.json(apiError('bad_request', 'credits must be a positive number'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'credits must be a positive number');
         }
 
         // Canonicalizing lookup (case, +tag, Gmail dots): the operator pastes
         // whatever spelling the user wrote, which may not match the stored one.
         const account = await deps.store.findLiveAccountByEmail(email);
-        if (!account) {
-            return c.json(apiError('bad_request', `no account with email ${email}`), ERROR_STATUS.bad_request);
-        }
+        if (!account) return errorJson(c, 'bad_request', `no account with email ${email}`);
 
         await deps.ledger.grant(account.id, credits, 'admin_grant');
         const balance = await deps.ledger.balance(account.id);
@@ -493,23 +486,21 @@ export function adminRoutes(deps: Deps): Hono {
         try {
             body = (await c.req.json()) as typeof body;
         } catch {
-            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'invalid JSON body');
         }
         const label = typeof body.label === 'string' ? body.label.trim() : '';
         const startsAt = parseTs(body.startsAt);
         const endsAt = parseTs(body.endsAt);
-        if (!label) return c.json(apiError('bad_request', 'label is required'), ERROR_STATUS.bad_request);
+        if (!label) return errorJson(c, 'bad_request', 'label is required');
         if (startsAt === null || endsAt === null) {
-            return c.json(apiError('bad_request', 'startsAt and endsAt must be valid dates'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'startsAt and endsAt must be valid dates');
         }
-        if (endsAt <= startsAt) {
-            return c.json(apiError('bad_request', 'endsAt must be after startsAt'), ERROR_STATUS.bad_request);
-        }
+        if (endsAt <= startsAt) return errorJson(c, 'bad_request', 'endsAt must be after startsAt');
         let cap: number | null = null;
         if (body.perAttendeeDailyCap !== undefined && body.perAttendeeDailyCap !== null) {
             const n = Number(body.perAttendeeDailyCap);
             if (!Number.isFinite(n) || n <= 0) {
-                return c.json(apiError('bad_request', 'perAttendeeDailyCap must be a positive number or null'), ERROR_STATUS.bad_request);
+                return errorJson(c, 'bad_request', 'perAttendeeDailyCap must be a positive number or null');
             }
             cap = n;
         }
@@ -535,16 +526,16 @@ export function adminRoutes(deps: Deps): Hono {
         if (fail) return fail;
 
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
-        if (!pass) return c.json(apiError('bad_request', 'no such pass'), ERROR_STATUS.bad_request);
+        if (!pass) return errorJson(c, 'bad_request', 'no such pass');
 
         let body: { email?: unknown };
         try {
             body = (await c.req.json()) as typeof body;
         } catch {
-            return c.json(apiError('bad_request', 'invalid JSON body'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'invalid JSON body');
         }
         const email = typeof body.email === 'string' ? body.email.trim() : '';
-        if (!email) return c.json(apiError('bad_request', 'email is required'), ERROR_STATUS.bad_request);
+        if (!email) return errorJson(c, 'bad_request', 'email is required');
 
         const account = await deps.store.findLiveAccountByEmail(email);
         const now = Date.now() / 1000;
@@ -563,7 +554,7 @@ export function adminRoutes(deps: Deps): Hono {
         if (fail) return fail;
 
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
-        if (!pass) return c.json(apiError('bad_request', 'no such pass'), ERROR_STATUS.bad_request);
+        if (!pass) return errorJson(c, 'bad_request', 'no such pass');
         await deps.store.revokeRetreatPass(pass.id);
         return c.json({ id: pass.id, status: 'revoked' });
     });
@@ -577,14 +568,9 @@ export function adminRoutes(deps: Deps): Hono {
         if (fail) return fail;
 
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
-        if (!pass) return c.json(apiError('bad_request', 'no such pass'), ERROR_STATUS.bad_request);
+        if (!pass) return errorJson(c, 'bad_request', 'no such pass');
         const inert = pass.status === 'revoked' || pass.endsAt < Date.now() / 1000;
-        if (!inert) {
-            return c.json(
-                apiError('bad_request', 'revoke the pass (or wait for it to end) before deleting'),
-                ERROR_STATUS.bad_request
-            );
-        }
+        if (!inert) return errorJson(c, 'bad_request', 'revoke the pass (or wait for it to end) before deleting');
         await deps.store.deleteRetreatPass(pass.id);
         return c.json({ id: pass.id, status: 'deleted' });
     });

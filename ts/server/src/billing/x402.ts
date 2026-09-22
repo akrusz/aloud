@@ -20,12 +20,13 @@
  */
 
 import { Hono } from 'hono';
-import { apiError, ERROR_STATUS } from '../contract.js';
+import { ERROR_STATUS } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { CREDIT_PACKS, packById, type CreditPack } from './stripe.js';
 import { log } from '../logger.js';
+import { errorJson } from '../http.js';
 
 /** The two Base networks we support. Mirrors config.x402Network. */
 export type X402Network = 'base' | 'base-sepolia';
@@ -195,29 +196,21 @@ export function x402Routes(deps: Deps, settings: X402Settings): Hono<{ Variables
 
     app.post('/buy/:packId', requireAuth(deps), async (c) => {
         const pack = packById(c.req.param('packId'));
-        if (!pack) {
-            return c.json(apiError('bad_request', 'unknown packId'), ERROR_STATUS.bad_request);
-        }
+        if (!pack) return errorJson(c, 'bad_request', 'unknown packId');
         const requirements = paymentRequirements(pack, settings, `${BUY_BASE}/${pack.id}`);
+        const paymentRequired = (error: string) =>
+            c.json({ x402Version: X402_VERSION, accepts: [requirements], error }, ERROR_STATUS.insufficient_credits);
 
         // No payment yet: advertise requirements (HTTP 402). An x402 client
         // signs against this and retries with an X-PAYMENT header.
         const header = c.req.header('X-PAYMENT');
-        if (!header) {
-            return c.json(
-                { x402Version: X402_VERSION, accepts: [requirements], error: 'X-PAYMENT header is required' },
-                ERROR_STATUS.insufficient_credits
-            );
-        }
+        if (!header) return paymentRequired('X-PAYMENT header is required');
 
         let paymentPayload: unknown;
         try {
             paymentPayload = decodePaymentHeader(header);
         } catch {
-            return c.json(
-                { x402Version: X402_VERSION, accepts: [requirements], error: 'invalid X-PAYMENT header' },
-                ERROR_STATUS.insufficient_credits
-            );
+            return paymentRequired('invalid X-PAYMENT header');
         }
 
         // 1) Verify the signed authorization (no chain write yet).
@@ -226,14 +219,9 @@ export function x402Routes(deps: Deps, settings: X402Settings): Hono<{ Variables
             verify = (await facilitatorPost(settings, 'verify', paymentPayload, requirements)) as VerifyResponse;
         } catch (err) {
             log.error('x402 verify failed', { err: String(err), packId: pack.id });
-            return c.json(apiError('provider_error', 'payment verification failed'), ERROR_STATUS.provider_error);
+            return errorJson(c, 'provider_error', 'payment verification failed');
         }
-        if (!verify.isValid) {
-            return c.json(
-                { x402Version: X402_VERSION, accepts: [requirements], error: verify.invalidReason ?? 'payment invalid' },
-                ERROR_STATUS.insufficient_credits
-            );
-        }
+        if (!verify.isValid) return paymentRequired(verify.invalidReason ?? 'payment invalid');
 
         // 2) Settle (facilitator submits the EIP-3009 transfer on-chain).
         let settle: SettleResponse;
@@ -241,14 +229,9 @@ export function x402Routes(deps: Deps, settings: X402Settings): Hono<{ Variables
             settle = (await facilitatorPost(settings, 'settle', paymentPayload, requirements)) as SettleResponse;
         } catch (err) {
             log.error('x402 settle failed', { err: String(err), packId: pack.id });
-            return c.json(apiError('provider_error', 'payment settlement failed'), ERROR_STATUS.provider_error);
+            return errorJson(c, 'provider_error', 'payment settlement failed');
         }
-        if (!settle.success) {
-            return c.json(
-                { x402Version: X402_VERSION, accepts: [requirements], error: settle.errorReason ?? 'settlement failed' },
-                ERROR_STATUS.insufficient_credits
-            );
-        }
+        if (!settle.success) return paymentRequired(settle.errorReason ?? 'settlement failed');
 
         // 3) Settled → credit, idempotent on the tx hash.
         const account = c.get('account');

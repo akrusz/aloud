@@ -10,11 +10,11 @@
  */
 
 import { Hono } from 'hono';
-import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isClientIncidentKind, recordIncident } from '../credits/incidents.js';
+import { errorJson, tooManyRequests } from '../http.js';
 
 export interface ClientIncidentRequest {
     kind: string;
@@ -35,13 +35,9 @@ export function incidentRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     app.post('/', requireAuth(deps), async (c) => {
         const account = c.get('account');
-        if (!deps.rateGuard.allow(account.id)) {
-            return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
-        }
+        if (!deps.rateGuard.allow(account.id)) return tooManyRequests(c);
         const body = (await c.req.json().catch(() => ({}))) as Partial<ClientIncidentRequest>;
-        if (!isClientIncidentKind(body.kind)) {
-            return c.json(apiError('bad_request', 'unknown incident kind'), ERROR_STATUS.bad_request);
-        }
+        if (!isClientIncidentKind(body.kind)) return errorJson(c, 'bad_request', 'unknown incident kind');
         await recordIncident(deps.store, {
             accountId: account.id,
             kind: body.kind,

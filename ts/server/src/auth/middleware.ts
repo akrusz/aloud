@@ -4,11 +4,11 @@
  */
 
 import type { Context, MiddlewareHandler, Next } from 'hono';
-import { ERROR_STATUS, apiError } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { RateGuard } from '../quota/freetier.js';
 import { REFRESH_AFTER_SECONDS, issueSessionToken, verifySessionToken } from './session.js';
 import type { Account } from '../credits/store.js';
+import { errorJson, tooManyRequests } from '../http.js';
 
 /** Context variables set by the middleware. */
 export interface AuthVars {
@@ -40,9 +40,7 @@ export function clientIp(c: Context): string {
  *  refusal shape as the per-account guard so clients handle both identically. */
 export function ipRateLimit(guard: RateGuard): MiddlewareHandler {
     return async (c: Context, next: Next) => {
-        if (!guard.allow(clientIp(c))) {
-            return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
-        }
+        if (!guard.allow(clientIp(c))) return tooManyRequests(c);
         await next();
     };
 }
@@ -55,9 +53,7 @@ export function requireAuth(deps: Deps): MiddlewareHandler {
         // A soft-deleted account keeps its row for ledger FKs but must not
         // authenticate: treat its still-valid-signature token as signed out
         // (meditation-pal-8jc).
-        if (!account || account.deletedAt != null) {
-            return c.json(apiError('unauthenticated', 'sign in required'), ERROR_STATUS.unauthenticated);
-        }
+        if (!account || account.deletedAt != null) return errorJson(c, 'unauthenticated', 'sign in required');
         // Sliding session: a day-old token gets a fresh 90-day one in a response
         // header, adopted client-side (cloud-auth.ts fetchMe), so weekly users
         // never see a re-sign-in. Set BEFORE next(): the LLM proxy streams its
