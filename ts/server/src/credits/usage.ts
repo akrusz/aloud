@@ -60,13 +60,12 @@ export interface UsageEvent {
     credits: number;
 }
 
-/** Fields a call site supplies; id/ts/sessionId/passId default here, and
- *  cacheCreation1h defaults to 0 so non-LLM legs don't have to pass it. */
-export type UsageInput = Omit<
-    UsageEvent,
-    'id' | 'ts' | 'sessionId' | 'passId' | 'cacheCreation1h'
-> &
-    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId' | 'cacheCreation1h'>>;
+/** Raw counts, each 0 unless the call site's leg has it. */
+type UsageCounts = 'tokensIn' | 'tokensOut' | 'cacheRead' | 'cacheCreation' | 'cacheCreation1h' | 'seconds' | 'chars';
+
+/** Fields a call site supplies; id/ts/sessionId/passId and the counts default here. */
+export type UsageInput = Omit<UsageEvent, 'id' | 'ts' | 'sessionId' | 'passId' | UsageCounts> &
+    Partial<Pick<UsageEvent, 'sessionId' | 'ts' | 'passId' | UsageCounts>>;
 
 /** Record one metered call. Best-effort: never throws into the request path, so
  *  a telemetry write can't cost a user their (already-charged) turn. */
@@ -83,13 +82,13 @@ export async function recordUsage(
         kind: input.kind,
         provider: input.provider,
         model: input.model,
-        tokensIn: input.tokensIn,
-        tokensOut: input.tokensOut,
-        cacheRead: input.cacheRead,
-        cacheCreation: input.cacheCreation,
+        tokensIn: input.tokensIn ?? 0,
+        tokensOut: input.tokensOut ?? 0,
+        cacheRead: input.cacheRead ?? 0,
+        cacheCreation: input.cacheCreation ?? 0,
         cacheCreation1h: input.cacheCreation1h ?? 0,
-        seconds: input.seconds,
-        chars: input.chars,
+        seconds: input.seconds ?? 0,
+        chars: input.chars ?? 0,
         providerCostUsd: input.providerCostUsd,
         credits: input.credits,
     };

@@ -2,9 +2,9 @@
  * POST /v1/tts, metered text-to-speech. Takes JSON { text, voice?, rate? },
  * synthesizes via the resolved voice's provider (Google, OpenAI, or Azure),
  * debits fractional credits by billed character count, returns MP3 bytes
- * (audio/mpeg). Cost
- * rides in X-Credits-Charged / X-Credits-Remaining so the body stays a clean
- * audio stream the client hands straight to an <audio> element.
+ * (audio/mpeg). Cost rides in X-Credits-Charged / X-Credits-Remaining so the
+ * body stays a clean audio stream the client hands straight to an <audio>
+ * element.
  *
  * POST (not GET) keeps the meditation text out of URL query strings, which
  * intermediaries/access logs could capture; the body is never logged
@@ -12,14 +12,13 @@
  */
 
 import { Hono } from 'hono';
-import { ERROR_STATUS, MAX_TTS_CHARS, apiError, type SpeakRequest } from '../contract.js';
+import { MAX_TTS_CHARS, type SpeakRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
-import { recordUsage } from '../credits/usage.js';
-import { recordIncident } from '../credits/incidents.js';
-import { activeRetreatCoverage } from '../credits/retreat.js';
+import { serverIncidents } from '../credits/incidents.js';
+import { chargeUpfront, gateUpfront } from './upfront-charge.js';
 import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
 import { withLeadSilence } from '../providers/mp3-lead-silence.js';
 import {
@@ -31,11 +30,8 @@ import {
 } from '../providers/voice-catalog.js';
 import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
+import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 
-/** A bound synth call for a resolved voice, or null when that voice's provider
- *  has no key configured (callers map null to provider_error). Centralizing the
- *  provider→(key, synth fn) dispatch keeps the three routes below uniform: any
- *  curated voice works once its provider key is present. */
 type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
 
 /** The rate actually synthesized: the caller's request scaled by the curated
@@ -63,6 +59,10 @@ function availableProviders(deps: Deps): ReadonlySet<TtsProvider> {
     return s;
 }
 
+/** A bound synth call for a resolved voice, or null when that voice's provider
+ *  has no key configured (callers map null to provider_error). One dispatch
+ *  for all three routes below: any curated voice works once its provider key
+ *  is present. */
 function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
     if (resolved.provider === 'openai') {
         const key = deps.config.openaiTtsApiKey;
@@ -105,8 +105,8 @@ function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): nu
         : text.length;
 }
 
-/** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`. The texts are
- *  fixed and server-owned, so each (reason, voice) pair is synthesized once per
+/** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`.
+ *  The texts are fixed and server-owned, so each (reason, voice) pair is synthesized once per
  *  process and served free thereafter: no per-user provider cost. Re-warmed
  *  lazily after a restart. */
 const CANNED_AUDIO = new Map<string, Uint8Array>();
@@ -117,6 +117,27 @@ const CANNED_AUDIO = new Map<string, Uint8Array>();
  *  synthesized at most once per process and then served free to anyone: a
  *  handful of short clips per voice per deploy. */
 const PREVIEW_AUDIO = new Map<string, Uint8Array>();
+
+/** The cached clip for `key`, synthesized on first use; null (logged) when
+ *  synthesis fails. */
+async function cachedClip(
+    cache: Map<string, Uint8Array>,
+    key: string,
+    synthesize: () => Promise<Uint8Array>,
+    label: string
+): Promise<Uint8Array | null> {
+    let audio = cache.get(key);
+    if (!audio) {
+        try {
+            audio = await synthesize();
+        } catch (err) {
+            log.error(`${label} tts synth failed`, { err: String(err) });
+            return null;
+        }
+        cache.set(key, audio);
+    }
+    return audio;
+}
 
 /** The preview's speed step, so the free endpoint can honor the speed slider
  *  (a session at 0.8 should audition at 0.8: Google paces slow speech
@@ -144,33 +165,18 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     // this into free synthesis of arbitrary input.
     app.post('/canned', requireAuth(deps), async (c) => {
         const account = c.get('account');
-        if (!deps.rateGuard.allow(account.id)) {
-            return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
-        }
+        if (!deps.rateGuard.allow(account.id)) return tooManyRequests(c);
 
         const body = (await c.req.json().catch(() => ({}))) as { reason?: string; voice?: string };
         const reason = body.reason as CannedReason;
         const message = CANNED_MESSAGES[reason];
-        if (!message) {
-            return c.json(apiError('bad_request', 'unknown canned reason'), ERROR_STATUS.bad_request);
-        }
+        if (!message) return errorJson(c, 'bad_request', 'unknown canned reason');
         const resolved = resolveVoice(body.voice, availableProviders(deps));
         const synth = synthFor(deps, resolved);
-        if (!synth) {
-            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
-        }
+        if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
         const cacheKey = `${reason}:${resolved.provider}:${resolved.voiceId}`;
-
-        let audio = CANNED_AUDIO.get(cacheKey);
-        if (!audio) {
-            try {
-                audio = await synth(message, 1);
-            } catch (err) {
-                log.error('canned tts synth failed', { err: String(err) });
-                return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
-            }
-            CANNED_AUDIO.set(cacheKey, audio);
-        }
+        const audio = await cachedClip(CANNED_AUDIO, cacheKey, () => synth(message, 1), 'canned');
+        if (!audio) return errorJson(c, 'provider_error', 'TTS upstream error');
         c.header('content-type', 'audio/mpeg');
         return c.body(audio.buffer as ArrayBuffer);
     });
@@ -185,29 +191,17 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     // downstream.
     app.get('/preview', async (c) => {
         const curated = CURATED_VOICES.find((v) => v.name === (c.req.query('voice') ?? ''));
-        if (!curated) {
-            return c.json(apiError('bad_request', 'unknown preview voice'), ERROR_STATUS.bad_request);
-        }
+        if (!curated) return errorJson(c, 'bad_request', 'unknown preview voice');
         // resolveVoice(name), not a hand-built ResolvedVoice: a curated voice
         // can carry a style, and a preview without it isn't the voice.
         const resolved = resolveVoice(curated.name);
         const synth = synthFor(deps, resolved);
-        if (!synth) {
-            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
-        }
+        if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
 
         const rate = previewRate(c.req.query('rate'));
         const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}:${rate}`;
-        let audio = PREVIEW_AUDIO.get(cacheKey);
-        if (!audio) {
-            try {
-                audio = await synth(PREVIEW_PHRASE, rate);
-            } catch (err) {
-                log.error('preview tts synth failed', { err: String(err) });
-                return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
-            }
-            PREVIEW_AUDIO.set(cacheKey, audio);
-        }
+        const audio = await cachedClip(PREVIEW_AUDIO, cacheKey, () => synth(PREVIEW_PHRASE, rate), 'preview');
+        if (!audio) return errorJson(c, 'provider_error', 'TTS upstream error');
         c.header('content-type', 'audio/mpeg');
         // Short-lived: the phrase is fixed but a voice's server-side treatment
         // (style, pace) can change under the same URL, and a day-long max-age
@@ -221,23 +215,16 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     app.post('/', requireAuth(deps), async (c) => {
         const account = c.get('account');
 
-        if (!deps.rateGuard.allow(account.id)) {
-            return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
-        }
+        if (!deps.rateGuard.allow(account.id)) return tooManyRequests(c);
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<SpeakRequest>;
         const text = (body.text ?? '').trim();
-        if (!text) {
-            return c.json(apiError('bad_request', 'text required'), ERROR_STATUS.bad_request);
-        }
+        if (!text) return errorJson(c, 'bad_request', 'text required');
         // Refuse before pricing/synthesis: a facilitation turn is never this
         // long, so anything over the cap is a client bug, and the balance gate
         // below would happily spend on it.
         if (text.length > MAX_TTS_CHARS) {
-            return c.json(
-                apiError('bad_request', `text too long (${text.length} chars; max ${MAX_TTS_CHARS})`),
-                ERROR_STATUS.bad_request
-            );
+            return errorJson(c, 'bad_request', `text too long (${text.length} chars; max ${MAX_TTS_CHARS})`);
         }
 
         // Resolve once and reuse for synthesis, pricing (the rate is
@@ -246,79 +233,50 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // key configured here.
         const resolved = resolveVoice(body.voice, availableProviders(deps));
         const synth = synthFor(deps, resolved);
-        if (!synth) {
-            return c.json(apiError('provider_error', 'TTS is not configured on this server'), ERROR_STATUS.provider_error);
-        }
+        if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
 
-        // A retreat pass (meditation-pal-414) covers this synthesis: speak with
-        // no balance gate and no debit. Otherwise the cost (known exactly up
-        // front, it's character-priced) must fit the balance, or a near-zero
-        // balance would buy an unbounded provider call with the debit clamped
-        // after the fact.
-        const billedChars = billedCharsFor(resolved, text, body.rate ?? 1);
+        const rate = body.rate ?? 1;
+        const billedChars = billedCharsFor(resolved, text, rate);
         const cost = priceTtsChars(billedChars, { provider: resolved.provider, voiceId: resolved.voiceId });
-        const pass = await activeRetreatCoverage(deps.store, account.id, Date.now() / 1000);
-        const balance = pass ? 0 : await deps.ledger.balance(account.id);
-        const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
-        if (!pass && balance < cost.credits) {
-            void recordIncident(deps.store, {
-                accountId: account.id,
-                kind: 'insufficient_credits',
-                source: 'server',
-                provider: resolved.provider,
-                model: resolved.voiceId,
-                sessionId,
-                detail: `tts: ${billedChars}c needs ${cost.credits.toFixed(2)} > balance ${balance.toFixed(2)}`,
-            });
-            return c.json(apiError('insufficient_credits', 'out of credits'), ERROR_STATUS.insufficient_credits);
+        const sessionId = sessionIdOf(body.sessionId);
+        const incident = serverIncidents(deps.store, {
+            accountId: account.id,
+            provider: resolved.provider,
+            model: resolved.voiceId,
+            sessionId,
+        });
+        const gate = await gateUpfront(deps, account.id, cost);
+        if (!gate.fits) {
+            incident(
+                'insufficient_credits',
+                `tts: ${billedChars}c needs ${cost.credits.toFixed(2)} > balance ${gate.balance.toFixed(2)}`
+            );
+            return errorJson(c, 'insufficient_credits', 'out of credits');
         }
 
         let audio: Uint8Array;
         try {
-            audio = await synth(text, body.rate ?? 1);
+            audio = await synth(text, rate);
         } catch (err) {
             log.error('tts forward failed', { err: String(err) });
-            void recordIncident(deps.store, {
-                accountId: account.id,
-                kind: 'tts_error',
-                source: 'server',
-                provider: resolved.provider,
-                model: resolved.voiceId,
-                sessionId,
-                detail: `${billedChars}c: ${String(err)}`,
-            });
-            return c.json(apiError('provider_error', 'TTS upstream error'), ERROR_STATUS.provider_error);
+            incident('tts_error', `${billedChars}c: ${String(err)}`);
+            return errorJson(c, 'provider_error', 'TTS upstream error');
         }
 
-        // Debit clamped to balance so a concurrent-spend race can't overdraw
-        // (the up-front gate already refused what the balance can't cover).
-        // Under a pass nothing is debited, but record the metered credits so
-        // per-retreat spend and the daily-cap sum stay honest.
-        const debit = pass ? 0 : Math.min(cost.credits, balance);
-        if (debit > 0) await deps.ledger.debit(account.id, debit, `tts:${resolved.provider}:${billedChars}c`);
-        await recordUsage(deps.store, {
+        const charged = await chargeUpfront(deps, gate, cost, `tts:${resolved.provider}:${billedChars}c`, {
             accountId: account.id,
             sessionId,
             kind: 'tts',
             provider: resolved.provider,
             model: resolved.voiceId,
-            tokensIn: 0,
-            tokensOut: 0,
-            cacheRead: 0,
-            cacheCreation: 0,
-            seconds: 0,
             // Billed chars, not text.length, so reconciliation against the
             // provider invoice lines up (they differ on Azure).
             chars: billedChars,
-            providerCostUsd: cost.providerCostUsd,
-            credits: pass ? cost.credits : debit,
-            passId: pass?.id ?? null,
         });
-        const remaining = await deps.ledger.balance(account.id);
 
         c.header('content-type', 'audio/mpeg');
-        c.header('X-Credits-Charged', String(pass ? 0 : cost.credits));
-        c.header('X-Credits-Remaining', String(remaining));
+        c.header('X-Credits-Charged', String(charged.creditsCharged));
+        c.header('X-Credits-Remaining', String(charged.creditsRemaining));
         return c.body(audio.buffer as ArrayBuffer);
     });
 

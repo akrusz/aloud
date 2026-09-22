@@ -14,7 +14,7 @@
 
 import { Hono } from 'hono';
 import { isJudgeId, judgeQuestions, judgeState } from '@aloud/core/facilitation';
-import { ERROR_STATUS, apiError, type JudgeRequest, type JudgeResponse } from '../contract.js';
+import type { JudgeRequest, JudgeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
@@ -22,6 +22,7 @@ import { recordUsage } from '../credits/usage.js';
 import { recordIncident } from '../credits/incidents.js';
 import { askNouls, JEV_USD_PER_INPUT_TOKEN } from '../providers/typesafe.js';
 import { log } from '../logger.js';
+import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 
 /** One spoken utterance. Anything longer is not what this route is for. */
 const MAX_UTTERANCE_CHARS = 2000;
@@ -72,24 +73,20 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
         const account = c.get('account');
 
         const apiKey = deps.config.typesafeApiKey;
-        if (!apiKey) {
-            return c.json(apiError('provider_error', 'judge is not configured on this server'), ERROR_STATUS.provider_error);
-        }
-        if (!deps.judgeGuard.allow(account.id)) {
-            return c.json(apiError('quota_exceeded', 'too many requests; slow down'), ERROR_STATUS.quota_exceeded);
-        }
+        if (!apiKey) return errorJson(c, 'provider_error', 'judge is not configured on this server');
+        if (!deps.judgeGuard.allow(account.id)) return tooManyRequests(c);
         // The daily cap is the cost ceiling on accounts that pay nothing. One with
         // credits is never cut off (the per-minute guard still bounds it), and
         // isn't billed either: a credit funds ~1,000 calls, so there is nothing
         // per-call to charge. The balance is only read once the cap is spent.
         if (!deps.judgeDailyCap.allow(account.id) && (await deps.ledger.balance(account.id)) <= 0) {
-            return c.json(apiError('quota_exceeded', 'daily judge limit reached'), ERROR_STATUS.quota_exceeded);
+            return errorJson(c, 'quota_exceeded', 'daily judge limit reached');
         }
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<JudgeRequest>;
         const text = typeof body.text === 'string' ? body.text.trim() : '';
         if (!isJudgeId(body.classifier) || !text || text.length > MAX_UTTERANCE_CHARS) {
-            return c.json(apiError('bad_request', 'classifier and text required'), ERROR_STATUS.bad_request);
+            return errorJson(c, 'bad_request', 'classifier and text required');
         }
 
         // judgeState clamps it; this only keeps non-strings and an oversized
@@ -98,6 +95,7 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
             ? body.earlier.filter((e): e is string => typeof e === 'string').slice(-MAX_EARLIER_ITEMS)
             : [];
 
+        const sessionId = sessionIdOf(body.sessionId);
         const t0 = Date.now();
         try {
             const result = await askNouls(
@@ -114,26 +112,16 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
                 kind: 'llm',
                 provider: 'typesafe',
                 model: result.model,
-                sessionId: typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null,
+                sessionId,
                 tokensIn: result.inputTokens,
-                tokensOut: 0,
-                cacheRead: 0,
-                cacheCreation: 0,
-                seconds: 0,
-                chars: 0,
                 providerCostUsd: result.inputTokens * JEV_USD_PER_INPUT_TOKEN,
                 credits: 0,
             });
             return c.json({ answers: result.answers, model: result.model, latencyMs } satisfies JudgeResponse);
         } catch (err) {
             log.warn('judge failed', { err: failureLabel(err), classifier: body.classifier, latencyMs: Date.now() - t0 });
-            noteFailure(
-                account.id,
-                body.classifier,
-                typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null,
-                err
-            );
-            return c.json(apiError('provider_error', 'upstream judge error'), ERROR_STATUS.provider_error);
+            noteFailure(account.id, body.classifier, sessionId, err);
+            return errorJson(c, 'provider_error', 'upstream judge error');
         }
     });
 

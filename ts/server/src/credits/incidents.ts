@@ -116,6 +116,15 @@ export async function recordIncident(
     }
 }
 
+/** A route's fire-and-forget recorder for server incidents, bound to the call's
+ *  account, provider, model and session. */
+export function serverIncidents(
+    store: Pick<CreditsStore, 'appendIncident'>,
+    call: Pick<IncidentInput, 'accountId' | 'provider' | 'model' | 'sessionId'>
+): (kind: ServerIncidentKind, detail: string) => void {
+    return (kind, detail) => void recordIncident(store, { ...call, kind, source: 'server', detail });
+}
+
 export interface IncidentKindSummary {
     kind: IncidentKind;
     source: 'server' | 'client';
