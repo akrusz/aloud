@@ -83,7 +83,7 @@ async function main(): Promise<void> {
         log.info('serving static UI', { uiDir: root, spaFallback: indexHtml !== null });
     }
 
-    // Hourly housekeeping, once at boot then on an interval. Both jobs are
+    // Hourly housekeeping, once at boot then on an interval. All three jobs are
     // idempotent, so overlapping/extra runs are harmless:
     //   - gift expiry: return clouds from gifts left unaccepted past their
     //     expiry to the buyer (meditation-pal-bd5);
