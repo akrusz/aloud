@@ -149,12 +149,43 @@ export interface VoiceEstimate {
     costUsdPerHourTypical: number;
 }
 
+/**
+ * Per-model turn-cadence multiplier on TYPICAL_SESSION, for models whose
+ * sitters measurably talk more (or less) than the profile's ~40 turns/hr.
+ * Cadence drives LLM cost superlinearly - every turn re-reads a growing
+ * history - so one number is wrong by 2x+ for someone either way; this only
+ * aims a badge nearer the middle of what's measured until the LLM badge
+ * becomes a band (meditation-pal-i6l5).
+ *
+ * Fable 5.1: Sep 2026 prod, 5 accounts / ~8 real sits, mostly 50-70 turns/hr,
+ * so 1.5x (~60/hr): 7.1 -> ~11 credits/hr, mid-band of 7 (profile cadence)
+ * to ~16 (~80/hr, what cache-healthy chatty sits cost). Small sample; re-check.
+ */
+const MODEL_CADENCE: Record<string, number> = {
+    'anthropic:claude-fable-5-1': 1.5,
+};
+
+/** TYPICAL_SESSION at `k` times the turn rate: per-turn volumes scale by k,
+ *  cache reads by k^2 (more turns, each re-reading a longer history). */
+function atCadence(usage: SessionUsage, k: number): SessionUsage {
+    if (k === 1) return usage;
+    return {
+        ...usage,
+        llmCalls: Math.round(usage.llmCalls * k),
+        llmTokensIn: usage.llmTokensIn * k,
+        llmTokensOut: usage.llmTokensOut * k,
+        llmCacheRead: usage.llmCacheRead * k * k,
+        llmCacheCreation: usage.llmCacheCreation * k,
+    };
+}
+
 /** LLM-only credits for the typical session (zero STT/TTS, those are separate
  *  legs the UI composes). */
 export function estimateModels(): ModelEstimate[] {
     const llmOnly: SessionUsage = { ...TYPICAL_SESSION, sttSeconds: 0, ttsChars: 0 };
     return allowedModels().map((m) => {
-        const cost = priceSession(m.provider, m.model, llmOnly);
+        const usage = atCadence(llmOnly, MODEL_CADENCE[`${m.provider}:${m.model}`] ?? 1);
+        const cost = priceSession(m.provider, m.model, usage);
         return {
             provider: m.provider,
             model: m.model,
