@@ -7,17 +7,13 @@
 
 import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
+import { footerHtml as sharedFooterHtml, getNavHeight, type FooterOpts } from './tour-common.js';
 
 const TOUR_DISMISSED_KEY = 'aloud-tour-dismissed';
 const TOUR_REMIND_KEY = 'aloud-tour-remind-later';
 
 const PADDING = 10;
 const FOOTER_HEIGHT = 60; // approximate footer height
-
-function getNavHeight(): number {
-    const nav = document.querySelector('.nav');
-    return nav ? nav.getBoundingClientRect().height + 16 : 80;
-}
 const TOTAL_STEPS = 4; // welcome, llm, voice, done
 
 // ---- State ----
@@ -29,13 +25,11 @@ let currentStep = 0;
 // aloud cloud brings its own voices, so choosing it drops the voice step - in
 // both directions, or Back from the closing card would land on it.
 let skipVoiceStep = false;
-let onCompleteCb: (() => void) | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface TourOptions {
     piperAvailable?: boolean;
     isMac?: boolean;
-    onComplete?: () => void;
 }
 
 let tourOptions: TourOptions = {};
@@ -54,19 +48,18 @@ function createOverlay(): void {
 }
 
 function cleanup(): void {
-    if (overlayEl && overlayEl.parentNode) overlayEl.remove();
-    if (spotlightEl && spotlightEl.parentNode) spotlightEl.remove();
-    if (cardEl && cardEl.parentNode) cardEl.remove();
+    hideTour();
     window.removeEventListener('resize', onResizeDebounced);
     window.removeEventListener('scroll', onScroll);
     document.removeEventListener('keydown', onKeyDown);
     overlayEl = spotlightEl = cardEl = null;
 }
 
+/** Detach the tour's elements, keeping them for showTour() to put back. */
 function hideTour(): void {
-    if (overlayEl && overlayEl.parentNode) overlayEl.remove();
-    if (spotlightEl && spotlightEl.parentNode) spotlightEl.remove();
-    if (cardEl && cardEl.parentNode) cardEl.remove();
+    overlayEl?.remove();
+    spotlightEl?.remove();
+    cardEl?.remove();
 }
 
 function showTour(): void {
@@ -75,7 +68,7 @@ function showTour(): void {
 }
 
 function showCard(html: string, className?: string): void {
-    if (cardEl && cardEl.parentNode) cardEl.remove();
+    cardEl?.remove();
     cardEl = document.createElement('div');
     cardEl.className = className || 'tour-tooltip';
     cardEl.innerHTML = html;
@@ -113,41 +106,10 @@ function wireActions(): void {
 
 // ---- Footer (dots + nav) ----
 
-interface FooterOpts {
-    skip?: boolean;
-    back?: boolean;
-    next?: boolean;
-    done?: boolean;
-}
-
+/** The shared footer, minus the voice step's dot when that step is skipped. */
 function footerHtml(opts: FooterOpts): string {
-    let html = '<div class="tour-footer">';
-
-    if (opts.skip !== false) {
-        html += '<button class="tour-skip" data-action="skip">' + t('Skip') + '</button>';
-    } else {
-        html += '<span></span>';
-    }
-
-    html += '<div class="tour-dots">';
-    for (let i = 0; i < TOTAL_STEPS; i++) {
-        if (i === 2 && skipVoiceStep) continue;
-        html += '<div class="tour-dot' + (i === currentStep ? ' active' : '') + '"></div>';
-    }
-    html += '</div>';
-
-    html += '<div class="tour-actions">';
-    if (opts.back) {
-        html += '<button class="btn btn-small btn-secondary" data-action="back">' + t('Back') + '</button>';
-    }
-    if (opts.next) {
-        html += '<button class="btn btn-small btn-primary" data-action="next">' + t('Next') + '</button>';
-    }
-    if (opts.done) {
-        html += '<button class="btn btn-small btn-primary" data-action="done">' + t('Got it') + '</button>';
-    }
-    html += '</div></div>';
-    return html;
+    if (!skipVoiceStep) return sharedFooterHtml(opts, TOTAL_STEPS, currentStep, 'skip');
+    return sharedFooterHtml(opts, TOTAL_STEPS - 1, currentStep > 2 ? currentStep - 1 : currentStep, 'skip');
 }
 
 // ---- Positioning ----
@@ -356,27 +318,12 @@ function chooseProvider(value: string): void {
         // Wait for a usable model: a downloaded one for Ollama, the `claude`
         // CLI detected for the subscription. Until then the settings page's
         // own status hint and Ollama section say what's missing.
-        waitForCondition(function () {
-            const m = findModelElement();
-            if (!m || m.options.length === 0) return false;
-            const text = m.options[0]?.textContent || '';
-            return Boolean(m.value) && text !== 'Loading...' && text !== 'No models available';
-        }, resumeToVoice);
+        // The loading placeholder has an empty value, so any value is a model.
+        waitForCondition(() => Boolean(findModelElement()?.value), resumeToVoice);
     } else {
-        // BYOK provider - wait for the key field. Ids are `#s-key-${provider}`
-        // (views/settings.ts).
-        const keyMap: Record<string, string> = {
-            anthropic: 's-key-anthropic',
-            openai: 's-key-openai',
-            groq: 's-key-groq',
-            openrouter: 's-key-openrouter',
-            venice: 's-key-venice',
-        };
-        const fieldId = keyMap[value];
+        // BYOK provider - wait for its key field (views/settings.ts ids).
         waitForCondition(function () {
-            const input = fieldId
-                ? (document.getElementById(fieldId) as HTMLInputElement | null)
-                : null;
+            const input = document.getElementById(`s-key-${value}`) as HTMLInputElement | null;
             return Boolean(input && input.value.trim().length > 8);
         }, resumeToVoice);
     }
@@ -559,7 +506,6 @@ function goBack(): void {
 function completeTour(): void {
     void sharedKv.set(TOUR_DISMISSED_KEY, '1');
     cleanup();
-    if (onCompleteCb) onCompleteCb();
 }
 
 function dismissRemindLater(): void {
@@ -568,7 +514,6 @@ function dismissRemindLater(): void {
         sessionStorage.setItem(TOUR_REMIND_KEY, '1');
     }
     cleanup();
-    if (onCompleteCb) onCompleteCb();
 }
 
 // ---- Event handlers ----
@@ -596,32 +541,14 @@ function onKeyDown(e: KeyboardEvent): void {
 
 // ---- Entry point ----
 
-export async function startTour(options: TourOptions): Promise<void> {
-    if (await sharedKv.get(TOUR_DISMISSED_KEY)) {
-        if (options.onComplete) options.onComplete();
-        return;
-    }
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(TOUR_REMIND_KEY)) {
-        if (options.onComplete) options.onComplete();
-        return;
-    }
-
-    onCompleteCb = options.onComplete || null;
-    tourOptions = {};
-    if (options.piperAvailable !== undefined) tourOptions.piperAvailable = options.piperAvailable;
-    if (options.isMac !== undefined) tourOptions.isMac = options.isMac;
-    initTour();
-}
-
+/** Clear the dismissed / remind-later flags and walk the wizard from the
+ *  welcome step (the Settings "Setup guide" button). */
 export async function resetAndStart(options: TourOptions): Promise<void> {
     await sharedKv.delete(TOUR_DISMISSED_KEY);
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem(TOUR_REMIND_KEY);
     }
-    await startTour(options);
-}
-
-function initTour(): void {
+    tourOptions = { ...options };
     currentStep = 0;
     skipVoiceStep = false;
     createOverlay();
@@ -629,8 +556,4 @@ function initTour(): void {
     window.addEventListener('scroll', onScroll);
     document.addEventListener('keydown', onKeyDown);
     showWelcome();
-}
-
-export function closeIfActive(): void {
-    if (overlayEl || spotlightEl || cardEl) cleanup();
 }

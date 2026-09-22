@@ -6,6 +6,7 @@
 
 import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
+import { footerHtml, getNavHeight } from './tour-common.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
@@ -14,20 +15,19 @@ const CLIENT_ID_KEY = 'aloud-client-id';
 const PADDING = 10;
 const FOOTER_HEIGHT = 60;
 
-function getNavHeight(): number {
-    const nav = document.querySelector('.nav');
-    return nav ? nav.getBoundingClientRect().height + 16 : 80;
-}
-
 // ---- Standalone info panel toggle ----
+
+function hideInfoPanels(): void {
+    document.querySelectorAll('.info-panel').forEach(function (p) {
+        p.classList.add('hidden');
+    });
+}
 
 function toggleInfo(id: string): void {
     const panel = document.getElementById('info-' + id);
     if (!panel) return;
     const wasHidden = panel.classList.contains('hidden');
-    document.querySelectorAll('.info-panel').forEach(function (p) {
-        p.classList.add('hidden');
-    });
+    hideInfoPanels();
     if (wasHidden) panel.classList.remove('hidden');
 }
 
@@ -75,14 +75,17 @@ function setupHeader(): HTMLElement | null {
     return document.querySelector<HTMLElement>('.setup-header');
 }
 
-/** The focus/vibe groups sit inside the "Customize facilitator" disclosure,
- *  collapsed by default on phones - open it so those steps have a visible
- *  target to spotlight. */
-function ensureCustomizeOpen(): void {
+/** The focus/vibe group owning the `?` button for `info`. Those groups sit
+ *  inside the "Customize facilitator" disclosure, collapsed by default on
+ *  phones - open it so the step has a visible target to spotlight. */
+function modifierGroup(info: string): HTMLElement | null {
     const section = document.getElementById('customize-section');
-    if (!section || section.classList.contains('open')) return;
-    section.classList.add('open');
-    document.getElementById('customize-toggle')?.setAttribute('aria-expanded', 'true');
+    if (section && !section.classList.contains('open')) {
+        section.classList.add('open');
+        document.getElementById('customize-toggle')?.setAttribute('aria-expanded', 'true');
+    }
+    const btn = document.querySelector<HTMLElement>(`[data-info="${info}"]`);
+    return btn ? btn.closest<HTMLElement>('.form-group') : null;
 }
 
 // The methods panel shows only the active tab's text (views/setup.ts), so the
@@ -91,24 +94,8 @@ const SECTIONS: ReadonlyArray<Section> = [
     { id: 'methods-exploration', panel: 'methods', tab: 'exploration', target: setupHeader },
     { id: 'methods-noting', panel: 'methods', tab: 'noting', target: setupHeader },
     { id: 'methods-felt-sense', panel: 'methods', tab: 'felt_sense', target: setupHeader },
-    {
-        id: 'focus',
-        tab: 'exploration',
-        target: function () {
-            ensureCustomizeOpen();
-            const btn = document.querySelector<HTMLElement>('[data-info="focus"]');
-            return btn ? btn.closest<HTMLElement>('.form-group') : null;
-        },
-    },
-    {
-        id: 'vibe',
-        tab: 'exploration',
-        target: function () {
-            ensureCustomizeOpen();
-            const btn = document.querySelector<HTMLElement>('[data-info="vibe"]');
-            return btn ? btn.closest<HTMLElement>('.form-group') : null;
-        },
-    },
+    { id: 'focus', tab: 'exploration', target: () => modifierGroup('focus') },
+    { id: 'vibe', tab: 'exploration', target: () => modifierGroup('vibe') },
 ];
 
 const TOTAL_STEPS = SECTIONS.length + 2; // welcome + sections + done
@@ -133,20 +120,23 @@ function createOverlay(): void {
     document.body.appendChild(spotlightEl);
 }
 
-function cleanup(): void {
-    if (overlayEl) overlayEl.remove();
-    if (spotlightEl) spotlightEl.remove();
-    if (cardEl) cardEl.remove();
-    overlayEl = spotlightEl = cardEl = null;
-    guideActive = false;
-    document.body.classList.remove('guide-running');
+/** Drop the spotlit target's elevation and close every info panel. */
+function resetTarget(): void {
     if (prevTarget) {
         prevTarget.classList.remove('guide-elevated');
         prevTarget = null;
     }
-    document.querySelectorAll('.info-panel').forEach(function (p) {
-        p.classList.add('hidden');
-    });
+    hideInfoPanels();
+}
+
+function cleanup(): void {
+    overlayEl?.remove();
+    spotlightEl?.remove();
+    cardEl?.remove();
+    overlayEl = spotlightEl = cardEl = null;
+    guideActive = false;
+    document.body.classList.remove('guide-running');
+    resetTarget();
     window.removeEventListener('resize', onResizeDebounced);
     window.removeEventListener('scroll', onScroll);
     document.removeEventListener('keydown', onKeyDown);
@@ -226,47 +216,12 @@ function ensureTab(tab: string): void {
     if (btn && !btn.classList.contains('active')) btn.click();
 }
 
-// ---- Footer (dots + nav) ----
-
-interface FooterOpts {
-    skip?: boolean;
-    back?: boolean;
-    next?: boolean;
-    done?: boolean;
-}
-
-function footerHtml(opts: FooterOpts): string {
-    let html = '<div class="tour-footer">';
-    if (opts.skip !== false) {
-        html += '<button class="tour-skip" data-action="dismiss">' + t('Skip') + '</button>';
-    } else {
-        html += '<span></span>';
-    }
-    html += '<div class="tour-dots">';
-    for (let i = 0; i < TOTAL_STEPS; i++) {
-        html += '<div class="tour-dot' + (i === currentStep ? ' active' : '') + '"></div>';
-    }
-    html += '</div>';
-    html += '<div class="tour-actions">';
-    if (opts.back) html += '<button class="btn btn-small btn-secondary" data-action="back">' + t('Back') + '</button>';
-    if (opts.next) html += '<button class="btn btn-small btn-primary" data-action="next">' + t('Next') + '</button>';
-    if (opts.done) html += '<button class="btn btn-small btn-primary" data-action="done">' + t('Got it') + '</button>';
-    html += '</div></div>';
-    return html;
-}
-
 // ---- Steps ----
 
 function showWelcome(): void {
     currentStep = 0;
     hideSpotlight();
-    if (prevTarget) {
-        prevTarget.classList.remove('guide-elevated');
-        prevTarget = null;
-    }
-    document.querySelectorAll('.info-panel').forEach(function (p) {
-        p.classList.add('hidden');
-    });
+    resetTarget();
 
     let html = '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
     html += '<div class="tour-choices">';
@@ -296,10 +251,7 @@ function showSection(index: number): void {
         return;
     }
 
-    if (prevTarget) prevTarget.classList.remove('guide-elevated');
-    document.querySelectorAll('.info-panel').forEach(function (p) {
-        p.classList.add('hidden');
-    });
+    resetTarget();
 
     const panel = document.getElementById('info-' + (section.panel || section.id));
     if (panel) panel.classList.remove('hidden');
@@ -317,7 +269,7 @@ function showSection(index: number): void {
             // to showDone(). Ending a section on "Got it" instead would skip
             // that card entirely and leave TOTAL_STEPS' last dot permanently
             // dark (settings-tour.ts closes the same way).
-            const html = footerHtml({ back: true, next: true, skip: true });
+            const html = footerHtml({ back: true, next: true, skip: true }, TOTAL_STEPS, currentStep, 'dismiss');
             showCard(html, 'tour-tooltip');
             positionTooltip(target);
         });
@@ -327,17 +279,11 @@ function showSection(index: number): void {
 function showDone(): void {
     currentStep = SECTIONS.length + 1;
     hideSpotlight();
-    if (prevTarget) {
-        prevTarget.classList.remove('guide-elevated');
-        prevTarget = null;
-    }
-    document.querySelectorAll('.info-panel').forEach(function (p) {
-        p.classList.add('hidden');
-    });
+    resetTarget();
 
     let html = '<h3>' + t('You’re ready') + '</h3>';
     html += '<p>' + t('Pick what resonates and begin. Tap <span class="info-btn-glyph">?</span> on any section to revisit these notes.') + '</p>';
-    html += footerHtml({ back: true, done: true, skip: false });
+    html += footerHtml({ back: true, done: true, skip: false }, TOTAL_STEPS, currentStep, 'dismiss');
 
     showCard(html, 'tour-welcome');
 }
@@ -402,7 +348,7 @@ function onKeyDown(e: KeyboardEvent): void {
 
 // ---- Entry points ----
 
-export function startGuide(startStep?: number): void {
+function startGuide(startStep?: number): void {
     if (guideActive) return;
     installInfoBtnHandler();
     guideActive = true;
@@ -421,11 +367,9 @@ export function startGuide(startStep?: number): void {
 }
 
 // "Take the full tour" link - an explicit opt-in, so skip the welcome screen
-// and jump to the first section. The link sits in the methods panel that the
-// tour's own first three steps spotlight, so a tour may already be running:
-// startGuide() no-ops while one is, which made the link a dead click (and
-// still cleared GUIDE_DONE_KEY on the way). CSS hides it during a tour;
-// closing any running tour here keeps the link honest either way.
+// and jump to the first section. The link sits in the methods panel the tour
+// itself spotlights, so one may already be running, and startGuide() no-ops
+// while one is: close it first.
 export async function resetAndStart(): Promise<void> {
     await sharedKv.delete(GUIDE_DONE_KEY);
     if (typeof sessionStorage !== 'undefined') {
@@ -448,12 +392,10 @@ export async function autoStart(): Promise<void> {
     if (pendingAutoStart) clearTimeout(pendingAutoStart);
     pendingAutoStart = setTimeout(function () {
         pendingAutoStart = null;
-        // The awaits above (and show()'s voice-catalog fetch before its call)
-        // can outlast a quick Begin: a first-time user who taps it while the
-        // catalog loads has already left for the session view by the time
-        // this fires, and closeIfActive found nothing to close. Start only
-        // while the setup page is still on screen - the overlay lives on
-        // <body>, and with no targets it would sit over the whole sit.
+        // The awaits above can outlast a quick Begin, after which
+        // closeIfActive had nothing to close. Start only while the setup page
+        // is still on screen - the overlay lives on <body>, and with no
+        // targets it would sit over the whole sit.
         if (!setupHeader()) return;
         startGuide();
     }, 250);
