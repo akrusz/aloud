@@ -21,7 +21,7 @@ import type {
     Message,
     StreamChunk,
 } from './base.js';
-import { iterateSseEvents } from './sse.js';
+import { iterateSseEvents, safeJson } from './sse.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
@@ -431,12 +431,4 @@ function usageToResult(usage: AnthropicUsage | undefined): {
         cacheCreationTokens: usage.cache_creation_input_tokens ?? null,
         cacheCreation1hTokens: usage.cache_creation?.ephemeral_1h_input_tokens ?? null,
     };
-}
-
-function safeJson<T>(s: string): T | null {
-    try {
-        return JSON.parse(s) as T;
-    } catch {
-        return null;
-    }
 }

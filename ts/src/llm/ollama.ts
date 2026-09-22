@@ -1,12 +1,14 @@
 /** Ollama provider: local inference via the Ollama HTTP API, direct fetch. */
 
-import type {
-    CompletionOptions,
-    CompletionResult,
-    LLMProvider,
-    Message,
-    StreamChunk,
+import {
+    withSystemMessage,
+    type CompletionOptions,
+    type CompletionResult,
+    type LLMProvider,
+    type Message,
+    type StreamChunk,
 } from './base.js';
+import { iterateNdjson } from './sse.js';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen3.5:4b';
@@ -58,7 +60,8 @@ interface OllamaChatResponse {
     eval_count?: number;
 }
 
-interface OllamaTagsResponse {
+/** /api/tags (pulled) and /api/ps (loaded) share this shape. */
+interface OllamaModelList {
     models?: Array<{ name: string }>;
 }
 
@@ -82,16 +85,9 @@ export class OllamaProvider implements LLMProvider {
     }
 
     private buildBody(messages: Message[], options: CompletionOptions, stream: boolean): string {
-        const ollamaMessages: Array<{ role: string; content: string }> = [];
-        if (options.system) {
-            ollamaMessages.push({ role: 'system', content: options.system });
-        }
-        for (const msg of messages) {
-            ollamaMessages.push({ role: msg.role, content: msg.content });
-        }
         return JSON.stringify({
             model: this.model,
-            messages: ollamaMessages,
+            messages: withSystemMessage(messages, options.system),
             stream,
             think: this.think,
             keep_alive: this.keepAlive,
@@ -123,24 +119,25 @@ export class OllamaProvider implements LLMProvider {
         }
     }
 
-    async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
+    /** POST /api/chat; resolves to an ok response or throws. */
+    private async chat(messages: Message[], options: CompletionOptions, stream: boolean): Promise<Response> {
         const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: this.buildBody(messages, options, false),
+            body: this.buildBody(messages, options, stream),
             ...(options.signal && { signal: options.signal }),
         });
-
         if (!response.ok) {
             const detail = await response.text().catch(() => '');
             throw new Error(`Ollama error ${response.status}: ${detail}`);
         }
+        return response;
+    }
 
-        const data = (await response.json()) as OllamaChatResponse;
-        const text = data.message?.content ?? '';
-
+    async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
+        const data = (await (await this.chat(messages, options, false)).json()) as OllamaChatResponse;
         return {
-            text,
+            text: data.message?.content ?? '',
             finishReason: data.done_reason ?? null,
             ...ollamaUsage(data),
         };
@@ -150,68 +147,28 @@ export class OllamaProvider implements LLMProvider {
         messages: Message[],
         options: CompletionOptions = {}
     ): AsyncIterable<StreamChunk> {
-        const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: this.buildBody(messages, options, true),
-            ...(options.signal && { signal: options.signal }),
-        });
+        const response = await this.chat(messages, options, true);
 
-        if (!response.ok) {
-            const detail = await response.text().catch(() => '');
-            throw new Error(`Ollama error ${response.status}: ${detail}`);
-        }
-        if (!response.body) {
-            throw new Error('Ollama streaming response has no body');
-        }
-
-        // Ollama streams NDJSON, one JSON object per line:
+        // NDJSON, one object per line:
         //   {"message":{"content":"Hello"},"done":false}
         //   {"message":{"content":""},"done":true,"eval_count":...}
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
         let finishReason: string | null = null;
-        let usage = { tokensUsed: null, inputTokens: null, outputTokens: null } as ReturnType<
-            typeof ollamaUsage
-        >;
-
-        try {
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                let nl: number;
-                while ((nl = buffer.indexOf('\n')) >= 0) {
-                    const line = buffer.slice(0, nl).trim();
-                    buffer = buffer.slice(nl + 1);
-                    if (!line) continue;
-                    const parsed = safeJson<OllamaStreamChunk>(line);
-                    if (!parsed) continue;
-                    const text = parsed.message?.content ?? '';
-                    if (text.length > 0) {
-                        yield { text, done: false };
-                    }
-                    if (parsed.done) {
-                        finishReason = parsed.done_reason ?? 'stop';
-                        usage = ollamaUsage(parsed);
-                    }
-                }
-            }
-        } finally {
-            // cancel() tears down the connection (and stops generation) when a
-            // consumer abandons the iterator mid-stream; releaseLock detaches.
-            await reader.cancel().catch(() => {
-                /* ignore */
-            });
-            try {
-                reader.releaseLock();
-            } catch {
-                /* ignore */
+        let usage = ollamaUsage({});
+        for await (const chunk of iterateNdjson<OllamaChatResponse & { done?: boolean }>(response)) {
+            const text = chunk.message?.content ?? '';
+            if (text.length > 0) yield { text, done: false };
+            if (chunk.done) {
+                finishReason = chunk.done_reason ?? 'stop';
+                usage = ollamaUsage(chunk);
             }
         }
 
         yield { text: '', done: true, finishReason, ...usage };
+    }
+
+    /** Is the configured model in `list`, by exact name or as `model:tag`? */
+    private listed(list: OllamaModelList): boolean {
+        return (list.models ?? []).some((m) => m.name === this.model || m.name.startsWith(`${this.model}:`));
     }
 
     /** True if the configured model (exact or prefix match) is pulled. */
@@ -219,9 +176,7 @@ export class OllamaProvider implements LLMProvider {
         try {
             const response = await this.fetchImpl(`${this.baseUrl}/api/tags`);
             if (!response.ok) return false;
-            const data = (await response.json()) as OllamaTagsResponse;
-            const names = data.models?.map((m) => m.name) ?? [];
-            return names.some((n) => n === this.model || n.startsWith(`${this.model}:`));
+            return this.listed((await response.json()) as OllamaModelList);
         } catch {
             return false;
         }
@@ -243,29 +198,12 @@ export class OllamaProvider implements LLMProvider {
                 signal: AbortSignal.timeout(COLD_LOAD_PROBE_TIMEOUT_MS),
             });
             if (!response.ok) return null;
-            const data = (await response.json()) as OllamaPsResponse;
-            const loaded = data.models?.map((m) => m.name) ?? [];
-            const isLoaded = loaded.some(
-                (n) => n === this.model || n.startsWith(`${this.model}:`)
-            );
-            if (isLoaded) return null;
+            if (this.listed((await response.json()) as OllamaModelList)) return null;
             return `Loading ${this.model} into memory… first response can take a few seconds.`;
         } catch {
             return null;
         }
     }
-}
-
-interface OllamaPsResponse {
-    models?: Array<{ name: string }>;
-}
-
-interface OllamaStreamChunk {
-    message?: { content?: string };
-    done?: boolean;
-    done_reason?: string | null;
-    prompt_eval_count?: number;
-    eval_count?: number;
 }
 
 /**
@@ -284,12 +222,4 @@ function ollamaUsage(data: { prompt_eval_count?: number; eval_count?: number }):
     const inputTokens = data.prompt_eval_count ?? 0;
     const outputTokens = data.eval_count ?? 0;
     return { tokensUsed: inputTokens + outputTokens, inputTokens, outputTokens };
-}
-
-function safeJson<T>(s: string): T | null {
-    try {
-        return JSON.parse(s) as T;
-    } catch {
-        return null;
-    }
 }

@@ -5,14 +5,15 @@
  * base URL and default model; the named exports at the bottom bake those in.
  */
 
-import type {
-    CompletionOptions,
-    CompletionResult,
-    LLMProvider,
-    Message,
-    StreamChunk,
+import {
+    withSystemMessage,
+    type CompletionOptions,
+    type CompletionResult,
+    type LLMProvider,
+    type Message,
+    type StreamChunk,
 } from './base.js';
-import { iterateSseEvents } from './sse.js';
+import { iterateSseEvents, safeJson } from './sse.js';
 
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_MODEL = 'gpt-5.4-mini';
@@ -131,14 +132,6 @@ export class OpenAIProvider implements LLMProvider {
         options: CompletionOptions,
         stream: boolean
     ): RequestInit {
-        const openaiMessages: Array<{ role: string; content: string }> = [];
-        if (options.system) {
-            openaiMessages.push({ role: 'system', content: options.system });
-        }
-        for (const msg of messages) {
-            openaiMessages.push({ role: msg.role, content: msg.content });
-        }
-
         // OpenAI reasoning models reject legacy `max_tokens` and require
         // `max_completion_tokens`, which OpenAI accepts for all current chat
         // models, so use it for those models or any direct api.openai.com call.
@@ -149,7 +142,7 @@ export class OpenAIProvider implements LLMProvider {
 
         const body: Record<string, unknown> = {
             model: this.model,
-            messages: openaiMessages,
+            messages: withSystemMessage(messages, options.system),
             ...(openaiDirect || reasoningModel
                 ? { max_completion_tokens: maxTokens }
                 : { max_tokens: maxTokens }),
@@ -183,19 +176,24 @@ export class OpenAIProvider implements LLMProvider {
         };
     }
 
-    async complete(
-        messages: Message[],
-        options: CompletionOptions = {}
-    ): Promise<CompletionResult> {
-        const init = this.buildRequest(messages, options, false);
-        const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, init);
-
+    /** POST /chat/completions; resolves to an ok response or throws. */
+    private async post(messages: Message[], options: CompletionOptions, stream: boolean): Promise<Response> {
+        const response = await this.fetchImpl(
+            `${this.baseUrl}/chat/completions`,
+            this.buildRequest(messages, options, stream)
+        );
         if (!response.ok) {
             const detail = await response.text().catch(() => '');
             throw new Error(`OpenAI-compatible API error ${response.status}: ${detail}`);
         }
+        return response;
+    }
 
-        const data = (await response.json()) as OpenAIChatResponse;
+    async complete(
+        messages: Message[],
+        options: CompletionOptions = {}
+    ): Promise<CompletionResult> {
+        const data = (await (await this.post(messages, options, false)).json()) as OpenAIChatResponse;
         if (data.error) throw new Error(inlineErrorMessage(data.error, 'in body'));
         const choice = data.choices?.[0];
         const text = choice?.message?.content ?? '';
@@ -216,13 +214,7 @@ export class OpenAIProvider implements LLMProvider {
         messages: Message[],
         options: CompletionOptions = {}
     ): AsyncIterable<StreamChunk> {
-        const init = this.buildRequest(messages, options, true);
-        const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, init);
-
-        if (!response.ok) {
-            const detail = await response.text().catch(() => '');
-            throw new Error(`OpenAI-compatible API error ${response.status}: ${detail}`);
-        }
+        const response = await this.post(messages, options, true);
 
         // SSE format: `data:` chunks carrying choices[].delta.content, the last
         // with finish_reason + usage, then `data: [DONE]`.
@@ -325,14 +317,6 @@ interface OpenAIInlineError {
 function inlineErrorMessage(err: OpenAIInlineError, phase: string): string {
     const detail = err.message ?? JSON.stringify(err);
     return `OpenAI-compatible API error ${phase}${err.code !== undefined ? ` (${err.code})` : ''}: ${detail}`;
-}
-
-function safeJson<T>(s: string): T | null {
-    try {
-        return JSON.parse(s) as T;
-    } catch {
-        return null;
-    }
 }
 
 // Pre-configured providers: OpenAIProvider with a different default base URL

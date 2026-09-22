@@ -93,3 +93,11 @@ export interface LLMProvider {
         options?: CompletionOptions
     ): AsyncIterable<StreamChunk>;
 }
+
+/** Chat-format messages with `system` (when set) as a leading system message,
+ *  for the APIs that take it inline (OpenAI-compatible, Ollama). */
+export function withSystemMessage(messages: readonly Message[], system: string | undefined): Message[] {
+    const out: Message[] = system ? [{ role: 'system', content: system }] : [];
+    for (const { role, content } of messages) out.push({ role, content });
+    return out;
+}
