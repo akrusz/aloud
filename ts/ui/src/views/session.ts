@@ -2877,11 +2877,7 @@ export async function mountSessionView(
                 // graph is built lazily on first start(), and a barge-in during
                 // the greeting has an empty buffer and clips the first word (d35).
                 await stt?.prime?.();
-                if (continueFrom && continueFrom.exchanges.length > 0) {
-                    await generateContinuationOpener();
-                } else {
-                    await generateOpener();
-                }
+                await speakOpener(!!continueFrom && continueFrom.exchanges.length > 0);
             } finally {
                 busy = false;
             }
@@ -2889,25 +2885,29 @@ export async function mountSessionView(
     }
 
     /**
-     * Fresh-session opener: a brief LLM welcome via buildOpenerPrompt (a
-     * one-shot instruction, NOT kept in history), falling back to the static
-     * opener pool on any error.
+     * The facilitator's first line: a brief LLM welcome (or welcome-back on a
+     * resume) from a one-shot instruction that is NOT kept in history, falling
+     * back to a static line on any error.
      */
-    async function generateOpener(): Promise<void> {
-        const openerPrompt = builder.buildOpenerPrompt(setup.intention.trim());
+    async function speakOpener(resuming: boolean): Promise<void> {
+        const instruction = resuming
+            ? 'The meditator is returning to continue from a previous session. ' +
+              "Offer a brief, warm welcome back and gently acknowledge they're " +
+              'picking up where they left off.'
+            : builder.buildOpenerPrompt(setup.intention.trim());
         const reveal = createAssistantReveal();
         try {
-            setStatus(t('Thinking…'));
+            setStatus(resuming ? t('Welcoming you back…') : t('Thinking…'));
             showTyping();
             armSlowResponseStatus();
             // First LLM call, so this is where Ollama pays the cold-load cost;
             // surface that wait at session start.
-            if (provider instanceof OllamaProvider) {
+            if (!resuming && provider instanceof OllamaProvider) {
                 setFacilitatorHint(await provider.coldLoadMessage());
             }
             const messages = [
                 ...session.getContextMessages(),
-                { role: 'user' as const, content: openerPrompt },
+                { role: 'user' as const, content: instruction },
             ];
             const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
                 provider,
@@ -2916,7 +2916,6 @@ export async function mountSessionView(
                 {
                     system: builder.buildSystemPrompt(stager?.promptSection()),
                     ttsOptions: { rate: setup.ttsRate },
-                    // Reveal in step with the voice (createAssistantReveal).
                     onTtsError: handleTtsError,
                     onSpeakStart: (sentence) => {
                         clearSlowResponseStatus();
@@ -2937,8 +2936,7 @@ export async function mountSessionView(
                     `empty opener completion (finish=${finishReason ?? 'null'} raw=${rawText.length} chars)`
                 );
             }
-            tapTurn('assistant', 'opener', cleanText, { raw: rawText });
-            // The opener prompt was one-shot; record only the greeting.
+            if (!resuming) tapTurn('assistant', 'opener', cleanText, { raw: rawText });
             session.addAssistantMessage(cleanText, undefined, usage);
             reveal.anchor();
             try {
@@ -2947,90 +2945,26 @@ export async function mountSessionView(
                 /* non-fatal */
             }
             reveal.finalize(cleanText);
-            pacing.onResponseEnd();
-            setStatus(idleStatus());
         } catch (err) {
             console.warn('LLM opener failed, using static fallback', err);
             clearSlowResponseStatus();
             reveal.discard();
             hideTyping();
-            const fallback = builder.getSessionOpener();
+            const fallback = resuming ? 'Welcome back. Let’s continue.' : builder.getSessionOpener();
             session.addAssistantMessage(fallback);
             appendMessage('assistant', fallback);
-            tapEvent('note', 'opener-fallback');
-            tapTurn('assistant', 'opener', fallback);
+            if (!resuming) {
+                tapEvent('note', 'opener-fallback');
+                tapTurn('assistant', 'opener', fallback);
+            }
             try {
                 await tts.speak(fallback, { rate: setup.ttsRate });
             } catch {
                 /* non-fatal */
             }
-            pacing.onResponseEnd();
-            setStatus(idleStatus());
         }
-    }
-
-    async function generateContinuationOpener(): Promise<void> {
-        const continuationNote =
-            'The meditator is returning to continue from a previous session. ' +
-            "Offer a brief, warm welcome back and gently acknowledge they're " +
-            'picking up where they left off.';
-        const reveal = createAssistantReveal();
-        try {
-            setStatus(t('Welcoming you back…'));
-            // Previous exchanges + the synthetic continuation note. The note
-            // stays out of history: it's a one-shot instruction, not a turn.
-            const messages = [
-                ...session.getContextMessages(),
-                { role: 'user' as const, content: continuationNote },
-            ];
-            showTyping();
-            armSlowResponseStatus();
-            const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
-                provider,
-                tts,
-                messages,
-                {
-                    system: builder.buildSystemPrompt(stager?.promptSection()),
-                    ttsOptions: { rate: setup.ttsRate },
-                    onTtsError: handleTtsError,
-                    onSpeakStart: (sentence) => {
-                        clearSlowResponseStatus();
-                        setStatus(t('Speaking…'));
-                        reveal.reveal(sentence);
-                    },
-                }
-            );
-            clearSlowResponseStatus();
-            const { cleanText } = parseTurnSignals(rawText);
-            // Empty welcome-back: fall through to the static fallback below.
-            // cleanText, so a signal-only one falls back too (9era).
-            if (!cleanText.trim()) throw new Error('empty continuation completion');
-            session.addAssistantMessage(cleanText, undefined, usage);
-            reveal.anchor();
-            try {
-                await ttsDone;
-            } catch {
-                /* non-fatal */
-            }
-            reveal.finalize(cleanText);
-            pacing.onResponseEnd();
-            setStatus(idleStatus());
-        } catch (err) {
-            console.warn('Continuation opener failed', err);
-            clearSlowResponseStatus();
-            reveal.discard();
-            hideTyping();
-            const fallback = 'Welcome back. Let’s continue.';
-            session.addAssistantMessage(fallback);
-            appendMessage('assistant', fallback);
-            try {
-                await tts.speak(fallback, { rate: setup.ttsRate });
-            } catch {
-                /* non-fatal */
-            }
-            pacing.onResponseEnd();
-            setStatus(idleStatus());
-        }
+        pacing.onResponseEnd();
+        setStatus(idleStatus());
     }
 
     // Kick off always-on listening when the view mounts.
