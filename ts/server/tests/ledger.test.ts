@@ -39,6 +39,14 @@ describe('Ledger', () => {
         expect(await ledger.balance(ACCOUNT.id)).toBe(96);
     });
 
+    it('a settle above everything spendable clamps at zero instead of overdrawing', async () => {
+        await ledger.grant(ACCOUNT.id, 1);
+        const holdId = await ledger.placeHold(ACCOUNT.id, 0.5, 'turn'); // clamped below the estimate
+        const debited = await ledger.settleHold(ACCOUNT.id, holdId, 2.72, 'llm:anthropic');
+        expect(debited).toBe(1);
+        expect(await ledger.balance(ACCOUNT.id)).toBe(0);
+    });
+
     it('releasing a hold returns the full held amount, no charge', async () => {
         await ledger.grant(ACCOUNT.id, 100);
         const holdId = await ledger.placeHold(ACCOUNT.id, 25, 'turn');

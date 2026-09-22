@@ -4,7 +4,8 @@
  *
  * Hold lifecycle (meditation-pal-8sj "pre-auth hold at session start"):
  *   placeHold(N)        -> appends a -N 'hold' entry, returns holdId
- *   settleHold(holdId, actual) -> releases the hold (+N) and debits `actual`
+ *   settleHold(holdId, actual) -> releases the hold (+N) and debits `actual`,
+ *                          clamped to the balance (never overdraws)
  *   releaseHold(holdId) -> releases the hold (+N), no debit (session aborted)
  * The hold entry is negative, so spendable balance already reflects outstanding
  * holds; settling swaps the estimate for the real cost, atomically as far as the
@@ -176,23 +177,29 @@ export class Ledger {
     }
 
     /** Settle a hold to an actual cost: release the held amount, then debit the
-     *  real cost. Net balance effect is -actual. Idempotent: if the hold is
-     *  already released (held == 0) this no-ops. Without that guard a second
-     *  settle for the same holdId would re-fire the debit and double-charge (the
-     *  release would be a harmless +0, but the debit isn't). */
+     *  real cost, clamped to what the account can cover. Returns the credits
+     *  debited. Idempotent: if the hold is already released (held == 0) this
+     *  no-ops and returns 0. Without that guard a second settle for the same
+     *  holdId would re-fire the debit and double-charge (the release would be a
+     *  harmless +0, but the debit isn't).
+     *
+     *  The clamp: a hold at a small balance is capped below the turn's estimate
+     *  (holdAgainstBalance), so the actual cost can exceed everything spendable.
+     *  We absorb that overage rather than push the account negative - same rule
+     *  as the upfront STT/TTS legs (chargeUpfront). Only refunds create debt. */
     settleHold(
         accountId: string,
         holdId: string,
         actualCredits: number,
         reason: string
-    ): Promise<void> {
+    ): Promise<number> {
         return this.runExclusive(accountId, async () => {
             const held = await this.heldAmount(accountId, holdId);
-            if (held <= 0) return; // already settled/released, or never held
+            if (held <= 0) return 0; // already settled/released, or never held
             await this.append(accountId, 'hold_release', held, `release:${holdId}`, holdId);
-            if (actualCredits > 0) {
-                await this.append(accountId, 'debit', -Math.abs(actualCredits), reason, holdId);
-            }
+            const debit = Math.min(actualCredits, Math.max(0, await this.balance(accountId)));
+            if (debit > 0) await this.append(accountId, 'debit', -debit, reason, holdId);
+            return Math.max(0, debit);
         });
     }
 

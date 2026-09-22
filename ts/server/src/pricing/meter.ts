@@ -173,8 +173,9 @@ const HOLD_CUSHION = 1.25;
 /** Spendable credits an LLM hold leaves untouched for the turn's OTHER legs
  *  (the TTS of the reply, a speculative STT pass), which bill against balance
  *  while the hold is open. Below this the hold takes half the balance, so a
- *  near-empty account still finishes its last turns end to end. Provider-cost
- *  pennies: the worst case is one turn overdrawing by this much. */
+ *  near-empty account still finishes its last turns end to end. A clamped hold
+ *  can settle above everything spendable; settleHold absorbs that overage (at
+ *  most one turn's cost) instead of pushing the account negative. */
 export const TURN_SIDECAR_RESERVE_CREDITS = 0.5;
 
 /** Credits to pre-auth for one turn: the request's whole prompt (system +

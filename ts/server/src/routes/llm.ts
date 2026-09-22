@@ -151,7 +151,11 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             diagnostics: CompletionDiagnostics | undefined
         ): Promise<CompleteResponse> => {
             const cost = priceLlmTurn(provider, model, usage);
-            if (holdId) await deps.ledger.settleHold(account.id, holdId, cost.credits, `llm:${provider}:${model}`);
+            // Usage records what was debited (settle clamps at the balance), the
+            // same as chargeUpfront; providerCostUsd keeps the full real cost.
+            const debited = holdId
+                ? await deps.ledger.settleHold(account.id, holdId, cost.credits, `llm:${provider}:${model}`)
+                : cost.credits;
             settled = true;
             await recordUsage(deps.store, {
                 accountId: account.id,
@@ -165,7 +169,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 cacheCreation: usage.cacheCreation ?? 0,
                 cacheCreation1h: usage.cacheCreation1h ?? 0,
                 providerCostUsd: cost.providerCostUsd,
-                credits: cost.credits,
+                credits: debited,
                 passId: pass?.id ?? null,
             });
             if (blank) incident('llm_empty', emptyCompletionDetail(finishReason, usage, diagnostics));
