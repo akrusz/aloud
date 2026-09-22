@@ -6,9 +6,9 @@
  *
  * The admin token is NEVER baked in. The operator pastes it once, or signs in
  * with Google when ALOUD_ADMIN_EMAILS is set (the on-the-go path: the device
- * then holds a session JWT the admin gate honours for 7 days, not the root token). Either way the credential
- * lives in localStorage for this origin and rides every call as a Bearer header.
- * Same-origin with the API, so no CORS in play.
+ * then holds a session JWT the admin gate honours for 7 days, not the root
+ * token). Either way the credential lives in localStorage for this origin and
+ * rides every call as a Bearer header. Same-origin with the API, so no CORS.
  *
  * Everything the page can do maps to a gated endpoint in routes/admin.ts;
  * unauthorized, those return 401/404 and the page is an inert form.
@@ -118,6 +118,10 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
      their own line when the viewport is too narrow to share it. */
   .controls { margin-left: auto; display: flex; gap: 8px; align-items: center;
               flex-wrap: wrap; text-transform: none; letter-spacing: normal; }
+  h2 .controls select { width: auto; padding: 3px 7px; font-size: 13px; }
+  h2 .controls button { padding: 3px 9px; font-size: 13px; }
+  h2 .controls .check { font-size: 13px; white-space: nowrap; font-weight: 400; }
+  .pager { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 10px; }
   /* Quick nav - fixed in the left gutter, only when the viewport is wide
      enough to fit it beside the centered 980px column. */
   #quickNav { display: none; }
@@ -262,25 +266,25 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   <div id="app" class="hidden">
     <h2 id="sec-spend">Spend &amp; abuse
       <span class="controls">
-        <select id="metricsWindow" style="width:auto;padding:3px 7px;font-size:13px">
+        <select id="metricsWindow">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
         </select>
-        <button class="ghost" id="refreshMetrics" style="padding:3px 9px;font-size:13px">refresh</button>
+        <button class="ghost" id="refreshMetrics">refresh</button>
       </span>
     </h2>
     <div class="grid" id="stats"></div>
 
     <h2 id="sec-incidents">Incidents
       <span class="controls">
-        <select id="incidentWindow" style="width:auto;padding:3px 7px;font-size:13px">
+        <select id="incidentWindow">
           <option value="24">last 24h</option>
           <option value="168" selected>last 7d</option>
           <option value="720">last 30d</option>
         </select>
-        <label class="check" style="font-size:13px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
-        <button class="ghost" id="refreshIncidents" style="padding:3px 9px;font-size:13px">refresh</button>
+        <label class="check"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshIncidents">refresh</button>
       </span>
     </h2>
     <p class="sub help-text" style="margin:-4px 0 10px">What the app handled quietly on the cloud path. <b>llm_empty</b>: a completion came back with no text (finish=length with tokens_out &gt; 0 means reasoning ate the budget). <b>llm/stt/tts_error</b>: the upstream call failed. <b>judge_error</b>: TypeSafe (Jev) failed or timed out; sessions fell back silently, so this is the only sign (one row a minute, with a count). <b>insufficient_credits</b>: a metered call was refused. <b>client_*</b> rows are reported by the app itself: a blank turn it retried or replaced with a canned line, a voice that failed to synthesize or play. Rows never contain what was said.</p>
@@ -292,27 +296,27 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <tbody id="incidentRows"><tr><td colspan="6" class="muted">Connect to load.</td></tr></tbody>
         </table>
       </div>
-      <div id="incidentPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
+      <div id="incidentPager" class="pager"></div>
     </div>
 
     <h2 id="sec-cost">Cost attribution
       <span class="controls">
-        <select id="usageWindow" style="width:auto;padding:3px 7px;font-size:13px">
+        <select id="usageWindow">
           <option value="24">last 24h</option>
           <option value="168">last 7d</option>
           <option value="720">last 30d</option>
           <option value="8760">last year</option>
           <option value="1000000">all time</option>
         </select>
-        <select id="realSit" style="width:auto;padding:3px 7px;font-size:13px" title="One bar for every session-level number in this section. Real sessions need 5+ turns and at least this many minutes; 'all' is unfiltered">
+        <select id="realSit" title="One bar for every session-level number in this section. Real sessions need 5+ turns and at least this many minutes; 'all' is unfiltered">
           <option value="real" selected>real sessions (5+ turns and 5+ min)</option>
           <option value="15">real sits, 15+ min</option>
           <option value="25">real sits, 25+ min</option>
           <option value="45">real sits, 45+ min</option>
           <option value="all">all sessions</option>
         </select>
-        <label class="check" style="font-size:13px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
-        <button class="ghost" id="refreshUsage" style="padding:3px 9px;font-size:13px">refresh</button>
+        <label class="check"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshUsage">refresh</button>
       </span>
     </h2>
     <p class="sub help-text" style="margin:-4px 0 12px">What real sessions actually cost - the LLM/STT/TTS split, cache-hit ratio, and per-session economics the ledger can't show. Use this to calibrate <code>USD_PER_CREDIT</code> and pack sizing.</p>
@@ -364,7 +368,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
 
     <h2 id="sec-history">Usage over time
       <span class="controls">
-        <select id="historyMetric" style="width:auto;padding:3px 7px;font-size:13px">
+        <select id="historyMetric">
           <option value="cost" selected>provider $</option>
           <option value="margin">revenue vs cost</option>
           <option value="sessions">sessions</option>
@@ -373,14 +377,14 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           <option value="credits">credits</option>
           <option value="duration">avg min / session</option>
         </select>
-        <select id="historyDays" style="width:auto;padding:3px 7px;font-size:13px">
+        <select id="historyDays">
           <option value="7">last 7d</option>
           <option value="30" selected>last 30d</option>
           <option value="90">last 90d</option>
           <option value="365">last year</option>
         </select>
-        <label class="check" style="font-size:13px;white-space:nowrap;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="omitAdmin"> omit admin</label>
-        <button class="ghost" id="refreshHistory" style="padding:3px 9px;font-size:13px">refresh</button>
+        <label class="check"><input type="checkbox" class="omitAdmin"> omit admin</label>
+        <button class="ghost" id="refreshHistory">refresh</button>
       </span>
     </h2>
     <p class="sub help-text" style="margin:-4px 0 12px">Daily trend, one bar per UTC day (dates labeled in UTC). Each session is counted on the day it began. Hover a bar for the exact value.</p>
@@ -392,7 +396,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         <thead><tr><th>Day</th><th class="num">Sessions</th><th class="num">Accounts</th><th class="num">Turns</th><th class="num">Provider $</th><th class="num">Revenue $</th><th class="num">Credits</th><th class="num">Avg min</th></tr></thead>
         <tbody id="historyRows"><tr><td colspan="8" class="muted">Connect to load.</td></tr></tbody>
       </table></div>
-      <div id="historyPager" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:10px"></div>
+      <div id="historyPager" class="pager"></div>
     </div>
 
     <h2 id="sec-free">Free credits</h2>
@@ -434,7 +438,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       <div class="msg" id="grantMsg"></div>
     </div>
 
-    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
+    <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts">refresh</button></span></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
         <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
@@ -447,7 +451,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       </div>
     </div>
 
-    <h2 id="sec-retreats">Retreats <span class="controls"><button class="ghost" id="refreshRetreats" style="padding:3px 9px;font-size:13px">refresh</button></span></h2>
+    <h2 id="sec-retreats">Retreats <span class="controls"><button class="ghost" id="refreshRetreats">refresh</button></span></h2>
     <div class="card">
       <p class="sub help-text" style="margin:0 0 14px">Time-boxed unlimited access for a retreat. Create a pass, then add attendees by email (they must have signed in once). Members aren't metered while the pass is active and in its date window. Leave the daily cap blank for truly unlimited, or set a per-attendee credit ceiling as a backstop.</p>
       <div class="row">
@@ -495,6 +499,44 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function setMsg(el, text, kind) {
     el.textContent = text || '';
     el.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+
+  // A JSON-body call (POST/PUT) to the admin API.
+  function send(method, path, body) {
+    return api(path, {
+      method: method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function each(root, selector, fn) {
+    Array.prototype.forEach.call(root.querySelectorAll(selector), fn);
+  }
+
+  // A dashboard (re)load from a control, its failure shown in the auth box.
+  function reload(load) {
+    return function () { load().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  }
+
+  // One page of rows (newest first) and the pager under its table, shown only
+  // when there's more than one page. go(n) re-renders at page n.
+  function paginate(rows, page, size, pagerId, go) {
+    var pages = Math.max(1, Math.ceil(rows.length / size));
+    page = Math.min(Math.max(page, 0), pages - 1);
+    var el = $(pagerId);
+    if (pages <= 1) {
+      el.innerHTML = '';
+    } else {
+      el.innerHTML =
+        '<button class="ghost xs"' + (page === 0 ? ' disabled' : '') + '>← newer</button>' +
+        '<span class="muted" style="font-size:15px">page ' + (page + 1) + ' of ' + pages + '</span>' +
+        '<button class="ghost xs"' + (page >= pages - 1 ? ' disabled' : '') + '>older →</button>';
+      var btns = el.querySelectorAll('button');
+      btns[0].onclick = function () { go(page - 1); };
+      btns[1].onclick = function () { go(page + 1); };
+    }
+    return { page: page, rows: rows.slice(page * size, (page + 1) * size) };
   }
 
   // Sticky view prefs (window selectors, chart metric, omit-admin) so the
@@ -566,26 +608,16 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function incidentPageSize() { return document.body.classList.contains('compact') ? 8 : 20; }
 
   function renderIncidents() {
-    var size = incidentPageSize();
-    var pages = Math.max(1, Math.ceil(INCIDENTS.length / size));
-    if (incidentPage > pages - 1) incidentPage = pages - 1;
-    if (incidentPage < 0) incidentPage = 0;
-    var page = INCIDENTS.slice(incidentPage * size, (incidentPage + 1) * size);
-    $('incidentRows').innerHTML = page.map(function (i) {
+    var p = paginate(INCIDENTS, incidentPage, incidentPageSize(), 'incidentPager', function (n) {
+      incidentPage = n;
+      renderIncidents();
+    });
+    incidentPage = p.page;
+    $('incidentRows').innerHTML = p.rows.map(function (i) {
       return '<tr><td class="muted" style="white-space:nowrap">' + dateTime(i.ts) + '</td><td>' + esc(i.kind) +
         '</td><td>' + esc(i.account) + '</td><td class="muted">' + esc(i.sessionId ? String(i.sessionId).slice(0, 8) : '') +
         '</td><td title="' + esc(i.provider) + '" style="white-space:nowrap"><code>' + esc(i.model) + '</code></td><td class="muted clip" title="' + esc(i.detail) + '">' + esc(i.detail) + '</td></tr>';
     }).join('') || '<tr><td colspan="6" class="muted">No incidents in this window.</td></tr>';
-    if (pages <= 1) {
-      $('incidentPager').innerHTML = '';
-    } else {
-      $('incidentPager').innerHTML =
-        '<button class="ghost xs" id="incPrev"' + (incidentPage === 0 ? ' disabled' : '') + '>← newer</button>' +
-        '<span class="muted" style="font-size:15px">page ' + (incidentPage + 1) + ' of ' + pages + '</span>' +
-        '<button class="ghost xs" id="incNext"' + (incidentPage >= pages - 1 ? ' disabled' : '') + '>older →</button>';
-      $('incPrev').onclick = function () { if (incidentPage > 0) { incidentPage--; renderIncidents(); } };
-      $('incNext').onclick = function () { if (incidentPage < pages - 1) { incidentPage++; renderIncidents(); } };
-    }
   }
 
   // keepPage: the auto-refresh tick passes true so it doesn't yank the
@@ -922,14 +954,12 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function renderHistory() {
     $('historyChart').innerHTML = barChart(HISTORY, $('historyMetric').value);
 
-    var days = HISTORY.slice().reverse(); // newest first
-    var size = historyPageSize();
-    var pages = Math.max(1, Math.ceil(days.length / size));
-    if (historyPage > pages - 1) historyPage = pages - 1;
-    if (historyPage < 0) historyPage = 0;
-    var page = days.slice(historyPage * size, (historyPage + 1) * size);
-
-    $('historyRows').innerHTML = page.map(function (b) {
+    var p = paginate(HISTORY.slice().reverse(), historyPage, historyPageSize(), 'historyPager', function (n) {
+      historyPage = n;
+      renderHistory();
+    });
+    historyPage = p.page;
+    $('historyRows').innerHTML = p.rows.map(function (b) {
       var avgMin = b.sessions ? b.durationMin / b.sessions : 0;
       return '<tr><td class="muted">' + dateUTC(b.dayStartTs) + '</td>' +
         '<td class="num">' + int(b.sessions) + '</td>' +
@@ -940,18 +970,6 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         '<td class="num">' + dec1(b.credits) + '</td>' +
         '<td class="num">' + avgMin.toFixed(1) + '</td></tr>';
     }).join('') || '<tr><td colspan="8" class="muted">No usage yet.</td></tr>';
-
-    // Pager: only when there's more than one page.
-    if (pages <= 1) {
-      $('historyPager').innerHTML = '';
-    } else {
-      $('historyPager').innerHTML =
-        '<button class="ghost xs" id="histPrev"' + (historyPage === 0 ? ' disabled' : '') + '>← newer</button>' +
-        '<span class="muted" style="font-size:15px">page ' + (historyPage + 1) + ' of ' + pages + '</span>' +
-        '<button class="ghost xs" id="histNext"' + (historyPage >= pages - 1 ? ' disabled' : '') + '>older →</button>';
-      $('histPrev').onclick = function () { if (historyPage > 0) { historyPage--; renderHistory(); } };
-      $('histNext').onclick = function () { if (historyPage < pages - 1) { historyPage++; renderHistory(); } };
-    }
   }
 
   // keepPage: auto-refresh passes true so a background tick doesn't yank the
@@ -976,11 +994,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   function savePause() {
     var testers = $('cTesters').value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
     $('savePause').disabled = true;
-    api('/config', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ meteredPaused: $('cPaused').checked, testerEmails: testers }),
-    }).then(function (cfg) {
+    send('PUT', '/config', { meteredPaused: $('cPaused').checked, testerEmails: testers }).then(function (cfg) {
       $('cTesters').value = (cfg.testerEmails || []).join('\n');
       setMsg($('pauseMsg'), cfg.meteredPaused
         ? 'Saved - spending PAUSED for everyone except ' + (cfg.testerEmails.length || 0) + ' tester(s).'
@@ -994,11 +1008,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     var budget = parseInt($('cBudget').value, 10);
     if (!(signup >= 0) || !(budget >= 0)) { setMsg($('configMsg'), 'Both values must be 0 or more.', 'err'); return; }
     $('saveConfig').disabled = true;
-    api('/config', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ freeSignupCredits: signup, freeGrantBudgetPerHour: budget }),
-    }).then(function (cfg) {
+    send('PUT', '/config', { freeSignupCredits: signup, freeGrantBudgetPerHour: budget }).then(function (cfg) {
       $('cSignup').value = cfg.freeSignupCredits;
       $('cBudget').value = cfg.freeGrantBudgetPerHour;
       var off = cfg.freeSignupCredits === 0 || cfg.freeGrantBudgetPerHour === 0;
@@ -1044,11 +1054,11 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         '<td class="act">' + (a.deleted ? '' : '<button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button>') + '</td>' +
         '</tr>';
     }).join('');
-    Array.prototype.forEach.call($('acctRows').querySelectorAll('tr'), function (tr) {
+    each($('acctRows'), 'tr', function (tr) {
       tr.addEventListener('click', function () { openLedger(tr.getAttribute('data-id')); });
     });
     // Per-row grant: prefill the Grant form with this email (don't open ledger).
-    Array.prototype.forEach.call($('acctRows').querySelectorAll('[data-grant]'), function (btn) {
+    each($('acctRows'), '[data-grant]', function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         $('gEmail').value = btn.getAttribute('data-grant');
@@ -1156,11 +1166,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     var credits = parseInt($('gCredits').value, 10);
     if (!email || !(credits > 0)) { setMsg($('grantMsg'), 'Enter an email and a positive credit amount.', 'err'); return; }
     $('grant').disabled = true;
-    api('/grant', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: email, credits: credits }),
-    }).then(function (r) {
+    send('POST', '/grant', { email: email, credits: credits }).then(function (r) {
       setMsg($('grantMsg'), 'Granted ' + int(credits) + ' to ' + email + ' - new balance ' + dec1(r.balance) + '.', 'ok');
       $('gCredits').value = '';
       return Promise.all([loadAccounts(), loadMetrics()]);
@@ -1228,7 +1234,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       '</div>';
     }).join('');
 
-    Array.prototype.forEach.call($('retreatList').querySelectorAll('[data-revoke]'), function (btn) {
+    each($('retreatList'), '[data-revoke]', function (btn) {
       btn.addEventListener('click', function () {
         if (!confirm('Revoke this pass? Coverage stops immediately for every attendee.')) return;
         api('/retreats/' + btn.getAttribute('data-revoke') + '/revoke', { method: 'POST' })
@@ -1236,7 +1242,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           .catch(function (e) { alert(e.message); });
       });
     });
-    Array.prototype.forEach.call($('retreatList').querySelectorAll('[data-delete]'), function (btn) {
+    each($('retreatList'), '[data-delete]', function (btn) {
       btn.addEventListener('click', function () {
         if (!confirm('Permanently delete this pass and its attendee records? This cannot be undone.')) return;
         api('/retreats/' + btn.getAttribute('data-delete'), { method: 'DELETE' })
@@ -1244,7 +1250,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
           .catch(function (e) { alert(e.message); });
       });
     });
-    Array.prototype.forEach.call($('retreatList').querySelectorAll('[data-add]'), function (btn) {
+    each($('retreatList'), '[data-add]', function (btn) {
       btn.addEventListener('click', function () {
         var id = btn.getAttribute('data-add');
         var input = $('retreatList').querySelector('[data-email="' + id + '"]');
@@ -1252,11 +1258,8 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
         var email = input.value.trim();
         if (!email) { setMsg(msg, 'Enter an email.', 'err'); return; }
         btn.disabled = true;
-        api('/retreats/' + id + '/members', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email: email }),
-        }).then(function () { input.value = ''; return loadRetreats(); })
+        send('POST', '/retreats/' + id + '/members', { email: email })
+          .then(function () { input.value = ''; return loadRetreats(); })
           .catch(function (e) { setMsg(msg, e.message, 'err'); btn.disabled = false; });
       });
     });
@@ -1272,11 +1275,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
     if (!(endsAt > startsAt)) { setMsg($('retreatMsg'), 'End must be after start.', 'err'); return; }
     var cap = capRaw === '' ? null : Number(capRaw);
     $('createRetreat').disabled = true;
-    api('/retreats', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ label: label, startsAt: startsAt, endsAt: endsAt, perAttendeeDailyCap: cap }),
-    }).then(function () {
+    send('POST', '/retreats', { label: label, startsAt: startsAt, endsAt: endsAt, perAttendeeDailyCap: cap }).then(function () {
       setMsg($('retreatMsg'), 'Created "' + label + '".', 'ok');
       $('rLabel').value = ''; $('rCap').value = '';
       return loadRetreats();
@@ -1391,26 +1390,26 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
   $('grant').onclick = doGrant;
   $('saveConfig').onclick = saveConfig;
   $('savePause').onclick = savePause;
-  $('refreshMetrics').onclick = function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
-  $('metricsWindow').addEventListener('change', function () { loadMetrics().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
-  $('refreshUsage').onclick = function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
-  $('usageWindow').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
-  $('realSit').addEventListener('change', function () { loadUsage().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
-  $('refreshHistory').onclick = function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
-  $('refreshIncidents').onclick = function () { loadIncidents().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
-  $('incidentWindow').addEventListener('change', function () { loadIncidents().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
-  Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (cb) {
+  $('refreshMetrics').onclick = reload(loadMetrics);
+  $('metricsWindow').addEventListener('change', reload(loadMetrics));
+  $('refreshUsage').onclick = reload(loadUsage);
+  $('usageWindow').addEventListener('change', reload(loadUsage));
+  $('realSit').addEventListener('change', reload(loadUsage));
+  $('refreshHistory').onclick = reload(loadUsageHistory);
+  $('refreshIncidents').onclick = reload(loadIncidents);
+  $('incidentWindow').addEventListener('change', reload(loadIncidents));
+  each(document, '.omitAdmin', function (cb) {
     cb.addEventListener('change', function () {
-      Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = cb.checked; });
+      each(document, '.omitAdmin', function (o) { o.checked = cb.checked; });
       savePref('omitAdmin', cb.checked);
       Promise.all([loadUsage(), loadUsageHistory(), loadIncidents()]).catch(function (e) { setMsg($('authMsg'), e.message, 'err'); });
     });
   });
-  $('historyDays').addEventListener('change', function () { loadUsageHistory().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); });
+  $('historyDays').addEventListener('change', reload(loadUsageHistory));
   // Metric switch is a pure client-side re-render - no refetch needed.
   $('historyMetric').addEventListener('change', renderHistory);
-  $('refreshAccts').onclick = function () { loadAccounts().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
-  $('refreshRetreats').onclick = function () { loadRetreats().catch(function (e) { setMsg($('authMsg'), e.message, 'err'); }); };
+  $('refreshAccts').onclick = reload(loadAccounts);
+  $('refreshRetreats').onclick = reload(loadRetreats);
   $('createRetreat').onclick = createRetreat;
   $('search').addEventListener('input', renderAccounts);
   $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') connect(); });
@@ -1465,7 +1464,7 @@ const ADMIN_PANEL_TEMPLATE = String.raw`<!doctype html>
       el.addEventListener('change', function () { savePref(id, el.value); });
     });
     if (prefs.omitAdmin) {
-      Array.prototype.forEach.call(document.querySelectorAll('.omitAdmin'), function (o) { o.checked = true; });
+      each(document, '.omitAdmin', function (o) { o.checked = true; });
     }
     if (prefs.autoRefresh) {
       $('autoRefresh').checked = true;
