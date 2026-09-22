@@ -62,7 +62,7 @@ import {
     GroqProvider,
     type LLMProvider,
 } from '../../../src/llm/index.js';
-import type { SttEngine, TtsEngine } from '../../../src/platform/index.js';
+import type { SttEngine, TtsEngine, TtsOptions } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
 import { wrapTtsWithBargeIn } from '../barge-in.js';
@@ -891,7 +891,7 @@ export async function mountSessionView(
         return ttsSpeakingDepth > 0 || Date.now() - lastTtsEndedAt < ECHO_TEXT_WINDOW_MS;
     }
     const tts = {
-        async speak(text: string, options?: import('../../../src/platform/index.js').TtsOptions): Promise<void> {
+        async speak(text: string, options?: TtsOptions): Promise<void> {
             // A torn-down session must never voice anything. A slow LLM turn
             // (the Claude Subscription CLI can resolve minutes after the user
             // quit) would otherwise play into whatever session is now on screen:
@@ -906,7 +906,7 @@ export async function mountSessionView(
                 if (--ttsSpeakingDepth === 0) ttsPlaybackEnded();
             }
         },
-        prefetch(text: string, options?: import('../../../src/platform/index.js').TtsOptions): void {
+        prefetch(text: string, options?: TtsOptions): void {
             // Without this passthrough the streaming bridge sees no prefetch()
             // on the wrapper and inter-sentence synthesis stays serial.
             if (!ttsEnabled || torn) return;
@@ -1005,11 +1005,24 @@ export async function mountSessionView(
         silenceBuffer = [];
         pacing.enterSilenceMode();
         setHolding(true);
-        setStatus(t("Holding space, say when you're ready to continue"));
+        setStatus(holdingStatus());
+    }
+
+    /** The view's half of leaving a hold; the caller settles pacing. */
+    function exitHold(): void {
+        tapEvent('hold', 'exit');
+        tapFlags({ silenceMode: false });
+        silenceMode = false;
+        leftHoldAt = Date.now();
+        setHolding(false);
     }
 
     function setStatus(text: string): void {
         statusEl.textContent = text;
+    }
+
+    function holdingStatus(): string {
+        return t("Holding space, say when you're ready to continue");
     }
 
     // Slow-response indicator: if nothing has been spoken this long after a
@@ -1113,12 +1126,9 @@ export async function mountSessionView(
             wireWhisperBargeIn();
             await rebuildTts(setup.voice);
             // Persist so the next session opens on the engine that worked here.
-            try {
-                const s = await loadAppSettings();
-                await saveAppSettings({ ...s, sttEngine: choice });
-            } catch {
+            await persistSettings({ sttEngine: choice }).catch(() => {
                 /* best-effort; the live switch still stands for this session */
-            }
+            });
             stopMeter();
             clearSttTrouble();
             // Ends the loop's in-flight `for await` on the old engine; it re-enters
@@ -1322,11 +1332,12 @@ export async function mountSessionView(
         // Worth saying: the alternative is a whole sit in silence with no clue.
         if ((err as { name?: string })?.name === 'NotAllowedError') {
             showErrorToast(t('Your browser blocked audio playback - allow auto-play for this site.'));
-            if (cannedVoice()) reportCloudIncident('client_playback_blocked', { model: cannedVoice() ?? '' });
+            const voice = cannedVoice();
+            if (voice) reportCloudIncident('client_playback_blocked', { model: voice });
             return;
         }
         const msg = err instanceof Error ? err.message : String(err);
-        if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+        if (isOutOfCredits(msg)) {
             appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
             void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             return;
@@ -1388,21 +1399,14 @@ export async function mountSessionView(
             // The voice path persists through this same callback; only a timer
             // armed in the picker is news.
             if (choice.mode === 'timer' && !clockChangeByVoice) hintVoiceCommand('timer');
-            appSettings.sessionClockMode = choice.mode;
-            appSettings.sessionTimerMin = choice.timerMin;
-            appSettings.showSessionClock = choice.showClock;
-            appSettings.endSessionOnTimer = choice.endOnComplete;
-            // Re-read before writing: the in-memory copy was loaded at mount
-            // and must not clobber anything saved since.
-            void loadAppSettings().then((s) =>
-                saveAppSettings({
-                    ...s,
-                    sessionClockMode: choice.mode,
-                    sessionTimerMin: choice.timerMin,
-                    showSessionClock: choice.showClock,
-                    endSessionOnTimer: choice.endOnComplete,
-                })
-            );
+            const patch = {
+                sessionClockMode: choice.mode,
+                sessionTimerMin: choice.timerMin,
+                showSessionClock: choice.showClock,
+                endSessionOnTimer: choice.endOnComplete,
+            };
+            Object.assign(appSettings, patch);
+            void persistSettings(patch);
         }
     );
 
@@ -1434,6 +1438,12 @@ export async function mountSessionView(
         setStatus(t('Mic unavailable'));
     } else {
         setStatus(listeningStatus());
+    }
+
+    /** A meditator utterance on screen and in the soak tap (not in history). */
+    function showUserTurn(text: string): void {
+        appendMessage('user', text);
+        tapTurn('user', 'user', text);
     }
 
     function insertDivider(text: string): void {
@@ -1632,8 +1642,7 @@ export async function mountSessionView(
             { okLabel: t('Turn on'), html: true }
         );
         if (!ok || torn || cloudJudge) return;
-        // Re-read before writing, like the clock does.
-        void loadAppSettings().then((saved) => saveAppSettings({ ...saved, voiceCommandsViaCloud: true }));
+        void persistSettings({ voiceCommandsViaCloud: true });
         judgeAccess = 'opted-in';
         cloudJudge = new CloudJudge();
         cloudJudge.warm();
@@ -1673,32 +1682,39 @@ export async function mountSessionView(
     // this sit, the same two choices the End dialog offers by hand.
     let endConfirmSkipSave = false;
 
+    /** Supersede an in-flight reply so a command can speak. */
+    function takeFloor(): void {
+        if (!busy) return;
+        ++turnGen;
+        activeFullAbort?.abort();
+        void tts.cancel();
+        // The superseded turn no longer owns the flag (see respondTo's finally).
+        busy = false;
+    }
+
     /** Say what a command did. Takes the floor if the facilitator is mid-reply
      *  (the same supersede respondTo does), records both sides so the model
      *  doesn't later read itself announcing a timer nobody asked for, and keeps
      *  a silence hold held - a command is not a call back. */
     async function speakCommandLine(userText: string, line: string): Promise<void> {
-        if (busy) {
-            ++turnGen;
-            activeFullAbort?.abort();
-            void tts.cancel();
-            // The superseded turn no longer owns the flag (see respondTo's finally).
-            busy = false;
-        }
-        appendMessage('user', userText);
-        tapTurn('user', 'user', userText);
+        takeFloor();
+        showUserTurn(userText);
         session.addUserMessage(userText);
         await respondWithFacilitatorLine(line, 'command');
         restoreHoldAfterNotice('command');
     }
 
-    /** Mic off first, so nothing said while the acknowledgment plays is heard.
-     *  The spoken "Muted." is what makes a misfire noticeable with eyes shut:
-     *  unmuting is button-only. */
-    async function muteByVoice(userText: string, via: 'regex' | 'judge'): Promise<void> {
+    function muteMicByVoice(userText: string, via: 'regex' | 'judge'): void {
         tapEvent('audio', 'mute-command', { text: userText, via });
         tapFlags({ muted: true });
         setMuted(true);
+    }
+
+    /** Mic off first, so nothing said while the acknowledgment plays is heard.
+     *  The spoken "Muted." is what makes a misfire noticeable with eyes shut:
+     *  unmuting is button-only. */
+    async function muteByVoice(userText: string): Promise<void> {
+        muteMicByVoice(userText, 'regex');
         await speakCommandLine(userText, COMMAND_LINES.muted(sessionLanguageOf(appSettings.language)));
     }
 
@@ -1711,12 +1727,7 @@ export async function mountSessionView(
             await speakCommandLine(userText, COMMAND_LINES.nothingToRepeat(sessionLanguageOf(appSettings.language)));
             return;
         }
-        if (busy) {
-            ++turnGen;
-            activeFullAbort?.abort();
-            void tts.cancel();
-            busy = false;
-        }
+        takeFloor();
         busy = true;
         tapFlags({ busy: true });
         tapEvent('note', 'command:repeat-spoken');
@@ -1747,14 +1758,12 @@ export async function mountSessionView(
         vadOpts.silenceMaxMs = next.maxMs;
         stt.setPauseWindow(next.baseMs, next.maxMs);
         // Hosted sessions stream, so these are the pair in play (not the
-        // nonStreaming* one). Re-read before writing, like the clock does.
-        void loadAppSettings().then((saved) =>
-            saveAppSettings({ ...saved, silenceBaseMs: next.baseMs, silenceMaxMs: next.maxMs })
-        );
+        // nonStreaming* one).
+        void persistSettings({ silenceBaseMs: next.baseMs, silenceMaxMs: next.maxMs });
         return COMMAND_LINES[direction === 'sooner' ? 'respondSooner' : 'waitLonger'](lang);
     }
 
-    function setOrbShown(shown: boolean): void {
+    function setKasina(shown: boolean): void {
         if (kasinaToggle.checked === shown) return;
         kasinaToggle.checked = shown;
         kasinaToggle.dispatchEvent(new Event('change'));
@@ -1826,9 +1835,7 @@ export async function mountSessionView(
                 return { line: adjustPause('longer') };
             case 'mute':
                 // Mic off before the line, so nothing said while it plays is heard.
-                tapEvent('audio', 'mute-command', { text: userText, via: 'judge' });
-                tapFlags({ muted: true });
-                setMuted(true);
+                muteMicByVoice(userText, 'judge');
                 return { line: COMMAND_LINES.muted(lang) };
             case 'mute_speaker':
                 return { line: COMMAND_LINES.speakerOff(lang), after: () => setTtsEnabled(false) };
@@ -1851,10 +1858,10 @@ export async function mountSessionView(
                 };
             }
             case 'show_orb':
-                setOrbShown(true);
+                setKasina(true);
                 return { line: COMMAND_LINES.orbShown(lang) };
             case 'hide_orb':
-                setOrbShown(false);
+                setKasina(false);
                 return { line: COMMAND_LINES.orbHidden(lang) };
             case 'embers_on':
                 setEmbersOn(true);
@@ -1924,8 +1931,7 @@ export async function mountSessionView(
         tapEvent('note', `end-confirm:${verdict}`, { utterance: userText });
         if (torn) return true;
         if (verdict === 'yes') {
-            appendMessage('user', userText);
-            tapTurn('user', 'user', userText);
+            showUserTurn(userText);
             // Same terms as the timer's close and the idle auto-quit: they asked
             // for this twice, so no dialog.
             await endSession(undefined, endConfirmSkipSave);
@@ -1948,8 +1954,7 @@ export async function mountSessionView(
     // respondTo / the check-in timer.
     async function handleSilenceUtterance(userText: string): Promise<void> {
         if (isNonSpeechOnly(userText)) return;
-        appendMessage('user', userText);
-        tapTurn('user', 'user', userText);
+        showUserTurn(userText);
         silenceBuffer.push(userText);
         setStatus(t('Holding space, one moment…'));
         const classifyStart = Date.now();
@@ -1964,7 +1969,7 @@ export async function mountSessionView(
         // during the classifier round-trip; bail so we don't resurrect it.
         if (torn || !silenceMode) return;
         if (verdict === 'stay') {
-            setStatus(t("Holding space, say when you're ready to continue"));
+            setStatus(holdingStatus());
             return;
         }
         // 'resume' (they asked to continue) or 'error' (the classifier call
@@ -1998,8 +2003,7 @@ export async function mountSessionView(
             // Show their "yes" and begin the silence. The reply isn't recorded
             // as a meditation turn: enterHold resets the buffer, and the next
             // thing they say is what gets buffered for the resume.
-            appendMessage('user', userText);
-            tapTurn('user', 'user', userText);
+            showUserTurn(userText);
             enterHold();
         } else {
             // Not a yes: an ordinary turn. Also the graceful exit for an eager
@@ -2029,8 +2033,7 @@ export async function mountSessionView(
         // Recorded, unlike the hold-confirm yes: the canned line goes into
         // history, so without the request the model later reads itself saying
         // "going quiet" with nothing that asked for it.
-        appendMessage('user', userText);
-        tapTurn('user', 'user', userText);
+        showUserTurn(userText);
         session.addUserMessage(userText);
         await respondWithFacilitatorLine(builder.getHoldReentryLine(), 'reentry');
         if (torn) return;
@@ -2082,20 +2085,10 @@ export async function mountSessionView(
             pacing.onTranscription(userText);
             smartCheckinStreak = 0;
             smartCheckinPasses = 0;
-            if (silenceMode) {
-                silenceMode = false;
-                leftHoldAt = Date.now();
-                tapEvent('hold', 'exit');
-                tapFlags({ silenceMode: false });
-                setHolding(false);
-            }
+            if (silenceMode) exitHold();
             // On a resume from silence the buffered utterances are already on
-            // screen as user bubbles; don't double-render, just record the
-            // joined text in history for the LLM turn.
-            if (!opts.skipUserBubble) appendMessage('user', userText);
-            // The buffered utterances were tapped as they arrived; tap the
-            // joined resume text only when it wasn't already recorded.
-            if (!opts.skipUserBubble) tapTurn('user', 'user', userText);
+            // screen (and tapped); only the joined text goes into history.
+            if (!opts.skipUserBubble) showUserTurn(userText);
             session.addUserMessage(userText);
             // Dots the instant we submit, before any network round-trip, so the
             // user sees their turn was received.
@@ -2307,7 +2300,7 @@ export async function mountSessionView(
             // 402s are already logged server-side; everything else that fails a
             // cloud turn in the app (timeouts, network, upstream) goes to the
             // operator's incident log.
-            if (cloudSmooth && !/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+            if (cloudSmooth && !isOutOfCredits(msg)) {
                 reportCloudIncident('client_llm_error', { detail: msg, model: setup.model });
             }
             // Running out of credits is a graceful stop, not an error. Ephemeral
@@ -2315,7 +2308,7 @@ export async function mountSessionView(
             // once topped up or switched to local/BYOK), voiced via the free
             // canned endpoint, with a one-tap top-up in the transcript.
             // (meditation-pal-44o, meditation-pal-4l5)
-            if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
+            if (isOutOfCredits(msg)) {
                 appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
                 void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             } else if (/claude_proxy_stalled/.test(msg)) {
@@ -2403,7 +2396,7 @@ export async function mountSessionView(
                     !torn &&
                     !muted
                 ) {
-                    await new Promise<void>((r) => setTimeout(r, 100));
+                    await sleep(100);
                 }
                 // Then let the last of the facilitator's audio die away before
                 // reopening the mic - the acoustic half of the echo guard, and
@@ -2414,9 +2407,7 @@ export async function mountSessionView(
                 while (micCooldown && !continuousCapture && !torn && !muted) {
                     const since = Date.now() - lastTtsEndedAt;
                     if (ttsSpeakingDepth === 0 && since >= MIC_RESUME_COOLDOWN_MS) break;
-                    await new Promise<void>((r) =>
-                        setTimeout(r, Math.max(50, MIC_RESUME_COOLDOWN_MS - since))
-                    );
+                    await sleep(Math.max(50, MIC_RESUME_COOLDOWN_MS - since));
                 }
                 if (torn || muted) break;
 
@@ -2512,7 +2503,7 @@ export async function mountSessionView(
                     // on every provider and offline; natural phrasings ("turn
                     // off the mic") come through the command judge just below.
                     if (isMuteCommand(text)) {
-                        await muteByVoice(text, 'regex');
+                        await muteByVoice(text);
                         break;
                     }
                     // Commands come next and also outrank the silence routes: a
@@ -2578,13 +2569,13 @@ export async function mountSessionView(
                     // the toast fades and the status reverts.
                     noteSttFailure();
                     // Brief backoff so a broken mic doesn't tight-loop us.
-                    await new Promise<void>((r) => setTimeout(r, 2000));
+                    await sleep(2000);
                 } else if (Date.now() - cycleStart < 1000) {
                     // Empty capture that also ended in under a second: the
                     // engine is bouncing (e.g. Android's recognizer erroring
                     // straight into 'stopped'). Pace the restart so a bounce
                     // can't become a bridge-speed storm.
-                    await new Promise<void>((r) => setTimeout(r, 600));
+                    await sleep(600);
                 }
                 // Empty utterance with no error: just loop and listen again.
             }
@@ -2679,11 +2670,7 @@ export async function mountSessionView(
             // The listen loop resumes without re-announcing, so clear the
             // 'Muted' status here or it sticks.
             setStatus(
-                silenceMode
-                    ? t("Holding space, say when you're ready to continue")
-                    : stt
-                      ? listeningStatus()
-                      : t('Ready')
+                silenceMode ? holdingStatus() : listeningStatus()
             );
             startMeter();
             void listenLoop();
@@ -2712,10 +2699,8 @@ export async function mountSessionView(
     // resume-intent classifier decides when speech ends the hold.
     listenBtn.addEventListener('click', () => {
         if (silenceMode) {
-            silenceMode = false;
-            leftHoldAt = Date.now();
+            exitHold();
             pacing.exitSilenceMode();
-            setHolding(false);
             setStatus(stt ? listeningStatus() : t('Ready'));
         } else {
             // Clicking the button IS the confirmation: bypass the auto-[HOLD]
@@ -3126,6 +3111,14 @@ export async function mountSessionView(
             localizePool(fallbackPool, sessionLanguageOf(sessionLanguage)),
             total
         );
+        const speakNotice = async (line: string): Promise<void> => {
+            await respondWithFacilitatorLine(
+                line,
+                kind === 'approach' ? 'timer-approach' : 'timer-completion'
+            );
+            if (endsSession) void closeAfterTimer();
+            else restoreHoldAfterNotice();
+        };
         try {
             const eventText =
                 kind === 'approach'
@@ -3170,26 +3163,17 @@ export async function mountSessionView(
             // why the facilitator spoke about time unprompted.
             session.addUserMessage(eventText);
             tapTurn('user', 'event', eventText);
-            await respondWithFacilitatorLine(
-                line,
-                kind === 'approach' ? 'timer-approach' : 'timer-completion'
-            );
-            if (endsSession) void closeAfterTimer();
-            else restoreHoldAfterNotice();
+            await speakNotice(line);
         } catch {
-            if (!torn && myArm === sessionClock.armGeneration() && (myGen !== turnGen || busy)) {
+            if (torn || myArm !== sessionClock.armGeneration()) return;
+            if (myGen !== turnGen || busy) {
                 sessionClock.requeue(kind, myArm);
-            } else if (!torn && myArm === sessionClock.armGeneration()) {
-                debugLog(`timer ${kind} → error (canned)`);
-                tapEvent('timer', `${kind}-error-canned`);
-                tapTurn('user', 'event', `[Timer: ${kind}]`);
-                await respondWithFacilitatorLine(
-                    canned,
-                    kind === 'approach' ? 'timer-approach' : 'timer-completion'
-                );
-                if (endsSession) void closeAfterTimer();
-                else restoreHoldAfterNotice();
+                return;
             }
+            debugLog(`timer ${kind} → error (canned)`);
+            tapEvent('timer', `${kind}-error-canned`);
+            tapTurn('user', 'event', `[Timer: ${kind}]`);
+            await speakNotice(canned);
         } finally {
             timerNoticeInFlight = false;
         }
@@ -3215,7 +3199,7 @@ export async function mountSessionView(
         if (torn || !silenceMode) return;
         tapEvent('hold', `restored-after-${after}`);
         pacing.enterSilenceMode();
-        setStatus(t("Holding space, say when you're ready to continue"));
+        setStatus(holdingStatus());
     }
 
     // Auto-quit-after-silence: once a session goes untouched past the configured
@@ -3471,10 +3455,7 @@ export async function mountSessionView(
         // Exit kasina if active: the toggle's exit branch restores the
         // pre-kasina theme and moves the orb back into the nav (about to be
         // cleared) rather than orphaning it in <body>.
-        if (kasinaToggle.checked) {
-            kasinaToggle.checked = false;
-            kasinaToggle.dispatchEvent(new Event('change'));
-        }
+        setKasina(false);
         // Remove the window/document-level listeners (kasina drag, beforeunload).
         viewCleanup.abort();
         // Restore the global nav slots we replaced on mount.
@@ -3612,10 +3593,23 @@ export async function mountSessionView(
         },
         showInfo(): void { infoPanel.open(); },
         toggleKasina(): void {
-            kasinaToggle.checked = !kasinaToggle.checked;
-            kasinaToggle.dispatchEvent(new Event('change'));
+            setKasina(!kasinaToggle.checked);
         },
     };
+}
+
+/** Save a few settings mid-session. Re-reads first: the view's copy was loaded
+ *  at mount and must not clobber anything saved since. */
+async function persistSettings(patch: Partial<AppSettings>): Promise<void> {
+    await saveAppSettings({ ...(await loadAppSettings()), ...patch });
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+}
+
+function isOutOfCredits(message: string): boolean {
+    return /insufficient_credits|out of credits|endpoint 402/i.test(message);
 }
 
 function canStream(provider: LLMProvider): boolean {
