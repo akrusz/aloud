@@ -15,6 +15,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::{
     body::Bytes,
@@ -171,7 +172,7 @@ fn random_token() -> String {
     use rand::Rng;
     let mut buf = [0u8; 32];
     rand::rng().fill_bytes(&mut buf);
-    buf.iter().map(|b| format!("{b:02x}")).collect()
+    hex(&buf)
 }
 
 fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
@@ -302,35 +303,31 @@ pub fn start(data_dir: PathBuf) -> (u16, String) {
 /// Background loader: (re)load whichever model `whisper_model` targets,
 /// retrying failures with backoff, until the loaded model matches the target.
 /// At most one runs (`whisper_loading`); stt_whisper retargets and respawns.
-/// A failed first-run download (offline launch, proxy blocking huggingface.co)
-/// used to fail once and leave STT dead for the app's lifetime.
+/// Retrying matters because a first-run download can fail (offline launch, a
+/// proxy blocking huggingface.co), and STT would otherwise stay dead.
 fn run_whisper_loader(state: &AppState) {
-    let mut delay = std::time::Duration::from_secs(15);
+    const INITIAL: Duration = Duration::from_secs(15);
+    let mut delay = INITIAL;
     loop {
         let target = state.whisper_model.lock().unwrap().clone();
+        let still_target = || *state.whisper_model.lock().unwrap() == target;
         match load_whisper(state, &target) {
-            Ok(retargeted) => {
-                if !retargeted {
-                    break;
-                }
-                delay = std::time::Duration::from_secs(15);
-            }
+            Ok(false) => break,
+            Ok(true) => delay = INITIAL,
             Err(e) => {
                 log::error!("whisper init failed (retrying in {}s): {e}", delay.as_secs());
                 *state.whisper_error.lock().unwrap() = Some(e);
                 // Sleep in 1s slices so a model switch doesn't wait out the
                 // whole backoff before being picked up.
-                let mut slept = std::time::Duration::ZERO;
-                while slept < delay
-                    && *state.whisper_model.lock().unwrap() == target
-                {
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    slept += std::time::Duration::from_secs(1);
+                let mut slept = Duration::ZERO;
+                while slept < delay && still_target() {
+                    std::thread::sleep(Duration::from_secs(1));
+                    slept += Duration::from_secs(1);
                 }
-                delay = if *state.whisper_model.lock().unwrap() == target {
-                    (delay * 2).min(std::time::Duration::from_secs(300))
+                delay = if still_target() {
+                    (delay * 2).min(Duration::from_secs(300))
                 } else {
-                    std::time::Duration::from_secs(15)
+                    INITIAL
                 };
             }
         }
@@ -359,9 +356,8 @@ fn load_whisper(state: &AppState, file: &str) -> Result<bool, String> {
         Ok(ctx) => ctx,
         // A file that was already here and won't load is either corrupt or an
         // environment problem, and the two need opposite responses: a corrupt
-        // file must be replaced (a user once had to find the Settings button to
-        // delete and re-download one by hand - it had the exact official byte
-        // size, so only content tells), while deleting a good file on an
+        // file must be replaced (one seen in the wild had the exact official
+        // byte size, so only content tells), while deleting a good file on an
         // environment error would re-download 150MB-1.5GB per retry. The
         // manifest hash tells them apart; when it can't be fetched (offline),
         // the error stands and the next backoff attempt checks again.
@@ -548,13 +544,9 @@ mod whisper_integrity_tests {
 /// `GET /app/v1/system-info` - platform + tool availability. A successful
 /// response is also the UI's "is desktop" signal.
 async fn system_info(State(state): State<Shared>) -> Json<Value> {
-    let claude = which::which("claude").ok();
-    let ollama = which::which("ollama").ok();
-    let path_str = |p: Option<PathBuf>| -> Value {
-        match p {
-            Some(p) => json!(p.display().to_string()),
-            None => Value::Null,
-        }
+    let tool = |name: &str| {
+        let path = which::which(name).ok().map(|p| p.display().to_string());
+        json!({ "installed": path.is_some(), "path": path })
     };
     // The UI's platform-string consumers expect "darwin", not Rust's "macos".
     let platform = match std::env::consts::OS {
@@ -589,15 +581,20 @@ async fn system_info(State(state): State<Shared>) -> Json<Value> {
             }),
         },
         "tools": {
-            "claude_cli": { "installed": claude.is_some(), "path": path_str(claude) },
-            "ollama": { "installed": ollama.is_some(), "path": path_str(ollama) },
+            "claude_cli": tool("claude"),
+            "ollama": tool("ollama"),
         },
     }))
 }
 
+fn default_lang() -> String {
+    "en".to_string()
+}
+
 #[derive(Deserialize)]
 struct WhisperModelsQuery {
-    lang: Option<String>,
+    #[serde(default = "default_lang")]
+    lang: String,
 }
 
 /// Rough download size per Settings size (whisper.cpp ggml files; .en and
@@ -619,11 +616,10 @@ async fn stt_whisper_models(
     State(state): State<Shared>,
     Query(q): Query<WhisperModelsQuery>,
 ) -> Json<Value> {
-    let lang = q.lang.unwrap_or_else(|| "en".to_string());
     let models: Vec<Value> = ["tiny", "base", "small", "medium", "large"]
         .iter()
         .filter_map(|size| {
-            let file = whisper_model_file(size, &lang)?;
+            let file = whisper_model_file(size, &q.lang)?;
             let bytes = std::fs::metadata(state.model_dir.join(&file)).ok().map(|m| m.len());
             Some(json!({
                 "size": size,
@@ -637,18 +633,20 @@ async fn stt_whisper_models(
     Json(json!({ "models": models }))
 }
 
+/// `whisper_model_file`, with an unknown size as a 400.
+fn requested_model(size: &str, lang: &str) -> ApiResult<String> {
+    whisper_model_file(size, lang).ok_or_else(|| bad_request("Unknown Whisper model size."))
+}
+
 /// Retarget on an explicit size/language change: drop the old context (frees
-/// its RAM), mark not-ready, (re)start the loader if none runs. Err = unknown
-/// size. Shared by the stt request and the session-start warm probe.
-fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> Result<(), ()> {
-    let Some(file) = whisper_model_file(size, lang) else {
-        return Err(());
-    };
+/// its RAM), mark not-ready, (re)start the loader if none runs. Shared by the
+/// stt request and the session-start warm probe.
+fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> ApiResult<()> {
+    let file = requested_model(size, lang)?;
     let mut current = state.whisper_model.lock().unwrap();
     if *current != file {
         log::info!("whisper model switch: {} -> {file}", *current);
-        // Remember across launches so boot loads THIS model, not the default
-        // (which was a wasted base.en load + switch for anyone on another size).
+        // Remember across launches so boot loads THIS model, not the default.
         let _ = std::fs::write(state.data_dir.join(LAST_WHISPER_MODEL_FILE), &file);
         *current = file;
         state.whisper_ready.store(false, Ordering::SeqCst);
@@ -664,37 +662,37 @@ fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> Result<(), ()> {
 
 /// `GET /app/v1/stt/whisper/warm?model_size=xx&lang=xx` - the session-start
 /// probe. Existing at all answers "local Whisper lives here" (the web Hono
-/// 404s), and the model params kick the loader NOW, during setup, instead of
-/// on the first utterance - which used to 503 and eat the user's first words
-/// after a model switch. Always 200 (no console noise); body says how far
+/// 404s), and the model params kick the loader NOW, during setup, rather than
+/// on the first utterance, whose 503 would eat the user's first words after a
+/// model switch. 200 unless the size is unknown; the body says how far
 /// along the model is, which is what the setup page holds Begin on
 /// (`ui/src/whisper-ready.ts`).
 async fn stt_whisper_warm(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
-) -> (StatusCode, Json<Value>) {
+) -> ApiResult {
     if let Some(size) = q.model_size.as_deref() {
-        let lang = q.lang.clone().unwrap_or_else(|| "en".to_string());
-        if retarget_whisper(&state, size, &lang).is_err() {
-            return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
-        }
+        retarget_whisper(&state, size, &q.lang)?;
     }
-    (
-        StatusCode::OK,
-        Json(json!({
-            "ready": state.whisper_ready.load(Ordering::SeqCst),
-            "error": state.whisper_error.lock().unwrap().clone(),
-            "progress": state.whisper_progress.lock().unwrap().map(|(done, total)| {
-                json!({ "done": done, "total": total })
-            }),
-        })),
-    )
+    Ok(Json(json!({
+        "ready": state.whisper_ready.load(Ordering::SeqCst),
+        "error": state.whisper_error.lock().unwrap().clone(),
+        "progress": state.whisper_progress.lock().unwrap().map(|(done, total)| {
+            json!({ "done": done, "total": total })
+        }),
+    })))
 }
 
 #[derive(Deserialize)]
 struct WhisperModelReq {
     size: String,
     lang: Option<String>,
+}
+
+impl WhisperModelReq {
+    fn model_file(&self) -> ApiResult<String> {
+        requested_model(&self.size, self.lang.as_deref().unwrap_or("en"))
+    }
 }
 
 /// `POST /app/v1/stt/whisper/download-model` {size, lang} - pre-fetch a model
@@ -704,17 +702,9 @@ struct WhisperModelReq {
 async fn stt_whisper_download_model(
     State(state): State<Shared>,
     Json(req): Json<WhisperModelReq>,
-) -> Response {
-    let lang = req.lang.unwrap_or_else(|| "en".to_string());
-    let Some(file) = whisper_model_file(&req.size, &lang) else {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Unknown Whisper model size." })))
-            .into_response();
-    };
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
-    tokio::task::spawn_blocking(move || {
-        let send = |v: Value| {
-            let _ = tx.blocking_send(Ok(format!("{v}\n")));
-        };
+) -> ApiResult<Response> {
+    let file = req.model_file()?;
+    Ok(ndjson_stream(move |send| {
         let dest = state.model_dir.join(&file);
         if dest.exists() {
             send(json!({ "status": "done" }));
@@ -739,13 +729,7 @@ async fn stt_whisper_download_model(
             Ok(()) => send(json!({ "status": "done" })),
             Err(e) => send(json!({ "status": "error", "error": e })),
         }
-    });
-    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/x-ndjson")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .body(axum::body::Body::from_stream(stream))
-        .expect("build ndjson response")
+    }))
 }
 
 /// `POST /app/v1/stt/whisper/remove-model` {size, lang} - delete a downloaded
@@ -754,25 +738,20 @@ async fn stt_whisper_download_model(
 async fn stt_whisper_remove_model(
     State(state): State<Shared>,
     Json(req): Json<WhisperModelReq>,
-) -> (StatusCode, Json<Value>) {
-    let lang = req.lang.unwrap_or_else(|| "en".to_string());
-    let Some(file) = whisper_model_file(&req.size, &lang) else {
-        return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
-    };
+) -> ApiResult {
+    let file = req.model_file()?;
     let path = state.model_dir.join(&file);
     if !path.exists() {
-        return (StatusCode::OK, Json(json!({ "status": "not_found" })));
+        return Ok(Json(json!({ "status": "not_found" })));
     }
-    if let Err(e) = std::fs::remove_file(&path) {
-        return err(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string());
-    }
+    std::fs::remove_file(&path).map_err(|e| internal(e.to_string()))?;
     let current = state.whisper_model.lock().unwrap();
     if *current == file {
         state.whisper_ready.store(false, Ordering::SeqCst);
         *state.whisper.lock().unwrap() = None;
     }
     log::info!("removed whisper model {file}");
-    (StatusCode::OK, Json(json!({ "status": "removed" })))
+    Ok(Json(json!({ "status": "removed" })))
 }
 
 #[derive(Deserialize)]
@@ -784,7 +763,8 @@ struct SttQuery {
     model_size: Option<String>,
     /// 2-letter language (Settings). Picks .en vs multilingual model files and
     /// steers transcription.
-    lang: Option<String>,
+    #[serde(default = "default_lang")]
+    lang: String,
     /// PCM wire format: "i16" (current clients; half the bytes) or absent/"f32"
     /// (older clients).
     format: Option<String>,
@@ -796,12 +776,9 @@ async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
     body: Bytes,
-) -> (StatusCode, Json<Value>) {
-    let lang = q.lang.clone().unwrap_or_else(|| "en".to_string());
+) -> ApiResult {
     if let Some(size) = q.model_size.as_deref() {
-        if retarget_whisper(&state, size, &lang).is_err() {
-            return err(StatusCode::BAD_REQUEST, "Unknown Whisper model size.");
-        }
+        retarget_whisper(&state, size, &q.lang)?;
     }
     if !state.whisper_ready.load(Ordering::SeqCst) {
         // Say WHY: mid-download (with progress), failed-and-retrying (with the
@@ -826,17 +803,14 @@ async fn stt_whisper(
                 None => "Whisper model still loading - try again in a moment.".to_string(),
             }
         };
-        return err(StatusCode::SERVICE_UNAVAILABLE, &msg);
+        return Err(err(StatusCode::SERVICE_UNAVAILABLE, msg));
     }
     if body.is_empty() {
-        return err(StatusCode::BAD_REQUEST, "Empty request body.");
+        return Err(bad_request("Empty request body."));
     }
     let is_i16 = q.format.as_deref() == Some("i16");
     if body.len() % (if is_i16 { 2 } else { 4 }) != 0 {
-        return err(
-            StatusCode::BAD_REQUEST,
-            "Body length not aligned to PCM frames.",
-        );
+        return Err(bad_request("Body length not aligned to PCM frames."));
     }
 
     let samples: Vec<f32> = if is_i16 {
@@ -849,42 +823,50 @@ async fn stt_whisper(
             .collect()
     };
     if samples.is_empty() {
-        return (StatusCode::OK, Json(json!({ "text": "" })));
+        return Ok(Json(json!({ "text": "" })));
     }
 
     let sample_rate = q.sample_rate.unwrap_or(TARGET_SAMPLE_RATE);
-    let ctx = match state.whisper.lock().unwrap().clone() {
-        Some(c) => c,
-        None => {
-            return err(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "Whisper model still loading - try again in a moment.",
-            )
-        }
-    };
+    let ctx = state.whisper.lock().unwrap().clone().ok_or_else(|| {
+        err(StatusCode::SERVICE_UNAVAILABLE, "Whisper model still loading - try again in a moment.")
+    })?;
 
     // Whisper inference is CPU-heavy and blocking; keep it off the async
     // reactor so the server stays responsive.
-    let lang_out = lang.clone();
-    match tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate, &lang)).await
-    {
-        Ok(Ok((text, duration))) => (
-            StatusCode::OK,
-            Json(json!({ "text": text.trim(), "language": lang_out, "duration": duration })),
-        ),
-        Ok(Err(e)) => err(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &format!("Transcription failed: {e}"),
-        ),
-        Err(e) => err(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &format!("Transcription task failed: {e}"),
-        ),
+    let lang = q.lang.clone();
+    let (text, duration) =
+        tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate, &lang))
+            .await
+            .map_err(|e| internal(format!("Transcription task failed: {e}")))?
+            .map_err(|e| internal(format!("Transcription failed: {e}")))?;
+    Ok(Json(json!({ "text": text.trim(), "language": q.lang, "duration": duration })))
+}
+
+/// A handler failure, answered as `{ error }` with the status.
+struct ApiError(StatusCode, String);
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        (self.0, Json(json!({ "error": self.1 }))).into_response()
     }
 }
 
-fn err(code: StatusCode, msg: &str) -> (StatusCode, Json<Value>) {
-    (code, Json(json!({ "error": msg })))
+type ApiResult<T = Json<Value>> = Result<T, ApiError>;
+
+fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
+    ApiError(code, msg.into())
+}
+
+fn bad_request(msg: impl Into<String>) -> ApiError {
+    err(StatusCode::BAD_REQUEST, msg)
+}
+
+fn internal(msg: impl Into<String>) -> ApiError {
+    err(StatusCode::INTERNAL_SERVER_ERROR, msg)
+}
+
+fn status_ok() -> Json<Value> {
+    Json(json!({ "status": "ok" }))
 }
 
 // --- TTS: /app/v1/voices + /app/v1/voices/preview --------------------------------
@@ -968,45 +950,28 @@ struct ModelReq {
 /// progress lines. The download runs on a blocking thread and pushes events
 /// through a channel backing the response body, so the UI gets live progress
 /// for a 60-105 MB fetch.
-async fn tts_download_model(State(state): State<Shared>, Json(req): Json<ModelReq>) -> Response {
+async fn tts_download_model(
+    State(state): State<Shared>,
+    Json(req): Json<ModelReq>,
+) -> ApiResult<Response> {
     if req.engine.is_empty() || req.voice.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "engine and voice are required" })))
-            .into_response();
+        return Err(bad_request("engine and voice are required"));
     }
-
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
-    let dir = state.piper_dir.clone();
-    tokio::task::spawn_blocking(move || {
-        let mut send = move |v: Value| {
-            // If the client hangs up the receiver drops and sends fail; that's
-            // fine, we just stop reporting.
-            let _ = tx.blocking_send(Ok(format!("{v}\n")));
-        };
-        if let Err(e) = crate::tts::download_model(&dir, &req.engine, &req.voice, &mut send) {
+    Ok(ndjson_stream(move |send| {
+        if let Err(e) = crate::tts::download_model(&state.piper_dir, &req.engine, &req.voice, &mut *send) {
             send(json!({ "status": "error", "error": e }));
         }
-    });
-
-    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/x-ndjson")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .body(axum::body::Body::from_stream(stream))
-        .expect("build ndjson response")
+    }))
 }
 
 /// `POST /app/v1/tts/uninstall-model` - delete a downloaded Piper model.
-async fn tts_uninstall_model(
-    State(state): State<Shared>,
-    Json(req): Json<ModelReq>,
-) -> (StatusCode, Json<Value>) {
+async fn tts_uninstall_model(State(state): State<Shared>, Json(req): Json<ModelReq>) -> ApiResult {
     if req.voice.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "voice is required" })));
+        return Err(bad_request("voice is required"));
     }
-    match crate::tts::uninstall_model(&state.piper_dir, &req.engine, &req.voice) {
-        Ok(status) => (StatusCode::OK, Json(json!({ "status": status }))),
-        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))),
-    }
+    let status = crate::tts::uninstall_model(&state.piper_dir, &req.engine, &req.voice)
+        .map_err(bad_request)?;
+    Ok(Json(json!({ "status": status })))
 }
 
 // --- /app/v1/providers + /app/v1/models/<provider> -------------------------------
@@ -1045,74 +1010,56 @@ async fn models(
 /// the UI to finish at the hosted `/cloud/v1/auth/google/desktop`, which holds
 /// the client secret. Long-lived: it waits for the user to finish in the
 /// browser. See `crate::oauth`.
-async fn google_oauth(Json(body): Json<crate::oauth::OauthStart>) -> Response {
+async fn google_oauth(Json(body): Json<crate::oauth::OauthStart>) -> ApiResult {
     if body.client_id.trim().is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "client_id required" })))
-            .into_response();
+        return Err(bad_request("client_id required"));
     }
-    match crate::oauth::google_loopback(&body.client_id).await {
-        Ok(r) => (
-            StatusCode::OK,
-            Json(json!({
-                "code": r.code,
-                "codeVerifier": r.code_verifier,
-                "redirectUri": r.redirect_uri,
-            })),
-        )
-            .into_response(),
-        Err(e) => (StatusCode::BAD_GATEWAY, Json(json!({ "error": e }))).into_response(),
-    }
+    let r = crate::oauth::google_loopback(&body.client_id)
+        .await
+        .map_err(|e| err(StatusCode::BAD_GATEWAY, e))?;
+    Ok(Json(json!({
+        "code": r.code,
+        "codeVerifier": r.code_verifier,
+        "redirectUri": r.redirect_uri,
+    })))
 }
 
 /// `POST /app/v1/ollama/pull` - stream a model pull as NDJSON progress lines.
-async fn ollama_pull(Json(req): Json<crate::ollama::ModelReq>) -> Response {
+async fn ollama_pull(Json(req): Json<crate::ollama::ModelReq>) -> ApiResult<Response> {
     if req.model.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model is required" })))
-            .into_response();
+        return Err(bad_request("model is required"));
     }
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
-    tokio::task::spawn_blocking(move || {
-        let mut send = move |v: Value| {
-            let _ = tx.blocking_send(Ok(format!("{v}\n")));
-        };
-        if let Err(e) = crate::ollama::pull_stream(&req.model, &mut send) {
+    Ok(ndjson_stream(move |send| {
+        if let Err(e) = crate::ollama::pull_stream(&req.model, &mut *send) {
             send(json!({ "status": "error", "error": e }));
         }
-    });
-    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/x-ndjson")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .body(axum::body::Body::from_stream(stream))
-        .expect("build ndjson response")
+    }))
 }
 
 /// `POST /app/v1/ollama/delete` - remove a pulled model. `{ ok: true }`, or
 /// `{ error }` with a 502 on failure.
-async fn ollama_delete(Json(req): Json<crate::ollama::ModelReq>) -> (StatusCode, Json<Value>) {
+async fn ollama_delete(Json(req): Json<crate::ollama::ModelReq>) -> ApiResult {
     if req.model.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model is required" })));
+        return Err(bad_request("model is required"));
     }
-    match tokio::task::spawn_blocking(move || crate::ollama::delete(&req.model)).await {
-        Ok(Ok(())) => (StatusCode::OK, Json(json!({ "ok": true }))),
-        Ok(Err(e)) => (StatusCode::BAD_GATEWAY, Json(json!({ "error": e }))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("delete task failed: {e}") })),
-        ),
-    }
+    tokio::task::spawn_blocking(move || crate::ollama::delete(&req.model))
+        .await
+        .map_err(|e| internal(format!("delete task failed: {e}")))?
+        .map_err(|e| err(StatusCode::BAD_GATEWAY, e))?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 /// Run a blocking, progress-emitting job on a worker thread and stream its
 /// events back as NDJSON. `f` gets a `send` closure for `{status: ...}` events;
-/// the stream ends when `f` returns. Shared by the Ollama
-/// restart/upgrade/install handlers.
+/// the stream ends when `f` returns.
 fn ndjson_stream<F>(f: F) -> Response
 where
     F: FnOnce(&mut dyn FnMut(Value)) + Send + 'static,
 {
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
     tokio::task::spawn_blocking(move || {
+        // A client hang-up drops the receiver and sends fail; we just stop
+        // reporting.
         let mut send = |v: Value| {
             let _ = tx.blocking_send(Ok(format!("{v}\n")));
         };
@@ -1163,92 +1110,75 @@ async fn install_tool(axum::extract::Path(tool): axum::extract::Path<String>) ->
 
 // --- /app/v1/open-* shell escapes ---------------------------------------------
 
-/// Reveal a path in the platform file browser (Finder / Explorer / xdg).
-/// Detached spawn: the user just wants the window to appear.
-fn reveal_path(path: &Path) -> std::io::Result<()> {
-    use std::process::Command;
-    let _ = std::fs::create_dir_all(path); // best-effort; the dir may not exist yet
-    #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut c = Command::new("open");
-        c.arg(path);
-        c
-    };
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut c = Command::new("explorer");
-        c.arg(path);
-        c
-    };
-    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-    let mut cmd = {
-        let mut c = Command::new("xdg-open");
-        c.arg(path);
-        c
-    };
-    cmd.spawn().map(|_| ())
+#[cfg(target_os = "macos")]
+const OPENER: &str = "open";
+#[cfg(target_os = "windows")]
+const OPENER: &str = "explorer";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const OPENER: &str = "xdg-open";
+
+/// A detached spawn's outcome as `{status:"ok"}`, or a 500 naming what failed.
+/// The user just wants the window to appear, so nothing waits on it.
+fn spawned(cmd: &mut std::process::Command, what: &str) -> ApiResult {
+    cmd.spawn()
+        .map(|_| status_ok())
+        .map_err(|e| internal(format!("could not {what}: {e}")))
 }
 
-/// Reveal a file, *selecting* it rather than just opening its folder. macOS
-/// `open -R` and Windows `explorer /select,` highlight the file; Linux has no
-/// portable "select" flag, so open the parent dir.
-fn reveal_file(path: &Path) -> std::io::Result<()> {
-    use std::process::Command;
-    #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut c = Command::new("open");
-        c.arg("-R").arg(path);
-        c
-    };
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut c = Command::new("explorer");
-        c.arg(format!("/select,{}", path.display()));
-        c
-    };
-    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-    let mut cmd = {
-        let mut c = Command::new("xdg-open");
-        c.arg(path.parent().unwrap_or(path));
-        c
-    };
-    cmd.spawn().map(|_| ())
+/// Reveal a directory in the platform file browser (Finder / Explorer / xdg).
+fn reveal_dir(path: &Path) -> ApiResult {
+    let _ = std::fs::create_dir_all(path); // best-effort; the dir may not exist yet
+    spawned(std::process::Command::new(OPENER).arg(path), "open folder")
 }
 
 /// `POST /app/v1/open-session-file/{id}` - highlight one saved session's JSON
-/// file in the file browser. 404 if it hasn't been written yet, so the UI can
-/// fail-soft.
+/// file in the file browser (macOS `open -R` and Windows `explorer /select,`
+/// select it; Linux has no portable "select" flag, so it opens the parent dir).
+/// 404 if it hasn't been written yet, so the UI can fail-soft.
 async fn open_session_file(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> (StatusCode, Json<Value>) {
-    let Some(path) = session_path(&state, &id) else {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "bad session id" })));
-    };
+) -> ApiResult {
+    let path = session_path(&state, &id)?;
     if !path.exists() {
-        return (StatusCode::NOT_FOUND, Json(json!({ "error": "session file not found" })));
+        return Err(err(StatusCode::NOT_FOUND, "session file not found"));
     }
-    match reveal_file(&path) {
-        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("could not reveal file: {e}") })),
-        ),
-    }
+    let mut cmd = std::process::Command::new(OPENER);
+    #[cfg(target_os = "macos")]
+    cmd.arg("-R").arg(&path);
+    #[cfg(target_os = "windows")]
+    cmd.arg(format!("/select,{}", path.display()));
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    cmd.arg(path.parent().unwrap_or(path.as_path()));
+    spawned(&mut cmd, "reveal file")
 }
 
 /// `POST /app/v1/open-config-folder` - reveal the app's data directory. The TS
 /// UI also pings this route with `OPTIONS` to decide whether to show the "Open
 /// config folder" button; axum answers 405, which the detector counts as "route
 /// exists", so registering the POST is enough.
-async fn open_config_folder(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
-    open_dir_response(&state.data_dir)
+async fn open_config_folder(State(state): State<Shared>) -> ApiResult {
+    reveal_dir(&state.data_dir)
 }
 
 /// `POST /app/v1/open-sessions-folder` - reveal the session-logs dir, created
 /// on first save.
-async fn open_sessions_folder(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
-    open_dir_response(&state.sessions_dir)
+async fn open_sessions_folder(State(state): State<Shared>) -> ApiResult {
+    reveal_dir(&state.sessions_dir)
+}
+
+/// `POST /app/v1/open-voice-settings` - open macOS System Settings to the Spoken
+/// Content pane, where Premium voices are installed. Other OSes get a 400 so
+/// the UI can hide the button or fail-soft.
+async fn open_voice_settings() -> ApiResult {
+    if !cfg!(target_os = "macos") {
+        return Err(bad_request("macOS only"));
+    }
+    spawned(
+        std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.universalaccess?TextToSpeech"),
+        "open settings",
+    )
 }
 
 // --- /app/v1/sessions - on-disk session logs (desktop persistence) ------------
@@ -1264,26 +1194,26 @@ fn safe_session_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-fn session_path(state: &AppState, id: &str) -> Option<PathBuf> {
+fn session_path(state: &AppState, id: &str) -> ApiResult<PathBuf> {
     if safe_session_id(id) {
-        Some(state.sessions_dir.join(format!("{id}.json")))
+        Ok(state.sessions_dir.join(format!("{id}.json")))
     } else {
-        None
+        Err(bad_request("bad session id"))
     }
 }
 
 /// `GET /app/v1/sessions` - saved session ids (filenames sans `.json`).
-async fn sessions_list(State(state): State<Shared>) -> (StatusCode, Json<Value>) {
-    let mut ids: Vec<String> = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&state.sessions_dir) {
-        for entry in entries.flatten() {
+async fn sessions_list(State(state): State<Shared>) -> Json<Value> {
+    let ids: Vec<String> = std::fs::read_dir(&state.sessions_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
             let name = entry.file_name();
-            if let Some(stem) = name.to_string_lossy().strip_suffix(".json") {
-                ids.push(stem.to_string());
-            }
-        }
-    }
-    (StatusCode::OK, Json(json!({ "ids": ids })))
+            name.to_string_lossy().strip_suffix(".json").map(str::to_string)
+        })
+        .collect();
+    Json(json!({ "ids": ids }))
 }
 
 /// `GET /app/v1/sessions/{id}` - read one session's JSON (404 if absent).
@@ -1291,7 +1221,8 @@ async fn sessions_get(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Response {
-    let Some(path) = session_path(&state, &id) else {
+    // Plain-text 400, unlike the JSON `{error}` everywhere else.
+    let Ok(path) = session_path(&state, &id) else {
         return (StatusCode::BAD_REQUEST, "bad session id").into_response();
     };
     match std::fs::read(&path) {
@@ -1305,77 +1236,36 @@ async fn sessions_put(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
     body: Bytes,
-) -> (StatusCode, Json<Value>) {
-    let Some(path) = session_path(&state, &id) else {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "bad session id" })));
-    };
+) -> ApiResult {
+    let path = session_path(&state, &id)?;
     let _ = std::fs::create_dir_all(&state.sessions_dir);
-    match std::fs::write(&path, &body) {
-        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("could not save session: {e}") })),
-        ),
-    }
+    std::fs::write(&path, &body).map_err(|e| internal(format!("could not save session: {e}")))?;
+    Ok(status_ok())
 }
 
 /// `DELETE /app/v1/sessions/{id}` - remove one session's JSON (idempotent).
 async fn sessions_delete(
     State(state): State<Shared>,
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> (StatusCode, Json<Value>) {
-    let Some(path) = session_path(&state, &id) else {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "bad session id" })));
-    };
+) -> ApiResult {
+    let path = session_path(&state, &id)?;
     match std::fs::remove_file(&path) {
-        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            (StatusCode::OK, Json(json!({ "status": "ok" })))
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("could not delete session: {e}") })),
-        ),
-    }
-}
-
-fn open_dir_response(path: &Path) -> (StatusCode, Json<Value>) {
-    match reveal_path(path) {
-        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("could not open folder: {e}") })),
-        ),
-    }
-}
-
-/// `POST /app/v1/open-voice-settings` - open macOS System Settings to the Spoken
-/// Content pane, where Premium voices are installed. Other OSes get a 400 so
-/// the UI can hide the button or fail-soft.
-async fn open_voice_settings() -> (StatusCode, Json<Value>) {
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        let res = Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.universalaccess?TextToSpeech")
-            .spawn();
-        return match res {
-            Ok(_) => (StatusCode::OK, Json(json!({ "status": "ok" }))),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("could not open settings: {e}") })),
-            ),
-        };
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        (StatusCode::BAD_REQUEST, Json(json!({ "error": "macOS only" })))
+        Ok(()) => Ok(status_ok()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(status_ok()),
+        Err(e) => Err(internal(format!("could not delete session: {e}"))),
     }
 }
 
 #[derive(Deserialize)]
 struct ProbeQuery {
     model: Option<String>,
+}
+
+/// The `claude` CLI's cwd: an empty, app-owned scratch dir (why: `llm::claude_command`).
+fn claude_cwd(state: &AppState) -> PathBuf {
+    let cwd = state.data_dir.join("claude-cwd");
+    let _ = std::fs::create_dir_all(&cwd);
+    cwd
 }
 
 /// `GET /app/v1/llm/claude_proxy/probe?model=<id>` - can the local Claude
@@ -1386,17 +1276,12 @@ struct ProbeQuery {
 async fn llm_claude_proxy_probe(
     State(state): State<Shared>,
     Query(q): Query<ProbeQuery>,
-) -> Response {
+) -> ApiResult {
     let model = q.model.unwrap_or_default();
     if model.trim().is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "model required" })))
-            .into_response();
+        return Err(bad_request("model required"));
     }
-    // Same app-owned scratch cwd as the completion path, same reasons.
-    let cwd = state.data_dir.join("claude-cwd");
-    let _ = std::fs::create_dir_all(&cwd);
-    let body = crate::llm::claude_probe(&model, &cwd).await;
-    (StatusCode::OK, Json(body)).into_response()
+    Ok(Json(crate::llm::claude_probe(&model, &claude_cwd(&state)).await))
 }
 
 /// `POST /app/v1/llm/claude_proxy/complete` - run one `claude` CLI completion
@@ -1405,20 +1290,14 @@ async fn llm_claude_proxy_probe(
 async fn llm_claude_proxy_complete(
     State(state): State<Shared>,
     Json(req): Json<crate::llm::CompleteRequest>,
-) -> Response {
-    // An empty scratch dir for the CLI's cwd: app-owned + per-user (under the
-    // app data dir), so no untrusted CLAUDE.md/.claude can be planted the way a
-    // world-writable temp dir would allow, and outside Documents/home so the
-    // CLI's project scan doesn't trip a macOS file prompt.
-    let cwd = state.data_dir.join("claude-cwd");
-    let _ = std::fs::create_dir_all(&cwd);
-    match crate::llm::claude_complete(req, &cwd).await {
-        Ok(body) => (StatusCode::OK, Json(body)).into_response(),
-        Err(e) => {
+) -> ApiResult {
+    crate::llm::claude_complete(req, &claude_cwd(&state))
+        .await
+        .map(Json)
+        .map_err(|e| {
             let code = StatusCode::from_u16(e.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-            (code, Json(json!({ "error": e.message }))).into_response()
-        }
-    }
+            err(code, e.message)
+        })
 }
 
 fn transcribe(
