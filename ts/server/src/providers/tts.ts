@@ -18,6 +18,31 @@ const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
  *  pricing/providers.OPENAI_TTS_USD_PER_CHAR). */
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 
+/** Ceiling on one provider synthesis. A sentence renders in a second or two,
+ *  so this is a dead-upstream bound, set well under the client's 45s
+ *  (cloud-tts TTS_REQUEST_TIMEOUT_MS) so a stalled provider surfaces here as
+ *  a logged 502 naming the provider, not as a client-side timeout the server
+ *  never saw (meditation-pal-3sm6: repeated preview failures with nothing to
+ *  chase in the logs). */
+export const TTS_UPSTREAM_TIMEOUT_MS = 20_000;
+
+/** fetch with the upstream ceiling; a timeout rethrows naming the provider. */
+async function fetchUpstream(
+    label: string,
+    fetchImpl: typeof fetch,
+    url: string,
+    init: RequestInit
+): Promise<Response> {
+    try {
+        return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TTS_UPSTREAM_TIMEOUT_MS) });
+    } catch (err) {
+        if (err instanceof Error && err.name === 'TimeoutError') {
+            throw new Error(`${label} timed out after ${TTS_UPSTREAM_TIMEOUT_MS / 1000}s`);
+        }
+        throw err;
+    }
+}
+
 /** languageCode is the first two hyphen segments of the voice name. */
 function languageOf(voice: string): string {
     const parts = voice.split('-');
@@ -36,7 +61,7 @@ export async function synthesizeWithGoogle(
     // Clamp to Google's sync-synthesis range [0.25, 4.0] so a stray value
     // can't 400 the request.
     const speakingRate = Math.min(4, Math.max(0.25, rate));
-    const res = await fetchImpl(`${GOOGLE_TTS_URL}?key=${encodeURIComponent(apiKey)}`, {
+    const res = await fetchUpstream('Google TTS', fetchImpl, `${GOOGLE_TTS_URL}?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -95,7 +120,7 @@ export async function synthesizeWithOpenAI(
     // Same band as Google [0.25, 4.0]; gpt-4o-mini-tts may ignore it, which is
     // why pacing also rides in the instruction.
     const speed = Math.min(4, Math.max(0.25, rate));
-    const res = await fetchImpl(OPENAI_TTS_URL, {
+    const res = await fetchUpstream('OpenAI TTS', fetchImpl, OPENAI_TTS_URL, {
         method: 'POST',
         headers: {
             'content-type': 'application/json',
@@ -184,7 +209,7 @@ export async function synthesizeWithAzure(
         `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" ` +
         `xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageOf(voice)}">` +
         `<voice name="${voice}">${inner}</voice></speak>`;
-    const res = await fetchImpl(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    const res = await fetchUpstream('Azure TTS', fetchImpl, `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
         method: 'POST',
         headers: {
             'Ocp-Apim-Subscription-Key': apiKey,

@@ -3,7 +3,7 @@ import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MAX_TTS_CHARS, type AuthResponse } from '../src/contract.js';
-import { azureBilledChars } from '../src/providers/tts.js';
+import { azureBilledChars, synthesizeWithGoogle, synthesizeWithOpenAI, synthesizeWithAzure } from '../src/providers/tts.js';
 import { priceTtsChars } from '../src/pricing/meter.js';
 import { previewRate } from '../src/routes/tts.js';
 
@@ -476,6 +476,28 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         expect(res.status).toBe(502);
         expect(azureCalls).toHaveLength(0);
         expect(googleCalls).toHaveLength(0);
+    });
+});
+
+describe('upstream timeout (meditation-pal-3sm6)', () => {
+    it('sends a timeout signal and names the provider when it fires', async () => {
+        // What fetch throws when an AbortSignal.timeout() fires; raising it
+        // directly instead of waiting out the real 20s ceiling.
+        const seen: AbortSignal[] = [];
+        const timingOut = (async (_url: string, init?: RequestInit) => {
+            seen.push(init!.signal!);
+            throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+        }) as unknown as typeof fetch;
+        await expect(synthesizeWithGoogle('hi', 'en-US-Neural2-F', 1, 'k', timingOut)).rejects.toThrow(
+            /Google TTS timed out after 20s/
+        );
+        expect(seen[0]).toBeInstanceOf(AbortSignal);
+        await expect(synthesizeWithOpenAI('hi', 'nova', 1, 'k', timingOut)).rejects.toThrow(
+            /OpenAI TTS timed out/
+        );
+        await expect(synthesizeWithAzure('hi', 'en-US-AvaNeural', 1, 'k', 'eastus', undefined, timingOut)).rejects.toThrow(
+            /Azure TTS timed out/
+        );
     });
 });
 
