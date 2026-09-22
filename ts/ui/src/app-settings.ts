@@ -45,6 +45,9 @@ export interface AppSettings {
      *  their distinct voices) in the model picker. Off by default so new users
      *  see a short curated list; toggled inline in the picker itself. */
     showAllModels: boolean;
+    /** Keep an aloud cloud model pick after it leaves the curated shortlist,
+     *  instead of moving to the default (model-picker.ts). */
+    keepModelOffShortlist: boolean;
 
     // Display
     textScale: number;
@@ -145,6 +148,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     defaultModel: '',
     enableByok: false,
     showAllModels: false,
+    keepModelOffShortlist: false,
     textScale: 1.0,
     themeMode: 'auto',
     showSessionBalance: false,

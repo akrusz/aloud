@@ -1306,6 +1306,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     function wireSessionLogsSection(): void {
         bindCheckbox('s-save-session-logs', 'saveSessionLogs');
         bindCheckbox('s-resume-from-summary', 'resumeFromSummary');
+        bindCheckbox('s-keep-model-off-shortlist', 'keepModelOffShortlist');
         bindCheckbox('s-auto-quit', 'autoQuitAfterSilence');
         wireStepper('s-auto-quit-min', settings.autoQuitSilenceMin, (v) => {
             settings.autoQuitSilenceMin = v;
@@ -2162,6 +2163,13 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <span>${t('Voice commands')} · <a href="#" id="s-voice-commands-examples">${t('what can I say?')}</a></span>
                     </label>
                     <span class="form-hint" id="s-voice-commands-hint"></span>
+                </div>
+                <div class="form-group form-group-half">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-keep-model-off-shortlist"${s.keepModelOffShortlist ? ' checked' : ''}>
+                        <span>${t('Keep my model when it leaves the shortlist')}</span>
+                    </label>
+                    <span class="form-hint">${t('Otherwise you move to the default model.')}</span>
                 </div>
             </div>
             <div class="form-row${pcmSttChosen(s) ? '' : ' hidden'}" id="s-stt-speculation-group">

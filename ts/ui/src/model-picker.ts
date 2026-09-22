@@ -19,6 +19,8 @@ import { loadAppSettings, saveAppSettings } from './app-settings.js';
 import { t, uiLang } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
 import { providerNeedsKey, type Provider } from './settings.js';
+import type { KvStorage } from '../../src/platform/storage.js';
+import { createKv } from './adapters/kv.js';
 
 /** Display names for the aloud cloud allowlist, so the dropdown reads "Claude
  *  Opus 5" not "claude-opus-5". Unknown ids fall back to prettyModelName.
@@ -176,6 +178,41 @@ async function setShowAllModels(value: boolean): Promise<void> {
     showAllModels = value;
     const s = await loadAppSettings();
     await saveAppSettings({ ...s, showAllModels: value });
+}
+
+/**
+ * Shortlist follow-through (aloud cloud): a saved pick that has left the
+ * curated list moves to the default, so dropping a model from the shortlist
+ * moves its sitters with it - no per-model migration. Two exceptions:
+ *  - picks made while ALREADY off the shortlist (via "Show all") are
+ *    deliberate and stay. Recorded here, in their own key rather than
+ *    AppSettings, because the Settings view saves its whole in-memory settings
+ *    object and would clobber a concurrent picker write.
+ *  - AppSettings.keepModelOffShortlist opts out entirely.
+ * A pick saved before this existed has no record, so a model already off the
+ * shortlist moves once on upgrade.
+ */
+const DELIBERATE_PICKS_KEY = 'model-picks-off-shortlist';
+let lazyKv: KvStorage | null = null;
+function kv(): KvStorage {
+    if (!lazyKv) lazyKv = createKv();
+    return lazyKv;
+}
+let deliberatePicks: Set<string> | null = null;
+let keepOffShortlist = false;
+
+async function loadShortlistState(): Promise<void> {
+    keepOffShortlist = (await loadAppSettings()).keepModelOffShortlist;
+    if (deliberatePicks) return;
+    try {
+        deliberatePicks = new Set(JSON.parse((await kv().get(DELIBERATE_PICKS_KEY)) ?? '[]') as string[]);
+    } catch {
+        deliberatePicks = new Set();
+    }
+}
+
+function saveDeliberatePicks(): void {
+    if (deliberatePicks) void kv().set(DELIBERATE_PICKS_KEY, JSON.stringify([...deliberatePicks])).catch(() => {});
 }
 
 const cache = new Map<string, ModelOption[]>();
@@ -352,6 +389,19 @@ export function mountModelPicker(
         const zh = uiLang() === 'zh';
         const expandedHere = (m: ModelOption): boolean =>
             zh ? !m.zhCurated && (m.zhExpanded === true || m.expanded === true) : m.expanded === true;
+        if (provider === 'aloud' && deliberatePicks) {
+            // A model back on the shortlist is no longer a deliberate
+            // off-list pick; forget it so a later drop moves its sitters too.
+            let pruned = false;
+            for (const m of models) {
+                if (!expandedHere(m) && deliberatePicks.delete(m.value)) pruned = true;
+            }
+            if (pruned) saveDeliberatePicks();
+            const current = models.find((m) => m.value === currentValue);
+            if (current && expandedHere(current) && !keepOffShortlist && !deliberatePicks.has(current.value)) {
+                currentValue = ''; // left the shortlist: fall through to the default below
+            }
+        }
         const visible =
             provider === 'aloud' && !showAll
                 ? models.filter((m) => !expandedHere(m) || m.value === currentValue)
@@ -402,6 +452,13 @@ export function mountModelPicker(
         onChange(currentValue);
         sel.addEventListener('change', () => {
             currentValue = sel.value;
+            if (provider === 'aloud' && deliberatePicks) {
+                const picked = models.find((m) => m.value === currentValue);
+                if (picked && expandedHere(picked)) {
+                    deliberatePicks.add(picked.value);
+                    saveDeliberatePicks();
+                }
+            }
             updateSlowNote();
             onChange(currentValue);
         });
@@ -509,7 +566,7 @@ export function mountModelPicker(
         if (models && models.length > 0) {
             // The tier toggle's persisted state must be known before the first
             // hosted render, or the curated filter would flicker.
-            if (provider === 'aloud') await loadShowAllModels();
+            if (provider === 'aloud') await Promise.all([loadShowAllModels(), loadShortlistState()]);
             renderSelect(provider, models);
         } else if (provider === 'ollama') {
             renderOllamaEmpty();
