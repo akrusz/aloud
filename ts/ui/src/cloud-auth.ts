@@ -187,7 +187,9 @@ async function adoptRefreshedToken(res: Response): Promise<void> {
 export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     const token = await getCloudToken();
     if (!token) return null;
-    let res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${token}` } });
+    const getMe = (bearer: string): Promise<Response> =>
+        fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${bearer}` } });
+    let res = await getMe(token);
     if (res.status === 401) {
         // Stale / secret-rotated token: clear, re-mint once, retry, matching the
         // LLM/TTS proxies' self-heal. dev/local re-signs-in silently; a hosted
@@ -200,7 +202,7 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
         } catch {
             return null;
         }
-        res = await fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${fresh}` } });
+        res = await getMe(fresh);
     }
     if (!res.ok) return null;
     await adoptRefreshedToken(res);
@@ -231,29 +233,31 @@ export async function clearCloudToken(): Promise<void> {
  *  Clears the local session; throws (with the server message) on failure. */
 export async function deleteAccount(): Promise<void> {
     const token = await getCloudToken();
-    if (!token) {
-        // Nothing to delete; treat as already signed out.
-        await clearCloudToken();
-        clearKnownBalance();
-        clearRetreatCovered();
-        return;
-    }
+    // No token: nothing to delete; treat as already signed out.
+    if (!token) return signOutLocally();
     const res = await fetchImpl(cloudUrl('/me'), {
         method: 'DELETE',
         headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
-        let serverMsg = '';
-        try {
-            serverMsg = ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
-        } catch {
-            /* non-JSON body */
-        }
-        throw new Error(serverMsg || `Could not delete the account (${res.status}).`);
+        throw new Error((await serverErrorMessage(res)) || `Could not delete the account (${res.status}).`);
     }
+    await signOutLocally();
+}
+
+async function signOutLocally(): Promise<void> {
     await clearCloudToken();
     clearKnownBalance();
     clearRetreatCovered();
+}
+
+/** The server's `{error: {message}}`, or '' for any other body. */
+async function serverErrorMessage(res: Response): Promise<string> {
+    try {
+        return ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
+    } catch {
+        return '';
+    }
 }
 
 /** POST /v1/auth/dev - mint (or reuse) the local dev session. */
@@ -292,29 +296,24 @@ async function postAuthAndCache(
         body: JSON.stringify(payload),
     });
     if (!res.ok) {
-        let serverMsg = '';
-        try {
-            serverMsg = ((await res.json()) as { error?: { message?: string } }).error?.message ?? '';
-        } catch {
-            /* non-JSON body */
-        }
-        throw new Error(serverMsg || genericError(res.status));
+        throw new Error((await serverErrorMessage(res)) || genericError(res.status));
     }
     const body = (await res.json()) as AuthResponse;
     await kv().set(TOKEN_KEY, body.token);
     return body;
 }
 
+const googleSignInError = (status: number): string =>
+    status === 401
+        ? 'Google sign-in was rejected. Please try again.'
+        : `aloud cloud sign-in failed (${status}).`;
+
 /** POST /cloud/v1/auth/google: exchange a Google ID token for a session
  *  (meditation-pal-rfb). The server verifies against Google's JWKS and signs in,
  *  or on first connect creates/links the account and grants free credits.
  *  Called from the GIS callback in google-signin.ts. */
 export function googleSignIn(idToken: string): Promise<AuthResponse> {
-    return postAuthAndCache('/auth/google', { idToken }, (status) =>
-        status === 401
-            ? 'Google sign-in was rejected. Please try again.'
-            : `aloud cloud sign-in failed (${status}).`
-    );
+    return postAuthAndCache('/auth/google', { idToken }, googleSignInError);
 }
 
 /** POST /cloud/v1/auth/google/desktop: finish the loopback PKCE flow by handing
@@ -325,11 +324,7 @@ export function desktopGoogleSignIn(args: {
     codeVerifier: string;
     redirectUri: string;
 }): Promise<AuthResponse> {
-    return postAuthAndCache('/auth/google/desktop', args, (status) =>
-        status === 401
-            ? 'Google sign-in was rejected. Please try again.'
-            : `aloud cloud sign-in failed (${status}).`
-    );
+    return postAuthAndCache('/auth/google/desktop', args, googleSignInError);
 }
 
 /** POST /cloud/v1/auth/apple: exchange a Sign in with Apple identity token

@@ -78,6 +78,12 @@ async function probeCloud(): Promise<CloudConfig> {
     }
 }
 
+function adoptCloudConfig(cloud: CloudConfig): void {
+    setRuntimeGoogleClientId(cloud.googleClientId);
+    setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
+    setRuntimeAppleClientId(cloud.appleClientId);
+}
+
 /** Short backoff before concluding cloud is down, so a boot blip (Fly cold
  *  start, dev server mid-`tsx watch` restart) isn't frozen into a session-long
  *  false negative. */
@@ -105,9 +111,7 @@ export async function detectCapabilities(): Promise<Capabilities> {
         const base = cached;
         if (base) {
             const cloud = await probeCloud();
-            setRuntimeGoogleClientId(cloud.googleClientId);
-            setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
-            setRuntimeAppleClientId(cloud.appleClientId);
+            adoptCloudConfig(cloud);
             cached = { ...base, cloud: cloud.reachable };
             inflight = null;
             return cached;
@@ -124,9 +128,7 @@ export async function detectCapabilities(): Promise<Capabilities> {
             probeCloudWithRetry(),
             import.meta.env.DEV ? reachable('/ollama/api/tags') : Promise.resolve(false),
         ]);
-        setRuntimeGoogleClientId(cloud.googleClientId);
-        setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
-        setRuntimeAppleClientId(cloud.appleClientId);
+        adoptCloudConfig(cloud);
         cached = { flask, cloud: cloud.reachable, ollama };
         inflight = null;
         return cached;

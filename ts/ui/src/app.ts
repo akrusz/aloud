@@ -63,6 +63,7 @@ let currentView: View | null = null;
 // True until the #boot-orb has been retired. While set, setActiveNav leaves the
 // nav orb slot empty (settleBootOrb fills it) so we never paint two orbs.
 let bootOrbPending = true;
+const NAV_ORB_HTML = '<div class="orb orb-idle orb-nav" id="home-orb"></div>';
 
 function $<T extends HTMLElement>(id: string): T {
     const el = document.getElementById(id);
@@ -189,7 +190,7 @@ function settleBootOrb(): void {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const showNavOrb = (): void => {
-        navInfo.innerHTML = '<div class="orb orb-idle orb-nav" id="home-orb"></div>';
+        navInfo.innerHTML = NAV_ORB_HTML;
         wireHomeOrbBounce();
         // Fade up to the idle orb's resting opacity (0.6, from .orb-idle).
         if (!reduce) {
@@ -251,12 +252,12 @@ function wireNav(): void {
         e.preventDefault();
         // During a live session, route through the session's end-confirm overlay
         // instead of tearing it down silently. Mirrors the popstate guard.
-        if (currentSession || currentNoting) {
-            (currentSession ?? currentNoting)?.requestLeave(view as Exclude<View, 'session'>);
+        const live = currentSession ?? currentNoting;
+        if (live) {
+            live.requestLeave(view);
             return;
         }
-        const root = $('app-root');
-        void routeTo(root, view, { anchor: target.dataset['navAnchor'] });
+        void routeTo($('app-root'), view, { anchor: target.dataset['navAnchor'] });
     });
 }
 
@@ -314,22 +315,20 @@ function wireMobileMore(): void {
  *  No URL push - the browser already changed it. */
 function wirePopstate(): void {
     window.addEventListener('popstate', () => {
-        const root = $('app-root');
+        const target = viewFromPath(window.location.pathname);
         // Back/forward out of a live session defers to the view's confirm
         // overlay, so every leave prompt shares one UI. The browser has already
         // changed the URL by the time popstate fires, so re-arm '/session'
         // immediately to hold the user in place while the overlay is up: on
         // confirm the view's onEnd routes to `target`, on cancel the re-arm has
         // already restored the URL.
-        if (currentSession || currentNoting) {
-            const target = viewFromPath(window.location.pathname);
+        const live = currentSession ?? currentNoting;
+        if (live) {
             window.history.pushState({ view: 'session' }, '', routePath('/session'));
-            if (currentSession) currentSession.requestLeave(target);
-            else if (currentNoting) currentNoting.requestLeave(target);
+            live.requestLeave(target);
             return;
         }
-        const target = viewFromPath(window.location.pathname);
-        void routeTo(root, target, { fromPopstate: true });
+        void routeTo($('app-root'), target, { fromPopstate: true });
     });
 }
 
@@ -345,13 +344,7 @@ async function routeTo(
 ): Promise<void> {
     // Already there with nothing to tear down. currentView is null on the very
     // first mount, so the deep-link still routes.
-    if (
-        currentView === view &&
-        currentSession === null &&
-        currentNoting === null
-    ) {
-        return;
-    }
+    if (currentView === view && currentSession === null && currentNoting === null) return;
 
     const path = ROUTE_FOR_VIEW[view];
     if (!options.fromPopstate) {
@@ -401,7 +394,7 @@ function setActiveNav(view: View): void {
     if (navCenter && view !== 'session') {
         // settleBootOrb fills this slot once the boot orb retires; painting one
         // here while that's pending would briefly show two.
-        const orb = bootOrbPending ? '' : '<div class="orb orb-idle orb-nav" id="home-orb"></div>';
+        const orb = bootOrbPending ? '' : NAV_ORB_HTML;
         navCenter.innerHTML = `<div class="nav-session-info">${orb}</div>`;
         if (!bootOrbPending) wireHomeOrbBounce();
     }
@@ -424,14 +417,7 @@ function wireHomeOrbBounce(): void {
 }
 
 async function goSetup(root: HTMLElement): Promise<void> {
-    if (currentSession) {
-        currentSession.teardown();
-        currentSession = null;
-    }
-    if (currentNoting) {
-        currentNoting.teardown();
-        currentNoting = null;
-    }
+    teardownInflightSessions();
     setActiveNav('setup');
     await mountSetupView(root, (setup, continueFrom) => {
         if (setup.meditationType === 'noting') {
@@ -458,17 +444,11 @@ async function goSession(
     // wirePopstate intercepts it to confirm before leaving. Normal exits below
     // route via routeTo, which replaces this URL.
     window.history.pushState({ view: 'session' }, '', routePath('/session'));
+    // routeTo replaces the '/session' URL pushed above.
     currentSession = await mountSessionView(
         root,
         setup,
-        (destination) => {
-            // Where the session view wants the user to land. Routing via routeTo
-            // replaces the '/session' URL pushed above.
-            if (destination === 'history') void routeTo(root, 'history');
-            else if (destination === 'settings') void routeTo(root, 'settings');
-            else if (destination === 'account') void routeTo(root, 'account');
-            else void routeTo(root, 'setup');
-        },
+        (destination) => void routeTo(root, destination ?? 'setup'),
         continueFrom
     );
 }
@@ -504,12 +484,9 @@ async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<
     if (!(await ensureCloudAccess(setup, await loadAppSettings(), 'noting'))) return;
     // Same back-button trap as goSession (see wirePopstate).
     window.history.pushState({ view: 'session' }, '', routePath('/session'));
-    currentNoting = await mountNotingSessionView(root, setup, (destination) => {
-        if (destination === 'history') void routeTo(root, 'history');
-        else if (destination === 'settings') void routeTo(root, 'settings');
-        else if (destination === 'account') void routeTo(root, 'account');
-        else void routeTo(root, 'setup');
-    });
+    currentNoting = await mountNotingSessionView(root, setup, (destination) =>
+        void routeTo(root, destination ?? 'setup')
+    );
 }
 
 async function goHistory(root: HTMLElement): Promise<void> {
