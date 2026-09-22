@@ -181,7 +181,6 @@ import {
     syncSpeedControlForVoice,
     voiceRateLabel,
     ENGINE_LABELS,
-    type CloudVoice,
     type ScoredVoice,
 } from '../voice-picker.js';
 
@@ -2717,15 +2716,6 @@ export async function mountSessionView(
         const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
         scoredVoices = buildScoredVoiceList(server, true, hosted, sessionLanguage);
         updateVoicePickerLabel();
-        syncVoiceNote(hosted);
-    }
-
-    // A hosted voice can ask the LLM for a text rule (CloudVoice.promptNote,
-    // e.g. Harper's "don't open with Right"). The prompt is rebuilt from the
-    // builder's config every turn, so setting it here is enough; re-run on a
-    // mid-session pick.
-    function syncVoiceNote(hosted: readonly CloudVoice[]): void {
-        builder.config.voiceNote = hostedVoicePromptNote(setup.voice, setup.provider, hosted);
     }
 
     function updateVoicePickerLabel(): void {
@@ -2776,7 +2766,6 @@ export async function mountSessionView(
             // Rebuild the live engine, or a browser/server voice change would
             // update only the label and silently keep the old engine.
             void rebuildTts(setup.voice);
-            void fetchCloudVoices().then(syncVoiceNote);
         };
         let speedChanged = false;
         const onSpeedInput = () => {
@@ -2809,6 +2798,15 @@ export async function mountSessionView(
         modal.addEventListener('click', onBackdrop);
     }
 
+    // A hosted voice can ask the LLM for a text rule (CloudVoice.promptNote,
+    // e.g. Harper's "don't open with Right"). Resolved ONCE, for the voice the
+    // session starts with, and awaited before the opener: the note lives in the
+    // system prompt, so changing it mid-sit (a voice pick, or a late catalog
+    // fetch landing after the opener) re-bills the whole cached prefix.
+    const voiceNoteReady = fetchCloudVoices().then((hosted) => {
+        builder.config.voiceNote = hostedVoicePromptNote(setup.voice, setup.provider, hosted);
+    });
+
     // Greet before the listen loop starts. busy so the mic loop doesn't hear
     // input until the opener finishes. Resuming gets a welcome-back.
     {
@@ -2819,7 +2817,7 @@ export async function mountSessionView(
                 // pre-buffer fills while the facilitator talks. Otherwise the
                 // graph is built lazily on first start(), and a barge-in during
                 // the greeting has an empty buffer and clips the first word (d35).
-                await stt?.prime?.();
+                await Promise.all([stt?.prime?.(), voiceNoteReady]);
                 await speakOpener(!!continueFrom && continueFrom.exchanges.length > 0);
             } finally {
                 busy = false;
