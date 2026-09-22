@@ -4,52 +4,25 @@
  * never drift from a real charge; only the assumed usage profile can be wrong,
  * which is what the pre-launch validation bead is for.
  *
- * The profile below is SEEDED FROM ONE MEASURED SESSION: a ~50-minute practice
- * (emotions + parts + compassionate, high verbosity, full context) with HISTORY
- * CACHING ON:
- *   - ~33 facilitator LLM turns; output ~2,700 tokens (~10k chars of speech).
- *   - Full transcript re-sent each turn, but with prefix caching the bulk
- *     (~115k) is cache-READS at ~0.1x; only new user text is fresh input, and
- *     each turn's new content is a one-time cache CREATION.
- *   - Input:output volume is ~45:1, so cache pricing, not output, drives cost.
- * One data point, so these are order-of-magnitude (±~35%). Refine as telemetry
- * accumulates; the shape (heavy cached input, modest output) is the durable part.
+ * The profile below was SEEDED FROM ONE MEASURED SESSION: ~50 minutes with
+ * history caching on, ~33 facilitator turns, ~2,700 output tokens. Input runs
+ * ~45:1 over output and most of it is cache READS (~0.1x), so cache pricing,
+ * not output, drives cost. Order-of-magnitude (±~35%); the shape is the
+ * durable part.
  *
- * FIRST CALIBRATION LOOK, Aug 2026 (23 qualifying sessions / 19.2 hours, admin
- * per-hour report). NOTHING was reseeded from it, because the sample doesn't
- * support it: nearly all the hours are one person's, and the qualifying bar
- * (>=5 min OR >=10 turns) admits short trial sits, which are not the practice
- * this profile is meant to describe. A number fit to that sample would be a
- * different guess, not a measurement. What it's good for is direction:
- *   - turns look right: 40.9 measured vs 39.6 assumed.
- *   - sttSeconds looks ~4x low: 20.2 billed min/hr vs 4.8 assumed. Big if it
- *     survives a real sample - it would make STT the second-largest leg - and
- *     meditation-pal-0uw7 asks first whether it's talking or VAD padding.
- *   - TTS says nothing yet: minutes-long per-voice samples, and the two voices
- *     disagree 2.4x in a way that looks like mode (noting speaks labels, not
- *     sentences), which MODE_RATE_MULTIPLIER already models separately.
- *   - the four token fields are unmeasured - the report only started carrying
- *     them in this same pass. cacheRead is the one that matters, being ~90% of
- *     the LLM cost basis.
- * Before the next pass, restrict the window to real sits and check how many
- * accounts are behind it (meditation-pal-bv9p).
+ * Calibration against the admin per-hour report (Aug 2026, ~35 hours, still
+ * dominated by one returning user, so "measured for that practice style", not
+ * "typical"; re-estimate as the account mix widens, meditation-pal-bv9p):
+ *   - turns matched (40.9/hr measured vs 39.6 assumed): left alone.
+ *   - sttSeconds reseeded 240 → 1,000: billed STT held at ~20-25 min/hr in
+ *     both looks. Talking vs VAD padding is still meditation-pal-0uw7's
+ *     question, but the BILLED figure is what the badge should predict.
+ *   - TTS band reseeded down (TTS_CHAR_PROFILES): measured cloud-voice
+ *     sessions ran ~1k-6.2k chars, all under the old 10k "typical".
+ *   - LLM token fields left at the seed: per-model samples are too small and
+ *     track user style.
  *
- * SECOND LOOK, Aug 18 2026 (34.6 hours, 30 real sessions): TENTATIVE reseed of
- * the two legs the first look flagged, deliberately NOT a full refit - the
- * hours are still dominated by one (returning, paying) user, so this is
- * "measured for that practice style", not "typical". Re-estimate periodically
- * as the account mix widens (bv9p).
- *   - sttSeconds 240 → 1,000: billed STT held at ~20-25 min/hr across both
- *     looks (0uw7's talking-vs-VAD-padding question is still open, but the
- *     BILLED figure is what the badge should predict either way).
- *   - TTS band halved-ish: measured cloud-voice chars/hr ran 1.3k-7.5k/hr
- *     (≈1k-6.2k/session), all below the old "typical" 10k. Facilitator
- *     terseness + held silence beat the Gemma-seeded profile.
- *   - LLM token fields and turn count left alone: per-model turn rates ranged
- *     10-51/hr in ways that track user style, and no per-model sample is big
- *     enough to beat the seed.
- *
- * The utility LLM (Haiku via buildUtilityProvider, plus the Flash Lite recap)
+ * The utility LLM (Haiku via buildUtilityProvider, plus the recap model)
  * is carried as its own flat leg, UTILITY_CREDITS_PER_HOUR below - it rides
  * every HOSTED session regardless of which model the badge names
  * (meditation-pal-nrj6), so it belongs in the composed session estimate, not
@@ -71,9 +44,6 @@ export const TYPICAL_SESSION: SessionUsage = {
     llmTokensOut: 2_700, // facilitator speech (~10k chars)
     llmCacheRead: 115_000, // re-sent prefix, cached at ~0.1x
     llmCacheCreation: 7_500, // unique content written to cache once
-    // Reseeded Aug 18 2026 from ~20-25 BILLED min/hr, stable across both
-    // calibration looks (header). Whether that's talking or VAD padding is
-    // still 0uw7's question, but it's what the meter charges.
     sttSeconds: 1_000, // ~17 min billed audio per 50-min session (~20 min/hr)
     ttsChars: 10_000, // facilitator speech, if spoken by cloud TTS
 };
@@ -82,9 +52,8 @@ export const TYPICAL_SESSION: SessionUsage = {
  * TTS chars per ~50-min session is a band, not a number: driven by facilitator
  * verbosity, how much the user shares (the facilitator mirrors length), and the
  * model (smaller open models run chattier; Claude models stay terser at the same
- * setting). Reseeded Aug 18 2026 (header): measured cloud-voice sessions ran
- * ≈1k-6.2k chars/session, all under the original Gemma-seeded 10k "typical".
- * So the UI shows a RANGE per voice, not a worst case.
+ * setting), so the UI shows a RANGE per voice, not a worst case (calibration
+ * in the file header).
  *
  * LANGUAGE (meditation-pal-c3a0.4): these profiles are English-calibrated, and
  * zh sessions deliberately reuse them unadjusted. Measured over the parallel
@@ -134,6 +103,11 @@ const PER_HOUR = 60 / TYPICAL_SESSION_MINUTES;
 
 function round1(n: number): number {
     return Math.round(n * 10) / 10;
+}
+
+/** A per-session provider cost as $/hr, for the estimates' costUsd fields. */
+function usdPerHour(usdPerSession: number): number {
+    return round1(usdPerSession * PER_HOUR * 100) / 100;
 }
 
 /**
@@ -186,32 +160,31 @@ export function estimateModels(): ModelEstimate[] {
             model: m.model,
             creditsPerSession: cost.credits,
             creditsPerHour: creditsPerHour(cost.credits),
-            costUsdPerHour: round1(cost.providerCostUsd * PER_HOUR * 100) / 100,
+            costUsdPerHour: usdPerHour(cost.providerCostUsd),
         };
     });
 }
 
 /** The background-assistant leg of a HOSTED session: Haiku for the silence
- *  classifiers, noting labels, and end-of-session summary, Flash Lite for the
- *  in-session recap refresh (ui/views/session.ts buildUtilityProvider /
- *  buildRecapProvider). Metered only when the facilitation provider is 'aloud'
- *  - BYOK Anthropic runs Haiku on the user's own key, claude_proxy on their
- *  subscription, and everything else reuses the facilitation model - so the
- *  client adds this to the composed estimate only for aloud-cloud sessions.
- *  Aug 2026 telemetry: Haiku measured ~0.3 cr/hr riding effectively all hours
- *  (34.5 of 34.6), part of which was the recap before its Flash Lite move;
- *  0.3 keeps a little headroom over the post-move mix. Not per-badge: it's the
- *  same flat leg whichever facilitation model is picked (nrj6). */
+ *  classifiers, noting labels, and end-of-session summary, and the `utility`
+ *  model (providers.ts) for the in-session recap refresh (ui/views/session.ts
+ *  buildUtilityProvider / buildRecapProvider). Metered only when the
+ *  facilitation provider is 'aloud' - BYOK Anthropic runs Haiku on the user's
+ *  own key, claude_proxy on their subscription, and everything else reuses the
+ *  facilitation model - so the client adds this to the composed estimate only
+ *  for aloud-cloud sessions. Aug 2026 telemetry measured Haiku at ~0.3 cr/hr
+ *  over effectively all hours, recap included before it moved off Haiku, so
+ *  0.3 leaves a little headroom. Not per-badge: the same flat leg whichever
+ *  facilitation model is picked (nrj6). */
 export const UTILITY_CREDITS_PER_HOUR = 0.3;
 
-/** Cloud STT leg for a hosted model (default: the server-default
- *  gpt-4o-transcribe), priced through the same meter code that bills. */
+/** Cloud STT leg for a hosted model (default: DEFAULT_STT_MODEL), priced through the same meter code that bills. */
 export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
     const cost = priceSttSeconds(TYPICAL_SESSION.sttSeconds, model);
     return {
         creditsPerSession: cost.credits,
         creditsPerHour: creditsPerHour(cost.credits),
-        costUsdPerHour: round1(cost.providerCostUsd * PER_HOUR * 100) / 100,
+        costUsdPerHour: usdPerHour(cost.providerCostUsd),
     };
 }
 
@@ -241,13 +214,17 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
     };
 }
 
+function voiceEngineLabel(v: { provider: TtsProvider; providerVoiceId: string; tier: string }): string {
+    if (v.provider === 'openai') return 'OpenAI gpt-4o-mini-tts';
+    if (v.provider === 'azure') return v.providerVoiceId.includes('DragonHD') ? 'Azure DragonHD' : 'Azure Neural';
+    return v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
+}
+
 /**
  * Per-voice TTS leg, as a band across the talk profile. Covers only the voices a
  * user can ACTUALLY pick: free local engines plus the curated cloud voices
- * (voice-catalog.ts: Google Chirp3-HD/Neural2, OpenAI gpt-4o-mini-tts, Azure
- * MAI-Voice-2/multilingual Neural and DragonHD), each
- * priced through the meter's own rate authority (providers.ttsRateFor), so a
- * shown line can't drift from the real charge.
+ * (voice-catalog.ts), each priced through the meter's own rate authority
+ * (providers.ttsRateFor), so a shown line can't drift from the real charge.
  *
  * Engines we may wire later (meditation-pal-b7i) are absent rather than
  * advertised at a rate the server can't deliver: Google Standard ($4/1M) is a
@@ -255,12 +232,6 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
  * Octave (~$7.60/1M), Deepgram Aura ($15/1M), and self-hosted Kokoro (~$0.70/1M,
  * but breaks the stateless proxy).
  */
-function voiceEngineLabel(v: { provider: TtsProvider; providerVoiceId: string; tier: string }): string {
-    if (v.provider === 'openai') return 'OpenAI gpt-4o-mini-tts';
-    if (v.provider === 'azure') return v.providerVoiceId.includes('DragonHD') ? 'Azure DragonHD' : 'Azure Neural';
-    return v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
-}
-
 export function estimateVoices(): VoiceEstimate[] {
     const free = [
         freeVoice('browser-default', 'Device voice (free)'),
@@ -277,8 +248,7 @@ export function estimateVoices(): VoiceEstimate[] {
                 typical: perHour(TTS_CHAR_PROFILES.typical),
                 engaged: perHour(TTS_CHAR_PROFILES.engaged),
             },
-            costUsdPerHourTypical:
-                round1(TTS_CHAR_PROFILES.typical * rate * PER_HOUR * 100) / 100,
+            costUsdPerHourTypical: usdPerHour(TTS_CHAR_PROFILES.typical * rate),
         };
     });
     return [...free, ...cloud];

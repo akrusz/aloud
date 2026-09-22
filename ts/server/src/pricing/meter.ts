@@ -28,7 +28,7 @@
 
 import type { LlmUsage, SessionUsage } from '@aloud/core/facilitation';
 import { WORST_CASE_COMMISSION, commissionFor } from './commission.js';
-import type { PurchaseChannel } from '../contract.js';
+import type { ProviderId, PurchaseChannel } from '../contract.js';
 import {
     DEFAULT_STT_MODEL,
     sttUsdPerSecond,
@@ -36,7 +36,6 @@ import {
     ttsRateFor,
     pricingFor,
 } from './providers.js';
-import type { ProviderId } from '../contract.js';
 import type { TtsProvider } from '../providers/voice-catalog.js';
 
 /** Provider COST one credit represents, in USD. Margin is NOT here; it's added
@@ -100,14 +99,12 @@ export function priceLlmTurn(provider: ProviderId, model: string, usage: LlmUsag
     return toCredits(llmCostUsd(provider, model, usage));
 }
 
-/** Price `seconds` of cloud STT for `model` (default: the server-default
- *  gpt-4o-transcribe), at provider cost like every other leg, fractional
- *  credits. A turn fires several short STT passes (speculative + final), each a
- *  real Whisper-backend call, so debiting the exact proportional cost keeps a
- *  fraction-of-a-cent leg from being rounded up by orders of magnitude. */
+/** Price `seconds` of cloud STT for `model` (default: DEFAULT_STT_MODEL), at
+ *  provider cost, fractional credits. A turn fires several short STT passes
+ *  (speculative + final), so rounding each up would overcharge by orders of
+ *  magnitude. */
 export function priceSttSeconds(seconds: number, model: string = DEFAULT_STT_MODEL): CostBreakdown {
-    const providerCostUsd = Math.max(0, seconds) * sttUsdPerSecond(model);
-    return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
+    return toCredits(Math.max(0, seconds) * sttUsdPerSecond(model));
 }
 
 /** Price `chars` of cloud TTS, fractional credits, same rationale as STT. The
@@ -119,8 +116,7 @@ export function priceTtsChars(
     chars: number,
     opts: { provider?: TtsProvider; voiceId?: string } = {}
 ): CostBreakdown {
-    const providerCostUsd = Math.max(0, chars) * ttsRateFor(opts.provider ?? 'google', opts.voiceId);
-    return { providerCostUsd, credits: providerCostUsd / USD_PER_CREDIT };
+    return toCredits(Math.max(0, chars) * ttsRateFor(opts.provider ?? 'google', opts.voiceId));
 }
 
 /** Price a whole session's usage (LLM + STT secs + TTS chars), e.g. for final
@@ -151,11 +147,9 @@ export function priceSession(
 
 /** Ceiling on the per-turn pre-auth hold (meditation-pal-8sj). The hold itself
  *  is sized from the request by holdForTurn; this only caps a pathological one.
- *  It is NOT a floor: a flat 10-credit hold clamped to the balance parked a
- *  sub-10 balance in its entirety for the length of every LLM turn, so the TTS
- *  and STT legs - which gate on spendable balance and fire while the turn is
- *  still open - 402'd mid-reply. The user saw the out-of-credits apology and a
- *  buy button, then the reply anyway once the hold settled (meditation-pal-hd24). */
+ *  Never use it as a flat hold: clamped to a small balance it parks all of it
+ *  for the whole turn, and the TTS/STT legs that gate on spendable balance
+ *  402 mid-reply (meditation-pal-hd24). */
 export const SESSION_HOLD_CREDITS = 10;
 
 /** Tokenizer-free upper bound on the tokens in `text`: ASCII at ~3 chars/token
