@@ -6,19 +6,14 @@
  * how the operator reaches the panel from a phone without carrying the token
  * (the device holds a session JWT, honoured here only while under 7 days old).
  *
- *   GET  /cloud/v1/admin              control panel HTML (panel.ts)
- *   GET  /cloud/v1/admin/metrics      ledger aggregates + abuse velocity signals
- *   GET  /cloud/v1/admin/accounts     every account with derived balance/spend
- *   GET  /cloud/v1/admin/accounts/:id one account + its full ledger (audit)
- *   POST /cloud/v1/admin/grant        { email, credits } → ledger.grant()
- *
- * The panel page is served unauthenticated (you can't set an auth header by
- * navigating to a URL) but still only when a credential is configured; it
- * carries no data and every action it triggers hits a gated endpoint below.
+ * The panel page (GET /cloud/v1/admin, admin/panel.ts) is served
+ * unauthenticated (you can't set an auth header by navigating to a URL) but
+ * still only when a credential is configured; it carries no data and every
+ * action it triggers hits an adminOnly endpoint below.
  */
 
 import { Hono } from 'hono';
-import type { Context } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Deps } from '../deps.js';
 import type { LedgerEntry } from '../credits/store.js';
@@ -30,7 +25,6 @@ import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
 import { ADMIN_MAX_TOKEN_AGE_SECONDS, verifySessionToken } from '../auth/session.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
-import type { UsageEvent } from '../credits/usage.js';
 import { errorJson } from '../http.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
@@ -91,14 +85,33 @@ async function adminAccountIds(deps: Deps): Promise<Set<string>> {
     );
 }
 
-/** Usage events for the report endpoints, minus admin-account rows when the
+/** A row filter for the report endpoints: drops admin-account rows when the
  *  request carries ?excludeAdmin=1 (the panel's "omit admin" toggle), so the
  *  operator's own testing doesn't pollute the real-user picture. */
-async function usageEvents(c: Context, deps: Deps): Promise<UsageEvent[]> {
-    const events = await deps.store.allUsage();
-    if (c.req.query('excludeAdmin') !== '1') return events;
+async function adminFilter(c: Context, deps: Deps): Promise<(row: { accountId: string }) => boolean> {
+    if (c.req.query('excludeAdmin') !== '1') return () => true;
     const admin = await adminAccountIds(deps);
-    return admin.size ? events.filter((e) => !admin.has(e.accountId)) : events;
+    return (row) => !admin.has(row.accountId);
+}
+
+/** Start of the ?sinceHours window (default `defaultHours`), epoch seconds. */
+function windowStart(c: Context, now: number, defaultHours: number): number {
+    return now - Math.max(0, Number(c.req.query('sinceHours') ?? defaultHours)) * 3600;
+}
+
+/** ?days, clamped to 1..365 (default 30). */
+function dayCount(c: Context): number {
+    return Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
+}
+
+/** The request's JSON body, or null when it doesn't parse to an object. */
+async function jsonBody<T extends object>(c: Context): Promise<T | null> {
+    try {
+        const body: unknown = await c.req.json();
+        return body && typeof body === 'object' ? (body as T) : null;
+    } catch {
+        return null;
+    }
 }
 
 /** Net balance per account id, summing the append-only ledger once. */
@@ -110,6 +123,11 @@ function balancesByAccount(entries: LedgerEntry[]): Map<string, number> {
 
 export function adminRoutes(deps: Deps): Hono {
     const app = new Hono();
+    const adminOnly: MiddlewareHandler = async (c, next) => {
+        const fail = await authFailure(c, deps);
+        if (fail) return fail;
+        await next();
+    };
 
     // The control panel. Served only when admin access is configured, else 404,
     // so the page isn't discoverable on a server with admin disabled. No auth on
@@ -122,14 +140,9 @@ export function adminRoutes(deps: Deps): Hono {
         return c.html(renderAdminPanel(googleClientId));
     });
 
-    app.get('/metrics', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        const sinceHours = Number(c.req.query('sinceHours') ?? 24);
+    app.get('/metrics', adminOnly, async (c) => {
         const now = Date.now() / 1000;
-        const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
-
+        const windowSinceTs = windowStart(c, now, 24);
         const [accounts, entries] = await Promise.all([
             deps.store.allAccounts(),
             deps.store.allEntries(),
@@ -140,16 +153,9 @@ export function adminRoutes(deps: Deps): Hono {
     // Incident log (meditation-pal-xtgh): what the app handled quietly on the
     // cloud path - blank completions, upstream failures, 402s, client-reported
     // TTS/playback failures - grouped by kind, newest rows first.
-    app.get('/incidents', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-        const sinceHours = Number(c.req.query('sinceHours') ?? 168);
-        const sinceTs = Date.now() / 1000 - Math.max(0, sinceHours) * 3600;
-        let rows = await deps.store.incidentsSince(sinceTs);
-        if (c.req.query('excludeAdmin') === '1') {
-            const admin = await adminAccountIds(deps);
-            if (admin.size) rows = rows.filter((r) => !admin.has(r.accountId));
-        }
+    app.get('/incidents', adminOnly, async (c) => {
+        const sinceTs = windowStart(c, Date.now() / 1000, 168);
+        const rows = (await deps.store.incidentsSince(sinceTs)).filter(await adminFilter(c, deps));
         // Short account labels for the table (the email's local part), never
         // the whole address in a JSON blob the browser keeps around.
         const accounts = await deps.store.allAccounts();
@@ -165,11 +171,7 @@ export function adminRoutes(deps: Deps): Hono {
     // per-model cost, and reconstructed per-session economics the ledger can't
     // show. The dataset for calibrating USD_PER_CREDIT and pack sizing against
     // what real sessions cost.
-    app.get('/usage', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        const sinceHours = Number(c.req.query('sinceHours') ?? 24);
+    app.get('/usage', adminOnly, async (c) => {
         // ONE session bar panel-wide (DEFAULT_REAL_SIT: 5+ turns AND 5+ min):
         // distributions and per-hour rates filter on it together, or not at
         // all with all=1. sitMinutes/sitTurns stay as curl-level overrides of
@@ -184,12 +186,18 @@ export function adminRoutes(deps: Deps): Hono {
                 : {}),
         };
         const now = Date.now() / 1000;
-        const windowSinceTs = now - Math.max(0, sinceHours) * 3600;
+        const windowSinceTs = windowStart(c, now, 24);
 
         // Itemized sessions only for the operator's own accounts: real users
         // appear in aggregate, never as a per-sit line (privacy policy).
-        const [events, sessionRowsFor] = await Promise.all([usageEvents(c, deps), adminAccountIds(deps)]);
-        return c.json(buildUsageReport(events, now, windowSinceTs, { allSessions, realSit, sessionRowsFor }));
+        const [events, keep, sessionRowsFor] = await Promise.all([
+            deps.store.allUsage(),
+            adminFilter(c, deps),
+            adminAccountIds(deps),
+        ]);
+        return c.json(
+            buildUsageReport(events.filter(keep), now, windowSinceTs, { allSessions, realSit, sessionRowsFor })
+        );
     });
 
     // Daily usage history for the trend charts: sessions, turns, spend, duration
@@ -197,23 +205,18 @@ export function adminRoutes(deps: Deps): Hono {
     // ledger's purchase entries (the revenue-vs-cost margin trend). Computed
     // live from retained usage_events (no rollup table at this scale), so it's
     // real history bounded only by how far back the telemetry goes.
-    app.get('/usage/history', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
+    app.get('/usage/history', adminOnly, async (c) => {
+        const days = dayCount(c);
         const now = Date.now() / 1000;
-        const excludeAdmin = c.req.query('excludeAdmin') === '1';
-        const admin = excludeAdmin ? await adminAccountIds(deps) : new Set<string>();
-        let [events, entries] = await Promise.all([deps.store.allUsage(), deps.store.allEntries()]);
-        if (admin.size) {
-            // The omit-admin toggle drops the operator's purchases too, so the
-            // revenue line matches the filtered cost bars.
-            events = events.filter((e) => !admin.has(e.accountId));
-            entries = entries.filter((e) => !admin.has(e.accountId));
-        }
-        const revenue = buildDailyRevenue(entries, now, days);
-        const buckets = buildUsageHistory(events, now, days).map((b) => ({
+        const [events, entries, keep] = await Promise.all([
+            deps.store.allUsage(),
+            deps.store.allEntries(),
+            adminFilter(c, deps),
+        ]);
+        // The omit-admin toggle drops the operator's purchases too, so the
+        // revenue line matches the filtered cost bars.
+        const revenue = buildDailyRevenue(entries.filter(keep), now, days);
+        const buckets = buildUsageHistory(events.filter(keep), now, days).map((b) => ({
             ...b,
             revenueUsd: revenue.get(b.dayStartTs) ?? 0,
         }));
@@ -226,11 +229,8 @@ export function adminRoutes(deps: Deps): Hono {
     // line up with the providers' own daily billing buckets. No excludeAdmin
     // here on purpose: the provider bills admin usage too, so filtering it
     // would break the reconciliation.
-    app.get('/usage/provider-daily', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        const days = Math.min(365, Math.max(1, Number(c.req.query('days') ?? 30)));
+    app.get('/usage/provider-daily', adminOnly, async (c) => {
+        const days = dayCount(c);
         const now = Date.now() / 1000;
         const events = await deps.store.allUsage();
         return c.json({ generatedAt: now, days, rows: buildProviderDailyCosts(events, now, days) });
@@ -239,10 +239,7 @@ export function adminRoutes(deps: Deps): Hono {
     // Every account with derived balance, lifetime granted/spent, and whether it
     // has ever purchased, so the operator can find an email to grant to and
     // eyeball free-vs-paid at a glance.
-    app.get('/accounts', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.get('/accounts', adminOnly, async (c) => {
         const [accounts, entries, usage] = await Promise.all([
             deps.store.allAccounts(),
             deps.store.allEntries(),
@@ -291,10 +288,7 @@ export function adminRoutes(deps: Deps): Hono {
 
     // One account plus its full ledger: the audit trail behind a balance, which
     // is what a billing question needs.
-    app.get('/accounts/:id', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.get('/accounts/:id', adminOnly, async (c) => {
         const account = await deps.store.getAccountById(c.req.param('id'));
         if (!account) return errorJson(c, 'bad_request', 'no such account');
         const entries = await deps.store.listEntries(account.id);
@@ -308,10 +302,7 @@ export function adminRoutes(deps: Deps): Hono {
     // identities so each login can sign in fresh, anonymize + tombstone the row
     // (its ledger FKs survive). Used to clear a duplicate-mailbox account; once
     // the dup is gone, the canonical_email unique index can build.
-    app.post('/accounts/:id/delete', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.post('/accounts/:id/delete', adminOnly, async (c) => {
         const account = await deps.store.getAccountById(c.req.param('id'));
         if (!account) return errorJson(c, 'bad_request', 'no such account');
         if (account.deletedAt != null) return errorJson(c, 'bad_request', 'account is already deleted');
@@ -322,27 +313,18 @@ export function adminRoutes(deps: Deps): Hono {
     // Operator-tunable runtime config (free-credit knobs). GET reads the live
     // effective values; PUT patches them, live and persisted, so the operator can
     // stop handing out free credits without a redeploy.
-    app.get('/config', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
+    app.get('/config', adminOnly, async (c) => {
         return c.json(effectiveConfig(deps));
     });
 
-    app.put('/config', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        let body: {
+    app.put('/config', adminOnly, async (c) => {
+        const body = await jsonBody<{
             freeSignupCredits?: unknown;
             freeGrantBudgetPerHour?: unknown;
             meteredPaused?: unknown;
             testerEmails?: unknown;
-        };
-        try {
-            body = (await c.req.json()) as typeof body;
-        } catch {
-            return errorJson(c, 'bad_request', 'invalid JSON body');
-        }
+        }>(c);
+        if (!body) return errorJson(c, 'bad_request', 'invalid JSON body');
 
         const patch: ConfigPatch = {};
         for (const key of ['freeSignupCredits', 'freeGrantBudgetPerHour'] as const) {
@@ -375,16 +357,9 @@ export function adminRoutes(deps: Deps): Hono {
     // Grant credits to an account by email. Appends a signup_grant entry tagged
     // reason 'admin_grant', so the audit trail says who/why without inventing a
     // new ledger kind.
-    app.post('/grant', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        let body: { email?: unknown; credits?: unknown };
-        try {
-            body = (await c.req.json()) as typeof body;
-        } catch {
-            return errorJson(c, 'bad_request', 'invalid JSON body');
-        }
+    app.post('/grant', adminOnly, async (c) => {
+        const body = await jsonBody<{ email?: unknown; credits?: unknown }>(c);
+        if (!body) return errorJson(c, 'bad_request', 'invalid JSON body');
         const email = typeof body.email === 'string' ? body.email.trim() : '';
         const credits = Number(body.credits);
         if (!email) return errorJson(c, 'bad_request', 'email is required');
@@ -411,10 +386,7 @@ export function adminRoutes(deps: Deps): Hono {
     // List passes with their rosters and real provider spend so far (summed from
     // usage telemetry tagged with this pass). The spend column is what tells the
     // operator what a retreat cost.
-    app.get('/retreats', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.get('/retreats', adminOnly, async (c) => {
         const [passes, accounts, usage] = await Promise.all([
             deps.store.listRetreatPasses(),
             deps.store.allAccounts(),
@@ -478,16 +450,14 @@ export function adminRoutes(deps: Deps): Hono {
     // Create a pass. Dates accept a Unix-seconds number or any Date-parseable
     // string (the panel sends date-input values); the cap is optional and null
     // means truly unlimited.
-    app.post('/retreats', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
-        let body: { label?: unknown; startsAt?: unknown; endsAt?: unknown; perAttendeeDailyCap?: unknown };
-        try {
-            body = (await c.req.json()) as typeof body;
-        } catch {
-            return errorJson(c, 'bad_request', 'invalid JSON body');
-        }
+    app.post('/retreats', adminOnly, async (c) => {
+        const body = await jsonBody<{
+            label?: unknown;
+            startsAt?: unknown;
+            endsAt?: unknown;
+            perAttendeeDailyCap?: unknown;
+        }>(c);
+        if (!body) return errorJson(c, 'bad_request', 'invalid JSON body');
         const label = typeof body.label === 'string' ? body.label.trim() : '';
         const startsAt = parseTs(body.startsAt);
         const endsAt = parseTs(body.endsAt);
@@ -521,19 +491,12 @@ export function adminRoutes(deps: Deps): Hono {
     // away; otherwise it's a pending invite that binds on first sign-in
     // (meditation-pal-n9kd), so there's no sign-in-first ordering. Same
     // canonicalizing email lookup as grant.
-    app.post('/retreats/:id/members', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.post('/retreats/:id/members', adminOnly, async (c) => {
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
         if (!pass) return errorJson(c, 'bad_request', 'no such pass');
 
-        let body: { email?: unknown };
-        try {
-            body = (await c.req.json()) as typeof body;
-        } catch {
-            return errorJson(c, 'bad_request', 'invalid JSON body');
-        }
+        const body = await jsonBody<{ email?: unknown }>(c);
+        if (!body) return errorJson(c, 'bad_request', 'invalid JSON body');
         const email = typeof body.email === 'string' ? body.email.trim() : '';
         if (!email) return errorJson(c, 'bad_request', 'email is required');
 
@@ -549,10 +512,7 @@ export function adminRoutes(deps: Deps): Hono {
     });
 
     // Revoke a pass: coverage stops immediately for every member.
-    app.post('/retreats/:id/revoke', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.post('/retreats/:id/revoke', adminOnly, async (c) => {
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
         if (!pass) return errorJson(c, 'bad_request', 'no such pass');
         await deps.store.revokeRetreatPass(pass.id);
@@ -563,10 +523,7 @@ export function adminRoutes(deps: Deps): Hono {
     // the card in the list; this clears it out (spent retreats, durability-probe
     // test markers). Allowed only once the pass is inert, revoked or ended, so a
     // live retreat can't be nuked out from under its attendees by one click.
-    app.delete('/retreats/:id', async (c) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-
+    app.delete('/retreats/:id', adminOnly, async (c) => {
         const pass = await deps.store.getRetreatPass(c.req.param('id'));
         if (!pass) return errorJson(c, 'bad_request', 'no such pass');
         const inert = pass.status === 'revoked' || pass.endsAt < Date.now() / 1000;
