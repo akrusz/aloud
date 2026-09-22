@@ -155,7 +155,7 @@ import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isTauri, isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
+import { isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { diag } from '../diag.js';
 import {

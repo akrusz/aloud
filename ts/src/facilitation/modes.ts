@@ -15,7 +15,7 @@
  * add corroboration requirements on top.
  */
 
-import { BASE_SYSTEM_PROMPT, HOLD_PREFIX } from './prompts.js';
+import { BASE_SYSTEM_PROMPT } from './prompts.js';
 import {
     NOTING_SYSTEM_PROMPT,
     NOTING_CHECK_IN_PROMPTS,

@@ -41,12 +41,8 @@ export interface SessionInfoPanel {
 }
 
 import { t } from './i18n.js';
+import { escapeHtml } from './escape-html.js';
 
-function escape(s: string): string {
-    return s.replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)
-    );
-}
 
 /** `buildRows` runs on every open and refresh, so rows reflect live state. */
 export function mountSessionInfoPanel(
@@ -65,7 +61,7 @@ export function mountSessionInfoPanel(
         <div class="session-info-backdrop" data-info-close></div>
         <div class="session-info-panel">
             <div class="session-info-head">
-                <h3 class="session-info-title">${escape(title)}</h3>
+                <h3 class="session-info-title">${escapeHtml(title)}</h3>
                 <button type="button" class="session-info-close" data-info-close aria-label="${t('Close')}">&times;</button>
             </div>
             <div class="session-info-body" id="session-info-body"></div>
@@ -74,7 +70,7 @@ export function mountSessionInfoPanel(
                     ? `<div class="session-info-actions">${footerActions
                           .map(
                               (a, i) =>
-                                  `<button type="button" class="btn btn-secondary btn-small session-info-action" data-info-action="${i}">${escape(a.label)}</button>`
+                                  `<button type="button" class="btn btn-secondary btn-small session-info-action" data-info-action="${i}">${escapeHtml(a.label)}</button>`
                           )
                           .join('')}</div>`
                     : ''
@@ -92,9 +88,9 @@ export function mountSessionInfoPanel(
         body.innerHTML = rows
             .map((r) => {
                 const inner =
-                    `<span class="session-info-label">${escape(r.label)}</span>` +
-                    `<span class="session-info-value">${escape(r.value)}</span>` +
-                    (r.note ? `<span class="session-info-note">${escape(r.note)}</span>` : '');
+                    `<span class="session-info-label">${escapeHtml(r.label)}</span>` +
+                    `<span class="session-info-value">${escapeHtml(r.value)}</span>` +
+                    (r.note ? `<span class="session-info-note">${escapeHtml(r.note)}</span>` : '');
                 if (!r.onClick) return `<div class="session-info-row">${inner}</div>`;
                 const i = clickableRows.indexOf(r);
                 return `<button type="button" class="session-info-row session-info-row-action" data-info-row="${i}">${inner}</button>`;

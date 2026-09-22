@@ -83,6 +83,7 @@ import { escapeHtml } from '../escape-html.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clockModeLabel, showSessionClockModal } from '../session-clock.js';
+import { audioContextCtor } from '../audio-unlock.js';
 import {
     autoStart as autoStartGuide,
     closeIfActive as closeGuideIfActive,
@@ -1368,9 +1369,7 @@ export async function mountSetupView(
 
     function previewChime(): void {
         try {
-            const AC =
-                (window as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-                (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+            const AC = audioContextCtor();
             if (!AC) return;
             const ctx = new AC();
             const now = ctx.currentTime;

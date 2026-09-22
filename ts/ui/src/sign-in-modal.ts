@@ -24,6 +24,7 @@ import {
 } from './cloud-auth.js';
 import { manageModalFocus } from './modal-focus.js';
 import { t } from './i18n.js';
+import { escapeHtml } from './escape-html.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
@@ -277,9 +278,3 @@ function showOauthHint(overlay: HTMLElement): void {
     el.classList.remove('hidden');
 }
 
-function escapeHtml(s: string): string {
-    return s.replace(
-        /[&<>"']/g,
-        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c
-    );
-}

@@ -11,6 +11,7 @@ import { creditAmount, withCloudOutline } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { showSuccessToast, showErrorToast } from './toast.js';
 import { t } from './i18n.js';
+import { escapeHtml } from './escape-html.js';
 
 const OVERLAY_ID = 'gift-modal-overlay';
 
@@ -104,9 +105,3 @@ function showGiftModal(gifts: GiftView[]): void {
     releaseFocus = manageModalFocus(overlay);
 }
 
-function escapeHtml(s: string): string {
-    return s.replace(
-        /[&<>"']/g,
-        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c
-    );
-}
