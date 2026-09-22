@@ -12,8 +12,8 @@
 use serde_json::{json, Value};
 use std::time::Duration;
 
-const OLLAMA_URL: &str = "http://localhost:11434";
 const DOWNLOAD_URL: &str = "https://ollama.com/download";
+const INSTALL_SH: &str = "curl -fsSL https://ollama.com/install.sh | sh";
 
 /// Progress sink: each `*_stream` fn emits status lines then a final done/error
 /// event through it, which the handler serializes to NDJSON.
@@ -21,14 +21,7 @@ type Progress<'a> = dyn FnMut(Value) + 'a;
 
 /// `Some(version)` means the daemon is up.
 fn ping_version() -> Option<String> {
-    let url = format!("{OLLAMA_URL}/api/version");
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_millis(500)))
-        .build()
-        .into();
-    let resp = agent.get(&url).call().ok()?;
-    let body: Value = serde_json::from_reader(resp.into_body().into_reader()).ok()?;
-    body.get("version").and_then(Value::as_str).map(str::to_owned)
+    crate::ollama::version(Duration::from_millis(500))
 }
 
 // --- restart ----------------------------------------------------------------
@@ -123,22 +116,12 @@ pub fn restart_stream(on: &mut Progress) {
     };
 
     // Prefer whatever was running; otherwise prefer the .app on macOS.
-    let started = match running_method {
-        RunMethod::App if has_ollama_app() => start_app() || start_serve(),
-        RunMethod::Serve => {
-            if has_ollama_app() {
-                start_serve() || start_app()
-            } else {
-                start_serve()
-            }
-        }
-        _ => {
-            if has_ollama_app() {
-                start_app() || start_serve()
-            } else {
-                start_serve()
-            }
-        }
+    let started = if !has_ollama_app() {
+        start_serve()
+    } else if running_method == RunMethod::Serve {
+        start_serve() || start_app()
+    } else {
+        start_app() || start_serve()
     };
     if !started {
         on(json!({
@@ -231,7 +214,7 @@ fn upgrade_script() -> &'static str {
            echo \"or quit Ollama.app and start a headless server with: ollama serve\"; \
          fi"
     } else {
-        "curl -fsSL https://ollama.com/install.sh | sh"
+        INSTALL_SH
     }
 }
 
@@ -259,17 +242,17 @@ pub fn install_precheck(tool: &str) -> Result<(), (u16, String, Option<String>)>
     Ok(())
 }
 
-fn install_script() -> String {
+fn install_script() -> &'static str {
     if cfg!(target_os = "macos") && which::which("brew").is_ok() {
-        "brew install ollama".to_string()
+        "brew install ollama"
     } else {
-        "curl -fsSL https://ollama.com/install.sh | sh".to_string()
+        INSTALL_SH
     }
 }
 
 pub fn install_stream(tool: &str, on: &mut Progress) {
     on(json!({ "status": format!("Installing {tool}...") }));
-    stream_bash(&install_script(), on, "done");
+    stream_bash(install_script(), on, "done");
 }
 
 // --- shared subprocess streaming --------------------------------------------

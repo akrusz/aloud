@@ -4,15 +4,23 @@
 //! Restart / upgrade / install of the daemon *itself* lives in
 //! `ollama_tools.rs`, since those flows are platform-specific.
 
+use std::time::Duration;
+
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-const OLLAMA_URL: &str = "http://localhost:11434";
+pub(crate) const OLLAMA_URL: &str = "http://localhost:11434";
 
 #[derive(Deserialize)]
 pub struct ModelReq {
     #[serde(default)]
     pub model: String,
+}
+
+/// The daemon's version; `None` when it doesn't answer within `timeout`.
+pub(crate) fn version(timeout: Duration) -> Option<String> {
+    let body = crate::providers::get_json(&format!("{OLLAMA_URL}/api/version"), &[], timeout)?;
+    body["version"].as_str().map(str::to_owned)
 }
 
 /// Stream a pull from the daemon, calling `on_progress` once per forwarded line
@@ -25,31 +33,23 @@ pub fn pull_stream<F: FnMut(Value)>(model: &str, mut on_progress: F) -> Result<(
     let resp = ureq::post(&url)
         .config()
         // Pulls take minutes; only the initial connect should be quick.
-        .timeout_global(Some(std::time::Duration::from_secs(600)))
+        .timeout_global(Some(Duration::from_secs(600)))
         .build()
         .send_json(json!({ "model": model, "stream": true }))
         .map_err(|e| e.to_string())?;
 
     let reader = BufReader::new(resp.into_body().into_reader());
     for line in reader.lines() {
-        let line = match line {
-            Ok(l) if !l.trim().is_empty() => l,
-            Ok(_) => continue,
-            Err(e) => return Err(format!("read pull stream: {e}")),
-        };
-        let obj: Value = match serde_json::from_str(&line) {
-            Ok(v) => v,
-            Err(_) => continue, // skip a malformed line; Ollama is the source
-        };
+        let line = line.map_err(|e| format!("read pull stream: {e}"))?;
+        // Skip blank or malformed lines; Ollama is the source.
+        let Ok(obj) = serde_json::from_str::<Value>(&line) else { continue };
         // Ollama inlines errors in a 200-streamed body (e.g. 412 "requires newer
         // Ollama" arrives as a JSON `error` field). Reshape for the UI handler.
-        if let Some(err) = obj.get("error").and_then(Value::as_str) {
+        if let Some(err) = obj["error"].as_str() {
             on_progress(json!({ "status": "error", "error": err }));
             continue;
         }
-        let mut out = json!({
-            "status": obj.get("status").and_then(Value::as_str).unwrap_or(""),
-        });
+        let mut out = json!({ "status": obj["status"].as_str().unwrap_or("") });
         if let (Some(total), Some(completed)) = (obj.get("total"), obj.get("completed")) {
             out["total"] = total.clone();
             out["completed"] = completed.clone();

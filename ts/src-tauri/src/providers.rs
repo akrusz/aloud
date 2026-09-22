@@ -5,9 +5,15 @@
 //! users pick local models: RAM + GPU detection, curated tier list, "fits this
 //! machine" / "installed" annotations, and a version-outdated banner.
 
+use std::cmp::Reverse;
+use std::time::Duration;
+
 use serde_json::{json, Value};
 
-const OLLAMA_URL: &str = "http://localhost:11434";
+use crate::ollama::OLLAMA_URL;
+
+/// For the local daemon probes.
+const PROBE_TIMEOUT: Duration = Duration::from_millis(1500);
 /// Minimum version that can pull the recommended models: below this the
 /// manifest format is too old and pulls fail with HTTP 412.
 const MIN_OLLAMA_VERSION: &str = "0.21.0";
@@ -70,7 +76,7 @@ pub fn providers() -> Value {
     let has_claude = which::which("claude").is_ok();
     let has_ollama_bin = which::which("ollama").is_ok();
     let (ollama_running, raw_models) = probe_ollama_tags();
-    let ollama_version = probe_ollama_version();
+    let ollama_version = crate::ollama::version(PROBE_TIMEOUT);
 
     json!({
         "claude_proxy": {
@@ -105,23 +111,24 @@ pub fn providers() -> Value {
 /// is a static alias list. Any failure returns `[]`, on which the model picker
 /// falls back to a free-form text input.
 pub fn models(provider: &str, api_key: Option<&str>) -> Value {
+    let key = api_key.filter(|k| !k.is_empty());
+    let keyed = |fetch: fn(&str) -> Vec<Value>| key.map(fetch).unwrap_or_default();
     let list = match provider {
-        "openai" => fetch_openai(api_key),
-        "anthropic" => fetch_anthropic(api_key),
+        "openai" => keyed(fetch_openai),
+        "anthropic" => keyed(fetch_anthropic),
         "claude_proxy" => claude_proxy_models(),
         "openrouter" => fetch_openrouter(),
-        "venice" => fetch_venice(api_key),
-        "groq" => fetch_groq(api_key),
+        "venice" => keyed(fetch_venice),
+        "groq" => keyed(fetch_groq),
         _ => Vec::new(),
     };
     Value::Array(list)
 }
 
-/// GET a JSON body with a short timeout. `None` on any transport/parse error;
-/// callers degrade to an empty model list.
-fn get_json(url: &str, headers: &[(&str, &str)], timeout_secs: u64) -> Option<Value> {
+/// GET a JSON body with a timeout. `None` on any transport/status/parse error.
+pub(crate) fn get_json(url: &str, headers: &[(&str, &str)], timeout: Duration) -> Option<Value> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
+        .timeout_global(Some(timeout))
         .build()
         .into();
     let mut req = agent.get(url);
@@ -135,72 +142,67 @@ fn get_json(url: &str, headers: &[(&str, &str)], timeout_secs: u64) -> Option<Va
     serde_json::from_reader(resp.into_body().into_reader()).ok()
 }
 
+/// The `data` array every provider's model list comes in; empty on any
+/// failure, so callers degrade to an empty list.
+fn fetch_data(url: &str, headers: &[(&str, &str)], timeout_secs: u64) -> Vec<Value> {
+    match get_json(url, headers, Duration::from_secs(timeout_secs))
+        .and_then(|mut body| body.get_mut("data").map(Value::take))
+    {
+        Some(Value::Array(rows)) => rows,
+        _ => Vec::new(),
+    }
+}
+
 /// `{value, label}` option object.
 fn opt(value: &str, label: &str) -> Value {
     json!({ "value": value, "label": label })
 }
 
+/// Uppercase the first character: `mini` -> `Mini`.
+fn capitalize(word: &str) -> String {
+    let mut chars = word.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
+}
+
 // ---- OpenAI ----------------------------------------------------------------
 
-fn fetch_openai(api_key: Option<&str>) -> Vec<Value> {
-    let Some(key) = api_key.filter(|k| !k.is_empty()) else { return Vec::new() };
-    let body = match get_json(
+fn fetch_openai(key: &str) -> Vec<Value> {
+    let data = fetch_data(
         "https://api.openai.com/v1/models",
         &[("Authorization", &format!("Bearer {key}"))],
         5,
-    ) {
-        Some(b) => b,
-        None => return Vec::new(),
-    };
+    );
     let chat_prefixes = ["gpt-5", "gpt-4", "gpt-3.5", "o1", "o3", "o4", "chatgpt"];
     let exclude = [
         "realtime", "audio", "search", "transcription", "embedding", "moderation",
         "tts", "whisper", "dall-e", "instruct",
     ];
-    let mut rows: Vec<(i64, String)> = body
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    let id = m.get("id").and_then(Value::as_str)?;
-                    if !chat_prefixes.iter().any(|p| id.starts_with(p)) {
-                        return None;
-                    }
-                    if exclude.iter().any(|t| id.contains(t)) {
-                        return None;
-                    }
-                    let created = m.get("created").and_then(Value::as_i64).unwrap_or(0);
-                    Some((created, id.to_string()))
-                })
-                .collect()
+    let mut rows: Vec<(i64, &str)> = data
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            let chat = chat_prefixes.iter().any(|p| id.starts_with(p))
+                && !exclude.iter().any(|t| id.contains(t));
+            chat.then(|| (m["created"].as_i64().unwrap_or(0), id))
         })
-        .unwrap_or_default();
+        .collect();
     // Newest first.
-    rows.sort_by(|a, b| b.0.cmp(&a.0));
-    rows.iter().map(|(_, id)| opt(id, &openai_label(id))).collect()
+    rows.sort_by_key(|&(created, _)| Reverse(created));
+    rows.iter().map(|&(_, id)| opt(id, &openai_label(id))).collect()
 }
 
 /// `gpt-4.1-mini` -> `GPT-4.1 Mini`, `o3-mini` -> `o3 Mini`.
 fn openai_label(id: &str) -> String {
     let parts: Vec<String> = id
         .split('-')
-        .map(|p| {
-            let lower = p.to_lowercase();
-            if lower == "gpt" {
-                "GPT".to_string()
-            } else if lower == "chatgpt" {
-                "ChatGPT".to_string()
-            } else if p.chars().all(|c| c.is_ascii_alphabetic()) {
-                // Capitalize a plain alpha segment (e.g. "mini" -> "Mini").
-                let mut c = p.chars();
-                match c.next() {
-                    Some(f) => f.to_uppercase().chain(c).collect(),
-                    None => String::new(),
-                }
-            } else {
-                p.to_string()
-            }
+        .map(|p| match p.to_lowercase().as_str() {
+            "gpt" => "GPT".to_string(),
+            "chatgpt" => "ChatGPT".to_string(),
+            _ if p.chars().all(|c| c.is_ascii_alphabetic()) => capitalize(p),
+            _ => p.to_string(),
         })
         .collect();
     parts
@@ -211,38 +213,23 @@ fn openai_label(id: &str) -> String {
 
 // ---- Anthropic --------------------------------------------------------------
 
-fn fetch_anthropic(api_key: Option<&str>) -> Vec<Value> {
-    let Some(key) = api_key.filter(|k| !k.is_empty()) else { return Vec::new() };
-    let body = match get_json(
+fn fetch_anthropic(key: &str) -> Vec<Value> {
+    let data = fetch_data(
         "https://api.anthropic.com/v1/models",
         &[("x-api-key", key), ("anthropic-version", "2023-06-01")],
         5,
-    ) {
-        Some(b) => b,
-        None => return Vec::new(),
-    };
-    let mut rows: Vec<(String, String, String)> = body
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    let id = m.get("id").and_then(Value::as_str)?.to_string();
-                    let label = m
-                        .get("display_name")
-                        .and_then(Value::as_str)
-                        .unwrap_or(&id)
-                        .to_string();
-                    let created =
-                        m.get("created_at").and_then(Value::as_str).unwrap_or("").to_string();
-                    Some((created, id, label))
-                })
-                .collect()
+    );
+    let mut rows: Vec<(&str, &str, &str)> = data
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            let label = m["display_name"].as_str().unwrap_or(id);
+            Some((m["created_at"].as_str().unwrap_or(""), id, label))
         })
-        .unwrap_or_default();
+        .collect();
     // Newest first: created_at is ISO, so a lexical sort works.
-    rows.sort_by(|a, b| b.0.cmp(&a.0));
-    rows.iter().map(|(_, id, label)| opt(id, label)).collect()
+    rows.sort_by_key(|&(created, _, _)| Reverse(created));
+    rows.iter().map(|&(_, id, label)| opt(id, label)).collect()
 }
 
 // ---- Claude subscription (static aliases) ----------------------------------
@@ -269,126 +256,80 @@ fn claude_proxy_models() -> Vec<Value> {
 const DROP_VARIANTS: [&str; 3] = [":free", ":extended", ":batch"];
 
 fn fetch_openrouter() -> Vec<Value> {
-    let body = match get_json("https://openrouter.ai/api/v1/models", &[], 8) {
-        Some(b) => b,
-        None => return Vec::new(),
-    };
+    let data = fetch_data("https://openrouter.ai/api/v1/models", &[], 8);
     let keep_orgs = [
         "anthropic", "openai", "google", "meta-llama", "deepseek", "mistralai",
         "qwen", "moonshotai",
     ];
-    let mut rows: Vec<(i64, String, String)> = body
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    let id = m.get("id").and_then(Value::as_str)?;
-                    let org = id.split('/').next().unwrap_or("");
-                    if !keep_orgs.contains(&org) {
-                        return None;
-                    }
-                    if DROP_VARIANTS.iter().any(|v| id.ends_with(v)) {
-                        return None;
-                    }
-                    let label =
-                        m.get("name").and_then(Value::as_str).unwrap_or(id).to_string();
-                    let ctx = m.get("context_length").and_then(Value::as_i64).unwrap_or(0);
-                    Some((ctx, id.to_string(), label))
-                })
-                .collect()
+    let mut rows: Vec<(i64, &str, &str)> = data
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            let org = id.split('/').next().unwrap_or("");
+            if !keep_orgs.contains(&org) || DROP_VARIANTS.iter().any(|v| id.ends_with(v)) {
+                return None;
+            }
+            let label = m["name"].as_str().unwrap_or(id);
+            Some((m["context_length"].as_i64().unwrap_or(0), id, label))
         })
-        .unwrap_or_default();
+        .collect();
     // Context length as a proxy for recency/capability; cap at 30.
-    rows.sort_by(|a, b| b.0.cmp(&a.0));
-    rows.iter().take(30).map(|(_, id, label)| opt(id, label)).collect()
+    rows.sort_by_key(|&(ctx, _, _)| Reverse(ctx));
+    rows.iter().take(30).map(|&(_, id, label)| opt(id, label)).collect()
 }
 
 // ---- Venice -----------------------------------------------------------------
 
-fn fetch_venice(api_key: Option<&str>) -> Vec<Value> {
-    let Some(key) = api_key.filter(|k| !k.is_empty()) else { return Vec::new() };
-    let body = match get_json(
+fn fetch_venice(key: &str) -> Vec<Value> {
+    let data = fetch_data(
         "https://api.venice.ai/api/v1/models",
         &[("Authorization", &format!("Bearer {key}"))],
         5,
-    ) {
-        Some(b) => b,
-        None => return Vec::new(),
-    };
-    body.get("data")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    let id = m.get("id").and_then(Value::as_str)?;
-                    // Venice mixes in image/code models; keep text/chat.
-                    let mtype = m.get("type").and_then(Value::as_str).unwrap_or("");
-                    if !matches!(mtype, "" | "text" | "chat") {
-                        return None;
-                    }
-                    let label = m
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or(id);
-                    Some(opt(id, label))
-                })
-                .collect()
+    );
+    data.iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            // Venice mixes in image/code models; keep text/chat.
+            if !matches!(m["type"].as_str().unwrap_or(""), "" | "text" | "chat") {
+                return None;
+            }
+            let label = m["name"].as_str().filter(|s| !s.is_empty()).unwrap_or(id);
+            Some(opt(id, label))
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 // ---- Groq -------------------------------------------------------------------
 
-fn fetch_groq(api_key: Option<&str>) -> Vec<Value> {
-    let Some(key) = api_key.filter(|k| !k.is_empty()) else { return Vec::new() };
-    let body = match get_json(
+fn fetch_groq(key: &str) -> Vec<Value> {
+    let data = fetch_data(
         "https://api.groq.com/openai/v1/models",
         &[("Authorization", &format!("Bearer {key}"))],
         5,
-    ) {
-        Some(b) => b,
-        None => return Vec::new(),
-    };
+    );
     let exclude = ["whisper", "tts", "guard", "embed"];
-    let mut rows: Vec<(i64, String)> = body
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    let id = m.get("id").and_then(Value::as_str)?;
-                    if id.is_empty() || m.get("active").and_then(Value::as_bool) == Some(false) {
-                        return None;
-                    }
-                    let lower = id.to_lowercase();
-                    if exclude.iter().any(|t| lower.contains(t)) {
-                        return None;
-                    }
-                    let ctx = m.get("context_window").and_then(Value::as_i64).unwrap_or(0);
-                    Some((ctx, id.to_string()))
-                })
-                .collect()
+    let mut rows: Vec<(i64, &str)> = data
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            if id.is_empty() || m["active"].as_bool() == Some(false) {
+                return None;
+            }
+            let lower = id.to_lowercase();
+            if exclude.iter().any(|t| lower.contains(t)) {
+                return None;
+            }
+            Some((m["context_window"].as_i64().unwrap_or(0), id))
         })
-        .unwrap_or_default();
-    rows.sort_by(|a, b| b.0.cmp(&a.0));
-    rows.iter().map(|(_, id)| opt(id, &groq_label(id))).collect()
+        .collect();
+    rows.sort_by_key(|&(ctx, _)| Reverse(ctx));
+    rows.iter().map(|&(_, id)| opt(id, &groq_label(id))).collect()
 }
 
 /// `meta-llama/llama-3.1-70b` -> `Llama 3.1 70b`.
 fn groq_label(id: &str) -> String {
     let tail = id.rsplit('/').next().unwrap_or(id);
-    tail.split('-')
-        .map(|w| {
-            let mut c = w.chars();
-            match c.next() {
-                Some(f) => f.to_uppercase().chain(c).collect::<String>(),
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    tail.split('-').map(capitalize).collect::<Vec<_>>().join(" ")
 }
 
 // --- API-key providers -----------------------------------------------------
@@ -412,46 +353,23 @@ struct RawOllamaModel {
 /// (nothing pulled).
 fn probe_ollama_tags() -> (bool, Vec<RawOllamaModel>) {
     let url = format!("{OLLAMA_URL}/api/tags");
-    let resp = match ureq::get(&url)
-        .config()
-        .timeout_global(Some(std::time::Duration::from_millis(1500)))
-        .build()
-        .call()
-    {
-        Ok(r) => r,
-        Err(_) => return (false, Vec::new()),
+    let Ok(resp) = ureq::get(&url).config().timeout_global(Some(PROBE_TIMEOUT)).build().call()
+    else {
+        return (false, Vec::new());
     };
-    let body: Value = match serde_json::from_reader(resp.into_body().into_reader()) {
-        Ok(v) => v,
-        Err(_) => return (true, Vec::new()),
-    };
-    let models = body
-        .get("models")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    Some(RawOllamaModel {
-                        name: m.get("name").and_then(Value::as_str)?.to_string(),
-                        size_bytes: m.get("size").and_then(Value::as_u64).unwrap_or(0),
-                    })
-                })
-                .collect()
+    let body: Value = serde_json::from_reader(resp.into_body().into_reader()).unwrap_or_default();
+    let models = body["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| {
+            Some(RawOllamaModel {
+                name: m["name"].as_str()?.to_string(),
+                size_bytes: m["size"].as_u64().unwrap_or(0),
+            })
         })
-        .unwrap_or_default();
+        .collect();
     (true, models)
-}
-
-fn probe_ollama_version() -> Option<String> {
-    let url = format!("{OLLAMA_URL}/api/version");
-    let resp = ureq::get(&url)
-        .config()
-        .timeout_global(Some(std::time::Duration::from_millis(1500)))
-        .build()
-        .call()
-        .ok()?;
-    let body: Value = serde_json::from_reader(resp.into_body().into_reader()).ok()?;
-    body.get("version").and_then(Value::as_str).map(String::from)
 }
 
 /// The Ollama section of the providers response: availability, hint, models
@@ -471,7 +389,7 @@ fn ollama_section(
     let installed = has_bin || running;
     let hint = ollama_hint(running, has_bin, &model_names, &recommendation);
 
-    let mut section = json!({
+    json!({
         "available": available,
         "installed": installed,
         "models": model_names,
@@ -479,15 +397,9 @@ fn ollama_section(
         "hint": hint,
         "recommendation": recommendation,
         "min_version": MIN_OLLAMA_VERSION,
-    });
-    if let Some(v) = version {
-        section["version"] = json!(v);
-        section["outdated"] = json!(version_outdated(v));
-    } else {
-        section["version"] = Value::Null;
-        section["outdated"] = json!(false);
-    }
-    section
+        "version": version,
+        "outdated": version.is_some_and(version_outdated),
+    })
 }
 
 fn ollama_hint(
@@ -519,14 +431,13 @@ fn ollama_hint(
 /// `{ <name>: "X.XGB" or "XMB" }` per pulled model, which the settings UI shows
 /// next to each installed model.
 fn build_model_sizes(raw_models: &[RawOllamaModel]) -> Value {
-    let mut sizes = serde_json::Map::new();
-    for m in raw_models {
-        if m.size_bytes == 0 {
-            continue;
-        }
-        sizes.insert(m.name.clone(), json!(format_bytes(m.size_bytes)));
-    }
-    Value::Object(sizes)
+    Value::Object(
+        raw_models
+            .iter()
+            .filter(|m| m.size_bytes > 0)
+            .map(|m| (m.name.clone(), json!(format_bytes(m.size_bytes))))
+            .collect(),
+    )
 }
 
 fn format_bytes(bytes: u64) -> String {
@@ -577,7 +488,7 @@ fn build_recommendation(
                 note.push_str("May be slow with your current GPU");
             }
 
-            let fits = ram_gb.map(|r| r >= t.min_gb).unwrap_or(false);
+            let fits = ram_gb.is_some_and(|r| r >= t.min_gb);
             json!({
                 "model": t.model,
                 "label": t.label,
@@ -634,10 +545,7 @@ pub(crate) fn system_ram_gb() -> Option<u32> {
     let mut sys = sysinfo::System::new();
     sys.refresh_memory();
     let bytes = sys.total_memory();
-    if bytes == 0 {
-        return None;
-    }
-    Some((bytes / 1024 / 1024 / 1024) as u32)
+    (bytes > 0).then(|| (bytes / 1024 / 1024 / 1024) as u32)
 }
 
 /// Apple Silicon's unified memory is fast enough that macOS always counts as
