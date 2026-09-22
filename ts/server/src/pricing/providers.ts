@@ -272,6 +272,34 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 0.05 / M,
         cacheCreation1h: 0.05 / M, // no 1h write on automatic caching; never accrues
     },
+    // GPT-6 Sol (Sept 2026): the 6 family's Sol, at $2/$10, well under 5.6
+    // Sol's $5/$30. Same caching contract as the 5.6 family: 0.1x reads, a
+    // reported 1.25x write fee, no 1h tier. Reasoning defaults to `medium` but
+    // takes 'none' (openai.ts lowestReasoningEffort). Requests over 272K input
+    // bill 2x, which a session never reaches. Expanded until it's been
+    // ear-tested (checklist item 5), in both languages.
+    'openai:gpt-6-sol': {
+        provider: 'openai',
+        model: 'gpt-6-sol',
+        expanded: true,
+        input: 2 / M,
+        output: 10 / M,
+        cacheRead: 0.2 / M,
+        cacheCreation: 2.5 / M, // real 1.25x write fee, as on 5.6
+        cacheCreation1h: 2.5 / M, // no 1h tier on automatic caching; never accrues
+    },
+    // GPT-6 Luna, the 6 family's small tier: same contract as 6 Sol. Dearer
+    // than gpt-5-nano, which keeps the utility (recap) flag.
+    'openai:gpt-6-luna': {
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        expanded: true,
+        input: 0.1 / M,
+        output: 0.5 / M,
+        cacheRead: 0.01 / M,
+        cacheCreation: 0.125 / M, // real 1.25x write fee
+        cacheCreation1h: 0.125 / M, // no 1h tier on automatic caching; never accrues
+    },
     // OpenAI's flagship, the top "Sol" tier of the 5.6 family. PINNED to the
     // tier id, not the moving chatgpt-latest alias: the debit bills against
     // THIS table, so a new flagship must not bill at a stale rate. Unlike

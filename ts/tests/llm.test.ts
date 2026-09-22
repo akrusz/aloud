@@ -766,6 +766,8 @@ describe('OpenAIProvider', () => {
         // gpt-5.6-sol "Unsupported value: 'minimal'" stream-forward failure).
         const cases: Array<[string, string]> = [
             ['gpt-5.6-sol', 'none'],
+            ['gpt-6-sol', 'none'],
+            ['gpt-6-luna', 'none'],
             ['gpt-5.5', 'none'],
             ['gpt-5', 'minimal'],
             ['gpt-5-mini', 'minimal'],

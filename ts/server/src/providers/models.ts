@@ -63,7 +63,7 @@ async function fetchOpenai(key: string | null): Promise<ModelOption[]> {
         Authorization: `Bearer ${key}`,
     });
     if (!body) return [];
-    const chatPrefixes = ['gpt-5', 'gpt-4', 'gpt-3.5', 'o1', 'o3', 'o4', 'chatgpt'];
+    const chatPrefixes = ['gpt-6', 'gpt-5', 'gpt-4', 'gpt-3.5', 'o1', 'o3', 'o4', 'chatgpt'];
     const exclude = [
         'realtime', 'audio', 'search', 'transcription', 'embedding', 'moderation',
         'tts', 'whisper', 'dall-e', 'instruct',

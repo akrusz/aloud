@@ -19,20 +19,20 @@ const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_MODEL = 'gpt-5.4-mini';
 const DEFAULT_MAX_TOKENS = 300;
 
-/** OpenAI reasoning-model families (gpt-5*, o1/o3/o4-mini). They reject
+/** OpenAI reasoning-model families (gpt-5 and later, o1/o3/o4-mini). They reject
  *  `max_tokens` (requiring `max_completion_tokens`) and accept
  *  `reasoning_effort`. Bare names only: vendor-prefixed IDs like "openai/gpt-5"
  *  on OpenRouter must not match, since OpenRouter has its own reasoning
  *  controls and still expects `max_tokens`. */
-const REASONING_MODEL_RE = /^(gpt-5|o\d)/;
+const REASONING_MODEL_RE = /^(gpt-([5-9]|\d{2,})|o\d)/;
 
 /** Lowest `reasoning_effort` each OpenAI reasoning family accepts (probed July
- *  2026; each family 400s on the others' floor): gpt-5.x takes 'none' and
- *  rejects 'minimal', the bare gpt-5 family is the reverse, and o-series reject
+ *  2026; each family 400s on the others' floor): gpt-5.x and gpt-6 take 'none'
+ *  and reject 'minimal', the bare gpt-5 family is the reverse, and o-series reject
  *  both, leaving 'low'. */
 function lowestReasoningEffort(model: string): 'none' | 'minimal' | 'low' {
     if (/^o\d/.test(model)) return 'low';
-    if (/^gpt-5\.\d/.test(model)) return 'none';
+    if (/^gpt-(5\.\d|[6-9]|\d{2,})/.test(model)) return 'none';
     return 'minimal';
 }
 

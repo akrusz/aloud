@@ -76,6 +76,24 @@ describe('GPT-5.6 Terra (openai)', () => {
     });
 });
 
+describe('GPT-6 Sol and Luna (openai)', () => {
+    it('are allowlisted at the 6-family rates with a 1.25x write fee, expanded in both languages', () => {
+        for (const [model, input, output] of [
+            ['gpt-6-sol', 2, 10],
+            ['gpt-6-luna', 0.1, 0.5],
+        ] as const) {
+            const p = pricingFor('openai', model);
+            expect(p, model).toBeDefined();
+            expect(p!.input).toBeCloseTo(input / M, 12);
+            expect(p!.output).toBeCloseTo(output / M, 12);
+            expect(p!.cacheRead).toBeCloseTo((input * 0.1) / M, 12);
+            expect(p!.cacheCreation).toBeCloseTo((input * 1.25) / M, 12);
+            expect(p!.expanded).toBe(true);
+            expect(p!.zhCurated).toBeUndefined();
+        }
+    });
+});
+
 describe('zh shortlist flags (2026-09-01 native-listener pass)', () => {
     it('flags exactly one zh default (Sol), swaps Sonnet/Haiku out and the GPTs + Kimi in', () => {
         const models = allowedModels();

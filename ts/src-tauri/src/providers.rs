@@ -175,7 +175,7 @@ fn fetch_openai(key: &str) -> Vec<Value> {
         &[("Authorization", &format!("Bearer {key}"))],
         5,
     );
-    let chat_prefixes = ["gpt-5", "gpt-4", "gpt-3.5", "o1", "o3", "o4", "chatgpt"];
+    let chat_prefixes = ["gpt-6", "gpt-5", "gpt-4", "gpt-3.5", "o1", "o3", "o4", "chatgpt"];
     let exclude = [
         "realtime", "audio", "search", "transcription", "embedding", "moderation",
         "tts", "whisper", "dall-e", "instruct",
