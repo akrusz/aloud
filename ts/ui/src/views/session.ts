@@ -1671,7 +1671,7 @@ export async function mountSessionView(
      *  unmuting is button-only. */
     async function muteByVoice(userText: string): Promise<void> {
         muteMicByVoice(userText, 'regex');
-        await speakCommandLine(userText, COMMAND_LINES.muted(sessionLanguageOf(appSettings.language)));
+        await speakCommandLine(userText, COMMAND_LINES.muted(sessionLanguageOf(sessionLanguage)));
     }
 
     /** Say the last facilitator line again. Off the record on both sides: the
@@ -1680,7 +1680,7 @@ export async function mountSessionView(
     async function repeatLastLine(userText: string): Promise<void> {
         const last = [...session.getContextMessages()].reverse().find((m) => m.role === 'assistant')?.content;
         if (!last) {
-            await speakCommandLine(userText, COMMAND_LINES.nothingToRepeat(sessionLanguageOf(appSettings.language)));
+            await speakCommandLine(userText, COMMAND_LINES.nothingToRepeat(sessionLanguageOf(sessionLanguage)));
             return;
         }
         takeFloor();
@@ -1705,7 +1705,7 @@ export async function mountSessionView(
      *  the same preference the Settings "pause" preset holds ("it cuts me off"
      *  is rarely about one sit). Returns the line to say. */
     function adjustPause(direction: 'sooner' | 'longer'): string {
-        const lang = sessionLanguageOf(appSettings.language);
+        const lang = sessionLanguageOf(sessionLanguage);
         if (!stt?.setPauseWindow) return COMMAND_LINES.pauseUnsupported(lang);
         const next = steppedPause(vadOpts.silenceBaseMs, direction);
         if (!next) return COMMAND_LINES[direction === 'sooner' ? 'soonest' : 'longest'](lang);
@@ -1713,9 +1713,11 @@ export async function mountSessionView(
         vadOpts.silenceBaseMs = next.baseMs;
         vadOpts.silenceMaxMs = next.maxMs;
         stt.setPauseWindow(next.baseMs, next.maxMs);
-        // Hosted sessions stream, so these are the pair in play (not the
-        // nonStreaming* one).
-        void persistSettings({ silenceBaseMs: next.baseMs, silenceMaxMs: next.maxMs });
+        void persistSettings(
+            providerStreams
+                ? { silenceBaseMs: next.baseMs, silenceMaxMs: next.maxMs }
+                : { nonStreamingSilenceBaseMs: next.baseMs, nonStreamingSilenceMaxMs: next.maxMs }
+        );
         return COMMAND_LINES[direction === 'sooner' ? 'respondSooner' : 'waitLonger'](lang);
     }
 
@@ -1860,7 +1862,7 @@ export async function mountSessionView(
     /** Carry out everything the utterance asked for (resolveCommands orders it)
      *  and say so once: "Okay, slower. Here's the orb." */
     async function runVoiceCommand(cmd: DetectedCommand, userText: string): Promise<void> {
-        const lang = sessionLanguageOf(appSettings.language);
+        const lang = sessionLanguageOf(sessionLanguage);
         diag('[command]', JSON.stringify({ commands: cmd.commands, answers: cmd.answers, latencyMs: cmd.latencyMs }));
         tapEvent('note', `command:${cmd.commands.join('+')}`, { answers: cmd.answers, utterance: userText });
         // A command in reply to "shall I be quiet?" isn't an answer to it.
@@ -1894,7 +1896,7 @@ export async function mountSessionView(
             return true;
         }
         if (verdict === 'no') {
-            await speakCommandLine(userText, COMMAND_LINES.endDeclined(sessionLanguageOf(appSettings.language)));
+            await speakCommandLine(userText, COMMAND_LINES.endDeclined(sessionLanguageOf(sessionLanguage)));
             return true;
         }
         return false;
