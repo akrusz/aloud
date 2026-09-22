@@ -26,21 +26,28 @@ const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
  *  chase in the logs). */
 export const TTS_UPSTREAM_TIMEOUT_MS = 20_000;
 
-/** fetch with the upstream ceiling; a timeout rethrows naming the provider. */
+/** fetch with the upstream ceiling. A timeout or a non-2xx rethrows naming the
+ *  provider (`label`), with the upstream body on an HTTP error. */
 async function fetchUpstream(
     label: string,
     fetchImpl: typeof fetch,
     url: string,
     init: RequestInit
 ): Promise<Response> {
+    let res: Response;
     try {
-        return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TTS_UPSTREAM_TIMEOUT_MS) });
+        res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TTS_UPSTREAM_TIMEOUT_MS) });
     } catch (err) {
         if (err instanceof Error && err.name === 'TimeoutError') {
             throw new Error(`${label} timed out after ${TTS_UPSTREAM_TIMEOUT_MS / 1000}s`);
         }
         throw err;
     }
+    if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`${label} ${res.status}: ${detail}`);
+    }
+    return res;
 }
 
 /** languageCode is the first two hyphen segments of the voice name. */
@@ -70,10 +77,6 @@ export async function synthesizeWithGoogle(
             audioConfig: { audioEncoding: 'MP3', speakingRate },
         }),
     });
-    if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`Google TTS ${res.status}: ${detail}`);
-    }
     const data = (await res.json()) as { audioContent?: string };
     if (!data.audioContent) throw new Error('Google TTS returned no audioContent');
     return Uint8Array.from(Buffer.from(data.audioContent, 'base64'));
@@ -81,18 +84,12 @@ export async function synthesizeWithGoogle(
 
 /** Calm facilitation register for the instruction-steered OpenAI model.
  *
- *  NOTE the comment here previously said `speed` can be ignored and the
- *  instruction is the reliable lever. Measured 2026-08-30, that is BACKWARDS:
- *  `speed` is precise and linear (0.7 -> +42% duration against a nominal +43%,
- *  0.5 -> +100% against +100%), while the instruction is erratic (+26% with a
- *  35% render-to-render spread, and an explicitly MORE spacious instruction
- *  produced a SHORTER clip than the plain one).
- *
- *  Which makes the pace word below a likely cause of meditation-pal-5yi1 rather
- *  than a fix for it: we send BOTH levers, and they compound - speed 0.7 alone
- *  gives +42%, speed 0.7 plus the instruction gives +66%. Left as-is here
- *  because changing delivery pace is a tuning decision with an audible effect
- *  on every hosted OpenAI session, not a comment fix. See 5yi1. */
+ *  Measured 2026-08-30: `speed` is the precise, linear pace lever (0.7 -> +42%
+ *  duration); the instruction's pace word is erratic (+26% with a 35%
+ *  render-to-render spread). We send BOTH and they compound (speed 0.7 plus
+ *  the instruction gives +66%), a likely cause of meditation-pal-5yi1. Left
+ *  as-is: changing it is an audible tuning decision for every hosted OpenAI
+ *  session, tracked there. */
 function meditationInstruction(rate: number): string {
     const pace =
         rate < 0.95 ? ' Speak slowly, leaving generous space between phrases.'
@@ -117,8 +114,7 @@ export async function synthesizeWithOpenAI(
     apiKey: string,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<Uint8Array> {
-    // Same band as Google [0.25, 4.0]; gpt-4o-mini-tts may ignore it, which is
-    // why pacing also rides in the instruction.
+    // Same band as Google [0.25, 4.0].
     const speed = Math.min(4, Math.max(0.25, rate));
     const res = await fetchUpstream('OpenAI TTS', fetchImpl, OPENAI_TTS_URL, {
         method: 'POST',
@@ -135,10 +131,6 @@ export async function synthesizeWithOpenAI(
             instructions: meditationInstruction(rate),
         }),
     });
-    if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`OpenAI TTS ${res.status}: ${detail}`);
-    }
     return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -219,9 +211,5 @@ export async function synthesizeWithAzure(
         },
         body: ssml,
     });
-    if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`Azure TTS ${res.status}: ${detail}`);
-    }
     return new Uint8Array(await res.arrayBuffer());
 }
