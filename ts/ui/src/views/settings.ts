@@ -117,7 +117,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // the state at view open.
     const pendingChrome = pickChrome(settings);
 
-    // Backs the ✘/✱ markers and the status hint, from /app/v1/providers plus
+    // Backs the ⚙/✱ markers and the status hint, from /app/v1/providers plus
     // the BYOK key store (see provider-markers.ts). Unlike setup, settings only
     // annotates: it never reorders or auto-switches the saved default.
     let providerStatus: ProviderStatusMap | null = null;
@@ -302,7 +302,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 void refreshApiKeyRows();
                 void modelPicker.refresh(settings.defaultProvider);
             }
-            // Newly-shown BYOK providers get ✘ until a key is entered.
+            // Newly-shown BYOK providers get ⚙ until a key is entered.
             applyProviderMarkers();
         });
     }
@@ -323,7 +323,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     /**
-     * Annotate the <option>s with ✘/✱ from cached status and refresh the hint.
+     * Annotate the <option>s with ⚙/✱ from cached status and refresh the hint.
      * Pure DOM + cached state, so it's safe after a menu rebuild. Unlike
      * setup's applyProviderIndicators it does NOT reorder or auto-select: a
      * settings default shouldn't change out from under the user.
@@ -332,13 +332,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const sel = root.querySelector<HTMLSelectElement>('#s-provider');
         if (sel) {
             for (const opt of Array.from(sel.options)) {
-                const { suffix, unavailable } = computeProviderMarker(
+                const { suffix } = computeProviderMarker(
                     opt.value,
                     providerStatus,
                     keyPresent
                 );
                 opt.textContent = stripMarker(opt.textContent ?? '') + suffix;
-                opt.classList.toggle('provider-unavailable', unavailable);
             }
         }
         updateProviderStatusHint();
@@ -390,7 +389,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
         }
-        // An added/removed key flips a provider's ✘ marker and the hint. Cheap:
+        // An added/removed key flips a provider's ⚙ marker and the hint. Cheap:
         // re-reads the local key store, no network.
         keyPresent = await fetchKeyPresence();
         applyProviderMarkers();

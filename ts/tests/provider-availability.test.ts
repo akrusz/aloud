@@ -31,7 +31,7 @@ describe('isProviderAvailable', () => {
     });
 
     it('local mode (desktop): removes nothing — even with no capability reachable', () => {
-        // Runtime readiness is shown via the ✘/✱ markers (provider-markers.ts),
+        // Runtime readiness is shown via the ⚙/✱ markers (provider-markers.ts),
         // so the menu keeps every provider in local mode. caps all-false stands
         // in for "Ollama not running, cloud offline, CLI not logged in".
         const get = (v: string) => mod.ALL_PROVIDERS.find((p) => p.value === v)!;

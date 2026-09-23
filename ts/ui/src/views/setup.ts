@@ -861,12 +861,12 @@ export async function mountSetupView(
     // Provider status from /app/v1/providers - see provider-markers.ts.
     let providerStatus: ProviderStatusMap | null = null;
     // Which BYOK providers have a key stored. A keyless API provider is marked
-    // ✘: it can't run without one.
+    // ⚙: it can't run without one.
     let keyPresent: Record<string, boolean> = {};
 
     async function refreshProviderAvailability(): Promise<void> {
         keyPresent = await fetchKeyPresence();
-        // Backend not reachable: leave status unknown. The key-presence ✘ marks
+        // Backend not reachable: leave status unknown. The key-presence ⚙ marks
         // still apply, and the session view surfaces a real error if a
         // provider call fails later.
         providerStatus = (await fetchProviderStatus()) ?? providerStatus;
@@ -886,7 +886,7 @@ export async function mountSetupView(
      * probe failed) counts as available so we never block on missing info.
      */
     function providerAvailable(): boolean {
-        // A keyless API provider can't run; block Begin so the ✘ and the gate
+        // A keyless API provider can't run; block Begin so the ⚙ and the gate
         // agree.
         if (providerNeedsKey(setup.provider) && keyPresent[setup.provider] === false) return false;
         // A running local Ollama daemon (direct probe) is usable even when the
@@ -965,7 +965,7 @@ export async function mountSetupView(
 
     /**
      * Annotate provider <option>s with ✱ (installed but not running, e.g.
-     * Ollama stopped) or ✘ (not configured at all), reorder available-first,
+     * Ollama stopped) or ⚙ (not configured at all), reorder available-first,
      * float claude_proxy to the top when it works, and select the saved
      * provider if available, else the first available one.
      */
@@ -981,8 +981,7 @@ export async function mountSetupView(
                 keyPresent
             );
             opt.textContent = stripMarker(opt.textContent ?? '') + suffix;
-            opt.classList.toggle('provider-unavailable', isUnavailable);
-            // ✱ stays selectable; only ✘ drops to the unavailable group.
+            // ✱ stays selectable; only ⚙ drops to the unavailable group.
             if (isUnavailable) unavailable.push(opt);
             else available.push(opt);
         }
@@ -1016,7 +1015,7 @@ export async function mountSetupView(
             hintEl.classList.remove('hidden');
             return;
         }
-        // Same override as the ✘/Begin gate: a directly-probed running Ollama
+        // Same override as the ⚙/Begin gate: a directly-probed running Ollama
         // shows no hint even when the app backend reported it absent, so the
         // install box doesn't linger.
         const info =

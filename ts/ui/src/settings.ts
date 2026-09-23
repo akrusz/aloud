@@ -61,7 +61,7 @@ export interface ProviderAvailabilityOpts {
 
 /** Whether a provider belongs in the menu on this platform: a structural
  *  filter, NOT a runtime-readiness check. Readiness (key entered, Ollama daemon
- *  up, `claude` CLI logged in) shows via the ✘/✱ markers (provider-markers.ts),
+ *  up, `claude` CLI logged in) shows via the ⚙/✱ markers (provider-markers.ts),
  *  not by removing the option.
  *
  *  - Web: only browser-runnable providers. Ollama and claude_proxy can never run

@@ -1327,10 +1327,6 @@ input[type="range"].slider-stops {
     border-radius: 3px;
 }
 
-option.provider-unavailable {
-    color: var(--text-muted);
-}
-
 /* Begin button */
 
 .btn-begin {

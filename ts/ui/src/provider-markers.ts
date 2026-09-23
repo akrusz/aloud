@@ -6,7 +6,7 @@
  * `{ <provider>: { available, installed?, hint? } }` map, plus the local BYOK
  * key store. Options are annotated:
  *   - `✱` installed but not running (e.g. Ollama stopped), still selectable;
- *   - `✘` not configured (API provider with no key, or not installed).
+ *   - `⚙` not configured (API provider with no key, or not installed).
  * Unknown status (the probe failed) reads as available, so missing information
  * never blocks the UI.
  */
@@ -24,15 +24,15 @@ export interface ProviderInfo {
 export type ProviderStatusMap = Record<string, ProviderInfo>;
 
 export interface ProviderMarker {
-    /** Text appended to the option label: '', ' ✘', or ' ✱'. */
-    suffix: '' | ' ✘' | ' ✱';
+    /** Text appended to the option label: '', ' ⚙', or ' ✱'. */
+    suffix: '' | ' ⚙' | ' ✱';
     /** The provider can't run as configured (key missing / not installed). */
     unavailable: boolean;
 }
 
-/** Strip a trailing ✘/✱ marker so labels can be re-annotated idempotently. */
+/** Strip a trailing ⚙/✱ marker so labels can be re-annotated idempotently. */
 export function stripMarker(label: string): string {
-    return label.replace(/ [✘✱]$/, '');
+    return label.replace(/ [⚙✱]$/, '');
 }
 
 export function computeProviderMarker(
@@ -48,11 +48,11 @@ export function computeProviderMarker(
 
     const needsKeyMissing =
         providerNeedsKey(provider as Provider) && keyPresent[provider] === false;
-    if (needsKeyMissing) return { suffix: ' ✘', unavailable: true };
+    if (needsKeyMissing) return { suffix: ' ⚙', unavailable: true };
     if (info && !info.available) {
         return info.installed
             ? { suffix: ' ✱', unavailable: false }
-            : { suffix: ' ✘', unavailable: true };
+            : { suffix: ' ⚙', unavailable: true };
     }
     return { suffix: '', unavailable: false };
 }

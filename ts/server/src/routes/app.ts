@@ -22,7 +22,7 @@ import { fetchModels } from '../providers/models.js';
 /** BYOK providers the picker may show. Availability is client-key-gated (the
  *  server never sees the key), so report them available and let the client
  *  decide. Ollama and claude_proxy are local-only, reported unavailable so a
- *  forced-local browser-dev session (which shows every provider) marks them ✘
+ *  forced-local browser-dev session (which shows every provider) marks them ⚙
  *  rather than usable. */
 const WEB_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'venice', 'groq'];
 

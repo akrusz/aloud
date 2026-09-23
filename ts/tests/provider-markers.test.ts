@@ -1,5 +1,5 @@
 /**
- * Locks the ✘/✱ availability markers shared by the setup picker and the
+ * Locks the ⚙/✱ availability markers shared by the setup picker and the
  * settings Default Provider menu. The marker is what tells a user *why* a
  * provider can't run (no key vs not installed vs stopped), so a regression here
  * is silently misleading — assert the mapping directly.
@@ -28,9 +28,9 @@ beforeAll(async () => {
 });
 
 describe('computeProviderMarker', () => {
-    it('marks an API provider with no stored key as ✘ unavailable', () => {
+    it('marks an API provider with no stored key as ⚙ unavailable', () => {
         const m = mod.computeProviderMarker('openai', {}, { openai: false });
-        expect(m.suffix).toBe(' ✘');
+        expect(m.suffix).toBe(' ⚙');
         expect(m.unavailable).toBe(true);
     });
 
@@ -48,10 +48,10 @@ describe('computeProviderMarker', () => {
         expect(m.unavailable).toBe(false);
     });
 
-    it('marks not-installed as ✘ unavailable', () => {
+    it('marks not-installed as ⚙ unavailable', () => {
         const status = { claude_proxy: { available: false, installed: false } };
         const m = mod.computeProviderMarker('claude_proxy', status, {});
-        expect(m.suffix).toBe(' ✘');
+        expect(m.suffix).toBe(' ⚙');
         expect(m.unavailable).toBe(true);
     });
 
@@ -64,10 +64,10 @@ describe('computeProviderMarker', () => {
 
 describe('stripMarker', () => {
     it('removes a trailing marker so labels re-annotate idempotently', () => {
-        expect(mod.stripMarker('OpenAI ✘')).toBe('OpenAI');
+        expect(mod.stripMarker('OpenAI ⚙')).toBe('OpenAI');
         expect(mod.stripMarker('Ollama (Local) ✱')).toBe('Ollama (Local)');
         expect(mod.stripMarker('Anthropic')).toBe('Anthropic');
         // Only a trailing marker is stripped, not one mid-label.
-        expect(mod.stripMarker('✘ weird ✘')).toBe('✘ weird');
+        expect(mod.stripMarker('⚙ weird ⚙')).toBe('⚙ weird');
     });
 });
