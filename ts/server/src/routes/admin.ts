@@ -23,9 +23,12 @@ import { buildIncidentReport } from '../credits/incidents.js';
 import { deleteAccount } from '../auth/identity.js';
 import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
+import { renderCallsPage } from '../admin/calls-page.js';
+import { buildSessionDetail, buildSessionList } from '../admin/calls.js';
 import { ADMIN_MAX_TOKEN_AGE_SECONDS, verifySessionToken } from '../auth/session.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 import { errorJson } from '../http.js';
+import { apiError } from '../contract.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
     if (!provided) return false;
@@ -138,6 +141,42 @@ export function adminRoutes(deps: Deps): Hono {
         if (!adminEnabled(deps)) return c.notFound();
         const googleClientId = deps.config.adminEmails.length > 0 ? deps.config.googleClientIds[0] : undefined;
         return c.html(renderAdminPanel(googleClientId));
+    });
+
+    // The per-call drill-down (admin/calls.ts): one session's every metered
+    // call. Itemizes admin accounts ONLY, like the report's session rows -
+    // real users stay aggregate-only (privacy policy) - so the rows are cut to
+    // those accounts before anything is built from them.
+    app.get('/calls', (c) => {
+        if (!adminEnabled(deps)) return c.notFound();
+        return c.html(renderCallsPage());
+    });
+
+    app.get('/sessions', adminOnly, async (c) => {
+        const sinceTs = windowStart(c, Date.now() / 1000, 168);
+        const [events, admins, accounts] = await Promise.all([
+            deps.store.allUsage(),
+            adminAccountIds(deps),
+            deps.store.allAccounts(),
+        ]);
+        const label = new Map(accounts.map((a) => [a.id, a.email.split('@')[0] ?? '']));
+        const sessions = buildSessionList(events.filter((e) => admins.has(e.accountId)), sinceTs);
+        return c.json({ sessions: sessions.map((s) => ({ ...s, account: label.get(s.accountId) ?? '' })) });
+    });
+
+    app.get('/sessions/:id', adminOnly, async (c) => {
+        const [events, incidents, admins] = await Promise.all([
+            deps.store.allUsage(),
+            deps.store.incidentsSince(0),
+            adminAccountIds(deps),
+        ]);
+        const detail = buildSessionDetail(
+            events.filter((e) => admins.has(e.accountId)),
+            incidents.filter((i) => admins.has(i.accountId)),
+            c.req.param('id')
+        );
+        if (!detail) return c.json(apiError('bad_request', 'no admin-account session with that id'), 404);
+        return c.json(detail);
     });
 
     app.get('/metrics', adminOnly, async (c) => {
