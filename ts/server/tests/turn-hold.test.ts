@@ -14,6 +14,8 @@ import {
     SESSION_HOLD_CREDITS,
     TURN_SIDECAR_RESERVE_CREDITS,
     MAX_OUTPUT_TOKENS,
+    THINKING_MAX_OUTPUT_TOKENS,
+    turnMaxTokens,
 } from '../src/pricing/meter.js';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
@@ -30,6 +32,19 @@ describe('estimateTokens', () => {
     it('counts each non-ASCII character as a token', () => {
         expect(estimateTokens('觉察呼吸')).toBe(4);
         expect(estimateTokens('')).toBe(0);
+    });
+});
+
+describe('turnMaxTokens', () => {
+    it('clamps a plain model to the text ceiling', () => {
+        expect(turnMaxTokens('anthropic', 'claude-sonnet-5', undefined)).toBe(MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('google', 'gemini-2.5-flash-lite', 5_000)).toBe(MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('anthropic', 'claude-opus-5', 350)).toBe(350);
+    });
+    it('gives a thinking-mandatory model headroom on top of the spoken budget', () => {
+        expect(turnMaxTokens('anthropic', 'claude-fable-5-1', undefined)).toBe(THINKING_MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('anthropic', 'claude-opus-5-5', 5_000)).toBe(THINKING_MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('anthropic', 'claude-fable-5-1', 350)).toBe(350 + THINKING_MAX_OUTPUT_TOKENS - MAX_OUTPUT_TOKENS);
     });
 });
 

@@ -44,6 +44,10 @@ export interface CompletionDiagnostics {
      *  instead of) content. Non-zero with empty text and finish "length" is the
      *  thinking-ate-the-budget signature. */
     reasoningChars?: number;
+    /** Hidden-reasoning TOKENS, when the provider counts them for us
+     *  (Anthropic's usage.output_tokens_details.thinking_tokens). A subset of
+     *  outputTokens. */
+    thinkingTokens?: number;
     /** Upstream host + model that actually served the call, when a routing
      *  proxy (OpenRouter) reports them: "Novita/moonshotai/kimi-k2". */
     servedBy?: string;

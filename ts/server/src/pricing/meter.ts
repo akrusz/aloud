@@ -27,6 +27,7 @@
  */
 
 import type { LlmUsage, SessionUsage } from '@aloud/core/facilitation';
+import { thinkingPolicy } from '@aloud/core/llm';
 import { WORST_CASE_COMMISSION, commissionFor } from './commission.js';
 import type { ProviderId, PurchaseChannel } from '../contract.js';
 import {
@@ -210,10 +211,26 @@ export function holdAgainstBalance(estimate: number, balance: number): number {
 /** Hard ceiling on output tokens per turn, enforced server-side regardless of
  *  what the client asks for (meditation-pal-aa8). Bounds the priciest leg of a
  *  turn so one response can't blow past the pre-auth hold. 512 tokens is ~a
- *  minute of spoken guidance (the cloud default is 400) and at Opus output rates
- *  only ~0.15 credits, leaving nearly all of SESSION_HOLD_CREDITS for
- *  input/context. Only clips pathological requests. */
+ *  minute of spoken guidance (also the cloud client's default) and at Opus
+ *  output rates only ~0.15 credits, leaving nearly all of SESSION_HOLD_CREDITS
+ *  for input/context. Only clips pathological requests. */
 export const MAX_OUTPUT_TOKENS = 512;
+
+/** The ceiling for models whose thinking can't be turned off (Fable, Opus
+ *  5.5+): thinking bills against max_tokens, so a reply that thinks hard could
+ *  hit the text ceiling before saying anything - a blank turn the app then
+ *  retries, billing it twice. Room for the thinking plus a full reply. */
+export const THINKING_MAX_OUTPUT_TOKENS = 1024;
+
+/** max_tokens for a turn. The caller's request is a budget for SPOKEN text,
+ *  so a thinking-mandatory model gets headroom on top of it (as openai.ts
+ *  reasoningHeadroom does for OpenRouter's always-reasoning models), clamped
+ *  to its ceiling. */
+export function turnMaxTokens(provider: ProviderId, model: string, requested: number | undefined): number {
+    const text = Math.min(requested ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS);
+    if (provider !== 'anthropic' || thinkingPolicy(model) !== 'always-on') return text;
+    return Math.min(text + (THINKING_MAX_OUTPUT_TOKENS - MAX_OUTPUT_TOKENS), THINKING_MAX_OUTPUT_TOKENS);
+}
 
 export interface PackLike {
     id: string;

@@ -26,6 +26,9 @@ import type { CreditsStore } from './store.js';
 export const SERVER_INCIDENT_KINDS = [
     /** A completion returned no text at all (usually reasoning ate the budget). */
     'llm_empty',
+    /** A reply cut off at max_tokens (routes/llm.ts turnMaxTokens). A BLANK
+     *  turn at the ceiling is llm_empty instead, with finish=length. */
+    'llm_max_tokens',
     /** The upstream LLM call failed (stream or non-stream). */
     'llm_error',
     'stt_error',

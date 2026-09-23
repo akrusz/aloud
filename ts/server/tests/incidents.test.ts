@@ -78,12 +78,31 @@ describe('incident log - LLM route', () => {
         const rows = await deps.store.incidentsSince(0);
         expect(rows).toHaveLength(1);
         const row = rows[0]!;
-        expect(row.kind).toBe('llm_empty');
         expect(row.source).toBe('server');
         expect(row.accountId).toBe(accountId);
         expect(row.sessionId).toBe('sess-1');
         expect(row.model).toBe('gemini-2.5-flash-lite');
-        expect(row.detail).toBe('finish=length tokens_out=300 tokens_in=100');
+        expect(row.detail).toBe('finish=length tokens_out=300 tokens_in=100 max_tokens=512 purpose=null');
+    });
+
+    it.each([true, false])('records llm_max_tokens for a reply cut off at the ceiling (stream=%s)', async (stream) => {
+        const forwarder = {
+            async complete() {
+                return { text: 'Let the breath', finishReason: 'max_tokens', inputTokens: 9, outputTokens: 1024, diagnostics: { thinkingTokens: 1000 } } as never;
+            },
+            async *stream() {
+                yield { text: 'Let the breath', done: false } as never;
+                yield { text: '', done: true, finishReason: 'max_tokens', inputTokens: 9, outputTokens: 1024, diagnostics: { thinkingTokens: 1000 } } as never;
+            },
+        } as unknown as Forwarder;
+        const { deps, app, token } = await setup(forwarder);
+        await (await complete(app, token, stream)).text();
+        const rows = await deps.store.incidentsSince(0);
+        expect(rows.map((r) => r.kind)).toEqual(['llm_max_tokens']);
+        // gemini-2.5-flash-lite isn't thinking-mandatory: the plain 512 ceiling.
+        expect(rows[0]!.detail).toBe(
+            'finish=max_tokens tokens_out=1024 tokens_in=9 max_tokens=512 purpose=null thinking_tokens=1000'
+        );
     });
 
     it('does not flag a streamed turn whose text arrived in deltas before the empty done chunk', async () => {

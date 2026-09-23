@@ -22,7 +22,7 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isMeteredBlocked, FREE_LIMIT_MESSAGE, BILLING_PAUSED_FINISH } from '../admin/runtime-config.js';
 import { isModelAllowed, allowedModels } from '../pricing/providers.js';
-import { holdForTurn, holdAgainstBalance, MAX_OUTPUT_TOKENS, priceLlmTurn } from '../pricing/meter.js';
+import { holdForTurn, holdAgainstBalance, priceLlmTurn, turnMaxTokens } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
@@ -33,22 +33,31 @@ import type { CompletionDiagnostics } from '@aloud/core/llm';
 import { log } from '../logger.js';
 import { errorJson, tooManyRequests, sessionIdOf } from '../http.js';
 
-/** Why a completion came back blank, in the incident row: the finish reason
- *  plus the output tokens billed for it. "length" with hundreds of output
- *  tokens and no text is the reasoning-ate-the-budget signature. */
-function emptyCompletionDetail(
+/** A turn's incident detail: the finish reason plus the output tokens billed
+ *  for it. "length" with hundreds of output tokens and no text is the
+ *  reasoning-ate-the-budget signature. */
+function completionDetail(
     finishReason: string | null,
     usage: LlmUsage,
-    diagnostics: CompletionDiagnostics | undefined
+    diagnostics: CompletionDiagnostics | undefined,
+    extra: string[] = []
 ): string {
     const parts = [
         `finish=${finishReason ?? 'null'}`,
         `tokens_out=${usage.tokensOut ?? 0}`,
         `tokens_in=${usage.tokensIn ?? 0}`,
+        ...extra,
     ];
+    if (diagnostics?.thinkingTokens !== undefined) parts.push(`thinking_tokens=${diagnostics.thinkingTokens}`);
     if (diagnostics?.reasoningChars !== undefined) parts.push(`reasoning_chars=${diagnostics.reasoningChars}`);
     if (diagnostics?.servedBy) parts.push(`served=${diagnostics.servedBy}`);
     return parts.join(' ');
+}
+
+/** Did the provider stop at max_tokens? Anthropic says "max_tokens", the
+ *  OpenAI-compatible APIs "length", Gemini "MAX_TOKENS". */
+function hitOutputLimit(finishReason: string | null): boolean {
+    return finishReason !== null && /^(max_tokens|length)$/i.test(finishReason);
 }
 
 // Derived from the pricing allowlist so it can't drift: a provider is billable
@@ -111,7 +120,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         // Clamp output length server-side so the client can't request a turn
         // pricier than the pre-auth hold is sized for (meditation-pal-aa8).
-        const maxTokens = Math.min(body.maxTokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS);
+        const maxTokens = turnMaxTokens(provider, model, body.maxTokens);
 
         // Hold what THIS turn could cost, leaving a sliver of the balance
         // spendable. Sized from the request, not a flat cap: the TTS/STT legs
@@ -174,7 +183,14 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 credits: debited,
                 passId: pass?.id ?? null,
             });
-            if (blank) incident('llm_empty', emptyCompletionDetail(finishReason, usage, diagnostics));
+            // One row per turn: a blank one at the ceiling stays llm_empty
+            // (finish=length says why), a reply cut off mid-sentence is its
+            // own kind. Either way the row names the ceiling it hit.
+            const atLimit = hitOutputLimit(finishReason);
+            if (blank || atLimit) {
+                const extra = atLimit ? [`max_tokens=${maxTokens}`, `purpose=${purpose ?? 'null'}`] : [];
+                incident(blank ? 'llm_empty' : 'llm_max_tokens', completionDetail(finishReason, usage, diagnostics, extra));
+            }
             return {
                 text,
                 finishReason,

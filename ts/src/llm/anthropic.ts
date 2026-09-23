@@ -20,6 +20,7 @@
  */
 
 import type {
+    CompletionDiagnostics,
     CompletionOptions,
     CompletionResult,
     LLMProvider,
@@ -165,6 +166,7 @@ interface AnthropicUsage {
         ephemeral_5m_input_tokens?: number;
         ephemeral_1h_input_tokens?: number;
     };
+    output_tokens_details?: { thinking_tokens?: number };
 }
 
 interface AnthropicMessagesResponse {
@@ -433,6 +435,7 @@ function usageToResult(usage: AnthropicUsage | undefined): {
     cacheReadTokens: number | null;
     cacheCreationTokens: number | null;
     cacheCreation1hTokens: number | null;
+    diagnostics?: CompletionDiagnostics;
 } {
     if (!usage) {
         return {
@@ -446,6 +449,7 @@ function usageToResult(usage: AnthropicUsage | undefined): {
     }
     const inputTokens = usage.input_tokens ?? 0;
     const outputTokens = usage.output_tokens ?? 0;
+    const thinkingTokens = usage.output_tokens_details?.thinking_tokens;
     return {
         tokensUsed: inputTokens + outputTokens,
         inputTokens,
@@ -453,5 +457,6 @@ function usageToResult(usage: AnthropicUsage | undefined): {
         cacheReadTokens: usage.cache_read_input_tokens ?? null,
         cacheCreationTokens: usage.cache_creation_input_tokens ?? null,
         cacheCreation1hTokens: usage.cache_creation?.ephemeral_1h_input_tokens ?? null,
+        ...(thinkingTokens !== undefined && { diagnostics: { thinkingTokens } }),
     };
 }

@@ -354,6 +354,21 @@ describe('AnthropicProvider', () => {
         expect(result.cacheCreation1hTokens).toBe(4);
     });
 
+    it('surfaces the reported thinking tokens as a diagnostic', async () => {
+        const reply = (usage: object) =>
+            vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn', usage }));
+        const thinking = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: reply({ input_tokens: 1, output_tokens: 40, output_tokens_details: { thinking_tokens: 30 } }) as unknown as typeof fetch,
+        });
+        expect((await thinking.complete([{ role: 'user', content: 'hi' }])).diagnostics).toEqual({ thinkingTokens: 30 });
+        const plain = new AnthropicProvider({
+            apiKey: 'k',
+            fetchImpl: reply({ input_tokens: 1, output_tokens: 40 }) as unknown as typeof fetch,
+        });
+        expect((await plain.complete([{ role: 'user', content: 'hi' }])).diagnostics).toBeUndefined();
+    });
+
     it('prepends a user stub when the conversation opens with an assistant message', async () => {
         // The summary-based resume flow leads with an assistant recap;
         // Anthropic requires the first message to be from the user.

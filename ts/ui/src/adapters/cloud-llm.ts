@@ -28,7 +28,7 @@ import { withTimeout } from '../net-timeout.js';
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
 
 const ENDPOINT = '/llm/complete';
-const DEFAULT_MAX_TOKENS = 400;
+const DEFAULT_MAX_TOKENS = 512;
 
 // Stall guard: the proxy going quiet this long (no response, or no further SSE
 // bytes mid-stream) means the turn is dead - reject so the session recovers
