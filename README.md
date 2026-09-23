@@ -71,7 +71,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 - the AI gently checks in if you're quiet for a while. adjust timing or disable in settings.
 - you can change the clock style (session time, clock time, timer with spoken notification) in session setup, or by tapping it in session.
 - one running copy of aloud can be made accessible to anyone on your local network by setting network access mode to "LAN Access" in settings
-- found a bug? "report a bug" in the about box, "Report a bug" in the More menu, or Help → Report a Bug… on desktop. the report comes pre-filled with diagnostics.
+- found a bug? "report a bug" in the about box, "Report a bug" in the More menu, or Help → Report a Bug… on macOS. the report comes pre-filled with diagnostics.
 - 🥚 there are a few easter eggs 🥚
 
 ## running from source

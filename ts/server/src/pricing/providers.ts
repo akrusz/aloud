@@ -96,7 +96,9 @@ const M = 1_000_000;
  * 4. Reasoning: voice needs ~1s to first token, so mandatory reasoning is
  *    disqualifying (Kimi K3, 7-12s). Update OPENROUTER_MANDATORY_REASONING /
  *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the "slower"
- *    note list in ui/src/model-picker.ts.
+ *    note list in ui/src/model-picker.ts. Anthropic models whose thinking
+ *    can't be turned off go in thinkingPolicy (ts/src/llm/anthropic.ts), which
+ *    pins their effort low.
  * 5. Ear-test the control tokens ([HOLD]/[WAIT:Nm]/[PASS]/[NEXT]) in a real
  *    session; small/open models mishandle them and a bare completion won't show
  *    it.

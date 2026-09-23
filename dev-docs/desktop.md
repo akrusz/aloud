@@ -167,6 +167,9 @@ below).
 - The desktop UI build bakes `VITE_ALOUD_CLOUD_URL` (repo var `ALOUD_CLOUD_URL`)
   so the app reaches the hosted `/cloud/v1` service for accounts + credits;
   local providers work without it.
+- whisper.cpp builds with `GGML_NATIVE=OFF` on Windows/Linux (the portable AVX2
+  baseline); ON would tune it to the runner's AVX-512 and crash other CPUs on
+  the first local transcription. macOS stays native.
 
 **Artifact names** are tauri's standard `aloud_<version>_<arch>.{dmg,AppImage}`
 / `aloud_<version>_<arch>-setup.exe`. The website's `docs/js/download.js` matches these names - keep the two in
