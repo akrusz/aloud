@@ -193,8 +193,6 @@ export const NOTING_SOUNDS = [
     'bowl',
     'card',
     'crow',
-    'deep-bowl',
-    'long-rin',
     'plop',
     'poof',
     'rattle',
@@ -206,11 +204,9 @@ const NOTING_SOUND_LABELS: Record<NotingSound | 'chime', string> = {
     'bike-bell': 'Bike bell',
     bottle: 'Bottle',
     bowl: 'Bowl',
-    card: 'Card',
+    card: 'Playing card',
     chime: 'Chime',
     crow: 'Crow',
-    'deep-bowl': 'Deep bowl',
-    'long-rin': 'Long rin',
     plop: 'Plop',
     poof: 'Poof',
     rattle: 'Rattle',
@@ -220,12 +216,6 @@ const NOTING_SOUND_LABELS: Record<NotingSound | 'chime', string> = {
 /** English label (a t() key) for a bundled sound or the synth 'chime'. */
 export function notingSoundLabel(name: string): string {
     return NOTING_SOUND_LABELS[name as NotingSound | 'chime'] ?? name;
-}
-
-/** A sound id saved by an older build, mapped to its current name. */
-function migrateNotingSound<S extends string>(name: S): S {
-    // 'bell' became 'bike-bell' when the bowls arrived (2026-09).
-    return (name === 'bell' ? 'bike-bell' : name) as S;
 }
 
 /**
@@ -434,12 +424,6 @@ export async function loadSetup(): Promise<SessionSetup> {
             : {};
     }
     merged.intention = merged.intentionByMode[merged.meditationType] ?? '';
-    if (merged.notingUserTurnCueSound) {
-        merged.notingUserTurnCueSound = migrateNotingSound(merged.notingUserTurnCueSound);
-    }
-    merged.notingParticipants = (merged.notingParticipants ?? []).map((p) =>
-        p.type === 'sound' ? { ...p, sound: migrateNotingSound(p.sound) } : p
-    );
     return merged;
 }
 
