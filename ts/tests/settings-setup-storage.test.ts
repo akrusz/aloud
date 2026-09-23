@@ -64,4 +64,21 @@ describe('session setup storage', () => {
         expect(prefs.get('aloud:preview:setup')).toContain('noting');
         expect((await loadSetup()).meditationType).toBe('noting');
     });
+
+    it("maps a saved 'bell' to its new name, 'bike-bell'", async () => {
+        native = true;
+        prefs.set(
+            'aloud:preview:setup',
+            JSON.stringify({
+                notingUserTurnCueSound: 'bell',
+                notingParticipants: [
+                    { type: 'sound', sound: 'bell', timing: 'adaptive', fixedDelaySec: 4 },
+                    { type: 'sound', sound: 'crow', timing: 'adaptive', fixedDelaySec: 4 },
+                ],
+            })
+        );
+        const setup = await loadSetup();
+        expect(setup.notingUserTurnCueSound).toBe('bike-bell');
+        expect(setup.notingParticipants.map((p) => p.type === 'sound' && p.sound)).toEqual(['bike-bell', 'crow']);
+    });
 });

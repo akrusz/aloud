@@ -186,9 +186,47 @@ export interface SessionSetup {
 export type NotingReactive = 'none' | 'low' | 'high';
 export type NotingTiming = 'adaptive' | 'fixed';
 
-/** Sound effects bundled in ui/public/audio. */
-export const NOTING_SOUNDS = ['bell', 'bottle', 'card', 'crow', 'plop', 'poof', 'rattle'] as const;
+/** Sound effects bundled in ui/public/audio, in picker order. */
+export const NOTING_SOUNDS = [
+    'bike-bell',
+    'bottle',
+    'bowl',
+    'card',
+    'crow',
+    'deep-bowl',
+    'long-rin',
+    'plop',
+    'poof',
+    'rattle',
+    'rin',
+] as const;
 export type NotingSound = (typeof NOTING_SOUNDS)[number];
+
+const NOTING_SOUND_LABELS: Record<NotingSound | 'chime', string> = {
+    'bike-bell': 'Bike bell',
+    bottle: 'Bottle',
+    bowl: 'Bowl',
+    card: 'Card',
+    chime: 'Chime',
+    crow: 'Crow',
+    'deep-bowl': 'Deep bowl',
+    'long-rin': 'Long rin',
+    plop: 'Plop',
+    poof: 'Poof',
+    rattle: 'Rattle',
+    rin: 'Rin',
+};
+
+/** English label (a t() key) for a bundled sound or the synth 'chime'. */
+export function notingSoundLabel(name: string): string {
+    return NOTING_SOUND_LABELS[name as NotingSound | 'chime'] ?? name;
+}
+
+/** A sound id saved by an older build, mapped to its current name. */
+function migrateNotingSound<S extends string>(name: S): S {
+    // 'bell' became 'bike-bell' when the bowls arrived (2026-09).
+    return (name === 'bell' ? 'bike-bell' : name) as S;
+}
 
 /**
  * One noting-circle participant: an AI noting a generated label, a fixed phrase
@@ -396,6 +434,12 @@ export async function loadSetup(): Promise<SessionSetup> {
             : {};
     }
     merged.intention = merged.intentionByMode[merged.meditationType] ?? '';
+    if (merged.notingUserTurnCueSound) {
+        merged.notingUserTurnCueSound = migrateNotingSound(merged.notingUserTurnCueSound);
+    }
+    merged.notingParticipants = (merged.notingParticipants ?? []).map((p) =>
+        p.type === 'sound' ? { ...p, sound: migrateNotingSound(p.sound) } : p
+    );
     return merged;
 }
 

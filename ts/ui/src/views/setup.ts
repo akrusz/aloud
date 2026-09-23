@@ -15,6 +15,7 @@ import {
     type NotingReactive,
     type NotingSound,
     NOTING_SOUNDS,
+    notingSoundLabel,
     ALL_PROVIDERS,
     isProviderAvailable,
     resolveSetupProvider,
@@ -1116,7 +1117,7 @@ export async function mountSetupView(
         return stripVoicePrefix(id) ?? '';
     }
     function participantLabel(p: NotingParticipantConfig, index: number): string {
-        if (p.type === 'sound') return t(capitalize(p.sound));
+        if (p.type === 'sound') return t(notingSoundLabel(p.sound));
         return voiceNameFromId(p.voice ?? setup.voice) || t('Participant {n}', { n: index + 1 });
     }
     function newParticipant(type: NotingParticipantConfig['type']): NotingParticipantConfig {
@@ -1137,7 +1138,7 @@ export async function mountSetupView(
             .map((p, i) => {
                 const reactiveIdx = p.type === 'llm' ? Math.max(0, REACTIVE_LEVELS.indexOf(p.reactive)) : 1;
                 const voiceLabel = p.type !== 'sound' ? voiceNameFromId(p.voice ?? setup.voice) || t('Default') : t('Default');
-                const soundLabel = p.type === 'sound' ? t(capitalize(p.sound)) : t('Crow');
+                const soundLabel = p.type === 'sound' ? t(notingSoundLabel(p.sound)) : t('Crow');
                 const phraseVal = p.type === 'fixed' ? p.phrase : '';
                 const delayVal = p.fixedDelaySec || 4;
                 return `<div class="participant-row" data-index="${i}">
@@ -1315,7 +1316,7 @@ export async function mountSetupView(
         listEl.innerHTML = names
             .map(
                 (name) => `<div class="voice-row${name === current ? ' selected' : ''}" data-sound-name="${name}">
-                    <span class="voice-row-name">${t(capitalize(name))}</span>
+                    <span class="voice-row-name">${t(notingSoundLabel(name))}</span>
                     ${name === current ? '<span class="voice-row-check">✓</span>' : ''}
                     <button type="button" class="voice-row-preview" data-sound="${name}">${t('Preview')}</button>
                 </div>`
@@ -1410,14 +1411,14 @@ export async function mountSetupView(
         const cueSoundBtn = root.querySelector<HTMLButtonElement>('#user-turn-cue-sound-btn');
         if (cueSoundBtn) {
             const initial = setup.notingUserTurnCueSound ?? 'chime';
-            cueSoundBtn.textContent = t(capitalize(initial));
+            cueSoundBtn.textContent = t(notingSoundLabel(initial));
             cueSoundBtn.dataset['sound'] = initial;
             cueSoundBtn.addEventListener('click', () => {
                 openSoundModal(
                     setup.notingUserTurnCueSound ?? 'chime',
                     (name) => {
                         setup.notingUserTurnCueSound = name === 'chime' ? null : (name as NotingSound);
-                        cueSoundBtn.textContent = t(capitalize(name));
+                        cueSoundBtn.textContent = t(notingSoundLabel(name));
                         cueSoundBtn.dataset['sound'] = name;
                         persist();
                     },
@@ -1441,10 +1442,6 @@ export async function mountSetupView(
             });
         }
         renderParticipantList();
-    }
-
-    function capitalize(s: string): string {
-        return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
     render();

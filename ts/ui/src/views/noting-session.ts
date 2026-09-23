@@ -54,7 +54,7 @@ import {
     wireEmberControls,
 } from '../embers.js';
 import { initKasinaMode } from '../kasina.js';
-import { type SessionSetup, ALL_PROVIDERS, sessionNeedsLlm } from '../settings.js';
+import { type SessionSetup, ALL_PROVIDERS, notingSoundLabel, sessionNeedsLlm } from '../settings.js';
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
@@ -439,7 +439,7 @@ export async function mountNotingSessionView(
     function participantName(index: number): string {
         const p = participants[index];
         if (!p) return t('Participant {n}', { n: index + 1 });
-        if (p.type === 'sound') return capitalize(p.sound);
+        if (p.type === 'sound') return t(notingSoundLabel(p.sound));
         return stripVoiceLabel(p.voice ?? setup.voice) || t('Participant {n}', { n: index + 1 });
     }
 
@@ -928,10 +928,6 @@ function leaveMessage(destination?: SessionEndDestination): string {
 
 function sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
-}
-
-function capitalize(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** Strip the 'browser:'/'server:' prefix and any "(Premium)"-style qualifier. */
