@@ -72,6 +72,9 @@ interface OllamaChatResponse {
     done_reason?: string | null;
     prompt_eval_count?: number;
     eval_count?: number;
+    /** A failure after the 200 went out (runner crash, out of memory), sent
+     *  inline in the NDJSON body instead of as a status code. */
+    error?: string;
 }
 
 /** /api/tags (pulled) and /api/ps (loaded) share this shape. */
@@ -173,9 +176,11 @@ export class OllamaProvider implements LLMProvider {
         // NDJSON, one object per line:
         //   {"message":{"content":"Hello"},"done":false}
         //   {"message":{"content":""},"done":true,"eval_count":...}
+        // or, when generation fails after the headers, {"error":"..."} and no done.
         let finishReason: string | null = null;
         let usage = ollamaUsage({});
         for await (const chunk of iterateNdjson<OllamaChatResponse & { done?: boolean }>(response)) {
+            if (chunk.error) throw new Error(`Ollama error mid-stream: ${chunk.error}`);
             const text = chunk.message?.content ?? '';
             if (text.length > 0) yield { text, done: false };
             if (chunk.done) {

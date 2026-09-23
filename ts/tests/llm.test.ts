@@ -1245,6 +1245,23 @@ describe('streaming cancellation', () => {
         expect(wasCancelled()).toBe(true);
     });
 
+    it('Ollama completeStream throws an inline mid-stream error instead of ending empty', async () => {
+        const fetchImpl = vi.fn(async () =>
+            new Response('{"error":"llama runner process has terminated: exit status 2"}\n', {
+                headers: { 'content-type': 'application/x-ndjson' },
+            })
+        );
+        const provider = new OllamaProvider({
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        const drain = async () => {
+            for await (const _ of provider.completeStream([{ role: 'user', content: 'hi' }])) {
+                /* drain */
+            }
+        };
+        await expect(drain()).rejects.toThrow(/Ollama error mid-stream: llama runner process has terminated/);
+    });
+
     it('Anthropic completeStream cancels the body after message_stop ends the stream', async () => {
         const { response, wasCancelled } = observableBody(
             [
