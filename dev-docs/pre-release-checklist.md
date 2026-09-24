@@ -47,7 +47,9 @@ check each of these still reflects reality:
   both - the file is the source, the console is the deploy.
 - **Promo video** - `assets/store/video-title-card.*` / `video-end-card.*`
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must
-  match current branding and claims.
+  match current branding and claims. The Play Store video's script lives in
+  `assets/promo/play-video/script.md` (its lines are app voice and features on
+  screen, so a renamed mode or changed flow lands there too).
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
 - **`dev-docs/`** - dev/build/feature docs (index: `dev-docs/README.md`).

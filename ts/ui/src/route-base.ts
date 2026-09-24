@@ -49,7 +49,7 @@ export function appPath(pathname: string): string {
     return appPathFor(PREFIX, pathname);
 }
 
-/** URL for a static public/ asset (e.g. '/audio/bell.mp3'). A bare absolute
+/** URL for a static public/ asset (e.g. '/audio/bowl.mp3'). A bare absolute
  *  path 404s under the hosted '/app/' base. */
 export function assetPath(rel: string): string {
     return `${PREFIX}${rel.startsWith('/') ? rel : `/${rel}`}`;

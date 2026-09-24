@@ -169,14 +169,14 @@ ZH: 这一坐到这里结束。慢慢来。
 EN: Take a moment to arrive... and when you're ready, you might ask inside: what's between me and feeling fine right now?
 ZH: 花一点时间安顿下来……当你准备好了，可以在心里问问自己：此刻，是什么隔在我和「感觉还好」之间？
 
-EN: Settling in, no rush. When you're ready, let's notice what's carrying weight today.
-ZH: 慢慢安顿，不着急。当你准备好了，我们来留意一下，今天什么在心里压着分量。
+EN: Settling in, no rush. When you're ready, just notice what in your body or mind is pulling your attention.
+ZH: 慢慢安顿，不着急。当你准备好了，只需留意一下，身体或心里有什么在牵引你的注意。
 
-EN: Let's arrive first. A few easy breaths... then maybe ask inside: what wants my attention right now?
-ZH: 先让自己到达这里。几个轻松的呼吸……然后也许在心里问问：此刻什么想要我的注意？
+EN: Let's arrive first. A few easy breaths... then ask inside: what could use my attention right now?
+ZH: 先让自己到达这里。几个轻松的呼吸……然后在心里问问：此刻什么需要我的注意？
 
-EN: Whenever you're ready. You might let your attention settle down into the middle of your body, and just notice how it is in there.
-ZH: 什么时候开始都可以。你可以让注意力慢慢落到身体的中间，感受一下那里现在是什么样子。
+EN: Whenever you're ready. You might let your attention settle down into the middle of your body, and see what wants to be noticed.
+ZH: 什么时候开始都可以。你可以让注意力慢慢落到身体的中间，看看有什么想被留意到。
 
 EN: No hurry to begin. Let's land first... and see what you've carried in with you today.
 ZH: 不急着开始。先让自己落定……看看你今天带着什么来了。
@@ -481,11 +481,11 @@ ZH: Base（推荐）
 EN: Begin Session
 ZH: 开始冥想
 
-EN: Bell
-ZH: 铃
-
 EN: Best
 ZH: 最佳
+
+EN: Bike bell
+ZH: 车铃
 
 EN: Body & sensations
 ZH: 身体与感受
@@ -495,6 +495,9 @@ ZH: 身体与感受：
 
 EN: Bottle
 ZH: 瓶
+
+EN: Bowl
+ZH: 颂钵
 
 EN: Brief
 ZH: 简短
@@ -1483,6 +1486,9 @@ ZH: 玩耍、随性、愉悦。不必把一切看得太严肃
 EN: Playful & light
 ZH: 轻松有玩心
 
+EN: Playing card
+ZH: 纸牌
+
 EN: Plop
 ZH: 扑通
 
@@ -1509,6 +1515,9 @@ ZH: 快
 
 EN: Rattle
 ZH: 沙铃
+
+EN: Rin
+ZH: 磬
 
 EN: Re-gift
 ZH: 转赠
