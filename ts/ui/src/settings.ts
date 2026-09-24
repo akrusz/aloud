@@ -24,7 +24,8 @@ export type Provider =
     | 'openai'
     | 'openrouter'
     | 'venice'
-    | 'groq';
+    | 'groq'
+    | 'opencode_go';
 
 export interface ProviderMeta {
     value: Provider;
@@ -49,6 +50,7 @@ export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
     { value: 'groq', label: 'Groq (API Key)', needsKey: true },
     { value: 'openrouter', label: 'OpenRouter (API Key)', needsKey: true },
     { value: 'venice', label: 'Venice.ai (API Key)', needsKey: true },
+    { value: 'opencode_go', label: 'OpenCode Go (API Key)', needsKey: true },
 ];
 
 export interface ProviderAvailabilityOpts {
