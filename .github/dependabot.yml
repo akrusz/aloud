@@ -8,6 +8,11 @@
 # dependabot-automerge.yml merges once CI is green. Majors stay ungrouped and
 # land one PR each, because they need a human to read the changelog. Ungrouped
 # majors are what the open-pull-requests-limit is really budgeting for.
+#
+# cooldown holds a new release back N days before proposing it: hijacked
+# releases usually get yanked within that window, and automerge would otherwise
+# ship one on a green CI. Security-advisory PRs skip the cooldown; for an urgent
+# non-advisory fix, bump it by hand.
 version: 2
 updates:
   # Desktop Rust shell — the largest new native surface (ort/onnxruntime,
@@ -18,6 +23,8 @@ updates:
     directory: "/ts/src-tauri"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       cargo-minor-patch:
@@ -34,6 +41,8 @@ updates:
     directory: "/ts"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       npm-minor-patch:
@@ -44,6 +53,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions-minor-patch:
         update-types: ["minor", "patch"]
