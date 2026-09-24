@@ -148,9 +148,9 @@ This is the last stage, so there is no [NEXT]. If something new and alive opens 
 
 export const FELT_SENSE_OPENERS: readonly string[] = [
     "Take a moment to arrive... and when you're ready, you might ask inside: what's between me and feeling fine right now?",
-    "Settling in, no rush. When you're ready, let's notice what's carrying weight today.",
-    "Let's arrive first. A few easy breaths... then maybe ask inside: what wants my attention right now?",
-    "Whenever you're ready. You might let your attention settle down into the middle of your body, and just notice how it is in there.",
+    "Settling in, no rush. When you're ready, just notice what in your body or mind is pulling your attention.",
+    "Let's arrive first. A few easy breaths... then ask inside: what could use my attention right now?",
+    "Whenever you're ready. You might let your attention settle down into the middle of your body, and see what wants to be noticed.",
     "No hurry to begin. Let's land first... and see what you've carried in with you today.",
 ];
 
