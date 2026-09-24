@@ -424,6 +424,14 @@ export async function loadSetup(): Promise<SessionSetup> {
             : {};
     }
     merged.intention = merged.intentionByMode[merged.meditationType] ?? '';
+    // A sound renamed or removed since this setup was saved would 404 silently.
+    const known = (x: string) => (NOTING_SOUNDS as readonly string[]).includes(x);
+    if (merged.notingUserTurnCueSound && !known(merged.notingUserTurnCueSound)) {
+        merged.notingUserTurnCueSound = null;
+    }
+    merged.notingParticipants = (merged.notingParticipants ?? []).map((p) =>
+        p.type === 'sound' && p.sound !== 'chime' && !known(p.sound) ? { ...p, sound: 'plop' } : p
+    );
     return merged;
 }
 
