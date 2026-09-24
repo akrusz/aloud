@@ -42,7 +42,7 @@ axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync", "process", "time"] }
 # Adapts the mpsc receiver backing the streamed model-download response.
 tokio-stream = "0.1"
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.7", features = ["cors"] }
 which = "8"
 whisper-rs = "0.16.0"
 ureq = { version = "3.2.1", features = ["json"] }
