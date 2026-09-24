@@ -1,22 +1,56 @@
 #!/bin/bash
 # Create a release: bump version, update README links, commit, tag, push,
 # and create the GitHub release (which triggers the build workflow).
-#
-# Usage:
-#   scripts/release.sh           # bump patch (default)
-#   scripts/release.sh patch     # 0.9.19 → 0.9.20
-#   scripts/release.sh minor     # 0.9.19 → 0.10.0
-#   scripts/release.sh major     # 0.9.19 → 1.0.0
-#   scripts/release.sh rc        # patch bump, marked --prerelease (RC / test build)
-#   scripts/release.sh same      # re-release current version
-#   scripts/release.sh redo      # re-release with same title (quick fix cycle)
-#   scripts/release.sh 1.2.3     # explicit version
+# Modes and prompts: scripts/release.sh --help
 
 set -e
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/release.sh [mode]
+
+Modes:
+  patch      bump patch, 0.9.19 -> 0.9.20 (default)
+  minor      bump minor, 0.9.19 -> 0.10.0
+  major      bump major, 0.9.19 -> 1.0.0
+  X.Y.Z      release an explicit version
+  rc         patch bump, published as a prerelease (RC / test build); stays
+             off /releases/latest, so installs don't auto-update to it
+  same       re-release the current version (moves the tag); keeps the
+             published notes if there's nothing new to draft from
+  replace    re-release the current version with its published title and
+             notes (quick fix cycle); warns if it's been out over 5 minutes
+  retry      finish a release that failed after you approved it (push
+             rejected, gh error, dirty tree after the check): fix the cause
+             (pull, commit), then retry. Reuses the approved version, title and
+             notes; skips the drafting, prompts and pre-release check
+  -h, --help show this help
+
+Before anything else: the tree must be clean and not behind its upstream
+(pull first), and TS typecheck + cargo check + cargo deny must pass.
+
+Prompts (new versions): Claude drafts a name and notes from the commits since
+the last tag. Name: Enter takes the suggestion, - for none. Notes: Y use,
+e edit in $EDITOR, n write in gh. Then the pre-release doc check: Y run,
+n skip, q abort; if it leaves items, f fixes them in a claude session here.
+
+Env:
+  ALOUD_RELEASE_MODEL  model for the claude CLI calls (default: opus)
+EOF
+}
+
+case "${1:-}" in
+    -h|--help|help) usage; exit 0 ;;
+esac
 
 # Run from project root so relative paths (ts/, README.md) resolve
 # regardless of the caller's cwd.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# The version/title/notes approved for a release in progress, so a run that
+# fails after approval can be finished by 'retry'. Lives in .git/, so it's
+# never committed; cleared once the GitHub release exists.
+STATE_DIR="$(git rev-parse --git-dir)/aloud-release-pending"
 
 # Model for the claude CLI calls below (release notes, pre-release check). Pinned
 # so a release doesn't depend on whatever the CLI's default happens to be;
@@ -27,6 +61,41 @@ RELEASE_MODEL="${ALOUD_RELEASE_MODEL:-opus}"
 if ! git diff --quiet || ! git diff --cached --quiet; then
     echo "Error: uncommitted changes — commit or stash first" >&2
     exit 1
+fi
+
+# Release notes draft, if one gets written below. When set, it's handed to
+# `gh release create --notes-file` instead of dropping into gh's editor.
+NOTES_FILE=""
+cleanup_notes() { [ -n "$NOTES_FILE" ] && rm -f "$NOTES_FILE"; return 0; }
+trap cleanup_notes EXIT
+
+# Load the SSH key once so the fetch and the branch + tag pushes don't each
+# re-prompt for the passphrase. Reuse the session agent if it already holds a
+# key (the usual macOS case — loaded from the keychain, so zero prompts). Only
+# when there's no usable agent do we start a throwaway one and load the key a
+# single time: --apple-load-keychain pulls a keychain-saved passphrase
+# silently, and --apple-use-keychain stores it on first entry so future
+# releases are prompt-free. (The Apple flags are macOS-only; the || chain
+# no-ops elsewhere.)
+if ! ssh-add -l >/dev/null 2>&1; then
+    eval "$(ssh-agent -s)" >/dev/null 2>&1
+    trap 'ssh-agent -k >/dev/null 2>&1; cleanup_notes' EXIT
+    ssh-add --apple-load-keychain >/dev/null 2>&1 || true
+    ssh-add -l >/dev/null 2>&1 || ssh-add --apple-use-keychain 2>/dev/null || ssh-add
+fi
+
+# A branch behind its upstream fails at the push, after every prompt. Catch it
+# before them.
+if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+    if git fetch --quiet; then
+        BEHIND=$(git rev-list --count 'HEAD..@{u}')
+        if [ "$BEHIND" -gt 0 ]; then
+            echo "Error: $(git branch --show-current) is ${BEHIND} commit(s) behind $(git rev-parse --abbrev-ref '@{u}') — git pull --rebase first" >&2
+            exit 1
+        fi
+    else
+        echo "  Warning: git fetch failed, can't check the branch is up to date."
+    fi
 fi
 
 # TS + Rust lint (the Tauri/web stack). The only release gate now that Python is
@@ -66,11 +135,27 @@ IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
 
 ARG="${1:-patch}"
 
-REDO=false
+REPLACE=false
+RETRY=false
 PRERELEASE=false
+# Replaces an existing tag and GitHub release of the same version.
+REPUBLISH=false
 case "$ARG" in
-    redo)   VERSION="$CURRENT"; REDO=true ;;
-    same)   VERSION="$CURRENT" ;;
+    retry)
+        if [ ! -f "$STATE_DIR/version" ]; then
+            echo "Error: nothing to retry — no release is pending" >&2
+            exit 1
+        fi
+        VERSION=$(cat "$STATE_DIR/version")
+        TITLE=$(cat "$STATE_DIR/title")
+        PRERELEASE=$(cat "$STATE_DIR/prerelease")
+        if [ -s "$STATE_DIR/notes.md" ]; then
+            NOTES_FILE=$(mktemp -t aloud-relnotes)
+            cp "$STATE_DIR/notes.md" "$NOTES_FILE"
+        fi
+        RETRY=true; REPUBLISH=true ;;
+    replace) VERSION="$CURRENT"; REPLACE=true; REPUBLISH=true ;;
+    same)   VERSION="$CURRENT"; REPUBLISH=true ;;
     patch)  VERSION="$MAJ.$MIN.$((PAT + 1))" ;;
     rc)     VERSION="$MAJ.$MIN.$((PAT + 1))"; PRERELEASE=true ;;
     minor)  VERSION="$MAJ.$((MIN + 1)).0" ;;
@@ -78,7 +163,7 @@ case "$ARG" in
     *)
         VERSION="${ARG#v}"
         if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Error: version must be same, patch, minor, major, or X.Y.Z" >&2
+            echo "Error: unknown mode '$ARG' — see scripts/release.sh --help" >&2
             exit 1
         fi
         if [ "$VERSION" = "$CURRENT" ]; then
@@ -93,17 +178,35 @@ if [ "$BRANCH" != "main" ]; then
     echo "  Warning: releasing from '$BRANCH', not main"
 fi
 
-# Release notes draft, if one gets written below. When set, it's handed to
-# `gh release create --notes-file` instead of dropping into gh's editor.
-NOTES_FILE=""
-cleanup_notes() { [ -n "$NOTES_FILE" ] && rm -f "$NOTES_FILE"; return 0; }
-trap cleanup_notes EXIT
+save_pending() {
+    rm -rf "$STATE_DIR"
+    mkdir -p "$STATE_DIR"
+    printf '%s' "$VERSION" > "$STATE_DIR/version"
+    printf '%s' "$TITLE" > "$STATE_DIR/title"
+    printf '%s' "$PRERELEASE" > "$STATE_DIR/prerelease"
+    if [ -n "$NOTES_FILE" ]; then cp "$NOTES_FILE" "$STATE_DIR/notes.md"; fi
+}
 
-if [ "$REDO" = true ]; then
+if [ "$RETRY" = false ] && [ -f "$STATE_DIR/version" ]; then
+    echo "  Note: a failed release of v$(cat "$STATE_DIR/version") is pending (scripts/release.sh retry)."
+    echo "  Continuing replaces it."
+fi
+
+if [ "$RETRY" = true ]; then
+    echo ""
+    echo "  Retry ${TITLE}  (on $BRANCH)$([ "$PRERELEASE" = true ] && echo ', prerelease')"
+    if [ -n "$NOTES_FILE" ]; then sed 's/^/  /' "$NOTES_FILE"; fi
+    echo ""
+    printf "  Finish this release? [Y/n] "
+    read -r CONT
+    case "$CONT" in
+        n|N) echo "  Aborted."; exit 0 ;;
+    esac
+elif [ "$REPLACE" = true ]; then
     # Fetch existing release title and age from GitHub
     if command -v gh >/dev/null 2>&1; then
         TITLE=$(gh release view "v${VERSION}" --json name -q .name 2>/dev/null || echo "v${VERSION}")
-        # A redo deletes and re-creates the release, which would otherwise drop
+        # A replace deletes and re-creates the release, which would otherwise drop
         # the notes on the floor. Carry the existing body over.
         OLD_BODY=$(gh release view "v${VERSION}" --json body -q .body 2>/dev/null || echo "")
         if [ -n "$OLD_BODY" ]; then
@@ -121,7 +224,7 @@ if [ "$REDO" = true ]; then
                 echo "  Users may have already downloaded it — a patch release is"
                 echo "  the right move: scripts/release.sh patch"
                 echo ""
-                printf "  Redo anyway (not recommended)? [y/N] "
+                printf "  Replace anyway (not recommended)? [y/N] "
                 read -r REPLY
                 if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
                     echo "  Aborted."
@@ -133,9 +236,10 @@ if [ "$REDO" = true ]; then
         TITLE="v${VERSION}"
     fi
     echo ""
-    echo "  Redo v${VERSION}  (on $BRANCH)"
+    echo "  Replace v${VERSION}  (on $BRANCH)"
     echo "  Title: $TITLE"
     echo ""
+    save_pending
 else
     echo ""
     echo "  $CURRENT → $VERSION  (on $BRANCH)"
@@ -229,6 +333,7 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
                  [ -s "$NOTES_FILE" ] || { rm -f "$NOTES_FILE"; NOTES_FILE=""; } ;;
         esac
     fi
+    save_pending
 
     # Pre-release doc/copy check. Default (Enter) runs it via the headless
     # claude CLI; "n" skips; "q" bails. The check fixes CONSERVATIVE drift
@@ -303,43 +408,52 @@ fi
 
 # Bump the version across the TS/Rust stack. tauri.conf.json is the source of
 # truth (read above); ts/package.json is kept in lockstep so the release
-# artifacts carry the same version.
-if [ -f ts/src-tauri/tauri.conf.json ]; then
-    sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/src-tauri/tauri.conf.json
-    rm -f ts/src-tauri/tauri.conf.json.bak
+# artifacts carry the same version. A retry whose bump commit already landed
+# skips this: re-running it would burn another Android versionCode.
+bump_version() {
+    if [ -f ts/src-tauri/tauri.conf.json ]; then
+        sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/src-tauri/tauri.conf.json
+        rm -f ts/src-tauri/tauri.conf.json.bak
+    fi
+    if [ -f ts/package.json ]; then
+        # "version" is a unique key here — dependency ranges key on package names
+        # ("^x.y.z" values), so a plain substitution hits only the top-level field.
+        sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
+        rm -f ts/package.json.bak
+    fi
+    # Android (Capacitor) carries its own version pair. Play REJECTS a re-used
+    # versionCode, so it increments on every run — including 'same'/'replace', which is
+    # still a fresh upload. See dev-docs/mobile-signing.md.
+    if [ -f ts/android/app/build.gradle ]; then
+        ANDROID_CODE=$(grep -m1 'versionCode ' ts/android/app/build.gradle | sed -E 's/.*versionCode +([0-9]+).*/\1/')
+        sed -i.bak -E "s/versionName \"[0-9][0-9.]*\"/versionName \"${VERSION}\"/" ts/android/app/build.gradle
+        sed -i.bak -E "s/versionCode +[0-9]+/versionCode $((ANDROID_CODE + 1))/" ts/android/app/build.gradle
+        rm -f ts/android/app/build.gradle.bak
+        echo "  Android: versionName ${VERSION}, versionCode $((ANDROID_CODE + 1))"
+    fi
+    # Update README download links — STABLE releases only, mirroring the updater:
+    # a prerelease stays off /releases/latest and never force-updates installs, so
+    # the README likewise keeps pointing at the last stable build (an RC's links
+    # would otherwise advertise an unfinished build to everyone hitting the repo).
+    # tauri-action artifact names are aloud_<version>_<arch>.<ext> — replace only
+    # the version token, keep the arch.
+    if [ "$PRERELEASE" = false ]; then
+        sed -i.bak "s/aloud_[0-9][0-9.]*_/aloud_${VERSION}_/g" README.md
+        sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
+        rm -f README.md.bak
+        git add README.md
+    fi
+    [ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
+    [ -f ts/package.json ] && git add ts/package.json
+    [ -f ts/android/app/build.gradle ] && git add ts/android/app/build.gradle
+    git diff --cached --quiet || git commit -m "v${VERSION}"
+}
+
+if [ "$RETRY" = true ] && [ "$CURRENT" = "$VERSION" ]; then
+    echo "  Version already bumped to ${VERSION}."
+else
+    bump_version
 fi
-if [ -f ts/package.json ]; then
-    # "version" is a unique key here — dependency ranges key on package names
-    # ("^x.y.z" values), so a plain substitution hits only the top-level field.
-    sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
-    rm -f ts/package.json.bak
-fi
-# Android (Capacitor) carries its own version pair. Play REJECTS a re-used
-# versionCode, so it increments on every run — including 'same'/'redo', which is
-# still a fresh upload. See dev-docs/mobile-signing.md.
-if [ -f ts/android/app/build.gradle ]; then
-    ANDROID_CODE=$(grep -m1 'versionCode ' ts/android/app/build.gradle | sed -E 's/.*versionCode +([0-9]+).*/\1/')
-    sed -i.bak -E "s/versionName \"[0-9][0-9.]*\"/versionName \"${VERSION}\"/" ts/android/app/build.gradle
-    sed -i.bak -E "s/versionCode +[0-9]+/versionCode $((ANDROID_CODE + 1))/" ts/android/app/build.gradle
-    rm -f ts/android/app/build.gradle.bak
-    echo "  Android: versionName ${VERSION}, versionCode $((ANDROID_CODE + 1))"
-fi
-# Update README download links — STABLE releases only, mirroring the updater:
-# a prerelease stays off /releases/latest and never force-updates installs, so
-# the README likewise keeps pointing at the last stable build (an RC's links
-# would otherwise advertise an unfinished build to everyone hitting the repo).
-# tauri-action artifact names are aloud_<version>_<arch>.<ext> — replace only
-# the version token, keep the arch.
-if [ "$PRERELEASE" = false ]; then
-    sed -i.bak "s/aloud_[0-9][0-9.]*_/aloud_${VERSION}_/g" README.md
-    sed -i.bak "s|download/v[0-9][0-9.]*/|download/v${VERSION}/|g" README.md
-    rm -f README.md.bak
-    git add README.md
-fi
-[ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
-[ -f ts/package.json ] && git add ts/package.json
-[ -f ts/android/app/build.gradle ] && git add ts/android/app/build.gradle
-git diff --cached --quiet || git commit -m "v${VERSION}"
 
 # Re-release: move existing tag to this commit
 if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
@@ -348,25 +462,11 @@ if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
 fi
 git tag "v${VERSION}"
 
-# Load the SSH key once so the branch + tag pushes don't each re-prompt for
-# the passphrase. Reuse the session agent if it already holds a key (the usual
-# macOS case — loaded from the keychain, so zero prompts). Only when there's no
-# usable agent do we start a throwaway one and load the key a single time:
-# --apple-load-keychain pulls a keychain-saved passphrase silently, and
-# --apple-use-keychain stores it on first entry so future releases are
-# prompt-free. (The Apple flags are macOS-only; the || chain no-ops elsewhere.)
-if ! ssh-add -l >/dev/null 2>&1; then
-    eval "$(ssh-agent -s)" >/dev/null 2>&1
-    trap 'ssh-agent -k >/dev/null 2>&1; cleanup_notes' EXIT
-    ssh-add --apple-load-keychain >/dev/null 2>&1 || true
-    ssh-add -l >/dev/null 2>&1 || ssh-add --apple-use-keychain 2>/dev/null || ssh-add
-fi
-
 echo ""
 echo "  Pushing..."
 
 git push
-if [ "$ARG" = "same" ] || [ "$REDO" = true ]; then
+if [ "$REPUBLISH" = true ]; then
     git push origin "v${VERSION}" --force
 else
     git push origin "v${VERSION}"
@@ -375,7 +475,7 @@ fi
 # Create GitHub release (triggers build workflow)
 if command -v gh >/dev/null 2>&1; then
     echo "  Creating GitHub release..."
-    if [ "$ARG" = "same" ] || [ "$REDO" = true ]; then
+    if [ "$REPUBLISH" = true ]; then
         gh release delete "v${VERSION}" --yes 2>/dev/null || true
     fi
     if [ "$PRERELEASE" = true ]; then
@@ -390,9 +490,11 @@ if command -v gh >/dev/null 2>&1; then
     else
         gh release create "v${VERSION}" --title "$TITLE"
     fi
+    rm -rf "$STATE_DIR"
     echo ""
     echo "  Released ${TITLE} — build started ✓"
 else
+    rm -rf "$STATE_DIR"
     echo ""
     echo "  Pushed v${VERSION} ✓"
     echo "  Create the release at: https://github.com/akrusz/aloud/releases/new?tag=v${VERSION}"

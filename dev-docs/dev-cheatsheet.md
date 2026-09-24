@@ -296,8 +296,17 @@ scripts/release.sh                    # patch (default)
 scripts/release.sh minor|major|1.2.3
 scripts/release.sh rc                 # patch bump, marked --prerelease (RC / test build)
 scripts/release.sh same               # re-release current version (moves tag)
-scripts/release.sh redo               # re-release, same title (quick fix cycle)
+scripts/release.sh replace            # re-release, same title + notes (quick fix cycle)
+scripts/release.sh retry              # finish a release that failed after approval
+scripts/release.sh --help             # every mode and prompt
 ```
+
+`retry` is for a run that died after you approved the name and notes (push
+rejected, `gh` error, dirty tree after the check): fix the cause, then retry. It
+reuses the saved version, title and notes (kept in `.git/aloud-release-pending/`
+until the GitHub release exists) and skips drafting, prompts and the pre-release
+check. The script also fetches up front and stops if the branch is behind its
+upstream, so a missed pull fails before any prompts.
 
 `rc` builds are **prereleases**, so they stay off `/releases/latest` - the
 updater endpoint - and never auto-update existing installs. Promote to a real
@@ -313,7 +322,7 @@ Before the name prompt it drafts release notes from the commits since the last
 tag (Claude reads the log + diffstat, not the whole tree). The suggested name is
 the default at the prompt (`-` for no name), and the bullets become the release
 body unless you pick `e` to edit them or `n` to write your own in gh's editor.
-`same`/`redo` carry the published notes forward instead, since deleting and
+`same`/`replace` carry the published notes forward instead, since deleting and
 re-creating the release would otherwise drop them.
 
 The pre-release check fixes conservative drift itself and commits it as
