@@ -27,6 +27,9 @@ updates:
   # (package.json declares workspaces: ["server"]), one lockfile — so this
   # single entry covers ts/server's package.json too. A separate /ts/server
   # entry would just open duplicate PRs for the same server deps.
+  # @tauri-apps/* bumps here and their Rust crates (the cargo entry above) land in
+  # separate PRs; CI's check-tauri-versions.mjs fails whichever PR leaves the two
+  # on different major.minor, which tauri build would refuse at release time.
   - package-ecosystem: npm
     directory: "/ts"
     schedule:

@@ -27,7 +27,8 @@ Modes:
   -h, --help show this help
 
 Before anything else: the tree must be clean and not behind its upstream
-(pull first), and TS typecheck + cargo check + cargo deny must pass.
+(pull first), and TS typecheck + the Tauri npm/crate version check + cargo
+check + cargo deny must pass.
 
 Prompts (new versions): Claude drafts a name and notes from the commits since
 the last tag. Name: Enter takes the suggestion, - for none. Notes: Y use,
@@ -105,6 +106,10 @@ if [ -f ts/package.json ]; then
     if command -v npm >/dev/null 2>&1; then
         if ! (cd ts && npm run --silent typecheck); then
             echo "Error: TS typecheck failed — fix before releasing" >&2
+            exit 1
+        fi
+        # tauri build rejects npm/crate plugin version drift - after the tag is out.
+        if ! node ts/scripts/check-tauri-versions.mjs; then
             exit 1
         fi
     else

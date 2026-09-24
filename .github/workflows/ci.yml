@@ -25,6 +25,9 @@ jobs:
           cache-dependency-path: ts/package-lock.json
       # Installs the root package AND the server workspace from one lockfile.
       - run: npm ci
+      # tauri build refuses npm/crate version drift, and only the release build
+      # runs it; this gates Dependabot's split npm/cargo bumps on the PR instead.
+      - run: node scripts/check-tauri-versions.mjs
       - run: npm run typecheck
       - run: npm test
       - run: npm run ui:build
