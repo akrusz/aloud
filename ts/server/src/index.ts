@@ -13,6 +13,7 @@ import { loadConfig, configuredProviders } from './config.js';
 import { buildDeps } from './deps.js';
 import { createApp } from './app.js';
 import { reconcileExpiredGifts } from './credits/gifts.js';
+import { recordIncident } from './credits/incidents.js';
 import { ageOutSignupIps } from './auth/identity.js';
 import { assertSolvent, PACK_MARKUP } from './pricing/meter.js';
 import { loadRuntimeOverrides } from './admin/runtime-config.js';
@@ -92,6 +93,7 @@ async function main(): Promise<void> {
     //   - model liveness: zero-token metadata probes so /me/models drops any
     //     allowlisted model its provider has retired (pricing/liveness.ts,
     //     fail-open on probe errors).
+    const reportedGone = new Set<string>();
     const sweep = (): void => {
         void reconcileExpiredGifts(deps, Date.now() / 1000)
             .then((n) => {
@@ -107,6 +109,23 @@ async function main(): Promise<void> {
                 // Gone models are the actionable signal; log them every sweep
                 // so a retirement can't scroll away unnoticed.
                 if (r.gone.length > 0) log.error('model liveness: retired models dropped from /me/models', { gone: r.gone });
+                // And once per model per process in the incident log, where the
+                // operator actually looks.
+                for (const key of r.gone) {
+                    if (reportedGone.has(key)) continue;
+                    reportedGone.add(key);
+                    const cut = key.indexOf(':');
+                    const provider = key.slice(0, cut);
+                    const model = key.slice(cut + 1);
+                    void recordIncident(deps.store, {
+                        accountId: '',
+                        kind: 'model_retired',
+                        source: 'server',
+                        provider,
+                        model,
+                        detail: 'hidden from pickers; drop its price-table entry',
+                    });
+                }
                 if (r.unknown.length > 0) log.info('model liveness: unverified (kept, fail-open)', { unknown: r.unknown });
             })
             .catch((err: unknown) => log.error('model liveness sweep failed', { err: String(err) }));

@@ -19,7 +19,7 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { recordUsage } from '../credits/usage.js';
-import { recordIncident } from '../credits/incidents.js';
+import { throttledIncidents } from '../credits/incidents.js';
 import { askNouls, JEV_USD_PER_INPUT_TOKEN } from '../providers/typesafe.js';
 import { log } from '../logger.js';
 import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
@@ -27,9 +27,6 @@ import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 /** One spoken utterance. Anything longer is not what this route is for. */
 const MAX_UTTERANCE_CHARS = 2000;
 const MAX_EARLIER_ITEMS = 50;
-
-/** One judge_error row a minute, however many calls fail. */
-const INCIDENT_WINDOW_MS = 60_000;
 
 /**
  * What failed, with nothing of what was said. The thrown message can carry an
@@ -46,26 +43,17 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
     const app = new Hono<{ Variables: AuthVars }>();
 
     // An outage fails every judge call from every session at once; one row per
-    // window with a count says the same thing as hundreds. Per app instance, not
-    // module-level, so tests don't share it.
-    let windowStart = 0;
-    let suppressed = 0;
+    // window with a count says the same thing as hundreds.
+    const note = throttledIncidents(deps.store, now);
     function noteFailure(accountId: string, classifier: string, sessionId: string | null, err: unknown): void {
-        if (now() - windowStart < INCIDENT_WINDOW_MS) {
-            suppressed++;
-            return;
-        }
-        const earlier = suppressed;
-        windowStart = now();
-        suppressed = 0;
-        void recordIncident(deps.store, {
+        note({
             accountId,
             kind: 'judge_error',
             source: 'server',
             provider: 'typesafe',
             model: classifier,
             sessionId,
-            detail: `${failureLabel(err)}${earlier ? ` (+${earlier} more since the last row)` : ''}`,
+            detail: failureLabel(err),
         });
     }
 

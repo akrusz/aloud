@@ -1301,6 +1301,7 @@ export async function mountSessionView(
      *  gets the same apology + buy prompt as the LLM leg, other recognized cloud
      *  conditions toast. Unrecognized errors stay quiet - a browser speech
      *  hiccup isn't worth interrupting a meditation for. */
+    let voiceUnavailableShown = false;
     function handleTtsError(err: unknown): void {
         if (torn) return;
         // The browser refused to play the audio we did synthesize (Safari's
@@ -1321,6 +1322,15 @@ export async function mountSessionView(
         // A hosted voice that failed for any other reason (5xx, timeout,
         // network): the sit continues text-first, the operator gets the row.
         if (isCloudTtsError(msg)) reportCloudIncident('client_tts_error', { detail: msg, model: cannedVoice() ?? '' });
+        // The voice's provider refused aloud's account: every sentence will
+        // fail the same way, so say once that it's the voice, not the sit.
+        if (/provider_unavailable/.test(msg)) {
+            if (!voiceUnavailableShown) {
+                voiceUnavailableShown = true;
+                showErrorToast(t("This voice isn't available right now. Pick another voice in Settings to hear the facilitator."));
+            }
+            return;
+        }
         const described = describeCloudError(msg);
         if (described) showErrorToast(described);
     }
