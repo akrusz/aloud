@@ -97,6 +97,23 @@ jobs:
             cmake build-essential \
             libfuse2
 
+      # tauri-bundler caches the AppRun it downloads at mode 0770
+      # (appimage/mod.rs write_and_make_executable), and linuxdeploy's gtk plugin
+      # ships it as AppRun.wrapped with that mode. Any user other than the file's
+      # owner (firejail, the AppImage catalog's test, some launchers) then gets
+      # "AppRun.wrapped: Permission denied". The bundler only downloads when the
+      # cached file is missing, so pre-seed the same binary at 0755. The hash pins
+      # the bytes tauri would have fetched; if tauri moves to a new AppRun the seed
+      # goes unused and the permission check after the build fails.
+      - name: Pre-seed tauri's AppRun cache with a world-executable copy
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -fsSL -o ~/.cache/tauri/AppRun-x86_64 \
+            https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64
+          echo "f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f  $HOME/.cache/tauri/AppRun-x86_64" | sha256sum -c -
+          chmod 0755 ~/.cache/tauri/AppRun-x86_64
+
       - name: Install JS dependencies
         working-directory: ts
         run: npm ci
@@ -134,3 +151,21 @@ jobs:
           # Attach to the release whose creation triggered this run.
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
+
+      # Guard for the AppRun pre-seed above: fail loudly if any executable in the
+      # AppImage isn't executable by everyone (the AppImage catalog rejects it and
+      # the app won't start under firejail). The asset is already uploaded by this
+      # point, so a failure here means: fix, then re-run this job.
+      - name: Check AppImage file permissions
+        if: matrix.platform == 'ubuntu-24.04'
+        working-directory: ts/src-tauri/target/release/bundle/appimage
+        run: |
+          appimage=$(ls *.AppImage)
+          "./$appimage" --appimage-extract >/dev/null
+          bad=$(find squashfs-root -type f -perm /u+x ! -perm -o+x -printf '%m %p\n')
+          rm -rf squashfs-root
+          if [ -n "$bad" ]; then
+            echo "::error::$appimage has executables other users can't run:"
+            echo "$bad"
+            exit 1
+          fi
