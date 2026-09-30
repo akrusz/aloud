@@ -2113,7 +2113,16 @@ export async function mountSessionView(
             // dots stay up, so from the chair it is just a slower turn.
             // Cloud only: on a local/BYOK provider nothing is hidden - the user
             // owns that setup and should see its failures as they happen.
-            if (cloudSmooth && !rawText.trim() && finishReason !== BILLING_PAUSED_FINISH) {
+            // Not after a safety-classifier refusal: the same prompt mostly
+            // draws the same decline, and the server already tried Anthropic's
+            // fallback model before this refusal came back (anthropic.ts
+            // takesRefusalFallback), so a retry only adds dead air.
+            if (
+                cloudSmooth &&
+                !rawText.trim() &&
+                finishReason !== BILLING_PAUSED_FINISH &&
+                finishReason !== 'refusal'
+            ) {
                 console.warn(
                     `[turn] empty completion finish=${finishReason ?? 'null'} raw=0 chars - retrying once`
                 );

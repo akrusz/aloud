@@ -29,6 +29,10 @@ export const SERVER_INCIDENT_KINDS = [
     /** A reply cut off at max_tokens (routes/llm.ts turnMaxTokens). A BLANK
      *  turn at the ceiling is llm_empty instead, with finish=length. */
     'llm_max_tokens',
+    /** A safety classifier declined the requested model and Anthropic's
+     *  server-side fallback answered instead (declined= and served= say
+     *  which). The meditator heard a reply; the row is so the switch shows. */
+    'llm_fallback',
     /** The upstream LLM call failed (stream or non-stream). */
     'llm_error',
     'stt_error',

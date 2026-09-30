@@ -133,6 +133,7 @@ export class Forwarder {
             cacheCreationTokens: result.cacheCreationTokens ?? null,
             cacheCreation1hTokens: result.cacheCreation1hTokens ?? null,
             ...(result.diagnostics ? { diagnostics: result.diagnostics } : {}),
+            ...(result.attempts ? { attempts: result.attempts } : {}),
         };
     }
 }

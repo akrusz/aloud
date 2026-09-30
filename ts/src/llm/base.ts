@@ -37,6 +37,24 @@ export interface CompletionResult {
     /** What the provider did that the text alone can't show; for the incident
      *  log (server credits/incidents.ts), never for facilitation. */
     diagnostics?: CompletionDiagnostics;
+    /** Every model that ran for this call, when more than the requested one
+     *  may have (Anthropic's server-side refusal fallback). The usage fields
+     *  above cover only the attempt that produced the reply; billing prices
+     *  each attempt here at its own model's rates instead. */
+    attempts?: CompletionAttempt[];
+}
+
+/** One model's run within a call (Anthropic's usage.iterations entry). */
+export interface CompletionAttempt {
+    model: string;
+    /** false: this model declined (a safety-classifier refusal) and the call
+     *  moved on; true: the fallback model that produced the returned reply. */
+    fallback: boolean;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+    cacheCreation1hTokens: number;
 }
 
 export interface CompletionDiagnostics {
@@ -49,8 +67,12 @@ export interface CompletionDiagnostics {
      *  outputTokens. */
     thinkingTokens?: number;
     /** Upstream host + model that actually served the call, when a routing
-     *  proxy (OpenRouter) reports them: "Novita/moonshotai/kimi-k2". */
+     *  proxy (OpenRouter) reports them: "Novita/moonshotai/kimi-k2", or the
+     *  fallback model that answered after an Anthropic refusal. */
     servedBy?: string;
+    /** Anthropic's stop_details.category on a refusal ("bio", "cyber",
+     *  "reasoning_extraction", ...). Null when the refusal names none. */
+    refusalCategory?: string | null;
 }
 
 export interface CompletionOptions {
@@ -83,6 +105,8 @@ export interface StreamChunk {
     cacheCreation1hTokens?: number | null;
     /** On the final chunk. See CompletionResult. */
     diagnostics?: CompletionDiagnostics;
+    /** On the final chunk. See CompletionResult. */
+    attempts?: CompletionAttempt[];
 }
 
 export interface LLMProvider {

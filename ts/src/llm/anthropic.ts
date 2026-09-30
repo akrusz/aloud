@@ -20,6 +20,7 @@
  */
 
 import type {
+    CompletionAttempt,
     CompletionDiagnostics,
     CompletionOptions,
     CompletionResult,
@@ -97,6 +98,39 @@ function isTuningRejection(detail: string): boolean {
 }
 
 /**
+ * Does the model run Anthropic's safety classifiers, and so get the
+ * server-side refusal fallback? Fable, Mythos, Opus 5+, Sonnet 5.5+.
+ *
+ * A classifier decline is an HTTP 200 with `stop_reason: "refusal"` and no
+ * text, and it tends to repeat: the append-only session log resends whatever
+ * tripped it on every later turn. `fallbacks: "default"` has the API re-run
+ * a declined request on the model Anthropic recommends for that refusal
+ * category, inside the same call, and keeps the conversation on that model
+ * for about an hour (sticky routing), so the sit carries on in a slightly
+ * different voice instead of going quiet. Categories with no recommended
+ * fallback (reasoning_extraction) still come back as refusals.
+ *
+ * A model this guesses wrong on is caught by `send()`: a 400 naming the
+ * fallback gets one retry without it, and the provider stays that way.
+ */
+export function takesRefusalFallback(model: string): boolean {
+    const m = model.toLowerCase();
+    if (/^claude-(fable|mythos)-/.test(m)) return true;
+    const gen = /^claude-(opus|sonnet)-(\d+)(?:-(\d)(?!\d))?/.exec(m);
+    if (!gen) return false;
+    const version = Number(gen[2]) + Number(gen[3] ?? 0) / 10;
+    return version >= (gen[1] === 'opus' ? 5 : 5.5);
+}
+
+/** The beta that takes the `"default"` form of `fallbacks`. */
+const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+
+/** Does a 400 body reject the refusal fallback? */
+function isFallbackRejection(detail: string): boolean {
+    return /fallback/i.test(detail);
+}
+
+/**
  * Two ephemeral cache TTLs, both used: 5m (write 1.25x input) on the rolling
  * tail, refreshed by each turn's read so the prefix stays warm cheaply; 1h
  * (write 2x) on a slowly-advancing anchor (ANCHOR_STEP), which survives a >5min
@@ -167,11 +201,32 @@ interface AnthropicUsage {
         ephemeral_1h_input_tokens?: number;
     };
     output_tokens_details?: { thinking_tokens?: number };
+    /** One entry per model that ran, on a call with `fallbacks` set: a model
+     *  that declined is a `message` entry, the one that answered after it a
+     *  `fallback_message`. The fields above cover only the answering one. */
+    iterations?: AnthropicIteration[];
+}
+
+interface AnthropicIteration {
+    type?: string;
+    model?: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_creation?: { ephemeral_1h_input_tokens?: number };
+}
+
+/** Set only when stop_reason is "refusal". */
+interface AnthropicStopDetails {
+    category?: string | null;
 }
 
 interface AnthropicMessagesResponse {
+    model?: string;
     content?: Array<{ type: string; text?: string }>;
     stop_reason?: string | null;
+    stop_details?: AnthropicStopDetails | null;
     usage?: AnthropicUsage;
 }
 
@@ -205,13 +260,15 @@ export class AnthropicProvider implements LLMProvider {
     private tuningRejected = false;
     /** Set once a model 400s on a mid-conversation system message. */
     private systemRoleRejected = false;
+    /** Set once a model 400s on the refusal fallback. */
+    private fallbackRejected = false;
 
     private buildRequest(
         messages: Message[],
         options: CompletionOptions,
         stream: boolean,
         tune: boolean
-    ): { url: string; init: RequestInit; tuned: boolean; systemRole: boolean } {
+    ): { url: string; init: RequestInit; tuned: boolean; systemRole: boolean; fallback: boolean } {
         const systemRole =
             !this.systemRoleRejected &&
             supportsMidConversationSystem(this.model) &&
@@ -259,11 +316,14 @@ export class AnthropicProvider implements LLMProvider {
         const policy = tune ? thinkingPolicy(this.model) : 'none';
         if (policy === 'always-on') body['output_config'] = { effort: 'low' };
         if (policy === 'opt-out') body['thinking'] = { type: 'disabled' };
+        const fallback = !this.fallbackRejected && takesRefusalFallback(this.model);
+        if (fallback) body['fallbacks'] = 'default';
 
         const headers: Record<string, string> = {
             'content-type': 'application/json',
             'anthropic-version': ANTHROPIC_API_VERSION,
         };
+        if (fallback) headers['anthropic-beta'] = FALLBACK_BETA;
         if (this.apiKey) headers['x-api-key'] = this.apiKey;
         if (this.directBrowserAccess) headers['anthropic-dangerous-direct-browser-access'] = 'true';
         if (stream) headers['accept'] = 'text/event-stream';
@@ -278,14 +338,16 @@ export class AnthropicProvider implements LLMProvider {
             },
             tuned: policy !== 'none',
             systemRole,
+            fallback,
         };
     }
 
     /**
-     * One request, tuned per thinkingPolicy and with mid-conversation system
-     * messages where supportsMidConversationSystem says so. A 400 that rejects
-     * either guess gets a retry without it, and the provider stays that way for
-     * the session - the safety net for a family whose rules don't match.
+     * One request, tuned per thinkingPolicy, with mid-conversation system
+     * messages where supportsMidConversationSystem says so and the refusal
+     * fallback where takesRefusalFallback does. A 400 that rejects any of those
+     * guesses gets a retry without it, and the provider stays that way for the
+     * session - the safety net for a family whose rules don't match.
      * Resolves to an ok response or throws.
      */
     private async send(
@@ -300,6 +362,11 @@ export class AnthropicProvider implements LLMProvider {
             const detail = await response.text().catch(() => '');
             if (response.status === 400 && req.systemRole && isSystemRoleRejection(detail)) {
                 this.systemRoleRejected = true;
+                continue;
+            }
+            // Before the tuning check: a fallback 400 may also name thinking.
+            if (response.status === 400 && req.fallback && isFallbackRejection(detail)) {
+                this.fallbackRejected = true;
                 continue;
             }
             if (response.status === 400 && req.tuned && isTuningRejection(detail)) {
@@ -325,7 +392,7 @@ export class AnthropicProvider implements LLMProvider {
         return {
             text,
             finishReason: data.stop_reason ?? null,
-            ...usageToResult(data.usage),
+            ...usageToResult(data.usage, data.stop_details, data.model),
         };
     }
 
@@ -338,6 +405,8 @@ export class AnthropicProvider implements LLMProvider {
         // Events of interest: content_block_delta (text deltas), message_delta
         // (final stop_reason + usage), message_stop (terminator).
         let stopReason: string | null = null;
+        let stopDetails: AnthropicStopDetails | null | undefined;
+        let servedModel: string | undefined;
         let usage: AnthropicUsage | undefined;
 
         for await (const evt of iterateSseEvents(response)) {
@@ -350,15 +419,21 @@ export class AnthropicProvider implements LLMProvider {
             } else if (evt.event === 'message_start') {
                 // Input + cache tokens arrive here, output tokens in
                 // message_delta, so merge both.
-                const parsed = safeJson<{ message?: { usage?: AnthropicUsage } }>(evt.data);
+                // After a decline before any output, `model` here already
+                // names the fallback that is answering.
+                const parsed = safeJson<{ message?: { model?: string; usage?: AnthropicUsage } }>(evt.data);
+                if (parsed?.message?.model) servedModel = parsed.message.model;
                 if (parsed?.message?.usage) usage = { ...usage, ...parsed.message.usage };
             } else if (evt.event === 'message_delta') {
                 const parsed = safeJson<{
-                    delta?: { stop_reason?: string | null };
+                    delta?: { stop_reason?: string | null; stop_details?: AnthropicStopDetails | null };
                     usage?: AnthropicUsage;
                 }>(evt.data);
                 if (parsed?.delta?.stop_reason !== undefined) {
                     stopReason = parsed.delta.stop_reason;
+                }
+                if (parsed?.delta?.stop_details !== undefined) {
+                    stopDetails = parsed.delta.stop_details;
                 }
                 if (parsed?.usage) usage = { ...usage, ...parsed.usage };
             } else if (evt.event === 'message_stop') {
@@ -366,7 +441,12 @@ export class AnthropicProvider implements LLMProvider {
             }
         }
 
-        yield { text: '', done: true, finishReason: stopReason, ...usageToResult(usage) };
+        yield {
+            text: '',
+            done: true,
+            finishReason: stopReason,
+            ...usageToResult(usage, stopDetails, servedModel),
+        };
     }
 }
 
@@ -427,8 +507,17 @@ function cacheableAtOrBefore(convo: Message[], index: number): number {
  * Map Anthropic's usage object to the CompletionResult split fields. Cache
  * fields appear only when prompt caching is active. `tokensUsed` is the
  * input+output sum for back-compat, excluding cache reads/creation.
+ *
+ * On a refusal the category lands in diagnostics. When a fallback model
+ * answered (a `fallback_message` iteration), `attempts` lists every model that
+ * ran so billing can price each at its own rates, and `servedBy` names the one
+ * that answered; the top-level usage is that answering attempt's alone.
  */
-function usageToResult(usage: AnthropicUsage | undefined): {
+function usageToResult(
+    usage: AnthropicUsage | undefined,
+    stopDetails?: AnthropicStopDetails | null,
+    servedModel?: string
+): {
     tokensUsed: number | null;
     inputTokens: number | null;
     outputTokens: number | null;
@@ -436,7 +525,13 @@ function usageToResult(usage: AnthropicUsage | undefined): {
     cacheCreationTokens: number | null;
     cacheCreation1hTokens: number | null;
     diagnostics?: CompletionDiagnostics;
+    attempts?: CompletionAttempt[];
 } {
+    const diagnostics: CompletionDiagnostics = {};
+    if (stopDetails) diagnostics.refusalCategory = stopDetails.category ?? null;
+    const attempts = attemptsOf(usage);
+    const served = attempts?.find((a) => a.fallback)?.model ?? (attempts ? servedModel : undefined);
+    if (served) diagnostics.servedBy = served;
     if (!usage) {
         return {
             tokensUsed: null,
@@ -445,11 +540,13 @@ function usageToResult(usage: AnthropicUsage | undefined): {
             cacheReadTokens: null,
             cacheCreationTokens: null,
             cacheCreation1hTokens: null,
+            ...(Object.keys(diagnostics).length > 0 && { diagnostics }),
         };
     }
     const inputTokens = usage.input_tokens ?? 0;
     const outputTokens = usage.output_tokens ?? 0;
     const thinkingTokens = usage.output_tokens_details?.thinking_tokens;
+    if (thinkingTokens !== undefined) diagnostics.thinkingTokens = thinkingTokens;
     return {
         tokensUsed: inputTokens + outputTokens,
         inputTokens,
@@ -457,6 +554,32 @@ function usageToResult(usage: AnthropicUsage | undefined): {
         cacheReadTokens: usage.cache_read_input_tokens ?? null,
         cacheCreationTokens: usage.cache_creation_input_tokens ?? null,
         cacheCreation1hTokens: usage.cache_creation?.ephemeral_1h_input_tokens ?? null,
-        ...(thinkingTokens !== undefined && { diagnostics: { thinkingTokens } }),
+        ...(Object.keys(diagnostics).length > 0 && { diagnostics }),
+        ...(attempts && { attempts }),
     };
+}
+
+/**
+ * The per-model attempts of a call that fell back, or undefined when one
+ * model did all the work (no `fallback_message` iteration): then the
+ * top-level usage is the whole bill, as it always was. The answering attempt
+ * takes the top-level counts, which carry the 1h cache-write split an
+ * iteration entry may not.
+ */
+function attemptsOf(usage: AnthropicUsage | undefined): CompletionAttempt[] | undefined {
+    const iterations = usage?.iterations;
+    if (!iterations?.some((it) => it.type === 'fallback_message')) return undefined;
+    return iterations.map((it) => {
+        const fallback = it.type === 'fallback_message';
+        const src = fallback ? usage! : it;
+        return {
+            model: it.model ?? '',
+            fallback,
+            inputTokens: src.input_tokens ?? 0,
+            outputTokens: src.output_tokens ?? 0,
+            cacheReadTokens: src.cache_read_input_tokens ?? 0,
+            cacheCreationTokens: src.cache_creation_input_tokens ?? 0,
+            cacheCreation1hTokens: src.cache_creation?.ephemeral_1h_input_tokens ?? 0,
+        };
+    });
 }
