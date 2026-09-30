@@ -692,6 +692,11 @@ export function previewErrorMessage(err: unknown): string {
     // chasing the wrong thing (a field report did exactly that): say the
     // service had the problem, with the status so a report carries it.
     if (/\b429\b/.test(msg)) return t('Too many previews at once - wait a moment and try again.');
+    // The provider behind the voice refused aloud's account (trial ended, key
+    // revoked): retrying won't help, another voice (another provider) might.
+    if (/provider_unavailable/.test(msg)) {
+        return t("That voice isn't available right now. Try another voice.");
+    }
     const status = /\bendpoint (\d{3})\b/.exec(msg)?.[1];
     if (status && /^5/.test(status)) {
         return t('The voice service had a problem (error {status}). Try again in a moment.', { status });

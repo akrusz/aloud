@@ -16,12 +16,18 @@
 
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { apiError, type CompleteChunk, type CompleteRequest, type CompleteResponse } from '../contract.js';
+import {
+    apiError,
+    type CompleteChunk,
+    type CompleteRequest,
+    type CompleteResponse,
+    type ProviderId,
+} from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isMeteredBlocked, FREE_LIMIT_MESSAGE, BILLING_PAUSED_FINISH } from '../admin/runtime-config.js';
-import { isModelAllowed, allowedModels } from '../pricing/providers.js';
+import { isModelAllowed, allowedModels, pricingFor } from '../pricing/providers.js';
 import { holdForTurn, holdAgainstBalance, priceLlmTurn, turnMaxTokens } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
@@ -29,7 +35,7 @@ import { recordUsage } from '../credits/usage.js';
 import { serverIncidents } from '../credits/incidents.js';
 import { activeRetreatCoverage } from '../credits/retreat.js';
 import type { LlmUsage } from '@aloud/core/facilitation';
-import type { CompletionDiagnostics } from '@aloud/core/llm';
+import type { CompletionDiagnostics, CompletionResult, StreamChunk } from '@aloud/core/llm';
 import { log } from '../logger.js';
 import { errorJson, tooManyRequests, sessionIdOf } from '../http.js';
 
@@ -49,6 +55,7 @@ function completionDetail(
         ...extra,
     ];
     if (diagnostics?.thinkingTokens !== undefined) parts.push(`thinking_tokens=${diagnostics.thinkingTokens}`);
+    if (diagnostics?.refusalCategory !== undefined) parts.push(`refusal=${diagnostics.refusalCategory ?? 'null'}`);
     if (diagnostics?.reasoningChars !== undefined) parts.push(`reasoning_chars=${diagnostics.reasoningChars}`);
     if (diagnostics?.servedBy) parts.push(`served=${diagnostics.servedBy}`);
     return parts.join(' ');
@@ -58,6 +65,40 @@ function completionDetail(
  *  OpenAI-compatible APIs "length", Gemini "MAX_TOKENS". */
 function hitOutputLimit(finishReason: string | null): boolean {
     return finishReason !== null && /^(max_tokens|length)$/i.test(finishReason);
+}
+
+/** One model's share of a call: what it ran, and the usage to bill it at. */
+interface BilledAttempt {
+    model: string;
+    usage: LlmUsage;
+    /** This model declined (a safety-classifier refusal) and another took over. */
+    declined: boolean;
+}
+
+/**
+ * The models a call ran, each billed at its own rates. One entry unless an
+ * Anthropic refusal fell back to another model (CompletionResult.attempts):
+ * then the declined attempt and the fallback that answered are each priced
+ * as the provider bills them. A model missing from the price table is priced
+ * at the requested model's rates rather than billed as free.
+ */
+function billedAttempts(
+    provider: ProviderId,
+    model: string,
+    source: CompletionResult | StreamChunk
+): BilledAttempt[] {
+    if (!source.attempts?.length) return [{ model, usage: usageOf(source), declined: false }];
+    return source.attempts.map((a) => ({
+        model: a.model && pricingFor(provider, a.model) ? a.model : model,
+        usage: {
+            tokensIn: a.inputTokens,
+            tokensOut: a.outputTokens,
+            cacheRead: a.cacheReadTokens,
+            cacheCreation: a.cacheCreationTokens,
+            cacheCreation1h: a.cacheCreation1hTokens,
+        },
+        declined: !a.fallback,
+    }));
 }
 
 // Derived from the pricing allowlist so it can't drift: a provider is billable
@@ -155,46 +196,62 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         let settled = false;
         const settle = async (
             text: string,
-            finishReason: string | null,
-            usage: LlmUsage,
-            blank: boolean,
-            diagnostics: CompletionDiagnostics | undefined
+            source: CompletionResult | StreamChunk,
+            blank: boolean
         ): Promise<CompleteResponse> => {
-            const cost = priceLlmTurn(provider, model, usage);
+            const finishReason = source.finishReason ?? null;
+            const attempts = billedAttempts(provider, model, source);
+            const costs = attempts.map((a) => priceLlmTurn(provider, a.model, a.usage));
+            const credits = costs.reduce((sum, c) => sum + c.credits, 0);
             // Usage records what was debited (settle clamps at the balance), the
             // same as chargeUpfront; providerCostUsd keeps the full real cost.
             const debited = holdId
-                ? await deps.ledger.settleHold(account.id, holdId, cost.credits, `llm:${provider}:${model}`)
-                : cost.credits;
+                ? await deps.ledger.settleHold(account.id, holdId, credits, `llm:${provider}:${model}`)
+                : credits;
             settled = true;
-            await recordUsage(deps.store, {
-                accountId: account.id,
-                kind: 'llm',
-                provider,
-                model,
-                sessionId,
-                purpose,
-                tokensIn: usage.tokensIn ?? 0,
-                tokensOut: usage.tokensOut ?? 0,
-                cacheRead: usage.cacheRead ?? 0,
-                cacheCreation: usage.cacheCreation ?? 0,
-                cacheCreation1h: usage.cacheCreation1h ?? 0,
-                providerCostUsd: cost.providerCostUsd,
-                credits: debited,
-                passId: pass?.id ?? null,
-            });
+            // One row per model that ran, so per-model reports price its tokens
+            // at its own rates. A declined attempt is tagged utility: it isn't a
+            // facilitator turn (the fallback's row is), but its cost still counts.
+            for (const [i, a] of attempts.entries()) {
+                await recordUsage(deps.store, {
+                    accountId: account.id,
+                    kind: 'llm',
+                    provider,
+                    model: a.model,
+                    sessionId,
+                    purpose: a.declined ? 'utility' : purpose,
+                    tokensIn: a.usage.tokensIn ?? 0,
+                    tokensOut: a.usage.tokensOut ?? 0,
+                    cacheRead: a.usage.cacheRead ?? 0,
+                    cacheCreation: a.usage.cacheCreation ?? 0,
+                    cacheCreation1h: a.usage.cacheCreation1h ?? 0,
+                    providerCostUsd: costs[i]!.providerCostUsd,
+                    credits: credits > 0 ? debited * (costs[i]!.credits / credits) : debited,
+                    passId: pass?.id ?? null,
+                });
+            }
+            const usage = usageOf(source);
             // One row per turn: a blank one at the ceiling stays llm_empty
             // (finish=length says why), a reply cut off mid-sentence is its
             // own kind. Either way the row names the ceiling it hit.
             const atLimit = hitOutputLimit(finishReason);
             if (blank || atLimit) {
                 const extra = atLimit ? [`max_tokens=${maxTokens}`, `purpose=${purpose ?? 'null'}`] : [];
-                incident(blank ? 'llm_empty' : 'llm_max_tokens', completionDetail(finishReason, usage, diagnostics, extra));
+                incident(blank ? 'llm_empty' : 'llm_max_tokens', completionDetail(finishReason, usage, source.diagnostics, extra));
+            }
+            // A refusal another model answered: the meditator heard a reply, so
+            // it isn't an empty turn, but the switch is worth seeing.
+            const declined = attempts.filter((a) => a.declined).map((a) => a.model);
+            if (declined.length > 0 && !blank) {
+                incident(
+                    'llm_fallback',
+                    completionDetail(finishReason, usage, source.diagnostics, [`declined=${declined.join(',')}`])
+                );
             }
             return {
                 text,
                 finishReason,
-                creditsCharged: pass ? 0 : cost.credits,
+                creditsCharged: pass ? 0 : credits,
                 creditsRemaining: await deps.ledger.balance(account.id),
             };
         };
@@ -214,7 +271,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                             continue;
                         }
                         const blank = !sawText && !chunk.text.trim();
-                        final = await settle(chunk.text, chunk.finishReason ?? null, usageOf(chunk), blank, chunk.diagnostics);
+                        final = await settle(chunk.text, chunk, blank);
                     }
                     const terminal: CompleteChunk = { text: '', done: true, ...(final ? { result: final } : {}) };
                     await sse.writeSSE({ data: JSON.stringify(terminal) });
@@ -240,7 +297,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         try {
             const result = await deps.forwarder.complete(messages, fwd);
             const blank = !result.text.trim();
-            return c.json(await settle(result.text, result.finishReason, usageOf(result), blank, result.diagnostics));
+            return c.json(await settle(result.text, result, blank));
         } catch (err) {
             log.error('forward failed', { err: String(err), provider });
             incident('llm_error', String(err));

@@ -1,6 +1,7 @@
 export type {
     CompletionOptions,
     CompletionResult,
+    CompletionAttempt,
     CompletionDiagnostics,
     LLMProvider,
     Message,
@@ -8,7 +9,7 @@ export type {
     StreamChunk,
 } from './base.js';
 
-export { AnthropicProvider, thinkingPolicy, type AnthropicProviderOptions } from './anthropic.js';
+export { AnthropicProvider, thinkingPolicy, takesRefusalFallback, type AnthropicProviderOptions } from './anthropic.js';
 export { OllamaProvider, contextLengthForRam, type OllamaProviderOptions } from './ollama.js';
 export {
     OpenAIProvider,
