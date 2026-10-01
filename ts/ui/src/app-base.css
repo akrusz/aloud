@@ -1455,17 +1455,6 @@ input[type="range"].slider-stops {
     box-shadow: none;
 }
 
-.btn-begin.btn-dirty {
-    animation: btn-dirty-pulse 2s ease-in-out infinite;
-}
-
-/* Keep the sticker offset in both keyframes - animating box-shadow replaces
-   the whole list, so dropping it would make the button flicker flat. */
-@keyframes btn-dirty-pulse {
-    0%, 100% { box-shadow: 3px 3px 0 var(--brand-stroke); }
-    50% { box-shadow: 3px 3px 0 var(--brand-stroke), 0 0 10px var(--accent-glow, rgba(212, 135, 58, 0.4)); }
-}
-
 /* ============================================
    Session Page
    ============================================ */
