@@ -240,6 +240,19 @@ code {
   margin: 0;
   font-size: 4.5rem;
   line-height: 1;
+  /* The mark is a picture, not copy. And clicking it replays the ripple
+     (js/hero.js), so a double-click shouldn't select it either. The title
+     spans the hero's width, so let clicks beside the mark fall through to the
+     orb behind it; only the mark itself catches them. A plain arrow, not a
+     text caret or a link hand: the replay is a small surprise, not a control. */
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+.hero-title .brand-mark,
+.hero-mark .orb {
+  pointer-events: auto;
+  cursor: default;
 }
 /* Over the orb the yellow stroke has nothing to push against - it's the same
    family as what's behind it. So the mark gains a third layer outside the
@@ -352,6 +365,10 @@ code {
   animation-delay: 0.9s;
   animation-iteration-count: 1;
 }
+/* Set for one frame by js/hero.js: dropping the animation and restoring it
+   starts the ripple over. */
+.orb.replay::before,
+.orb.replay::after { animation: none; }
 @keyframes orbRipple {
   0%   { transform: scale(1);   opacity: 0.55; }
   70%  { opacity: 0.14; }
