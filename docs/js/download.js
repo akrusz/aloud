@@ -30,6 +30,15 @@ function setVersion(text) {
   if (el) el.textContent = text;
 }
 
+// A release filename has no spaces, so left alone it breaks wherever
+// overflow-wrap finds room ("aarch64.dm" / "g"). A <wbr> after each underscore
+// gives it real break points: "aloud_2.11.3_" / "aarch64.dmg".
+function breakAfterUnderscores(name) {
+  const parts = name.split('_');
+  return parts.flatMap((part, i) =>
+    i < parts.length - 1 ? [`${part}_`, document.createElement('wbr')] : [part]);
+}
+
 function applyAssets(version, assets) {
   setVersion(`v${version}`);
 
@@ -40,7 +49,7 @@ function applyAssets(version, assets) {
     if (asset) {
       card.href = asset.browser_download_url;
       const fileEl = card.querySelector('[data-file]');
-      if (fileEl) fileEl.textContent = asset.name;
+      if (fileEl) fileEl.replaceChildren(...breakAfterUnderscores(asset.name));
     }
   }
 
