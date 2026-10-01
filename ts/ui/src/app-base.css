@@ -396,8 +396,10 @@ body {
 }
 
 /* The Account page holds little content, so the full 900px .main width reads as
-   an odd expanse of empty. Cap it at ~2/3 of that (it still centers). */
-.account-container {
+   an odd expanse of empty. Cap the content at ~2/3 of that, but left-aligned
+   under a full-width title: centring the whole page put its title on a
+   different left edge from Settings/History, so it jumped between tabs. */
+.account-container #account-page-body {
     max-width: 600px;
 }
 
@@ -3140,15 +3142,16 @@ body::before {
    History Page
    ============================================ */
 
+/* Full .main width, like Setup and Settings, so the title keeps its place
+   when switching tabs. The title matches .settings-title. */
 .history-container {
     width: 100%;
-    max-width: 720px;
     margin: 0 auto;
 }
 
 .history-container h1 {
-    font-size: 1.3rem;
-    font-weight: 500;
+    font-size: 1.4rem;
+    font-weight: 600;
     margin: 0;
 }
 

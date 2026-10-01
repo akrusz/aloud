@@ -48,7 +48,7 @@ async function render(root: HTMLElement): Promise<void> {
         // Usually a transient network miss, so watch for reachability and
         // re-render in place. BYOK keys stay a Settings concern
         // (device-scoped); this page is cloud-account only.
-        body.innerHTML = `<section class="settings-section"><h2>${t('Account')}</h2>
+        body.innerHTML = `<section class="settings-section">
             <p class="provider-hint">${t("Can't reach aloud cloud. Your account, balance, and gifts will appear once it's reachable.")}</p>
             </section>`;
         watchCloudReachable(() => void render(root));
@@ -57,7 +57,7 @@ async function render(root: HTMLElement): Promise<void> {
 
     const account = await fetchMe();
     if (!account) {
-        body.innerHTML = `<section class="settings-section"><h2>${t('Account')}</h2>
+        body.innerHTML = `<section class="settings-section">
             <p class="provider-hint">${t('Sign in to use aloud cloud for hosted speech-to-text, text-to-speech, and LLMs with no setup. Connect Google or Apple for free credits.')}</p>
             <button type="button" class="btn btn-primary account-signin-cta" id="acct-signin">${t('Sign in or create account')}</button>
             </section>`;
