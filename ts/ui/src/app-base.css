@@ -1783,6 +1783,14 @@ body:has(.session-container) {
     min-width: 0;
 }
 
+/* Noting's sound-cue row is btn-small height beside the taller clock button,
+   so bottom alignment left it ~7px low. Lift it by half the difference -
+   (0.95rem - 0.875rem) text and (1.5rem - 0.8rem) padding, both at "normal"
+   line-height - which centres the two at every text scale. */
+.setup-extras-row .noting-option-row {
+    margin-bottom: 0.4rem;
+}
+
 .setup-extras-row > .form-group {
     flex: 0 0 calc((100% - 2rem) / 3);
     min-width: 0;
@@ -1807,6 +1815,10 @@ body:has(.session-container) {
     .setup-extras-row > .form-group {
         flex: 1 1 auto;
         width: 100%;
+    }
+
+    .setup-extras-row .noting-option-row {
+        margin-bottom: 0;
     }
 
     /* Stacked, the growing instructions box would shove the slider down the
