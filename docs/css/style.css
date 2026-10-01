@@ -65,6 +65,11 @@
      where it crosses the orb. Same value in both themes: it reads against the
      orb, not against the page. */
   --mark-keyline:  #1a0f06;
+
+  /* Two content widths, so the page keeps two edges instead of five. Grids
+     and the screenshot fill the section (.section's 880px less its padding);
+     single cards and the FAQ sit on this narrower reading measure. */
+  --measure: 680px;
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -558,11 +563,22 @@ code {
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
 }
+/* Exploration spans the pair below it, so both rows share one pair of edges.
+   At that width its prose would run ~95 characters a line, so it splits:
+   what it is on the left, the "Why?" beside it. */
 .modes .mode-card:first-child {
   grid-column: 1 / -1;
-  width: min(100%, 680px);
-  justify-self: center;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  column-gap: 2.25rem;
+  align-content: start;
 }
+.modes .mode-card:first-child > * { grid-column: 1; }
+.modes .mode-card:first-child > .support {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+}
+.modes .mode-card:first-child > p:nth-of-type(2) { margin-bottom: 0; }
 /* Each card wears one band of the orb gradient - yellow, orange, pink - as a
    hand-cut sticker: squashed corners (every corner uneven the same way) and a
    solid offset shadow in its band color. */
@@ -609,18 +625,21 @@ code {
 
 @media (max-width: 640px) {
   .modes { grid-template-columns: 1fr; }
+  .modes .mode-card:first-child { display: block; }
+  .modes .mode-card:first-child > p:nth-of-type(2) { margin-bottom: 0.75rem; }
 }
 
 /* ===== screenshot ===== */
 .section-shot { padding-top: 1rem; padding-bottom: 1rem; }
+/* Neutral sticker shadow: the orb-band colors are kept for the three modes and
+   the pink-on-yellow pairing for the things we're asking you to click. */
 .screenshot-frame {
-  max-width: 920px;
   margin: 0 auto;
   padding: 1.5rem;
   background: var(--bg-card);
   border: 2px solid var(--border);
   border-radius: 28px / 17px;
-  box-shadow: 8px 8px 0 var(--brand-stroke);
+  box-shadow: 8px 8px 0 var(--border);
 }
 .screenshot-frame img {
   display: block;
@@ -681,18 +700,16 @@ code {
 }
 
 /* ===== providers ===== */
+/* Three plain columns rather than three more cards: a page where everything
+   is a sticker has no stickers. */
 .providers {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  gap: 1.5rem;
 }
 .provider-pill {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 18px / 11px;
-  padding: 1.25rem;
+  padding: 0 0.5rem;
   text-align: center;
-  box-shadow: 4px 4px 0 var(--border);
 }
 .provider-pill strong {
   display: block;
@@ -721,13 +738,13 @@ code {
 }
 
 /* ===== aloud cloud ===== */
-/* Warm card, same family as the tip card (bg-card + corner glow). Sits right
-   under "bring your own model" with the gap squeezed out, so the two read as a
+/* Warm card, same family as the tip card (bg-card + halftone corner). Sits
+   under "bring your own model" with half the usual gap, so the two read as a
    pair: bring your own, or let us host. */
-.section-models { padding-bottom: 0.75rem; }
+.section-models { padding-bottom: 2rem; }
 .section-cloud { padding: 0 1.5rem 1.5rem; }
 .cloud-card {
-  max-width: 640px;
+  max-width: var(--measure);
   margin: 0 auto;
   background: var(--bg-card);
   border: 2px solid var(--accent);
@@ -737,15 +754,27 @@ code {
   overflow: hidden;
   box-shadow: 7px 7px 0 var(--brand-stroke);
 }
-.cloud-card::before {
+/* Corner light, printed: a halftone patch in the orb's orange, dots shrinking
+   away from the corner. Print's way of doing a gradient, so it stays as flat
+   and crisp as the rest of the zine treatment. Each card parks it in a corner
+   its text doesn't reach, and the card's rounded clip trims it. The SVG's
+   dense corner is bottom-right; flip the box to move it. Its color is baked
+   in (one orange that reads on both themes' cards) so it can be a plain
+   background: a CSS mask is fetched with CORS, and Chrome refuses that for a
+   page opened from disk, so the dots vanished in a local preview. */
+.cloud-card::before,
+.tip-card::before {
   content: '';
   position: absolute;
-  top: -45%;
-  left: -15%;
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+  width: 150px;
+  height: 150px;
+  background: url('../assets/halftone.svg') no-repeat 0 0 / 100% 100%;
   pointer-events: none;
+}
+.cloud-card::before {
+  left: 0;
+  bottom: 0;
+  transform: scaleX(-1);
 }
 .cloud-title {
   position: relative;
@@ -816,7 +845,8 @@ code {
   background-repeat: repeat-x;
   pointer-events: none;
 }
-.section-download > * { max-width: 880px; margin-left: auto; margin-right: auto; }
+/* The other sections' content width (.section's 880px less its padding). */
+.section-download > * { max-width: calc(880px - 3rem); margin-left: auto; margin-right: auto; }
 
 .version-chip {
   display: inline-block;
@@ -906,7 +936,7 @@ code {
 /* ===== tip / donation ===== */
 .section-tip { padding: 2rem 1.5rem 1.5rem; }
 .tip-card {
-  max-width: 680px;
+  max-width: var(--measure);
   margin: 0 auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -915,17 +945,12 @@ code {
   text-align: center;
   position: relative;
   overflow: hidden;
-  box-shadow: 6px 6px 0 var(--orb-orange);
+  box-shadow: 6px 6px 0 var(--border);
 }
 .tip-card::before {
-  content: '';
-  position: absolute;
-  top: -40%;
-  right: -20%;
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, var(--accent-glow), transparent 70%);
-  pointer-events: none;
+  right: 0;
+  top: 0;
+  transform: scaleY(-1);
 }
 .tip-title {
   margin: 0 0 0.75rem;
@@ -1016,15 +1041,15 @@ code {
 .section-thanks a:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
 
 /* ===== faq ===== */
+/* Rules between questions, not a stack of bordered boxes: the one part of
+   the page that read as a stock accordion. */
 .faq-list {
-  max-width: 720px;
+  max-width: var(--measure);
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  border-top: 1px solid var(--border);
 }
 .faq-controls {
-  max-width: 720px;
+  max-width: var(--measure);
   margin: 0 auto 1rem;
   display: flex;
   justify-content: flex-end;
@@ -1041,15 +1066,8 @@ code {
 }
 .faq-toggle-all:hover { border-bottom-color: var(--accent-text); }
 .faq-item {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 16px / 10px;
-  padding: 0 1.25rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.faq-item[open] {
-  border-color: var(--accent);
-  box-shadow: 4px 4px 0 var(--brand-stroke);
+  border-bottom: 1px solid var(--border);
+  padding: 0 0.25rem;
 }
 .faq-item summary {
   list-style: none;
