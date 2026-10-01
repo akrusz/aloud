@@ -1678,8 +1678,8 @@ function renderSetupHTML(
 
             <div class="form-row form-row-thirds" id="felt-sense-voice-row">
                 <div class="form-group">
-                    <label class="checkin-pace-label" for="checkin-enabled">${t("Check in if I'm quiet")}
-                        <input type="checkbox" id="checkin-enabled" checked></label>
+                    <label class="checkin-pace-label" for="checkin-enabled">
+                        <input type="checkbox" id="checkin-enabled" checked>${t("Check in if I'm quiet")}</label>
                     <div class="slider-control" id="checkin-pace-control">
                         <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
                         <div class="range-labels">
