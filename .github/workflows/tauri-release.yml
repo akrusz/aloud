@@ -122,7 +122,7 @@ jobs:
       # updater artifacts, and uploads everything — including a merged latest.json
       # — to the triggering release. Each platform job appends its own entry.
       - name: Build, sign & upload
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           # whisper.cpp (ggml) defaults to GGML_NATIVE=ON: it tunes for the
           # BUILD machine's CPU. On the x86 runners that means AVX-512, and the
