@@ -907,6 +907,95 @@ select {
     cursor: pointer;
 }
 
+/* The open menu of a plain <select> is drawn by the OS on macOS, iOS and
+   Android, in the system font: a ☁ rate badge came out as the system's solid
+   cloud, not ours, and the menu ignored the theme. base-select has the browser
+   draw the menu in the page, where it inherits --font and takes these rules.
+   It's still a real <select> (keyboard, a11y, change events). Browsers without
+   it (Firefox, Safari before 27) skip this block and keep the OS menu. */
+@supports (appearance: base-select) {
+    select,
+    select::picker(select) {
+        appearance: base-select;
+    }
+
+    /* A plain select ignores inherited line-height and never wraps; a
+       base-select one takes body's 1.6 (6px taller) and wraps a long label.
+       Clipping it makes the shared `resize: vertical` above take effect and
+       draw a grip, so turn that off. */
+    select {
+        position: relative;
+        line-height: normal;
+        white-space: nowrap;
+        overflow: hidden;
+        resize: none;
+    }
+
+    /* A plain select clips its label at the padding; this one clips at the
+       border, so a long label ran under the chevron. Cover that strip with
+       the select's own background: inherited whole, it repaints the chevron
+       in the same spot, over the text. */
+    select::picker-icon {
+        content: '';
+        position: absolute;
+        inset: 0 0 0 auto;
+        width: 2.5rem;
+        background: inherit;
+    }
+
+    /* Grows past the select to fit its widest label, so cap it at the screen
+       and let a longer label wrap (below) - a model id can outrun a phone. */
+    select::picker(select) {
+        max-inline-size: calc(100vw - 2rem);
+        margin-block: 4px;
+        padding: 0;
+        border: 1px solid var(--hairline, var(--border));
+        border-radius: var(--radius-sm);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Same inline padding as the closed select, so the labels line up with
+       the one showing in the box. */
+    select option {
+        padding: 0.5rem 1rem;
+        gap: 0.5rem;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+    }
+
+    /* Hover and selected follow .voice-row. */
+    select option:enabled:hover,
+    select option:enabled:focus-visible {
+        background: var(--accent-dim);
+        outline: none;
+    }
+
+    select option:checked {
+        background: var(--accent-dim);
+        border-left: 2px solid var(--accent);
+        padding-left: calc(1rem - 2px);
+    }
+
+    select option:disabled {
+        color: var(--text-muted);
+        cursor: default;
+    }
+
+    select option::checkmark {
+        display: none;
+    }
+
+    /* Replaces the OS picker on phones too, so rows need a thumb's height. */
+    @media (pointer: coarse) {
+        select option {
+            min-height: 44px;
+        }
+    }
+}
+
 /* Range slider */
 
 input[type="range"] {
