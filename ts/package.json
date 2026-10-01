@@ -61,7 +61,7 @@
         "@capacitor/core": "^8.5.2",
         "@capacitor/ios": "^8.5.2",
         "@capacitor/preferences": "^8.0.1",
-        "@capgo/capacitor-social-login": "^8.5.10",
+        "@capgo/capacitor-social-login": "^8.5.11",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-opener": "^2.5.5",
         "@tauri-apps/plugin-process": "^2.3.1",
