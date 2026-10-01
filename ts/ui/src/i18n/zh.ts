@@ -534,6 +534,8 @@ export const ZH: Record<string, string> = {
     "The language you and the facilitator speak in sessions.": "你和引导者在冥想中使用的语言。",
     "The server did not return payment requirements.": "服务器未返回支付要求。",
     "The voice service had a problem (error {status}). Try again in a moment.": "语音服务出了问题（错误 {status}）。请稍后重试。",
+    "That voice isn't available right now. Try another voice.": "这个声音目前无法使用。请换一个声音试试。",
+    "This voice isn't available right now. Pick another voice in Settings to hear the facilitator.": "这个声音目前无法使用。请在设置中换一个声音，才能听到引导。",
     "The voice service took too long to answer. Try again.": "语音服务响应超时。请重试。",
     "Theme": "主题",
     "These let the facilitator know where you intend to place your attention.": "这些会让引导者知道你打算把注意力放在哪里。",

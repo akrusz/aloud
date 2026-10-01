@@ -1301,6 +1301,7 @@ export async function mountSessionView(
      *  gets the same apology + buy prompt as the LLM leg, other recognized cloud
      *  conditions toast. Unrecognized errors stay quiet - a browser speech
      *  hiccup isn't worth interrupting a meditation for. */
+    let voiceUnavailableShown = false;
     function handleTtsError(err: unknown): void {
         if (torn) return;
         // The browser refused to play the audio we did synthesize (Safari's
@@ -1321,6 +1322,15 @@ export async function mountSessionView(
         // A hosted voice that failed for any other reason (5xx, timeout,
         // network): the sit continues text-first, the operator gets the row.
         if (isCloudTtsError(msg)) reportCloudIncident('client_tts_error', { detail: msg, model: cannedVoice() ?? '' });
+        // The voice's provider refused aloud's account: every sentence will
+        // fail the same way, so say once that it's the voice, not the sit.
+        if (/provider_unavailable/.test(msg)) {
+            if (!voiceUnavailableShown) {
+                voiceUnavailableShown = true;
+                showErrorToast(t("This voice isn't available right now. Pick another voice in Settings to hear the facilitator."));
+            }
+            return;
+        }
         const described = describeCloudError(msg);
         if (described) showErrorToast(described);
     }
@@ -2113,7 +2123,16 @@ export async function mountSessionView(
             // dots stay up, so from the chair it is just a slower turn.
             // Cloud only: on a local/BYOK provider nothing is hidden - the user
             // owns that setup and should see its failures as they happen.
-            if (cloudSmooth && !rawText.trim() && finishReason !== BILLING_PAUSED_FINISH) {
+            // Not after a safety-classifier refusal: the same prompt mostly
+            // draws the same decline, and the server already tried Anthropic's
+            // fallback model before this refusal came back (anthropic.ts
+            // takesRefusalFallback), so a retry only adds dead air.
+            if (
+                cloudSmooth &&
+                !rawText.trim() &&
+                finishReason !== BILLING_PAUSED_FINISH &&
+                finishReason !== 'refusal'
+            ) {
                 console.warn(
                     `[turn] empty completion finish=${finishReason ?? 'null'} raw=0 chars - retrying once`
                 );

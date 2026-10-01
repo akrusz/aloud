@@ -311,6 +311,7 @@ export type ErrorCode =
     | 'quota_exceeded'
     | 'model_not_allowed'
     | 'provider_error'
+    | 'provider_unavailable'
     | 'bad_request'
     | 'internal';
 
@@ -335,6 +336,9 @@ export const ERROR_STATUS = {
     quota_exceeded: 429,
     model_not_allowed: 400,
     provider_error: 502,
+    /** The upstream refused OUR account (key revoked, trial or quota ended):
+     *  not transient, so clients say "unavailable", not "try again". */
+    provider_unavailable: 503,
     bad_request: 400,
     internal: 500,
 } as const satisfies Record<ErrorCode, number>;

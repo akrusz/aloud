@@ -1471,3 +1471,143 @@ describe('mid-conversation system entries (phase notes)', () => {
         expect(out[2]!.content).toContain('<system-reminder>');
     });
 });
+
+describe('AnthropicProvider - safety-classifier refusals', () => {
+    const request = async (model: string, response: Response = mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })) => {
+        const fetchImpl = vi.fn(async () => response);
+        const provider = new AnthropicProvider({ apiKey: 'k', model, fetchImpl: fetchImpl as unknown as typeof fetch });
+        const result = await provider.complete([{ role: 'user', content: 'hi' }]);
+        const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+        return {
+            result,
+            body: JSON.parse(init.body as string),
+            headers: init.headers as Record<string, string>,
+        };
+    };
+
+    it('opts the classifier-running families into the default server-side fallback', async () => {
+        for (const model of ['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'claude-opus-6']) {
+            const { body, headers } = await request(model);
+            expect(body['fallbacks']).toBe('default');
+            expect(headers['anthropic-beta']).toBe('server-side-fallback-2026-07-01');
+        }
+        for (const model of ['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-3-opus-20240229']) {
+            const { body, headers } = await request(model);
+            expect(body['fallbacks']).toBeUndefined();
+            expect(headers['anthropic-beta']).toBeUndefined();
+        }
+    });
+
+    it('retries once without the fallback when a model 400s on it, then stays without', async () => {
+        const rejection = new Response(
+            JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'fallbacks: not supported for this model' } }),
+            { status: 400, headers: { 'content-type': 'application/json' } }
+        );
+        const fetchImpl = vi
+            .fn()
+            .mockImplementationOnce(async () => rejection)
+            .mockImplementation(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const provider = new AnthropicProvider({
+            apiKey: 'k',
+            model: 'claude-opus-7',
+            maxRetries: 0,
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        expect((await provider.complete([{ role: 'user', content: 'hi' }])).text).toBe('ok');
+        await provider.complete([{ role: 'user', content: 'again' }]);
+        const bodies = fetchImpl.mock.calls.map((c) => JSON.parse((c[1] as RequestInit).body as string));
+        expect(bodies.map((b) => b['fallbacks'])).toEqual(['default', undefined, undefined]);
+        // The thinking tuning survived: only the fallback was dropped.
+        expect(bodies[1]['output_config']).toEqual({ effort: 'low' });
+    });
+
+    it('surfaces the refusal category of an unanswered refusal, with no attempts', async () => {
+        const { result } = await request(
+            'claude-opus-5-5',
+            mockJsonResponse({
+                model: 'claude-opus-5-5',
+                content: [],
+                stop_reason: 'refusal',
+                stop_details: { type: 'refusal', category: 'reasoning_extraction', explanation: 'x' },
+                usage: { input_tokens: 4, output_tokens: 46, output_tokens_details: { thinking_tokens: 46 } },
+            })
+        );
+        expect(result.text).toBe('');
+        expect(result.finishReason).toBe('refusal');
+        expect(result.diagnostics).toEqual({ refusalCategory: 'reasoning_extraction', thinkingTokens: 46 });
+        expect(result.attempts).toBeUndefined();
+    });
+
+    it('lists each model that ran when a fallback answered, the answering one at the top-level usage', async () => {
+        const { result } = await request(
+            'claude-opus-5-5',
+            mockJsonResponse({
+                model: 'claude-opus-4-8',
+                content: [
+                    { type: 'fallback', from: { model: 'claude-opus-5-5' }, to: { model: 'claude-opus-4-8' } },
+                    { type: 'text', text: 'Stay with that.' },
+                ],
+                stop_reason: 'end_turn',
+                stop_details: null,
+                usage: {
+                    input_tokens: 12,
+                    output_tokens: 30,
+                    cache_read_input_tokens: 0,
+                    cache_creation_input_tokens: 9000,
+                    cache_creation: { ephemeral_5m_input_tokens: 9000, ephemeral_1h_input_tokens: 0 },
+                    iterations: [
+                        { type: 'message', model: 'claude-opus-5-5', input_tokens: 4, output_tokens: 50, cache_read_input_tokens: 9000, cache_creation_input_tokens: 0 },
+                        { type: 'fallback_message', model: 'claude-opus-4-8', input_tokens: 12, output_tokens: 30, cache_read_input_tokens: 0, cache_creation_input_tokens: 9000 },
+                    ],
+                },
+            })
+        );
+        expect(result.text).toBe('Stay with that.');
+        expect(result.diagnostics?.servedBy).toBe('claude-opus-4-8');
+        expect(result.attempts).toEqual([
+            { model: 'claude-opus-5-5', fallback: false, inputTokens: 4, outputTokens: 50, cacheReadTokens: 9000, cacheCreationTokens: 0, cacheCreation1hTokens: 0 },
+            { model: 'claude-opus-4-8', fallback: true, inputTokens: 12, outputTokens: 30, cacheReadTokens: 0, cacheCreationTokens: 9000, cacheCreation1hTokens: 0 },
+        ]);
+        // Top-level usage stays the answering attempt's alone.
+        expect(result.outputTokens).toBe(30);
+    });
+
+    it('reads the refusal category and fallback iterations off the stream', async () => {
+        const fetchImpl = vi.fn(async () =>
+            mockSseResponse([
+                'event: message_start\ndata: {"type":"message_start","message":{"model":"claude-opus-5-5","usage":{"input_tokens":4}}}',
+                'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"type":"refusal","category":"bio","explanation":"x"}},"usage":{"output_tokens":42}}',
+                'event: message_stop\ndata: {"type":"message_stop"}',
+            ])
+        );
+        const provider = new AnthropicProvider({ apiKey: 'k', model: 'claude-opus-5-5', fetchImpl: fetchImpl as unknown as typeof fetch });
+        let last: StreamChunk | undefined;
+        for await (const chunk of provider.completeStream([{ role: 'user', content: 'hi' }])) last = chunk;
+        expect(last?.finishReason).toBe('refusal');
+        expect(last?.diagnostics?.refusalCategory).toBe('bio');
+        expect(last?.attempts).toBeUndefined();
+
+        const fellBack = vi.fn(async () =>
+            mockSseResponse([
+                'event: message_start\ndata: {"type":"message_start","message":{"model":"claude-opus-4-8","usage":{"input_tokens":12}}}',
+                'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":{"model":"claude-opus-4-8"}}}',
+                'event: content_block_delta\ndata: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Breathe."}}',
+                'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_details":null},"usage":{"output_tokens":3,"iterations":[{"type":"message","model":"claude-opus-5-5","input_tokens":4,"output_tokens":40},{"type":"fallback_message","model":"claude-opus-4-8","input_tokens":12,"output_tokens":3}]}}',
+                'event: message_stop\ndata: {"type":"message_stop"}',
+            ])
+        );
+        const again = new AnthropicProvider({ apiKey: 'k', model: 'claude-opus-5-5', fetchImpl: fellBack as unknown as typeof fetch });
+        let text = '';
+        for await (const chunk of again.completeStream([{ role: 'user', content: 'hi' }])) {
+            text += chunk.text;
+            last = chunk;
+        }
+        expect(text).toBe('Breathe.');
+        expect(last?.diagnostics?.servedBy).toBe('claude-opus-4-8');
+        expect(last?.diagnostics?.refusalCategory).toBeUndefined();
+        expect(last?.attempts?.map((a) => [a.model, a.fallback, a.outputTokens])).toEqual([
+            ['claude-opus-5-5', false, 40],
+            ['claude-opus-4-8', true, 3],
+        ]);
+    });
+});

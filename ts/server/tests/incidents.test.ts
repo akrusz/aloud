@@ -140,6 +140,77 @@ describe('incident log - LLM route', () => {
         expect(rows.map((r) => r.kind)).toEqual(['insufficient_credits']);
     });
 
+    it.each([true, false])('bills each model a refusal fallback ran at its own rates and flags the switch (stream=%s)', async (stream) => {
+        const done = {
+            finishReason: 'end_turn',
+            inputTokens: 12,
+            outputTokens: 30,
+            diagnostics: { servedBy: 'claude-opus-4-8' },
+            attempts: [
+                { model: 'claude-opus-5-5', fallback: false, inputTokens: 4, outputTokens: 50, cacheReadTokens: 10000, cacheCreationTokens: 0, cacheCreation1hTokens: 0 },
+                { model: 'claude-opus-4-8', fallback: true, inputTokens: 12, outputTokens: 30, cacheReadTokens: 0, cacheCreationTokens: 10000, cacheCreation1hTokens: 0 },
+            ],
+        };
+        const forwarder = {
+            async complete() {
+                return { text: 'Stay with that.', ...done } as never;
+            },
+            async *stream() {
+                yield { text: 'Stay with that.', done: false } as never;
+                yield { text: '', done: true, ...done } as never;
+            },
+        } as unknown as Forwarder;
+        const { deps, app, token } = await setup(forwarder);
+        const res = await app.request('/cloud/v1/llm/complete', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                provider: 'anthropic',
+                model: 'claude-opus-5-5',
+                messages: [{ role: 'user', content: 'hi' }],
+                purpose: 'facilitation',
+                stream,
+            }),
+        });
+        expect(res.status).toBe(200);
+        await res.text();
+
+        const usage = await deps.store.allUsage();
+        expect(usage.map((u) => [u.model, u.purpose])).toEqual([
+            ['claude-opus-5-5', 'utility'],
+            ['claude-opus-4-8', 'facilitation'],
+        ]);
+        // Opus 5.5: 4 in @ $4, 50 out @ $20, 10k cache read @ $0.20 (per M).
+        expect(usage[0]!.providerCostUsd).toBeCloseTo((4 * 4 + 50 * 20 + 10000 * 0.2) / 1e6, 12);
+        // Opus 4.8: 12 in @ $5, 30 out @ $25, 10k 5m cache write @ $6.25.
+        expect(usage[1]!.providerCostUsd).toBeCloseTo((12 * 5 + 30 * 25 + 10000 * 6.25) / 1e6, 12);
+
+        const rows = await deps.store.incidentsSince(0);
+        expect(rows.map((r) => r.kind)).toEqual(['llm_fallback']);
+        expect(rows[0]!.detail).toBe(
+            'finish=end_turn tokens_out=30 tokens_in=12 declined=claude-opus-5-5 served=claude-opus-4-8'
+        );
+    });
+
+    it('names the refusal category on a blank refused turn', async () => {
+        const forwarder = {
+            async complete() {
+                return {
+                    text: '',
+                    finishReason: 'refusal',
+                    inputTokens: 4,
+                    outputTokens: 46,
+                    diagnostics: { thinkingTokens: 46, refusalCategory: 'bio' },
+                } as never;
+            },
+        } as unknown as Forwarder;
+        const { deps, app, token } = await setup(forwarder);
+        await (await complete(app, token, false)).text();
+        const rows = await deps.store.incidentsSince(0);
+        expect(rows.map((r) => r.kind)).toEqual(['llm_empty']);
+        expect(rows[0]!.detail).toBe('finish=refusal tokens_out=46 tokens_in=4 thinking_tokens=46 refusal=bio');
+    });
+
     it('never stores the messages', async () => {
         const { deps, app, token } = await setup(emptyForwarder());
         await (await complete(app, token, false)).text();

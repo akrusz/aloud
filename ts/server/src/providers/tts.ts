@@ -26,6 +26,31 @@ const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
  *  chase in the logs). */
 export const TTS_UPSTREAM_TIMEOUT_MS = 20_000;
 
+/** A provider call that failed: `status` is the upstream HTTP status, null
+ *  for a timeout or network failure. */
+export class TtsUpstreamError extends Error {
+    constructor(
+        message: string,
+        readonly status: number | null
+    ) {
+        super(message);
+        this.name = 'TtsUpstreamError';
+    }
+}
+
+/**
+ * Did the provider refuse aloud's own account (bad or revoked key, an ended
+ * trial or subscription, a spent quota) rather than hiccup? 401/403 always
+ * are; a 429 is only when its body says quota, since a plain one is a burst
+ * limit that clears by itself. Not retryable by the caller, and only the
+ * operator can fix it.
+ */
+export function isProviderAccountFailure(err: unknown): boolean {
+    if (!(err instanceof TtsUpstreamError) || err.status === null) return false;
+    if (err.status === 401 || err.status === 403) return true;
+    return err.status === 429 && /quota/i.test(err.message);
+}
+
 /** fetch with the upstream ceiling. A timeout or a non-2xx rethrows naming the
  *  provider (`label`), with the upstream body on an HTTP error. */
 async function fetchUpstream(
@@ -39,13 +64,13 @@ async function fetchUpstream(
         res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TTS_UPSTREAM_TIMEOUT_MS) });
     } catch (err) {
         if (err instanceof Error && err.name === 'TimeoutError') {
-            throw new Error(`${label} timed out after ${TTS_UPSTREAM_TIMEOUT_MS / 1000}s`);
+            throw new TtsUpstreamError(`${label} timed out after ${TTS_UPSTREAM_TIMEOUT_MS / 1000}s`, null);
         }
-        throw err;
+        throw new TtsUpstreamError(`${label}: ${String(err)}`, null);
     }
     if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        throw new Error(`${label} ${res.status}: ${detail}`);
+        throw new TtsUpstreamError(`${label} ${res.status}: ${detail}`, res.status);
     }
     return res;
 }

@@ -265,6 +265,15 @@ describe('previewErrorMessage', () => {
         expect(previewErrorMessage(new Error('aloud cloud TTS timed out.'))).toMatch(/too long/i);
     });
 
+    it('calls a voice whose provider refused our account unavailable, not a hiccup', () => {
+        const msg = previewErrorMessage(
+            new Error('TTS endpoint 503: {"error":{"code":"provider_unavailable","message":"this voice is unavailable right now"}}')
+        );
+        expect(msg).toMatch(/isn't available/);
+        expect(msg).toMatch(/another voice/i);
+        expect(msg).not.toMatch(/try again in a moment/i);
+    });
+
     it('falls back to a generic line for an unknown failure', () => {
         const msg = previewErrorMessage(new Error('something odd'));
         expect(msg).toMatch(/Couldn't play/i);

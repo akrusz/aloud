@@ -17,9 +17,15 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
-import { serverIncidents } from '../credits/incidents.js';
+import { serverIncidents, throttledIncidents } from '../credits/incidents.js';
 import { chargeUpfront, gateUpfront } from './upfront-charge.js';
-import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../providers/tts.js';
+import {
+    azureBilledChars,
+    isProviderAccountFailure,
+    synthesizeWithAzure,
+    synthesizeWithGoogle,
+    synthesizeWithOpenAI,
+} from '../providers/tts.js';
 import { withLeadSilence } from '../providers/mp3-lead-silence.js';
 import {
     CURATED_VOICES,
@@ -31,6 +37,7 @@ import {
 import { CANNED_MESSAGES, type CannedReason } from '../admin/runtime-config.js';
 import { log } from '../logger.js';
 import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
+import type { Context } from 'hono';
 
 type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
 
@@ -118,25 +125,28 @@ const CANNED_AUDIO = new Map<string, Uint8Array>();
  *  handful of short clips per voice per deploy. */
 const PREVIEW_AUDIO = new Map<string, Uint8Array>();
 
-/** The cached clip for `key`, synthesized on first use; null (logged) when
- *  synthesis fails. */
+/** The cached clip for `key`, synthesized on first use. Throws what the
+ *  synthesis threw. */
 async function cachedClip(
     cache: Map<string, Uint8Array>,
     key: string,
-    synthesize: () => Promise<Uint8Array>,
-    label: string
-): Promise<Uint8Array | null> {
+    synthesize: () => Promise<Uint8Array>
+): Promise<Uint8Array> {
     let audio = cache.get(key);
     if (!audio) {
-        try {
-            audio = await synthesize();
-        } catch (err) {
-            log.error(`${label} tts synth failed`, { err: String(err) });
-            return null;
-        }
+        audio = await synthesize();
         cache.set(key, audio);
     }
     return audio;
+}
+
+/** A failed synthesis as the client's error: provider_unavailable (503) when
+ *  the provider refused our account, so the app says the voice is
+ *  unavailable instead of "try again"; provider_error (502) otherwise. */
+function synthFailure(c: Context<any>, err: unknown) {
+    return isProviderAccountFailure(err)
+        ? errorJson(c, 'provider_unavailable', 'this voice is unavailable right now')
+        : errorJson(c, 'provider_error', 'TTS upstream error');
 }
 
 /** The preview's speed step, so the free endpoint can honor the speed slider
@@ -157,6 +167,9 @@ export function previewRate(raw: string | undefined): number {
 
 export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
+    // The free clip routes (preview is public, canned has no meter) fail for
+    // everyone at once when a provider goes down, so their rows are throttled.
+    const noteClipFailure = throttledIncidents(deps.store);
 
     // Voice the fixed out-of-credits / paused apology. UNMETERED with NO balance
     // gate by design: the point is to speak gracefully to an account that has
@@ -175,8 +188,21 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const synth = synthFor(deps, resolved);
         if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
         const cacheKey = `${reason}:${resolved.provider}:${resolved.voiceId}`;
-        const audio = await cachedClip(CANNED_AUDIO, cacheKey, () => synth(message, 1), 'canned');
-        if (!audio) return errorJson(c, 'provider_error', 'TTS upstream error');
+        let audio: Uint8Array;
+        try {
+            audio = await cachedClip(CANNED_AUDIO, cacheKey, () => synth(message, 1));
+        } catch (err) {
+            log.error('canned tts synth failed', { err: String(err) });
+            noteClipFailure({
+                accountId: account.id,
+                kind: 'tts_error',
+                source: 'server',
+                provider: resolved.provider,
+                model: resolved.voiceId,
+                detail: `canned ${reason}: ${String(err)}`,
+            });
+            return synthFailure(c, err);
+        }
         c.header('content-type', 'audio/mpeg');
         return c.body(audio.buffer as ArrayBuffer);
     });
@@ -200,8 +226,22 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         const rate = previewRate(c.req.query('rate'));
         const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}:${rate}`;
-        const audio = await cachedClip(PREVIEW_AUDIO, cacheKey, () => synth(PREVIEW_PHRASE, rate), 'preview');
-        if (!audio) return errorJson(c, 'provider_error', 'TTS upstream error');
+        let audio: Uint8Array;
+        try {
+            audio = await cachedClip(PREVIEW_AUDIO, cacheKey, () => synth(PREVIEW_PHRASE, rate));
+        } catch (err) {
+            log.error('preview tts synth failed', { err: String(err) });
+            // No account: the route is public.
+            noteClipFailure({
+                accountId: '',
+                kind: 'tts_error',
+                source: 'server',
+                provider: resolved.provider,
+                model: resolved.voiceId,
+                detail: `preview: ${String(err)}`,
+            });
+            return synthFailure(c, err);
+        }
         c.header('content-type', 'audio/mpeg');
         // Short-lived: the phrase is fixed but a voice's server-side treatment
         // (style, pace) can change under the same URL, and a day-long max-age
@@ -260,7 +300,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         } catch (err) {
             log.error('tts forward failed', { err: String(err) });
             incident('tts_error', `${billedChars}c: ${String(err)}`);
-            return errorJson(c, 'provider_error', 'TTS upstream error');
+            return synthFailure(c, err);
         }
 
         const charged = await chargeUpfront(deps, gate, cost, `tts:${resolved.provider}:${billedChars}c`, {

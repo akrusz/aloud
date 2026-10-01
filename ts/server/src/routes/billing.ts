@@ -28,6 +28,7 @@ import {
 import { x402Configured, x402Routes } from '../billing/x402.js';
 import { EMAIL_RE } from '../auth/email-key.js';
 import { log } from '../logger.js';
+import { recordIncident } from '../credits/incidents.js';
 import { errorJson } from '../http.js';
 
 /** A client-supplied post-checkout return path, sanitised to one clean relative
@@ -88,6 +89,14 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             return c.json({ checkoutUrl: url } satisfies CheckoutResponse);
         } catch (err) {
             log.error('checkout failed', { err: String(err) });
+            void recordIncident(deps.store, {
+                accountId: account.id,
+                kind: 'billing_error',
+                source: 'server',
+                provider: 'stripe',
+                model: pack.id,
+                detail: `checkout: ${String(err)}`,
+            });
             return errorJson(c, 'internal', 'could not start checkout');
         }
     });

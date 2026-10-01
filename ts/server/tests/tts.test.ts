@@ -568,3 +568,47 @@ describe('Azure lead silence (meditation-pal-tur5)', () => {
         expect(Array.from(out.slice(-5))).toEqual([0xff, 0xf3, 1, 2, 3]);
     });
 });
+
+describe('TTS provider failures', () => {
+    /** Azure answering every call with `status`, the way an ended trial does. */
+    function failingAzure(status: number, body: string) {
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', AZURE_SPEECH_KEY: 'az-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const deps = buildDeps(config);
+        const inner = globalThis.fetch;
+        globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) =>
+            String(url).includes('.tts.speech.microsoft.com')
+                ? new Response(body, { status })
+                : inner(url, init)) as typeof fetch;
+        return { deps, a: createApp(deps) };
+    }
+
+    it('says a voice whose provider refused our account is unavailable, and logs one throttled row', async () => {
+        const { deps, a } = failingAzure(401, 'Access denied due to invalid subscription key');
+        const res = await a.request('/cloud/v1/tts/preview?voice=Davis');
+        expect(res.status).toBe(503);
+        expect(((await res.json()) as { error: { code: string } }).error.code).toBe('provider_unavailable');
+        // A second failure inside the window folds into the next row's count.
+        await a.request('/cloud/v1/tts/preview?voice=Ethan');
+        const rows = await deps.store.incidentsSince(0);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ kind: 'tts_error', accountId: '', provider: 'azure', model: 'en-US-DavisMultilingualNeural' });
+        expect(rows[0]!.detail).toMatch(/^preview: .*Azure TTS 401/);
+    });
+
+    it('keeps a transient upstream failure a retryable 502, on the metered route too', async () => {
+        const { deps, a } = failingAzure(500, 'internal');
+        const preview = await a.request('/cloud/v1/tts/preview?voice=Isla (AU)');
+        expect(preview.status).toBe(502);
+        expect((await deps.store.incidentsSince(0)).map((r) => r.kind)).toEqual(['tts_error']);
+
+        const quota = failingAzure(429, 'Quota exceeded for the F0 tier');
+        const metered = await quota.a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${await devToken(quota.a)}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'Breathe.', voice: 'Davis' }),
+        });
+        // A 429 that names the quota is the account, not a burst.
+        expect(metered.status).toBe(503);
+        expect((await quota.deps.store.incidentsSince(0)).map((r) => r.kind)).toEqual(['tts_error']);
+    });
+});

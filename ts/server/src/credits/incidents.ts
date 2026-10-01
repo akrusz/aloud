@@ -29,6 +29,10 @@ export const SERVER_INCIDENT_KINDS = [
     /** A reply cut off at max_tokens (routes/llm.ts turnMaxTokens). A BLANK
      *  turn at the ceiling is llm_empty instead, with finish=length. */
     'llm_max_tokens',
+    /** A safety classifier declined the requested model and Anthropic's
+     *  server-side fallback answered instead (declined= and served= say
+     *  which). The meditator heard a reply; the row is so the switch shows. */
+    'llm_fallback',
     /** The upstream LLM call failed (stream or non-stream). */
     'llm_error',
     'stt_error',
@@ -39,6 +43,11 @@ export const SERVER_INCIDENT_KINDS = [
     'judge_error',
     /** A metered call was refused for lack of credits. */
     'insufficient_credits',
+    /** Stripe checkout could not be started (routes/billing.ts). */
+    'billing_error',
+    /** The hourly liveness sweep found a priced model its provider no longer
+     *  serves; it is hidden from pickers. One row per model per process. */
+    'model_retired',
 ] as const;
 
 /** Client-observed kinds, accepted from the app. Prefixed so a row's origin
@@ -128,6 +137,35 @@ export function serverIncidents(
     return (kind, detail) => void recordIncident(store, { ...call, kind, source: 'server', detail });
 }
 
+/** One row per window, whatever the call volume. */
+export const INCIDENT_WINDOW_MS = 60_000;
+
+/**
+ * A recorder for failures an outage repeats on every call (a dead upstream
+ * fails every session at once) or that a public route lets anyone repeat:
+ * at most one row per `${kind}:${provider}` per window, the rest folded into
+ * the next row's detail as a count. Per caller instance, so tests don't share
+ * windows.
+ */
+export function throttledIncidents(
+    store: Pick<CreditsStore, 'appendIncident'>,
+    now: () => number = Date.now
+): (input: IncidentInput) => void {
+    const windows = new Map<string, { start: number; suppressed: number }>();
+    return (input) => {
+        const key = `${input.kind}:${input.provider ?? ''}`;
+        const w = windows.get(key);
+        if (w && now() - w.start < INCIDENT_WINDOW_MS) {
+            w.suppressed++;
+            return;
+        }
+        const earlier = w?.suppressed ?? 0;
+        windows.set(key, { start: now(), suppressed: 0 });
+        const detail = `${input.detail ?? ''}${earlier ? ` (+${earlier} more since the last row)` : ''}`;
+        void recordIncident(store, { ...input, detail });
+    };
+}
+
 export interface IncidentKindSummary {
     kind: IncidentKind;
     source: 'server' | 'client';
@@ -157,7 +195,8 @@ export function buildIncidentReport(rows: Incident[], sinceTs: number, recentLim
             groups.set(r.kind, g);
         }
         g.rows.push(r);
-        g.accounts.add(r.accountId);
+        // '' = no account: a public route (voice preview) or a server sweep.
+        if (r.accountId) g.accounts.add(r.accountId);
         if (r.sessionId) g.sessions.add(r.sessionId);
     }
     const byKind: IncidentKindSummary[] = [...groups.entries()]
