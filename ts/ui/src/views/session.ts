@@ -100,7 +100,7 @@ import {
 import { ensureCloudToken } from '../cloud-auth.js';
 import { getKnownBalance, subscribeBalance } from '../cloud-balance.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
-import { creditAmount, withCloudOutline } from '../credit-rate.js';
+import { creditAmount } from '../credit-rate.js';
 
 import {
     createSttForChoice,
@@ -1276,7 +1276,7 @@ export async function mountSessionView(
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'buy-clouds-inline';
-        btn.innerHTML = withCloudOutline(t('Buy ☁️ to continue'));
+        btn.textContent = t('Buy ☁ to continue');
         btn.addEventListener('click', () => {
             void showBuyCreditsModal({
                 title: t("You're out of clouds"),
@@ -1566,8 +1566,8 @@ export async function mountSessionView(
             }
             if (!revealed && prev != null && b < prev) revealed = true;
             if (revealed) {
-                // creditAmount already carries the ☁️; outline it for light bg.
-                balanceEl.innerHTML = withCloudOutline(creditAmount(b));
+                // creditAmount already carries the ☁.
+                balanceEl.textContent = creditAmount(b);
                 balanceEl.classList.remove('hidden');
             }
             prev = b;

@@ -1,13 +1,12 @@
 /**
- * "What are ☁️?" - the one shared explainer for the credit currency, opened
- * from the setup page's ☁️ legend and the account page (meditation-pal-msig:
+ * "What are ☁?" - the one shared explainer for the credit currency, opened
+ * from the setup page's ☁ legend and the account page (meditation-pal-msig:
  * users couldn't tell what drives cloud usage). Keep the story aligned with
  * the buy-credits modal subtitle and the pricing assumptions in
  * server/src/pricing/meter.ts.
  */
 
 import { confirmDialog } from './dialog.js';
-import { withCloudOutline } from './credit-rate.js';
 import { getCloudToken, fetchMe } from './cloud-auth.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
 import { showSignInModal } from './sign-in-modal.js';
@@ -15,13 +14,13 @@ import { withTimeout } from './net-timeout.js';
 import { t } from './i18n.js';
 
 const EXPLAINER =
-    '<strong>☁️ are aloud cloud credits.</strong>\n\n' +
+    '<strong>☁ are aloud cloud credits.</strong>\n\n' +
     'aloud cloud uses selected providers for facilitator intelligence, high-quality voices, speech recognition, summaries, and in-session decisions. \n\n' +
-    'the ☁️ badge on an option shows roughly how many credits it uses per hour. this will vary depending on factors such as talking speed, response length, and session length. the Begin button estimate is our best guess at the <em>all-in</em> usage.\n\n' +
-    '☁️ are deducted only as you use them. you may use other providers for these functions, such as your device\'s speech recognition or your own API keys; these do not use any ☁️.\n\n';
+    'the ☁ badge on an option shows roughly how many credits it uses per hour. this will vary depending on factors such as talking speed, response length, and session length. the Begin button estimate is our best guess at the <em>all-in</em> usage.\n\n' +
+    '☁ are deducted only as you use them. you may use other providers for these functions, such as your device\'s speech recognition or your own API keys; these do not use any ☁.\n\n';
 
 const FREE_CLOUDS_LINE =
-    '<strong>connecting a Google or Apple account gets you free ☁️ to start.</strong>';
+    '<strong>connecting a Google or Apple account gets you free ☁ to start.</strong>';
 
 /** Whether to pitch the free-clouds grant: signed out, or signed in without a
  *  Google/Apple connection. False when already connected - or when we can't
@@ -39,10 +38,10 @@ async function needsFreeCloudsHint(): Promise<boolean> {
 
 export async function showCloudsExplainer(): Promise<void> {
     const hint = (await needsFreeCloudsHint()) ? `${t(FREE_CLOUDS_LINE)}\n\n` : '';
-    // html mode: the copy's own <strong> plus the cloud-glyph outline spans
-    // (EXPLAINER is our own static copy, safe to inject).
-    const getClouds = await confirmDialog(withCloudOutline(t(EXPLAINER) + hint), {
-        okLabel: withCloudOutline(t('Get ☁️')),
+    // html mode for the copy's own <strong>/<em> (EXPLAINER is our own static
+    // copy, safe to inject).
+    const getClouds = await confirmDialog(t(EXPLAINER) + hint, {
+        okLabel: t('Get ☁'),
         cancelLabel: t('Got it'),
         // Got it is the focused primary - an explainer shouldn't upsell by default.
         primary: 'cancel',
@@ -57,7 +56,7 @@ export async function showCloudsExplainer(): Promise<void> {
     await showBuyCreditsModal();
 }
 
-/** Wire a "what are ☁️?" link if `id` is present under `root`. */
+/** Wire a "what are ☁?" link if `id` is present under `root`. */
 export function wireCloudsExplainer(root: ParentNode, id: string): void {
     root.querySelector(`#${id}`)?.addEventListener('click', () => void showCloudsExplainer());
 }

@@ -55,8 +55,8 @@ function showDialog<T>(
         const msg = document.createElement('p');
         msg.className = 'app-dialog-message';
         // textContent by default so ordinary callers can't inject markup;
-        // asHtml is opt-in for OUR OWN static copy (e.g. cloud-glyph outline
-        // spans in the clouds explainer), never for user or server strings.
+        // asHtml is opt-in for OUR OWN static copy (e.g. the clouds
+        // explainer's <strong>/<em>), never for user or server strings.
         if (asHtml) msg.innerHTML = message;
         else msg.textContent = message;
         box.appendChild(msg);
@@ -100,8 +100,7 @@ function showDialog<T>(
         for (const b of buttons) {
             const el = document.createElement('button');
             el.type = 'button';
-            // html mode covers the labels too, so a ☁️ in a button can carry
-            // its cloud-glyph outline span. Same trust rule as the message.
+            // html mode covers the labels too. Same trust rule as the message.
             if (asHtml) el.innerHTML = b.label;
             else el.textContent = b.label;
             // btn-primary (not btn-begin): the CTA's big padding/radius read

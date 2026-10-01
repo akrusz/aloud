@@ -23,7 +23,7 @@ import {
 import { payWithUsdc, WalletError } from './x402-pay.js';
 import { getKnownBalance, setKnownBalance, subscribeBalance } from './cloud-balance.js';
 import { fetchMe } from './cloud-auth.js';
-import { creditAmount, withCloudOutline } from './credit-rate.js';
+import { creditAmount } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { openExternal } from './external-links.js';
 import { t } from './i18n.js';
@@ -38,8 +38,8 @@ export interface BuyCreditsModalOptions {
     subtitle?: string;
 }
 
-const DEFAULT_TITLE = 'Buy ☁️';
-const DEFAULT_SUBTITLE = 'aloud cloud uses ☁️ to power high-quality speech, voice recognition, and facilitation AI.';
+const DEFAULT_TITLE = 'Buy ☁';
+const DEFAULT_SUBTITLE = 'aloud cloud uses ☁ to power high-quality speech, voice recognition, and facilitation AI.';
 
 function dollars(cents: number): string {
     return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
@@ -60,12 +60,12 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         overlay.innerHTML = `
             <div class="voice-modal buy-credits-modal" role="dialog" aria-modal="true" aria-label="${t('Buy credits')}">
                 <div class="voice-modal-header">
-                    <span class="voice-modal-title">${withCloudOutline(escapeHtml(options.title ?? t(DEFAULT_TITLE)))}</span>
+                    <span class="voice-modal-title">${escapeHtml(options.title ?? t(DEFAULT_TITLE))}</span>
                     <button type="button" class="voice-modal-close" id="buy-credits-close" aria-label="${t('Close')}">&times;</button>
                 </div>
                 <p class="provider-hint buy-credits-subtitle clouds-hint-row">
-                    <span>${withCloudOutline(escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE)))}</span>
-                    <button type="button" class="btn btn-secondary" id="buy-credits-whatare">${t('What are {clouds}?', { clouds: withCloudOutline('☁️') })}</button>
+                    <span>${escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE))}</span>
+                    <button type="button" class="btn btn-secondary" id="buy-credits-whatare">${t('What are {clouds}?', { clouds: '☁' })}</button>
                 </p>
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
@@ -128,15 +128,14 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         const showSuccess = (msg: string): void => {
             const el = overlay.querySelector<HTMLElement>('#buy-credits-success');
             if (!el) return;
-            // Internal copy (numbers + fixed words); outline any ☁️ in it.
-            el.innerHTML = withCloudOutline(msg);
+            el.textContent = msg;
             el.classList.remove('hidden');
         };
 
         overlay.querySelector('#buy-credits-close')?.addEventListener('click', () => close(false));
-        // Dynamic import: clouds-explainer imports this module for its Get ☁️
+        // Dynamic import: clouds-explainer imports this module for its Get ☁
         // action, so a static import here would be a cycle. The dialog stacks
-        // above this modal (z-index 200 vs 80); its own Get ☁️ no-ops while
+        // above this modal (z-index 200 vs 80); its own Get ☁ no-ops while
         // we're open (the OVERLAY_ID guard).
         overlay.querySelector('#buy-credits-whatare')?.addEventListener('click', () => {
             void import('./clouds-explainer.js').then((m) => m.showCloudsExplainer());
@@ -155,7 +154,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                 balanceEl.classList.add('hidden');
                 return;
             }
-            balanceEl.innerHTML = withCloudOutline(t('Balance: {amount}', { amount: creditAmount(bal) }));
+            balanceEl.textContent = t('Balance: {amount}', { amount: creditAmount(bal) });
             balanceEl.classList.remove('hidden');
         };
         renderBalance(getKnownBalance());
@@ -399,16 +398,15 @@ function renderCustom(
         const valid = Number.isInteger(n) && n >= custom.minCredits && n <= custom.maxCredits;
         btn.disabled = !valid;
         const price = valid ? customPriceCents(n, custom) : 0;
-        // innerHTML for the ☁️ legibility outline; content is our own numbers.
-        btn.innerHTML = valid
-            ? withCloudOutline(t('Buy {n} ☁️ - {price}', { n, price: dollars(price) }))
+        btn.textContent = valid
+            ? t('Buy {n} ☁ - {price}', { n, price: dollars(price) })
             : t('Buy');
         // Volume discount = how far the curve price beats the flat base rate.
         const baseCents = Math.ceil(n * custom.baseCentsPerCredit);
         const pct = valid && price < baseCents ? Math.round((1 - price / baseCents) * 100) : 0;
         if (empty) hint.textContent = '';
-        else if (n < custom.minCredits) hint.innerHTML = withCloudOutline(t('Minimum {n} ☁️.', { n: custom.minCredits }));
-        else if (n > custom.maxCredits) hint.innerHTML = withCloudOutline(t('Maximum {n} ☁️.', { n: custom.maxCredits.toLocaleString() }));
+        else if (n < custom.minCredits) hint.textContent = t('Minimum {n} ☁.', { n: custom.minCredits });
+        else if (n > custom.maxCredits) hint.textContent = t('Maximum {n} ☁.', { n: custom.maxCredits.toLocaleString() });
         else if (pct >= 1) hint.textContent = t('{pct}% volume discount applied.', { pct });
         else hint.textContent = '';
     };
@@ -441,7 +439,7 @@ function renderPacks(host: HTMLElement, packs: CreditPack[], onPick: (pack: Cred
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-secondary buy-credits-pack';
-        btn.innerHTML = `<span class="buy-credits-pack-credits">${withCloudOutline(creditAmount(pack.credits, 0))}</span>
+        btn.innerHTML = `<span class="buy-credits-pack-credits">${creditAmount(pack.credits, 0)}</span>
             <span class="buy-credits-pack-price">${dollars(pack.priceUsdCents)}</span>`;
         btn.addEventListener('click', () => onPick(pack));
         host.appendChild(btn);

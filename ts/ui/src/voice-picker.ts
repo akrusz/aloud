@@ -18,7 +18,7 @@
 import type { TtsEngine } from '../../src/platform/index.js';
 
 import { createTtsForVoice, createCloudAloudPreviewTts } from './adapters/tts-picker.js';
-import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE, withCloudOutline } from './credit-rate.js';
+import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE } from './credit-rate.js';
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 import { t } from './i18n.js';
@@ -467,7 +467,7 @@ export function renderVoiceList(
         listEl.appendChild(toggle);
     }
 
-    // Show the "☁️ per hour" legend in the header only when a paid hosted voice
+    // Show the "☁ per hour" legend in the header only when a paid hosted voice
     // is actually listed, so a local-only picker stays clean.
     const legend = listEl.closest('.voice-modal')?.querySelector('.voice-modal-legend');
     if (legend) {
@@ -507,7 +507,7 @@ function appendRow(
         note.textContent = entry.note;
         nameSpan.appendChild(note);
     }
-    // Hosted-voice rate badge: "N☁️" ≈ N credits/hr, colored by tier (green
+    // Hosted-voice rate badge: "N☁" ≈ N credits/hr, colored by tier (green
     // value, amber premium) so a pricier voice reads pricier at a glance
     // (meditation-pal-b7i).
     const rateText = rateBadge(entry.creditsPerHour);
@@ -516,7 +516,7 @@ function appendRow(
         cost.className = entry.costTier
             ? `voice-row-cost voice-row-cost-${entry.costTier}`
             : 'voice-row-cost';
-        cost.innerHTML = withCloudOutline(rateText);
+        cost.textContent = rateText;
         const tierWord =
             entry.costTier === 'premium' ? t('Premium') : entry.costTier === 'value' ? t('Value') : t('Cloud');
         cost.title = t(
@@ -783,7 +783,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
             <div class="voice-modal-header">
                 <span class="voice-modal-titlewrap">
                     <span class="voice-modal-title">${title}</span>
-                    <span class="voice-modal-legend hidden" title="${t(RATE_LEGEND_TITLE)}">${withCloudOutline(t(RATE_LEGEND))}</span>
+                    <span class="voice-modal-legend hidden" title="${t(RATE_LEGEND_TITLE)}">${t(RATE_LEGEND)}</span>
                 </span>
                 <button type="button" class="voice-modal-close" id="${cfg.closeId}">&times;</button>
             </div>

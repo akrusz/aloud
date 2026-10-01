@@ -122,8 +122,8 @@ check each of these still reflects reality:
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
 - **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a
-  model's rates, a new metered leg) → the ☁️ badges and the setup footer's
-  session pill, the "what are ☁️?" explainer (`ui/src/clouds-explainer.ts`),
+  model's rates, a new metered leg) → the ☁ badges and the setup footer's
+  session pill, the "what are ☁?" explainer (`ui/src/clouds-explainer.ts`),
   the rate caveats in `ui/src/credit-rate.ts`, and any doc or site copy quoting
   a per-hour figure.
 

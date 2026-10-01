@@ -601,13 +601,13 @@
     justify-content: center;
     align-items: center;
 }
-/* One line - "Begin Session (≈ N☁️/hr)" - to keep the CTA a single row tall.
+/* One line - "Begin Session (≈ N☁/hr)" - to keep the CTA a single row tall.
    Natural width at every viewport, centered by the flex parent (a full-width
    phone override used to live here; it made the button WIDER under 489px). */
 .setup-footer-inner .btn-begin {
     width: auto;
     /* Enough to keep the CTA roomy on desktop, trimmed from 2.2rem so the
-       one-line "Begin Session (≈ N☁️/hr)" has more room before it wraps on a
+       one-line "Begin Session (≈ N☁/hr)" has more room before it wraps on a
        narrow phone (the button is full-width there, so side padding eats text
        space). */
     padding-left: 1.5rem;
@@ -632,20 +632,6 @@
 .btn-begin-rate.hidden {
     display: none;
 }
-/* The ☁️ unit glyph is pale and washes out on a light surface. Color emoji
-   ignore -webkit-text-stroke, so ring it with tight black drop-shadows in four
-   directions - a thin dark edge that reads on white and is invisible on dark. */
-.cloud-glyph {
-    display: inline-block;
-    /* A hair of side margin so the outline can't bleed into adjacent text. */
-    margin: 0 2px;
-    /* Dark-brown ring (the dark-mode input/dropdown bg) rather than black - softer, on-brand; still pops the pale ☁️ on a light surface. Hard-coded
-       (not a theme var) so it stays this brown in both themes. */
-    filter:
-        drop-shadow(1px 0 0 #281f16) drop-shadow(-1px 0 0 #281f16)
-        drop-shadow(0 1px 0 #281f16) drop-shadow(0 -1px 0 #281f16);
-}
-
 /* Cloud-balance chip in the Display style-preview - mirrors the setup pill
    (.session-estimate) but inline, and in em so it scales with the preview. */
 .preview-pill {

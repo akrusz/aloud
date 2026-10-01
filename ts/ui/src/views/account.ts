@@ -21,7 +21,7 @@ import {
     claimReturnedGift,
     type ReturnedGiftView,
 } from '../cloud-billing.js';
-import { creditAmount, RATE_EMOJI, withCloudOutline } from '../credit-rate.js';
+import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { showSignInModal } from '../sign-in-modal.js';
@@ -99,13 +99,13 @@ async function render(root: HTMLElement): Promise<void> {
                 <span class="account-credits">${
                     account.retreatCovered
                         ? t('Retreat access - usage is on your retreat for now')
-                        : withCloudOutline(t('{amount} remaining', { amount: creditAmount(account.creditsRemaining) }))
+                        : t('{amount} remaining', { amount: creditAmount(account.creditsRemaining) })
                 }</span>
-                ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">${t('Buy {clouds}', { clouds: withCloudOutline(RATE_EMOJI) })}</button>`}
+                ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">${t('Buy {clouds}', { clouds: RATE_EMOJI })}</button>`}
             </div>
             <p class="form-hint clouds-hint-row">
-                <span>${withCloudOutline(t('☁️ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.'))}</span>
-                <button type="button" class="btn btn-secondary" id="acct-clouds-what">${t('What are {clouds}?', { clouds: withCloudOutline(RATE_EMOJI) })}</button>
+                <span>${t('☁ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.')}</span>
+                <button type="button" class="btn btn-secondary" id="acct-clouds-what">${t('What are {clouds}?', { clouds: RATE_EMOJI })}</button>
             </p>
             ${connectPrompt}
         </section>
@@ -250,7 +250,7 @@ function wireGiftableList(root: HTMLElement, gifts: ReturnedGiftView[]): void {
         row.className = 'gift-row gift-row-returned';
         row.innerHTML = `
             <div class="gift-row-info">
-                <span class="gift-row-amount">${withCloudOutline(creditAmount(gift.credits, 0))}</span>
+                <span class="gift-row-amount">${creditAmount(gift.credits, 0)}</span>
                 <span class="provider-hint gift-row-from"> ${t('· was for {email}', { email: escapeHtml(gift.toEmail) })}</span>
             </div>
             <div class="gift-row-actions">

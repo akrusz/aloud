@@ -50,7 +50,6 @@ import {
     rateBadge,
     MODE_RATE_MULTIPLIER,
     NOTING_NARRATOR_TTS_FRACTION,
-    withCloudOutline,
 } from '../credit-rate.js';
 import { narratorCanBill } from '../cloud-gate.js';
 import { fetchMe } from '../cloud-auth.js';
@@ -424,7 +423,7 @@ export async function mountSetupView(
         if (btns.length === 0) return;
         const selectedName = stripVoicePrefix(setup.voice);
         const entry = findVoice(selectedName);
-        // Show a cloud voice's ☁️ rate on the collapsed button too, so a paid
+        // Show a cloud voice's ☁ rate on the collapsed button too, so a paid
         // pick reads as paid without opening the picker.
         const rate = entry ? rateBadge(entry.creditsPerHour) : '';
         const ratePart = rate ? ` · ${rate}` : '';
@@ -437,9 +436,7 @@ export async function mountSetupView(
         } else {
             text = scoredVoices.length > 0 ? t('Default') : t('Voice');
         }
-        // innerHTML so a paid pick's ☁️ badge gets the legibility outline;
-        // voice names are catalog data, so escape before wrapping.
-        for (const btn of btns) btn.innerHTML = withCloudOutline(escapeHtml(text));
+        for (const btn of btns) btn.textContent = text;
         // The voice leg feeds the combined estimate.
         updateSessionEstimate();
     }
@@ -456,7 +453,7 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
-        // The footer's "what are ☁️?" help button rides the estimate's
+        // The footer's "what are ☁?" help button rides the estimate's
         // visibility: it only explains badges/spend that exist when something
         // on the page costs credits.
         const help = root.querySelector<HTMLElement>('#clouds-help');
@@ -496,7 +493,7 @@ export async function mountSetupView(
         // Noting mode burns far less than the exploration-calibrated legs imply.
         const total = (llm + stt + tts) * (MODE_RATE_MULTIPLIER[setup.meditationType] ?? 1) + util;
 
-        // All-local/BYOK: hide the pill rather than show a bare "0☁️".
+        // All-local/BYOK: hide the pill rather than show a bare "0☁".
         if (total <= 0) {
             el.classList.add('hidden');
             el.innerHTML = '';
@@ -509,9 +506,7 @@ export async function mountSetupView(
         el.title = util > 0
             ? t('Rough estimate. Includes a small background model for summaries and quick decisions, so it can sit above the badges combined.')
             : t('Rough estimate; varies with how much is said.');
-        // Outline each ☁️ (emoji ignore text-stroke, and the light cloud washes
-        // out on the white pill). Content is our own numbers + fixed words, safe.
-        el.innerHTML = withCloudOutline(rate);
+        el.textContent = rate;
     }
 
     /**
@@ -1741,7 +1736,7 @@ function renderSetupHTML(
         <div id="setup-whisper-wait" class="no-voices-banner inline hidden" role="status">
             <p id="setup-whisper-wait-text"></p>
         </div>
-        <p class="credit-rate-legend" id="noting-spend-note">${withCloudOutline(t('Noting mode uses fewer ☁️. Participants speak brief labels, not full sentences.'))}</p>
+        <p class="credit-rate-legend" id="noting-spend-note">${t('Noting mode uses fewer ☁. Participants speak brief labels, not full sentences.')}</p>
 
         <p id="ai-inactive-note" class="credit-rate-legend hidden">${t("No AI participants in this circle, so the AI model isn't used.")}</p>
 
@@ -1782,10 +1777,10 @@ function renderSetupHTML(
                 <span class="btn-begin-rate" id="session-estimate"></span>
             </button>
         </div>
-        <!-- "What are ☁️?" explainer. Absolutely positioned so Begin keeps its
+        <!-- "What are ☁?" explainer. Absolutely positioned so Begin keeps its
              centered column; rides the estimate pill's visibility (only shown
              when beginning would spend clouds). -->
         <button type="button" class="clouds-help hidden" id="clouds-help"
-            aria-label="${escapeHtml(t('What are clouds?'))}" title="${escapeHtml(t('What are ☁️?'))}">${withCloudOutline('☁️')}<span class="clouds-help-q">?</span></button>
+            aria-label="${escapeHtml(t('What are clouds?'))}" title="${escapeHtml(t('What are ☁?'))}">☁?</button>
     </div>`;
 }

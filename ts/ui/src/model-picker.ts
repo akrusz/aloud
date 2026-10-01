@@ -218,7 +218,7 @@ function saveDeliberatePicks(): void {
 const cache = new Map<string, ModelOption[]>();
 let providerStatusCache: Record<string, { available: boolean; models?: string[] }> | null = null;
 
-/** ☁️/hr the background-assistant leg (Haiku classifiers/summaries + the Flash
+/** ☁/hr the background-assistant leg (Haiku classifiers/summaries + the Flash
  *  Lite recap) adds to every aloud-cloud session, on top of the picked model's
  *  badge. Seed matches the server's UTILITY_CREDITS_PER_HOUR; /me/models
  *  overwrites it when the catalog loads, so it can't drift into a real charge. */
@@ -271,7 +271,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 utilityCreditsPerHour = data.utilityCreditsPerHour;
             }
             // Hosted models cost credits, so the label carries the cloud-rate
-            // badge ("N☁️") - the only provider where the picker shows it.
+            // badge ("N☁") - the only provider where the picker shows it.
             const opts: ModelOption[] = data.models.map((m) => ({
                 value: `${m.provider}/${m.model}`,
                 label: `${prettyModelName(m.model)}${rateSuffix(m.creditsPerHour)}`,
@@ -410,7 +410,7 @@ export function mountModelPicker(
             .map((m) => `<option value="${escapeHtml(m.value)}">${escapeHtml(m.label)}</option>`)
             .join('');
         // Under the hosted selector, the tier toggle (it took over the slot the
-        // rate legend used to fill; the ☁️ badges read fine without it).
+        // rate legend used to fill; the ☁ badges read fine without it).
         const toggle =
             provider === 'aloud'
                 ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escapeHtml(

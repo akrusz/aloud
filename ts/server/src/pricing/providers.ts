@@ -213,7 +213,7 @@ const MODELS: Record<string, ModelPricing> = {
     },
     // The curated list's budget slot. Flash Lite is ~11x cheaper per token, but
     // in absolute terms that's $0.046/hr vs $0.004/hr (estimate.ts) - both round
-    // up to the same 1☁️ badge and both are noise next to the session's TTS
+    // up to the same 1☁ badge and both are noise next to the session's TTS
     // spend - so the slot goes to the model with the warmer prose (a Claude),
     // and Flash Lite sits in the expanded tier for whoever wants the floor.
     'anthropic:claude-haiku-4-5-20251001': {

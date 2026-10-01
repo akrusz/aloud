@@ -114,7 +114,7 @@ function usdPerHour(usdPerSession: number): number {
  * Per-hour credits for a per-session figure, at 2dp. UNROUNDED to whole credits
  * on purpose: rounding belongs at the badge (ui/credit-rate.ts rateUnits), once,
  * so legs stay addable. Rounding here too meant a voice badge and the session
- * pill disagreed - the badge floored 3.8 to "3☁️" while the pill summed the 3.8.
+ * pill disagreed - the badge floored 3.8 to "3☁" while the pill summed the 3.8.
  */
 function creditsPerHour(creditsPerSession: number): number {
     return Math.round(creditsPerSession * PER_HOUR * 100) / 100;

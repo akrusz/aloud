@@ -177,9 +177,9 @@ describe('hosted STT — the one cloud model', () => {
     it('badges the hosted entry with its rate, and only it', () => {
         const opts = sttEngineOptions(true);
         const badgeOf = (v: string) => opts.find((o) => o.value === v)!.label.match(/\((.*)\)/)?.[1];
-        expect(badgeOf('aloud-gpt-transcribe')).toMatch(/☁️$/);
+        expect(badgeOf('aloud-gpt-transcribe')).toMatch(/☁$/);
         // Free engines carry no badge at all.
-        expect(opts.find((o) => o.value === 'whisper')?.label ?? '').not.toContain('☁️');
+        expect(opts.find((o) => o.value === 'whisper')?.label ?? '').not.toContain('☁');
     });
     it('maps the hosted choice to the continuous PCM backend', () => {
         expect(sttBackendForChoice('aloud-gpt-transcribe')).toBe('server-whisper');

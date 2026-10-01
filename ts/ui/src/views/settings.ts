@@ -856,7 +856,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             ? ` <a href="#" data-open-voice-settings>${t('Download Premium voices')}</a>. ${t('In the System Voice row, click the <b>ⓘ</b> then click Voice.')}`
             : '';
         const hints: Record<TtsEngineChoice, string> = {
-            cloud: t('Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁️ entries.'),
+            cloud: t('Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁ entries.'),
             macos:
                 t('Built-in macOS voices. Zero latency, works offline.') +
                 (isMacPlatform() ? openSettingsLink : ''),
@@ -1947,7 +1947,7 @@ function renderDisplaySection(s: AppSettings): string {
                             </label>
                         </div>
                         <div class="preview-field${s.showSessionBalance ? '' : ' hidden'}" id="preview-balance-field">
-                            <span class="preview-pill">18<span class="cloud-glyph">☁️</span></span>
+                            <span class="preview-pill">18☁</span>
                         </div>
                         <div class="preview-field preview-btn-row">
                             <button type="button" class="btn btn-small btn-primary preview-btn" tabindex="-1">${t('Button {n}', { n: 1 })}</button>
@@ -2177,7 +2177,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <input type="checkbox" id="s-stt-speculation"${s.sttSpeculation ? ' checked' : ''}>
                         <span>${t('Transcribe during speech pauses')}</span>
                     </label>
-                    <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁️ if using aloud cloud).')}</span>
+                    <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁ if using aloud cloud).')}</span>
                 </div>
             </div>
         </div>

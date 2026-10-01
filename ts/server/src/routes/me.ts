@@ -67,7 +67,7 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
     // Public pricing transparency, no auth: the margin is published. Each model
     // carries its typical-session creditsPerHour so the model dropdown can show
-    // the cloud-rate badge ("N☁️"). Only models the liveness sweep hasn't
+    // the cloud-rate badge ("N☁"). Only models the liveness sweep hasn't
     // proven retired are offered (pricing/liveness.ts, fail-open) - the picker
     // never lists an id the provider would 404.
     app.get('/models', (c) => {

@@ -7,7 +7,7 @@
 
 import { fetchGifts, acceptGift, declineGift, type GiftView } from './cloud-billing.js';
 import { fetchMe } from './cloud-auth.js';
-import { creditAmount, withCloudOutline } from './credit-rate.js';
+import { creditAmount } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { showSuccessToast, showErrorToast } from './toast.js';
 import { t } from './i18n.js';
@@ -30,7 +30,7 @@ function showGiftModal(gifts: GiftView[]): void {
     overlay.innerHTML = `
         <div class="voice-modal gift-modal" role="dialog" aria-modal="true" aria-label="${t('Gifted clouds')}">
             <div class="voice-modal-header">
-                <span class="voice-modal-title">${withCloudOutline(t("You've been gifted clouds ☁️!"))}</span>
+                <span class="voice-modal-title">${t("You've been gifted clouds ☁!")}</span>
                 <button type="button" class="voice-modal-close" id="gift-modal-close" aria-label="${t('Close')}">&times;</button>
             </div>
             <p class="provider-hint gift-modal-subtitle">${t('Accept to add them to your balance, or decline to send them back to the sender.')}</p>
@@ -64,7 +64,7 @@ function showGiftModal(gifts: GiftView[]): void {
         const from = gift.fromEmail ? ` ${t('from {email}', { email: escapeHtml(gift.fromEmail) })}` : '';
         row.innerHTML = `
             <div class="gift-row-info">
-                <span class="gift-row-amount">${withCloudOutline(creditAmount(gift.credits, 0))}</span>
+                <span class="gift-row-amount">${creditAmount(gift.credits, 0)}</span>
                 <span class="provider-hint gift-row-from">${from}</span>
             </div>
             <div class="gift-row-actions">

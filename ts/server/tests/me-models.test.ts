@@ -1,6 +1,6 @@
 /**
  * GET /cloud/v1/me/models — the hosted model list the client's picker reads.
- * Each model must carry creditsPerHour so the picker can show the "N☁️" rate
+ * Each model must carry creditsPerHour so the picker can show the "N☁" rate
  * badge next to it (the cloud-rate UI). Public, no auth.
  */
 

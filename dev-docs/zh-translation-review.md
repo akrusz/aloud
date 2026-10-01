@@ -334,11 +334,11 @@ ZH: 1 位参与者
 EN: <strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.
 ZH: <strong>轻松有玩心</strong>带来轻盈和随性。<strong>开阔</strong>提醒你去觉察本来就在这里的一切。<strong>不费力</strong>邀请你放下用力，让一切自然发生。
 
-EN: <strong>connecting a Google or Apple account gets you free ☁️ to start.</strong>
-ZH: <strong>关联 Google 或 Apple 账户即可获得免费 ☁️ 开始体验。</strong>
+EN: <strong>connecting a Google or Apple account gets you free ☁ to start.</strong>
+ZH: <strong>关联 Google 或 Apple 账户即可获得免费 ☁ 开始体验。</strong>
 
-EN: <strong>☁️ are aloud cloud credits.</strong>\n\naloud cloud uses selected providers for facilitator intelligence, high-quality voices, speech recognition, summaries, and in-session decisions. \n\nthe ☁️ badge on an option shows roughly how many credits it uses per hour. this will vary depending on factors such as talking speed, response length, and session length. the Begin button estimate is our best guess at the <em>all-in</em> usage.\n\n☁️ are deducted only as you use them. you may use other providers for these functions, such as your device's speech recognition or your own API keys; these do not use any ☁️.\n\n
-ZH: <strong>☁️ 是 aloud cloud 的积分。</strong>\n\naloud cloud 使用精选的服务商来提供引导智能、高品质语音、语音识别、总结与会话中的判断。\n\n选项上的 ☁️ 标记表示它每小时大约消耗多少积分。实际消耗会因说话速度、回应长度和冥想时长等因素而变化。「开始」按钮上的估算是我们对<em>整体</em>用量的最佳猜测。\n\n☁️ 只在实际使用时才会扣除。这些功能你也可以使用其他方式，例如设备自带的语音识别或你自己的 API 密钥；它们不消耗任何 ☁️。\n\n
+EN: <strong>☁ are aloud cloud credits.</strong>\n\naloud cloud uses selected providers for facilitator intelligence, high-quality voices, speech recognition, summaries, and in-session decisions. \n\nthe ☁ badge on an option shows roughly how many credits it uses per hour. this will vary depending on factors such as talking speed, response length, and session length. the Begin button estimate is our best guess at the <em>all-in</em> usage.\n\n☁ are deducted only as you use them. you may use other providers for these functions, such as your device's speech recognition or your own API keys; these do not use any ☁.\n\n
+ZH: <strong>☁ 是 aloud cloud 的积分。</strong>\n\naloud cloud 使用精选的服务商来提供引导智能、高品质语音、语音识别、总结与会话中的判断。\n\n选项上的 ☁ 标记表示它每小时大约消耗多少积分。实际消耗会因说话速度、回应长度和冥想时长等因素而变化。「开始」按钮上的估算是我们对<em>整体</em>用量的最佳猜测。\n\n☁ 只在实际使用时才会扣除。这些功能你也可以使用其他方式，例如设备自带的语音识别或你自己的 API 密钥；它们不消耗任何 ☁。\n\n
 
 EN: A clock or a timer for the sit. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.
 ZH: 为这次静坐提供时钟或计时器。计时模式下，引导者会用声音来收尾：时间快到时轻声提醒一句，时间到了再说一句结束的话。
@@ -535,14 +535,14 @@ ZH: 购买积分
 EN: Buy {clouds}
 ZH: 购买 {clouds}
 
-EN: Buy {n} ☁️ - {price}
-ZH: 购买 {n} ☁️ - {price}
+EN: Buy {n} ☁ - {price}
+ZH: 购买 {n} ☁ - {price}
 
-EN: Buy ☁️
-ZH: 购买 ☁️
+EN: Buy ☁
+ZH: 购买 ☁
 
-EN: Buy ☁️ to continue
-ZH: 购买 ☁️ 以继续
+EN: Buy ☁ to continue
+ZH: 购买 ☁ 以继续
 
 EN: Can't reach aloud cloud. Check your connection and
 ZH: 无法连接 aloud cloud。请检查网络连接并
@@ -964,8 +964,8 @@ ZH: 获取密钥 ↗
 EN: Get the latest release →
 ZH: 获取最新版本 →
 
-EN: Get ☁️
-ZH: 获取 ☁️
+EN: Get ☁
+ZH: 获取 ☁
 
 EN: Gift to someone
 ZH: 赠送给他人
@@ -1147,8 +1147,8 @@ ZH: 管理语音引擎
 EN: Manage Voices
 ZH: 管理语音
 
-EN: Maximum {n} ☁️.
-ZH: 最多 {n} ☁️。
+EN: Maximum {n} ☁.
+ZH: 最多 {n} ☁。
 
 EN: Medium
 ZH: 中
@@ -1180,8 +1180,8 @@ ZH: 麦克风 {n}
 EN: Minimum Pause (s)
 ZH: 最短停顿（秒）
 
-EN: Minimum {n} ☁️.
-ZH: 至少 {n} ☁️。
+EN: Minimum {n} ☁.
+ZH: 至少 {n} ☁。
 
 EN: Minutes
 ZH: 分钟
@@ -1213,8 +1213,8 @@ ZH: 已静音
 EN: Natural hosted voices, metered from your credit balance. No setup.
 ZH: 自然的托管语音，按积分余额计量。无需设置。
 
-EN: Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁️ entries.
-ZH: 自然的托管语音，按积分余额计量。在「管理语音」中选择带 ☁️ 的条目。
+EN: Natural hosted voices, metered from your credit balance. Pick one in Manage Voices - the ☁ entries.
+ZH: 自然的托管语音，按积分余额计量。在「管理语音」中选择带 ☁ 的条目。
 
 EN: New
 ZH: 新
@@ -1291,8 +1291,8 @@ ZH: 标记
 EN: Noting circle
 ZH: 标记圈
 
-EN: Noting mode uses fewer ☁️. Participants speak brief labels, not full sentences.
-ZH: 标记模式消耗更少 ☁️。参与者说的是简短标签，而非完整句子。
+EN: Noting mode uses fewer ☁. Participants speak brief labels, not full sentences.
+ZH: 标记模式消耗更少 ☁。参与者说的是简短标签，而非完整句子。
 
 EN: OK
 ZH: 好
@@ -1603,8 +1603,8 @@ ZH: 禅修营通道 - 目前用量由禅修营承担
 EN: Reverted
 ZH: 已还原
 
-EN: Rough estimate from typical measured use. Actual ☁️ varies with how much is said; noting mode uses fewer for voices.
-ZH: 基于典型实测用量的粗略估算。实际 ☁️ 随说话多少而变化；标记模式的语音消耗更少。
+EN: Rough estimate from typical measured use. Actual ☁ varies with how much is said; noting mode uses fewer for voices.
+ZH: 基于典型实测用量的粗略估算。实际 ☁ 随说话多少而变化；标记模式的语音消耗更少。
 
 EN: Rough estimate. Includes a small background model for summaries and quick decisions, so it can sit above the badges combined.
 ZH: 粗略估算。包含一个用于总结和快速判断的小型后台模型，因此可能高于各标记之和。
@@ -2077,8 +2077,8 @@ ZH: 云朵是什么？
 EN: What are {clouds}?
 ZH: {clouds} 是什么？
 
-EN: What are ☁️?
-ZH: ☁️ 是什么？
+EN: What are ☁?
+ZH: ☁ 是什么？
 
 EN: What is an LLM?
 ZH: 什么是 LLM？
@@ -2125,8 +2125,8 @@ ZH: 你已在列表中。
 EN: You're out of clouds
 ZH: 你的云朵用完了
 
-EN: You've been gifted clouds ☁️!
-ZH: 有人送了你云朵 ☁️！
+EN: You've been gifted clouds ☁!
+ZH: 有人送了你云朵 ☁！
 
 EN: You've hit aloud's rate limit. Wait a moment and try again.
 ZH: 你触达了 aloud 的频率限制。请稍等片刻再试。
@@ -2173,8 +2173,8 @@ ZH: aloud cloud 需要你重新登录。请查看设置。
 EN: aloud cloud requires credits. Purchase more, or choose a different provider in Settings.
 ZH: aloud cloud 需要积分。请购买，或在设置中选择其他服务商。
 
-EN: aloud cloud uses ☁️ to power high-quality speech, voice recognition, and facilitation AI.
-ZH: aloud cloud 用 ☁️ 来驱动高品质语音、语音识别和引导 AI。
+EN: aloud cloud uses ☁ to power high-quality speech, voice recognition, and facilitation AI.
+ZH: aloud cloud 用 ☁ 来驱动高品质语音、语音识别和引导 AI。
 
 EN: aloud cloud voices need credits to preview. Add credits, or pick a free voice.
 ZH: 试听 aloud cloud 语音需要积分。请充值，或选择免费语音。
@@ -2392,11 +2392,11 @@ ZH: {wpm} 词/分
 EN: · was for {email}
 ZH: · 原本送给 {email}
 
-EN: ≈ ☁️ per hour
-ZH: ≈ 每小时 ☁️
+EN: ≈ ☁ per hour
+ZH: ≈ 每小时 ☁
 
 EN: ≈{rate}/hr
 ZH: ≈{rate}/小时
 
-EN: ☁️ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.
-ZH: aloud cloud 用 ☁️ 来驱动引导智能、高品质语音和语音识别。
+EN: ☁ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.
+ZH: aloud cloud 用 ☁ 来驱动引导智能、高品质语音和语音识别。

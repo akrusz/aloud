@@ -4,6 +4,20 @@
 
 html { font-size: 16px; }
 
+/* The ☁ credit glyph (credit-rate.ts). A one-glyph font scoped to U+2601 and
+   first in --font, so every ☁ in page text - badges, copy, a <select> and its
+   base-select menu - is the same filled cloud on every platform. Its colors
+   are in the font, the same in both themes: `color` doesn't reach it. Built
+   by scripts/cloud-glyph-font.py (which says why it's a bitmap font first,
+   with vector layers only for Firefox). vite.config.ts inlines it, so block costs no
+   visible wait. */
+@font-face {
+    font-family: 'aloud-cloud';
+    src: url('./assets/aloud-cloud.woff2') format('woff2');
+    unicode-range: U+2601;
+    font-display: block;
+}
+
 :root,
 [data-theme="dark"] {
     --bg-primary: #110d08;
@@ -97,7 +111,7 @@ html { font-size: 16px; }
     --space-lg: 1.5rem;
     --space-xl: 2rem;
     --transition: 0.25s ease;
-    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font: 'aloud-cloud', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 }
 
 /* data-platform is stamped by main.ts from Capacitor's getPlatform(). */
@@ -2412,7 +2426,7 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     font-size: 0.95rem;
 }
 
-/* Title + the "☁️ per hour" legend share the header's left side, so the cost
+/* Title + the "☁ per hour" legend share the header's left side, so the cost
    unit is explained right where the user is choosing (not buried at the foot
    of the list). */
 .voice-modal-titlewrap {
@@ -2625,10 +2639,10 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     top: -1px;
 }
 
-/* Cloud-rate badge on a hosted voice row - "N☁️" ≈ N credits/hour, so a pricier
+/* Cloud-rate badge on a hosted voice row - "N☁" ≈ N credits/hour, so a pricier
    voice reads as pricier (meditation-pal-b7i). Colored by tier: 'value' (cheaper
    Neural2) green, 'premium' (Chirp3-HD) amber. The title attr carries the exact
-   credits/hr; the picker also shows a "1☁️ ≈ 1 credit/hour" legend. */
+   credits/hr; the picker also shows a "1☁ ≈ 1 credit/hour" legend. */
 .voice-row-cost {
     display: inline-block;
     font-size: 0.875rem;
@@ -2660,7 +2674,7 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     background: rgba(245, 165, 47, 0.22);
 }
 
-/* The "1☁️ ≈ 1 credit/hour" legend under a credit-spending picker (voice list,
+/* The "1☁ ≈ 1 credit/hour" legend under a credit-spending picker (voice list,
    hosted model select). Quiet - it explains the badge without competing. */
 .credit-rate-legend {
     margin: 0.5rem 0 0;
@@ -2884,7 +2898,7 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 /* The model picker's tier toggle sits where a label would (under the select,
    like the range-stop labels), so it gets the same full-opacity muted color -
    notes stay readable, never dimmed. Padding zeroed so its text baseline
-   matches the ☁️ legend sitting at the same height in the provider column. */
+   matches the ☁ legend sitting at the same height in the provider column. */
 .credit-rate-legend .btn-link {
     color: var(--text-muted);
     opacity: 1;
@@ -3708,7 +3722,7 @@ html[lang='zh-CN'] .nav-word-new {
 .buy-credits-subtitle {
     margin: 1rem 1.25rem 1rem;
 }
-/* A hint with its "What are ☁️?" button right-aligned beside the text (account
+/* A hint with its "What are ☁?" button right-aligned beside the text (account
    Cloud Balance, buy-credits subtitle) - the text wraps in its own column
    rather than pushing the button to a new line. Element-qualified: .form-hint's
    display:block sits later in this file and would win a plain class tie. */
@@ -4776,7 +4790,7 @@ input[type="range"].preview-range {
     margin: 0 auto;
 }
 
-/* The "what are ☁️?" bubble: right side of the Begin bar, absolutely
+/* The "what are ☁?" bubble: right side of the Begin bar, absolutely
    positioned so the centered Begin column never shifts. Begin keeps its
    natural width at every viewport, so the bubble fits in-row on phones too.
    Only visible when the session would spend clouds (updateSessionEstimate).
@@ -4797,22 +4811,13 @@ input[type="range"].preview-range {
     border: 1px solid var(--hairline, var(--border));
     background: var(--bg-input);
     color: var(--text-secondary);
+    /* Not inherited by a bare <button>; without it the ☁ is the system glyph. */
+    font-family: var(--font);
     font-size: 0.8rem;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
     padding: 0;
-}
-/* An emoji fills its em box while a "?" only reaches cap height, so at one
-   font-size the mark reads as a runt beside the cloud (worst on Apple Color
-   Emoji, which is the fattest of the emoji fonts). Size the "?" up to match by
-   eye instead of shrinking the cloud. */
-.clouds-help-q {
-    font-size: 1.25em;
-    /* The emoji's ink sits high in its box while the "?" hangs to the
-       baseline, so equal-sized boxes leave the mark low and its dot below the
-       cloud. Lift it until the two overhang evenly top and bottom. */
-    margin-top: -0.05em;
 }
 .clouds-help:hover {
     border-color: var(--text-muted);
@@ -5592,7 +5597,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Slimmer Begin bar: less chrome covering the page while the keyboard is
        up. Width/side-padding live in style.css (.setup-footer-inner .btn-begin),
        which loads later and wins those - only trim the vertical here.
-       Grid: at phone widths Begin's natural width can reach the ☁️? chip's
+       Grid: at phone widths Begin's natural width can reach the ☁? chip's
        fixed right-2rem slot and overlap it, so the absolute positioning is
        swapped for a 3-column grid - Begin stays dead center, the chip centers
        in the gap between Begin and the page edge and can never overlap. */

@@ -64,7 +64,7 @@ const SAMPLE =
     "There's nothing to get right here. Just noticing what's already present.";
 
 const M = 1_000_000;
-/** Chars/hr at the mid talk profile - the basis for the ☁️/hr column. */
+/** Chars/hr at the mid talk profile - the basis for the ☁/hr column. */
 const CHARS_PER_HOUR = TTS_CHAR_PROFILES.typical * (60 / TYPICAL_SESSION_MINUTES);
 
 interface Row {
@@ -204,7 +204,7 @@ function html(rows: Row[], skipped: Skipped[], sources: SourceMeta[]): string {
  <td class="tr8">${esc(r.treatment)}</td>
  <td class="num">${r.seconds ? r.seconds.toFixed(1) + 's' : '-'}</td>
  <td class="num cost${r.usdPerMillionChars <= cheapest * 1.05 ? ' best' : ''}">${money(r.usdPerMillionChars)}<div class="sub">${esc(r.billing)}</div></td>
- <td class="num">${r.creditsPerHour.toFixed(1)}☁️</td>
+ <td class="num">${r.creditsPerHour.toFixed(1)}☁</td>
 </tr>`;
         })
         .join('\n');
@@ -291,7 +291,7 @@ ${prosodyKey(rows)}
  <th data-sort="treatment">Prosody</th>
  <th class="num" data-sort="secs">Clip</th>
  <th class="num" data-sort="cost">$/1M chars</th>
- <th class="num" data-sort="cost">☁️/hr</th>
+ <th class="num" data-sort="cost">☁/hr</th>
 </tr></thead>
 <tbody id="rows">
 ${rowHtml}
@@ -299,7 +299,7 @@ ${rowHtml}
 </table>
 <textarea class="out" id="out" readonly></textarea>
 <div class="notes">
- <p><b>$/1M chars is pace-adjusted</b>, measured from each clip's real duration at our own meditation instruction - not the provider's headline rate. Duration-priced engines get more expensive the slower they speak, which is exactly the register aloud uses. ☁️/hr assumes the mid talk profile (${Math.round(CHARS_PER_HOUR)} chars/hr, pricing/estimate.ts).</p>
+ <p><b>$/1M chars is pace-adjusted</b>, measured from each clip's real duration at our own meditation instruction - not the provider's headline rate. Duration-priced engines get more expensive the slower they speak, which is exactly the register aloud uses. ☁/hr assumes the mid talk profile (${Math.round(CHARS_PER_HOUR)} chars/hr, pricing/estimate.ts).</p>
  <p><b>Prosody</b> is expressed differently per engine, and the gap is wide. Google honors SSML
  <code>&lt;prosody&gt;</code> + <code>&lt;break&gt;</code> on <em>both</em> tiers, Chirp3-HD included - the strongest
  pacing lever we have, and it is on the engine we already ship - but Google bills the tags, so a marked-up

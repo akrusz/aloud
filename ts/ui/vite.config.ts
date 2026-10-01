@@ -80,5 +80,9 @@ export default defineConfig({
         outDir: HOSTED ? resolve(__dirname, '../../docs/app') : resolve(__dirname, 'dist'),
         emptyOutDir: true,
         sourcemap: !HOSTED,
+        // The ☁ glyph font (app-base.css) is in most views' first paint, and
+        // is past Vite's 4kB inline limit. As its own request the
+        // clouds would pop in after the text, so keep it inline in the CSS.
+        assetsInlineLimit: (file) => (file.endsWith('aloud-cloud.woff2') ? true : undefined),
     },
 });
