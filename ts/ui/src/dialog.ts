@@ -119,7 +119,10 @@ function showDialog<T>(
         });
         document.addEventListener('keydown', onKey, true);
         document.body.appendChild(backdrop);
-        actionBtn?.focus();
+        // preventScroll: on a screen too short even for the box's fixed parts
+        // the box itself scrolls (style.css), and focusing the button at its
+        // end would open it at the bottom.
+        actionBtn?.focus({ preventScroll: true });
     });
 }
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Build the ☁ credit glyph as a one-glyph font: ts/ui/src/assets/aloud-cloud.woff2.
+Build the ☁ credit glyph as a one-glyph font: ts/ui/src/assets/aloud-cloud.woff2
+(and aloud-cloud.svg next to it).
 
 ☁ IS the aloud cloud credit (ui/src/credit-rate.ts), the one thing aloud sells,
 so it's drawn as a cloud you'd want: white, sky blue underneath, with an
@@ -31,6 +32,10 @@ The font also keeps a plain outline glyph: the cloud's ring. A renderer
 with no color font support at all draws that in the text color instead. The sbix "draw the outline
 over the bitmap" flag stays off: Chrome honors it and WebKit doesn't, so the
 two would disagree about the outline's color.
+
+Beside the font it writes the same art as a picture, aloud-cloud.svg, for a
+cloud drawn larger than the top strike: as text that one would be a scaled-up
+bitmap, soft everywhere but Firefox.
 
 The UI loads it with unicode-range: U+2601, first in --font, so every ☁ in
 page text uses it: badges, balances, copy, and a <select>, whose open menu the
@@ -125,7 +130,8 @@ OUTLINE_STEPS = 24
 # these step by ~1.4x from the smallest text at 1x to a pack price at 3x:
 # never more than a mild downscale, which keeps the outline crisp. The PNGs
 # are most of the file and the top strike is the biggest of them, so go past
-# 96 only for a glyph that really is drawn larger.
+# 96 only for a glyph that really is drawn larger as text. A cloud shown large
+# on its own is the SVG's job.
 STRIKES = [16, 24, 32, 48, 64, 96]
 # Each strike is drawn this many times oversize and filtered down.
 SUPERSAMPLE = 8
@@ -284,6 +290,33 @@ def glyph_from(path):
     return pen.glyph()
 
 
+def svg_path(path):
+    pen = SVGPathPen(None, ntos=lambda v: f'{v:.1f}'.rstrip('0').rstrip('.'))
+    path.draw(pen)
+    return pen.getCommands()
+
+
+def hex_color(color):
+    return '#%02x%02x%02x' % color
+
+
+def art_svg(grown, fills, dx):
+    """The art as a picture cropped to the outline, with a real gradient where
+    the font has pixels or steps. `fills` is what's painted over the outline,
+    as (name, shape, color)."""
+    xmin, ymin, xmax, ymax = bounds(grown)
+    start, end = outline_span(dx)
+    a = math.radians(OUTLINE_ANGLE)
+    ux, uy = math.cos(a), math.sin(a)
+    stops = ''.join(f'<stop offset="{t:g}" stop-color="{hex_color(color)}"/>' for t, color in OUTLINE)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{xmin:g} {-ymax:g} {xmax - xmin:g} {ymax - ymin:g}">'
+            f'<linearGradient id="outline" gradientUnits="userSpaceOnUse" x1="{start * ux:.1f}" '
+            f'y1="{start * uy:.1f}" x2="{end * ux:.1f}" y2="{end * uy:.1f}">{stops}</linearGradient>'
+            f'<g transform="scale(1,-1)"><path fill="url(#outline)" d="{svg_path(grown)}"/>'
+            + ''.join(f'<path fill="{hex_color(color)}" d="{svg_path(shape)}"/>' for _, shape, color in fills)
+            + '</g></svg>\n')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--svg', help='also write an SVG preview of the fallback outline here')
@@ -303,18 +336,12 @@ def main():
         xmin, ymin, xmax, ymax = bounds(grown)
         pad = 20
         vb = f'{-pad} {-(ymax + pad)} {advance + 2 * pad} {ymax - ymin + 2 * pad}'
-
-        def d(path):
-            pen = SVGPathPen(None)
-            path.draw(pen)
-            return pen.getCommands()
-
         with open(args.svg, 'w') as f:
             f.write(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" width="{advance + 2 * pad}">'
                     f'<g transform="scale(1,-1)">'
                     f'<rect x="0" y="-250" width="{advance}" height="1050" fill="none" stroke="#9cf" stroke-width="4"/>'
                     f'<line x1="{-pad}" y1="0" x2="{advance + pad}" y2="0" stroke="#f99" stroke-width="4"/>'
-                    f'<path d="{d(ring)}" fill="#3a2a1a"/></g></svg>')
+                    f'<path d="{svg_path(ring)}" fill="#3a2a1a"/></g></svg>')
 
     # The same art as vector layers, bottom to top, for the COLR table below:
     # (glyph name, shape, color). Each outline step is the silhouette from its
@@ -330,10 +357,11 @@ def main():
         rest = beyond(start + (end - start) * step / OUTLINE_STEPS)
         shape = grown if step == 0 else pathops.op(grown, rest, pathops.PathOp.INTERSECTION, clockwise=True)
         layers.append((f'cloud.edge{step}', shape, color))
-    layers.append(('cloud.body', plain, FILL))
+    fills = [('cloud.body', plain, FILL)]
     for i, (color, rise) in enumerate(SHADES):
         band = pathops.op(plain, shifted(plain, 0, rise), pathops.PathOp.DIFFERENCE, clockwise=True)
-        layers.append((f'cloud.shade{i}', band, color))
+        fills.append((f'cloud.shade{i}', band, color))
+    layers += fills
 
     fb = FontBuilder(UPM, isTTF=True)
     fb.setupGlyphOrder(['.notdef', 'cloud'] + [name for name, _, _ in layers])
@@ -385,6 +413,10 @@ def main():
     fb.save(args.out)
     print(f'{args.out}: {os.path.getsize(args.out)} bytes, advance {advance}, '
           f'ink y {bounds(grown)[1]:.0f}..{bounds(grown)[3]:.0f}')
+    art = os.path.splitext(args.out)[0] + '.svg'
+    with open(art, 'w') as f:
+        f.write(art_svg(grown, fills, dx))
+    print(f'{art}: {os.path.getsize(art)} bytes')
 
 
 if __name__ == '__main__':

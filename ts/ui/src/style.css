@@ -94,12 +94,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: calc(1rem + var(--safe-top, 0px)) calc(1rem + var(--safe-right, 0px))
+        calc(1rem + var(--safe-bottom, 0px)) calc(1rem + var(--safe-left, 0px));
     background: rgba(0, 0, 0, 0.45);
 }
 .app-dialog {
+    /* A column no taller than the screen: when the copy is too long for it,
+       the message shrinks and scrolls (below) and the buttons stay in view.
+       Left to grow, the centered box runs off both ends of the screen and
+       takes its buttons with it. The box's own scroll is the fallback for
+       when everything but the message already doesn't fit. */
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: 24rem;
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 1.25rem 1.5rem;
     background: var(--bg-dialog, var(--bg-card, #fff));
     color: var(--text-dialog, var(--text-primary, #1a1a1a));
@@ -119,6 +130,10 @@
     margin: 0 0 1.25rem;
     line-height: 1.45;
     white-space: pre-line;
+    /* The one part of the column that gives: overflow other than visible is
+       what lets a flex item shrink below its content. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 /* Keep the copy clear of the × sitting over the corner. */
 .app-dialog.has-close .app-dialog-message {
@@ -179,6 +194,12 @@
 /* Single-action dialogs: a lone right-aligned button looks stranded. */
 .app-dialog-buttons.is-centered {
     justify-content: center;
+}
+/* The cloud at the top of the "What are ☁?" dialog (clouds-explainer.ts). */
+.clouds-explainer-art {
+    display: block;
+    width: 6rem;
+    margin: 0 auto 1rem;
 }
 
 /* The "aloud." glyph in the mobile More sheet should use the brand face,

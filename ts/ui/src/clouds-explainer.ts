@@ -12,6 +12,11 @@ import { showBuyCreditsModal } from './buy-credits-modal.js';
 import { showSignInModal } from './sign-in-modal.js';
 import { withTimeout } from './net-timeout.js';
 import { t } from './i18n.js';
+import cloudArtUrl from './assets/aloud-cloud.svg?url';
+
+// The cloud drawn large over the copy. A picture, not a big ☁: the glyph
+// font's largest bitmap is 96px and would scale up soft.
+const ART = `<img class="clouds-explainer-art" src="${cloudArtUrl}" alt="">`;
 
 const EXPLAINER =
     '<strong>☁ are aloud cloud credits.</strong>\n\n' +
@@ -40,7 +45,7 @@ export async function showCloudsExplainer(): Promise<void> {
     const hint = (await needsFreeCloudsHint()) ? `${t(FREE_CLOUDS_LINE)}\n\n` : '';
     // html mode for the copy's own <strong>/<em> (EXPLAINER is our own static
     // copy, safe to inject).
-    const getClouds = await confirmDialog(t(EXPLAINER) + hint, {
+    const getClouds = await confirmDialog(ART + t(EXPLAINER) + hint, {
         okLabel: t('Get ☁'),
         cancelLabel: t('Got it'),
         // Got it is the focused primary - an explainer shouldn't upsell by default.

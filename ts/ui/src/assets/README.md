@@ -50,3 +50,10 @@ rerun rather than touching the binary. It carries the art twice: bitmap strikes
 (sbix), which Chrome and WebKit draw, and COLR layers, which Firefox needs.
 Keep the strikes - the script says why. `vite.config.ts` inlines it into the
 CSS (`assetsInlineLimit`).
+
+## aloud-cloud.svg
+
+The same cloud as a picture, written by the same run of
+`scripts/cloud-glyph-font.py`, so the two can't drift. For a cloud drawn large
+on its own (the "What are ☁?" dialog, `clouds-explainer.ts`): the font's
+biggest bitmap is 96px, and a larger text ☁ would be that bitmap scaled up.
