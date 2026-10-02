@@ -4798,7 +4798,7 @@ input[type="range"].preview-range {
    positioned so the centered Begin column never shifts. Begin keeps its
    natural width at every viewport, so the bubble fits in-row on phones too.
    Only visible when the session would spend clouds (updateSessionEstimate).
-   Bold pops the "?"; the emoji ignores the weight. */
+   Bold pops the "?"; the ☁ glyph ignores the weight. */
 .clouds-help {
     position: absolute;
     right: 2rem;

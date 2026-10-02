@@ -1,6 +1,7 @@
 /**
- * Incident log: things that went wrong on a metered call, kept where the
- * operator can see them (meditation-pal-xtgh).
+ * Incident log: things that went wrong on the cloud path (metered calls, the
+ * free clip routes, checkout, the model sweep), kept where the operator can
+ * see them (meditation-pal-xtgh).
  *
  * The app handles cloud failures quietly on purpose - a blank turn gets a
  * retry and a canned line, a 402 gets a spoken apology - because aloud cloud

@@ -115,7 +115,9 @@ check each of these still reflects reality:
 - **Rebrand / rename** → sweep every surface in Part A (name, repo URL, bundle id).
 - **Changed visual identity** (orb gradient, colors, font) → `dev-docs/style.md`,
   the site CSS + app CSS (kept in sync), all icon/share-image sources, regenerate
-  rasters.
+  rasters. The ☁ credit glyph carries the logo's colors baked into its font
+  (`ts/ui/src/assets/aloud-cloud.woff2`): change them in
+  `scripts/cloud-glyph-font.py` and rerun it.
 - **Changed a default or config option** → the relevant defaults in `ts/src`
   (or `ts/server/.env.example` for server config), the settings UI, and any doc
   that quotes the value.

@@ -361,6 +361,9 @@ ZH: 已生成一份包含你的设置详情的报告，以帮助解决问题。
 EN: AI Provider
 ZH: AI 服务商
 
+EN: API key
+ZH: API 密钥
+
 EN: API Key providers
 ZH: API 密钥服务商
 
@@ -423,9 +426,6 @@ ZH: 始终深色
 
 EN: Always light
 ZH: 始终浅色
-
-EN: An LLM is the AI that guides your meditation. Pick what works for you:
-ZH: LLM 是引导你冥想的 AI。选择适合你的方式：
 
 EN: An open session keeps listening and checking in, which can slowly consume cloud credits if in use.
 ZH: 未结束的冥想会持续聆听和问候，若在使用中会慢慢消耗云端积分。
@@ -618,6 +618,9 @@ ZH: 领取你的免费积分
 
 EN: Claude sign-in expired. Run `claude` in a terminal to log in again.
 ZH: Claude 登录已过期。请在终端运行 `claude` 重新登录。
+
+EN: Claude subscription
+ZH: Claude 订阅
 
 EN: Claude subscription usage limit reached. It resets after a few hours, or pick another model in Settings.
 ZH: Claude 订阅用量已达上限。几小时后会重置，或在设置中选择其他模型。
@@ -844,6 +847,9 @@ ZH: 邮件更新
 EN: Embers
 ZH: 余烬
 
+EN: Free, everything stays on your computer.
+ZH: 免费，一切都留在你的电脑上。
+
 EN: Joy, sadness, or whatever’s alive underneath
 ZH: 喜悦、悲伤，或内心深处正在涌动的任何感受
 
@@ -855,6 +861,18 @@ ZH: 情绪与感受基调：
 
 EN: Enable holding-space mode
 ZH: 开启静默陪伴模式
+
+EN: No setup. Sign in and go.
+ZH: 无需设置，登录即可开始。
+
+EN: This powers facilitator intelligence and session flow.
+ZH: 它负责引导者的智能和会话的节奏。
+
+EN: Transcribe during speech pauses
+ZH: 停顿时同步转写
+
+EN: Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁ if using aloud cloud).
+ZH: 边说边显示你的话，并在你思考停顿时耐心等待。体验更流畅，但转写调用更多（使用 aloud cloud 时消耗更多 ☁）。
 
 EN: Enable providers that require API keys
 ZH: 启用需要 API 密钥的服务商
@@ -949,9 +967,6 @@ ZH: 跟随
 EN: For myself
 ZH: 给自己
 
-EN: Free &amp; private. Runs AI entirely on your computer.
-ZH: 免费且私密。AI 完全在你的电脑上运行。
-
 EN: Free and private. Runs the AI entirely on your computer.
 ZH: 免费且私密。AI 完全在你的电脑上运行。
 
@@ -1039,17 +1054,11 @@ ZH: 引导者引领得有多主动。偏低时，更多是映照你说的话、�
 EN: How long a pause in your speech ends your turn. Exact values under Advanced.
 ZH: 说话停顿多久算一轮结束。具体数值见「高级」。
 
-EN: I have a Claude subscription
-ZH: 我有 Claude 订阅
-
-EN: I have an API key
-ZH: 我有 API 密钥
-
 EN: If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.
 ZH: 如果设置中的<a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>问候</strong></a>设为智能，这也会影响静默期间引导者开口的频率。偏低约 20 分钟一次，偏高不到 1 分钟。
 
-EN: If requested, the facilitator goes silent until you ask it back. Smaller models are over-eager to enter this mode.
-ZH: 在你提出时，引导者会安静下来，直到你叫它回来。较小的模型会过于急切地进入这个模式。
+EN: If requested, the facilitator goes silent until you ask it back.
+ZH: 在你提出时，引导者会安静下来，直到你叫它回来。
 
 EN: In the System Voice row, click the <b>ⓘ</b> then click Voice.
 ZH: 在「系统嗓音」一行点击 <b>ⓘ</b>，再点击「嗓音」。
@@ -1306,9 +1315,6 @@ ZH: Ollama（本地）
 EN: Ollama is running. Start the app backend to manage models and see size recommendations.
 ZH: Ollama 正在运行。启动应用后端即可管理模型并查看大小建议。
 
-EN: Ollama: free, runs locally
-ZH: Ollama：免费，本地运行
-
 EN: On Windows, Edge and the desktop app include high-quality natural voices.
 ZH: 在 Windows 上，Edge 和桌面应用自带高品质的自然语音。
 
@@ -1540,9 +1546,6 @@ ZH: 就绪
 EN: Recipient's email
 ZH: 收礼人邮箱
 
-EN: Recommended model:
-ZH: 推荐模型：
-
 EN: Relaxed
 ZH: 从容
 
@@ -1587,6 +1590,12 @@ ZH: 重启 Ollama
 
 EN: Resume long sessions from a recap
 ZH: 用摘要续上较长的冥想
+
+EN: Keep my model when it leaves the shortlist
+ZH: 模型移出推荐列表时保留我的选择
+
+EN: Otherwise you move to the default model.
+ZH: 否则会切换到默认模型。
 
 EN: Resume session
 ZH: 继续冥想
@@ -1704,6 +1713,12 @@ ZH: 冥想时显示时钟
 
 EN: Sign in
 ZH: 登录
+
+EN: Continue
+ZH: 继续
+
+EN: Noting works without an account. Connect one to enable speech features, like a voice reading the intro.
+ZH: 标记练习无需账户即可使用。连接账户可开启语音功能，例如由语音朗读开场白。
 
 EN: Sign in or create account
 ZH: 登录或创建账户
@@ -1840,6 +1855,9 @@ ZH: 语音合成
 EN: That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.
 ZH: 该浏览器语音无法播放 -「在线」/「自然」语音需要网络且不总是可用。请试试其他语音，或使用 aloud cloud。
 
+EN: That voice couldn't be previewed (error {status}). Try another voice.
+ZH: 该语音无法试听（错误 {status}）。请试试其他语音。
+
 EN: The clock on the wall, no seconds ticking.
 ZH: 墙上的时钟，没有秒针滴答。
 
@@ -1855,11 +1873,20 @@ ZH: 引导者会保持安静，直到你请它继续。
 EN: The language you and the facilitator speak in sessions.
 ZH: 你和引导者在冥想中使用的语言。
 
-EN: The model returned an empty response. Try again, or check your provider in Settings.
-ZH: 模型返回了空回应。请重试，或在设置中检查服务商。
-
 EN: The server did not return payment requirements.
 ZH: 服务器未返回支付要求。
+
+EN: The voice service had a problem (error {status}). Try again in a moment.
+ZH: 语音服务出了问题（错误 {status}）。请稍后重试。
+
+EN: That voice isn't available right now. Try another voice.
+ZH: 这个声音目前无法使用。请换一个声音试试。
+
+EN: This voice isn't available right now. Pick another voice in Settings to hear the facilitator.
+ZH: 这个声音目前无法使用。请在设置中换一个声音，才能听到引导。
+
+EN: The voice service took too long to answer. Try again.
+ZH: 语音服务响应超时。请重试。
 
 EN: Theme
 ZH: 主题
@@ -1903,6 +1930,9 @@ ZH: 该服务商不支持流式输出，停顿短一些可以降低延迟。
 EN: This voice may not speak the session language well
 ZH: 这个语音可能说不好本次冥想的语言
 
+EN: macOS 27 voices may interact poorly with Firefox.
+ZH: macOS 27 的语音在 Firefox 中可能出现异常。
+
 EN: Time in session
 ZH: 冥想已进行
 
@@ -1923,6 +1953,9 @@ ZH: Tiny（最快）
 
 EN: Toggle microphone
 ZH: 开关麦克风
+
+EN: Too many previews at once - wait a moment and try again.
+ZH: 试听太频繁了 - 请稍等片刻再试。
 
 EN: Toggle text-to-speech
 ZH: 开关语音合成
@@ -1996,9 +2029,6 @@ ZH: 使用 aloud cloud 语音
 EN: Use the settings page directly
 ZH: 直接使用设置页面
 
-EN: Uses your Pro or Max plan via the locally-installed <code>claude</code> command-line tool - install Claude Code with <code>npm install -g @anthropic-ai/claude-code</code> (the CLI, not the Claude desktop app).
-ZH: 通过本地安装的 <code>claude</code> 命令行工具使用你的 Pro 或 Max 订阅 - 用 <code>npm install -g @anthropic-ai/claude-code</code> 安装 Claude Code（命令行工具，不是 Claude 桌面应用）。
-
 EN: Uses your browser's built-in speech recognition. Free.
 ZH: 使用浏览器内置的语音识别。免费。
 
@@ -2010,6 +2040,9 @@ ZH: 使用浏览器的 speechSynthesis。无需安装。
 
 EN: Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> command-line tool (install with <code>npm install -g @anthropic-ai/claude-code</code> - the CLI, not the Claude desktop app). Desktop only.
 ZH: 通过本地安装的 <code>claude</code> 命令行工具使用你已有的 Claude Pro/Max 订阅（用 <code>npm install -g @anthropic-ai/claude-code</code> 安装 - 命令行工具，不是 Claude 桌面应用）。仅限桌面端。
+
+EN: Uses your Pro or Max plan.
+ZH: 使用你的 Pro 或 Max 订阅。
 
 EN: Value
 ZH: 值
@@ -2400,3 +2433,96 @@ ZH: ≈{rate}/小时
 
 EN: ☁ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.
 ZH: aloud cloud 用 ☁ 来驱动引导智能、高品质语音和语音识别。
+
+EN: Voice commands
+ZH: 语音指令
+
+EN: See what you can say
+ZH: 看看可以说什么
+
+EN: Listening… or ask "what can I say?"
+ZH: 聆听中……也可以问“我可以说什么?”
+
+EN: You can just say "talk slower" or "faster"
+ZH: 直接说“说慢一点”或“快一点”就行
+
+EN: You can just say "set a timer for ten minutes"
+ZH: 直接说“计时十分钟”就行
+
+EN: Muted. You can just say "mute"
+ZH: 已静音。直接说“静音”就行
+
+EN: Voice commands can do this. Turn them on under ⓘ
+ZH: 语音指令可以做到这一点。在 ⓘ 里开启
+
+EN: what can I say?
+ZH: 可以说什么?
+
+EN: Turn on
+ZH: 开启
+
+EN: What you say is checked through aloud cloud; we don't store it.
+ZH: 你说的话会经 aloud cloud 判断；我们不会保存。
+
+EN: Needs a free account.
+ZH: 需要一个免费账号。
+
+EN: Privacy policy
+ZH: 隐私政策
+
+EN: Always on with aloud cloud.
+ZH: 使用 aloud cloud 时始终开启。
+
+EN: Sign in to enable voice commands.
+ZH: 登录后即可使用语音指令。
+
+EN: Say things like "set a timer for ten minutes" or "talk slower".
+ZH: 可以说“计时十分钟”或“说慢一点”之类的话。
+
+EN: "Talk slower" / "talk faster"
+ZH: “说慢一点” / “说快一点”
+
+EN: "Respond sooner" / "wait longer"
+ZH: “回应快一点” / “多等一会儿”
+
+EN: "Say that again"
+ZH: “再说一遍”
+
+EN: "Set a timer for ten minutes"
+ZH: “计时十分钟”
+
+EN: "Five more minutes" / "cancel the timer"
+ZH: “再加五分钟” / “取消计时”
+
+EN: "How much time is left?" / "hide the clock"
+ZH: “还剩多少时间?” / “隐藏时钟”
+
+EN: "Mute the mic" / "mute the speaker"
+ZH: “关掉麦克风” / “关掉语音”
+
+EN: "Show the orb" / "hide the orb"
+ZH: “显示光球” / “隐藏光球”
+
+EN: "Embers off" / "dark mode"
+ZH: “关掉余烬” / “深色模式”
+
+EN: "End the session" / "end without saving"
+ZH: “结束冥想” / “不保存,直接结束”
+
+EN: These understand natural language, so phrasing is flexible. You can ask for two at once.
+ZH: 这些指令能听懂自然语言,怎么说都可以。也可以一次说两个。
+
+EN: "End the session" / "end and save"
+ZH: “结束冥想” / “保存并结束”
+
+EN: Downloading the speech model…
+ZH: 正在下载语音模型……
+
+EN: Downloading the speech model… {percent}%
+ZH: 正在下载语音模型…… {percent}%
+
+EN: Loading the speech model…
+ZH: 正在加载语音模型……
+
+EN: Couldn't download the speech model. Retrying - or switch Speech Recognition to aloud cloud.
+ZH: 语音模型下载失败。正在重试，你也可以把语音识别切换为 aloud cloud。

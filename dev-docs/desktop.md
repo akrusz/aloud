@@ -163,7 +163,12 @@ below).
 - **Windows**: NSIS + MSI, unsigned (Authenticode). NSIS is the updater target.
 - **Linux**: AppImage + .deb. AppImage is the only self-updatable target (deb is
   download-only). Needs the WebKitGTK 4.1 / GTK / appindicator / rsvg stack +
-  CMake/build-essential (whisper-rs, espeak-rs) + libfuse2.
+  CMake/build-essential (whisper-rs, espeak-rs) + libfuse2. The workflow
+  pre-seeds tauri's AppRun cache with a world-executable copy (the bundler's
+  own lands at 0770, so `AppRun.wrapped` fails for anyone but the file's owner)
+  and checks the built AppImage's permissions afterwards. That check runs after
+  the upload: if it fails (most likely tauri moved to a new AppRun and the seed
+  went unused), fix the seed and re-run the job.
 - The desktop UI build bakes `VITE_ALOUD_CLOUD_URL` (repo var `ALOUD_CLOUD_URL`)
   so the app reaches the hosted `/cloud/v1` service for accounts + credits;
   local providers work without it.
