@@ -4,7 +4,7 @@ Build the ☁ credit glyph as a one-glyph font: ts/ui/src/assets/aloud-cloud.wof
 
 ☁ IS the aloud cloud credit (ui/src/credit-rate.ts), the one thing aloud sells,
 so it's drawn as a cloud you'd want: white, sky blue underneath, with an
-outline in the logo's colors like a cloud at sunset. As the system emoji it
+outline in the logo's colors, amber over the top. As the system emoji it
 looked different on every platform and was a pale shape that vanished on light
 ones.
 
@@ -25,7 +25,7 @@ and colors.
 
 The colors are therefore fixed, the same in both themes and inside a pink
 button; the glyph doesn't take the text color or embolden. On the pink button
-the magenta of the outline blends in, leaving the white cloud on its yellow.
+the magenta of the outline blends in, leaving the white cloud under its amber.
 
 The font also keeps a plain outline glyph: the cloud's ring. A renderer
 with no color font support at all draws that in the text color instead. The sbix "draw the outline
@@ -100,19 +100,25 @@ SHADES = [
     ((226, 238, 252), 360),
     ((190, 213, 244), 150),
 ]
-# The outline: the logo's colors as a sunset, yellow under the cloud, up
-# through orange, to magenta over the top. Stops are (height, color), height 0
-# at the outline's lowest point and 1 at its highest. Magenta has the top on
-# purpose: on a white input it's what holds the white body. The yellow can't
-# do that, so it sits below the blue, which can.
+# The outline: the logo's colors, magenta under the cloud, up through orange,
+# to amber over the top, like a cloud lit from above. Stops are (position,
+# color) along OUTLINE_ANGLE, position 0 where the outline starts in that
+# direction and 1 where it ends. They're evenly spaced on purpose: the flat
+# bottom edge is about a third of the outline's area and all of it sits at the
+# start, so with orange any lower the end color takes most of what rises.
+# Amber on a white input is the weakest pairing, the one to look at after
+# changing the top color.
 OUTLINE = [
-    (0, (245, 200, 36)),
-    (1 / 3, (237, 115, 38)),
-    (2 / 3, (231, 31, 117)),
-    (1, (231, 31, 117)),
+    (0, (231, 31, 117)),
+    (1 / 2, (237, 115, 38)),
+    (1, (255, 184, 5)),
 ]
+# The direction the gradient runs in, in degrees counterclockwise from
+# rightward: 90 is straight up, 100 leans its top end a little to the left.
+OUTLINE_ANGLE = 100
 # The COLR copy is flat layers, which can't hold a gradient, so its outline is
-# cut into this many steps of height (main). Small enough to pass for smooth.
+# cut into this many steps along the angle (main). Small enough to pass for
+# smooth.
 OUTLINE_STEPS = 24
 
 # Strike sizes in pixels per em. A renderer picks the nearest and scales, so
@@ -198,11 +204,28 @@ def mask(box, dx, ppem, grow, rise=0):
     return im.resize((w, h), Image.LANCZOS)
 
 
-def outline_color(height):
-    """OUTLINE at a height from 0 (the outline's lowest point) to 1 (its highest)."""
+def along(x, y):
+    """How far a point lies along the outline gradient's direction."""
+    a = math.radians(OUTLINE_ANGLE)
+    return x * math.cos(a) + y * math.sin(a)
+
+
+def outline_span(dx):
+    """Where the outline starts and ends along the gradient's direction, with
+    the glyph moved right by dx. Exact, from the primitives: the capsule
+    reaches no further than its two end circles in any direction."""
+    x0, x1, cy, r = BASE
+    discs = [(x0, cy, r), (x1, cy, r)] + BUMPS
+    return (min(along(cx + dx, cy) - r - EDGE for cx, cy, r in discs),
+            max(along(cx + dx, cy) + r + EDGE for cx, cy, r in discs))
+
+
+def outline_color(position):
+    """OUTLINE at a position from 0 (where the outline starts along the
+    gradient's direction) to 1 (where it ends)."""
     for (t0, c0), (t1, c1) in zip(OUTLINE, OUTLINE[1:]):
-        if height <= t1:
-            f = max(height - t0, 0) / (t1 - t0)
+        if position <= t1:
+            f = max(position - t0, 0) / (t1 - t0)
             return tuple(round(c0[i] + (c1[i] - c0[i]) * f) for i in range(3))
     return OUTLINE[-1][1]
 
@@ -213,11 +236,14 @@ def strike_image(box, dx, ppem):
     size = strike_size(box, ppem)
     whole = mask(box, dx, ppem, EDGE)
     body = mask(box, dx, ppem, 0)
-    # One color per pixel row, taken at the row's middle.
-    rows = Image.new('RGB', (1, size[1]))
-    span = (box[3] - box[1]) * ppem / UPM
-    rows.putdata([outline_color((size[1] - row - 0.5) / span) for row in range(size[1])])
-    im = rows.resize(size, Image.NEAREST)
+    # One color per pixel, taken at the pixel's middle.
+    start, end = outline_span(dx)
+    px = UPM / ppem
+    im = Image.new('RGB', size)
+    im.putdata([
+        outline_color((along(box[0] + (col + 0.5) * px, box[1] + (size[1] - row - 0.5) * px) - start)
+                      / (end - start))
+        for row in range(size[1]) for col in range(size[0])])
     im.paste(FILL, mask=body)
     for color, rise in SHADES:
         im.paste(color, mask=ImageChops.subtract(body, mask(box, dx, ppem, 0, rise=rise)))
@@ -237,12 +263,17 @@ def shifted(path, dx, dy=0):
     return out
 
 
-def rectangle(x0, y0, x1, y1):
+def beyond(distance):
+    """Everything at least `distance` along the outline gradient's direction:
+    a square on that line, far larger than the glyph."""
+    a = math.radians(OUTLINE_ANGLE)
+    ux, uy = math.cos(a), math.sin(a)
+    far = 10 * UPM
     path = pathops.Path()
-    path.moveTo(x0, y0)
-    path.lineTo(x1, y0)
-    path.lineTo(x1, y1)
-    path.lineTo(x0, y1)
+    path.moveTo(distance * ux + far * uy, distance * uy - far * ux)
+    path.lineTo(distance * ux - far * uy, distance * uy + far * ux)
+    path.lineTo((distance + far) * ux - far * uy, (distance + far) * uy + far * ux)
+    path.lineTo((distance + far) * ux + far * uy, (distance + far) * uy - far * ux)
     path.close()
     return path
 
@@ -287,17 +318,17 @@ def main():
 
     # The same art as vector layers, bottom to top, for the COLR table below:
     # (glyph name, shape, color). Each outline step is the silhouette from its
-    # own height up, painted over the step below, so no seam can show between
-    # two of them. Steps that repeat a color (the flat top of the gradient)
-    # are skipped.
-    xmin, ymin, xmax, ymax = bounds(grown)
+    # own start onward along the gradient, painted over the step before, so no
+    # seam can show between two of them. Steps that repeat a color (a flat
+    # stretch of the gradient) are skipped.
+    start, end = outline_span(dx)
     layers = []
     for step in range(OUTLINE_STEPS):
         color = outline_color((step + 0.5) / OUTLINE_STEPS)
         if layers and layers[-1][2] == color:
             continue
-        above = rectangle(xmin - 10, ymin + (ymax - ymin) * step / OUTLINE_STEPS, xmax + 10, ymax + 10)
-        shape = grown if step == 0 else pathops.op(grown, above, pathops.PathOp.INTERSECTION, clockwise=True)
+        rest = beyond(start + (end - start) * step / OUTLINE_STEPS)
+        shape = grown if step == 0 else pathops.op(grown, rest, pathops.PathOp.INTERSECTION, clockwise=True)
         layers.append((f'cloud.edge{step}', shape, color))
     layers.append(('cloud.body', plain, FILL))
     for i, (color, rise) in enumerate(SHADES):
