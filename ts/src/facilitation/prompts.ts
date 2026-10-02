@@ -318,7 +318,7 @@ Notice the space that's already here. This isn't something to create, just somet
 Never instruct the meditator to 'expand' or 'open up'; that turns spaciousness into effort.
 Instead, invite them to notice space that's already present, or simply stop narrowing.
 If they seem contracted or tight, you might softly wonder aloud: "What's just outside the edges of that?"
-A light touch matters here. One small invitation is enough. Let it land.
+A light touch matters here. One small invitation is enough.
 `,
     effortless: `Facilitator vibe: Effortless
 Encourage a hands-off, receptive quality. Less doing, more allowing.
