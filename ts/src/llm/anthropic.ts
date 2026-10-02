@@ -34,7 +34,7 @@ import { iterateSseEvents, safeJson } from './sse.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
-const DEFAULT_MODEL = 'claude-sonnet-5';
+const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_MAX_TOKENS = 300;
 
 /**
@@ -46,7 +46,13 @@ const DEFAULT_MAX_TOKENS = 300;
  *    (`{type:"disabled"}` 400s at every effort on Opus 5.5), so pin
  *    `output_config.effort` to `low` - the shortest think-before-speak, capping
  *    both the preamble latency and thinking tokens (billed as output).
- *  - opt-out (Opus 5.0-5.4, Sonnet/Haiku 5+): omitting `thinking` runs
+ *  - between-tools (Sonnet 5.5+): the disable 400s here too, but this family
+ *    has its own off switch, `{type:"between_tools"}`: no extended thinking,
+ *    so no preamble and no thinking tokens. NO effort override alongside (it
+ *    is accepted only at effort `high` or lower, the default) and no other
+ *    field inside `thinking`. Only Sonnet 5.5+ takes it. Adaptive thinking
+ *    at effort `low` was no faster on the real prompts (evals, 2026-10-02).
+ *  - opt-out (Opus and Sonnet 5.0-5.4, Haiku 5+): omitting `thinking` runs
  *    adaptive thinking, costing a silent delay plus output-billed thinking
  *    tokens every turn, so send an explicit disable. NO effort override
  *    alongside: Opus 5 accepts the disable only at effort `high` or lower
@@ -59,7 +65,7 @@ const DEFAULT_MAX_TOKENS = 300;
  * the tuning gets one retry without it, and the provider stays untuned for the
  * rest of the session.
  */
-export type ThinkingPolicy = 'always-on' | 'opt-out' | 'none';
+export type ThinkingPolicy = 'always-on' | 'between-tools' | 'opt-out' | 'none';
 
 export function thinkingPolicy(model: string): ThinkingPolicy {
     const m = model.toLowerCase();
@@ -68,23 +74,25 @@ export function thinkingPolicy(model: string): ThinkingPolicy {
     if (!gen) return 'none';
     const version = Number(gen[2]) + Number(gen[3] ?? 0) / 10;
     if (gen[1] === 'opus' && version >= 5.5) return 'always-on';
+    if (gen[1] === 'sonnet' && version >= 5.5) return 'between-tools';
     if (version >= 5) return 'opt-out';
     return 'none';
 }
 
 /**
  * Does the model take `role: "system"` entries inside `messages`
- * (mid-conversation system messages)? Fable, Mythos, and Opus 4.8+; not
- * Sonnet or Haiku. A model this guesses wrong on is caught by `send()`: the
- * 400 gets one retry with system entries rendered as user text, and the
- * provider stays that way for the session.
+ * (mid-conversation system messages)? Fable, Mythos, Opus 4.8+, and Sonnet
+ * 5.5+; not Haiku or the earlier Sonnets. A model this guesses wrong on is
+ * caught by `send()`: the 400 gets one retry with system entries rendered as
+ * user text, and the provider stays that way for the session.
  */
 export function supportsMidConversationSystem(model: string): boolean {
     const m = model.toLowerCase();
     if (/^claude-(fable|mythos)-/.test(m)) return true;
-    const gen = /^claude-opus-(\d+)(?:-(\d)(?!\d))?/.exec(m);
+    const gen = /^claude-(opus|sonnet)-(\d+)(?:-(\d)(?!\d))?/.exec(m);
     if (!gen) return false;
-    return Number(gen[1]) + Number(gen[2] ?? 0) / 10 >= 4.8;
+    const version = Number(gen[2]) + Number(gen[3] ?? 0) / 10;
+    return version >= (gen[1] === 'opus' ? 4.8 : 5.5);
 }
 
 /** Does a 400 body reject a mid-conversation system message? */
@@ -312,9 +320,10 @@ export class AnthropicProvider implements LLMProvider {
             ...(stream && { stream: true }),
         };
         if (systemParam) body['system'] = systemParam;
-        // Both branches exist so the facilitator speaks sooner (see thinkingPolicy).
+        // Every branch exists so the facilitator speaks sooner (see thinkingPolicy).
         const policy = tune ? thinkingPolicy(this.model) : 'none';
         if (policy === 'always-on') body['output_config'] = { effort: 'low' };
+        if (policy === 'between-tools') body['thinking'] = { type: 'between_tools' };
         if (policy === 'opt-out') body['thinking'] = { type: 'disabled' };
         const fallback = !this.fallbackRejected && takesRefusalFallback(this.model);
         if (fallback) body['fallbacks'] = 'default';

@@ -42,7 +42,7 @@ export interface RoleSpecs {
 export interface ResolvedRole {
     /** What the CLI was given, e.g. "anthropic" or "openai:gpt-5.5". */
     spec: string;
-    /** What that resolved to, e.g. "claude-sonnet-5". */
+    /** What that resolved to, e.g. "claude-sonnet-5-5". */
     model: string;
     provider: LLMProvider;
 }
@@ -79,7 +79,7 @@ export function resolveRoles(specs: RoleSpecs): ResolvedRoles {
 /**
  * Collisions that make a run's numbers mean less than they appear to. Compared
  * on the RESOLVED model, not the spec string, so "anthropic" and
- * "anthropic:claude-sonnet-5" are correctly seen as the same casting.
+ * "anthropic:claude-sonnet-5-5" are correctly seen as the same casting.
  */
 export function findRoleCollisions(roles: ResolvedRoles): RoleCollision[] {
     const found: RoleCollision[] = [];

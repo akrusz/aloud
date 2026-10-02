@@ -188,25 +188,27 @@ describe('Opus 5 (anthropic)', () => {
         }
     });
 
-    it('bills Sonnet 5 at the permanent $2/$10, leaving 4.6 dearer at $3/$15', () => {
-        // The $2/$10 launch rate was promotional through 2026-08-31; Anthropic
-        // made it permanent (2026-08-10), so it is now the list price. Credits
-        // debit at cost, so a stale $3/$15 here is a silent 1.5x on every
-        // Sonnet 5 turn.
-        const s5 = pricingFor('anthropic', 'claude-sonnet-5')!;
-        expect(s5.input).toBeCloseTo(2 / M, 12);
-        expect(s5.output).toBeCloseTo(10 / M, 12);
-        expect(s5.cacheRead).toBeCloseTo(0.2 / M, 12);
-        expect(s5.cacheCreation).toBeCloseTo(2.5 / M, 12);
-        expect(s5.cacheCreation1h).toBeCloseTo(4 / M, 12);
+    it('bills Sonnet 5.5 at $2/$10 in the curated slot, leaving 4.6 dearer at $3/$15', () => {
+        // Credits debit at cost, so a stale $3/$15 here is a silent 1.5x on
+        // every Sonnet turn.
+        const s55 = pricingFor('anthropic', 'claude-sonnet-5-5')!;
+        expect(s55.input).toBeCloseTo(2 / M, 12);
+        expect(s55.output).toBeCloseTo(10 / M, 12);
+        expect(s55.cacheRead).toBeCloseTo(0.2 / M, 12);
+        expect(s55.cacheCreation).toBeCloseTo(2.5 / M, 12);
+        expect(s55.cacheCreation1h).toBeCloseTo(4 / M, 12);
+        expect(s55.expanded).toBeUndefined();
 
-        // The cut was Sonnet 5 only. 4.6 is the one legacy entry that outprices
-        // its successor - it must NOT be quietly dragged down to match.
+        // Sonnet 5 was swapped OUT for it, not kept expanded.
+        expect(isModelAllowed('anthropic', 'claude-sonnet-5')).toBe(false);
+
+        // 4.6 is the one legacy entry that outprices its successor - it must
+        // NOT be quietly dragged down to match.
         const s46 = pricingFor('anthropic', 'claude-sonnet-4-6')!;
         expect(s46.expanded).toBe(true);
         expect(s46.input).toBeCloseTo(3 / M, 12);
         expect(s46.output).toBeCloseTo(15 / M, 12);
-        expect(s46.input).toBeGreaterThan(s5.input);
+        expect(s46.input).toBeGreaterThan(s55.input);
     });
 });
 

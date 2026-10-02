@@ -158,7 +158,14 @@ describe('AnthropicProvider', () => {
         }
         // Same for the opt-out family's point releases.
         expect((await bodyFor('claude-opus-5-1'))['thinking']).toEqual({ type: 'disabled' });
-        expect((await bodyFor('claude-sonnet-5-5'))['thinking']).toEqual({ type: 'disabled' });
+        expect((await bodyFor('claude-sonnet-5-1'))['thinking']).toEqual({ type: 'disabled' });
+        // Sonnet 5.5 400s on the disable and takes between_tools instead, with
+        // no effort override (it 400s above `high`).
+        for (const model of ['claude-sonnet-5-5', 'claude-sonnet-6']) {
+            const body = await bodyFor(model);
+            expect(body['thinking']).toEqual({ type: 'between_tools' });
+            expect(body['output_config']).toBeUndefined();
+        }
         // A date stamp is not a point release.
         expect((await bodyFor('claude-opus-4-20250514'))['thinking']).toBeUndefined();
     });
@@ -178,7 +185,7 @@ describe('AnthropicProvider', () => {
             .mockImplementation(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
-            model: 'claude-sonnet-7', // a future opt-out guess that turns out wrong
+            model: 'claude-haiku-7', // a future opt-out guess that turns out wrong
             maxRetries: 0,
             fetchImpl: fetchImpl as unknown as typeof fetch,
         });
@@ -1420,6 +1427,7 @@ describe('mid-conversation system entries (phase notes)', () => {
         expect(supportsMidConversationSystem('claude-opus-5')).toBe(true);
         expect(supportsMidConversationSystem('claude-opus-4-8')).toBe(true);
         expect(supportsMidConversationSystem('claude-opus-4-7')).toBe(false);
+        expect(supportsMidConversationSystem('claude-sonnet-5-5')).toBe(true);
         expect(supportsMidConversationSystem('claude-sonnet-5')).toBe(false);
         expect(supportsMidConversationSystem('claude-haiku-4-5')).toBe(false);
     });

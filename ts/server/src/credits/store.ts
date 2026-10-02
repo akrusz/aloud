@@ -35,7 +35,7 @@ export interface LedgerEntry {
     amount: number;
     /** For hold/hold_release/settle linkage. */
     holdId?: string;
-    /** Free-text, e.g. "llm:anthropic:claude-sonnet-5". Never message content. */
+    /** Free-text, e.g. "llm:anthropic:claude-sonnet-5-5". Never message content. */
     reason: string;
     createdAt: number;
 }

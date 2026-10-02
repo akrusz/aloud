@@ -29,7 +29,7 @@ export type PurchaseChannel = 'web_stripe' | 'iap_apple' | 'iap_google' | 'x402'
 
 export interface CompleteRequest {
     provider: ProviderId;
-    /** Provider-native model id (e.g. "claude-sonnet-5"). Validated server-side
+    /** Provider-native model id (e.g. "claude-sonnet-5-5"). Validated server-side
      *  against an allowlist, so a client can't bill a user for an arbitrary
      *  expensive model. */
     model: string;

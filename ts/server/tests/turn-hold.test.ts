@@ -37,7 +37,7 @@ describe('estimateTokens', () => {
 
 describe('turnMaxTokens', () => {
     it('clamps a plain model to the text ceiling', () => {
-        expect(turnMaxTokens('anthropic', 'claude-sonnet-5', undefined)).toBe(MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('anthropic', 'claude-sonnet-5-5', undefined)).toBe(MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('google', 'gemini-2.5-flash-lite', 5_000)).toBe(MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('anthropic', 'claude-opus-5', 350)).toBe(350);
     });

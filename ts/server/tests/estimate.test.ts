@@ -22,8 +22,8 @@ describe('estimateModels', () => {
         // Compare on provider-cost USD, not rounded credits — at this denomination
         // the per-hour credit counts round to small integers and lose ratio precision.
         const usd = (model: string) => models.find((m) => m.model === model)!.costUsdPerHour;
-        expect(usd('claude-opus-5')).toBeGreaterThan(usd('claude-sonnet-5'));
-        expect(usd('claude-sonnet-5')).toBeGreaterThan(usd('claude-haiku-4-5-20251001'));
+        expect(usd('claude-opus-5')).toBeGreaterThan(usd('claude-sonnet-5-5'));
+        expect(usd('claude-sonnet-5-5')).toBeGreaterThan(usd('claude-haiku-4-5-20251001'));
         // ~5x on this cache-heavy workload.
         expect(usd('claude-opus-5') / usd('claude-haiku-4-5-20251001')).toBeGreaterThan(3);
     });

@@ -96,9 +96,9 @@ const M = 1_000_000;
  * 4. Reasoning: voice needs ~1s to first token, so mandatory reasoning is
  *    disqualifying (Kimi K3, 7-12s). Update OPENROUTER_MANDATORY_REASONING /
  *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the "slower"
- *    note list in ui/src/model-picker.ts. Anthropic models whose thinking
- *    can't be turned off go in thinkingPolicy (ts/src/llm/anthropic.ts), which
- *    pins their effort low.
+ *    note list in ui/src/model-picker.ts. Anthropic models that 400 on the
+ *    thinking disable go in thinkingPolicy (ts/src/llm/anthropic.ts), which
+ *    pins their effort low or sends the family's own off switch.
  * 5. Ear-test the control tokens ([HOLD]/[WAIT:Nm]/[PASS]/[NEXT]) in a real
  *    session; small/open models mishandle them and a bare completion won't show
  *    it.
@@ -181,16 +181,14 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
-    // Sonnet 5: $2/$10 is the permanent price (the intro rate Anthropic kept,
-    // announced 2026-08-10), even though the docs pricing table lagged with a
-    // $3/$15 step-up; verify there before "fixing" it. Credits debit at cost,
-    // so the stale sticker would over-bill every Sonnet turn ~1.5x. Newer
-    // tokenizer (~30% more tokens than 4.6) inflates COUNTS, not these rates.
-    // The core AnthropicProvider sends an explicit thinking-disabled (adaptive
-    // thinking is otherwise on), so no thinking tokens accrue.
-    'anthropic:claude-sonnet-5': {
+    // Sonnet 5.5, the midrange slot, at Sonnet 5's $2/$10. Its tokenizer (~30%
+    // more tokens than 4.6) inflates COUNTS, not these rates. The thinking
+    // disable 400s here, so the core AnthropicProvider sends `between_tools`
+    // instead (thinkingPolicy 'between-tools'): still no thinking, so no
+    // thinking tokens accrue.
+    'anthropic:claude-sonnet-5-5': {
         provider: 'anthropic',
-        model: 'claude-sonnet-5',
+        model: 'claude-sonnet-5-5',
         zhExpanded: true, // zh shortlist carries the GPTs instead (see zh flags above)
         input: 2 / M,
         output: 10 / M,
@@ -324,7 +322,7 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation1h: 6.25 / M, // no 1h tier on automatic caching; never accrues
     },
     // Terra, the 5.6 family's mid tier, same caching contract as Sol.
-    // Expanded for English (Sonnet 5 holds the midrange slot) but curated on
+    // Expanded for English (Sonnet 5.5 holds the midrange slot) but curated on
     // the zh shortlist. NOT yet ear-tested as a facilitator (checklist item 5).
     'openai:gpt-5.6-terra': {
         provider: 'openai',

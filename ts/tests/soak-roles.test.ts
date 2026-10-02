@@ -51,15 +51,15 @@ describe('role collisions', () => {
     it('compares resolved models, not spec strings', () => {
         // "anthropic" and its explicit default model are the same casting.
         const collisions = findRoleCollisions(
-            resolveRoles({ ...DEFAULT_ROLES, judge: 'anthropic:claude-sonnet-5' })
+            resolveRoles({ ...DEFAULT_ROLES, judge: 'anthropic:claude-sonnet-5-5' })
         );
         expect(collisions).toHaveLength(1);
-        expect(collisions[0]?.model).toBe('claude-sonnet-5');
+        expect(collisions[0]?.model).toBe('claude-sonnet-5-5');
     });
 
     it('catches a simulated meditator sharing the facilitator model', () => {
         const collisions = findRoleCollisions(
-            resolveRoles({ ...DEFAULT_ROLES, user: 'anthropic:claude-sonnet-5' })
+            resolveRoles({ ...DEFAULT_ROLES, user: 'anthropic:claude-sonnet-5-5' })
         );
         expect(collisions.map((c) => c.id)).toEqual(['meditator-is-facilitator']);
     });
@@ -78,7 +78,7 @@ describe('role collisions', () => {
 
     it('does not flag classifiers sharing the facilitator model, which is what the app does', () => {
         const collisions = findRoleCollisions(
-            resolveRoles({ ...DEFAULT_ROLES, utility: 'anthropic:claude-sonnet-5' })
+            resolveRoles({ ...DEFAULT_ROLES, utility: 'anthropic:claude-sonnet-5-5' })
         );
         expect(collisions).toEqual([]);
     });

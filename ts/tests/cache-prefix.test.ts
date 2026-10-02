@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { AnthropicProvider } from '../src/llm/anthropic.js';
+import { AnthropicProvider, supportsMidConversationSystem } from '../src/llm/anthropic.js';
 import type { CompletionResult, LLMProvider, Message } from '../src/llm/index.js';
 import { runSoakSession } from '../soak/orchestrator.js';
 import type { SimAction, SimUser, SimView } from '../soak/sim-user.js';
@@ -141,7 +141,7 @@ async function runSit(model: string): Promise<WireBody[]> {
     return bodies;
 }
 
-describe.each(['claude-fable-5-1', 'claude-sonnet-5'])('prompt-cache prefix invariant (%s)', (model) => {
+describe.each(['claude-fable-5-1', 'claude-sonnet-5-5', 'claude-haiku-4-5-20251001'])('prompt-cache prefix invariant (%s)', (model) => {
     it('every request extends the one before it, with one frozen system prompt', async () => {
         const bodies = await runSit(model);
         expect(bodies.length).toBeGreaterThan(6);
@@ -168,7 +168,7 @@ describe.each(['claude-fable-5-1', 'claude-sonnet-5'])('prompt-cache prefix inva
         const notes = last.messages.map(plain).filter((m) => m.text.includes('Stage note'));
         // The opening phase plus the four moves.
         expect(notes.length).toBe(5);
-        const expectedRole = model === 'claude-fable-5-1' ? 'system' : 'user';
+        const expectedRole = supportsMidConversationSystem(model) ? 'system' : 'user';
         // The last note may still be waiting on its reply; the ones before it
         // sit between a user turn and an assistant turn.
         for (const n of notes.slice(0, -1)) expect(n.role).toBe(expectedRole);

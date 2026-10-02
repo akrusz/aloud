@@ -11,7 +11,7 @@
  * Phase 2 (facilitation quality, rubric.md) is a separate pass over the same
  * fixtures and the transcripts this run writes.
  *
- *   npx tsx evals/protocol-eval.ts --models opus-5,sonnet-5 --runs 3
+ *   npx tsx evals/protocol-eval.ts --models opus-5.5,sonnet-5.5 --runs 3
  *   npx tsx evals/protocol-eval.ts --all --out evals/out/run-1.json
  *
  * Keys come from the environment: ANTHROPIC_API_KEY, OPENAI_API_KEY,
@@ -85,7 +85,7 @@ function systemPromptFor(fx: Fixture): string {
  *  a system note, as in a live sit; placed after the first user turn, as if
  *  the phase has been in force for the whole excerpt. */
 function messagesFor(fx: Fixture): Message[] {
-    const messages = messagesFor(fx);
+    const messages: Message[] = fx.history.map((h) => ({ role: h.role, content: h.content }));
     const mode = getMode(fx.mode);
     if (mode?.phases) {
         const note = new StagedModeController(mode, fx.phase).phaseNote();

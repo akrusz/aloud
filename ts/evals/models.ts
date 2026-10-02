@@ -54,11 +54,18 @@ export const ROSTER: EvalModel[] = [
         note: 'Released 2026-07-24. Expected default for exploration. Known bias: longer replies + scope expansion, both anti-facilitation. Steerable - see rubric note on conciseness.',
     },
     {
+        id: 'sonnet-5.5',
+        model: 'claude-sonnet-5-5',
+        provider: 'anthropic',
+        shipped: true,
+        note: 'Replaced Sonnet 5 in the allowlist (Oct 2026), same $2/$10. The latency dark horse: thinking off via between_tools. If it holds the protocol, the quality gap may not justify Opus for a spoken turn loop.',
+    },
+    {
         id: 'sonnet-5',
         model: 'claude-sonnet-5',
         provider: 'anthropic',
-        shipped: true,
-        note: 'The latency dark horse. If it holds the protocol, the quality gap may not justify Opus for a spoken turn loop.',
+        shipped: false,
+        note: 'Predecessor, kept for A/B against 5.5. Same price, same tokenizer.',
     },
     {
         id: 'haiku-4.5',
