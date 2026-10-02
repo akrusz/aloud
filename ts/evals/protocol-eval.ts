@@ -13,6 +13,7 @@
  *
  *   npx tsx evals/protocol-eval.ts --models opus-5.5,sonnet-5.5 --runs 3
  *   npx tsx evals/protocol-eval.ts --all --out evals/out/run-1.json
+ *   npx tsx evals/protocol-eval.ts --fixtures felt-sense/,hold/ --runs 5
  *
  * Keys come from the environment: ANTHROPIC_API_KEY, OPENAI_API_KEY,
  * GOOGLE_API_KEY, OPENROUTER_API_KEY.
@@ -221,25 +222,28 @@ function parseArgs(argv: string[]) {
         return i >= 0 ? argv[i + 1] : undefined;
     };
     const models = get('--models');
+    const fixtures = get('--fixtures')?.split(',');
     return {
         models: argv.includes('--all')
             ? ROSTER
             : models
               ? ROSTER.filter((m) => models.split(',').includes(m.id))
               : ROSTER.filter((m) => m.shipped),
+        // Id prefixes, so "felt-sense/" selects the whole family.
+        fixtures: fixtures ? FIXTURES.filter((f) => fixtures.some((p) => f.id.startsWith(p))) : FIXTURES,
         runs: Number(get('--runs') ?? 3),
         out: get('--out'),
     };
 }
 
 async function main() {
-    const { models, runs, out } = parseArgs(process.argv.slice(2));
+    const { models, fixtures, runs, out } = parseArgs(process.argv.slice(2));
     if (models.length === 0) {
         console.error('No models selected. Use --models <ids> or --all.');
         process.exit(1);
     }
     console.log(
-        `${models.length} models x ${FIXTURES.length} fixtures x ${runs} runs = ${models.length * FIXTURES.length * runs} calls\n`
+        `${models.length} models x ${fixtures.length} fixtures x ${runs} runs = ${models.length * fixtures.length * runs} calls\n`
     );
 
     const trials: Trial[] = [];
@@ -252,7 +256,7 @@ async function main() {
             continue;
         }
         process.stdout.write(`${m.id.padEnd(24)}`);
-        for (const fx of FIXTURES) {
+        for (const fx of fixtures) {
             for (let run = 0; run < runs; run++) {
                 const t = await runTrial(provider, m, fx, run);
                 trials.push(t);
