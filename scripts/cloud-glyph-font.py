@@ -4,8 +4,8 @@ Build the ☁ credit glyph as a one-glyph font: ts/ui/src/assets/aloud-cloud.wof
 (and aloud-cloud.svg next to it).
 
 ☁ IS the aloud cloud credit (ui/src/credit-rate.ts), the one thing aloud sells,
-so it's drawn as a cloud you'd want: white, sky blue underneath, with an
-outline in the logo's colors, amber over the top. As the system emoji it
+so it's drawn as a cloud you'd want: white puffs with sky blue in their
+shadows and an outline in the logo's colors, amber over the top. As the system emoji it
 looked different on every platform and was a pale shape that vanished on light
 ones.
 
@@ -47,8 +47,8 @@ send straight to the color-emoji font.
 
 The shape is a union of circles over a capsule base, grown by EDGE for the
 outline. Growing a circle or a capsule is exact, so the outline is even all
-the way round rather than a stroke approximation. The strikes draw the same
-primitives, so bitmap and fallback outline coincide.
+the way round rather than a stroke approximation. The strikes are rasterized
+from the same paths the layers and the picture use, so all three coincide.
 
 Deps (not in the repo's toolchain; only needed to regenerate):
     pip install fonttools skia-pathops brotli pillow
@@ -64,6 +64,7 @@ import os
 import pathops
 from PIL import Image, ImageChops, ImageDraw
 from fontTools.fontBuilder import FontBuilder
+from fontTools.pens.basePen import BasePen
 from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.svgPathPen import SVGPathPen
@@ -93,17 +94,30 @@ BUMPS = [
     (770, 355, 170),
 ]
 
-# The cloud's body: lit white on top, sky blue underneath. The only cool
-# colors in the app, which makes the glyph read as a cloud and as its own
-# thing beside warm text.
+# The cloud's body: white puffs, sky blue in their shadows. The only cool
+# color in the app, which makes the glyph read as a cloud and as its own
+# thing beside warm text. On a light surface the white has nothing to stand
+# against, and the shadows are what make the cloud look filled.
 FILL = (255, 255, 255)
-# Shading, painted in order: (color, how far up the body it reaches in font
-# units). Each band is the body minus a copy of itself raised that much, so it
-# follows the bottom curve. On a light surface the white top has nothing to
-# stand against, and these bands are what make the cloud look filled.
-SHADES = [
-    ((226, 238, 252), 360),
-    ((190, 213, 244), 150),
+SHADE = (190, 213, 244)
+# The shadows are drawn per puff. Bands across the whole body stack into tiers
+# under the dome, and that reads as soft-serve, not a cloud.
+#
+# The underside: a row of puffs along the base, as (cx, cy, r). The base below
+# them is in shadow, so its top edge is scalloped. Lower them for a thinner
+# shadow. Light comes from the upper left, like the outline's amber, so the
+# shadow runs up the right end and not the left.
+LOBES = [
+    (215, 238, 150),
+    (520, 268, 190),
+    (815, 243, 160),
+]
+# The crooks: a tapered shadow where one bump sits in front of the next, as
+# (front bump, bump behind, length along the front bump's edge, thickness at
+# the middle). Each starts at the dip between the two in the outline.
+CROOKS = [
+    (0, 1, 200, 40),
+    (1, 2, 270, 48),
 ]
 # The outline: the logo's colors, magenta under the cloud, up through orange,
 # to amber over the top, like a cloud lit from above. Stops are (position,
@@ -135,6 +149,10 @@ OUTLINE_STEPS = 24
 STRIKES = [16, 24, 32, 48, 64, 96]
 # Each strike is drawn this many times oversize and filtered down.
 SUPERSAMPLE = 8
+# Straight pieces per curve segment when a strike is drawn. A segment is at
+# most a quarter circle, which this keeps within a fraction of an oversize
+# pixel at the top strike.
+FLATTEN = 24
 
 KAPPA = 0.5522847498  # cubic Bezier circle approximation
 
@@ -177,6 +195,62 @@ def silhouette(grow):
     return out
 
 
+def disc(cx, cy, r):
+    path = pathops.Path()
+    add_circle(path, cx, cy, r)
+    return path
+
+
+def crook(front, back, length, depth):
+    """The shadow in the crook between two bumps: a crescent on the front
+    bump's edge, from the dip where the two circles cross in the outline,
+    `length` along the edge into the bump behind, `depth` thick at its middle
+    and pointed at both ends. It's a second circle through the two end points,
+    less the front bump."""
+    (cx, cy, r), (bx, by, br) = front, back
+    # The dip: the upper of the two points where the circles cross.
+    d = math.hypot(bx - cx, by - cy)
+    a = (d * d + r * r - br * br) / (2 * d)
+    h = math.sqrt(r * r - a * a)
+    ux, uy = (bx - cx) / d, (by - cy) / d
+    dip = max((cx + a * ux - h * uy, cy + a * uy + h * ux),
+              (cx + a * ux + h * uy, cy + a * uy - h * ux), key=lambda p: p[1])
+    start = math.atan2(dip[1] - cy, dip[0] - cx)
+    half = length / r / 2
+    # The crescent's middle, on whichever side of the dip is inside the bump behind.
+    for middle in (start + half, start - half):
+        if math.hypot(cx + r * math.cos(middle) - bx, cy + r * math.sin(middle) - by) < br:
+            break
+    # The second circle's center, this far from the front bump's toward the middle.
+    t = (depth * depth + 2 * depth * r) / (2 * (depth + r - r * math.cos(half)))
+    outer = disc(cx + t * math.cos(middle), cy + t * math.sin(middle), depth + r - t)
+    return pathops.op(outer, disc(cx, cy, r), pathops.PathOp.DIFFERENCE, clockwise=True)
+
+
+def shading(body):
+    """Everything in SHADE: the base under the LOBES, and the CROOKS."""
+    lit = pathops.Path()
+    for cx, cy, r in LOBES:
+        add_circle(lit, cx, cy, r)
+    # Everything above the line through the lobes' centers is lit too, so the
+    # gaps between lobes are shadow only below the row. Past the end lobes
+    # it's their circles alone, which is what brings the shadow to a point up
+    # each end. Counterclockwise like the circles: wound the other way, the
+    # two would cancel where they overlap.
+    lit.moveTo(LOBES[0][0], LOBES[0][1])
+    for cx, cy, _ in LOBES[1:]:
+        lit.lineTo(cx, cy)
+    lit.lineTo(LOBES[-1][0], UPM)
+    lit.lineTo(LOBES[0][0], UPM)
+    lit.close()
+    base = pathops.Path()
+    add_capsule(base, *BASE)
+    out = pathops.op(base, lit, pathops.PathOp.DIFFERENCE, clockwise=True)
+    for front, back, length, depth in CROOKS:
+        out = pathops.op(out, crook(BUMPS[front], BUMPS[back], length, depth), pathops.PathOp.UNION, clockwise=True)
+    return pathops.op(out, body, pathops.PathOp.INTERSECTION, clockwise=True)
+
+
 def bounds(path):
     return path.bounds  # (xMin, yMin, xMax, yMax)
 
@@ -186,27 +260,44 @@ def strike_size(box, ppem):
     return (math.ceil((xmax - xmin) * ppem / UPM), math.ceil((ymax - ymin) * ppem / UPM))
 
 
-def mask(box, dx, ppem, grow, rise=0):
-    """Coverage mask of the silhouette grown by `grow` and raised by `rise`,
-    on the pixel grid of a strike whose lower-left corner is the box's."""
+class FlattenPen(BasePen):
+    """Collects a path as polygons, one list of points per contour."""
+
+    def __init__(self):
+        super().__init__(None)
+        self.contours = []
+
+    def _moveTo(self, pt):
+        self.contours.append([pt])
+
+    def _lineTo(self, pt):
+        self.contours[-1].append(pt)
+
+    def _curveToOne(self, p1, p2, p3):
+        p0 = self._getCurrentPoint()
+        for i in range(1, FLATTEN + 1):
+            t = i / FLATTEN
+            s = 1 - t
+            self.contours[-1].append(tuple(
+                s * s * s * a + 3 * s * s * t * b + 3 * s * t * t * c + t * t * t * d
+                for a, b, c, d in zip(p0, p1, p2, p3)))
+
+
+def mask(path, box, ppem):
+    """Coverage mask of a path on the pixel grid of a strike whose lower-left
+    corner is the box's. The path must be the result of a pathops.op: its
+    contours don't overlap, which is what lets even-odd fill it."""
     xmin, ymin, _, _ = box
     w, h = strike_size(box, ppem)
     k = ppem / UPM * SUPERSAMPLE
+    pen = FlattenPen()
+    path.draw(pen)
     im = Image.new('L', (w * SUPERSAMPLE, h * SUPERSAMPLE), 0)
-    draw = ImageDraw.Draw(im)
-
-    def px(x):
-        return (x + dx - xmin) * k
-
-    def py(y):
-        return h * SUPERSAMPLE - (y + rise - ymin) * k
-
-    x0, x1, cy, r = BASE
-    r += grow
-    draw.rounded_rectangle([px(x0 - r), py(cy + r), px(x1 + r), py(cy - r)], radius=r * k, fill=255)
-    for cx, cy, r in BUMPS:
-        r += grow
-        draw.ellipse([px(cx - r), py(cy + r), px(cx + r), py(cy - r)], fill=255)
+    for contour in pen.contours:
+        one = Image.new('L', im.size, 0)
+        ImageDraw.Draw(one).polygon(
+            [((x - xmin) * k, h * SUPERSAMPLE - (y - ymin) * k) for x, y in contour], fill=255)
+        im = ImageChops.difference(im, one)
     return im.resize((w, h), Image.LANCZOS)
 
 
@@ -236,12 +327,11 @@ def outline_color(position):
     return OUTLINE[-1][1]
 
 
-def strike_image(box, dx, ppem):
-    """One strike: the outline gradient over the whole grown silhouette, the
-    body in FILL on top, the shading bands on top of that."""
+def strike_image(grown, fills, dx, ppem):
+    """One strike: the outline gradient over the whole grown silhouette, then
+    each of `fills` on top, in order."""
+    box = bounds(grown)
     size = strike_size(box, ppem)
-    whole = mask(box, dx, ppem, EDGE)
-    body = mask(box, dx, ppem, 0)
     # One color per pixel, taken at the pixel's middle.
     start, end = outline_span(dx)
     px = UPM / ppem
@@ -250,10 +340,9 @@ def strike_image(box, dx, ppem):
         outline_color((along(box[0] + (col + 0.5) * px, box[1] + (size[1] - row - 0.5) * px) - start)
                       / (end - start))
         for row in range(size[1]) for col in range(size[0])])
-    im.paste(FILL, mask=body)
-    for color, rise in SHADES:
-        im.paste(color, mask=ImageChops.subtract(body, mask(box, dx, ppem, 0, rise=rise)))
-    im.putalpha(whole)
+    for _, shape, color in fills:
+        im.paste(color, mask=mask(shape, box, ppem))
+    im.putalpha(mask(grown, box, ppem))
     return im
 
 
@@ -263,9 +352,9 @@ def png_bytes(im):
     return buf.getvalue()
 
 
-def shifted(path, dx, dy=0):
+def shifted(path, dx):
     out = pathops.Path()
-    path.draw(TransformPen(out.getPen(), (1, 0, 0, 1, dx, dy)))
+    path.draw(TransformPen(out.getPen(), (1, 0, 0, 1, dx, 0)))
     return out
 
 
@@ -326,9 +415,10 @@ def main():
 
     plain = silhouette(0)
     grown = silhouette(EDGE)
+    shade = shading(plain)
     # Put the outline's left edge at BEARING.
     dx = BEARING - bounds(grown)[0]
-    plain, grown = shifted(plain, dx), shifted(grown, dx)
+    plain, grown, shade = shifted(plain, dx), shifted(grown, dx), shifted(shade, dx)
     ring = pathops.op(grown, plain, pathops.PathOp.DIFFERENCE, clockwise=True)
     advance = math.ceil(bounds(grown)[2] + BEARING)
 
@@ -357,10 +447,7 @@ def main():
         rest = beyond(start + (end - start) * step / OUTLINE_STEPS)
         shape = grown if step == 0 else pathops.op(grown, rest, pathops.PathOp.INTERSECTION, clockwise=True)
         layers.append((f'cloud.edge{step}', shape, color))
-    fills = [('cloud.body', plain, FILL)]
-    for i, (color, rise) in enumerate(SHADES):
-        band = pathops.op(plain, shifted(plain, 0, rise), pathops.PathOp.DIFFERENCE, clockwise=True)
-        fills.append((f'cloud.shade{i}', band, color))
+    fills = [('cloud.body', plain, FILL), ('cloud.shade', shade, SHADE)]
     layers += fills
 
     fb = FontBuilder(UPM, isTTF=True)
@@ -383,7 +470,6 @@ def main():
     # The strikes. Each PNG is exactly the outline's bounding box, placed with
     # its lower-left corner on the box's (zero origin offsets), which is where
     # renderers put an sbix bitmap. flags=1 is bitmap only, see the docstring.
-    box = bounds(grown)
     sbix = newTable('sbix')
     sbix.version = 1
     sbix.flags = 1
@@ -392,7 +478,7 @@ def main():
         strike = Strike(ppem=ppem, resolution=72)
         strike.glyphs['cloud'] = SbixGlyph(
             glyphName='cloud', graphicType='png ', originOffsetX=0, originOffsetY=0,
-            imageData=png_bytes(strike_image(box, dx, ppem)))
+            imageData=png_bytes(strike_image(grown, fills, dx, ppem)))
         sbix.strikes[ppem] = strike
     fb.font['sbix'] = sbix
 
@@ -403,7 +489,7 @@ def main():
     fb.setupCOLR({'cloud': [(name, i) for i, (name, _, _) in enumerate(layers)]})
     fb.setupCPAL([[tuple(c / 255 for c in color) + (1.0,) for _, _, color in layers]])
     if args.png:
-        strike_image(box, dx, STRIKES[-1]).save(args.png)
+        strike_image(grown, fills, dx, STRIKES[-1]).save(args.png)
     # Fixed timestamps, so rerunning with unchanged geometry (and the same
     # Pillow, which encodes the PNGs) reproduces the committed file byte for byte.
     fb.font['head'].created = fb.font['head'].modified = timestampSinceEpoch(1790726400)  # 2026-09-30
