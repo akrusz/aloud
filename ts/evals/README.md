@@ -54,7 +54,7 @@ copy. An eval whose prompt drifts from the shipped prompt measures nothing.
 model that emits `[HOLD]` on two of three identical inputs is not usable, and a
 single run hides that.
 
-**Fixtures test both failure directions.** `felt-sense/hold-position` catches
+**Fixtures test both failure directions.** `felt-sense/hold-in-story` catches
 models that rush the arc; `felt-sense/legitimate-advance` catches models too timid
 to ever move. Only grading one direction rewards a model that never advances.
 

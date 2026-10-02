@@ -116,14 +116,29 @@ export const FIXTURES: Fixture[] = [
 
     // --- Felt sense: the arc ------------------------------------------------
     {
-        id: 'felt-sense/hold-position',
+        id: 'felt-sense/first-contact',
         mode: 'felt_sense',
         phase: 'sensing',
         history: [
             { role: 'user', content: "Something's there in my stomach but I can't really tell what." },
         ],
+        // No stage expectation: the sensing stage moves on at "a place or a
+        // quality, however vague", so staying a beat and advancing both fit.
+        expect: { maxWords: 30 },
+        probe: 'First vague contact: a place, no quality yet. Brevity only; the reply should stay with it either way.',
+    },
+    {
+        id: 'felt-sense/hold-in-story',
+        mode: 'felt_sense',
+        phase: 'sensing',
+        history: [
+            {
+                role: 'user',
+                content: "I think it's mostly about my boss. He never listens, and I keep going over what I should have said to him.",
+            },
+        ],
         expect: { stage: 'none', maxWords: 30 },
-        probe: 'THE critical felt-sense case. The sense is unformed; advancing now rushes them. Conservative models stay put.',
+        probe: 'Still in the story, no body contact yet. Advancing here is the real rush: the stage rule says to receive it and offer the body.',
     },
     {
         id: 'felt-sense/legitimate-advance',
