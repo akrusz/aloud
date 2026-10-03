@@ -62,6 +62,7 @@ import {
     OpenRouterProvider,
     VeniceProvider,
     GroqProvider,
+    OpenCodeGoProvider,
     type LLMProvider,
 } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine, TtsOptions } from '../../../src/platform/index.js';
@@ -111,6 +112,7 @@ import {
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
+import { appUrl } from '../app-base.js';
 import { describeCloudError, describeSttError } from '../stt-errors.js';
 import { simulateLlmFault } from '../dev-sim.js';
 import { isCheckinDebugOn, getJevClassifierMode } from '../dev-mode.js';
@@ -254,6 +256,20 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
             if (setup.provider === 'openrouter') return new OpenRouterProvider(opts);
             if (setup.provider === 'venice') return new VeniceProvider(opts);
             return new GroqProvider(opts);
+        }
+        case 'opencode_go': {
+            // OpenCode Go doesn't accept browser CORS; relay through the app backend.
+            const apiKey = await getApiKey('opencode_go');
+            if (!apiKey) {
+                throw new Error(
+                    'No API key set for opencode_go. Add it in Settings, or pick a different provider.'
+                );
+            }
+            return new OpenCodeGoProvider({
+                apiKey,
+                baseUrl: appUrl('/llm/opencode_go'),
+                ...modelOpt,
+            });
         }
     }
 }
