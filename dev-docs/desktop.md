@@ -181,8 +181,8 @@ below).
 sync if bundle naming changes.
 
 `scripts/release.sh` reads the version from `tauri.conf.json` (the source of
-truth), bumps it + `ts/package.json` in lockstep, and lints the TS/Rust stack
-(typecheck + `cargo check` + `cargo deny`).
+truth), bumps it + `ts/package.json` (and its lockfile) in lockstep, and lints
+the TS/Rust stack (typecheck + `audit-gate.mjs` + `cargo check` + `cargo deny`).
 
 ## Auto-update (Tauri updater plugin)
 

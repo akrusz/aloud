@@ -221,6 +221,7 @@ cd ts/server && npx tsc --noEmit -p tsconfig.json
 cargo check --manifest-path ts/src-tauri/Cargo.toml
 cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips are #[ignore]
 (cd ts/src-tauri && cargo deny check)                   # supply-chain gate (CI enforces)
+node ts/scripts/audit-gate.mjs                          # its npm twin: high/critical advisories, minus its ACCEPTED list
 
 # Model evals (by hand, NOT in CI - real API calls; see ts/evals/README.md)
 cd ts && npx tsx evals/protocol-eval.ts
@@ -313,8 +314,9 @@ updater endpoint - and never auto-update existing installs. Promote to a real
 release (the non-prerelease that becomes `latest`) only once an RC checks out.
 
 It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
-`ts/package.json` in lockstep, lints TS (`typecheck`) + Rust (`cargo check` +
-`cargo deny`), and offers the pre-release doc check
+`ts/package.json` (and its lockfile) in lockstep, lints TS (`typecheck`) + Rust
+(`cargo check`), runs both advisory gates (`audit-gate.mjs`, `cargo deny`), and
+offers the pre-release doc check
 ([pre-release-checklist.md](pre-release-checklist.md)). **Prerequisites:** clean
 tree, `gh` authenticated.
 

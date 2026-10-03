@@ -12,7 +12,8 @@
 # When it can't help, it exits without committing and the Security-audit
 # failure email still arrives, which is right — those cases need a human:
 #   - the fix requires a semver-major bump (`npm audit fix --force` territory)
-#   - no patched version exists yet
+#   - no patched version exists yet (if it can't reach us, accept it in
+#     ts/scripts/audit-gate.mjs, as deny.toml does for Rust)
 #   - the failure was cargo-deny (Rust advisories), which npm can't fix
 #
 # Note: pushes made with GITHUB_TOKEN do NOT trigger other workflows (GitHub's
@@ -51,20 +52,25 @@ jobs:
       - run: npm ci
 
       # `npm audit fix` applies only semver-compatible updates; it exits
-      # non-zero when advisories remain, so don't gate on its exit code —
-      # gate on whether it changed anything.
+      # non-zero when advisories remain, so don't gate on its exit code — gate
+      # on the advisory count dropping. NOT on the lockfile changing: npm
+      # rewrites it even when it fixes nothing (a root version the release bump
+      # left behind, fields this runner's npm doesn't write), which is how
+      # v2.12.2 got a bot "audit fix" commit that fixed nothing.
       - name: npm audit fix
-        run: npm audit fix || true
-
-      - name: Detect lockfile changes
         id: diff
         run: |
-          if git diff --quiet -- package.json package-lock.json server/package.json; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "npm audit fix changed nothing — this failure needs a human (semver-major fix, no patch yet, or a cargo-deny finding)."
-          else
+          count() { (npm audit --json || true) | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).metadata.vulnerabilities.total'; }
+          before=$(count)
+          npm audit fix || true
+          after=$(count)
+          echo "advisories: $before -> $after"
+          if [ "$after" -lt "$before" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             git diff --stat -- package.json package-lock.json server/package.json
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "npm audit fix fixed nothing — this failure needs a human (semver-major fix, no patch yet, or a cargo-deny finding)."
           fi
 
       # Same gates as ci.yml — the bot push below won't retrigger CI
@@ -84,7 +90,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         # Don't fail if only part was fixable — a partial fix is still worth
         # shipping; the next Security-audit run reports what remains.
-        run: npm audit --audit-level=high || echo "::warning::Advisories remain after the fix — the rest needs a human."
+        run: node scripts/audit-gate.mjs || echo "::warning::Advisories remain after the fix — the rest needs a human."
 
       - name: Commit and push the fix
         if: steps.diff.outputs.changed == 'true'

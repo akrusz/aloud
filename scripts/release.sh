@@ -27,8 +27,8 @@ Modes:
   -h, --help show this help
 
 Before anything else: the tree must be clean and not behind its upstream
-(pull first), and TS typecheck + the Tauri npm/crate version check + cargo
-check + cargo deny must pass.
+(pull first), and TS typecheck + the Tauri npm/crate version check + npm
+audit + cargo check + cargo deny must pass.
 
 Prompts (new versions): Claude drafts a name and notes from the commits since
 the last tag. Name: Enter takes the suggestion, - for none. Notes: Y use,
@@ -110,6 +110,12 @@ if [ -f ts/package.json ]; then
         fi
         # tauri build rejects npm/crate plugin version drift - after the tag is out.
         if ! node ts/scripts/check-tauri-versions.mjs; then
+            exit 1
+        fi
+        # The npm half of the supply-chain gate (cargo deny, below, is the Rust
+        # half). CI enforces it too, but only once the tag is out.
+        if ! node ts/scripts/audit-gate.mjs; then
+            echo "Error: npm audit found issues — fix before releasing" >&2
             exit 1
         fi
     else
@@ -426,6 +432,13 @@ bump_version() {
         sed -i.bak "s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package.json
         rm -f ts/package.json.bak
     fi
+    if [ -f ts/package-lock.json ]; then
+        # The lockfile repeats our version twice at the top (root + packages[""]);
+        # every "version" after that is a dependency's, so stay in the header.
+        # Left behind, the next npm run rewrites it as a stray diff.
+        sed -i.bak "1,10s/\"version\": \"[0-9][0-9.]*\"/\"version\": \"${VERSION}\"/" ts/package-lock.json
+        rm -f ts/package-lock.json.bak
+    fi
     # Android (Capacitor) carries its own version pair. Play REJECTS a re-used
     # versionCode, so it increments on every run — including 'same'/'replace', which is
     # still a fresh upload. See dev-docs/mobile-signing.md.
@@ -450,6 +463,7 @@ bump_version() {
     fi
     [ -f ts/src-tauri/tauri.conf.json ] && git add ts/src-tauri/tauri.conf.json
     [ -f ts/package.json ] && git add ts/package.json
+    [ -f ts/package-lock.json ] && git add ts/package-lock.json
     [ -f ts/android/app/build.gradle ] && git add ts/android/app/build.gradle
     git diff --cached --quiet || git commit -m "v${VERSION}"
 }

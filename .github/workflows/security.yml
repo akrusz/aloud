@@ -40,7 +40,9 @@ jobs:
       # One audit covers everything: ts/server is an npm workspace of ts/, so
       # the root package-lock.json resolves the full tree including the server.
       # Gate only on high/critical — low/moderate advisories shouldn't block a
-      # merge, but Dependabot will still open PRs for them.
+      # merge, but Dependabot will still open PRs for them. The script is
+      # `npm audit` plus an accepted-advisory list (npm has no ignore file): an
+      # unpatched advisory that can't reach us goes in its ACCEPTED, with why.
       - name: Audit
         working-directory: ts
-        run: npm audit --audit-level=high
+        run: node scripts/audit-gate.mjs
