@@ -22,7 +22,8 @@ gets *read aloud mid-meditation*.
 ```bash
 npx tsx evals/protocol-eval.ts                              # shipped models, 3 runs
 npx tsx evals/protocol-eval.ts --all --runs 5               # incl. candidates
-npx tsx evals/protocol-eval.ts --models opus-5.5,sonnet-5.5     # a specific pair
+npx tsx evals/protocol-eval.ts --models opus-5.5,sonnet-5.5 # a specific pair
+npx tsx evals/protocol-eval.ts --fixtures felt-sense/,hold/ # only these fixture id prefixes
 npx tsx evals/protocol-eval.ts --all --out evals/out/1.json # save transcripts
 ```
 
