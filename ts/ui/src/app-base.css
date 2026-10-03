@@ -4807,8 +4807,8 @@ input[type="range"].preview-range {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.2rem;
-    height: 2.2rem;
+    width: 2.7rem;
+    height: 2.7rem;
     border-radius: 50%;
     /* Its round outline is the only thing that says "button" - in dark,
        --border is close enough to the bar to disappear. */
@@ -4817,7 +4817,7 @@ input[type="range"].preview-range {
     color: var(--text-secondary);
     /* Not inherited by a bare <button>; without it the ☁ is the system glyph. */
     font-family: var(--font);
-    font-size: 0.8rem;
+    font-size: 1.15rem;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -5617,9 +5617,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         transform: none;
         grid-column: 3;
         justify-self: center;
-        /* Roomier hit box for thumbs. */
+        /* Held smaller than desktop: the gap beside Begin is all it has. */
         width: 2.5rem;
         height: 2.5rem;
+        font-size: 1rem;
         /* Cancel the footer's right padding from the centering math so the
            chip sits midway between Begin's edge and the page edge, not the
            narrower content box (keep in sync with .setup-footer's 1.5rem). */
