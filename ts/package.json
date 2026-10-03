@@ -53,7 +53,7 @@
         "vitest": "^5.0.1"
     },
     "dependencies": {
-        "@capacitor-community/keep-awake": "^7.1.0",
+        "@capacitor-community/keep-awake": "^8.0.1",
         "@capacitor-community/speech-recognition": "^7.0.1",
         "@capacitor/android": "^8.5.2",
         "@capacitor/app": "^8.1.1",
