@@ -225,6 +225,7 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
 function voiceEngineLabel(v: { provider: TtsProvider; providerVoiceId: string; tier: string }): string {
     if (v.provider === 'openai') return 'OpenAI gpt-4o-mini-tts';
     if (v.provider === 'azure') return v.providerVoiceId.includes('DragonHD') ? 'Azure DragonHD' : 'Azure Neural';
+    if (v.provider === 'inworld') return v.providerVoiceId.endsWith('-flash') ? 'Inworld TTS-2 Flash' : 'Inworld TTS-2';
     return v.tier === 'value' ? 'Google Neural2' : 'Google Chirp3-HD';
 }
 

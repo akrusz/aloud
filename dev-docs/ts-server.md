@@ -69,6 +69,7 @@ load logic is `loadConfig` in `config.ts`.
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
 | `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | server TTS | Azure AI Speech key + region (region defaults to `eastus`). Unset → the Azure voices drop out of `GET /cloud/v1/voices`, including the flagged default Harper, and `defaultVoice()` falls down `DEFAULT_VOICE_CHAIN` to Leda/Polaris. Azure bills SSML markup and counts each CJK char twice; `providers/tts.ts azureBilledChars` is what the meter charges on |
+| `INWORLD_API_KEY` | server TTS | Inworld key; a read-only one synthesizes. Unset → the Inworld voices (Luna, Wren, Silas, Clive) drop out of `GET /cloud/v1/voices`. Wren and Silas are custom voices in the key's own workspace, so a key from another account 404s them. Billed per character of spoken text: TTS-2 $25/1M, TTS-2 Flash $15/1M (`pricing/providers.inworldTtsRateFor`, the model is the part of the catalog id after the colon) |
 | `TYPESAFE_API_KEY` | server judge | TypeSafe (Jev) key for `/cloud/v1/judge`, the typed-judgment path for the silence classifiers and the spoken commands. Unset → the route reports not-configured, clients keep the Haiku classifier, and there are no spoken commands (they have no LLM twin). Also read by `npm run jev:ab` (classifiers) and `npm run jev:commands` (every command ask, through the gate) |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup - once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
@@ -85,7 +86,7 @@ The whole meditation loop can run through the server:
 | LLM (premium) | Anthropic | `ANTHROPIC_API_KEY` |
 | LLM (value tier) | Google Gemini (direct) | `GEMINI_API_KEY` |
 | STT | OpenAI Whisper (default) | `OPENAI_API_KEY` |
-| TTS | Azure AI Speech (default voice Harper), Google Cloud TTS, OpenAI | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`, `GOOGLE_TTS_API_KEY`, `OPENAI_API_KEY` |
+| TTS | Azure AI Speech (default voice Harper), Google Cloud TTS, OpenAI, Inworld | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`, `GOOGLE_TTS_API_KEY`, `OPENAI_API_KEY`, `INWORLD_API_KEY` |
 
 ## Running the full loop locally (UI ↔ server)
 
@@ -147,7 +148,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON). When Anthropic's refusal fallback answers a declined turn (`anthropic.ts` `takesRefusalFallback`), each model's attempt settles at its own rates with a usage row apiece, the declined one tagged `utility` |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
-| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / OpenAI) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
+| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / OpenAI / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
 | `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), so it has its own per-minute guard plus a 5,000-a-day cap that only binds accounts with no credits (`deps.ts`). A command is two calls: the one-ask `command-gate`, then `command` if that says maybe. Not charged (~$0.00007/call); usage recorded as `typesafe`. Own rate budget (`deps.judgeGuard`, 90/min/account), separate from the 60/min every other metered route shares. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
@@ -226,7 +227,7 @@ turn.
 ## Hosted voices & auditioning new ones
 
 The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-name
-→ (provider, voice id) map across Google Cloud TTS, OpenAI and Azure AI Speech
+→ (provider, voice id) map across Google Cloud TTS, OpenAI, Azure AI Speech and Inworld
 (the flagged default, Harper, is an Azure MAI-Voice-2.1 voice). `GET
 /cloud/v1/voices` publishes them; the client merges them into its picker (top
 "Recommended" tier) and sends the short name back, which `/cloud/v1/tts`
@@ -279,7 +280,7 @@ partial run still produces a usable page. The keys are documented in
 | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION` | Azure AI Speech *(ships)* | per char (SSML tags billed; CJK ×2) | [portal](https://portal.azure.com) |
 | `GEMINI_API_KEY` | Gemini TTS - already set for the LLM | per second | [AI Studio](https://aistudio.google.com/apikey) |
 | `CARTESIA_API_KEY` | Cartesia Sonic 3 | per char | [play.cartesia.ai](https://play.cartesia.ai/keys) |
-| `INWORLD_API_KEY` | Inworld TTS | per char | [platform.inworld.ai](https://platform.inworld.ai) |
+| `INWORLD_API_KEY` | Inworld TTS-2 and TTS-2 Flash *(ships)* | per char (text only; the style instruction is free) | [platform.inworld.ai](https://platform.inworld.ai) |
 | `DEEPGRAM_API_KEY` | Deepgram Aura-2 | per char | [console](https://console.deepgram.com/signup) |
 
 These adapters are audition-only on purpose - promoting one means adding it to `src/providers/tts.ts`, the

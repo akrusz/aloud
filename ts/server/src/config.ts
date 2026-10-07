@@ -151,6 +151,11 @@ export interface Config {
     azureSpeechKey?: string;
     azureSpeechRegion: string;
 
+    /** Inworld key (a read-only one synthesizes). When set, /cloud/v1/tts can
+     *  speak the Inworld voices, two of which are custom voices that live in
+     *  this key's workspace (voice-catalog.ts). */
+    inworldApiKey?: string;
+
     /** TypeSafe key. When set, /cloud/v1/judge answers the silence classifiers
      *  and the spoken-command asks with Jev; unset, clients keep the LLM
      *  classifier and there are no spoken commands. */
@@ -268,6 +273,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const openaiTtsKey = env['OPENAI_TTS_API_KEY'] || env['OPENAI_API_KEY'];
     if (openaiTtsKey) config.openaiTtsApiKey = openaiTtsKey;
     if (env['AZURE_SPEECH_KEY']) config.azureSpeechKey = env['AZURE_SPEECH_KEY'];
+    if (env['INWORLD_API_KEY']) config.inworldApiKey = env['INWORLD_API_KEY'];
     if (env['TYPESAFE_API_KEY']) config.typesafeApiKey = env['TYPESAFE_API_KEY'];
     if (env['STRIPE_SECRET_KEY']) config.stripeSecretKey = env['STRIPE_SECRET_KEY'];
     if (env['STRIPE_WEBHOOK_SECRET']) config.stripeWebhookSecret = env['STRIPE_WEBHOOK_SECRET'];

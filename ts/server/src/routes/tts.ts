@@ -1,6 +1,7 @@
 /**
  * POST /v1/tts, metered text-to-speech. Takes JSON { text, voice?, rate? },
- * synthesizes via the resolved voice's provider (Google, OpenAI, or Azure),
+ * synthesizes via the resolved voice's provider (Google, OpenAI, Azure, or
+ * Inworld),
  * debits fractional credits by billed character count, returns MP3 bytes
  * (audio/mpeg). Cost rides in X-Credits-Charged / X-Credits-Remaining so the
  * body stays a clean audio stream the client hands straight to an <audio>
@@ -24,6 +25,7 @@ import {
     isProviderAccountFailure,
     synthesizeWithAzure,
     synthesizeWithGoogle,
+    synthesizeWithInworld,
     synthesizeWithOpenAI,
 } from '../providers/tts.js';
 import { withLeadSilence } from '../providers/mp3-lead-silence.js';
@@ -63,6 +65,7 @@ function availableProviders(deps: Deps): ReadonlySet<TtsProvider> {
     if (deps.config.googleTtsApiKey) s.add('google');
     if (deps.config.openaiTtsApiKey) s.add('openai');
     if (deps.config.azureSpeechKey) s.add('azure');
+    if (deps.config.inworldApiKey) s.add('inworld');
     return s;
 }
 
@@ -91,14 +94,23 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
                   ).then(withLeadSilence)
             : null;
     }
+    if (resolved.provider === 'inworld') {
+        const key = deps.config.inworldApiKey;
+        return key
+            ? (text, rate) =>
+                  synthesizeWithInworld(text, resolved.voiceId, effectiveRate(resolved, rate), key).then(
+                      withLeadSilence
+                  )
+            : null;
+    }
     const key = deps.config.googleTtsApiKey;
     return key
         ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate), key)
         : null;
 }
 
-/** Characters the provider will actually bill for this synthesis. Google and
- *  OpenAI bill the plain text; Azure bills the SSML body we send (markup +
+/** Characters the provider will actually bill for this synthesis. Google,
+ *  OpenAI and Inworld bill the plain text; Azure bills the SSML body we send (markup +
  *  expanded escapes) and counts each CJK character twice, so its count runs
  *  higher than text.length. The meter, the up-front balance gate, and the
  *  usage record all take THIS number - billing text.length would under-charge

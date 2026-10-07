@@ -12,14 +12,23 @@ const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
 let googleCalls: Array<{ url: string; body: any }> = [];
 let openaiCalls: Array<{ url: string; body: any; auth: string | null }> = [];
 let azureCalls: Array<{ url: string; body: string; key: string | null }> = [];
+let inworldCalls: Array<{ body: any; auth: string | null }> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
     googleCalls = [];
     openaiCalls = [];
     azureCalls = [];
+    inworldCalls = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url);
+        if (u.includes('api.inworld.ai/tts/v1/voice')) {
+            const headers = (init?.headers ?? {}) as Record<string, string>;
+            inworldCalls.push({ body: JSON.parse(init?.body as string), auth: headers['authorization'] ?? null });
+            return new Response(JSON.stringify({ audioContent: Buffer.from(FAKE_MP3).toString('base64') }), {
+                status: 200,
+            });
+        }
         if (u.includes('texttospeech.googleapis.com')) {
             googleCalls.push({ url: u, body: JSON.parse(init?.body as string) });
             return new Response(
@@ -462,6 +471,41 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         const body = azureCalls[0]!.body;
         expect(body).toContain('<mstts:express-as style="softvoice">');
         expect(body).not.toContain('<prosody');
+    });
+
+    it('speaks an Inworld voice on the model its catalog id names, billed per character at that rate', async () => {
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', INWORLD_API_KEY: 'iw-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const a = createApp(buildDeps(config));
+        const token = await devToken(a);
+        const speak = (voice: string, text: string) =>
+            a.request('/cloud/v1/tts', {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ text, voice }),
+            });
+
+        const luna = await speak('Luna', 'Notice [softly] the breath.');
+        expect(luna.status).toBe(200);
+        // The lead silence is in front, as for Azure.
+        const { AZURE_LEAD_SILENCE_MP3 } = await import('../src/providers/mp3-lead-silence.js');
+        const audio = new Uint8Array(await luna.arrayBuffer());
+        expect(audio.length).toBe(AZURE_LEAD_SILENCE_MP3.length + FAKE_MP3.length);
+        expect(inworldCalls[0]!.auth).toBe('Basic iw-key');
+        expect(inworldCalls[0]!.body).toMatchObject({ voiceId: 'Luna', modelId: 'inworld-tts-2' });
+        // Square brackets would steer the voice instead of being spoken.
+        expect(inworldCalls[0]!.body.text).toBe('Notice (softly) the breath.');
+        expect(inworldCalls[0]!.body.instruction).toContain('meditation');
+        // 27 chars at $25/1M, brackets and all (Inworld bills them).
+        expect(Number(luna.headers.get('X-Credits-Charged'))).toBeCloseTo((27 * 25) / 1_000_000 / 0.05, 9);
+
+        // Wren is a designed voice on the Flash model: $15/1M.
+        const wren = await speak('Wren', 'Take a slow breath in.');
+        expect(inworldCalls[1]!.body).toMatchObject({
+            voiceId: 'keen-banjo-6800__design-voice-22273db5',
+            modelId: 'inworld-tts-2-flash',
+        });
+        expect(Number(wren.headers.get('X-Credits-Charged'))).toBeCloseTo((22 * 15) / 1_000_000 / 0.05, 9);
+        expect(googleCalls).toHaveLength(0);
     });
 
     it('502s for an Azure voice when no Azure key is configured', async () => {

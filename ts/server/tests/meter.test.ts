@@ -167,6 +167,12 @@ describe('priceTtsChars', () => {
         expect(azure('en-US-Harper:MAI-Voice-2.1')).toBeCloseTo(N * (22 / 1_000_000), 9);
     });
 
+    it('prices Inworld by the model named in the voice id', () => {
+        const inworld = (voiceId: string) => priceTtsChars(N, { provider: 'inworld', voiceId }).providerCostUsd;
+        expect(inworld('Luna:inworld-tts-2')).toBeCloseTo(N * (25 / 1_000_000), 9);
+        expect(inworld('ws__design-voice-1:inworld-tts-2-flash')).toBeCloseTo(N * (15 / 1_000_000), 9);
+    });
+
     it('debits fractional credits at cost (not ceiled)', () => {
         const cost = priceTtsChars(N, { voiceId: 'en-US-Chirp3-HD-Leda' });
         expect(cost.credits).toBeCloseTo(cost.providerCostUsd / USD_PER_CREDIT, 9);

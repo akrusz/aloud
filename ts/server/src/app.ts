@@ -63,7 +63,12 @@ export function createApp(deps: Deps): Hono {
             billing: Boolean(deps.config.stripeSecretKey),
             // Which media capabilities the client can route here (vs native).
             stt: Boolean(deps.config.sttConfig),
-            tts: Boolean(deps.config.googleTtsApiKey || deps.config.openaiTtsApiKey || deps.config.azureSpeechKey),
+            tts: Boolean(
+                deps.config.googleTtsApiKey ||
+                    deps.config.openaiTtsApiKey ||
+                    deps.config.azureSpeechKey ||
+                    deps.config.inworldApiKey
+            ),
             judge: Boolean(deps.config.typesafeApiKey),
         })
     );
@@ -93,6 +98,7 @@ export function createApp(deps: Deps): Hono {
             google: Boolean(deps.config.googleTtsApiKey),
             openai: Boolean(deps.config.openaiTtsApiKey),
             azure: Boolean(deps.config.azureSpeechKey),
+            inworld: Boolean(deps.config.inworldApiKey),
         };
         const available = new Set(
             (Object.keys(hasKey) as (keyof typeof hasKey)[]).filter((k) => hasKey[k])

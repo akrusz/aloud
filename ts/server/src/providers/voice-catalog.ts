@@ -11,7 +11,7 @@ export type VoiceGender = 'female' | 'male' | 'androgynous';
 
 /** The TTS backend that speaks a voice. Each has its own synth call, key, and
  *  per-char rate (providers/tts.ts, pricing/providers.ttsRateFor). */
-export type TtsProvider = 'google' | 'openai' | 'azure';
+export type TtsProvider = 'google' | 'openai' | 'azure' | 'inworld';
 
 /** Voice quality/placement bucket (also the picker's cost-badge hint).
  *  'premium' = "Best", leads the picker, flagged recommended: Google Chirp3-HD
@@ -28,7 +28,8 @@ export interface CuratedVoice {
     name: string;
     provider: TtsProvider;
     /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda), OpenAI voice name
-     *  (coral), or Azure ShortName (en-US-AvaMultilingualNeural). */
+     *  (coral), Azure ShortName (en-US-AvaMultilingualNeural), or Inworld
+     *  `<voiceId>:<modelId>` (Luna:inworld-tts-2). */
     providerVoiceId: string;
     /** Perceived gender, for the picker's label. */
     gender: VoiceGender;
@@ -130,6 +131,16 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
+    // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
+    // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,
+    // from the "soft breathy" and "warm low" descriptions): they exist only in
+    // the Inworld workspace behind INWORLD_API_KEY, so a key from any other
+    // account 404s them. Wren was picked on Flash; the rest on TTS-2.
+    { name: 'Luna', provider: 'inworld', providerVoiceId: 'Luna:inworld-tts-2', gender: 'female', tier: 'premium' },
+    { name: 'Wren', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-22273db5:inworld-tts-2-flash', gender: 'female', tier: 'premium' },
+    { name: 'Silas', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-446019ec:inworld-tts-2', gender: 'male', tier: 'premium' },
+    { name: 'Clive (GB)', provider: 'inworld', providerVoiceId: 'Clive:inworld-tts-2', gender: 'male', tier: 'premium' },
 ];
 
 /** Default-voice preference order behind the `default: true` pick, one voice

@@ -6,7 +6,10 @@
  * 2026-09-07), so on a phone the first phoneme is lost to the output track
  * opening ("right" -> "ight", meditation-pal-tur5). Google clips carry
  * 100-240ms of their own. MP3 frames concatenate cleanly; this adds no billed
- * characters. Generated with:
+ * characters. Inworld clips get it too: they lead with 46-110ms (measured
+ * 2026-10-07, the encoder delay included) and share the 24kHz mono framing;
+ * theirs are 128kbps, and frames of mixed bitrate are an ordinary VBR stream.
+ * Generated with:
  *   ffmpeg -f lavfi -i anullsrc=r=24000:cl=mono -t 0.2 -c:a libmp3lame \
  *     -b:a 96k -write_xing 0 -id3v2_version 0 silence200.mp3
  *   tail -c +289 silence200.mp3   # drop the first frame

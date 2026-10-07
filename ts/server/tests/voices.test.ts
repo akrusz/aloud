@@ -76,11 +76,23 @@ describe('GET /cloud/v1/voices', () => {
     it('lists every curated voice when all provider keys are set', async () => {
         const app = createApp(
             buildDeps(
-                loadConfig({ GOOGLE_TTS_API_KEY: 'k', OPENAI_TTS_API_KEY: 'k2', AZURE_SPEECH_KEY: 'k3' })
+                loadConfig({
+                    GOOGLE_TTS_API_KEY: 'k',
+                    OPENAI_TTS_API_KEY: 'k2',
+                    AZURE_SPEECH_KEY: 'k3',
+                    INWORLD_API_KEY: 'k4',
+                })
             )
         );
         const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
         expect(voices.map((v) => v.name)).toEqual(CURATED_VOICES.map((v) => v.name));
+    });
+
+    it('hides the Inworld voices without its key, as for every provider', async () => {
+        const app = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', AZURE_SPEECH_KEY: 'k3' })));
+        const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
+        for (const name of namesFor('inworld')) expect(voices.map((v) => v.name)).not.toContain(name);
+        expect(namesFor('inworld')).toEqual(['Luna', 'Wren', 'Silas', 'Clive (GB)']);
     });
 
     it('carries a cost tier + credits/hr so the picker can show relative cost', async () => {

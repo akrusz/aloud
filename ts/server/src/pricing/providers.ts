@@ -504,15 +504,28 @@ export function azureTtsRateFor(voiceId: string | undefined): number {
     return voiceId?.includes('DragonHD') ? AZURE_TTS_USD_PER_CHAR.dragonHd : AZURE_TTS_USD_PER_CHAR.neural;
 }
 
+/** Inworld list price per character, on-demand (inworld.ai/pricing, checked
+ *  2026-10-07): TTS-2 $25/1M, TTS-2 Flash $15/1M. The cheaper published rates
+ *  are subscription tiers, not volume discounts. It bills the spoken text
+ *  alone, in code points (its usage.processedCharactersCount matched
+ *  text.length; the style instruction is free), so text.length is the count.
+ *  The model is the part of the catalog id after the colon. */
+const INWORLD_TTS_USD_PER_CHAR = { tts2: 25 / M, flash: 15 / M } as const;
+
+export function inworldTtsRateFor(voiceId: string | undefined): number {
+    return voiceId?.endsWith('-flash') ? INWORLD_TTS_USD_PER_CHAR.flash : INWORLD_TTS_USD_PER_CHAR.tts2;
+}
+
 /** Per-character TTS cost for a resolved (provider, voiceId). OpenAI is a flat
- *  per-char rate (voice doesn't change the price); Google's and Azure's are
- *  read from the voice id's tier. The single rate authority both the meter and
+ *  per-char rate (voice doesn't change the price); Google's, Azure's and
+ *  Inworld's are read from the voice id's tier. The single rate authority both the meter and
  *  the picker's credits/hr estimate bill through, so a shown rate can't drift
  *  from the real charge. NOTE for Azure the "characters" this multiplies must
  *  be the BILLED count (providers/tts.azureBilledChars), not text.length. */
 export function ttsRateFor(provider: TtsProvider, voiceId: string | undefined): number {
     if (provider === 'openai') return OPENAI_TTS_USD_PER_CHAR;
     if (provider === 'azure') return azureTtsRateFor(voiceId);
+    if (provider === 'inworld') return inworldTtsRateFor(voiceId);
     return googleTtsRateFor(voiceId);
 }
 

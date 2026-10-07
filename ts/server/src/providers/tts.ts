@@ -159,6 +159,50 @@ export async function synthesizeWithOpenAI(
     return new Uint8Array(await res.arrayBuffer());
 }
 
+const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
+
+/**
+ * Synthesize `text` to MP3 bytes via Inworld TTS. `voice` is the catalog's
+ * `<voiceId>:<modelId>` (Luna:inworld-tts-2); the model rides in the id because
+ * it sets the rate (pricing/providers.inworldTtsRateFor). Like OpenAI's, the
+ * voice is steered by a style instruction, which Inworld does not bill. Audio
+ * comes back base64 in JSON. Throws on an upstream error.
+ */
+export async function synthesizeWithInworld(
+    text: string,
+    voice: string,
+    rate: number,
+    apiKey: string,
+    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
+): Promise<Uint8Array> {
+    const at = voice.lastIndexOf(':');
+    const voiceId = at > 0 ? voice.slice(0, at) : voice;
+    const modelId = at > 0 ? voice.slice(at + 1) : 'inworld-tts-2';
+    const res = await fetchUpstream('Inworld TTS', fetchImpl, INWORLD_TTS_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Basic ${apiKey}` },
+        body: JSON.stringify({
+            // Inworld reads anything in square brackets as a delivery
+            // instruction: it is not spoken, and it steers the voice. A reply
+            // must never do that, so brackets go out as parentheses - the same
+            // length, so the billed count still equals text.length.
+            text: text.replace(/\[/g, '(').replace(/\]/g, ')'),
+            voiceId,
+            modelId,
+            instruction: meditationInstruction(rate),
+            audioConfig: {
+                audioEncoding: 'MP3',
+                sampleRateHertz: 24000,
+                // Inworld's band.
+                speakingRate: Math.min(1.5, Math.max(0.5, rate)),
+            },
+        }),
+    });
+    const body = (await res.json()) as { audioContent?: string };
+    if (!body.audioContent) throw new TtsUpstreamError('Inworld TTS returned no audio', res.status);
+    return Uint8Array.from(Buffer.from(body.audioContent, 'base64'));
+}
+
 function xmlEscape(s: string): string {
     return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
 }
