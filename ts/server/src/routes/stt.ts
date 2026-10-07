@@ -3,8 +3,9 @@
  * `format=i16` (current clients; half the bytes of the same audio), Float32
  * otherwise (older clients) - sample rate in the `sample_rate` query param.
  * Forwards to the configured Whisper backend (OpenAI by default, Groq/custom
- * via env; config.ts resolveSttConfig), debits fractional credits by audio
- * duration, returns the transcript.
+ * via env; config.ts resolveSttConfig), debits fractional credits by the
+ * audio seconds the provider bills (pricing sttBilledSeconds), returns the
+ * transcript.
  *
  * Duration is computed server-side from the byte length, so a client can't
  * under-report seconds to underpay. Stateless: audio in, text out, nothing
@@ -18,6 +19,7 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
+import { sttBilledSeconds } from '../pricing/providers.js';
 import { serverIncidents } from '../credits/incidents.js';
 import { chargeUpfront, gateUpfront } from './upfront-charge.js';
 import { int16ToFloat32, transcribeWhisper } from '../providers/stt.js';
@@ -70,7 +72,8 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const sessionId = c.req.query('session_id') || null;
         const incident = serverIncidents(deps.store, { accountId: account.id, provider: stt.provider, model, sessionId });
 
-        const cost = priceSttSeconds(seconds, model);
+        const billedSeconds = sttBilledSeconds(seconds, model);
+        const cost = priceSttSeconds(billedSeconds, model);
         const gate = await gateUpfront(deps, account.id, cost);
         if (!gate.fits) {
             incident(
@@ -89,20 +92,30 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         let text: string;
         try {
-            text = await transcribeWhisper(samples, sampleRate, { ...stt, model }, language);
+            const result = await transcribeWhisper(samples, sampleRate, { ...stt, model }, language);
+            text = result.text;
+            // The charge is our own count; the provider's is the tripwire for
+            // a billing rule that has moved under it.
+            if (result.reportedSeconds !== undefined && result.reportedSeconds !== billedSeconds) {
+                log.warn('stt billed seconds differ from provider usage', {
+                    model,
+                    billedSeconds,
+                    reportedSeconds: result.reportedSeconds,
+                });
+            }
         } catch (err) {
             log.error('stt forward failed', { err: String(err) });
             incident('stt_error', `${seconds.toFixed(1)}s: ${String(err)}`);
             return errorJson(c, 'provider_error', 'STT upstream error');
         }
 
-        const charged = await chargeUpfront(deps, gate, cost, `stt:${stt.provider}:${seconds.toFixed(1)}s`, {
+        const charged = await chargeUpfront(deps, gate, cost, `stt:${stt.provider}:${billedSeconds.toFixed(1)}s`, {
             accountId: account.id,
             sessionId,
             kind: 'stt',
             provider: stt.provider,
             model,
-            seconds,
+            seconds: billedSeconds,
         });
         return c.json({ text, ...charged } satisfies TranscribeResponse);
     });

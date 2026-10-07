@@ -418,6 +418,18 @@ export const STT_USD_PER_SECOND_BY_MODEL: Record<string, number> = {
     'gpt-transcribe': 0.27 / 3600,
 };
 
+/** Models billed per request in WHOLE seconds, rounded up: OpenAI reports
+ *  `usage.seconds` 1 for a 0.4s gpt-transcribe clip and 2 for 1.05s (measured
+ *  2026-10-07). gpt-4o-transcribe is token-billed, so its per-second rate is
+ *  already an average and nothing rounds. */
+const STT_WHOLE_SECOND_MODELS = new Set(['gpt-transcribe']);
+
+/** The seconds the provider bills for ONE request carrying `seconds` of audio.
+ *  Per request, never per session: a sit's many short clips each round up. */
+export function sttBilledSeconds(seconds: number, model: string): number {
+    return STT_WHOLE_SECOND_MODELS.has(model) ? Math.ceil(seconds) : seconds;
+}
+
 /** The server-default model (config.ts STT_DEFAULTS), used when a request names
  *  no model — and the cost fallback for env-pinned backends (Groq, custom)
  *  whose models aren't in the table. Those bill the default's rate, so keep the

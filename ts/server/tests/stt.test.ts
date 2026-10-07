@@ -153,6 +153,24 @@ describe('POST /cloud/v1/stt', () => {
         expect(body.creditsRemaining).toBeCloseTo(20 - body.creditsCharged, 6);
     });
 
+    it('bills gpt-transcribe in whole seconds per request, as OpenAI does', async () => {
+        const a = app();
+        const token = await devToken(a);
+        const post = (seconds: number, model = '') =>
+            a.request(`/cloud/v1/stt?sample_rate=16000${model}`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+                body: pcmBody(seconds),
+            });
+        const short = (await (await post(0.4)).json()) as TranscribeResponse;
+        expect(short.creditsCharged).toBeCloseTo((1 * 0.27) / 3600 / 0.05, 9);
+        const over = (await (await post(4.43)).json()) as TranscribeResponse;
+        expect(over.creditsCharged).toBeCloseTo((5 * 0.27) / 3600 / 0.05, 9);
+        // Token-billed upstream: its per-second rate is an average, no rounding.
+        const legacy = (await (await post(4.43, '&model=gpt-4o-transcribe')).json()) as TranscribeResponse;
+        expect(legacy.creditsCharged).toBeCloseTo((4.43 * 0.36) / 3600 / 0.05, 9);
+    });
+
     it('accepts format=i16 and bills the same duration as the f32 equivalent', async () => {
         const a = app();
         const token = await devToken(a);

@@ -56,6 +56,14 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
     return new Uint8Array(buf);
 }
 
+export interface SttResult {
+    text: string;
+    /** The audio seconds the provider says it billed, where it says (OpenAI's
+     *  duration-billed models: `usage.seconds`). Only a cross-check on our own
+     *  meter - the charge is fixed before the call (routes/stt.ts). */
+    reportedSeconds?: number;
+}
+
 /**
  * Transcribe mono Float32 PCM via the configured backend. Throws on upstream
  * error. `language` is an optional ISO-639-1 hint (the session language,
@@ -69,7 +77,7 @@ export async function transcribeWhisper(
     backend: SttBackend,
     language?: string,
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
-): Promise<string> {
+): Promise<SttResult> {
     const wav = encodeWav(samples, sampleRate);
     const form = new FormData();
     form.append('file', new Blob([wav], { type: 'audio/wav' }), 'audio.wav');
@@ -86,6 +94,10 @@ export async function transcribeWhisper(
         const detail = await res.text().catch(() => '');
         throw new Error(`STT ${backend.provider} ${res.status}: ${detail}`);
     }
-    const data = (await res.json()) as { text?: string };
-    return (data.text ?? '').trim();
+    const data = (await res.json()) as { text?: string; usage?: { type?: string; seconds?: unknown } };
+    const reported = data.usage?.type === 'duration' ? data.usage.seconds : undefined;
+    return {
+        text: (data.text ?? '').trim(),
+        ...(typeof reported === 'number' && Number.isFinite(reported) ? { reportedSeconds: reported } : {}),
+    };
 }
