@@ -116,7 +116,7 @@ describe('HttpModelProber', () => {
         const prober = new HttpModelProber({}, fetchFn);
         expect(await prober.probe('anthropic', 'claude-opus-5')).toBe('unknown');
         expect(await prober.probe('openai', 'gpt-5.6-sol')).toBe('unknown');
-        expect(await prober.probe('google', 'gemini-2.5-flash-lite')).toBe('unknown');
+        expect(await prober.probe('google', 'gemini-3.5-flash-lite')).toBe('unknown');
     });
 
     it('returns unknown on a network error', async () => {

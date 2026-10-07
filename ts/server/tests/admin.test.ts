@@ -182,7 +182,7 @@ describe('admin routes — data', () => {
         // TTS leg. The report must split cost by service and surface the ratio.
         await h.store.appendUsage({
             id: 'u1', accountId: 'a1', sessionId: null, passId: null, ts: 1_000_000,
-            kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
+            kind: 'llm', provider: 'google', model: 'gemini-3.5-flash-lite',
             tokensIn: 100, tokensOut: 20, cacheRead: 900, cacheCreation: 0,
             seconds: 0, chars: 0, providerCostUsd: 0.0002, credits: 0.004,
         });
@@ -224,7 +224,7 @@ describe('admin routes — data', () => {
         await seedAccount(h2.store, 'usr', 'user@example.com');
         const base = {
             sessionId: null, passId: null, kind: 'llm' as const, provider: 'google',
-            model: 'gemini-2.5-flash-lite', tokensIn: 100, tokensOut: 20, cacheRead: 0,
+            model: 'gemini-3.5-flash-lite', tokensIn: 100, tokensOut: 20, cacheRead: 0,
             cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
         };
         const now = Date.now() / 1000;
@@ -507,7 +507,7 @@ describe('admin routes — retreats', () => {
         // Tag a usage row to the pass so the list surfaces real spend + bill.
         await store.appendUsage({
             id: 'u1', accountId: 'acct-1', sessionId: null, passId: pass.id, ts: 1_500,
-            kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
+            kind: 'llm', provider: 'google', model: 'gemini-3.5-flash-lite',
             tokensIn: 10, tokensOut: 5, cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0,
             providerCostUsd: 0.02, credits: 0.4,
         });

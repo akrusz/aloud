@@ -44,7 +44,7 @@ function usageEvent(over: Partial<UsageEvent> = {}): UsageEvent {
         ts: 1000,
         kind: 'llm',
         provider: 'google',
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-3.5-flash-lite',
         tokensIn: 50,
         tokensOut: 20,
         cacheRead: 4000,

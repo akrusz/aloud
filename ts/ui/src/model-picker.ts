@@ -38,7 +38,7 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-sonnet-4-6': 'Claude Sonnet 4.6',
     'claude-haiku-5-5': 'Claude Haiku 5.5',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
-    'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
+    'gemini-3.5-flash-lite': 'Gemini 3.5 Flash Lite',
     'gpt-5-nano': 'GPT-5 Nano',
     'gpt-6-sol': 'GPT-6 Sol',
     'gpt-6-luna': 'GPT-6 Luna',

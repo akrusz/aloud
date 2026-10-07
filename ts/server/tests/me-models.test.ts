@@ -30,7 +30,7 @@ describe('GET /cloud/v1/me/models', () => {
         // The rate must order the tiers it's meant to communicate: a premium
         // model (Opus) costs more per hour than a value one (Gemini Flash-Lite).
         const rateOf = (model: string) => body.models.find((m) => m.model === model)!.creditsPerHour!;
-        expect(rateOf('claude-opus-5')).toBeGreaterThan(rateOf('gemini-2.5-flash-lite'));
+        expect(rateOf('claude-opus-5')).toBeGreaterThan(rateOf('gemini-3.5-flash-lite'));
     });
 
     it('carries the hosted STT rate, so the client keeps no copy of its own', async () => {

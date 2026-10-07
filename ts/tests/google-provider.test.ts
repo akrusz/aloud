@@ -21,7 +21,7 @@ function captureFetch() {
 describe('GoogleProvider', () => {
     it('targets Google\'s OpenAI-compatible endpoint with the API key', async () => {
         const { calls, fetchImpl } = captureFetch();
-        const provider = new GoogleProvider({ apiKey: 'k-test', model: 'gemini-2.5-flash-lite', fetchImpl });
+        const provider = new GoogleProvider({ apiKey: 'k-test', model: 'gemini-3.5-flash-lite', fetchImpl });
 
         const result = await provider.complete([{ role: 'user', content: 'hello' }]);
 
@@ -34,8 +34,22 @@ describe('GoogleProvider', () => {
         expect(result.text).toBe('hi');
     });
 
+    it("sends each Gemini generation its own thinking floor: 'none' on 2.x, 'minimal' on 3.x", async () => {
+        // 3.x 400s on 'none', so the wrong floor fails every turn.
+        for (const [model, floor] of [
+            ['gemini-2.5-flash-lite', 'none'],
+            ['gemini-3.5-flash-lite', 'minimal'],
+            ['gemini-3.8-flash', 'minimal'],
+        ] as const) {
+            const { calls, fetchImpl } = captureFetch();
+            await new GoogleProvider({ apiKey: 'k', model, fetchImpl }).complete([{ role: 'user', content: 'hello' }]);
+            const body = JSON.parse(String(calls[0]!.init?.body)) as { reasoning_effort?: string };
+            expect(body.reasoning_effort).toBe(floor);
+        }
+    });
+
     it('defaults to the value-tier model', () => {
         const { fetchImpl } = captureFetch();
-        expect(new GoogleProvider({ apiKey: 'k', fetchImpl }).model).toBe('gemini-2.5-flash-lite');
+        expect(new GoogleProvider({ apiKey: 'k', fetchImpl }).model).toBe('gemini-3.5-flash-lite');
     });
 });

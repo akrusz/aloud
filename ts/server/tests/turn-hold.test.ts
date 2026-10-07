@@ -38,7 +38,7 @@ describe('estimateTokens', () => {
 describe('turnMaxTokens', () => {
     it('clamps a plain model to the text ceiling', () => {
         expect(turnMaxTokens('anthropic', 'claude-sonnet-5-5', undefined)).toBe(MAX_OUTPUT_TOKENS);
-        expect(turnMaxTokens('google', 'gemini-2.5-flash-lite', 5_000)).toBe(MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('google', 'gemini-3.5-flash-lite', 5_000)).toBe(MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('anthropic', 'claude-opus-5', 350)).toBe(350);
     });
     it('gives a thinking-mandatory model headroom on top of the spoken budget', () => {
@@ -60,7 +60,7 @@ describe('holdForTurn', () => {
     });
 
     it('sizes a cheap model turn to a fraction of a credit', () => {
-        const hold = holdForTurn('google', 'gemini-2.5-flash-lite', [system, ...history], MAX_OUTPUT_TOKENS);
+        const hold = holdForTurn('google', 'gemini-3.5-flash-lite', [system, ...history], MAX_OUTPUT_TOKENS);
         expect(hold).toBeLessThan(0.1);
     });
 
@@ -138,7 +138,7 @@ describe('LLM route hold at a small balance', () => {
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
             body: JSON.stringify({
                 provider: 'google',
-                model: 'gemini-2.5-flash-lite',
+                model: 'gemini-3.5-flash-lite',
                 system: 'x'.repeat(12_000),
                 messages: [{ role: 'user', content: 'hi' }],
                 stream: true,

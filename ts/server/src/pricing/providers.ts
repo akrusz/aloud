@@ -272,19 +272,27 @@ const MODELS: Record<string, ModelPricing> = {
     // (No Groq LLM: without prompt caching the whole re-sent transcript bills
     // at full input every turn. 'groq' stays a provider for STT.)
     //
-    // Direct via Google's OpenAI-compatible endpoint, at Google's list prices.
-    // The OpenAI provider parses prompt_tokens_details.cached_tokens, so
-    // implicit-cache reads bill discounted; cache writes aren't surfaced, so
-    // cacheCreation sits at the input rate and never accrues.
-    'google:gemini-2.5-flash-lite': {
+    // Gemini 3.5 Flash-Lite, the one Google entry: direct via Google's
+    // OpenAI-compatible endpoint, at Google's list prices. Took the slot from
+    // 2.5 Flash-Lite (Oct 2026), which Google now serves only to keys that
+    // already used it. 3x/6x dearer than 2.5, so no longer the floor (Haiku
+    // 5.5 and GPT-6 Luna undercut it); here as the Google voice. Thinking
+    // can't be switched fully off on Gemini 3.x: the core GoogleProvider sends
+    // the 'minimal' floor (openai.ts geminiReasoningFloor), which billed no
+    // reasoning tokens. Implicit-cache reads ARE reported
+    // (prompt_tokens_details.cached_tokens) but covered only ~60% of a
+    // repeated prefix where 2.5 covered ~90%, so the estimate runs a little
+    // optimistic. Cache writes aren't surfaced, so cacheCreation sits at the
+    // input rate and never accrues.
+    'google:gemini-3.5-flash-lite': {
         provider: 'google',
-        model: 'gemini-2.5-flash-lite',
-        expanded: true, // absolute-cheapest option; Haiku holds the curated budget slot (see above)
-        input: 0.1 / M,
-        output: 0.4 / M,
-        cacheRead: 0.01 / M, // Google list price for cached-input read (text), ~90% off input
-        cacheCreation: 0.1 / M,
-        cacheCreation1h: 0.1 / M, // no 1h write on automatic caching; never accrues
+        model: 'gemini-3.5-flash-lite',
+        expanded: true, // Haiku holds the curated budget slot (see above)
+        input: 0.3 / M,
+        output: 2.5 / M,
+        cacheRead: 0.03 / M, // Google list price for cached-input read, ~90% off input
+        cacheCreation: 0.3 / M,
+        cacheCreation1h: 0.3 / M, // no 1h write on automatic caching; never accrues
     },
     // The floor, and the recap engine (`utility` above), picked over Flash Lite
     // for CACHE CERTAINTY: OpenAI reports and discounts cached_tokens, while

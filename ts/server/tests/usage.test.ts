@@ -24,7 +24,7 @@ function ev(over: Partial<UsageEvent> = {}): UsageEvent {
         ts: 1000,
         kind: 'llm',
         provider: 'google',
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-3.5-flash-lite',
         tokensIn: 0,
         tokensOut: 0,
         cacheRead: 0,
@@ -361,7 +361,7 @@ describe('buildUsageReport', () => {
         const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.hours).toBeCloseTo(1.5, 9);
         const opus = r.perHour.byModel.find((m) => m.model === 'claude-opus-5')!;
-        const flash = r.perHour.byModel.find((m) => m.model === 'gemini-2.5-flash-lite')!;
+        const flash = r.perHour.byModel.find((m) => m.model === 'gemini-3.5-flash-lite')!;
         // Opus: 6 credits over ITS 1 h, not the window's 1.5 h.
         expect(opus.hours).toBeCloseTo(1, 9);
         expect(opus.creditsPerHour).toBeCloseTo(6, 9);

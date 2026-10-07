@@ -61,7 +61,7 @@ function complete(app: ReturnType<typeof createApp>, token: string, stream: bool
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         body: JSON.stringify({
             provider: 'google',
-            model: 'gemini-2.5-flash-lite',
+            model: 'gemini-3.5-flash-lite',
             messages: [{ role: 'user', content: 'a private thing the meditator said' }],
             sessionId: 'sess-1',
             stream,
@@ -81,7 +81,7 @@ describe('incident log - LLM route', () => {
         expect(row.source).toBe('server');
         expect(row.accountId).toBe(accountId);
         expect(row.sessionId).toBe('sess-1');
-        expect(row.model).toBe('gemini-2.5-flash-lite');
+        expect(row.model).toBe('gemini-3.5-flash-lite');
         expect(row.detail).toBe('finish=length tokens_out=300 tokens_in=100 max_tokens=512 purpose=null');
     });
 
@@ -99,7 +99,7 @@ describe('incident log - LLM route', () => {
         await (await complete(app, token, stream)).text();
         const rows = await deps.store.incidentsSince(0);
         expect(rows.map((r) => r.kind)).toEqual(['llm_max_tokens']);
-        // gemini-2.5-flash-lite isn't thinking-mandatory: the plain 512 ceiling.
+        // gemini-3.5-flash-lite isn't thinking-mandatory: the plain 512 ceiling.
         expect(rows[0]!.detail).toBe(
             'finish=max_tokens tokens_out=1024 tokens_in=9 max_tokens=512 purpose=null thinking_tokens=1000'
         );

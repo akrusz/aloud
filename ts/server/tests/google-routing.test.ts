@@ -5,12 +5,15 @@ import { Forwarder, ProviderNotConfiguredError } from '../src/providers/forward.
 
 describe('Google-direct value tier', () => {
     it('prices the Gemini value model under the google provider, direct (not openrouter)', () => {
-        const direct = pricingFor('google', 'gemini-2.5-flash-lite');
+        const direct = pricingFor('google', 'gemini-3.5-flash-lite');
         expect(direct).toBeDefined();
-        expect(direct!.input).toBeCloseTo(0.1 / 1_000_000, 12);
-        expect(direct!.cacheRead).toBeCloseTo(0.01 / 1_000_000, 12);
+        expect(direct!.input).toBeCloseTo(0.3 / 1_000_000, 12);
+        expect(direct!.output).toBeCloseTo(2.5 / 1_000_000, 12);
+        expect(direct!.cacheRead).toBeCloseTo(0.03 / 1_000_000, 12);
+        // 2.5 went out with the swap, not kept beside it.
+        expect(isModelAllowed('google', 'gemini-2.5-flash-lite')).toBe(false);
 
-        expect(isModelAllowed('google', 'gemini-2.5-flash-lite')).toBe(true);
+        expect(isModelAllowed('google', 'gemini-3.5-flash-lite')).toBe(true);
         // The old OpenRouter route for the same model is gone.
         expect(isModelAllowed('openrouter', 'google/gemini-2.5-flash-lite')).toBe(false);
     });
@@ -26,7 +29,7 @@ describe('Google-direct value tier', () => {
         await expect(
             fwd.complete([{ role: 'user', content: 'hi' }], {
                 provider: 'google',
-                model: 'gemini-2.5-flash-lite',
+                model: 'gemini-3.5-flash-lite',
             })
         ).rejects.toBeInstanceOf(ProviderNotConfiguredError);
     });

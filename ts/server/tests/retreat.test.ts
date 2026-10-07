@@ -106,7 +106,7 @@ function complete(h: Harness) {
         headers: { authorization: `Bearer ${h.token}`, 'content-type': 'application/json' },
         body: JSON.stringify({
             provider: 'google',
-            model: 'gemini-2.5-flash-lite',
+            model: 'gemini-3.5-flash-lite',
             messages: [{ role: 'user', content: 'hi' }],
         }),
     });
@@ -159,7 +159,7 @@ describe('retreat pass — LLM metering bypass', () => {
         // Pre-load 2 credits of usage in the trailing window — over the cap of 1.
         await h.deps.store.appendUsage({
             id: 'pre', accountId: h.accountId, sessionId: null, passId: 'pass-1',
-            ts: Date.now() / 1000, kind: 'llm', provider: 'google', model: 'gemini-2.5-flash-lite',
+            ts: Date.now() / 1000, kind: 'llm', provider: 'google', model: 'gemini-3.5-flash-lite',
             tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0,
             providerCostUsd: 0.1, credits: 2,
         });

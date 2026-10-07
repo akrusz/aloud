@@ -73,7 +73,7 @@ describe('priceLlmTurn', () => {
 
     it('does not round a tiny cached turn up to a whole credit', () => {
         // A near-free turn (mostly cache reads) must debit a tiny fraction, not 1.
-        const turn = priceLlmTurn('google', 'gemini-2.5-flash-lite', {
+        const turn = priceLlmTurn('google', 'gemini-3.5-flash-lite', {
             tokensIn: 50,
             tokensOut: 20,
             cacheRead: 4000,

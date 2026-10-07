@@ -444,14 +444,32 @@ export const GroqProvider = preconfigured({
     defaultModel: 'llama-3.3-70b-versatile',
 });
 
+const GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+const GOOGLE_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+
+/** Lowest `reasoning_effort` each Gemini generation takes on the OpenAI-compat
+ *  endpoint (probed Oct 2026). 2.x maps 'none' to thinking off. 3.x 400s on
+ *  'none' ("Request contains an invalid argument") and bottoms out at
+ *  'minimal', which billed no reasoning tokens on 3.5 Flash-Lite. */
+function geminiReasoningFloor(model: string): 'none' | 'minimal' {
+    const gen = /^gemini-(\d+)/.exec(model);
+    return gen && Number(gen[1]) >= 3 ? 'minimal' : 'none';
+}
+
 /** Google Gemini via its OpenAI-compatible endpoint, direct (no OpenRouter
  *  fee). Gemini caches prompts implicitly and reports it as
  *  prompt_tokens_details.cached_tokens, parsed by usageToResult. */
-export const GoogleProvider = preconfigured({
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-2.5-flash-lite',
-    // Disable Gemini "thinking": 2.5 Flash reasons by default, and being
-    // explicit stops a model swap silently turning it on for Flash-Lite too.
-    // The OpenAI-compat endpoint maps reasoning_effort:"none" to thinking off.
-    extraBody: { reasoning_effort: 'none' },
-});
+export class GoogleProvider extends OpenAIProvider {
+    constructor(options: OpenAIProviderOptions = {}) {
+        const model = options.model ?? GOOGLE_DEFAULT_MODEL;
+        super({
+            ...options,
+            baseUrl: options.baseUrl ?? GOOGLE_BASE_URL,
+            model,
+            // Gemini "thinking" off, or as near as the model allows: 2.5 Flash
+            // reasons by default, and being explicit stops a model swap
+            // silently turning it on.
+            extraBody: { reasoning_effort: geminiReasoningFloor(model), ...(options.extraBody ?? {}) },
+        });
+    }
+}

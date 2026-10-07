@@ -126,11 +126,18 @@ export const ROSTER: EvalModel[] = [
         note: 'Added 2026-08-13 as the price floor and the recap engine (utility flag). Shipped for summarization, NOT ear-tested as a facilitator - this run is the first look at whether it could ever hold the slot. Reasoning model pinned to effort minimal; watch latency and control tokens.',
     },
     {
+        id: 'gemini-3.5-flash-lite',
+        model: 'gemini-3.5-flash-lite',
+        provider: 'google',
+        shipped: true,
+        note: 'Took the Google slot from 2.5 Flash Lite (Oct 2026). GA 2026-07-21, $0.30/$2.50: no longer the price floor.',
+    },
+    {
         id: 'gemini-2.5-flash-lite',
         model: 'gemini-2.5-flash-lite',
         provider: 'google',
-        shipped: true,
-        note: 'Current cheap/fast tier. Likely superseded - see gemini-3.6-flash below.',
+        shipped: false,
+        note: 'Predecessor, kept for A/B against 3.5. Google now serves 2.5 only to keys that have used it.',
     },
     {
         id: 'kimi-k2',
