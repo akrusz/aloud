@@ -116,6 +116,22 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         expect([0, 3, 5, 7, 10].map(defaultWaitSeconds)).toEqual([1200, 480, 300, 90, 30]);
     });
 
+    // A first sit checks in sooner than its guidance stop would, and the
+    // pacing seed reads the same number the prompt states.
+    it('checkinWaitSec overrides the guidance default in the prompt and the seed', () => {
+        const builder = new PromptBuilder({
+            config: { waitSignal: true, directiveness: 7, checkinWaitSec: 45 },
+        });
+        expect(builder.checkinWaitSeconds()).toBe(45);
+        const prompt = builder.buildSystemPrompt();
+        // "around": WAIT_SIGNAL_FRAGMENT itself cites [WAIT:90s] as an example.
+        expect(prompt).toContain('around [WAIT:45s]');
+        expect(prompt).not.toContain('around [WAIT:90s]');
+        expect(
+            new PromptBuilder({ config: { directiveness: 7 } }).checkinWaitSeconds()
+        ).toBe(90);
+    });
+
     it('composes selected focuses and qualities', () => {
         const builder = new PromptBuilder({
             config: {
@@ -214,6 +230,21 @@ describe('PromptBuilder.buildOpenerPrompt', () => {
         const builder = new PromptBuilder({ config: { directiveness: 9 } });
         const prompt = builder.buildOpenerPrompt();
         expect(prompt).toContain('suggest where to begin');
+    });
+
+    it('explains the format on a first sit, in place of the straight invitation', () => {
+        const builder = new PromptBuilder({
+            config: { focuses: ['emotions'], directiveness: 7 },
+        });
+        const usual = builder.buildOpenerPrompt();
+        const first = builder.buildOpenerPrompt('', { firstSit: true });
+        expect(first).toContain('first time here');
+        expect(first).toContain('say out loud whatever they notice');
+        expect(first).not.toContain('go straight to the invitation');
+        expect(usual).not.toContain('first time here');
+        // Everything after the lead still composes.
+        expect(first).toContain('focus areas: emotions');
+        expect(first).toContain('suggest where to begin');
     });
 });
 

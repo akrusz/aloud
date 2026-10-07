@@ -181,6 +181,12 @@ export interface SessionSetup {
     notingUserTurnCue: boolean;
     /** Which cue sound to play; null = the built-in synth chime. */
     notingUserTurnCueSound: NotingSound | null;
+    /**
+     * A first sit (first-sit.ts). Set only on the one-off setup "Try right now"
+     * builds, never on the saved one: loadSetup spreads whatever is stored, so
+     * a persisted true would turn every later session into a first sit.
+     */
+    firstSit?: boolean;
 }
 
 export type NotingReactive = 'none' | 'low' | 'high';

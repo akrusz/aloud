@@ -46,6 +46,10 @@ export interface PromptConfig {
     /** Smart check-in timing: teach the model the [WAIT:Nm] signal
      *  (WAIT_SIGNAL_FRAGMENT). Off by default. */
     waitSignal: boolean;
+    /** Default smart check-in wait in seconds, overriding the one the guidance
+     *  level implies (defaultWaitSeconds). Null everywhere but a first sit,
+     *  where a quiet meditator is more likely unsure than settled. */
+    checkinWaitSec: number | null;
     /** Silence mode: teach the model the [HOLD] signal (HOLD_SIGNAL_FRAGMENT).
      *  On by default; mirrors AppSettings.silenceModeEnabled. */
     holdSignal: boolean;
@@ -71,6 +75,7 @@ export const defaultPromptConfig: PromptConfig = {
     verbosity: 'low',
     customInstructions: '',
     waitSignal: false,
+    checkinWaitSec: null,
     holdSignal: true,
     appControls: 'screen',
     language: 'en',
@@ -658,6 +663,19 @@ const OPENER_CLOSING =
     'Do not mention the session settings directly. ' +
     'Speak naturally, as you would to begin a conversation.';
 
+/** Opens a first sit (buildOpenerPrompt's `firstSit`) in place of the usual
+ *  straight-to-the-invitation lead: nobody has told this meditator what to do
+ *  with a facilitator that listens. It has to license talking about the
+ *  session, which VOICE_STYLE_FRAGMENT otherwise rules out. */
+const FIRST_SIT_OPENER_LEAD =
+    "This is the meditator's first time here, and nobody has told them how it works. " +
+    'Open by telling them, in two or three short sentences: they say out loud whatever they notice, ' +
+    'in their own words; you will listen and ask a question now and then; ' +
+    'pauses are fine, and there is nothing to get right. ' +
+    'Then, in one more sentence, invite them to begin. ' +
+    'This opening may run longer than your usual replies, and it is the one time the session itself is the topic. ' +
+    'No greeting or welcome line, and nothing about how good it is that they came.';
+
 export interface PromptBuilderOptions {
     config?: Partial<PromptConfig>;
     random?: Random;
@@ -742,9 +760,7 @@ export class PromptBuilder {
         if (this.config.waitSignal) {
             // checkinPaceSlider modes (felt sense) feed their pace value through
             // config.directiveness, so this mapping serves both sliders.
-            parts.push(
-                `${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(defaultWaitSeconds(this.config.directiveness))}`
-            );
+            parts.push(`${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(this.checkinWaitSeconds())}`);
         }
 
         parts.push(appControlsFragment(this.config.appControls));
@@ -767,6 +783,12 @@ export class PromptBuilder {
         }
 
         return parts.join('\n');
+    }
+
+    /** This session's default smart check-in wait: the bias the system prompt
+     *  states and the interval pacing starts on, so the two can't disagree. */
+    checkinWaitSeconds(): number {
+        return this.config.checkinWaitSec ?? defaultWaitSeconds(this.config.directiveness);
     }
 
     /** The pool in the session's language (language.ts). */
@@ -799,8 +821,10 @@ export class PromptBuilder {
      * Build a user-message prompt asking the LLM for a session opening.
      *
      * @param intention The meditator's stated intention, if any.
+     * @param options.firstSit Explain the format before the invitation.
+     *   Classic exploration only, which a first sit always is.
      */
-    buildOpenerPrompt(intention = ''): string {
+    buildOpenerPrompt(intention = '', options: { firstSit?: boolean } = {}): string {
         if (this.mode?.openerPrompt) {
             const parts: string[] = [this.mode.openerPrompt];
             // Rotate the entry invitation so openers don't all land the same
@@ -815,10 +839,12 @@ export class PromptBuilder {
             return parts.join(' ');
         }
         const parts: string[] = [
-            'Generate a brief, natural opening for this meditation session. ' +
-                'Just a sentence or two that lands them here and invites them to begin. ' +
-                'No greeting or welcome line, and nothing about how good it is that they came; ' +
-                'go straight to the invitation.',
+            options.firstSit
+                ? FIRST_SIT_OPENER_LEAD
+                : 'Generate a brief, natural opening for this meditation session. ' +
+                  'Just a sentence or two that lands them here and invites them to begin. ' +
+                  'No greeting or welcome line, and nothing about how good it is that they came; ' +
+                  'go straight to the invitation.',
         ];
 
         const details: string[] = [];

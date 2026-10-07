@@ -5094,9 +5094,19 @@ input[type="range"].preview-range {
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.tour-choice:hover {
+.tour-choice:hover:not(:disabled) {
     border-color: var(--accent);
     box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* A choice that can't be taken yet ("Try right now" while the app is still
+   getting ready). Its note carries the reason, so only the title steps back. */
+.tour-choice:disabled {
+    cursor: default;
+}
+
+.tour-choice:disabled strong {
+    color: var(--text-muted);
 }
 
 .tour-choice strong {

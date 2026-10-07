@@ -88,7 +88,9 @@ import {
     autoStart as autoStartGuide,
     closeIfActive as closeGuideIfActive,
     resetAndStart as resetGuide,
+    type QuickStart,
 } from '../tour/index-guide.js';
+import { firstSitSetup } from '../first-sit.js';
 
 const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }> = [
     {
@@ -238,6 +240,9 @@ export async function mountSetupView(
     }
     // Lazy-loaded; the setup form is interactive while voices fetch.
     let scoredVoices: ScoredVoice[] = [];
+    // False until the first catalog load settles: before that setup.voice may
+    // still be the null that means "browser default" (firstSitBlocker).
+    let voicesLoaded = false;
 
     // A pending continuation: a History "Continue" (reason 'history') or a
     // cold-boot resume (reason 'resume', meditation-pal-v73p). The history view /
@@ -376,6 +381,7 @@ export async function mountSetupView(
         // Session language (the app-level Settings value, mirrored by
         // loadSetup) hides incompatible voices in the picker.
         scoredVoices = await loadScoredVoices(setup.language);
+        voicesLoaded = true;
         // Never leave the picker on a bare "Default": take the best (list is
         // sorted best-first) voice that doesn't need downloading.
         if (!stripVoicePrefix(setup.voice)) {
@@ -917,6 +923,35 @@ export async function mountSetupView(
         beginBtn.classList.toggle('btn-disabled', disabled);
     }
 
+    /**
+     * Why the welcome card's "Try right now" can't start yet, in words short
+     * enough for the card, or null. The Begin gate above, plus the two async
+     * fills a tap on a card that opens with the page can beat: the default
+     * model (aloud cloud refuses a session without one) and the default voice
+     * (null would speak in the browser's).
+     */
+    function firstSitBlocker(): string | null {
+        const blocked =
+            describeMicRequirement(micStatus) ?? describeWhisperWait(whisperStatus);
+        if (blocked) return blocked;
+        if (!providerAvailable()) {
+            return setup.provider === 'aloud'
+                ? t('Connecting to aloud cloud…')
+                : t('Set up an AI provider first.');
+        }
+        if (!voicesLoaded || (setup.provider === 'aloud' && !setup.model)) {
+            return t('Getting ready…');
+        }
+        return null;
+    }
+
+    // The welcome card's first-sit offer. It runs on a one-off copy of the
+    // setup, so neither the form nor the saved setup changes.
+    const quickStart: QuickStart = {
+        blocker: firstSitBlocker,
+        start: () => onBegin(firstSitSetup(setup), null),
+    };
+
     /** Paint the no-mic notice + Begin state from the silent probe. */
     function renderMicNotice(): void {
         const banner = root.querySelector<HTMLElement>('#setup-no-mic');
@@ -1448,7 +1483,7 @@ export async function mountSetupView(
     void loadVoiceCatalog();
     // autoStart short-circuits when the user has already dismissed, completed,
     // or used the app.
-    void autoStartGuide();
+    void autoStartGuide(quickStart);
     watchWhisper(sttSetupSelected);
 
     return {
@@ -1459,7 +1494,7 @@ export async function mountSetupView(
                     sttSetupSelected
             );
             await loadVoiceCatalog();
-            void autoStartGuide();
+            void autoStartGuide(quickStart);
         },
         hide() {
             closeGuideIfActive();

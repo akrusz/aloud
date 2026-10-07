@@ -2,15 +2,23 @@
  * Info panels and guided tour for the setup (index) page. Each section's ?
  * button toggles an inline info panel; the guide walks all panels in sequence
  * with a spotlight overlay, reusing the settings tour's .tour-* CSS.
+ *
+ * The card the guide opens on is also the first-run welcome: it offers a first
+ * sit ("Try right now", first-sit.ts) ahead of the tour, and after that sit
+ * comes back once to offer the tour again, when the settings mean something.
  */
 
 import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
+import { FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { footerHtml, getNavHeight } from './tour-common.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
 const CLIENT_ID_KEY = 'aloud-client-id';
+/** Set when a first sit starts; the next visit to setup spends it on the
+ *  "Shape your next sit" card. */
+const FOLLOW_UP_KEY = 'aloud-first-sit-follow-up';
 
 const PADDING = 10;
 const FOOTER_HEIGHT = 60;
@@ -61,6 +69,25 @@ let guideActive = false;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 let prevTarget: HTMLElement | null = null;
 let lastViewportWidth = 0;
+
+/** What the welcome card needs from the setup view to offer a first sit. */
+export interface QuickStart {
+    /** Why a first sit can't start right now, or null when it can. Polled
+     *  while the card is up, since the usual reasons clear on their own. */
+    blocker(): string | null;
+    /** Called from the click itself, so it can still prompt for the mic. */
+    start(): void;
+}
+
+/** Which card step 0 shows: the first-run welcome (offers a first sit), the
+ *  one-time follow-up after that sit, or the plain two-choice welcome a
+ *  "Take the full tour" visitor reaches with Back. */
+type WelcomeVariant = 'first-run' | 'after-first-sit' | 'plain';
+
+let welcomeVariant: WelcomeVariant = 'plain';
+let quickStart: QuickStart | null = null;
+let quickStartPoll: ReturnType<typeof setInterval> | null = null;
+const QUICK_START_POLL_MS = 500;
 
 interface Section {
     id: string;
@@ -129,7 +156,13 @@ function resetTarget(): void {
     hideInfoPanels();
 }
 
+function stopQuickStartPoll(): void {
+    if (quickStartPoll !== null) clearInterval(quickStartPoll);
+    quickStartPoll = null;
+}
+
 function cleanup(): void {
+    stopQuickStartPoll();
     overlayEl?.remove();
     spotlightEl?.remove();
     cardEl?.remove();
@@ -143,6 +176,7 @@ function cleanup(): void {
 }
 
 function showCard(html: string, className?: string): void {
+    stopQuickStartPoll();
     if (cardEl) cardEl.remove();
     cardEl = document.createElement('div');
     cardEl.className = className || 'tour-tooltip';
@@ -163,6 +197,7 @@ function wireActions(): void {
             else if (action === 'done') completeGuide();
             else if (action === 'dismiss') dismissRemindLater();
             else if (action === 'start') goToStep(1);
+            else if (action === 'quick-start') beginQuickStart();
         });
     });
 }
@@ -218,24 +253,64 @@ function ensureTab(tab: string): void {
 
 // ---- Steps ----
 
+function quickStartNote(): string {
+    return t('Takes {min} minutes, nothing to set up.', { min: FIRST_SIT_TIMER_MIN });
+}
+
+/** Paint the "Try right now" choice from the setup view's gate: disabled,
+ *  with the reason where its note was, until a first sit can start. */
+function syncQuickStart(): void {
+    const btn = cardEl?.querySelector<HTMLButtonElement>('[data-action="quick-start"]');
+    const note = btn?.querySelector('small');
+    if (!btn || !note || !quickStart) return;
+    const blocker = quickStart.blocker();
+    btn.disabled = blocker !== null;
+    note.textContent = blocker ?? quickStartNote();
+}
+
+function beginQuickStart(): void {
+    const offer = quickStart;
+    if (!offer || offer.blocker() !== null) return;
+    // Same standing as "I'll explore on my own": a start abandoned at the mic
+    // or sign-in prompt leaves the card away for the rest of this visit.
+    dismissRemindLater();
+    // No await before this: the mic prompt and the audio unlock both need the
+    // click's user gesture (app.ts ensureMicAvailable).
+    offer.start();
+}
+
 function showWelcome(): void {
     currentStep = 0;
     hideSpotlight();
     resetTarget();
 
-    let html = '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
+    const offerQuickStart = welcomeVariant === 'first-run' && quickStart !== null;
+    let html =
+        welcomeVariant === 'after-first-sit'
+            ? '<h3>' + t('Shape your next sit') + '</h3><p>' + t('Customize your next session. Set the vibe, attention focus, and more.') + '</p>'
+            : '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
     html += '<div class="tour-choices">';
+    if (offerQuickStart) {
+        html += '<button class="tour-choice" data-action="quick-start">';
+        html += '<strong>' + t('Try right now') + '</strong>';
+        html += '<small>' + quickStartNote() + '</small>';
+        html += '</button>';
+    }
     html += '<button class="tour-choice" data-action="start">';
     html += '<strong>' + t('Show me around') + '</strong>';
     html += '<small>' + t('A quick look at how it works') + '</small>';
     html += '</button>';
     html += '<button class="tour-choice" data-action="dismiss">';
     html += '<strong>' + t('I’ll explore on my own') + '</strong>';
-    html += '<small>' + t('You can tap <span class="info-btn-glyph">?</span> on any section for more info') + '</small>';
+    html += '<small>' + t('Tap <span class="info-btn-glyph">?</span> on any section for details') + '</small>';
     html += '</button>';
     html += '</div>';
 
     showCard(html, 'tour-welcome');
+    if (offerQuickStart) {
+        syncQuickStart();
+        quickStartPoll = setInterval(syncQuickStart, QUICK_START_POLL_MS);
+    }
 }
 
 function showSection(index: number): void {
@@ -376,19 +451,36 @@ export async function resetAndStart(): Promise<void> {
         sessionStorage.removeItem(GUIDE_REMIND_KEY);
     }
     if (guideActive) cleanup();
+    welcomeVariant = 'plain';
     startGuide(1);
 }
 
 // The auto-start's delayed timer, so leaving the setup view can cancel it.
 let pendingAutoStart: ReturnType<typeof setTimeout> | null = null;
 
-export async function autoStart(): Promise<void> {
-    installInfoBtnHandler();
-    if (await sharedKv.get(GUIDE_DONE_KEY)) return;
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(GUIDE_REMIND_KEY)) return;
+/** Which card, if any, this visit to the setup page opens on. */
+async function pendingWelcome(): Promise<WelcomeVariant | null> {
+    const session = typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+    if (await sharedKv.get(FOLLOW_UP_KEY)) {
+        // A History "Continue" or cold-boot resume owns this visit (the resume
+        // offer is a modal of its own); the follow-up keeps for the next one.
+        return session?.getItem('continueFrom') ? null : 'after-first-sit';
+    }
+    if (await sharedKv.get(GUIDE_DONE_KEY)) return null;
+    if (session?.getItem(GUIDE_REMIND_KEY)) return null;
     // Anyone who has started a session knows the app - no tour. The marker is
     // set by markSessionStarted() on session-view mount.
-    if (await sharedKv.get(CLIENT_ID_KEY)) return;
+    if (await sharedKv.get(CLIENT_ID_KEY)) return null;
+    return 'first-run';
+}
+
+/** @param offer The setup view's first-sit hook; without one the welcome card
+ *  has no "Try right now". */
+export async function autoStart(offer: QuickStart | null = null): Promise<void> {
+    installInfoBtnHandler();
+    quickStart = offer;
+    const variant = await pendingWelcome();
+    if (!variant) return;
     if (pendingAutoStart) clearTimeout(pendingAutoStart);
     pendingAutoStart = setTimeout(function () {
         pendingAutoStart = null;
@@ -397,6 +489,10 @@ export async function autoStart(): Promise<void> {
         // is still on screen - the overlay lives on <body>, and with no
         // targets it would sit over the whole sit.
         if (!setupHeader()) return;
+        // Spent only once the card is really going up, so a visit that left
+        // setup inside the delay doesn't use up the one showing.
+        if (variant === 'after-first-sit') void sharedKv.delete(FOLLOW_UP_KEY);
+        welcomeVariant = variant;
         startGuide();
     }, 250);
 }
@@ -408,8 +504,11 @@ export async function autoStart(): Promise<void> {
  * Set unconditionally, NOT gated on "Save session logs" the way sessionStore is:
  * someone who has run a session knows their way around whether or not they keep
  * transcripts, so session history isn't a reliable "new user" signal.
+ *
+ * @param firstSit This session is a first sit: queue its follow-up card.
  */
-export async function markSessionStarted(): Promise<void> {
+export async function markSessionStarted(firstSit = false): Promise<void> {
+    if (firstSit) await sharedKv.set(FOLLOW_UP_KEY, '1');
     if (await sharedKv.get(CLIENT_ID_KEY)) return;
     await sharedKv.set(CLIENT_ID_KEY, '1');
 }

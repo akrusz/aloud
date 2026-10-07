@@ -194,5 +194,14 @@ export async function ensureCloudAccess(
     // with none falls back to lazy dev sign-in.
     await detectCapabilities();
     if (!isInteractiveSignInConfigured()) return true;
-    return (await showSignInModal()) && ensureCredits();
+    // "Try right now" promised no setup, so say why there is this one step.
+    const signIn = setup.firstSit
+        ? {
+              title: t('One quick step'),
+              subtitle: t(
+                  'Voice and facilitator intelligence run on aloud cloud. Connect Google or Apple to start for free.'
+              ),
+          }
+        : {};
+    return (await showSignInModal(signIn)) && ensureCredits();
 }

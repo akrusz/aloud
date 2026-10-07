@@ -36,7 +36,6 @@ import {
     type VoiceCommandId,
     type SessionLanguage,
     defaultPacingConfig,
-    defaultWaitSeconds,
     runSmartCheckin,
     buildSmartCheckinEvent,
     buildTimerApproachEvent,
@@ -139,6 +138,7 @@ import { SessionClock } from '../session-clock.js';
 import { sessionStore } from '../state.js';
 import { markSessionActive, clearActiveSession } from '../active-session.js';
 import { markSessionStarted } from '../tour/index-guide.js';
+import { FIRST_SIT_CHECKIN_WAIT_SEC, FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { getApiKey } from '../api-keys.js';
 import {
@@ -390,6 +390,7 @@ export async function mountSessionView(
             verbosity: setup.verbosity,
             customInstructions: setup.customInstructions,
             waitSignal: checkinTiming === 'smart',
+            checkinWaitSec: setup.firstSit ? FIRST_SIT_CHECKIN_WAIT_SEC : null,
             holdSignal: appSettings.silenceModeEnabled,
             // Set for real once the judge gate is known, a few lines down.
             appControls: 'screen',
@@ -425,7 +426,7 @@ export async function mountSessionView(
     }
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).
-    void markSessionStarted();
+    void markSessionStarted(setup.firstSit === true);
     // Tag every metered cloud call with one opaque grouping id so the server's
     // cost report attributes them to this session (cloud-session.ts). No
     // content/PII; cleared at endSession().
@@ -494,9 +495,9 @@ export async function mountSessionView(
     // Smart timing: until the model's first [WAIT], the slider sets the wait
     // (20m/8m/5m/90s/30s across the stops) - guidance level, or in
     // checkinPaceSlider modes the check-in pace (already folded into
-    // `directiveness` above).
+    // `directiveness` above). A first sit brings its own, shorter one.
     if (checkinTiming === 'smart') {
-        pacing.setCheckinInterval(defaultWaitSeconds(directiveness));
+        pacing.setCheckinInterval(builder.checkinWaitSeconds());
     }
 
     // Auxiliary calls run on a cheap, fast model (see buildUtilityProvider).
@@ -1377,17 +1378,32 @@ export async function mountSessionView(
     // tapping it. The mode and any timer length persist to app settings, so a
     // daily twenty-minute sit re-arms itself next session.
     let clockChangeByVoice = false;
+    // A first sit runs on a timer nobody chose. It must not become the saved
+    // default, and the clock reports its whole state on every change: until
+    // the meditator picks a mode or length of their own, a change that keeps
+    // the countdown (hiding the readout, the end-on-timer toggle) saves only
+    // the part they touched.
+    let unchosenTimer = setup.firstSit === true;
     const sessionClock = new SessionClock(
         timerEl,
         sessionStartMs,
-        appSettings,
+        unchosenTimer
+            ? {
+                  ...appSettings,
+                  sessionClockMode: 'timer',
+                  sessionTimerMin: FIRST_SIT_TIMER_MIN,
+                  endSessionOnTimer: false,
+              }
+            : appSettings,
         (choice) => {
             // The voice path persists through this same callback; only a timer
             // armed in the picker is news.
             if (choice.mode === 'timer' && !clockChangeByVoice) hintVoiceCommand('timer');
+            if (!choice.keepRunning) unchosenTimer = false;
             const patch = {
-                sessionClockMode: choice.mode,
-                sessionTimerMin: choice.timerMin,
+                ...(unchosenTimer
+                    ? {}
+                    : { sessionClockMode: choice.mode, sessionTimerMin: choice.timerMin }),
                 showSessionClock: choice.showClock,
                 endSessionOnTimer: choice.endOnComplete,
             };
@@ -2872,7 +2888,9 @@ export async function mountSessionView(
             ? 'The meditator is returning to continue from a previous session. ' +
               "Offer a brief, warm welcome back and gently acknowledge they're " +
               'picking up where they left off.'
-            : builder.buildOpenerPrompt(setup.intention.trim());
+            : builder.buildOpenerPrompt(setup.intention.trim(), {
+                  firstSit: setup.firstSit === true,
+              });
         session.addControlMessage('user', instruction, 'opener');
         const reveal = createAssistantReveal();
         try {

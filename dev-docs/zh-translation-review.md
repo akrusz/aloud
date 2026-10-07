@@ -751,6 +751,9 @@ ZH: 自定义（{base}秒 / {max}秒）
 EN: Customize facilitation
 ZH: 自定义引导
 
+EN: Customize your next session. Set the vibe, attention focus, and more.
+ZH: 自定义你的下一次冥想。可以设置氛围、注意焦点等等。
+
 EN: Danger zone
 ZH: 危险操作
 
@@ -981,6 +984,9 @@ ZH: 获取最新版本 →
 
 EN: Get ☁
 ZH: 获取 ☁
+
+EN: Getting ready…
+ZH: 正在准备……
 
 EN: Gift to someone
 ZH: 赠送给他人
@@ -1317,6 +1323,9 @@ ZH: Ollama 正在运行。启动应用后端即可管理模型并查看大小建
 
 EN: On Windows, Edge and the desktop app include high-quality natural voices.
 ZH: 在 Windows 上，Edge 和桌面应用自带高品质的自然语音。
+
+EN: One quick step
+ZH: 只差一小步
 
 EN: Open Settings
 ZH: 打开设置
@@ -1678,8 +1687,14 @@ ZH: 设置密码
 EN: Set up TTS in Settings
 ZH: 在设置中配置语音合成
 
+EN: Set up an AI provider first.
+ZH: 请先设置一个 AI 服务商。
+
 EN: Settings
 ZH: 设置
+
+EN: Shape your next sit
+ZH: 让下一次静坐更合你心意
 
 EN: Setup guide
 ZH: 设置向导
@@ -1843,6 +1858,12 @@ ZH: 语音引擎说明
 EN: Take the full tour
 ZH: 完整了解一遍
 
+EN: Takes {min} minutes, nothing to set up.
+ZH: 大约 {min} 分钟，什么都不用设置。
+
+EN: Tap <span class="info-btn-glyph">?</span> on any section for details
+ZH: 点击任意部分的 <span class="info-btn-glyph">?</span> 可以查看详情
+
 EN: Tap preview again to play this voice (your browser blocked the first play).
 ZH: 再点一次试听即可播放（浏览器拦截了第一次播放）。
 
@@ -1978,6 +1999,9 @@ ZH: 听不清你说话 - 浏览器可能禁用了语音识别。
 EN: Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.
 ZH: 语音转文字出了问题。目前收不到你的声音 - 请检查网络，或在设置中更换语音识别方式。
 
+EN: Try right now
+ZH: 现在就试试
+
 EN: Type
 ZH: 类型
 
@@ -2080,6 +2104,9 @@ ZH: 氛围决定引导的语气和感觉。可以任意组合，它们会自然�
 EN: Voice
 ZH: 声音
 
+EN: Voice and facilitator intelligence run on aloud cloud. Connect Google or Apple to start for free.
+ZH: 语音和引导者的智能都由 aloud cloud 提供。关联 Google 或 Apple，即可免费开始。
+
 EN: Waits for full reply, then speaks
 ZH: 等待完整回复后再播放
 
@@ -2142,9 +2169,6 @@ ZH: 你
 
 EN: You can also select multiple, or leave all unchecked to keep things open.
 ZH: 也可以多选，或者全部不选，让一切保持开放。
-
-EN: You can tap <span class="info-btn-glyph">?</span> on any section for more info
-ZH: 点击任意部分的 <span class="info-btn-glyph">?</span> 可查看更多说明
 
 EN: You won't get update emails.
 ZH: 你将不会收到更新邮件。
