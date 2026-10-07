@@ -19,7 +19,7 @@ import type { LLMProvider } from '../../src/llm/base.js';
 import type { SttEngine, SttEvent } from '../../src/platform/stt.js';
 import type { TtsEngine } from '../../src/platform/tts.js';
 import type { VoiceEntry } from './voices.js';
-import { getSimMic, setSimMic } from './mic-check.js';
+import { adoptSimMicParam, getSimMic, setSimMic } from './mic-check.js';
 
 /** Hosted-service faults, keyed by the server's error code. The value is the
  *  HTTP status the real endpoint returns with it, which is what the client-side
@@ -196,12 +196,14 @@ export function simulateVoiceCatalog(voices: VoiceEntry[]): VoiceEntry[] {
 }
 
 /**
- * Adopt `?sim=` params into sessionStorage, so a simulation can be started from
- * a URL as well as from Settings: `?sim=insufficient_credits`, `?sim=network`,
- * `?sim=no-voices`, `?sim=off`. Called once at boot.
+ * Adopt `?sim=` and `?nomic=` params into sessionStorage, so a simulation can
+ * be started from a URL as well as from Settings: `?sim=insufficient_credits`,
+ * `?sim=network`, `?sim=no-voices`, `?nomic=denied`, `?sim=off`. Called once
+ * at boot.
  */
 export function adoptSimulationParams(): void {
     if (!import.meta.env.DEV) return;
+    adoptSimMicParam();
     try {
         const q = new URL(window.location.href).searchParams.get('sim');
         if (q === null) return;

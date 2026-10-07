@@ -77,8 +77,21 @@ Boot-time overrides, all read off `:4649/?…`. Every one is **dev-only** - gate
 on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
 deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
 
+Join several with `&`. A private window at `:4649/?mode=web&dev` is a
+first-time, signed-out web visitor who spends nothing, which is how to see the
+first-run welcome card and its first sit (`pacing.md`).
+
+The same list, with its live values, sits at the top of Settings → Developer
+(`renderDevParams` in `views/settings.ts`) so it doesn't have to be remembered.
+Add a param to both.
+
+Anything sticky has to be **adopted at boot** (`main.ts`: `initAppMode`,
+`adoptSimulationParams`, `adoptCheckinDebugParam`): the router strips the query
+off the URL on its first `replaceState`, so a param read later never sees it.
+
 | Param | Effect | Read in |
 |---|---|---|
+| `?dev` | Cloud sign-in bypass: cloud calls authenticate through the server's local `/auth/dev` account instead of the Google/Apple popup, so a hosted session starts without spending a real account's credits. Sticky for the tab; `?dev=off` clears it. | `isDevBypass` in `app-mode.ts` |
 | `?mode=web` | Force **web** mode: the hosted demo - Ollama/claude-proxy hidden, BYOK behind a settings checkbox, aloud cloud the default. | `app-mode.ts` |
 | `?mode=local` | Force **local** mode: every provider (Ollama + claude-proxy + BYOK + aloud cloud). | `app-mode.ts` |
 | `?mode=auto` | Clear the override, back to the build default. (Overrides persist in sessionStorage, so they survive navigation until cleared.) | `app-mode.ts` |
@@ -117,18 +130,21 @@ the tab to clear it), the settings field in **localStorage**
 fixed monospace readout in the session view: active timing/content modes, the
 effective check-in interval (+ override marker), a countdown, and a rolling log
 of `[WAIT]` signals and check-in outcomes. Not DEV-gated (like `previewUpdate`),
-so it works in bundled builds too. Read in `dev-mode.ts` (`isCheckinDebugOn`).
+so it works in bundled builds too. Sticky for the tab; `?debug=off` clears it
+(the Settings toggle is separate and persists). Adopted in `dev-mode.ts`
+(`adoptCheckinDebugParam`), read by `isCheckinDebugOn`.
 
 ### Developer mode (hidden settings section)
 
 The desktop webview has no URL bar, so the params above get a settings home:
 tap the **version line in the About box 7 times** to toggle developer mode
 (`dev-mode.ts`, persisted in `localStorage aloud:devMode`; the version line
-grows a `· dev` marker). Settings then shows a **Developer** section: the
-check-in debug HUD toggle and the update-preview banner everywhere, plus - in
-dev builds only, same compile-time gate as the params - the `?mode=` override
-and the `?dev` cloud sign-in bypass. Invisible to anyone who just installed
-the app.
+grows a `· dev` marker). Settings then shows a **Developer** section. It opens
+with the URL-param reference (every param this build honors, its values, and
+how to clear it), then the switches: the check-in debug HUD toggle and the
+update-preview banner everywhere, plus - in dev builds only, same compile-time
+gate as the params - the `?mode=` override and the `?dev` cloud sign-in bypass.
+Invisible to anyone who just installed the app.
 
 Two experiment switches also live there with no URL twin:
 

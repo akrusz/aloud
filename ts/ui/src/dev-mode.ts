@@ -46,16 +46,32 @@ export function setDevMode(on: boolean): void {
     writeFlag(DEV_MODE_KEY, on);
 }
 
-/** Mount the check-in/[WAIT] HUD: persisted toggle, or a `?debug=checkin`
- *  (also `1`, `true`, `pacing`) URL param for browser sessions. */
+/**
+ * Adopt a `?debug=checkin` (also `1`, `true`, `pacing`) URL param for the tab;
+ * `?debug=off` drops it again. Called once at boot (main.ts): the HUD is
+ * decided when a session mounts, by which time the router has long since
+ * stripped the query off the URL.
+ */
+export function adoptCheckinDebugParam(): void {
+    try {
+        const q = new URLSearchParams(location.search).get('debug');
+        if (q === null) return;
+        if (/^(1|true|checkin|pacing)$/i.test(q)) sessionStorage.setItem(DEBUG_CHECKIN_KEY, '1');
+        else if (/^(0|off)$/i.test(q)) sessionStorage.removeItem(DEBUG_CHECKIN_KEY);
+    } catch {
+        /* no URL or storage to work with */
+    }
+}
+
+/** Mount the check-in/[WAIT] HUD: the persisted toggle, or the URL param
+ *  adopted for this tab. */
 export function isCheckinDebugOn(): boolean {
     try {
-        const q = new URLSearchParams(location.search).get('debug') ?? '';
-        if (/^(1|true|checkin|pacing)$/i.test(q)) return true;
-        return localStorage.getItem(DEBUG_CHECKIN_KEY) === '1';
+        if (sessionStorage.getItem(DEBUG_CHECKIN_KEY) === '1') return true;
     } catch {
-        return false;
+        /* fall through to the persisted toggle */
     }
+    return readFlag(DEBUG_CHECKIN_KEY);
 }
 
 /** The persisted toggle alone: what the Developer checkbox renders, since a

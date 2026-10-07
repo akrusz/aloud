@@ -11,7 +11,12 @@ vi.mock('../ui/src/mic-permission.js', () => ({
     ensureMicPermission: vi.fn(async () => {}),
 }));
 
-import { probeMic, acquireMicOnce, describeMicProblem } from '../ui/src/mic-check.js';
+import {
+    probeMic,
+    acquireMicOnce,
+    adoptSimMicParam,
+    describeMicProblem,
+} from '../ui/src/mic-check.js';
 
 type NavStub = {
     mediaDevices?: {
@@ -152,8 +157,11 @@ describe('?nomic simulation (dev builds only)', () => {
         });
     }
 
-    it('drives both probes from the URL', async () => {
+    // Adopted at boot, not at probe time: by the first probe the router has
+    // already stripped the query.
+    it('drives both probes once adopted from the URL', async () => {
         stubUrl('?nomic=denied');
+        adoptSimMicParam();
         stubNavigator(healthyNav());
         expect(await probeMic()).toBe('denied');
         expect(await acquireMicOnce()).toBe('denied');
@@ -163,6 +171,7 @@ describe('?nomic simulation (dev builds only)', () => {
         // A mic that's present and permitted but won't open can only be
         // discovered by opening it, so setup stays clean and Begin catches it.
         stubUrl('?nomic=error');
+        adoptSimMicParam();
         stubNavigator(healthyNav());
         expect(await probeMic()).toBe('ok');
         expect(await acquireMicOnce()).toBe('error');
@@ -170,8 +179,22 @@ describe('?nomic simulation (dev builds only)', () => {
 
     it('ignores a value that is not a known status', async () => {
         stubUrl('?nomic=banana');
+        adoptSimMicParam();
         stubNavigator(healthyNav());
         expect(await acquireMicOnce()).toBe('ok');
+    });
+
+    it('sticks once the query is gone, until ?nomic=off', async () => {
+        stubUrl('?nomic=denied');
+        adoptSimMicParam();
+        stubNavigator(healthyNav());
+        // The router's replaceState: same tab, no query.
+        vi.stubGlobal('window', { location: { href: 'http://localhost:4649/' } });
+        adoptSimMicParam();
+        expect(await probeMic()).toBe('denied');
+        vi.stubGlobal('window', { location: { href: 'http://localhost:4649/?nomic=off' } });
+        adoptSimMicParam();
+        expect(await probeMic()).toBe('ok');
     });
 });
 

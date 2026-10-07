@@ -76,16 +76,22 @@ export function setSimMic(status: MicStatus | null): void {
  *
  * Real browsers only offer some of these (blocking the site gives 'denied'; the
  * rest need hardware you don't have), which is exactly why this exists.
+ *
+ * Adopted at boot (dev-sim.ts adoptSimulationParams), not when a probe runs:
+ * the router has stripped the query off the URL long before the first probe.
  */
-function simulatedMicStatus(): MicStatus | null {
-    if (!import.meta.env.DEV) return null;
+export function adoptSimMicParam(): void {
+    if (!import.meta.env.DEV) return;
     try {
         const q = new URL(window.location.href).searchParams.get('nomic');
         if (q === 'off' || q === '0') setSimMic(null);
         else if (q !== null && SIM_STATUSES.includes(q)) setSimMic(q as MicStatus);
     } catch {
-        /* no URL to read - fall through to the stored value */
+        /* no URL to read */
     }
+}
+
+function simulatedMicStatus(): MicStatus | null {
     const stored = getSimMic();
     if (stored) {
         // eslint-disable-next-line no-console

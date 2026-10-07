@@ -8,6 +8,7 @@ import { initTauriWindowDrag } from './tauri-chrome.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
 import { adoptSimulationParams, renderSimBanner } from './dev-sim.js';
+import { adoptCheckinDebugParam } from './dev-mode.js';
 import { initAndroidBack } from './android-back.js';
 import { initSliderTouchGuard } from './slider-touch.js';
 import { installErrorLog } from './error-log.js';
@@ -26,6 +27,8 @@ initAppMode();
 // rewrites the URL. Both are no-ops outside a dev build.
 adoptSimulationParams();
 renderSimBanner();
+// And ?debug=checkin, which works in any build.
+adoptCheckinDebugParam();
 
 // Stamp the native platform on <html> for CSS that differs per OS - e.g.
 // Android reserves the full bottom safe-area inset (system nav bar) where

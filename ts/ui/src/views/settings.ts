@@ -85,6 +85,7 @@ import {
     type ScoredVoice,
 } from '../voice-picker.js';
 import { escapeHtml } from '../escape-html.js';
+import { routePath } from '../route-base.js';
 import { readNdjson } from '../ndjson.js';
 import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
@@ -2196,6 +2197,61 @@ function simOptionsHTML(values: readonly string[], selected: string | null): str
     return optionsHTML(values.map((v) => [v, v] as const), selected);
 }
 
+/**
+ * The URL params, listed where the switches live so nobody has to remember
+ * them. Mirrors the cheatsheet's "Dev URL params" table; a param added to one
+ * belongs in the other. Values come from the constants their readers check,
+ * and the dev-build-only ones are left out of a release build, where they are
+ * compiled away and would only mislead.
+ */
+function renderDevParams(): string {
+    const code = (s: string): string => `<code>${escapeHtml(s)}</code>`;
+    const list = (values: readonly string[]): string => values.map(code).join(', ');
+    const rows: Array<[param: string, effect: string]> = [];
+    if (import.meta.env.DEV) {
+        rows.push(
+            [
+                '?dev',
+                `Skip cloud sign-in: sessions run on the server's local /auth/dev account and spend no real credits. ${code('?dev=off')} clears.`,
+            ],
+            [
+                '?mode=web',
+                `The hosted site's view: aloud cloud only, BYOK behind its checkbox. ${code('local')} shows every provider, ${code('auto')} clears.`,
+            ],
+            [
+                '?nomic=denied',
+                `A broken mic. One of ${list(MIC_SIM_STATUSES)}; ${code('off')} clears.`,
+            ],
+            [
+                '?sim=<fault>',
+                `A failing service. Cloud: ${list(CLOUD_FAULT_NAMES)}. Recognizer: ${list(STT_FAULTS)}. Or ${code('no-voices')}. ${code('?sim=off')} clears these and the mic.`,
+            ],
+            ['?slowboot=2500', 'Hold the boot orb that many ms before the first view. This load only.'],
+            ['?soak=1', `The soak harness's event tap; ${code('npm run soak:web')} sets it. This load only.`]
+        );
+    }
+    rows.push(
+        [
+            '?debug=checkin',
+            `The check-in/[WAIT] HUD in sessions. ${code('?debug=off')} clears.`,
+        ],
+        [
+            '?previewUpdate',
+            `Fake an available update; ${code('?previewUpdate=2.0.0')} names the version. Lasts until the tab closes.`,
+        ]
+    );
+    const example = `${location.origin}${routePath('/')}${import.meta.env.DEV ? '?mode=web&dev' : '?debug=checkin'}`;
+    const recipe = import.meta.env.DEV
+        ? ' Opened in a private window, that URL is a first-time, signed-out web visitor who spends nothing.'
+        : '';
+    return `
+        <h3 class="settings-subhead">URL params</h3>
+        <p class="form-hint dev-params-usage">Add to the app URL, joined with &amp;: ${code(example)}. Each one sticks for the tab, through reloads and navigation, unless it says otherwise.${recipe}</p>
+        <dl class="dev-params">
+            ${rows.map(([param, effect]) => `<dt>${code(param)}</dt><dd>${effect}</dd>`).join('')}
+        </dl>`;
+}
+
 function renderDeveloperSection(): string {
     const preview = (() => {
         try {
@@ -2246,7 +2302,7 @@ function renderDeveloperSection(): string {
                     <option value="">working</option>
                     ${simOptionsHTML(STT_FAULTS, getSttFault())}
                 </select>
-                <span class="form-hint">Every capture errors: status line, toast, and the trouble banner after two.</span>
+                <span class="form-hint">Every capture errors: status line, toast, and the trouble banner after two. Same as ?sim=&lt;fault&gt;.</span>
             </div>
         </div>
         <div class="form-row">
@@ -2256,20 +2312,22 @@ function renderDeveloperSection(): string {
                     <option value="">working</option>
                     ${simOptionsHTML(CLOUD_FAULT_NAMES, getCloudFault())}
                 </select>
-                <span class="form-hint">Fails the LLM and TTS legs both. insufficient_credits drives the spoken apology and buy prompt.</span>
+                <span class="form-hint">Fails the LLM and TTS legs both. insufficient_credits drives the spoken apology and buy prompt. Same as ?sim=&lt;fault&gt;.</span>
             </div>
             <div class="form-group form-group-half">
                 <label class="checkbox-label">
                     <input type="checkbox" id="s-dev-sim-no-voices"${getNoVoices() ? ' checked' : ''}>
                     <span>Empty voice catalog</span>
                 </label>
-                <span class="form-hint">Raises the no-voices banners. Reload to apply.</span>
+                <span class="form-hint">Raises the no-voices banners. Reload to apply. Same as ?sim=no-voices.</span>
             </div>
         </div>`
         : '';
     return `
     <section class="settings-section">
         <h2>Developer</h2>
+        ${renderDevParams()}
+        <h3 class="settings-subhead">Switches</h3>
         <div class="form-row">
             <div class="form-group form-group-half">
                 <label class="checkbox-label">

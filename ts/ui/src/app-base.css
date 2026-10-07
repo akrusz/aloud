@@ -4177,6 +4177,48 @@ p.clouds-hint-row {
     /* A subhead can be a data-nav-anchor target too; clear the fixed top bar. */
     scroll-margin-top: var(--nav-h);
 }
+/* Settings > Developer: the URL-param reference. Param on the left, what it
+   does on the right; stacked on a phone, where a param is wider than the gap
+   it would leave. */
+.dev-params {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.4rem 1rem;
+    margin: var(--space-sm) 0 var(--space-md);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.dev-params dt {
+    color: var(--text-primary);
+}
+
+.dev-params dd {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.dev-params-usage code,
+.dev-params code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8125rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0 0.3rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    .dev-params {
+        grid-template-columns: 1fr;
+        gap: 0.1rem;
+    }
+    .dev-params dd {
+        margin-bottom: 0.5rem;
+    }
+}
+
 .settings-section .pacing-subhead-note {
     margin: 0 0 var(--space-xs);
 }
