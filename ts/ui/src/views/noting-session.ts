@@ -45,6 +45,7 @@ import { narratorSilencedForCloud } from '../cloud-gate.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { isCapacitor } from '../is-desktop.js';
 import { sessionStore } from '../state.js';
+import { downloadSttClips } from '../stt-clip-recorder.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { initThemeToggle } from '../theme.js';
@@ -825,6 +826,7 @@ export async function mountNotingSessionView(
     async function endSession(destination?: SessionEndDestination, skipSave = false): Promise<void> {
         if (torn) return;
         torn = true;
+        downloadSttClips();
         paused = true;
         clearWait();
         sessionClock.destroy();

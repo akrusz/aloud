@@ -82,6 +82,7 @@ import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { CloudJudge, type RemoteJudge } from '../adapters/cloud-judge.js';
 import { OwnKeyJudge } from '../adapters/own-key-judge.js';
+import { downloadSttClips } from '../stt-clip-recorder.js';
 import {
     VOICE_COMMANDS_CONSENT,
     VOICE_COMMANDS_SIGN_IN,
@@ -3359,6 +3360,7 @@ export async function mountSessionView(
     ): Promise<void> {
         if (torn) return;
         torn = true;
+        downloadSttClips();
         tapFlags({ ended: true });
         tapEvent('note', `session-ended${skipSave ? ' (unsaved)' : ''}`);
         // Stop any in-flight turn from generating/speaking into a torn-down view.

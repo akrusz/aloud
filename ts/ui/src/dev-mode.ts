@@ -15,6 +15,7 @@ const DEV_MODE_KEY = 'aloud:devMode';
 const DEBUG_CHECKIN_KEY = 'aloud:debugCheckin';
 const DEBUG_AEC_OFF_KEY = 'aloud:debugAecOff';
 const JEV_CLASSIFIERS_KEY = 'aloud:jevClassifiers';
+const DEBUG_STT_CLIPS_KEY = 'aloud:debugSttClips';
 
 /** A '1'-valued localStorage flag. Storage unavailable reads as off, and a
  *  write just doesn't persist. */
@@ -109,6 +110,16 @@ export function isAecOffDebug(): boolean {
 
 export function setAecOffDebug(on: boolean): void {
     writeFlag(DEBUG_AEC_OFF_KEY, on);
+}
+
+/** Developer switch: keep each transcription pass's audio and transcript and
+ *  download them when the sit ends (stt-clip-recorder.ts). */
+export function isSttClipsDebug(): boolean {
+    return readFlag(DEBUG_STT_CLIPS_KEY);
+}
+
+export function setSttClipsDebug(on: boolean): void {
+    writeFlag(DEBUG_STT_CLIPS_KEY, on);
 }
 
 /**

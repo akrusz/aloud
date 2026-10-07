@@ -25,6 +25,7 @@ import { withTimeout } from '../net-timeout.js';
 import { ensureMicPermission } from '../mic-permission.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
+import { recordSttClip } from '../stt-clip-recorder.js';
 import { audioContextCtor } from '../audio-unlock.js';
 // Type-only: dynamic-imported in acquireSilero() so the ort runtime + model
 // assets stay out of the main bundle (and out of node-env tests).
@@ -210,6 +211,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     private processor: ScriptProcessorNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
     private stopRequested = false;
+    /** Which utterance a transcription pass belongs to (stt-clip-recorder.ts). */
+    private turnSeq = 0;
 
     // Continuous capture state - the audio callback runs across turns, so this
     // lives on the instance, not in a start()-scoped closure.
@@ -943,6 +946,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // Provenance for transcript anomalies: a user turn with no
             // matching [stt-text] line did not come from the mic.
             if (label === 'final') diag(`[stt-text] ${text.length} chars`);
+            recordSttClip({ turn: this.turnSeq, label, pcm16, text });
             return { ok: true, text, seconds };
         } catch (err) {
             return { ok: false, error: err };
@@ -951,6 +955,7 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
+        this.turnSeq++;
         try {
             // Silero is the preferred speech signal; a load failure leaves the
             // energy fallback in charge (acquireSilero swallows it), so only a

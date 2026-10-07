@@ -152,12 +152,18 @@ behind the same compile-time gate as their params. A release build therefore
 honors only `?debug=` and `?previewUpdate`, typed or not. Invisible to anyone
 who just installed the app.
 
-Two experiment switches also live there with no URL twin:
+Three switches also live there with no URL twin:
 
 - **Cloud mic without echo cancellation** (`isAecOffDebug`, `dev-mode.ts`,
   localStorage `aloud:debugAecOff`) opens the next session's PCM capture with
   `echoCancellation: false` - the Android call-stream measurement; judge it by
   the `[vad] tts window` lines.
+- **Save my speech clips** (`isSttClipsDebug`, `dev-mode.ts`): every
+  transcription pass's audio and transcript is held in memory
+  (`stt-clip-recorder.ts`) and downloaded as one `.tar` (`clips/*.wav` +
+  `clips.json`) when the session ends. For replaying real sits against other
+  STT models. Cloud or local Whisper STT; browser builds only, since the
+  desktop and mobile webviews don't do blob downloads.
 - **Jev silence classifiers** (`getJevClassifierMode`, `dev-mode.ts`,
   localStorage `aloud:jevClassifiers`), aloud cloud sessions only, read at
   session start: `on` (default) lets Jev decide with the LLM classifier as

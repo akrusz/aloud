@@ -37,6 +37,8 @@ import {
     setCheckinDebug,
     isAecOffDebug,
     setAecOffDebug,
+    isSttClipsDebug,
+    setSttClipsDebug,
     getJevClassifierMode,
     setJevClassifierMode,
     typedUrlParams,
@@ -1413,6 +1415,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         hud?.addEventListener('change', () => setCheckinDebug(hud.checked));
         const aec = root.querySelector<HTMLInputElement>('#s-dev-aec-off');
         aec?.addEventListener('change', () => setAecOffDebug(aec.checked));
+        const clips = root.querySelector<HTMLInputElement>('#s-dev-stt-clips');
+        clips?.addEventListener('change', () => setSttClipsDebug(clips.checked));
         const jev = root.querySelector<HTMLSelectElement>('#s-dev-jev');
         jev?.addEventListener('change', () => setJevClassifierMode(jev.value as JevClassifierMode));
         const preview = root.querySelector<HTMLInputElement>('#s-dev-preview-update');
@@ -2372,6 +2376,10 @@ function renderDeveloperSection(): string {
             ${devRow(
                 devCheck('s-dev-aec-off', 'Cloud mic without echo cancellation', isAecOffDebug()),
                 `Next session's capture opens with echoCancellation off (Android call-stream experiment). Expect echo in the [vad] tts window lines.`
+            )}
+            ${devRow(
+                devCheck('s-dev-stt-clips', 'Save my speech clips', isSttClipsDebug()),
+                `Keeps every transcription clip (audio and transcript) in memory and downloads one .tar when the session ends, for comparing STT models. Cloud or local Whisper STT, browser only.`
             )}
             ${devRow(
                 devField(
