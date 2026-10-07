@@ -10,8 +10,13 @@
  */
 
 import type { Provider } from './settings.js';
+import { isTauri } from './is-desktop.js';
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import type { KvStorage } from '../../src/platform/storage.js';
+
+/** TypeSafe is no LLM provider: its key runs the Jev judge on a desktop sit
+ *  (ownJudgeKey). */
+export type KeyOwner = Provider | 'typesafe';
 
 const KEY_PREFIX = 'apikey:';
 
@@ -23,11 +28,11 @@ export function setApiKeyBackend(kv: KvStorage): void {
     backend = kv;
 }
 
-export async function getApiKey(provider: Provider): Promise<string | null> {
+export async function getApiKey(provider: KeyOwner): Promise<string | null> {
     return backend.get(KEY_PREFIX + provider);
 }
 
-export async function setApiKey(provider: Provider, key: string): Promise<void> {
+export async function setApiKey(provider: KeyOwner, key: string): Promise<void> {
     const trimmed = key.trim();
     if (trimmed) {
         await backend.set(KEY_PREFIX + provider, trimmed);
@@ -36,6 +41,12 @@ export async function setApiKey(provider: Provider, key: string): Promise<void> 
     }
 }
 
-export async function hasApiKey(provider: Provider): Promise<boolean> {
+export async function hasApiKey(provider: KeyOwner): Promise<boolean> {
     return (await getApiKey(provider)) !== null;
+}
+
+/** The user's own TypeSafe key, where it can be used: only the desktop shell
+ *  can reach TypeSafe (adapters/own-key-judge.ts). */
+export async function ownJudgeKey(): Promise<string | null> {
+    return isTauri() ? getApiKey('typesafe') : null;
 }

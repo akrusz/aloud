@@ -80,7 +80,8 @@ import {
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
-import { CloudJudge } from '../adapters/cloud-judge.js';
+import { CloudJudge, type RemoteJudge } from '../adapters/cloud-judge.js';
+import { OwnKeyJudge } from '../adapters/own-key-judge.js';
 import {
     VOICE_COMMANDS_CONSENT,
     VOICE_COMMANDS_SIGN_IN,
@@ -140,7 +141,7 @@ import { markSessionActive, clearActiveSession } from '../active-session.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { FIRST_SIT_CHECKIN_WAIT_SEC, FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
-import { getApiKey } from '../api-keys.js';
+import { getApiKey, ownJudgeKey } from '../api-keys.js';
 import {
     mountEmberContainer,
     setEmbersOn,
@@ -514,8 +515,10 @@ export async function mountSessionView(
     // on for aloud cloud; an opt-in everywhere else (voice-commands.ts). Up here
     // because status text and the info panel below both depend on it. `let`s:
     // the info panel can turn it on mid-sit (enableVoiceCommands).
+    const ownKey = await ownJudgeKey();
     let judgeAccess = voiceCommandsAccess({
         provider: setup.provider,
+        ownKey: ownKey !== null,
         optedIn: appSettings.voiceCommandsViaCloud,
         signedIn: await canReachJudge(),
     });
@@ -523,9 +526,15 @@ export async function mountSessionView(
     // session asked for the judge by name.
     const jevMode = judgeAccess === 'hosted' ? getJevClassifierMode() : 'on';
     const judgeWanted = (): boolean =>
-        judgeAccess === 'opted-in' || (judgeAccess === 'hosted' && jevMode !== 'off');
+        judgeAccess === 'opted-in' ||
+        judgeAccess === 'own-key' ||
+        (judgeAccess === 'hosted' && jevMode !== 'off');
     // One instance, so the classifiers and the commands share its failure backoff.
-    let cloudJudge = judgeWanted() ? new CloudJudge() : null;
+    let cloudJudge: RemoteJudge | null = !judgeWanted()
+        ? null
+        : judgeAccess === 'own-key' && ownKey
+          ? new OwnKeyJudge(ownKey)
+          : new CloudJudge();
     cloudJudge?.warm();
     // The first few sessions with commands say so right where "Listening…" is.
     const inviteToCommands = cloudJudge !== null && claimIntroSession();
@@ -1607,7 +1616,7 @@ export async function mountSessionView(
     const classifierOptions: ClassifyResumeIntentOptions = {
         onUsage: (u) => session.recordLlmUsage(u),
     };
-    function attachJudge(judge: CloudJudge): void {
+    function attachJudge(judge: RemoteJudge): void {
         classifierOptions.judge = judge;
         classifierOptions.judgeMode = jevMode === 'on' ? 'decide' : 'shadow';
         classifierOptions.onJudged = (report) => {

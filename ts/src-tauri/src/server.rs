@@ -193,6 +193,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/llm/claude_proxy/probe", get(llm_claude_proxy_probe))
         .route("/providers", get(providers))
         .route("/models/{provider}", get(models))
+        .route("/judge", post(judge))
         .route("/google-oauth", post(google_oauth))
         .route("/ollama/pull", post(ollama_pull))
         .route("/ollama/delete", post(ollama_delete))
@@ -1035,6 +1036,24 @@ async fn models(
         .await
         .unwrap_or_else(|_| json!([]));
     Json(v)
+}
+
+/// `POST /app/v1/judge` - relay one TypeSafe request under the user's own key
+/// (`x-provider-key`). TypeSafe answers no browser origin (CORS), so a sit
+/// that brings its own Jev key reaches it through here. The upstream is fixed:
+/// this is not a general proxy.
+async fn judge(headers: axum::http::HeaderMap, Json(body): Json<Value>) -> ApiResult {
+    let key = headers
+        .get("x-provider-key")
+        .and_then(|v| v.to_str().ok())
+        .filter(|k| !k.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| bad_request("x-provider-key required"))?;
+    tokio::task::spawn_blocking(move || crate::providers::typesafe_judge(&key, &body))
+        .await
+        .map_err(|e| internal(format!("judge task failed: {e}")))?
+        .map(Json)
+        .map_err(|e| err(StatusCode::BAD_GATEWAY, e))
 }
 
 /// `POST /app/v1/google-oauth` - desktop Google sign-in via the loopback PKCE

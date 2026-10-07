@@ -125,6 +125,29 @@ pub fn models(provider: &str, api_key: Option<&str>) -> Value {
     Value::Array(list)
 }
 
+/// One TypeSafe "system one" request under the user's own key (the desktop's
+/// own-key judge, ui adapters/own-key-judge.ts). The agent is shared so calls
+/// after the first reuse its connection: the meditator is waiting on each one,
+/// and a fresh TLS handshake costs more than the judgment.
+pub fn typesafe_judge(key: &str, body: &Value) -> Result<Value, String> {
+    static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
+    let agent = AGENT.get_or_init(|| {
+        ureq::Agent::config_builder()
+            // A slow judge has to lose quickly; the caller falls back to the
+            // LLM classifier. Matches the hosted server's budget, plus the
+            // first call's handshake.
+            .timeout_global(Some(Duration::from_millis(1500)))
+            .build()
+            .into()
+    });
+    let resp = agent
+        .post("https://api.typesafe.ai/v1/systemone")
+        .header("authorization", &format!("Bearer {key}"))
+        .send_json(body)
+        .map_err(|e| format!("typesafe: {e}"))?;
+    serde_json::from_reader(resp.into_body().into_reader()).map_err(|e| format!("typesafe: {e}"))
+}
+
 /// GET a JSON body with a timeout. `None` on any transport/status/parse error.
 pub(crate) fn get_json(url: &str, headers: &[(&str, &str)], timeout: Duration) -> Option<Value> {
     let agent: ureq::Agent = ureq::Agent::config_builder()

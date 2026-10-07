@@ -49,6 +49,9 @@ export {
     judgeQuestions,
     judgeVerdict,
     clampEarlier,
+    JEV_MODEL,
+    jevRequest,
+    noulAnswers,
 } from './utterance-judge.js';
 export type {
     ClassifierId,

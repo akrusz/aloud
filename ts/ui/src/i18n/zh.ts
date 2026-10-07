@@ -740,6 +740,8 @@ export const ZH: Record<string, string> = {
     "Needs a free account.": "需要一个免费账号。",
     "Privacy policy": "隐私政策",
     "Always on with aloud cloud.": "使用 aloud cloud 时始终开启。",
+    "On with your TypeSafe key. Nothing goes through aloud cloud.": "已用你自己的 TypeSafe 密钥开启，不经过 aloud cloud。",
+    "Optional. Runs voice commands on your own key instead of aloud cloud.": "可选。用你自己的密钥运行语音指令，不经过 aloud cloud。",
     "Sign in to enable voice commands.": "登录后即可使用语音指令。",
     "Say things like \"set a timer for ten minutes\" or \"talk slower\".": "可以说“计时十分钟”或“说慢一点”之类的话。",
     "\"Talk slower\" / \"talk faster\"": "“说慢一点” / “说快一点”",

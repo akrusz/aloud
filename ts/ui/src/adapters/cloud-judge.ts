@@ -31,8 +31,10 @@ const FAILURES_BEFORE_BACKOFF = 2;
 const BACKOFF_BASE_MS = 30_000;
 const BACKOFF_MAX_MS = 5 * 60_000;
 
-export class CloudJudge implements UtteranceJudge {
-    private readonly fetchImpl: typeof fetch;
+/** A judge behind a network hop: the timeout, the failure backoff and the
+ *  warm-up, with the hop itself left to the subclass. */
+export abstract class RemoteJudge implements UtteranceJudge {
+    protected readonly fetchImpl: typeof fetch;
     private readonly now: () => number;
     private failures = 0;
     private skipUntil = 0;
@@ -80,7 +82,16 @@ export class CloudJudge implements UtteranceJudge {
             .finally(() => ac.abort());
     }
 
-    private async request(
+    protected abstract request(
+        classifier: JudgeId,
+        text: string,
+        earlier: string[],
+        signal: AbortSignal
+    ): Promise<JudgeAnswers>;
+}
+
+export class CloudJudge extends RemoteJudge {
+    protected async request(
         classifier: JudgeId,
         text: string,
         earlier: string[],

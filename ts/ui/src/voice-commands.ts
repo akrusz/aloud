@@ -5,6 +5,9 @@
  * Any other provider (BYOK, local) is a session that promised not to, so there
  * it is an opt-in (AppSettings.voiceCommandsViaCloud) and needs an account for
  * /cloud/v1/judge to answer. The call is free, so no balance is involved.
+ * On desktop a BYOK/local sit can instead bring its own TypeSafe key
+ * (api-keys.ts ownJudgeKey), which never touches our server and wins over
+ * the opt-in.
  */
 
 import { getCloudToken, isGoogleSignInConfigured } from './cloud-auth.js';
@@ -13,14 +16,16 @@ import { alertDialog } from './dialog.js';
 import { t } from './i18n.js';
 import { VOICE_COMMAND_EXAMPLES, VOICE_COMMANDS_NOTE, endExampleFor } from './voice-command-hints.js';
 
-export type VoiceCommandsAccess = 'hosted' | 'opted-in' | 'off' | 'signed-out';
+export type VoiceCommandsAccess = 'hosted' | 'own-key' | 'opted-in' | 'off' | 'signed-out';
 
 export function voiceCommandsAccess(args: {
     provider: string;
+    ownKey: boolean;
     optedIn: boolean;
     signedIn: boolean;
 }): VoiceCommandsAccess {
     if (args.provider === 'aloud') return 'hosted';
+    if (args.ownKey) return 'own-key';
     if (!args.optedIn) return 'off';
     return args.signedIn ? 'opted-in' : 'signed-out';
 }
@@ -46,6 +51,8 @@ export function privacyPolicyLink(): string {
 export const VOICE_COMMANDS_NEEDS_ACCOUNT = 'Needs a free account.';
 export const VOICE_COMMANDS_SIGN_IN = 'Sign in to enable voice commands.';
 export const VOICE_COMMANDS_ALWAYS_ON = 'Always on with aloud cloud.';
+export const VOICE_COMMANDS_OWN_KEY = 'On with your TypeSafe key. Nothing goes through aloud cloud.';
+export const TYPESAFE_KEY_HINT = 'Optional. Runs voice commands on your own key instead of aloud cloud.';
 
 /** The "what can I say?" list: the info panel's row and the Settings label. */
 export function showVoiceCommandExamples(savesByDefault: boolean): Promise<void> {

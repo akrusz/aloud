@@ -328,6 +328,35 @@ export function judgeQuestions(id: JudgeId): Record<string, JudgeQuestion> {
     return Object.fromEntries(Object.entries(judgeSpec(id).asks).map(([k, a]) => [k, a.question]));
 }
 
+/** The Jev alias every judge request names. */
+export const JEV_MODEL = 'jev-latest';
+
+/** The TypeSafe "system one" request for one utterance: what aloud cloud sends
+ *  upstream, and what a desktop sit with its own key sends through the shell
+ *  (ui adapters/own-key-judge.ts). */
+export function jevRequest(
+    id: JudgeId,
+    utterance: string,
+    context: JudgeContext = {}
+): { state: JudgeState; model: string; questions: Record<string, JudgeQuestion> } {
+    return { state: judgeState(id, utterance, context), model: JEV_MODEL, questions: judgeQuestions(id) };
+}
+
+/** P(yes) for each of `keys` out of a TypeSafe response body. Throws on a
+ *  missing or out-of-range answer: a partial response is a judge failure. */
+export function noulAnswers(keys: readonly string[], body: unknown): JudgeAnswers {
+    const given = (body as { answers?: Record<string, { noul?: unknown }> } | null)?.answers;
+    const answers: JudgeAnswers = {};
+    for (const key of keys) {
+        const p = given?.[key]?.noul;
+        if (typeof p !== 'number' || !Number.isFinite(p) || p < 0 || p > 1) {
+            throw new Error(`typesafe: no noul answer for ${key}`);
+        }
+        answers[key] = p;
+    }
+    return answers;
+}
+
 /**
  * Answers one classifier's asks with P(yes) each. Rejects on any failure; the
  * caller falls back to the LLM classifier, so an implementation should fail

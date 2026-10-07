@@ -84,7 +84,9 @@ Around that:
 
 The opt-in is one checkbox under Settings → Advanced (locked on for aloud
 cloud), and can also be turned on mid-sit from the info panel's Voice commands
-row, which swaps the judge in live.
+row, which swaps the judge in live. On desktop the same spot takes a TypeSafe
+API key, which turns commands on by itself for BYOK/local sits (the box shows
+checked and locked); see [silence-mode.md](silence-mode.md#the-judge-jev).
 
 Discovery (`ui/src/voice-command-hints.ts`) is all on the status line rather
 than toasts: the first few judge sessions read

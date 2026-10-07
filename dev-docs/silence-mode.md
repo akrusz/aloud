@@ -43,6 +43,13 @@ Judge sessions put TypeSafe's Jev in front of the three classifiers, via
   `voiceCommandsViaCloud` opt-in plus a signed-in account, since those sessions
   otherwise never touch our server (`ui/src/voice-commands.ts`,
   `voiceCommandsAccess`). The call is free, so no balance is involved.
+- **Own key (desktop).** A BYOK/local sit on the desktop app can bring its own
+  TypeSafe key instead (Settings → Advanced, `ownJudgeKey` in `api-keys.ts`):
+  `OwnKeyJudge` builds the same request (`jevRequest`) and sends it through the
+  shell's fixed relay, `/app/v1/judge` (`src-tauri/src/server.rs`), with no
+  account and nothing through our server. It wins over the opt-in. Desktop
+  only: TypeSafe answers no browser origin (CORS), so the web app cannot call
+  it directly.
 - **Shape.** Each classifier is one or more atomic yes/no asks answered as
   probabilities in a single request. A yes on any ask, each against its own
   measured threshold (`judgeVerdict`), is a yes. `resume` asks "addressed to

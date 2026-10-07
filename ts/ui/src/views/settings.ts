@@ -65,7 +65,7 @@ import {
     stripMarker,
     type ProviderStatusMap,
 } from '../provider-markers.js';
-import { getApiKey, setApiKey } from '../api-keys.js';
+import { getApiKey, ownJudgeKey, setApiKey, type KeyOwner } from '../api-keys.js';
 import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
 import {
@@ -92,9 +92,11 @@ import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
 import { confirmDialog, alertDialog } from '../dialog.js';
 import {
+    TYPESAFE_KEY_HINT,
     VOICE_COMMANDS_ALWAYS_ON,
     VOICE_COMMANDS_CONSENT,
     VOICE_COMMANDS_NEEDS_ACCOUNT,
+    VOICE_COMMANDS_OWN_KEY,
     canReachJudge,
     privacyPolicyLink,
     showVoiceCommandExamples,
@@ -286,6 +288,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             if (!cfg) continue;
             attachApiKeyHelpers(p.value, cfg.url, cfg.prefix);
         }
+        attachApiKeyHelpers('typesafe', 'https://docs.typesafe.ai/api', '');
 
         wireInfoToggle('llm-info-btn', 'llm-info-panel');
 
@@ -391,6 +394,18 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
         }
+        // The TypeSafe row (desktop only) is always shown, and its key turns
+        // voice commands on by itself.
+        const jevRow = root.querySelector<HTMLElement>('#s-key-row-typesafe');
+        if (jevRow) {
+            const existing = await getApiKey('typesafe');
+            const status = jevRow.querySelector<HTMLElement>('.api-key-status');
+            if (status)
+                status.textContent = existing ? t('key saved ({masked})', { masked: maskKey(existing) }) : '';
+            const removeBtn = jevRow.querySelector<HTMLButtonElement>('.api-key-remove-btn');
+            if (removeBtn) removeBtn.hidden = !existing;
+            void syncVoiceCommandsRow();
+        }
         // An added/removed key flips a provider's ⚙ marker and the hint. Cheap:
         // re-reads the local key store, no network.
         keyPresent = await fetchKeyPresence();
@@ -442,7 +457,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
      * A provider key row: "Get a key", Paste (when the browser exposes the
      * clipboard API), and Remove, each saving into the api-keys store.
      */
-    function attachApiKeyHelpers(provider: Provider, url: string, prefix: string): void {
+    function attachApiKeyHelpers(provider: KeyOwner, url: string, prefix: string): void {
         const input = root.querySelector<HTMLInputElement>(`#s-key-${provider}`);
         if (!input) return;
         const strip = mountKeyHelpers(input, url);
@@ -1196,10 +1211,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const hint = root.querySelector<HTMLElement>('#s-voice-commands-hint');
         if (!box || !hint) return;
         const hosted = settings.defaultProvider === 'aloud';
+        const ownKey = !hosted && (await ownJudgeKey()) !== null;
         const signedIn = hosted || (await canReachJudge());
-        box.disabled = hosted || !signedIn;
-        box.checked = hosted || (signedIn && settings.voiceCommandsViaCloud);
+        box.disabled = hosted || ownKey || !signedIn;
+        box.checked = hosted || ownKey || (signedIn && settings.voiceCommandsViaCloud);
         if (hosted) hint.textContent = t(VOICE_COMMANDS_ALWAYS_ON);
+        else if (ownKey) hint.textContent = t(VOICE_COMMANDS_OWN_KEY);
         else if (signedIn) hint.innerHTML = `${t(VOICE_COMMANDS_CONSENT)}<br>${privacyPolicyLink()}`;
         else
             hint.innerHTML = `${t(VOICE_COMMANDS_CONSENT)}<br><a href="#" data-nav="account">${t(VOICE_COMMANDS_NEEDS_ACCOUNT)}</a> ${privacyPolicyLink()}`;
@@ -2175,6 +2192,18 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <span>${t('Voice commands')} · <a href="#" id="s-voice-commands-examples">${t('what can I say?')}</a></span>
                     </label>
                     <span class="form-hint" id="s-voice-commands-hint"></span>
+                    ${
+                        isTauri()
+                            ? `<div class="form-group api-key-group" id="s-key-row-typesafe">
+                        <label for="s-key-typesafe">${t('{provider} API Key', { provider: 'TypeSafe' })}
+                            <span class="optional api-key-status"></span>
+                        </label>
+                        <input type="password" id="s-key-typesafe" autocomplete="off"
+                            spellcheck="false" placeholder="${t('Paste your key')}">
+                        <span class="form-hint">${t(TYPESAFE_KEY_HINT)}</span>
+                    </div>`
+                            : ''
+                    }
                 </div>
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">

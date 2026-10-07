@@ -6,11 +6,9 @@
  * trip.
  */
 
-import type { JudgeQuestion } from '@aloud/core/facilitation';
+import { JEV_MODEL, noulAnswers, type JudgeQuestion } from '@aloud/core/facilitation';
 
 const ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
-
-export const JEV_MODEL = 'jev-latest';
 
 /** $42 per billion input tokens; output is free (docs.typesafe.ai/models). */
 export const JEV_USD_PER_INPUT_TOKEN = 42 / 1e9;
@@ -32,7 +30,6 @@ export interface NoulResult {
 
 interface SystemOneResponse {
     model?: string;
-    answers?: Record<string, { type?: string; noul?: number }>;
     usage?: { input_tokens?: number; output_tokens?: number };
 }
 
@@ -58,13 +55,6 @@ export async function askNouls(
         throw new Error(`typesafe ${res.status}: ${detail.slice(0, 300)}`);
     }
     const data = (await res.json()) as SystemOneResponse;
-    const answers: Record<string, number> = {};
-    for (const key of Object.keys(questions)) {
-        const p = data.answers?.[key]?.noul;
-        if (typeof p !== 'number' || !Number.isFinite(p) || p < 0 || p > 1) {
-            throw new Error(`typesafe: no noul answer for ${key}`);
-        }
-        answers[key] = p;
-    }
+    const answers = noulAnswers(Object.keys(questions), data);
     return { answers, model: data.model ?? JEV_MODEL, inputTokens: data.usage?.input_tokens ?? 0 };
 }
