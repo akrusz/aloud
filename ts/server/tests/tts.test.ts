@@ -121,7 +121,7 @@ describe('POST /cloud/v1/tts', () => {
         expect(res.status).toBe(200);
         expect(azureCalls).toHaveLength(1);
         const body = azureCalls[0]!.body;
-        expect(body).toContain('en-US-Harper:MAI-Voice-2-Flash');
+        expect(body).toContain('en-US-Harper:MAI-Voice-2.1-Flash');
         // The default path carries the curated voice's style, not a bare id.
         expect(body).toContain('softvoice');
     });

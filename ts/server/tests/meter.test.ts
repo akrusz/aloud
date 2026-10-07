@@ -157,6 +157,16 @@ describe('priceTtsChars', () => {
         expect(priceTtsChars(N).providerCostUsd).toBeCloseTo(explicit, 9);
     });
 
+    it('reads the Azure tier off the voice id, MAI and its Flash models included', () => {
+        const azure = (voiceId: string) => priceTtsChars(N, { provider: 'azure', voiceId }).providerCostUsd;
+        expect(azure('en-GB-AdaMultilingualNeural')).toBeCloseTo(N * (16 / 1_000_000), 9);
+        expect(azure('en-US-Serena:DragonHDLatestNeural')).toBeCloseTo(N * (22 / 1_000_000), 9);
+        expect(azure('en-US-Harper:MAI-Voice-2.1-Flash')).toBeCloseTo(N * (15 / 1_000_000), 9);
+        expect(azure('en-US-Harper:MAI-Voice-2-Flash')).toBeCloseTo(N * (15 / 1_000_000), 9);
+        // The raw-id passthrough serves the dearer non-Flash model too.
+        expect(azure('en-US-Harper:MAI-Voice-2.1')).toBeCloseTo(N * (22 / 1_000_000), 9);
+    });
+
     it('debits fractional credits at cost (not ceiled)', () => {
         const cost = priceTtsChars(N, { voiceId: 'en-US-Chirp3-HD-Leda' });
         expect(cost.credits).toBeCloseTo(cost.providerCostUsd / USD_PER_CREDIT, 9);

@@ -489,10 +489,18 @@ export function googleTtsRateFor(voiceId: string | undefined): number {
  *  problem — this is the rate applied to that count). Neural voices ~$16/1M,
  *  DragonHD ~$22/1M (azure.microsoft.com Speech pricing, region-dependent;
  *  matches scripts/audition/sources.ts). The tier is read from the ShortName:
- *  DragonHD voices carry it (en-US-Andrew_DragonHDLatestNeural). */
-const AZURE_TTS_USD_PER_CHAR = { neural: 16 / M, dragonHd: 22 / M } as const;
+ *  DragonHD voices carry it (en-US-Andrew_DragonHDLatestNeural), and an MAI
+ *  voice names its model after the colon (en-US-Harper:MAI-Voice-2.1-Flash).
+ *  MAI is $22/1M and its Flash models $15/1M, for 2 and 2.1 alike (pricing
+ *  page "MAI-Voice" row; Microsoft's launch posts for the Flash rate, which
+ *  the page lists only as "Neural HD Flash"; checked 2026-10-07). The raw-id
+ *  passthrough (voice-catalog resolveVoice) serves either, so both are priced. */
+const AZURE_TTS_USD_PER_CHAR = { neural: 16 / M, dragonHd: 22 / M, mai: 22 / M, maiFlash: 15 / M } as const;
 
 export function azureTtsRateFor(voiceId: string | undefined): number {
+    if (voiceId?.includes('MAI-Voice')) {
+        return voiceId.endsWith('-Flash') ? AZURE_TTS_USD_PER_CHAR.maiFlash : AZURE_TTS_USD_PER_CHAR.mai;
+    }
     return voiceId?.includes('DragonHD') ? AZURE_TTS_USD_PER_CHAR.dragonHd : AZURE_TTS_USD_PER_CHAR.neural;
 }
 

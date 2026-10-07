@@ -97,12 +97,14 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
     // are naturally unhurried and the `style` ones bake in the calmest
     // express-as register the voice supports; multilingual entries (Ada, Davis)
-    // also speak zh natively - groundwork for meditation-pal-c3a0. ~$16/1M
-    // (MAI/multilingual) and ~$22/1M (DragonHD), so premium placement at
-    // below-Chirp3-HD burn, same logic as the OpenAI block above.
+    // also speak zh natively - groundwork for meditation-pal-c3a0. ~$15/1M
+    // (MAI Flash), ~$16/1M (multilingual) and ~$22/1M (DragonHD), so premium
+    // placement at below-Chirp3-HD burn, same logic as the OpenAI block above.
+    // On MAI-Voice-2.1-Flash since 2026-10-07 (was 2-Flash): same price and
+    // styles, and Microsoft's docs now cover only 2.1.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
+    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
@@ -111,21 +113,22 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // actually speak it. (zh sessions are further steered client-side to a
     // zhNative voice - Harper's zh reads accented to a native ear.)
     // Azure intermittently garbles Harper's synthesis of a reply that opens
-    // with "Right" (provider-side; still there 2026-09-13). The prompt note
-    // steers the LLM off that opener; meditation-pal-nkni tracks
-    // re-checking the bug or finding a replacement voice.
+    // with "Right" (provider-side; 2.1 did NOT fix it: 5/24 onsets cut on
+    // 2.1-Flash, the same as 2-Flash, 2026-10-07). The prompt note steers the
+    // LLM off that opener; meditation-pal-nkni tracks re-checking the bug or
+    // finding a replacement voice.
     {
         name: 'Harper',
         provider: 'azure',
         multilingual: true,
-        providerVoiceId: 'en-US-Harper:MAI-Voice-2-Flash',
+        providerVoiceId: 'en-US-Harper:MAI-Voice-2.1-Flash',
         gender: 'female',
         tier: 'premium',
         style: 'softvoice',
         default: true,
         promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
     },
-    { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
 ];
 

@@ -486,7 +486,7 @@ const azure: AuditionSource = {
     billing: 'per-char',
     usdPerUnit: (voiceId) => azureTtsRateFor(voiceId),
     rateNote:
-        'azure.microsoft.com/pricing (Speech services) - Neural ~$16/1M, DragonHD ~$22/1M, region-dependent (pricing/providers.azureTtsRateFor). Set AZURE_SPEECH_REGION too (default eastus)',
+        'azure.microsoft.com/pricing (Speech services) - Neural ~$16/1M, DragonHD and MAI ~$22/1M, MAI Flash ~$15/1M, region-dependent (pricing/providers.azureTtsRateFor). Set AZURE_SPEECH_REGION too (default eastus)',
     // Promoted (meditation-pal-c3a0.1): the shipping path is providers/tts.ts
     // synthesizeWithAzure; curated entries pend the dev's audition picks.
     shipping: true,
