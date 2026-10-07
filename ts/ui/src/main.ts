@@ -5,6 +5,7 @@ import { regenerateEmbers } from './embers.js';
 import { initAbout } from './about.js';
 import { isTauri, capacitorPlatform } from './is-desktop.js';
 import { initTauriWindowDrag } from './tauri-chrome.js';
+import { initMenuStrip } from './menu-strip.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
 import { adoptSimulationParams, renderSimBanner } from './dev-sim.js';
@@ -102,6 +103,7 @@ function setupGlobalChrome(): void {
     if (btn) initThemeToggle(btn);
     initAbout();
     initTauriWindowDrag();
+    initMenuStrip();
     initExternalLinks();
     // Follow OS-level theme flips (e.g. macOS Auto at sunset) without a
     // refresh. The watcher respects Settings/sticky and recent manual toggles.

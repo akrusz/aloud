@@ -79,6 +79,13 @@ export function isIosWeb(): boolean {
     return /Mac/i.test(platform) && (navigator.maxTouchPoints ?? 0) > 1;
 }
 
+/** UA/platform sniff for Windows: WebView2 in the desktop shell, any browser on
+ *  the web. */
+export function isWindows(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /Win/i.test(navigator.platform || '') || /Windows/i.test(navigator.userAgent || '');
+}
+
 /**
  * UA/platform sniff for Android + iOS/iPadOS, where the mic goes to exactly one
  * consumer (desktop browsers let captures share it). A second `getUserMedia`

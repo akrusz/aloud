@@ -177,7 +177,9 @@ pub fn run() {
       // for the event and opens the prefilled composer (ui/src/bug-report.ts
       // initNativeBugReportMenu). macOS only: on Windows/Linux the menu is a
       // bar inside the window (and copy/paste works without it there); About
-      // carries the bug report.
+      // carries the bug report. Windows draws its own hover strip from the
+      // webview instead (ui/src/menu-strip.ts, which says why it isn't this
+      // menu shown and hidden).
       #[cfg(target_os = "macos")]
       {
         use tauri::menu::{Menu, MenuItem, Submenu};

@@ -776,6 +776,49 @@
     padding-left: 72px;
 }
 
+/* Windows: the app menu, sliding over the top of the page while the pointer is
+   on the title bar or just under it (menu-strip.ts). Overlaid, never in flow -
+   it must not move the page. Above the dialogs (1000): it's window chrome. */
+.menu-strip {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 2000;
+    display: flex;
+    gap: 2px;
+    padding: 2px 8px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    transform: translateY(-100%);
+    visibility: hidden;
+    transition: transform 0.14s ease-out, visibility 0s linear 0.14s;
+}
+.menu-strip.is-open {
+    transform: none;
+    visibility: visible;
+    transition-delay: 0s;
+}
+.menu-strip button {
+    padding: 0.1rem 0.6rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    cursor: default;
+}
+.menu-strip button:hover,
+.menu-strip button.is-active {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+@media (prefers-reduced-motion: reduce) {
+    .menu-strip {
+        transition: none;
+    }
+}
+
 /* ---------- Ollama recommendation (settings page) ---------------------- */
 /* Each tier is a single flex row with the action button on the right, size +
    note tucked beneath the model name. Only shown when the selected provider is
