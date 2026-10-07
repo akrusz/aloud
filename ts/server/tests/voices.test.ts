@@ -9,7 +9,7 @@ describe('voice catalog', () => {
     it('resolves a curated short name to its (provider, voiceId)', () => {
         expect(resolveVoice('Leda')).toEqual({ provider: 'google', voiceId: 'en-US-Chirp3-HD-Leda' });
         // An OpenAI curated voice resolves to the OpenAI provider + voice name.
-        expect(resolveVoice('Polaris')).toEqual({ provider: 'openai', voiceId: 'nova' });
+        expect(resolveVoice('Altair (GB)')).toEqual({ provider: 'openai', voiceId: 'fable' });
     });
 
     it('passes a raw Google id through as Google and falls back to the default', () => {
@@ -62,7 +62,7 @@ describe('GET /cloud/v1/voices', () => {
         const voices = (await res.json()) as CloudVoice[];
         expect(voices.map((v) => v.name)).toEqual(namesFor('google'));
         // OpenAI voices stay hidden without OPENAI_TTS_API_KEY.
-        expect(voices.some((v) => v.name === 'Polaris')).toBe(false);
+        expect(voices.some((v) => v.name === 'Altair (GB)')).toBe(false);
         expect(voices.every((v) => 'gender' in v)).toBe(true);
     });
 

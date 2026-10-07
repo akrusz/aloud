@@ -94,7 +94,6 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // (providers/tts.ts sets a calm meditation register). OpenAI's full set:
     // alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.
     { name: 'Altair (GB)', provider: 'openai', multilingual: true, providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
-    { name: 'Polaris', provider: 'openai', multilingual: true, providerVoiceId: 'nova', gender: 'female', tier: 'premium' },
     // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
     // are naturally unhurried and the `style` ones bake in the calmest
     // express-as register the voice supports; multilingual entries (Ada, Davis)
@@ -147,7 +146,7 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
  *  per provider, so a deploy missing the flagged default's key still speaks
  *  instead of 502ing every no-voice request. Ordering is a dev taste call -
  *  edit freely. */
-const DEFAULT_VOICE_CHAIN = ['Harper', 'Leda', 'Polaris'];
+const DEFAULT_VOICE_CHAIN = ['Harper', 'Leda', 'Luna', 'Altair (GB)'];
 
 /** The flagged default; with `available` (the providers whose keys are
  *  configured), the first choice in the chain that can actually synthesize. */
