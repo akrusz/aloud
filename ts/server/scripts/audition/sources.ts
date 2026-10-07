@@ -712,14 +712,16 @@ const deepgram: AuditionSource = {
     },
 };
 
-const inworld: AuditionSource = {
-    id: 'inworld',
-    label: 'Inworld TTS',
+/** One Inworld model as a source: the two bill at different rates, so they
+ *  can't share a cost column. */
+const inworldSource = (id: string, label: string, modelId: string, usdPerMillion: number, rateNote: string): AuditionSource => ({
+    id,
+    label,
     envKeys: ['INWORLD_API_KEY'],
     signupUrl: 'https://platform.inworld.ai',
     billing: 'per-char',
-    usdPerUnit: () => 25 / M,
-    rateNote: 'Realtime TTS-2 $25/1M on-demand - the rate that applies to us. Cheaper tiers are SUBSCRIPTION commitments ($25/mo Creator $20, $300/mo Developer $15, $1500/mo Growth $12.50), not volume discounts. TTS-2 Flash is $15/1M on-demand if the full model prices out',
+    usdPerUnit: () => usdPerMillion / M,
+    rateNote,
     shipping: false,
     async roster(key, { filter }) {
         const res = await fetch('https://api.inworld.ai/tts/v1/voices', {
@@ -746,7 +748,7 @@ const inworld: AuditionSource = {
             {
                 text,
                 voiceId,
-                modelId: 'inworld-tts-2',
+                modelId,
                 // Inworld takes a style instruction AND a numeric rate; its band
                 // is [0.5, 1.5].
                 ...(instruction ? { instruction } : {}),
@@ -758,13 +760,38 @@ const inworld: AuditionSource = {
             },
             { authorization: `Basic ${key}` }
         );
-        const body = (await res.json()) as { audioContent?: string };
+        const body = (await res.json()) as {
+            audioContent?: string;
+            usage?: { processedCharactersCount?: number };
+        };
         if (!body.audioContent) throw new Error('Inworld returned no audioContent');
-        return { bytes: Uint8Array.from(Buffer.from(body.audioContent, 'base64')), ext: 'mp3' };
+        // The billed count comes back with the audio. It is the text alone: the
+        // style instruction rides free (22 for a 22-char line, 2026-10-07).
+        const billedChars = body.usage?.processedCharactersCount;
+        return {
+            bytes: Uint8Array.from(Buffer.from(body.audioContent, 'base64')),
+            ext: 'mp3',
+            ...(billedChars ? { billedChars } : {}),
+        };
     },
-};
+});
 
-export const SOURCES: readonly AuditionSource[] = [google, openai, gemini, azure, cartesia, deepgram, inworld];
+const inworld = inworldSource(
+    'inworld',
+    'Inworld TTS-2',
+    'inworld-tts-2',
+    25,
+    'inworld.ai/pricing - TTS-2 $25/1M on-demand, the rate that applies to us; billed on the text alone (usage.processedCharactersCount), not the style instruction. Cheaper tiers are SUBSCRIPTION commitments ($25/mo Creator $20, $300/mo Developer $15, $1500/mo Growth $12.50), not volume discounts'
+);
+const inworldFlash = inworldSource(
+    'inworld-flash',
+    'Inworld TTS-2 Flash',
+    'inworld-tts-2-flash',
+    15,
+    'inworld.ai/pricing - TTS-2 Flash $15/1M on-demand; same voices as TTS-2'
+);
+
+export const SOURCES: readonly AuditionSource[] = [google, openai, gemini, azure, cartesia, deepgram, inworld, inworldFlash];
 
 export function sourceById(id: string): AuditionSource | undefined {
     return SOURCES.find((s) => s.id === id);

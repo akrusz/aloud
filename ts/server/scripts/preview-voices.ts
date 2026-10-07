@@ -15,6 +15,7 @@
  *   npm run voices -- all             # every source with a key
  *   npm run voices -- google --locales=en-US,en-GB,en-AU
  *   npm run voices -- google --filter=Chirp3-HD --limit=12
+ *   npm run voices -- inworld --only=Serena,Luna,Gareth   # exact voice ids
  *   npm run voices -- all --rate=0.85          # audition at session pace
  *   npm run voices -- google --prosody --limit=4   # every prosody treatment
  *                                                  # per voice, side by side
@@ -86,6 +87,9 @@ interface Row {
     shippingTreatment: boolean;
     /** Pace-adjusted USD per 1M chars. */
     usdPerMillionChars: number;
+    /** The source's unit rate when this clip was priced. A carried per-char row
+     *  is re-priced from it when the rate table moves (see the merge below). */
+    usdPerUnit?: number;
     creditsPerHour: number;
     billing: string;
     /** Set when this voice is already in CURATED_VOICES. */
@@ -465,6 +469,7 @@ async function main(): Promise<void> {
     // ships today, so a plain run is the roster comparison. `--prosody` renders
     // every treatment a source can express, which is the "how much pacing can I
     // actually buy here" listen; `--treatments=` narrows that.
+    const only = flag('only')?.split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
     const wantAllTreatments = args.includes('--prosody');
     const treatmentIds = flag('treatments')?.split(',').map((t) => t.trim()).filter(Boolean);
     const treatmentsFor = (source: AuditionSource): readonly Treatment[] => {
@@ -509,6 +514,17 @@ async function main(): Promise<void> {
             /* unreadable manifest: start clean rather than die */
         }
     }
+    // A carried row holds the price of the day it was rendered. Per-char rows
+    // follow the rate table instead, or a corrected rate never reaches a page
+    // built from earlier runs (the MAI voices sat at the Neural rate that way).
+    for (const r of prior.rows) {
+        const src = sourceById(r.sourceId);
+        if (!src || src.billing !== 'per-char' || !r.usdPerUnit) continue;
+        const scale = src.usdPerUnit(r.voiceId) / r.usdPerUnit;
+        r.usdPerMillionChars *= scale;
+        r.creditsPerHour *= scale;
+        r.usdPerUnit *= scale;
+    }
 
     const rows: Row[] = [];
     const skipped: Skipped[] = [];
@@ -546,6 +562,7 @@ async function main(): Promise<void> {
                 skipped.push({ ...source, reason: `roster failed - ${String(err)}` });
                 continue;
             }
+            if (only) roster = roster.filter((v) => only.includes(v.id.toLowerCase()));
             for (const voice of roster.slice(0, limit))
                 for (const treatment of treatmentsFor(source))
                     targets.push({ source, voice, key, treatment });
@@ -598,6 +615,9 @@ async function main(): Promise<void> {
                 rate,
                 shippingTreatment: treatment.id === source.treatments[0]?.id,
                 usdPerMillionChars,
+                ...(source.billing === 'per-char' && result.usdActual === undefined
+                    ? { usdPerUnit: source.usdPerUnit(voice.id) }
+                    : {}),
                 creditsPerHour: usdToCredits((usdPerMillionChars / M) * CHARS_PER_HOUR),
                 billing: source.billing === 'per-char' ? 'per char' : 'per second',
                 ...(curated ? { curatedAs: curated.name } : {}),

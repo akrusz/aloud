@@ -286,7 +286,7 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  without) a reachable cloud, so it should stay roughly right but can't drift
  *  into a real charge. 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe,
  *  which is what the picker calls "aloud cloud". */
-const FALLBACK_STT_CREDITS_PER_HOUR = 2.4;
+const FALLBACK_STT_CREDITS_PER_HOUR = 1.9;
 
 let sttCreditsPerHour = FALLBACK_STT_CREDITS_PER_HOUR;
 

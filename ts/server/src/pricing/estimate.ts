@@ -17,6 +17,11 @@
  *   - sttSeconds reseeded 240 → 1,000: billed STT held at ~20-25 min/hr in
  *     both looks. Talking vs VAD padding is still meditation-pal-0uw7's
  *     question, but the BILLED figure is what the badge should predict.
+ *     Then 1,000 → 1,055 (Oct 2026) when gpt-transcribe began billing each
+ *     request in whole seconds (providers.sttBilledSeconds): rounding up
+ *     added 5.5% across 268 real clips in the dev database (median 4.5 s).
+ *     Usage rows written since then already hold billed seconds, so a later
+ *     reseed from the admin report needs no such factor.
  *   - TTS band reseeded down (TTS_CHAR_PROFILES): measured cloud-voice
  *     sessions ran ~1k-6.2k chars, all under the old 10k "typical".
  *   - LLM token fields left at the seed: per-model samples are too small and
@@ -44,7 +49,7 @@ export const TYPICAL_SESSION: SessionUsage = {
     llmTokensOut: 2_700, // facilitator speech (~10k chars)
     llmCacheRead: 115_000, // re-sent prefix, cached at ~0.1x
     llmCacheCreation: 7_500, // unique content written to cache once
-    sttSeconds: 1_000, // ~17 min billed audio per 50-min session (~20 min/hr)
+    sttSeconds: 1_055, // ~17.5 min billed audio per 50-min session (~21 min/hr)
     ttsChars: 10_000, // facilitator speech, if spoken by cloud TTS
 };
 
