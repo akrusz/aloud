@@ -2379,7 +2379,7 @@ function renderDeveloperSection(): string {
             )}
             ${devRow(
                 devCheck('s-dev-stt-clips', 'Save my speech clips', isSttClipsDebug()),
-                `Keeps every transcription clip (audio and transcript) in memory and downloads one .tar when the session ends, for comparing STT models. Cloud or local Whisper STT, browser only.`
+                `Saves every transcription clip (audio and transcript), for comparing STT models. Browser: one .tar downloads when the session ends. Desktop: each clip goes to stt-clips/ in the data folder as you speak. Not on mobile; cloud or local Whisper STT only.`
             )}
             ${devRow(
                 devField(

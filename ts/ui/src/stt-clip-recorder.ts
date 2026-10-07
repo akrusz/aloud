@@ -1,17 +1,22 @@
 /**
  * Developer capture of the audio a sit sends for transcription (dev-mode.ts
- * isSttClipsDebug): every pass's PCM with the transcript it got back, held in
- * memory and saved as one .tar when the session ends. The point is a corpus of
- * real, soft, short meditation speech to replay against other STT models
- * (meditation-pal-376v); published benchmarks cover none of it.
+ * isSttClipsDebug): every pass's PCM with the transcript it got back. The
+ * point is a corpus of real, soft, short meditation speech to replay against
+ * other STT models (meditation-pal-376v); published benchmarks cover none of it.
  *
- * Browser builds only: the desktop and mobile webviews don't do blob downloads
- * (views/history.ts exportSessions has the same limit).
+ * In a browser the clips are held in memory and saved as one .tar when the
+ * session ends. A webview can't download a blob (views/history.ts
+ * exportSessions has the same limit), so the desktop app instead writes each
+ * clip through the shell as it is transcribed, to
+ * <app-data>/stt-clips/<capture>/NNNN-tNNN-<label>.wav with a .json beside it
+ * (turn, label, seconds, text). Mobile has neither path and records nothing.
  *
  * Nothing leaves the device, and nothing is kept unless the flag is on.
  */
 
+import { appUrl } from './app-base.js';
 import { isSttClipsDebug } from './dev-mode.js';
+import { isTauri } from './is-desktop.js';
 
 export const STT_CLIP_SAMPLE_RATE = 16_000;
 
@@ -25,11 +30,39 @@ interface Clip {
 }
 
 let clips: Clip[] = [];
+/** Clips recorded since load, for the file names: both paths number them. */
+let seq = 0;
+/** The desktop's folder for this page load, named on the first clip. */
+let captureDir: string | null = null;
+
+const clipName = (n: number, c: Clip): string =>
+    `${String(n).padStart(4, '0')}-t${String(c.turn).padStart(3, '0')}-${c.label}`;
+
+const secondsOf = (c: Clip): number => Number((c.pcm16.length / STT_CLIP_SAMPLE_RATE).toFixed(3));
 
 /** Keep one transcription pass. A no-op unless the developer flag is on. */
 export function recordSttClip(clip: Clip): void {
     if (!isSttClipsDebug() || clip.pcm16.length === 0) return;
-    clips.push(clip);
+    seq++;
+    if (isTauri()) void saveThroughShell(seq, clip);
+    else clips.push(clip);
+}
+
+/** Desktop: one clip to disk now, so a crash mid-sit loses nothing. */
+async function saveThroughShell(n: number, clip: Clip): Promise<void> {
+    captureDir ??= `aloud-stt-clips-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+    const put = (kind: 'wav' | 'json', body: BodyInit): Promise<Response> =>
+        fetch(appUrl(`/stt-clips/${captureDir}/${clipName(n, clip)}/${kind}`), { method: 'POST', body });
+    try {
+        const wav = await put('wav', wavBytes(clip.pcm16) as BodyInit);
+        const meta = await put(
+            'json',
+            JSON.stringify({ turn: clip.turn, label: clip.label, seconds: secondsOf(clip), text: clip.text })
+        );
+        if (!wav.ok || !meta.ok) console.warn('STT clip save failed', wav.status, meta.status);
+    } catch (err) {
+        console.warn('STT clip save failed', err);
+    }
 }
 
 function wavBytes(pcm16: Int16Array): Uint8Array {
@@ -85,15 +118,9 @@ export function takeSttClipArchive(): Blob | null {
     clips = [];
     const parts: Uint8Array[] = [];
     const manifest = taken.map((c, i) => {
-        const file = `clips/${String(i + 1).padStart(4, '0')}-t${String(c.turn).padStart(3, '0')}-${c.label}.wav`;
+        const file = `clips/${clipName(i + 1, c)}.wav`;
         parts.push(tarEntry(file, wavBytes(c.pcm16)));
-        return {
-            file,
-            turn: c.turn,
-            label: c.label,
-            seconds: Number((c.pcm16.length / STT_CLIP_SAMPLE_RATE).toFixed(3)),
-            text: c.text,
-        };
+        return { file, turn: c.turn, label: c.label, seconds: secondsOf(c), text: c.text };
     });
     const json = new TextEncoder().encode(JSON.stringify({ sampleRate: STT_CLIP_SAMPLE_RATE, clips: manifest }, null, 1));
     parts.push(tarEntry('clips.json', json), new Uint8Array(1024));

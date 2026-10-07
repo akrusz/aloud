@@ -194,6 +194,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/providers", get(providers))
         .route("/models/{provider}", get(models))
         .route("/judge", post(judge))
+        .route("/stt-clips/{dir}/{name}/{kind}", post(stt_clip_put))
         .route("/google-oauth", post(google_oauth))
         .route("/ollama/pull", post(ollama_pull))
         .route("/ollama/delete", post(ollama_delete))
@@ -1251,6 +1252,27 @@ fn session_path(state: &AppState, id: &str) -> ApiResult<PathBuf> {
     } else {
         Err(bad_request("bad session id"))
     }
+}
+
+/// `POST /app/v1/stt-clips/{dir}/{name}/{kind}` - write one file of a developer
+/// speech-clip capture (ui stt-clip-recorder.ts) to
+/// `<data>/stt-clips/<dir>/<name>.<kind>`. The webview can't download a blob,
+/// so the desktop saves each clip as it is transcribed. `kind` is `wav` or
+/// `json`; the other two segments are plain ids, so nothing lands elsewhere.
+async fn stt_clip_put(
+    State(state): State<Shared>,
+    axum::extract::Path((dir, name, kind)): axum::extract::Path<(String, String, String)>,
+    body: Bytes,
+) -> ApiResult {
+    if !safe_session_id(&dir) || !safe_session_id(&name) || !(kind == "wav" || kind == "json") {
+        return Err(bad_request("bad clip name"));
+    }
+    let folder = state.data_dir.join("stt-clips").join(&dir);
+    std::fs::create_dir_all(&folder)
+        .map_err(|e| internal(format!("could not create clip folder: {e}")))?;
+    std::fs::write(folder.join(format!("{name}.{kind}")), &body)
+        .map_err(|e| internal(format!("could not save clip: {e}")))?;
+    Ok(status_ok())
 }
 
 /// `GET /app/v1/sessions` - saved session ids (filenames sans `.json`).

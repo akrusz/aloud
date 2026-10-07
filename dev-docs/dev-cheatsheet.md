@@ -158,12 +158,14 @@ Three switches also live there with no URL twin:
   localStorage `aloud:debugAecOff`) opens the next session's PCM capture with
   `echoCancellation: false` - the Android call-stream measurement; judge it by
   the `[vad] tts window` lines.
-- **Save my speech clips** (`isSttClipsDebug`, `dev-mode.ts`): every
-  transcription pass's audio and transcript is held in memory
-  (`stt-clip-recorder.ts`) and downloaded as one `.tar` (`clips/*.wav` +
-  `clips.json`) when the session ends. For replaying real sits against other
-  STT models. Cloud or local Whisper STT; browser builds only, since the
-  desktop and mobile webviews don't do blob downloads.
+- **Save my speech clips** (`isSttClipsDebug`, `dev-mode.ts`): keeps every
+  transcription pass's audio and transcript (`stt-clip-recorder.ts`), for
+  replaying real sits against other STT models. In a browser they are held in
+  memory and downloaded as one `.tar` (`clips/*.wav` + `clips.json`) when the
+  session ends. A webview can't download a blob, so the desktop app writes each
+  clip as it is transcribed to `<app-data>/stt-clips/<capture>/` (a `.wav` and
+  a `.json` per clip, through the shell's `/app/v1/stt-clips/...`). Cloud or
+  local Whisper STT; nothing is recorded on mobile.
 - **Jev silence classifiers** (`getJevClassifierMode`, `dev-mode.ts`,
   localStorage `aloud:jevClassifiers`), aloud cloud sessions only, read at
   session start: `on` (default) lets Jev decide with the LLM classifier as
