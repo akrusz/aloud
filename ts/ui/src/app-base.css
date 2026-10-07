@@ -2545,7 +2545,8 @@ body:has(.voice-modal-overlay:not(.hidden)) {
 }
 
 .voice-row-preview {
-    background: none;
+    /* A step lighter than the list it sits on, in both themes. */
+    background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--text-muted);
