@@ -333,64 +333,6 @@ describe('GET /cloud/v1/tts/preview', () => {
         const res = await a.request('/cloud/v1/tts/preview?voice=Leda');
         expect(res.status).toBe(502);
     });
-
-    it('previews an OpenAI voice via OpenAI when its key is set', async () => {
-        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_TTS_API_KEY: 'oai-key' });
-        const a = createApp(buildDeps(config));
-        const res = await a.request(`/cloud/v1/tts/preview?voice=${encodeURIComponent('Altair (GB)')}`); // → fable
-        expect(res.status).toBe(200);
-        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
-        expect(googleCalls).toHaveLength(0);
-        expect(openaiCalls).toHaveLength(1);
-        expect(openaiCalls[0]!.body.voice).toBe('fable');
-        expect(openaiCalls[0]!.body.input).toContain('Welcome to aloud');
-    });
-});
-
-describe('POST /cloud/v1/tts — OpenAI voices', () => {
-    function openaiApp() {
-        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_TTS_API_KEY: 'oai-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
-        return createApp(buildDeps(config));
-    }
-
-    it('routes a curated OpenAI voice to OpenAI (not Google) and bills it', async () => {
-        const a = openaiApp();
-        const token = await devToken(a);
-        const res = await a.request('/cloud/v1/tts', {
-            method: 'POST',
-            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe in.', voice: 'Altair (GB)', rate: 0.9 }),
-        });
-        expect(res.status).toBe(200);
-        expect(res.headers.get('content-type')).toBe('audio/mpeg');
-        expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual(Array.from(FAKE_MP3));
-        expect(Number(res.headers.get('X-Credits-Charged'))).toBeGreaterThan(0);
-
-        // It went to OpenAI, with the resolved voice + model + a steering instruction.
-        expect(googleCalls).toHaveLength(0);
-        expect(openaiCalls).toHaveLength(1);
-        const sent = openaiCalls[0]!.body;
-        expect(sent.model).toBe('gpt-4o-mini-tts');
-        expect(sent.voice).toBe('fable'); // Altair (GB) → fable
-        expect(sent.response_format).toBe('mp3');
-        expect(typeof sent.instructions).toBe('string');
-        expect(openaiCalls[0]!.auth).toBe('Bearer oai-key');
-    });
-
-    it('502s for an OpenAI voice when only the Google key is configured', async () => {
-        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'tts-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
-        const a = createApp(buildDeps(config));
-        const token = await devToken(a);
-        const res = await a.request('/cloud/v1/tts', {
-            method: 'POST',
-            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'hi', voice: 'Altair (GB)' }),
-        });
-        expect(res.status).toBe(502);
-        // Neither provider was actually called — it fails fast on the missing key.
-        expect(openaiCalls).toHaveLength(0);
-        expect(googleCalls).toHaveLength(0);
-    });
 });
 
 describe('POST /cloud/v1/tts — Azure voices', () => {

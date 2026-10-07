@@ -87,19 +87,13 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Unauditioned picks, refine after listening (meditation-pal-b7i).
     { name: 'Vega', provider: 'google', providerVoiceId: 'en-US-Neural2-F', gender: 'female', tier: 'value' },
     { name: 'Rigel', provider: 'google', providerVoiceId: 'en-US-Neural2-J', gender: 'male', tier: 'value' },
-    // OpenAI gpt-4o-mini-tts: auditioned picks (scripts/preview-voices.ts openai),
-    // in the 'premium' (Best) bucket. Tier is QUALITY/placement only: these cost
-    // ~$19/1M, below Chirp3-HD's ~$30/1M, and the picker's credits/hr badge shows
-    // that lower real burn. Steerable via natural-language instructions
-    // (providers/tts.ts sets a calm meditation register). OpenAI's full set:
-    // alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.
-    { name: 'Altair (GB)', provider: 'openai', multilingual: true, providerVoiceId: 'fable', gender: 'male', tier: 'premium' },
     // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
     // are naturally unhurried and the `style` ones bake in the calmest
     // express-as register the voice supports; multilingual entries (Ada, Davis)
     // also speak zh natively - groundwork for meditation-pal-c3a0. ~$15/1M
     // (MAI Flash), ~$16/1M (multilingual) and ~$22/1M (DragonHD), so premium
-    // placement at below-Chirp3-HD burn, same logic as the OpenAI block above.
+    // placement at below-Chirp3-HD burn: tier is QUALITY/placement only, and
+    // the picker's credits/hr badge shows the lower real cost.
     // On MAI-Voice-2.1-Flash since 2026-10-07 (was 2-Flash): same price and
     // styles, and Microsoft's docs now cover only 2.1.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
@@ -146,7 +140,7 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
  *  per provider, so a deploy missing the flagged default's key still speaks
  *  instead of 502ing every no-voice request. Ordering is a dev taste call -
  *  edit freely. */
-const DEFAULT_VOICE_CHAIN = ['Harper', 'Leda', 'Luna', 'Altair (GB)'];
+const DEFAULT_VOICE_CHAIN = ['Harper', 'Leda', 'Luna'];
 
 /** The flagged default; with `available` (the providers whose keys are
  *  configured), the first choice in the chain that can actually synthesize. */

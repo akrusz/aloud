@@ -91,13 +91,13 @@ describe('estimateVoices', () => {
         expect(rateOf(value.providerVoiceId) / rateOf(premium.providerVoiceId)).toBeCloseTo(16 / 30, 2);
     });
 
-    it('prices the OpenAI voices below the Chirp3-HD cost (premium-bucket, cheaper burn)', () => {
+    it('prices the Inworld voices below the Chirp3-HD cost (premium-bucket, cheaper burn)', () => {
         const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
         const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
-        const openai = CURATED_VOICES.find((v) => v.provider === 'openai')!;
-        // ~$19/1M < $30/1M Chirp3-HD — stays under the cost ceiling.
-        expect(rateOf(openai.providerVoiceId)).toBeGreaterThan(0);
-        expect(rateOf(openai.providerVoiceId)).toBeLessThan(rateOf(premium.providerVoiceId));
+        for (const v of CURATED_VOICES.filter((c) => c.provider === 'inworld')) {
+            expect(rateOf(v.providerVoiceId), v.name).toBeGreaterThan(0);
+            expect(rateOf(v.providerVoiceId), v.name).toBeLessThan(rateOf(premium.providerVoiceId));
+        }
     });
 });
 

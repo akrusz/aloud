@@ -8,8 +8,8 @@ import type { CloudVoice } from '../src/contract.js';
 describe('voice catalog', () => {
     it('resolves a curated short name to its (provider, voiceId)', () => {
         expect(resolveVoice('Leda')).toEqual({ provider: 'google', voiceId: 'en-US-Chirp3-HD-Leda' });
-        // An OpenAI curated voice resolves to the OpenAI provider + voice name.
-        expect(resolveVoice('Altair (GB)')).toEqual({ provider: 'openai', voiceId: 'fable' });
+        // An Inworld id carries its model after the colon.
+        expect(resolveVoice('Luna')).toEqual({ provider: 'inworld', voiceId: 'Luna:inworld-tts-2' });
     });
 
     it('passes a raw Google id through as Google and falls back to the default', () => {
@@ -38,10 +38,10 @@ describe('voice catalog', () => {
     it('defaultVoice falls through its chain to a provider with a key', () => {
         const flagged = defaultVoice();
         // Full availability: the flagged default wins.
-        expect(defaultVoice(new Set(['google', 'openai', 'azure'])).name).toBe(flagged.name);
+        expect(defaultVoice(new Set(['google', 'inworld', 'azure'])).name).toBe(flagged.name);
         // Flagged provider missing: next chain entry on a configured provider.
         expect(defaultVoice(new Set(['google'])).provider).toBe('google');
-        expect(defaultVoice(new Set(['openai'])).provider).toBe('openai');
+        expect(defaultVoice(new Set(['inworld'])).name).toBe('Luna');
         // Nothing configured: still returns the flagged default (the route's
         // synthFor null-check turns it into provider_error).
         expect(defaultVoice(new Set()).name).toBe(flagged.name);
@@ -61,16 +61,15 @@ describe('GET /cloud/v1/voices', () => {
         expect(res.status).toBe(200);
         const voices = (await res.json()) as CloudVoice[];
         expect(voices.map((v) => v.name)).toEqual(namesFor('google'));
-        // OpenAI voices stay hidden without OPENAI_TTS_API_KEY.
-        expect(voices.some((v) => v.name === 'Altair (GB)')).toBe(false);
+        // Azure voices stay hidden without AZURE_SPEECH_KEY.
+        expect(voices.some((v) => v.name === 'Harper')).toBe(false);
         expect(voices.every((v) => 'gender' in v)).toBe(true);
     });
 
-    it('surfaces OpenAI voices when only the OpenAI key is set', async () => {
-        const app = createApp(buildDeps(loadConfig({ OPENAI_TTS_API_KEY: 'k' })));
+    it('lists nothing for an OpenAI key alone: no OpenAI voice is curated', async () => {
+        const app = createApp(buildDeps(loadConfig({ OPENAI_API_KEY: 'k' })));
         const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
-        expect(voices.map((v) => v.name)).toEqual(namesFor('openai'));
-        expect(voices.some((v) => v.name === 'Leda')).toBe(false);
+        expect(voices).toEqual([]);
     });
 
     it('lists every curated voice when all provider keys are set', async () => {
