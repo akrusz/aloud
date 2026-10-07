@@ -102,6 +102,10 @@ check each of these still reflects reality:
   `ts-server.md` env table and audition table, `pricing/providers.ttsRateFor`
   and the estimate labels, and the **privacy policy's subprocessor list**
   (it names the voice/speech vendors, not just the LLM ones).
+- **Added/removed/renamed a hosted voice** (`voice-catalog.ts`) → the privacy
+  policy names the voices spoken by a provider it singles out (today the four
+  Inworld ones, because of data retention); a voice joining or leaving that
+  provider lands there.
 - **Added/removed/reworded a spoken command** → its ask in
   `voice-command-specs.ts` and a rerun of `npm run jev:commands` (the asks share
   one request, so any edit rescores all of them), `COMMAND_LINES` (English *and*

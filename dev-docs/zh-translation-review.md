@@ -2497,6 +2497,12 @@ ZH: 隐私政策
 EN: Always on with aloud cloud.
 ZH: 使用 aloud cloud 时始终开启。
 
+EN: On with your TypeSafe key. Nothing goes through aloud cloud.
+ZH: 已用你自己的 TypeSafe 密钥开启，不经过 aloud cloud。
+
+EN: Optional. Runs voice commands on your own key instead of aloud cloud.
+ZH: 可选。用你自己的密钥运行语音指令，不经过 aloud cloud。
+
 EN: Sign in to enable voice commands.
 ZH: 登录后即可使用语音指令。
 
