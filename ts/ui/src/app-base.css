@@ -1130,6 +1130,12 @@ input[type="range"].slider-stops {
     color: var(--text-primary) !important;
 }
 
+/* The display above is !important and sits after .hidden's, so on its own it
+   wins: the sign-in modal's signup-only opt-in showed in sign-in mode too. */
+.checkbox-label.hidden {
+    display: none !important;
+}
+
 .checkbox-label input[type="checkbox"] {
     -webkit-appearance: none;
     appearance: none;
