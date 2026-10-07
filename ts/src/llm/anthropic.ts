@@ -82,14 +82,14 @@ export function thinkingPolicy(model: string): ThinkingPolicy {
 /**
  * Does the model take `role: "system"` entries inside `messages`
  * (mid-conversation system messages)? Fable, Mythos, Opus 4.8+, and Sonnet
- * 5.5+; not Haiku or the earlier Sonnets. A model this guesses wrong on is
- * caught by `send()`: the 400 gets one retry with system entries rendered as
- * user text, and the provider stays that way for the session.
+ * and Haiku 5.5+; not the earlier Sonnets or Haikus. A model this guesses
+ * wrong on is caught by `send()`: the 400 gets one retry with system entries
+ * rendered as user text, and the provider stays that way for the session.
  */
 export function supportsMidConversationSystem(model: string): boolean {
     const m = model.toLowerCase();
     if (/^claude-(fable|mythos)-/.test(m)) return true;
-    const gen = /^claude-(opus|sonnet)-(\d+)(?:-(\d)(?!\d))?/.exec(m);
+    const gen = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d)(?!\d))?/.exec(m);
     if (!gen) return false;
     const version = Number(gen[2]) + Number(gen[3] ?? 0) / 10;
     return version >= (gen[1] === 'opus' ? 4.8 : 5.5);

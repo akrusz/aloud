@@ -1,5 +1,5 @@
 /**
- * Provider specs for the soak CLI: "anthropic", "anthropic:claude-haiku-4-5",
+ * Provider specs for the soak CLI: "anthropic", "anthropic:claude-haiku-5-5",
  * "ollama:qwen3", "openrouter:deepseek/deepseek-v3.2". Same provider set as
  * src/cli.ts, keys from the environment (loadServerEnv runs first).
  */

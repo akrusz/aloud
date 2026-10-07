@@ -68,11 +68,18 @@ export const ROSTER: EvalModel[] = [
         note: 'Predecessor, kept for A/B against 5.5. Same price, same tokenizer.',
     },
     {
+        id: 'haiku-5.5',
+        model: 'claude-haiku-5-5',
+        provider: 'anthropic',
+        shipped: true,
+        note: 'Took the budget slot and the background calls from 4.5 (Oct 2026) at a tenth of the price. Thinking on by default, disabled here (opt-out). Floor case: how much facilitation quality does the fastest option actually cost?',
+    },
+    {
         id: 'haiku-4.5',
         model: 'claude-haiku-4-5-20251001',
         provider: 'anthropic',
         shipped: true,
-        note: 'Sub-600ms TTFT tier. Floor case: how much facilitation quality does the fastest option actually cost?',
+        note: 'Predecessor, expanded-tier while 5.5 is ear-tested against it. Sub-600ms TTFT.',
     },
 
     // --- Shipped: others ----------------------------------------------------

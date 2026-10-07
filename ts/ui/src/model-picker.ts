@@ -36,6 +36,7 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'claude-sonnet-5-5': 'Claude Sonnet 5.5',
     'claude-sonnet-5': 'Claude Sonnet 5',
     'claude-sonnet-4-6': 'Claude Sonnet 4.6',
+    'claude-haiku-5-5': 'Claude Haiku 5.5',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
     'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
     'gpt-5-nano': 'GPT-5 Nano',
@@ -219,11 +220,11 @@ function saveDeliberatePicks(): void {
 const cache = new Map<string, ModelOption[]>();
 let providerStatusCache: Record<string, { available: boolean; models?: string[] }> | null = null;
 
-/** ☁/hr the background-assistant leg (Haiku classifiers/summaries + the Flash
- *  Lite recap) adds to every aloud-cloud session, on top of the picked model's
+/** ☁/hr the background-assistant leg (Haiku classifiers/summaries + the
+ *  recap model) adds to every aloud-cloud session, on top of the picked model's
  *  badge. Seed matches the server's UTILITY_CREDITS_PER_HOUR; /me/models
  *  overwrites it when the catalog loads, so it can't drift into a real charge. */
-const FALLBACK_UTILITY_CREDITS_PER_HOUR = 0.3;
+const FALLBACK_UTILITY_CREDITS_PER_HOUR = 0.1;
 
 let utilityCreditsPerHour = FALLBACK_UTILITY_CREDITS_PER_HOUR;
 

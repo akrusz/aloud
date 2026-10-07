@@ -83,9 +83,42 @@ describe('priceLlmTurn', () => {
     });
 });
 
+describe('long-prompt rate card (Haiku 5.5, over 100K prompt tokens)', () => {
+    const M = 1_000_000;
+
+    it('bills a request at or under the threshold on the base card', () => {
+        const usd = llmCostUsd('anthropic', 'claude-haiku-5-5', { tokensIn: 100_000, tokensOut: 1_000 });
+        expect(usd).toBeCloseTo((100_000 * 0.1 + 1_000 * 0.5) / M, 12);
+    });
+
+    it('bills the WHOLE request on the long card once the prompt passes it, cached tokens counted', () => {
+        // 1K fresh + 90K read + 10K written = 101K prompt tokens.
+        const usd = llmCostUsd('anthropic', 'claude-haiku-5-5', {
+            tokensIn: 1_000,
+            tokensOut: 1_000,
+            cacheRead: 90_000,
+            cacheCreation: 10_000,
+            cacheCreation1h: 4_000,
+        });
+        expect(usd).toBeCloseTo((1_000 * 0.5 + 1_000 * 2.5 + 90_000 * 0.05 + 6_000 * 0.625 + 4_000 * 1) / M, 12);
+    });
+
+    it('judges session-summed usage by its mean prompt, not the total', () => {
+        // 40 turns of ~5K tokens sum to 200K, yet no single request left the base card.
+        const usage = { llmCalls: 40, llmTokensIn: 20_000, llmTokensOut: 0, llmCacheRead: 180_000, llmCacheCreation: 0, sttSeconds: 0, ttsChars: 0 };
+        const session = priceSession('anthropic', 'claude-haiku-5-5', usage);
+        expect(session.providerCostUsd).toBeCloseTo((20_000 * 0.1 + 180_000 * 0.01) / M, 12);
+    });
+
+    it('leaves a model with no long card alone at any size', () => {
+        const usd = llmCostUsd('anthropic', 'claude-sonnet-5-5', { tokensIn: 500_000 });
+        expect(usd).toBeCloseTo((500_000 * 2) / M, 12);
+    });
+});
+
 describe('priceSession', () => {
     it('sums all three metered legs (llm + stt + tts)', () => {
-        const turn = priceSession('anthropic', 'claude-haiku-4-5-20251001', {
+        const turn = priceSession('anthropic', 'claude-haiku-5-5', {
             llmCalls: 1,
             llmTokensIn: 1000,
             llmTokensOut: 1000,

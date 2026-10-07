@@ -69,11 +69,18 @@ async function llmYesNo(
     system: string,
     options: ClassifyResumeIntentOptions
 ): Promise<'yes' | 'no' | 'error'> {
-    const messages: Message[] = [{ role: 'user', content: text }];
+    // Quoted and arrowed like the prompts' examples. Sent bare, an utterance
+    // that could be addressed to an AI ("Can you say something?") gets
+    // ANSWERED by some models instead of judged (Haiku 5.5, v36y corpus).
+    const messages: Message[] = [{ role: 'user', content: `"${text}" ->` }];
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
             const result = await provider.complete(messages, { system, maxTokens: 10 });
             options.onUsage?.(llmUsageOf(result));
+            // A safety-classifier decline is no verdict: its empty text would
+            // read as NO below. No second attempt either - the same utterance
+            // draws the same decline.
+            if (result.finishReason === 'refusal') return 'error';
             return stripThinkTags(result.text).trim().toUpperCase().startsWith('YES') ? 'yes' : 'no';
         } catch {
             /* retry once, then surface 'error' */

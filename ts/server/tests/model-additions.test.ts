@@ -188,6 +188,21 @@ describe('Opus 5 (anthropic)', () => {
         }
     });
 
+    it('bills Haiku 5.5 at $0.10/$0.50 in the budget slot, with its long-prompt card', () => {
+        const h55 = pricingFor('anthropic', 'claude-haiku-5-5')!;
+        expect(h55.input).toBeCloseTo(0.1 / M, 12);
+        expect(h55.output).toBeCloseTo(0.5 / M, 12);
+        expect(h55.cacheRead).toBeCloseTo(0.01 / M, 12);
+        expect(h55.cacheCreation).toBeCloseTo(0.125 / M, 12);
+        expect(h55.cacheCreation1h).toBeCloseTo(0.2 / M, 12);
+        expect(h55.expanded).toBeUndefined();
+        // Over 100K prompt tokens Anthropic bills the whole request at 5x.
+        expect(h55.longPrompt!.over).toBe(100_000);
+        for (const k of ['input', 'output', 'cacheRead', 'cacheCreation', 'cacheCreation1h'] as const) {
+            expect(h55.longPrompt![k]).toBeCloseTo(h55[k] * 5, 12);
+        }
+    });
+
     it('bills Sonnet 5.5 at $2/$10 in the curated slot, leaving 4.6 dearer at $3/$15', () => {
         // Credits debit at cost, so a stale $3/$15 here is a silent 1.5x on
         // every Sonnet turn.

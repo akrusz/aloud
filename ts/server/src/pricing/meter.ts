@@ -36,6 +36,8 @@ import {
     TTS_USD_PER_CHAR,
     ttsRateFor,
     pricingFor,
+    type ModelPricing,
+    type TokenRates,
 } from './providers.js';
 import type { TtsProvider } from '../providers/voice-catalog.js';
 
@@ -54,8 +56,19 @@ export const USD_PER_CREDIT = 0.05;
  *  Published: the one "sensitive" number, and trivially derivable anyway. */
 export const PACK_MARKUP = 2.5;
 
-/** USD provider cost of one LLM turn from its usage split. */
-export function llmCostUsd(provider: ProviderId, model: string, usage: LlmUsage): number {
+/** The rate card a request with a `promptTokens` prompt bills on: the model's
+ *  own, or its longPrompt card once the prompt runs past that card's size. */
+function ratesFor(p: ModelPricing, promptTokens: number): TokenRates {
+    return p.longPrompt && promptTokens > p.longPrompt.over ? p.longPrompt : p;
+}
+
+/**
+ * USD provider cost of LLM usage from its split. `requests` is how many
+ * requests the usage covers (one turn by default): a longPrompt rate card is
+ * chosen per request, so usage summed over a session is judged by its mean
+ * prompt, not the total.
+ */
+export function llmCostUsd(provider: ProviderId, model: string, usage: LlmUsage, requests = 1): number {
     const p = pricingFor(provider, model);
     if (!p) return 0;
     // Cache CREATION is billed and split by TTL: the 5m default costs ~1.25x
@@ -65,12 +78,15 @@ export function llmCostUsd(provider: ProviderId, model: string, usage: LlmUsage)
     const cacheCreation = usage.cacheCreation ?? 0;
     const cacheCreation1h = Math.min(cacheCreation, Math.max(0, usage.cacheCreation1h ?? 0));
     const cacheCreation5m = cacheCreation - cacheCreation1h;
+    // The prompt is everything sent, cached or not (the three are disjoint).
+    const promptTokens = (usage.tokensIn ?? 0) + (usage.cacheRead ?? 0) + cacheCreation;
+    const r = ratesFor(p, promptTokens / Math.max(1, requests));
     return (
-        (usage.tokensIn ?? 0) * p.input +
-        (usage.tokensOut ?? 0) * p.output +
-        (usage.cacheRead ?? 0) * p.cacheRead +
-        cacheCreation5m * p.cacheCreation +
-        cacheCreation1h * p.cacheCreation1h
+        (usage.tokensIn ?? 0) * r.input +
+        (usage.tokensOut ?? 0) * r.output +
+        (usage.cacheRead ?? 0) * r.cacheRead +
+        cacheCreation5m * r.cacheCreation +
+        cacheCreation1h * r.cacheCreation1h
     );
 }
 
@@ -132,13 +148,18 @@ export function priceSession(
     // per-session paths can't drift. SessionUsage carries no 1h cache-creation
     // split, so the whole creation bucket prices at the 5m rate here, the same
     // treatment as a turn that reports no 1h portion.
-    const llm = llmCostUsd(provider, model, {
-        tokensIn: usage.llmTokensIn,
-        tokensOut: usage.llmTokensOut,
-        cacheRead: usage.llmCacheRead,
-        cacheCreation: usage.llmCacheCreation,
-        cacheCreation1h: 0,
-    });
+    const llm = llmCostUsd(
+        provider,
+        model,
+        {
+            tokensIn: usage.llmTokensIn,
+            tokensOut: usage.llmTokensOut,
+            cacheRead: usage.llmCacheRead,
+            cacheCreation: usage.llmCacheCreation,
+            cacheCreation1h: 0,
+        },
+        usage.llmCalls
+    );
     // SessionUsage doesn't carry the STT model, so the default's rate applies —
     // exact on the default hosted engine, slightly over-stating the cheaper one.
     const stt = usage.sttSeconds * sttUsdPerSecond(DEFAULT_STT_MODEL);
@@ -196,7 +217,8 @@ export function holdForTurn(
     if (!p) return SESSION_HOLD_CREDITS;
     let promptTokens = 0;
     for (const text of promptTexts) promptTokens += estimateTokens(text);
-    const usd = promptTokens * p.input + Math.max(0, maxTokens) * p.output;
+    const r = ratesFor(p, promptTokens);
+    const usd = promptTokens * r.input + Math.max(0, maxTokens) * r.output;
     return Math.min(SESSION_HOLD_CREDITS, usdToCredits(usd) * HOLD_CUSHION);
 }
 

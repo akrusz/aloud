@@ -77,7 +77,7 @@ describe('classifyResumeIntent', () => {
         const provider = new StubProvider('NO');
         await classifyResumeIntent(provider, 'just breathing');
         expect(provider.seenSystem).toBe(RESUME_INTENT_SYSTEM_PROMPT);
-        expect(provider.seenMessages).toEqual([{ role: 'user', content: 'just breathing' }]);
+        expect(provider.seenMessages).toEqual([{ role: 'user', content: '"just breathing" ->' }]);
         expect(provider.seenMaxTokens).toBe(10);
     });
 
@@ -86,6 +86,21 @@ describe('classifyResumeIntent', () => {
         let reported = false;
         await classifyResumeIntent(provider, 'done now', { onUsage: () => (reported = true) });
         expect(reported).toBe(true);
+    });
+
+    it("returns 'error', not 'stay', when a safety classifier declines the call", async () => {
+        // HTTP 200, no text: read as an answer it would be a NO.
+        class RefusingProvider implements LLMProvider {
+            readonly model = 'stub';
+            calls = 0;
+            async complete(): Promise<CompletionResult> {
+                this.calls++;
+                return { text: '', finishReason: 'refusal', tokensUsed: null };
+            }
+        }
+        const provider = new RefusingProvider();
+        expect(await classifyResumeIntent(provider, 'I want to stop hurting')).toBe('error');
+        expect(provider.calls).toBe(1);
     });
 
     it("returns 'error' (distinct from 'stay') when the LLM call throws", async () => {
@@ -242,7 +257,7 @@ describe('typed-judgment path (utterance-judge.ts)', () => {
             judgeContext: { earlier: ["I guess I'm ready."] },
         });
         expect(judge.seen[0]![2]).toEqual({ earlier: ["I guess I'm ready."] });
-        expect(llm.seenMessages).toEqual([{ role: 'user', content: 'Alright.' }]);
+        expect(llm.seenMessages).toEqual([{ role: 'user', content: '"Alright." ->' }]);
     });
 
     it('builds state with the most recent earlier utterances, for resume only', () => {

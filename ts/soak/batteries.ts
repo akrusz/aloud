@@ -34,8 +34,8 @@ export interface Battery {
  */
 export const DEFAULT_ROLES: RoleSpecs = {
     facilitators: ['anthropic'],
-    user: 'anthropic:claude-haiku-4-5',
-    utility: 'anthropic:claude-haiku-4-5',
+    user: 'anthropic:claude-haiku-5-5',
+    utility: 'anthropic:claude-haiku-5-5',
     judge: 'openai:gpt-5.5',
 };
 
@@ -65,8 +65,8 @@ export const BATTERIES: readonly Battery[] = [
             // OpenAI is the judge below, so it is NOT a contestant: a judge in
             // its own contest is the collision this battery exists to avoid.
             facilitators: ['anthropic', 'groq', 'openrouter'],
-            user: 'anthropic:claude-haiku-4-5',
-            utility: 'anthropic:claude-haiku-4-5',
+            user: 'anthropic:claude-haiku-5-5',
+            utility: 'anthropic:claude-haiku-5-5',
             judge: 'openai:gpt-5.5',
         },
         scenarios: 'all',

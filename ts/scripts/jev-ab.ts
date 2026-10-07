@@ -183,7 +183,7 @@ function quantile(xs: number[], q: number): number {
 const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
 
 async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: string; anthropic: string }): Promise<Row[]> {
-    const haiku = new AnthropicProvider({ apiKey: keys.anthropic, model: 'claude-haiku-4-5-20251001' });
+    const haiku = new AnthropicProvider({ apiKey: keys.anthropic, model: 'claude-haiku-5-5' });
     const rows: Row[] = [];
     for (const c of CORPUS[id]) {
         const row: Row = { ...c, answers: [], judgeMs: [], llm: [], llmMs: [] };

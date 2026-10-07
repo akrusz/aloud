@@ -187,7 +187,7 @@ import {
 } from '../voice-picker.js';
 
 const OLLAMA_PROXY_URL = '/ollama';
-const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+const HAIKU_MODEL = 'claude-haiku-5-5';
 
 async function requireApiKey(provider: Provider): Promise<string> {
     const key = await getApiKey(provider);
@@ -2140,9 +2140,9 @@ export async function mountSessionView(
             // Cloud only: on a local/BYOK provider nothing is hidden - the user
             // owns that setup and should see its failures as they happen.
             // Not after a safety-classifier refusal: the same prompt mostly
-            // draws the same decline, and the server already tried Anthropic's
-            // fallback model before this refusal came back (anthropic.ts
-            // takesRefusalFallback), so a retry only adds dead air.
+            // draws the same decline, and where the model has a fallback the
+            // server already tried it before this refusal came back
+            // (anthropic.ts takesRefusalFallback), so a retry only adds dead air.
             if (
                 cloudSmooth &&
                 !rawText.trim() &&

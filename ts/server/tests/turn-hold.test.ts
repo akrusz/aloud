@@ -64,6 +64,12 @@ describe('holdForTurn', () => {
         expect(hold).toBeLessThan(0.1);
     });
 
+    it('holds an over-100K Haiku 5.5 prompt at its long-prompt rate', () => {
+        // ~200K estimated tokens: $0.50/M, not the $0.10/M base card.
+        const hold = holdForTurn('anthropic', 'claude-haiku-5-5', ['x'.repeat(600_000)], 0);
+        expect(hold).toBeCloseTo(((200_000 * 0.5) / 1_000_000 / 0.05) * 1.25, 6);
+    });
+
     it('caps a pathological prompt at SESSION_HOLD_CREDITS', () => {
         const hold = holdForTurn('anthropic', 'claude-fable-5-1', ['x'.repeat(2_000_000)], MAX_OUTPUT_TOKENS);
         expect(hold).toBe(SESSION_HOLD_CREDITS);

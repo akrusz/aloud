@@ -5,7 +5,7 @@
  * and anything you type next resumes.
  *
  *   npm run cli -- --provider=ollama
- *   ANTHROPIC_API_KEY=sk-... npm run cli -- --provider=anthropic --model=claude-haiku-4-5
+ *   ANTHROPIC_API_KEY=sk-... npm run cli -- --provider=anthropic --model=claude-haiku-5-5
  *   npm run cli -- --focuses=body_sensations,emotions --qualities=compassionate --directiveness=5
  */
 

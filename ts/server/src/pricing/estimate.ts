@@ -172,11 +172,14 @@ export function estimateModels(): ModelEstimate[] {
  *  facilitation provider is 'aloud' - BYOK Anthropic runs Haiku on the user's
  *  own key, claude_proxy on their subscription, and everything else reuses the
  *  facilitation model - so the client adds this to the composed estimate only
- *  for aloud-cloud sessions. Aug 2026 telemetry measured Haiku at ~0.3 cr/hr
- *  over effectively all hours, recap included before it moved off Haiku, so
- *  0.3 leaves a little headroom. Not per-badge: the same flat leg whichever
- *  facilitation model is picked (nrj6). */
-export const UTILITY_CREDITS_PER_HOUR = 0.3;
+ *  for aloud-cloud sessions. MODELLED, not yet measured: Aug 2026 telemetry
+ *  put the whole leg at ~0.3 cr/hr on Haiku 4.5 with the recap still on it.
+ *  Haiku 5.5 runs the same text at about an eighth of that (a tenth the rate,
+ *  ~30% more tokens) and the recap is on a cheaper model again, so the leg
+ *  should land near 0.05; 0.1 leaves headroom. Reseed from the admin per-hour
+ *  report once 5.5 has some hours behind it. Not per-badge: the same flat leg
+ *  whichever facilitation model is picked (nrj6). */
+export const UTILITY_CREDITS_PER_HOUR = 0.1;
 
 /** Cloud STT leg for a hosted model (default: DEFAULT_STT_MODEL), priced through the same meter code that bills. */
 export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {

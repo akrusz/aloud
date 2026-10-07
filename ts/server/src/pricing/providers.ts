@@ -67,6 +67,12 @@ export interface ModelPricing extends TokenRates {
      *  silently inherit the job would quietly change what the facilitator
      *  believes about a past sit. */
     utility?: boolean;
+    /** A second rate card for a request whose prompt (fresh + cached + written
+     *  input) runs past `over` tokens: the WHOLE request bills at these rates
+     *  (meter.ts ratesFor). A sit's prompt is a few thousand tokens, so this
+     *  is for billing an oversized request at what it costs, not something
+     *  the picker shows. */
+    longPrompt?: TokenRates & { over: number };
 }
 
 const M = 1_000_000;
@@ -209,15 +215,40 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 3.75 / M, // 5m write, 1.25x input
         cacheCreation1h: 6 / M, // 1h write, 2x input
     },
-    // The curated list's budget slot. Flash Lite is ~11x cheaper per token, but
-    // in absolute terms that's $0.046/hr vs $0.004/hr (estimate.ts) - both round
-    // up to the same 1☁ badge and both are noise next to the session's TTS
-    // spend - so the slot goes to the model with the warmer prose (a Claude),
-    // and Flash Lite sits in the expanded tier for whoever wants the floor.
+    // Haiku 5.5: the curated list's budget slot, and the model the app's
+    // background calls run on (ui/views/session.ts HAIKU_MODEL). A tenth of
+    // 4.5's rates, on the newer tokenizer (~30% more tokens, as Sonnet 5.5).
+    // Thinking is ON by default, so the core AnthropicProvider sends the
+    // disable (thinkingPolicy 'opt-out'). Runs Anthropic's safety classifiers
+    // with NO server-side fallback: a decline comes back as a refusal.
+    // Priced by prompt length - see longPrompt.
+    'anthropic:claude-haiku-5-5': {
+        provider: 'anthropic',
+        model: 'claude-haiku-5-5',
+        zhExpanded: true, // zh's budget slot goes to Kimi K2 (zhCurated below)
+        input: 0.1 / M,
+        output: 0.5 / M,
+        cacheRead: 0.01 / M,
+        cacheCreation: 0.125 / M, // 5m write, 1.25x input
+        cacheCreation1h: 0.2 / M, // 1h write, 2x input
+        longPrompt: {
+            over: 100_000,
+            input: 0.5 / M,
+            output: 2.5 / M,
+            cacheRead: 0.05 / M,
+            cacheCreation: 0.625 / M,
+            cacheCreation1h: 1 / M,
+        },
+    },
+    // Haiku 4.5, expanded-tier while 5.5 is ear-tested against it. Shipped
+    // clients before the 5.5 swap name this id for their background calls
+    // (classifier fallback, noting labels, end-of-session summary), and a
+    // model missing from this table is refused outright, so deleting the
+    // entry ends those calls on any install that hasn't updated.
     'anthropic:claude-haiku-4-5-20251001': {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',
-        zhExpanded: true, // zh's budget slot goes to Kimi K2 (zhCurated below)
+        expanded: true,
         input: 1 / M,
         output: 5 / M,
         cacheRead: 0.1 / M,

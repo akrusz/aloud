@@ -1430,6 +1430,7 @@ describe('mid-conversation system entries (phase notes)', () => {
         expect(supportsMidConversationSystem('claude-sonnet-5-5')).toBe(true);
         expect(supportsMidConversationSystem('claude-sonnet-5')).toBe(false);
         expect(supportsMidConversationSystem('claude-haiku-4-5')).toBe(false);
+        expect(supportsMidConversationSystem('claude-haiku-5-5')).toBe(true);
     });
 
     it('sends them as system messages where the model takes them', async () => {
