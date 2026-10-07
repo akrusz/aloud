@@ -110,11 +110,11 @@ export interface TranscribeResponse {
 
 // ---- POST /cloud/v1/tts -----------------------------------------------------------
 
-/** Longest text a single /v1/tts call will synthesize. Both upstreams refuse
- *  well before this matters to a real facilitation turn (Google: 5000 input
- *  bytes, OpenAI: 4096 chars), so the cap turns a client bug into a clean 400
- *  instead of a charge-shaped provider error. */
-export const MAX_TTS_CHARS = 4000;
+/** Longest text a single /v1/tts call will synthesize: the tightest upstream
+ *  limit (Inworld refuses over 2000 characters; Google takes 5000 input
+ *  bytes). No facilitation sentence comes near it, so the cap turns a client
+ *  bug into a clean 400 instead of a charge-shaped provider error. */
+export const MAX_TTS_CHARS = 2000;
 
 export interface SpeakRequest {
     text: string;

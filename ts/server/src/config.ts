@@ -139,14 +139,9 @@ export interface Config {
      *  set, /cloud/v1/tts can synthesize Google (Chirp3-HD/Neural2) voices. */
     googleTtsApiKey?: string;
 
-    /** OpenAI key for gpt-4o-mini-tts (separate from any OpenAI STT key). Either
-     *  this or googleTtsApiKey enables hosted TTS; each provider's voices appear
-     *  only when its key is present. */
-    openaiTtsApiKey?: string;
-
     /** Azure AI Speech key + region (the region is baked into the endpoint
      *  hostname). When set, /cloud/v1/tts can synthesize Azure Neural/DragonHD
-     *  voices; like the other two, its voices appear only when the key is
+     *  voices; like every provider's, its voices appear only when the key is
      *  present. */
     azureSpeechKey?: string;
     azureSpeechRegion: string;
@@ -266,12 +261,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const sttConfig = resolveSttConfig(env);
     if (sttConfig) config.sttConfig = sttConfig;
     if (env['GOOGLE_TTS_API_KEY']) config.googleTtsApiKey = env['GOOGLE_TTS_API_KEY'];
-    // TTS reuses the OpenAI LLM key by default; set OPENAI_TTS_API_KEY only to
-    // split them. `||`, not `??`: a present-but-blank OPENAI_TTS_API_KEY= line
-    // (the .env template) is the empty STRING, which `??` would NOT fall through.
-    // `||` treats blank as absent and uses the LLM key.
-    const openaiTtsKey = env['OPENAI_TTS_API_KEY'] || env['OPENAI_API_KEY'];
-    if (openaiTtsKey) config.openaiTtsApiKey = openaiTtsKey;
     if (env['AZURE_SPEECH_KEY']) config.azureSpeechKey = env['AZURE_SPEECH_KEY'];
     if (env['INWORLD_API_KEY']) config.inworldApiKey = env['INWORLD_API_KEY'];
     if (env['TYPESAFE_API_KEY']) config.typesafeApiKey = env['TYPESAFE_API_KEY'];

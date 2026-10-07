@@ -77,7 +77,6 @@ describe('GET /cloud/v1/voices', () => {
             buildDeps(
                 loadConfig({
                     GOOGLE_TTS_API_KEY: 'k',
-                    OPENAI_TTS_API_KEY: 'k2',
                     AZURE_SPEECH_KEY: 'k3',
                     INWORLD_API_KEY: 'k4',
                 })
@@ -108,7 +107,7 @@ describe('GET /cloud/v1/voices', () => {
 
     it('flags the effective default and carries per-voice prompt notes', async () => {
         const all = createApp(
-            buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', OPENAI_TTS_API_KEY: 'k2', AZURE_SPEECH_KEY: 'k3' }))
+            buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', AZURE_SPEECH_KEY: 'k3' }))
         );
         const voices = (await (await all.request('/cloud/v1/voices')).json()) as CloudVoice[];
         expect(voices.filter((v) => v.default).map((v) => v.name)).toEqual([defaultVoice().name]);

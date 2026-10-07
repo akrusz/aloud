@@ -457,17 +457,6 @@ const GOOGLE_TTS_TIER_USD_PER_CHAR = {
  *  whole-session estimate assumes (meter.priceSession, which has no voice). */
 export const TTS_USD_PER_CHAR = GOOGLE_TTS_TIER_USD_PER_CHAR.chirpHd; // $30/1M (Google Chirp3-HD)
 
-/** OpenAI gpt-4o-mini-tts list price, expressed per CHARACTER to fit our meter.
- *  OpenAI bills by AUDIO OUTPUT tokens ($12/1M) plus a small text-input leg
- *  ($0.60/1M tokens), about $0.015 per minute of speech, so per-char is an
- *  approximation of a duration price. Calibrated against the first spend
- *  reconciliation (meditation-pal-t5ye, 2026-07-18): the initial $22/1M
- *  slow-pace guess billed a uniform +18.3% over OpenAI's actual charges,
- *  implying an effective ~$18.6/1M at real delivery pace. $19/1M rounds up
- *  from measured (a slow delivery still can't under-bill) while staying under
- *  the Chirp3-HD ceiling. Re-check against the reconciliation as rates drift. */
-export const OPENAI_TTS_USD_PER_CHAR = 19 / M; // ~$19/1M (gpt-4o-mini-tts, reconciled 2026-07)
-
 /** Per-character cost for a specific Google voice, read from its id. Google
  *  voice ids encode the tier (en-US-Chirp3-HD-Leda, en-US-Neural2-C,
  *  en-US-Standard-B, en-US-Studio-O), so the tier comes straight from the name.
@@ -516,14 +505,12 @@ export function inworldTtsRateFor(voiceId: string | undefined): number {
     return voiceId?.endsWith('-flash') ? INWORLD_TTS_USD_PER_CHAR.flash : INWORLD_TTS_USD_PER_CHAR.tts2;
 }
 
-/** Per-character TTS cost for a resolved (provider, voiceId). OpenAI is a flat
- *  per-char rate (voice doesn't change the price); Google's, Azure's and
- *  Inworld's are read from the voice id's tier. The single rate authority both the meter and
+/** Per-character TTS cost for a resolved (provider, voiceId), read from the
+ *  voice id's tier for every provider. The single rate authority both the meter and
  *  the picker's credits/hr estimate bill through, so a shown rate can't drift
  *  from the real charge. NOTE for Azure the "characters" this multiplies must
  *  be the BILLED count (providers/tts.azureBilledChars), not text.length. */
 export function ttsRateFor(provider: TtsProvider, voiceId: string | undefined): number {
-    if (provider === 'openai') return OPENAI_TTS_USD_PER_CHAR;
     if (provider === 'azure') return azureTtsRateFor(voiceId);
     if (provider === 'inworld') return inworldTtsRateFor(voiceId);
     return googleTtsRateFor(voiceId);

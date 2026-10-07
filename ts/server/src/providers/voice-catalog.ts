@@ -11,12 +11,12 @@ export type VoiceGender = 'female' | 'male' | 'androgynous';
 
 /** The TTS backend that speaks a voice. Each has its own synth call, key, and
  *  per-char rate (providers/tts.ts, pricing/providers.ttsRateFor). */
-export type TtsProvider = 'google' | 'openai' | 'azure' | 'inworld';
+export type TtsProvider = 'google' | 'azure' | 'inworld';
 
 /** Voice quality/placement bucket (also the picker's cost-badge hint).
  *  'premium' = "Best", leads the picker, flagged recommended: Google Chirp3-HD
- *  (~$30/1M) AND the OpenAI gpt-4o-mini-tts voices (premium QUALITY at a
- *  below-Chirp3-HD ~$19/1M cost). 'value' = "Very Good", the cheaper Google
+ *  (~$30/1M) AND the Azure and Inworld voices (premium QUALITY at a
+ *  below-Chirp3-HD cost). 'value' = "Very Good", the cheaper Google
  *  Neural2 (~$16/1M). The real per-char rate comes from (provider, voiceId) via
  *  the meter (pricing/providers.ttsRateFor), and the picker's concrete
  *  credits/hr keeps the burn honest regardless of bucket, so a premium-bucket
@@ -27,8 +27,8 @@ export interface CuratedVoice {
     /** Short display name shown + stored by the client (e.g. "Pulcherrima"). */
     name: string;
     provider: TtsProvider;
-    /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda), OpenAI voice name
-     *  (coral), Azure ShortName (en-US-AvaMultilingualNeural), or Inworld
+    /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda), Azure ShortName
+     *  (en-US-AvaMultilingualNeural), or Inworld
      *  `<voiceId>:<modelId>` (Luna:inworld-tts-2). */
     providerVoiceId: string;
     /** Perceived gender, for the picker's label. */
@@ -41,8 +41,8 @@ export interface CuratedVoice {
     /** Speaks languages beyond English natively - safe to use in a zh session
      *  (meditation-pal-c3a0.6). The picker hides voices without it when the
      *  session language isn't English. Only flag voices actually HEARD in zh:
-     *  the Azure *Multilingual family (zh demo clips in voice-previews/),
-     *  OpenAI gpt-4o-mini-tts (multilingual by model), and the MAI-Voice-2 /
+     *  the Azure *Multilingual family (zh demo clips in voice-previews/) and
+     *  the MAI-Voice-2 /
      *  DragonHD voices the dev heard handle zh without glitching (2026-08-31;
      *  a native-speaker quality pass is still pending). Google's en-US
      *  Chirp3-HD Leda is confirmed BAD at it (glitches), so its missing flag
@@ -208,7 +208,7 @@ export function resolveVoice(
     // only error upstream on every turn of that user's session.
     if (!voice.includes('-')) return resolveVoice(undefined, available);
     // Raw passthrough accepts Google and Azure ids, which encode their own tier
-    // (OpenAI voices must come through the curated short names). Azure
+    // (Inworld voices must come through the curated short names). Azure
     // ShortNames end in "Neural" (en-US-SaraNeural, zh-CN-XiaochenNeural,
     // en-US-Andrew_DragonHDLatestNeural) or name an MAI-Voice model; Google's
     // tiers never do (Neural2 ids continue "Neural2-F").

@@ -126,8 +126,8 @@ export function priceSttSeconds(seconds: number, model: string = DEFAULT_STT_MOD
 
 /** Price `chars` of cloud TTS, fractional credits, same rationale as STT. The
  *  rate depends on the provider and (for Google) the voice tier synthesized:
- *  Chirp3-HD vs cheaper Neural2/Standard differ 2-8x and OpenAI is its own flat
- *  rate, so pass the resolved (provider, voiceId). Omitting the options falls
+ *  Chirp3-HD vs cheaper Neural2/Standard differ 2-8x and each other provider
+ *  has its own tiers, so pass the resolved (provider, voiceId). Omitting the options falls
  *  back to Google Chirp3-HD (providers.ttsRateFor), our most conservative rate. */
 export function priceTtsChars(
     chars: number,

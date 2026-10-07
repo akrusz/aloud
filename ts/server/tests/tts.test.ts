@@ -3,21 +3,19 @@ import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { MAX_TTS_CHARS, type AuthResponse } from '../src/contract.js';
-import { azureBilledChars, synthesizeWithGoogle, synthesizeWithOpenAI, synthesizeWithAzure } from '../src/providers/tts.js';
+import { azureBilledChars, synthesizeWithGoogle, synthesizeWithAzure } from '../src/providers/tts.js';
 import { priceTtsChars } from '../src/pricing/meter.js';
 import { previewRate } from '../src/routes/tts.js';
 
 // MP3 bytes Google would return, base64-encoded as audioContent.
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
 let googleCalls: Array<{ url: string; body: any }> = [];
-let openaiCalls: Array<{ url: string; body: any; auth: string | null }> = [];
 let azureCalls: Array<{ url: string; body: string; key: string | null }> = [];
 let inworldCalls: Array<{ body: any; auth: string | null }> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
     googleCalls = [];
-    openaiCalls = [];
     azureCalls = [];
     inworldCalls = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -35,16 +33,6 @@ beforeEach(() => {
                 JSON.stringify({ audioContent: Buffer.from(FAKE_MP3).toString('base64') }),
                 { status: 200 }
             );
-        }
-        if (u.includes('api.openai.com/v1/audio/speech')) {
-            const headers = (init?.headers ?? {}) as Record<string, string>;
-            openaiCalls.push({
-                url: u,
-                body: JSON.parse(init?.body as string),
-                auth: headers['authorization'] ?? null,
-            });
-            // OpenAI returns the audio as the raw response body (not base64 JSON).
-            return new Response(FAKE_MP3, { status: 200 });
         }
         if (u.includes('.tts.speech.microsoft.com')) {
             const headers = (init?.headers ?? {}) as Record<string, string>;
@@ -478,9 +466,6 @@ describe('upstream timeout (meditation-pal-3sm6)', () => {
             /Google TTS timed out after 20s/
         );
         expect(seen[0]).toBeInstanceOf(AbortSignal);
-        await expect(synthesizeWithOpenAI('hi', 'nova', 1, 'k', timingOut)).rejects.toThrow(
-            /OpenAI TTS timed out/
-        );
         await expect(synthesizeWithAzure('hi', 'en-US-AvaNeural', 1, 'k', 'eastus', undefined, timingOut)).rejects.toThrow(
             /Azure TTS timed out/
         );

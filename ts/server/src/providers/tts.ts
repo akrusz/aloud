@@ -1,6 +1,6 @@
 /**
- * Server-side TTS to MP3 bytes via Google Cloud TTS, OpenAI, or Azure AI
- * Speech. The route picks the provider from the resolved voice
+ * Server-side TTS to MP3 bytes via Google Cloud TTS, Azure AI Speech, or
+ * Inworld. The route picks the provider from the resolved voice
  * (voice-catalog.resolveVoice) and calls the matching function here. Stateless:
  * the text transits only for the synth call, never persisted (privacy
  * invariant; logger.ts).
@@ -11,12 +11,6 @@
  */
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
-const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
-
-/** Instruction-steerable OpenAI TTS model (meditation-pal-b7i). Billed by audio
- *  output, ~$0.015/min; ~$19/1M chars at real delivery pace (reconciled - see
- *  pricing/providers.OPENAI_TTS_USD_PER_CHAR). */
-const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 
 /** Ceiling on one provider synthesis. A sentence renders in a second or two,
  *  so this is a dead-upstream bound, set well under the client's 45s
@@ -107,14 +101,10 @@ export async function synthesizeWithGoogle(
     return Uint8Array.from(Buffer.from(data.audioContent, 'base64'));
 }
 
-/** Calm facilitation register for the instruction-steered OpenAI model.
- *
- *  Measured 2026-08-30: `speed` is the precise, linear pace lever (0.7 -> +42%
- *  duration); the instruction's pace word is erratic (+26% with a 35%
- *  render-to-render spread). We send BOTH and they compound (speed 0.7 plus
- *  the instruction gives +66%), a likely cause of meditation-pal-5yi1. Left
- *  as-is: changing it is an audible tuning decision for every hosted OpenAI
- *  session, tracked there. */
+/** Calm facilitation register for the instruction-steered Inworld voices, the
+ *  one they were auditioned with. On TTS-2 it slows delivery by about a fifth
+ *  at rate 1; on TTS-2 Flash it barely moves the pace (2026-10-07). The pace
+ *  words ride ON TOP of the numeric speakingRate, so the two compound. */
 function meditationInstruction(rate: number): string {
     const pace =
         rate < 0.95 ? ' Speak slowly, leaving generous space between phrases.'
@@ -126,46 +116,13 @@ function meditationInstruction(rate: number): string {
     );
 }
 
-/**
- * Synthesize `text` to MP3 bytes via OpenAI audio/speech. Unlike Google's
- * base64-in-JSON shape, OpenAI returns raw audio as the response body, so we
- * read it straight off arrayBuffer(). `voice` is an OpenAI voice name (coral,
- * ash, sage, …). Throws on an upstream error.
- */
-export async function synthesizeWithOpenAI(
-    text: string,
-    voice: string,
-    rate: number,
-    apiKey: string,
-    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
-): Promise<Uint8Array> {
-    // Same band as Google [0.25, 4.0].
-    const speed = Math.min(4, Math.max(0.25, rate));
-    const res = await fetchUpstream('OpenAI TTS', fetchImpl, OPENAI_TTS_URL, {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-            model: OPENAI_TTS_MODEL,
-            input: text,
-            voice,
-            response_format: 'mp3',
-            speed,
-            instructions: meditationInstruction(rate),
-        }),
-    });
-    return new Uint8Array(await res.arrayBuffer());
-}
-
 const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
 
 /**
  * Synthesize `text` to MP3 bytes via Inworld TTS. `voice` is the catalog's
  * `<voiceId>:<modelId>` (Luna:inworld-tts-2); the model rides in the id because
- * it sets the rate (pricing/providers.inworldTtsRateFor). Like OpenAI's, the
- * voice is steered by a style instruction, which Inworld does not bill. Audio
+ * it sets the rate (pricing/providers.inworldTtsRateFor). The voice is steered
+ * by a style instruction, which Inworld does not bill. Audio
  * comes back base64 in JSON. Throws on an upstream error.
  */
 export async function synthesizeWithInworld(

@@ -65,7 +65,7 @@ load logic is `loadConfig` in `config.ts`.
 | `APPLE_CLIENT_IDS` | Apple sign-in | comma-sep Services ID (web) / bundle id (native); empty disables Apple. Email/password needs no config (meditation-pal-s75) |
 | `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client |
 | `GEMINI_API_KEY` | value-tier LLM (Gemini direct) | Google AI Studio key; powers `gemini-3.5-flash-lite` without OpenRouter's fee |
-| `OPENAI_API_KEY` | server STT (default) + premium LLM + OpenAI TTS | one key drives `/cloud/v1/stt` (Whisper; server default `gpt-transcribe`, ≈ $0.27/hr with each clip billed in whole seconds rounded up, which is also what the app's "aloud cloud" STT choice asks for), the GPT LLM, and OpenAI voices. `OPENAI_STT_API_KEY` splits STT onto its own key |
+| `OPENAI_API_KEY` | server STT (default) + premium LLM | one key drives `/cloud/v1/stt` (Whisper; server default `gpt-transcribe`, ≈ $0.27/hr with each clip billed in whole seconds rounded up, which is also what the app's "aloud cloud" STT choice asks for) and the GPT LLM. `OPENAI_STT_API_KEY` splits STT onto its own key |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
 | `GOOGLE_TTS_API_KEY` | server TTS | Google Cloud TTS key (Cloud TTS API enabled); distinct from `GEMINI_API_KEY`. Unset → `/cloud/v1/tts` reports not-configured, client falls back to browser TTS |
 | `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | server TTS | Azure AI Speech key + region (region defaults to `eastus`). Unset → the Azure voices drop out of `GET /cloud/v1/voices`, including the flagged default Harper, and `defaultVoice()` falls down `DEFAULT_VOICE_CHAIN` to Leda, then Luna. Azure bills SSML markup and counts each CJK char twice; `providers/tts.ts azureBilledChars` is what the meter charges on |
@@ -86,7 +86,7 @@ The whole meditation loop can run through the server:
 | LLM (premium) | Anthropic | `ANTHROPIC_API_KEY` |
 | LLM (value tier) | Google Gemini (direct) | `GEMINI_API_KEY` |
 | STT | OpenAI Whisper (default) | `OPENAI_API_KEY` |
-| TTS | Azure AI Speech (default voice Harper), Google Cloud TTS, OpenAI, Inworld | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`, `GOOGLE_TTS_API_KEY`, `OPENAI_API_KEY`, `INWORLD_API_KEY` |
+| TTS | Azure AI Speech (default voice Harper), Google Cloud TTS, Inworld | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`, `GOOGLE_TTS_API_KEY`, `INWORLD_API_KEY` |
 
 ## Running the full loop locally (UI ↔ server)
 
@@ -148,7 +148,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON). When Anthropic's refusal fallback answers a declined turn (`anthropic.ts` `takesRefusalFallback`), each model's attempt settles at its own rates with a usage row apiece, the declined one tagged `utility` |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
-| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / OpenAI / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
+| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
 | `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), so it has its own per-minute guard plus a 5,000-a-day cap that only binds accounts with no credits (`deps.ts`). A command is two calls: the one-ask `command-gate`, then `command` if that says maybe. Not charged (~$0.00007/call); usage recorded as `typesafe`. Own rate budget (`deps.judgeGuard`, 90/min/account), separate from the 60/min every other metered route shares. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
@@ -227,7 +227,7 @@ turn.
 ## Hosted voices & auditioning new ones
 
 The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-name
-→ (provider, voice id) map across Google Cloud TTS, OpenAI, Azure AI Speech and Inworld
+→ (provider, voice id) map across Google Cloud TTS, Azure AI Speech and Inworld
 (the flagged default, Harper, is an Azure MAI-Voice-2.1 voice). `GET
 /cloud/v1/voices` publishes them; the client merges them into its picker (top
 "Recommended" tier) and sends the short name back, which `/cloud/v1/tts`
@@ -276,7 +276,7 @@ partial run still produces a usable page. The keys are documented in
 | Env var | Engine | Billing | Get a key |
 |---|---|---|---|
 | `GOOGLE_TTS_API_KEY` | Google Cloud TTS *(ships)* | per char | [console](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com) |
-| `OPENAI_API_KEY` (or `OPENAI_TTS_API_KEY`) | OpenAI gpt-4o-mini-tts *(ships)* | per second | [platform](https://platform.openai.com/api-keys) |
+| `OPENAI_API_KEY` | OpenAI gpt-4o-mini-tts (shipped until 2026-10-07) | per second | [platform](https://platform.openai.com/api-keys) |
 | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION` | Azure AI Speech *(ships)* | per char (SSML tags billed; CJK ×2) | [portal](https://portal.azure.com) |
 | `GEMINI_API_KEY` | Gemini TTS - already set for the LLM | per second | [AI Studio](https://aistudio.google.com/apikey) |
 | `CARTESIA_API_KEY` | Cartesia Sonic 3 | per char | [play.cartesia.ai](https://play.cartesia.ai/keys) |

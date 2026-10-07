@@ -65,7 +65,6 @@ export function createApp(deps: Deps): Hono {
             stt: Boolean(deps.config.sttConfig),
             tts: Boolean(
                 deps.config.googleTtsApiKey ||
-                    deps.config.openaiTtsApiKey ||
                     deps.config.azureSpeechKey ||
                     deps.config.inworldApiKey
             ),
@@ -96,7 +95,6 @@ export function createApp(deps: Deps): Hono {
         // picker never offers a voice the server can't synthesize.
         const hasKey = {
             google: Boolean(deps.config.googleTtsApiKey),
-            openai: Boolean(deps.config.openaiTtsApiKey),
             azure: Boolean(deps.config.azureSpeechKey),
             inworld: Boolean(deps.config.inworldApiKey),
         };

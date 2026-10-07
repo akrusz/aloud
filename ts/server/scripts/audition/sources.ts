@@ -23,7 +23,7 @@
  * modelling it.
  */
 
-import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle, synthesizeWithOpenAI } from '../../src/providers/tts.js';
+import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle } from '../../src/providers/tts.js';
 import { azureTtsRateFor, googleTtsRateFor } from '../../src/pricing/providers.js';
 
 const M = 1_000_000;
@@ -342,16 +342,11 @@ const openai: AuditionSource = {
     billing: 'per-second',
     // $0.015 per minute of audio (audio-output tokens at $12/1M, ~25 tok/s).
     usdPerUnit: () => 0.015 / 60,
-    rateNote: 'audio-output billed, ~$0.015/min; our reconciliation put it at ~$19/1M chars at real pace (pricing/providers.OPENAI_TTS_USD_PER_CHAR)',
-    shipping: true,
+    rateNote: 'audio-output billed, ~$0.015/min; a July 2026 spend reconciliation put it at ~$19/1M chars at real pace. Shipped until 2026-10-07, when the dev found its voices had turned metallic',
+    shipping: false,
     roster: async () => [...OPENAI_VOICES],
     treatments: INSTRUCTION_TREATMENTS,
     async synth(text, voiceId, rate, key, t) {
-        // The shipping path (providers/tts.ts) always sends the instruction, so
-        // that treatment reuses it verbatim; the variants go direct.
-        if (t.id === 'instruction') {
-            return { bytes: await synthesizeWithOpenAI(text, voiceId, rate, key), ext: 'mp3' };
-        }
         const instructions = instructionFor(t, rate);
         const res = await postJson(
             'https://api.openai.com/v1/audio/speech',
