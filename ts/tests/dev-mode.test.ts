@@ -1,11 +1,17 @@
 /**
- * The check-in HUD's URL param (ui/src/dev-mode.ts). It is adopted for the tab
- * at boot because the HUD is decided at session mount, after the router has
- * stripped the query: read at that point, ?debug=checkin never took.
+ * URL params in ui/src/dev-mode.ts: the check-in HUD's, adopted for the tab at
+ * boot because the HUD is decided at session mount, after the router has
+ * stripped the query (read at that point, ?debug=checkin never took); and the
+ * Developer section's field for typing them where there is no URL bar.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { adoptCheckinDebugParam, isCheckinDebugOn, setCheckinDebug } from '../ui/src/dev-mode.js';
+import {
+    adoptCheckinDebugParam,
+    isCheckinDebugOn,
+    setCheckinDebug,
+    typedUrlParams,
+} from '../ui/src/dev-mode.js';
 
 function stubStorage(name: 'sessionStorage' | 'localStorage'): void {
     const store = new Map<string, string>();
@@ -57,5 +63,27 @@ describe('?debug=checkin', () => {
         visit('?debug=banana');
         adoptCheckinDebugParam();
         expect(isCheckinDebugOn()).toBe(false);
+    });
+});
+
+describe('typedUrlParams', () => {
+    it('reads a query with or without its ?', () => {
+        expect(typedUrlParams('mode=web&dev')).toBe('mode=web&dev');
+        expect(typedUrlParams('  ?mode=web&dev ')).toBe('mode=web&dev');
+    });
+
+    it('takes the query off a pasted URL', () => {
+        expect(typedUrlParams('http://localhost:4649/?mode=web&dev')).toBe('mode=web&dev');
+        expect(typedUrlParams('http://localhost:4649/settings?sim=network#top')).toBe('sim=network');
+    });
+
+    it('is empty, a plain reload, when nothing usable was typed', () => {
+        expect(typedUrlParams('')).toBe('');
+        expect(typedUrlParams('?')).toBe('');
+        expect(typedUrlParams('http://localhost:4649/')).toBe('');
+    });
+
+    it('drops stray joiners', () => {
+        expect(typedUrlParams('&dev&')).toBe('dev');
     });
 });

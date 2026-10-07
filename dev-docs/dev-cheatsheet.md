@@ -78,12 +78,16 @@ on `import.meta.env.DEV`, so `vite build` dead-code-eliminates them and a
 deployed visitor can't use them (e.g. to unlock Ollama/BYOK on the hosted site).
 
 Join several with `&`. A private window at `:4649/?mode=web&dev` is a
-first-time, signed-out web visitor who spends nothing, which is how to see the
-first-run welcome card and its first sit (`pacing.md`).
+first-time, signed-out web visitor, which is how to see the first-run welcome
+card and its first sit (`pacing.md`). `?dev` only skips the sign-in step: the
+sit runs on the server's dev account and its LLM/STT/TTS calls are real, billed
+to the provider keys in `server/.env`.
 
-The same list, with its live values, sits at the top of Settings → Developer
-(`renderDevParams` in `views/settings.ts`) so it doesn't have to be remembered.
-Add a param to both.
+Settings → Developer (`renderDeveloperSection` in `views/settings.ts`) lists
+each param beside the switch it sets, as a link that opens the app with it, so
+none of this has to be remembered. Its **URL params** field reloads the app
+with whatever is typed, which is the way in where there is no URL bar
+(`tauri:dev`, the mobile shells). Add a param to both places.
 
 Anything sticky has to be **adopted at boot** (`main.ts`: `initAppMode`,
 `adoptSimulationParams`, `adoptCheckinDebugParam`): the router strips the query
@@ -91,7 +95,7 @@ off the URL on its first `replaceState`, so a param read later never sees it.
 
 | Param | Effect | Read in |
 |---|---|---|
-| `?dev` | Cloud sign-in bypass: cloud calls authenticate through the server's local `/auth/dev` account instead of the Google/Apple popup, so a hosted session starts without spending a real account's credits. Sticky for the tab; `?dev=off` clears it. | `isDevBypass` in `app-mode.ts` |
+| `?dev` | Cloud sign-in bypass, and nothing else (it does not turn on developer mode): while signed out, cloud calls authenticate through the server's local `/auth/dev` account instead of the sign-in modal. A stored token wins, so a signed-in tab keeps using its own account. The dev account is metered like any other (free credits, topped up when dry) and its provider calls are real. Needs `ALOUD_ENABLE_DEV_AUTH` on the server. Sticky for the tab; `?dev=off` clears it. | `isDevBypass` in `app-mode.ts` |
 | `?mode=web` | Force **web** mode: the hosted demo - Ollama/claude-proxy hidden, BYOK behind a settings checkbox, aloud cloud the default. | `app-mode.ts` |
 | `?mode=local` | Force **local** mode: every provider (Ollama + claude-proxy + BYOK + aloud cloud). | `app-mode.ts` |
 | `?mode=auto` | Clear the override, back to the build default. (Overrides persist in sessionStorage, so they survive navigation until cleared.) | `app-mode.ts` |
@@ -139,12 +143,14 @@ so it works in bundled builds too. Sticky for the tab; `?debug=off` clears it
 The desktop webview has no URL bar, so the params above get a settings home:
 tap the **version line in the About box 7 times** to toggle developer mode
 (`dev-mode.ts`, persisted in `localStorage aloud:devMode`; the version line
-grows a `· dev` marker). Settings then shows a **Developer** section. It opens
-with the URL-param reference (every param this build honors, its values, and
-how to clear it), then the switches: the check-in debug HUD toggle and the
-update-preview banner everywhere, plus - in dev builds only, same compile-time
-gate as the params - the `?mode=` override and the `?dev` cloud sign-in bypass.
-Invisible to anyone who just installed the app.
+grows a `· dev` marker). Settings then shows a **Developer** section: a
+**URL params** field (type a query, or paste a URL, and the app reloads with
+it), then one row per switch with its param beside it. The check-in debug HUD
+and the update-preview banner are there in every build; the `?mode=` override,
+the `?dev` cloud sign-in bypass and the simulated failures only in dev builds,
+behind the same compile-time gate as their params. A release build therefore
+honors only `?debug=` and `?previewUpdate`, typed or not. Invisible to anyone
+who just installed the app.
 
 Two experiment switches also live there with no URL twin:
 

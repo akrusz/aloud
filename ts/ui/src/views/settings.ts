@@ -39,6 +39,7 @@ import {
     setAecOffDebug,
     getJevClassifierMode,
     setJevClassifierMode,
+    typedUrlParams,
     type JevClassifierMode,
 } from '../dev-mode.js';
 import {
@@ -1380,6 +1381,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // Debug switches, not user settings: they write straight to their storage
     // keys, outside the settings object and undo machinery.
     function wireDeveloperSection(): void {
+        const params = root.querySelector<HTMLInputElement>('#s-dev-params');
+        const openWithParams = (): void => {
+            const query = typedUrlParams(params?.value ?? '');
+            window.location.assign(routePath('/') + (query ? `?${query}` : ''));
+        };
+        root.querySelector('#s-dev-params-go')?.addEventListener('click', openWithParams);
+        params?.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            openWithParams();
+        });
         const hud = root.querySelector<HTMLInputElement>('#s-dev-checkin-hud');
         hud?.addEventListener('change', () => setCheckinDebug(hud.checked));
         const aec = root.querySelector<HTMLInputElement>('#s-dev-aec-off');
@@ -2185,73 +2197,49 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
     </section>`;
 }
 
-/**
- * Rendered only in developer mode (dev-mode.ts). Homes the debug switches that
- * otherwise need query params, which the desktop webview has no URL bar for.
- * The mode-override and cloud-bypass rows are dev-build only (import.meta.env
- * .DEV, the same gate as their readers in app-mode.ts), so a release build's
- * section carries only the harmless conveniences.
- */
 /** Developer-section options labelled by their own value. */
 function simOptionsHTML(values: readonly string[], selected: string | null): string {
     return optionsHTML(values.map((v) => [v, v] as const), selected);
 }
 
-/**
- * The URL params, listed where the switches live so nobody has to remember
- * them. Mirrors the cheatsheet's "Dev URL params" table; a param added to one
- * belongs in the other. Values come from the constants their readers check,
- * and the dev-build-only ones are left out of a release build, where they are
- * compiled away and would only mislead.
- */
-function renderDevParams(): string {
-    const code = (s: string): string => `<code>${escapeHtml(s)}</code>`;
-    const list = (values: readonly string[]): string => values.map(code).join(', ');
-    const rows: Array<[param: string, effect: string]> = [];
-    if (import.meta.env.DEV) {
-        rows.push(
-            [
-                '?dev',
-                `Skip cloud sign-in: sessions run on the server's local /auth/dev account and spend no real credits. ${code('?dev=off')} clears.`,
-            ],
-            [
-                '?mode=web',
-                `The hosted site's view: aloud cloud only, BYOK behind its checkbox. ${code('local')} shows every provider, ${code('auto')} clears.`,
-            ],
-            [
-                '?nomic=denied',
-                `A broken mic. One of ${list(MIC_SIM_STATUSES)}; ${code('off')} clears.`,
-            ],
-            [
-                '?sim=<fault>',
-                `A failing service. Cloud: ${list(CLOUD_FAULT_NAMES)}. Recognizer: ${list(STT_FAULTS)}. Or ${code('no-voices')}. ${code('?sim=off')} clears these and the mic.`,
-            ],
-            ['?slowboot=2500', 'Hold the boot orb that many ms before the first view. This load only.'],
-            ['?soak=1', `The soak harness's event tap; ${code('npm run soak:web')} sets it. This load only.`]
-        );
-    }
-    rows.push(
-        [
-            '?debug=checkin',
-            `The check-in/[WAIT] HUD in sessions. ${code('?debug=off')} clears.`,
-        ],
-        [
-            '?previewUpdate',
-            `Fake an available update; ${code('?previewUpdate=2.0.0')} names the version. Lasts until the tab closes.`,
-        ]
-    );
-    const example = `${location.origin}${routePath('/')}${import.meta.env.DEV ? '?mode=web&dev' : '?debug=checkin'}`;
-    const recipe = import.meta.env.DEV
-        ? ' Opened in a private window, that URL is a first-time, signed-out web visitor who spends nothing.'
-        : '';
-    return `
-        <h3 class="settings-subhead">URL params</h3>
-        <p class="form-hint dev-params-usage">Add to the app URL, joined with &amp;: ${code(example)}. Each one sticks for the tab, through reloads and navigation, unless it says otherwise.${recipe}</p>
-        <dl class="dev-params">
-            ${rows.map(([param, effect]) => `<dt>${code(param)}</dt><dd>${effect}</dd>`).join('')}
-        </dl>`;
+const devCode = (s: string): string => `<code>${escapeHtml(s)}</code>`;
+
+/** A URL param as a link that opens the app with it: one click in a shell with
+ *  no URL bar, and a copyable address everywhere else. */
+function devParam(query: string): string {
+    return `<a href="${escapeHtml(routePath('/') + query)}">${devCode(query)}</a>`;
 }
 
+/** One Developer row: its name and control, then its URL param and what it
+ *  does. Both arguments are markup. */
+function devRow(lead: string, what: string): string {
+    return `<div class="dev-opt">${lead}<span class="form-hint">${what}</span></div>`;
+}
+
+function devCheck(id: string, name: string, checked: boolean): string {
+    return `<label class="checkbox-label dev-opt-wide"><input type="checkbox" id="${id}"${checked ? ' checked' : ''}><span>${name}</span></label>`;
+}
+
+function devField(id: string, name: string, control: string): string {
+    return `<label for="${id}">${name}</label>${control}`;
+}
+
+/** A param with no control of its own: it only means something at boot. */
+function devParamOnly(name: string): string {
+    return `<span class="dev-opt-name dev-opt-wide">${name}</span>`;
+}
+
+/**
+ * Rendered only in developer mode (dev-mode.ts). Every debug switch with the
+ * URL param that sets it, so neither has to be remembered, plus a field that
+ * stands in for the URL bar the desktop and mobile shells lack. Mirrors the
+ * cheatsheet's "Dev URL params" table; a param added to one belongs in the
+ * other.
+ *
+ * The dev-build rows share their readers' gate (import.meta.env.DEV, as in
+ * app-mode.ts and dev-sim.ts), so a release build's section carries only the
+ * harmless conveniences and lists only the params it honors.
+ */
 function renderDeveloperSection(): string {
     const preview = (() => {
         try {
@@ -2260,105 +2248,113 @@ function renderDeveloperSection(): string {
             return '';
         }
     })();
+    const example = import.meta.env.DEV ? '?mode=web&dev' : '?debug=checkin';
+    const exampleUrl = `${location.origin}${routePath('/')}${example}`;
+    const recipe = import.meta.env.DEV
+        ? ` In a private window, <a href="${escapeHtml(exampleUrl)}">${devCode(exampleUrl)}</a> is a first-time, signed-out web visitor.`
+        : '';
     const devBuildRows = import.meta.env.DEV
         ? `
-        <div class="form-row">
-            <div class="form-group form-group-half">
-                <label for="s-dev-mode-override">App mode override</label>
-                <select id="s-dev-mode-override">
-                    ${optionsHTML(
+            ${devRow(
+                devField(
+                    's-dev-mode-override',
+                    'App mode',
+                    `<select id="s-dev-mode-override">${optionsHTML(
                         [
                             ['auto', 'auto (build default)'],
                             ['web', 'web'],
                             ['local', 'local'],
                         ],
                         devGetModeOverride()
-                    )}
-                </select>
-                <span class="form-hint">Same as ?mode=. Dev builds only; reload to apply.</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-dev-cloud-bypass"${isDevBypass() ? ' checked' : ''}>
-                    <span>Cloud sign-in bypass</span>
-                </label>
-                <span class="form-hint">Same as ?dev. Uses the local /auth/dev account; reload to apply.</span>
-            </div>
-        </div>
+                    )}</select>`
+                ),
+                `${devParam('?mode=web')} The hosted site's view: aloud cloud only, BYOK behind its checkbox. ${devParam('?mode=local')} Every provider. ${devParam('?mode=auto')} clears. Reload to apply.`
+            )}
+            ${devRow(
+                devCheck('s-dev-cloud-bypass', 'Cloud sign-in bypass', isDevBypass()),
+                `${devParam('?dev')} Signed out, sessions skip the sign-in modal and run on the server's /auth/dev account. Its provider calls are real. ${devParam('?dev=off')} clears.`
+            )}
+            ${devRow(
+                devParamOnly('Boot delay'),
+                `${devParam('?slowboot=2500')} Holds the boot orb that many ms before the first view. This load only.`
+            )}
+            ${devRow(
+                devParamOnly('Soak event tap'),
+                `${devParam('?soak=1')} What ${devCode('npm run soak:web')} sets for its driver. This load only.`
+            )}`
+        : '';
+    const simulations = import.meta.env.DEV
+        ? `
         <h3 class="settings-subhead">Simulate failures</h3>
-        <p class="form-hint">States that are painful to reach on purpose. Each one travels the real code path, so the handling under test is the shipping handling. Session-scoped: all four reset when the tab closes, and a banner shows while any is on.</p>
-        <div class="form-row">
-            <div class="form-group form-group-half">
-                <label for="s-dev-sim-mic">Microphone</label>
-                <select id="s-dev-sim-mic">
-                    <option value="">working</option>
-                    ${simOptionsHTML(MIC_SIM_STATUSES, getSimMic())}
-                </select>
-                <span class="form-hint">Blocks Begin with the setup notice. 'error' is invisible until Begin, like the real thing. Same as ?nomic=.</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label for="s-dev-sim-stt">Speech recognition</label>
-                <select id="s-dev-sim-stt">
-                    <option value="">working</option>
-                    ${simOptionsHTML(STT_FAULTS, getSttFault())}
-                </select>
-                <span class="form-hint">Every capture errors: status line, toast, and the trouble banner after two. Same as ?sim=&lt;fault&gt;.</span>
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group form-group-half">
-                <label for="s-dev-sim-cloud">aloud cloud</label>
-                <select id="s-dev-sim-cloud">
-                    <option value="">working</option>
-                    ${simOptionsHTML(CLOUD_FAULT_NAMES, getCloudFault())}
-                </select>
-                <span class="form-hint">Fails the LLM and TTS legs both. insufficient_credits drives the spoken apology and buy prompt. Same as ?sim=&lt;fault&gt;.</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-dev-sim-no-voices"${getNoVoices() ? ' checked' : ''}>
-                    <span>Empty voice catalog</span>
-                </label>
-                <span class="form-hint">Raises the no-voices banners. Reload to apply. Same as ?sim=no-voices.</span>
-            </div>
+        <p class="form-hint">Each travels the real code path, so what you see is the shipping handling. They reset when the tab closes, a banner shows while any is on, and ${devParam('?sim=off')} clears all four.</p>
+        <div class="dev-options">
+            ${devRow(
+                devField(
+                    's-dev-sim-mic',
+                    'Microphone',
+                    `<select id="s-dev-sim-mic"><option value="">working</option>${simOptionsHTML(MIC_SIM_STATUSES, getSimMic())}</select>`
+                ),
+                `${devParam('?nomic=denied')} or any menu value; ${devParam('?nomic=off')} clears. Blocks Begin with the setup notice. 'error' is invisible until Begin, like the real thing.`
+            )}
+            ${devRow(
+                devField(
+                    's-dev-sim-stt',
+                    'Speech recognition',
+                    `<select id="s-dev-sim-stt"><option value="">working</option>${simOptionsHTML(STT_FAULTS, getSttFault())}</select>`
+                ),
+                `${devParam('?sim=network')} or any menu value. Every capture errors: status line, toast, and the trouble banner after two.`
+            )}
+            ${devRow(
+                devField(
+                    's-dev-sim-cloud',
+                    'aloud cloud',
+                    `<select id="s-dev-sim-cloud"><option value="">working</option>${simOptionsHTML(CLOUD_FAULT_NAMES, getCloudFault())}</select>`
+                ),
+                `${devParam('?sim=insufficient_credits')} or any menu value. Fails the LLM and TTS legs both. insufficient_credits drives the spoken apology and buy prompt.`
+            )}
+            ${devRow(
+                devCheck('s-dev-sim-no-voices', 'Empty voice catalog', getNoVoices()),
+                `${devParam('?sim=no-voices')} Raises the no-voices banners. Reload to apply.`
+            )}
         </div>`
         : '';
     return `
-    <section class="settings-section">
+    <section class="settings-section dev-section">
         <h2>Developer</h2>
-        ${renderDevParams()}
-        <h3 class="settings-subhead">Switches</h3>
-        <div class="form-row">
-            <div class="form-group form-group-half">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-dev-checkin-hud"${getCheckinDebugSetting() ? ' checked' : ''}>
-                    <span>Check-in debug HUD</span>
-                </label>
-                <span class="form-hint">Live check-in/[WAIT] pacing readout in sessions. Same as ?debug=checkin.</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label for="s-dev-preview-update">Preview update banner</label>
-                <input type="text" id="s-dev-preview-update" value="${escapeHtml(preview)}" placeholder="empty = off; 1 or a version">
-                <span class="form-hint">Fakes an available release (nothing installs). Same as ?previewUpdate.</span>
-            </div>
+        <div class="dev-open">
+            <label for="s-dev-params">URL params</label>
+            <input type="text" id="s-dev-params" placeholder="${escapeHtml(example)}" spellcheck="false" autocapitalize="off" autocomplete="off">
+            <button type="button" class="btn btn-small btn-secondary" id="s-dev-params-go">Reload</button>
         </div>
-        <div class="form-row">
-            <div class="form-group form-group-half">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-dev-aec-off"${isAecOffDebug() ? ' checked' : ''}>
-                    <span>Cloud mic without echo cancellation</span>
-                </label>
-                <span class="form-hint">Next session's capture opens with echoCancellation off (Android call-stream experiment). Expect echo in the [vad] tts window lines.</span>
-            </div>
-            <div class="form-group form-group-half">
-                <label for="s-dev-jev">Jev silence classifiers</label>
-                <select id="s-dev-jev">
-                    ${simOptionsHTML(['on', 'shadow', 'off'], getJevClassifierMode())}
-                </select>
-                <span class="form-hint">aloud cloud sessions only. On (default): Jev decides, Haiku is the fallback. Shadow: both run, Haiku decides. Every call logs a [judge] console line.</span>
-            </div>
+        <p class="form-hint">Reloads the app with them, as a URL bar would. Join with &amp;; empty just reloads. Each link below applies that one. They stick for the tab unless noted.${recipe}</p>
+        <div class="dev-options">
+            ${devRow(
+                devCheck('s-dev-checkin-hud', 'Check-in debug HUD', getCheckinDebugSetting()),
+                `${devParam('?debug=checkin')} Live check-in/[WAIT] pacing readout in sessions. ${devParam('?debug=off')} drops the param.`
+            )}
+            ${devRow(
+                devField(
+                    's-dev-preview-update',
+                    'Preview update banner',
+                    `<input type="text" id="s-dev-preview-update" value="${escapeHtml(preview)}" placeholder="1 or a version">`
+                ),
+                `${devParam('?previewUpdate')} Fakes an available release (nothing installs). ${devParam('?previewUpdate=2.0.0')} names the version. Empty is off.`
+            )}
+            ${devRow(
+                devCheck('s-dev-aec-off', 'Cloud mic without echo cancellation', isAecOffDebug()),
+                `Next session's capture opens with echoCancellation off (Android call-stream experiment). Expect echo in the [vad] tts window lines.`
+            )}
+            ${devRow(
+                devField(
+                    's-dev-jev',
+                    'Jev silence classifiers',
+                    `<select id="s-dev-jev">${simOptionsHTML(['on', 'shadow', 'off'], getJevClassifierMode())}</select>`
+                ),
+                `aloud cloud sessions only. On (default): Jev decides, Haiku is the fallback. Shadow: both run, Haiku decides. Every call logs a [judge] console line.`
+            )}
+            ${devBuildRows}
         </div>
-        ${devBuildRows}
+        ${simulations}
     </section>`;
 }
 

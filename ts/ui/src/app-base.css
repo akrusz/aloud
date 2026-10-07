@@ -4177,29 +4177,78 @@ p.clouds-hint-row {
     /* A subhead can be a data-nav-anchor target too; clear the fixed top bar. */
     scroll-margin-top: var(--nav-h);
 }
-/* Settings > Developer: the URL-param reference. Param on the left, what it
-   does on the right; stacked on a phone, where a param is wider than the gap
-   it would leave. */
-.dev-params {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.4rem 1rem;
-    margin: var(--space-sm) 0 var(--space-md);
-    font-size: 0.875rem;
-    line-height: 1.5;
+/* Settings > Developer: one row per option - its name and control, then its
+   URL param and what it does. The columns are fixed so rows line up without a
+   shared grid; on a phone the description drops under the control. */
+.dev-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: var(--space-sm);
 }
 
-.dev-params dt {
+.dev-opt {
+    display: grid;
+    grid-template-columns: 10rem 11.5rem minmax(0, 1fr);
+    column-gap: 1rem;
+    align-items: baseline;
+}
+
+/* A checkbox has no text baseline to offer, so its label would hang from the
+   box's bottom edge. */
+.dev-section .dev-opt > .checkbox-label {
+    align-self: start;
+    margin-top: 0;
+}
+
+.dev-opt-wide {
+    grid-column: span 2;
+}
+
+.dev-opt > label:not(.checkbox-label),
+.dev-opt-name,
+.dev-open > label {
+    font-size: 0.9rem;
+    font-weight: 500;
     color: var(--text-primary);
 }
 
-.dev-params dd {
-    margin: 0;
-    color: var(--text-secondary);
+.dev-opt > .form-hint {
+    margin-top: 0;
 }
 
-.dev-params-usage code,
-.dev-params code {
+.dev-section .form-hint {
+    line-height: 1.5;
+}
+
+/* The URL-bar stand-in: its label sits in the rows' name column. */
+.dev-open {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: var(--space-sm);
+}
+
+.dev-open > label {
+    flex: 0 0 10rem;
+}
+
+.dev-open > input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Same text size as any settings control, in a shorter box. */
+.dev-opt select,
+.dev-opt input[type="text"],
+.dev-open input[type="text"] {
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+    padding-left: 0.75rem;
+    max-width: 100%;
+}
+
+.dev-section .form-hint code {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8125rem;
     background: var(--bg-surface);
@@ -4209,13 +4258,35 @@ p.clouds-hint-row {
     overflow-wrap: anywhere;
 }
 
+.dev-section .form-hint a {
+    text-decoration: none;
+}
+
+.dev-section .form-hint a > code {
+    color: var(--accent-text);
+}
+
+.dev-section .form-hint a:hover > code {
+    border-color: var(--accent-text);
+}
+
 @media (max-width: 600px) {
-    .dev-params {
-        grid-template-columns: 1fr;
-        gap: 0.1rem;
+    .dev-opt {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 0.25rem;
     }
-    .dev-params dd {
-        margin-bottom: 0.5rem;
+    .dev-opt input[type="text"] {
+        width: 10.5rem;
+    }
+    .dev-opt > .form-hint {
+        grid-column: 1 / -1;
+    }
+    .dev-open {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .dev-open > label {
+        flex-basis: 100%;
     }
 }
 

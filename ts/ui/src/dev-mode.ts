@@ -47,6 +47,19 @@ export function setDevMode(on: boolean): void {
 }
 
 /**
+ * The query typed into the Developer section's URL-params field, without its
+ * `?`. The field stands in for the URL bar the desktop and mobile shells lack,
+ * so `mode=web&dev`, `?mode=web&dev` and a pasted full URL all mean the same.
+ */
+export function typedUrlParams(raw: string): string {
+    const typed = raw.trim();
+    const mark = typed.indexOf('?');
+    const isUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(typed);
+    const query = mark >= 0 ? typed.slice(mark + 1) : isUrl ? '' : typed;
+    return query.replace(/#.*$/, '').replace(/^&+|&+$/g, '');
+}
+
+/**
  * Adopt a `?debug=checkin` (also `1`, `true`, `pacing`) URL param for the tab;
  * `?debug=off` drops it again. Called once at boot (main.ts): the HUD is
  * decided when a session mounts, by which time the router has long since
