@@ -88,10 +88,13 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // picked model's badge. The setup footer adds it to the composed
             // estimate; it stays off the per-model badges (nrj6).
             utilityCreditsPerHour: UTILITY_CREDITS_PER_HOUR,
-            models: deps.liveness.liveModels().map((m) => ({
-                ...m,
-                creditsPerHour: ratePerHour.get(`${m.provider}:${m.model}`) ?? null,
-            })),
+            models: deps.liveness
+                .liveModels()
+                .filter((m) => !m.unlisted)
+                .map((m) => ({
+                    ...m,
+                    creditsPerHour: ratePerHour.get(`${m.provider}:${m.model}`) ?? null,
+                })),
         });
     });
 

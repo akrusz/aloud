@@ -48,6 +48,10 @@ export interface ModelPricing extends TokenRates {
      *  variants of a listed sibling, so new users see a short curated list.
      *  Billing and forwarding ignore it - an expanded model is fully served. */
     expanded?: boolean;
+    /** Priced and forwarded, but never published to the picker (/me/models).
+     *  For an id installed builds still name on their own after it has left
+     *  the catalog: deleting the entry would refuse those calls outright. */
+    unlisted?: boolean;
     /** zh picker overrides (2026-09-01, native-listener pass: the GPT family
      *  reads better in Chinese than the Claudes). When the app language is
      *  Chinese the client rebuilds the shortlist from these three flags;
@@ -240,15 +244,14 @@ const MODELS: Record<string, ModelPricing> = {
             cacheCreation1h: 1 / M,
         },
     },
-    // Haiku 4.5, expanded-tier while 5.5 is ear-tested against it. Shipped
-    // clients before the 5.5 swap name this id for their background calls
-    // (classifier fallback, noting labels, end-of-session summary), and a
-    // model missing from this table is refused outright, so deleting the
-    // entry ends those calls on any install that hasn't updated.
+    // Haiku 4.5, off the picker. Builds from before the 5.5 swap name this id
+    // for their background calls (classifier fallback, noting labels,
+    // end-of-session summary), so the entry stays until those installs have
+    // updated (meditation-pal-dbvh).
     'anthropic:claude-haiku-4-5-20251001': {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',
-        expanded: true,
+        unlisted: true,
         input: 1 / M,
         output: 5 / M,
         cacheRead: 0.1 / M,

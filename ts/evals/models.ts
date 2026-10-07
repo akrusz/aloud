@@ -78,8 +78,8 @@ export const ROSTER: EvalModel[] = [
         id: 'haiku-4.5',
         model: 'claude-haiku-4-5-20251001',
         provider: 'anthropic',
-        shipped: true,
-        note: 'Predecessor, expanded-tier while 5.5 is ear-tested against it. Sub-600ms TTFT.',
+        shipped: false,
+        note: 'Predecessor. Off the picker; still priced for installed builds that name it. Sub-600ms TTFT.',
     },
 
     // --- Shipped: others ----------------------------------------------------

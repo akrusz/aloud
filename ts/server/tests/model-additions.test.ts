@@ -100,7 +100,7 @@ describe('GPT-6 Sol and Luna (openai)', () => {
 
 describe('zh shortlist flags (2026-09-01 native-listener pass)', () => {
     it('flags exactly one zh default (Sol), swaps Sonnet/Haiku out and the GPTs + Kimi in', () => {
-        const models = allowedModels();
+        const models = allowedModels().filter((m) => !m.unlisted);
         const zhDefaults = models.filter((m) => m.zhDefault);
         expect(zhDefaults.map((m) => m.model)).toEqual(['gpt-6-sol']);
         // The zh shortlist = curated minus zhExpanded plus zhCurated.

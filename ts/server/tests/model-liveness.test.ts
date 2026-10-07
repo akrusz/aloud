@@ -12,7 +12,7 @@ import {
     type ModelProber,
     type ProbeResult,
 } from '../src/pricing/liveness.js';
-import { allowedModels } from '../src/pricing/providers.js';
+import { allowedModels, isModelAllowed } from '../src/pricing/providers.js';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
@@ -82,7 +82,15 @@ describe('GET /cloud/v1/me/models with liveness', () => {
         const ids = body.models.map((m) => m.model);
         expect(ids).not.toContain('claude-3-opus-20240229');
         expect(ids).toContain('claude-opus-5');
-        expect(body.models).toHaveLength(allowedModels().length - 1);
+        expect(body.models).toHaveLength(allowedModels().filter((m) => !m.unlisted).length - 1);
+    });
+
+    it('keeps an unlisted model off the picker while still pricing it', async () => {
+        const app = createApp(buildDeps(loadConfig({})));
+        const res = await app.request('/cloud/v1/me/models');
+        const body = (await res.json()) as { models: Array<{ model: string }> };
+        expect(body.models.map((m) => m.model)).not.toContain('claude-haiku-4-5-20251001');
+        expect(isModelAllowed('anthropic', 'claude-haiku-4-5-20251001')).toBe(true);
     });
 });
 
