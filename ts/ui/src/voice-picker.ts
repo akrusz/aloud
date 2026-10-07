@@ -106,7 +106,7 @@ export interface ScoredVoice {
     model?: string;
     /** Small muted label after the name (e.g. a hosted voice's gender). */
     note?: string;
-    /** Cost tier for a hosted voice - drives the "$"/"$$" cost badge. */
+    /** Quality tier for a hosted voice, named in the cost badge's tooltip. */
     costTier?: 'premium' | 'value';
     /** Estimated credits/hr for a hosted voice (shown in the badge tooltip). */
     creditsPerHour?: number;
@@ -507,15 +507,11 @@ function appendRow(
         note.textContent = entry.note;
         nameSpan.appendChild(note);
     }
-    // Hosted-voice rate badge: "N☁" ≈ N credits/hr, colored by tier (green
-    // value, amber premium) so a pricier voice reads pricier at a glance
-    // (meditation-pal-b7i).
+    // Hosted-voice rate badge: "N☁" ≈ N credits/hr.
     const rateText = rateBadge(entry.creditsPerHour);
     if (rateText) {
         const cost = document.createElement('span');
-        cost.className = entry.costTier
-            ? `voice-row-cost voice-row-cost-${entry.costTier}`
-            : 'voice-row-cost';
+        cost.className = 'voice-row-cost';
         cost.textContent = rateText;
         const tierWord =
             entry.costTier === 'premium' ? t('Premium') : entry.costTier === 'value' ? t('Value') : t('Cloud');
