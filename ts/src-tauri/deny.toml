@@ -17,18 +17,6 @@ ignore = [
     # longer being maintained. Real CVEs and yanked crates still fail the gate.
     # Re-check this list on every Tauri bump (it's almost all Tauri transitives).
     #
-    # gtk-rs GTK3 bindings — Tauri (muda/tao/gtk) still depends on these
-    # transitively on Linux; no safe upgrade until Tauri moves to gtk4-rs.
-    "RUSTSEC-2024-0411",
-    "RUSTSEC-2024-0412",
-    "RUSTSEC-2024-0413",
-    "RUSTSEC-2024-0414",
-    "RUSTSEC-2024-0415",
-    "RUSTSEC-2024-0416",
-    "RUSTSEC-2024-0417",
-    "RUSTSEC-2024-0418",
-    "RUSTSEC-2024-0419",
-    "RUSTSEC-2024-0420",
     # unic-* Unicode crates — also Tauri transitives, project is archived.
     "RUSTSEC-2025-0075",
     "RUSTSEC-2025-0080",
