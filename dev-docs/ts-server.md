@@ -245,7 +245,7 @@ which passes the rest of the arguments through; and note that there is also a
 path from the wrong one fails with a confusing `MODULE_NOT_FOUND`.
 
 ```bash
-npm run voices -- curated         # only what we already ship (the default)
+npm run voices                    # what we ship, as a session hears it (the default)
 npm run voices -- google          # ~130 Google voices, all English locales
 npm run voices -- openai gemini   # several sources at once
 npm run voices -- all             # every source with a key
@@ -253,7 +253,18 @@ npm run voices -- google --locales=en-US,en-GB,en-AU
 npm run voices -- google --filter=Chirp3-HD --limit=12
 npm run voices -- curated --prosody       # every prosody treatment, side by side
 npm run voices -- all --rate=0.85         # at session pace
+npm run voices -- --rebuild               # rewrite the page after a catalog edit, no synthesis
 ```
+
+A curated run renders each catalog voice through the route's own dispatch
+(`routes/tts.ts` `synthFor`: its style, pace bias and lead silence) at the default
+session speed. Those are the page's **as shipped** rows, and the filter's
+"shipped, as shipped" (`index.html#shipped`) shows them alone, with each voice's
+picker bucket: the list to listen down when deciding what stays in the catalog.
+A source's own treatments are not that list. Harper ships in softvoice, so her
+"plain text" row is a voice no session has heard. Which voices are shipping is
+read from the catalog on every build, and an as-shipped clip whose voice has
+left the catalog (or changed style or pace) is dropped.
 
 Runs **merge**: auditioning one source adds to the page rather than replacing
 it, so building up google, then openai, then a new candidate as its key arrives

@@ -14,6 +14,7 @@
 import { Hono } from 'hono';
 import { MAX_TTS_CHARS, type SpeakRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
+import type { Config } from '../config.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceTtsChars } from '../pricing/meter.js';
@@ -66,13 +67,16 @@ function availableProviders(deps: Deps): ReadonlySet<TtsProvider> {
     return s;
 }
 
+type TtsKeys = Pick<Config, 'googleTtsApiKey' | 'azureSpeechKey' | 'azureSpeechRegion' | 'inworldApiKey'>;
+
 /** A bound synth call for a resolved voice, or null when that voice's provider
  *  has no key configured (callers map null to provider_error). One dispatch
  *  for all three routes below: any curated voice works once its provider key
- *  is present. */
-function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
+ *  is present. Exported for scripts/preview-voices.ts, whose "as shipped"
+ *  clips have to be exactly what a session hears. */
+export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | null {
     if (resolved.provider === 'azure') {
-        const key = deps.config.azureSpeechKey;
+        const key = config.azureSpeechKey;
         return key
             ? (text, rate) =>
                   synthesizeWithAzure(
@@ -80,13 +84,13 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
                       resolved.voiceId,
                       effectiveRate(resolved, rate),
                       key,
-                      deps.config.azureSpeechRegion,
+                      config.azureSpeechRegion,
                       resolved.style
                   ).then(withLeadSilence)
             : null;
     }
     if (resolved.provider === 'inworld') {
-        const key = deps.config.inworldApiKey;
+        const key = config.inworldApiKey;
         return key
             ? (text, rate) =>
                   synthesizeWithInworld(text, resolved.voiceId, effectiveRate(resolved, rate), key).then(
@@ -94,7 +98,7 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
                   )
             : null;
     }
-    const key = deps.config.googleTtsApiKey;
+    const key = config.googleTtsApiKey;
     return key
         ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate), key)
         : null;
@@ -106,7 +110,7 @@ function synthFor(deps: Deps, resolved: ResolvedVoice): SynthFn | null {
  *  higher than text.length. The meter, the up-front balance gate, and the
  *  usage record all take THIS number - billing text.length would under-charge
  *  every Azure synthesis (roughly 2x on Chinese text). */
-function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): number {
+export function billedCharsFor(resolved: ResolvedVoice, text: string, rate: number): number {
     // Same effective rate as synthFor, or the billed SSML disagrees with the
     // SSML actually sent (a pace-biased voice carries a prosody wrapper even
     // at slider-neutral rate 1).
@@ -188,7 +192,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const message = CANNED_MESSAGES[reason];
         if (!message) return errorJson(c, 'bad_request', 'unknown canned reason');
         const resolved = resolveVoice(body.voice, availableProviders(deps));
-        const synth = synthFor(deps, resolved);
+        const synth = synthFor(deps.config, resolved);
         if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
         const cacheKey = `${reason}:${resolved.provider}:${resolved.voiceId}`;
         let audio: Uint8Array;
@@ -224,7 +228,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // resolveVoice(name), not a hand-built ResolvedVoice: a curated voice
         // can carry a style, and a preview without it isn't the voice.
         const resolved = resolveVoice(curated.name);
-        const synth = synthFor(deps, resolved);
+        const synth = synthFor(deps.config, resolved);
         if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
 
         const rate = previewRate(c.req.query('rate'));
@@ -275,7 +279,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // voice actually synthesized. Null synth = the resolved provider has no
         // key configured here.
         const resolved = resolveVoice(body.voice, availableProviders(deps));
-        const synth = synthFor(deps, resolved);
+        const synth = synthFor(deps.config, resolved);
         if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
 
         const rate = body.rate ?? 1;

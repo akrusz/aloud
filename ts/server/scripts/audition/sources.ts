@@ -24,7 +24,8 @@
  */
 
 import { azureBilledChars, synthesizeWithAzure, synthesizeWithGoogle } from '../../src/providers/tts.js';
-import { azureTtsRateFor, googleTtsRateFor } from '../../src/pricing/providers.js';
+import { azureTtsRateFor, googleTtsRateFor, inworldTtsRateFor } from '../../src/pricing/providers.js';
+import { CURATED_VOICES, type CuratedVoice, type TtsProvider } from '../../src/providers/voice-catalog.js';
 
 const M = 1_000_000;
 
@@ -47,9 +48,10 @@ export interface AuditionVoice {
  * (Cartesia), or nothing at all (Deepgram Aura-2) - so a treatment is declared
  * per source and interpreted inside its own synth().
  *
- * The FIRST treatment in a source's list is what that source ships today, so a
- * default run reproduces current behaviour and `--prosody` adds the variants
- * beside it.
+ * The FIRST treatment in a source's list is its default: what a plain run
+ * renders, with `--prosody` adding the variants beside it. It is NOT what a
+ * curated voice ships - that carries its own style and pace (voice-catalog.ts)
+ * and is the runner's separate "as shipped" clip.
  */
 export interface Treatment {
     id: string;
@@ -88,11 +90,14 @@ export interface AuditionSource {
     usdPerUnit(voiceId: string): number;
     /** Where the rate came from, so a stale number is traceable. */
     rateNote: string;
-    /** Whether this source is already in CURATED_VOICES (voice-catalog.ts). */
-    shipping: boolean;
+    /** Set when the server ships voices from this source: its CURATED_VOICES
+     *  provider, and this source's own id for a catalog voice id (undefined
+     *  when the entry is a sibling source's - Inworld's two models are one
+     *  provider). */
+    ships?: { provider: TtsProvider; voiceIdOf(providerVoiceId: string): string | undefined };
     /** The roster to audition. May hit the provider's list endpoint. */
     roster(key: string, opts: RosterOpts): Promise<AuditionVoice[]>;
-    /** Prosody treatments this source can express. First = what ships today. */
+    /** Prosody treatments this source can express. First = the default. */
     treatments: readonly Treatment[];
     synth(text: string, voiceId: string, rate: number, key: string, t: Treatment): Promise<SynthResult>;
 }
@@ -241,7 +246,7 @@ const google: AuditionSource = {
     billing: 'per-char',
     usdPerUnit: (voiceId) => googleTtsRateFor(voiceId),
     rateNote: 'cloud.google.com/text-to-speech/pricing - Standard $4 / Neural2 $16 / Chirp3-HD $30 per 1M chars',
-    shipping: true,
+    ships: { provider: 'google', voiceIdOf: (id) => id },
     async roster(key, { locales, filter }) {
         const seen = new Set<string>();
         const out: AuditionVoice[] = [];
@@ -343,7 +348,6 @@ const openai: AuditionSource = {
     // $0.015 per minute of audio (audio-output tokens at $12/1M, ~25 tok/s).
     usdPerUnit: () => 0.015 / 60,
     rateNote: 'audio-output billed, ~$0.015/min; a July 2026 spend reconciliation put it at ~$19/1M chars at real pace. Shipped until 2026-10-07, when the dev found its voices had turned metallic',
-    shipping: false,
     roster: async () => [...OPENAI_VOICES],
     treatments: INSTRUCTION_TREATMENTS,
     async synth(text, voiceId, rate, key, t) {
@@ -401,7 +405,6 @@ const gemini: AuditionSource = {
     // clip from the response's own usageMetadata, so the model is only a prior.
     usdPerUnit: () => 25 * GEMINI_TTS_MODELS[GEMINI_MODEL].output,
     rateNote: 'ai.google.dev/gemini-api/docs/pricing - audio output $10/1M tokens at ~25 tok/s; per-clip cost read from usageMetadata',
-    shipping: false,
     roster: async () => GEMINI_VOICES.map((id) => ({ id })),
     treatments: INSTRUCTION_TREATMENTS,
     async synth(text, voiceId, rate, key, t) {
@@ -482,9 +485,7 @@ const azure: AuditionSource = {
     usdPerUnit: (voiceId) => azureTtsRateFor(voiceId),
     rateNote:
         'azure.microsoft.com/pricing (Speech services) - Neural ~$16/1M, DragonHD and MAI ~$22/1M, MAI Flash ~$15/1M, region-dependent (pricing/providers.azureTtsRateFor). Set AZURE_SPEECH_REGION too (default eastus)',
-    // Promoted (meditation-pal-c3a0.1): the shipping path is providers/tts.ts
-    // synthesizeWithAzure; curated entries pend the dev's audition picks.
-    shipping: true,
+    ships: { provider: 'azure', voiceIdOf: (id) => id },
     async roster(key, { locales, filter }) {
         const res = await fetch(
             `https://${azureRegion()}.tts.speech.microsoft.com/cognitiveservices/voices/list`,
@@ -597,7 +598,6 @@ const cartesia: AuditionSource = {
     usdPerUnit: () => 30 / M,
     rateNote:
         '1 credit/char; effective rate depends on plan - Startup $39/mo = 1.25M credits (~$31/1M), Scale $239/mo = 8M (~$30/1M). $30/1M assumed, confirm before shipping',
-    shipping: false,
     async roster(key, { filter }) {
         const res = await fetch('https://api.cartesia.ai/voices/?limit=100', {
             headers: { 'Cartesia-Version': CARTESIA_VERSION, authorization: `Bearer ${key}` },
@@ -681,7 +681,6 @@ const deepgram: AuditionSource = {
     billing: 'per-char',
     usdPerUnit: () => 30 / M,
     rateNote: 'deepgram.com/pricing - $0.030 per 1k chars PAYG ($30/1M), discounted on committed plans',
-    shipping: false,
     async roster(_key, { filter }) {
         return DEEPGRAM_VOICES.filter((v) => !filter || v.id.includes(filter.toLowerCase())).map((v) => ({
             ...v,
@@ -709,15 +708,18 @@ const deepgram: AuditionSource = {
 
 /** One Inworld model as a source: the two bill at different rates, so they
  *  can't share a cost column. */
-const inworldSource = (id: string, label: string, modelId: string, usdPerMillion: number, rateNote: string): AuditionSource => ({
+const inworldSource = (id: string, label: string, modelId: string, rateNote: string): AuditionSource => ({
     id,
     label,
     envKeys: ['INWORLD_API_KEY'],
     signupUrl: 'https://platform.inworld.ai',
     billing: 'per-char',
-    usdPerUnit: () => usdPerMillion / M,
+    usdPerUnit: () => inworldTtsRateFor(`:${modelId}`),
     rateNote,
-    shipping: false,
+    ships: {
+        provider: 'inworld',
+        voiceIdOf: (id) => (id.endsWith(`:${modelId}`) ? id.slice(0, -modelId.length - 1) : undefined),
+    },
     async roster(key, { filter }) {
         const res = await fetch('https://api.inworld.ai/tts/v1/voices', {
             headers: { authorization: `Basic ${key}` },
@@ -775,14 +777,12 @@ const inworld = inworldSource(
     'inworld',
     'Inworld TTS-2',
     'inworld-tts-2',
-    25,
     'inworld.ai/pricing - TTS-2 $25/1M on-demand, the rate that applies to us; billed on the text alone (usage.processedCharactersCount), not the style instruction. Cheaper tiers are SUBSCRIPTION commitments ($25/mo Creator $20, $300/mo Developer $15, $1500/mo Growth $12.50), not volume discounts'
 );
 const inworldFlash = inworldSource(
     'inworld-flash',
     'Inworld TTS-2 Flash',
     'inworld-tts-2-flash',
-    15,
     'inworld.ai/pricing - TTS-2 Flash $15/1M on-demand; same voices as TTS-2'
 );
 
@@ -790,6 +790,28 @@ export const SOURCES: readonly AuditionSource[] = [google, openai, gemini, azure
 
 export function sourceById(id: string): AuditionSource | undefined {
     return SOURCES.find((s) => s.id === id);
+}
+
+/** The source that speaks a curated voice, and the voice id it knows it by. */
+export function sourceForCurated(
+    v: Pick<CuratedVoice, 'provider' | 'providerVoiceId'>
+): { source: AuditionSource; voiceId: string } | undefined {
+    for (const source of SOURCES) {
+        if (source.ships?.provider !== v.provider) continue;
+        const voiceId = source.ships.voiceIdOf(v.providerVoiceId);
+        if (voiceId !== undefined) return { source, voiceId };
+    }
+    return undefined;
+}
+
+/** The curated voice a (source, voice id) pair is shipping as, if any. Read
+ *  from the catalog every time: a flag stored on an audition row outlives the
+ *  voice it was stamped for. */
+export function curatedFor(sourceId: string, voiceId: string): CuratedVoice | undefined {
+    return CURATED_VOICES.find((v) => {
+        const hit = sourceForCurated(v);
+        return hit?.source.id === sourceId && hit.voiceId === voiceId;
+    });
 }
 
 /** The key for a source, or undefined when none of its env vars are set.
