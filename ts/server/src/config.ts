@@ -55,7 +55,7 @@ export function sttModelChoices(backend: SttBackend): readonly string[] {
  *   1. STT_API_KEY: explicit/custom backend (STT_BASE_URL + STT_MODEL +
  *      STT_PROVIDER label; defaults to the OpenAI host if base/model omitted).
  *   2. OPENAI_STT_API_KEY || OPENAI_API_KEY: the recommended backend, since the
- *      same key already powers the GPT LLM + OpenAI TTS. Defaults to
+ *      same key already powers the GPT LLM. Defaults to
  *      gpt-transcribe.
  *   3. GROQ_API_KEY: legacy (cheap, but new paid signups are frozen).
  * Undefined when none is set; /cloud/v1/stt then reports not-configured and the

@@ -64,9 +64,8 @@ class SayVoice implements SimVoice {
 }
 
 /**
- * OpenAI gpt-4o-mini-tts - the same engine behind the app's hosted voices - to
- * a temp file, played with afplay. Costs money per utterance; opt in with
- * --voice=openai[:<voice>].
+ * OpenAI gpt-4o-mini-tts to a temp file, played with afplay. Costs money per
+ * utterance; opt in with --voice=openai[:<voice>].
  */
 class OpenAiVoice implements SimVoice {
     readonly id: string;

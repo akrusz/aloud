@@ -72,7 +72,7 @@ Around that:
   acts before a matching final.
 - **Retry.** A failed command check is retried once: a timeout is not a no, the
   first call through a freshly started server runs ~1s (at its timeout's edge),
-  and there is no LLM twin behind it. `CloudJudge.warm()` and the server's
+  and there is no LLM twin behind it. `RemoteJudge.warm()` and the server's
   boot-time call spend that cold call early.
 - **Misses.** A request that misses the judge reaches the model as an ordinary
   turn, so `appControlsFragment` (`prompts.ts`) tells it that it cannot work

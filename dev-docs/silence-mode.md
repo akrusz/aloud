@@ -58,9 +58,9 @@ Judge sessions put TypeSafe's Jev in front of the three classifiers, via
   I'm ready" can mean the session or the thing they were just talking about.
   The LLM classifiers stay history-free.
 - **Failure.** Any judge failure falls through to the LLM classifiers.
-  `CloudJudge` (`ui/src/adapters/cloud-judge.ts`) backs off (30s doubling to
-  5m) after two failures in a row, so an outage is not one wasted round trip
-  per utterance.
+  `RemoteJudge` (`ui/src/adapters/cloud-judge.ts`, the base of `CloudJudge`
+  and `OwnKeyJudge`) backs off (30s doubling to 5m) after two failures in a
+  row, so an outage is not one wasted round trip per utterance.
 - **Scoring.** `npm run jev:ab` scores Jev against the LLM classifiers on a
   labelled corpus (real TypeSafe calls, a few cents). Rerun it after touching
   a question or threshold.

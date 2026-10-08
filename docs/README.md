@@ -86,6 +86,9 @@ source to keep in sync. They're downscaled to 1800px wide and WebP-encoded
       OpenRouter, and the policy now names Novita (the US inference host, Groq
       as fallback) instead of Moonshot AI, since session content goes to the
       host, not Moonshot's API.
+- [x] voice providers re-synced (2026-10-07): hosted TTS is Azure AI Speech,
+      Google Cloud TTS and Inworld (OpenAI no longer speaks); the policy names
+      the four Inworld voices because of data retention.
 - [x] web app "early access / beta" framing dropped (2026-07-19): beta badge
       and early-access wording removed from `index.html`; mobile keeps its
       closed-beta line

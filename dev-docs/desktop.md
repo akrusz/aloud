@@ -99,6 +99,10 @@ Endpoints:
   queries each provider's models API (openai/anthropic/openrouter/venice/groq +
   static claude_proxy), shaping `[{value,label}]`. Empty → the picker's
   free-form text input.
+- `/app/v1/judge` - a fixed relay to TypeSafe for a sit that brings its own
+  Jev key (`x-provider-key`; `providers.rs` `typesafe_judge`). TypeSafe answers
+  no browser origin, so the webview can't call it directly. The UI side is
+  `ui/src/adapters/own-key-judge.ts`; see [silence-mode.md](silence-mode.md#the-judge-jev).
 - `/app/v1/ollama/pull` (streamed NDJSON progress) + `/app/v1/ollama/delete` - `src-tauri/src/ollama.rs`. Proxies the local Ollama daemon's HTTP API; UI
   drives per-model progress bars + Remove buttons.
 - `/app/v1/ollama/restart` + `/app/v1/ollama/upgrade` + `/app/v1/install/{tool}` - `src-tauri/src/ollama_tools.rs`. Manage the daemon itself (vs its models):
@@ -114,6 +118,10 @@ Endpoints:
   restricted (`safe_session_id`) so an untrusted client can't escape the dir. The
   UI side is `ui/src/adapters/backend-session-store.ts` (`BackendSessionStore`),
   swapped in by `state.ts` only under `isTauri()`.
+- `/app/v1/stt-clips/{dir}/{name}/{kind}` - the Developer "Save my speech
+  clips" switch: writes one `.wav` or `.json` of a capture to
+  `<app-data>/stt-clips/<dir>/`, since a webview can't download a blob. Path
+  segments go through `safe_session_id`. UI side: `ui/src/stt-clip-recorder.ts`.
 - `/app/v1/google-oauth` - desktop Google sign-in via the loopback PKCE flow
   (the webview can't run the web GIS popup); hands the result to aloud cloud's
   `/cloud/v1/auth/google/desktop`.

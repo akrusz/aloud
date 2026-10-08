@@ -29,7 +29,7 @@ specific manufacturer's stack.
   - (browser web-speech is *not* offered on native - the native plugin is better.)
 - **TTS**
   - `browser` - the WebView's `speechSynthesis`, i.e. the **native system voices**. **Free.** Current mobile default.
-  - hosted voices (Azure / Google / OpenAI) via `/cloud/v1`. **Costs credits** (TTS is the dominant cost line - bead `b7i`).
+  - hosted voices (Azure / Google / Inworld) via `/cloud/v1`. **Costs credits** (TTS is the dominant cost line - bead `b7i`).
 
 ## STT validation - device buckets
 

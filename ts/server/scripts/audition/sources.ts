@@ -321,7 +321,7 @@ const google: AuditionSource = {
 };
 
 // ---------------------------------------------------------------------------
-// OpenAI - the other engine we ship on
+// OpenAI - audition only since 2026-10-07
 // ---------------------------------------------------------------------------
 
 /** gpt-4o-mini-tts has no list endpoint; these are the documented voices. */

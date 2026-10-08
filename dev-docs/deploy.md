@@ -85,6 +85,9 @@ fly secrets set \
   OPENAI_API_KEY=sk-... \
   GEMINI_API_KEY=... \
   GOOGLE_TTS_API_KEY=... \
+  AZURE_SPEECH_KEY=... \
+  INWORLD_API_KEY=... \
+  TYPESAFE_API_KEY=... \
   ALOUD_CORS_ORIGINS='https://<your-ui-host>,tauri://localhost,http://tauri.localhost' \
   STRIPE_SECRET_KEY=sk_live_... \
   STRIPE_WEBHOOK_SECRET=whsec_... \

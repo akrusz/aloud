@@ -412,7 +412,9 @@ talks to aloud cloud (`VITE_ALOUD_CLOUD_URL` from the committed
 - **Hosted server**: `ts/server/.env` (see `.env.example`) - provider keys
   (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
   `GEMINI_API_KEY`; `OPENAI_API_KEY` also drives server STT by default, or the
-  `STT_*` overrides), `GOOGLE_TTS_API_KEY`, `ALOUD_SESSION_SECRET`,
+  `STT_*` overrides), the hosted-voice keys (`AZURE_SPEECH_KEY`,
+  `GOOGLE_TTS_API_KEY`, `INWORLD_API_KEY`), `TYPESAFE_API_KEY` (the judge),
+  `ALOUD_SESSION_SECRET`,
   `GOOGLE_CLIENT_IDS`, Stripe keys,
   `ALOUD_ADMIN_TOKEN`, and `ALOUD_UI_DIR` (serve `ui/dist` from the same process - the single-box self-host story).
 - **UI build**: `VITE_ALOUD_CLOUD_URL` - the hosted origin baked into a
@@ -424,6 +426,9 @@ talks to aloud cloud (`VITE_ALOUD_CLOUD_URL` from the committed
 - **BYOK keys** entered in the UI live in the device's localStorage; sessions
   call the provider directly. Only the model-list lookup relays one
   (`x-provider-key` to `/app/v1/models`), and nothing is persisted server-side.
+  The desktop's own TypeSafe key (voice commands without aloud cloud) rides the
+  same header to the shell's `/app/v1/judge`, so it stays on the device's own
+  backend.
 
 ## Adding a hosted model
 

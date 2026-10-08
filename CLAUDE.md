@@ -29,7 +29,7 @@ Two stacks live side by side under `ts/`:
 | `ts/src-tauri/` | Rust - Tauri 2 | Desktop shell: an embedded `axum` backend (native Whisper/Piper/Ollama/claude-CLI) + the webview that loads `ui/`. |
 
 **Two backend namespaces** (see `ui/src/app-base.ts` / `cloud-base.ts`):
-- **`/app/v1/*`**: the app's *own* backend (provider/voice/model catalogs, system-info; on desktop also STT/TTS/Ollama/claude-proxy/shell). Served by the **Rust shell** on desktop, by **Hono** on web.
+- **`/app/v1/*`**: the app's *own* backend (provider/voice/model catalogs, system-info; on desktop also STT/TTS/Ollama/claude-proxy/own-key judge relay/shell). Served by the **Rust shell** on desktop, by **Hono** on web.
 - **`/cloud/v1/*`**: the **hosted, signed-in, billed** service (auth, account, billing, metered forwarding). Always **Hono** (aloud cloud).
 
 Data flow (a turn): mic PCM → STT (`/app/v1` Whisper on desktop, the platform recognizer on mobile, browser SpeechRecognition, or metered hosted STT via `/cloud/v1`) → core builds the prompt → LLM (BYOK direct, local Ollama/claude-CLI, or metered via `/cloud/v1`) → parse `[HOLD]` and the other turn signals → TTS (Piper/`say` on desktop, Azure/Google/Inworld via `/cloud/v1` hosted, or browser speechSynthesis).
@@ -68,7 +68,7 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 
 - **aloud cloud**: `ts/server/.env` (copy `.env.example`) - provider keys, `ALOUD_SESSION_SECRET`, `GOOGLE_CLIENT_IDS` / `GOOGLE_DESKTOP_CLIENT_ID(+SECRET)`, Stripe keys, etc.
 - **UI build**: `VITE_ALOUD_CLOUD_URL` bakes the hosted origin into a static/desktop/mobile build. The committed default lives in `ts/ui/.env.production` (build-only; dev uses the Vite proxy); repo var `ALOUD_CLOUD_URL` overrides it in CI.
-- **BYOK keys** entered in the UI stay in the device's localStorage, and sessions call the provider directly. Only the model-list lookup relays a key (`x-provider-key` to `/app/v1/models`); nothing is persisted server-side.
+- **BYOK keys** entered in the UI stay in the device's localStorage, and sessions call the provider directly. Only the model-list lookup relays a key (`x-provider-key` to `/app/v1/models`); nothing is persisted server-side. A desktop sit's own TypeSafe key (voice commands without aloud cloud) rides the same header to the shell's `/app/v1/judge` relay, which is on-device.
 
 ## Workflow notes
 

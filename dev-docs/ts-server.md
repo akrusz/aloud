@@ -147,7 +147,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods). Also clears the email-updates opt-in with the scrubbed address |
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON). When Anthropic's refusal fallback answers a declined turn (`anthropic.ts` `takesRefusalFallback`), each model's attempt settles at its own rates with a usage row apiece, the declined one tagged `utility` |
-| `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by duration |
+| `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send) → transcript; debits by the seconds the provider bills (`sttBilledSeconds`: gpt-transcribe rounds each request up to a whole second) |
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
@@ -278,8 +278,9 @@ en-US/en-GB/en-AU (30 Chirp3-HD per locale, plus Neural2 and Standard), which
 is roughly $0.70 and a few minutes to audition in full.
 
 Sources are declared in `scripts/audition/sources.ts` - roster, synth call,
-prosody treatments, and cost model per engine. Beyond the three we ship it carries
-key-gated adapters for Gemini TTS, Cartesia, Deepgram Aura-2 and Inworld;
+prosody treatments, and cost model per engine. Beyond the three we ship (Google,
+Azure, Inworld) it carries key-gated adapters for OpenAI, Gemini TTS, Cartesia
+and Deepgram Aura-2;
 anything without a key is skipped and listed on the page with a signup link, so a
 partial run still produces a usable page. The keys are documented in
 `.env.example` under "Voice-audition keys":
@@ -305,7 +306,7 @@ Two things the page exists to make visible:
   sticker. The page prices every clip from its real measured length (`ffprobe`,
   `afinfo` fallback) per *spoken* character, which is the only cross-source
   comparison worth making. Measured at our own instruction: OpenAI lands at
-  $16-20/1M (bracketing the reconciled $19 in `pricing/providers.ts`), and Gemini
+  $16-20/1M (bracketing the reconciled $19 it billed at while it shipped), and Gemini
   TTS at $25-43/1M - i.e. **at or above** the $30/1M Chirp3-HD it is widely
   claimed to undercut.
 - **Prosody differs enormously by engine.** Google honors SSML `<prosody>` +
@@ -319,7 +320,7 @@ Two things the page exists to make visible:
   (weakly honored - see meditation-pal-5yi1); Deepgram Aura-2 exposes no prosody
   control at all.
 
-Needs `GOOGLE_TTS_API_KEY`, `OPENAI_API_KEY` and/or `AZURE_SPEECH_KEY` in `.env`
+Needs `GOOGLE_TTS_API_KEY`, `AZURE_SPEECH_KEY` and/or `INWORLD_API_KEY` in `.env`
 for the shipping sources. Costs a few cents (one short clip per voice per treatment).
 
 ## Known limits
