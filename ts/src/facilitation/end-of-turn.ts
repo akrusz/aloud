@@ -84,13 +84,18 @@ const DANGLING_TAIL_WORDS = new Set([
     'sort',
 ]);
 
+/** Non-speech markers closing a transcript (the spans isNonSpeechOnly strips).
+ *  Whisper tags a laugh after a finished sentence, "So happy. [laughs]", and
+ *  the tag is no clause: left in, it reads as a bare tail and holds the turn. */
+const TRAILING_MARKERS = /(?:\s*(?:\[[^\]]*\]|\([^)]*\)|\*[^*]*\*))+\s*$/u;
+
 /**
  * True when `text` reads as an unfinished thought. Empty input is NOT
  * incomplete (no clause to dangle). Conservative: a false "incomplete" waits a
  * few extra seconds, a false "complete" cuts the speaker off.
  */
 export function transcriptLooksIncomplete(text: string): boolean {
-    const trimmed = text.trim();
+    const trimmed = text.replace(TRAILING_MARKERS, '').trim();
     if (trimmed.length === 0) return false;
 
     // Strip closing quotes/brackets so punctuation right before them counts.

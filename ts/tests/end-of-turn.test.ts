@@ -27,6 +27,13 @@ describe('transcriptLooksIncomplete', () => {
         expect(transcriptLooksIncomplete('She said "let it happen."')).toBe(false);
     });
 
+    it('judges the words before a trailing non-speech marker', () => {
+        expect(transcriptLooksIncomplete('Oh my goodness. So happy. [laughs]')).toBe(false);
+        expect(transcriptLooksIncomplete('That is enough. (sighs) *sniffs*')).toBe(false);
+        expect(transcriptLooksIncomplete('It was kind of [laughs]')).toBe(true);
+        expect(transcriptLooksIncomplete('[BLANK_AUDIO]')).toBe(false);
+    });
+
     it('treats empty or whitespace input as not incomplete', () => {
         expect(transcriptLooksIncomplete('')).toBe(false);
         expect(transcriptLooksIncomplete('   ')).toBe(false);
