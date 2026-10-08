@@ -25,6 +25,7 @@
         "zh:review-doc": "tsx scripts/zh-review.ts",
         "jev:ab": "tsx scripts/jev-ab.ts",
         "jev:commands": "tsx scripts/jev-commands.ts",
+        "stt:replay": "tsx scripts/stt-replay.ts",
         "soak": "tsx soak/run.ts",
         "soak:web": "tsx soak/browser/run.ts",
         "ui:dev": "vite --config ui/vite.config.ts",

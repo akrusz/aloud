@@ -165,7 +165,12 @@ Three switches also live there with no URL twin:
   session ends. A webview can't download a blob, so the desktop app writes each
   clip as it is transcribed to `<app-data>/stt-clips/<capture>/` (a `.wav` and
   a `.json` per clip, through the shell's `/app/v1/stt-clips/...`). Cloud or
-  local Whisper STT; nothing is recorded on mobile.
+  local Whisper STT; nothing is recorded on mobile. `npm run stt:replay`
+  (`ts/scripts/stt-replay.ts`) plays a capture against hosted models: a
+  no-speech gate, word error against a reference, latency, real cost, and
+  the end-of-turn check on each model's own punctuation. Its `--set noise`
+  sends generated noise only; every other set sends the recorded voice to
+  each model named.
 - **Jev silence classifiers** (`getJevClassifierMode`, `dev-mode.ts`,
   localStorage `aloud:jevClassifiers`), aloud cloud sessions only, read at
   session start: `on` (default) lets Jev decide with the LLM classifier as
@@ -260,6 +265,11 @@ cd ts && npx tsx evals/protocol-eval.ts
 # after touching a judge question, example or threshold.
 cd ts && npm run jev:ab                # silence classifiers vs the Haiku prompts
 cd ts && npm run jev:commands          # every spoken-command ask, through the gate
+
+# STT replay (by hand, NOT in CI - real provider calls, cents; sends a saved
+# "Save my speech clips" capture to each model named, see Developer mode above)
+cd ts && npm run stt:replay -- <dir> --set noise --models openai,azure   # the no-speech gate: generated noise only
+cd ts && npm run stt:replay -- <capture-dir> --models openai,azure       # then the recorded turns
 
 # Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
 # sessions; see dev-docs/soak-harness.md). Run before a release.
