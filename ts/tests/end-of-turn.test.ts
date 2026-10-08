@@ -33,6 +33,14 @@ describe('transcriptLooksIncomplete', () => {
         expect(transcriptLooksIncomplete('She said "let it happen."')).toBe(false);
     });
 
+    it('reads full-width terminators, so a finished 中文 turn is complete', () => {
+        expect(transcriptLooksIncomplete('我感觉很平静。')).toBe(false);
+        expect(transcriptLooksIncomplete('你能听到我吗？')).toBe(false);
+        expect(transcriptLooksIncomplete('太好了！')).toBe(false);
+        expect(transcriptLooksIncomplete('我觉得胸口有一点紧，')).toBe(true);
+        expect(transcriptLooksIncomplete('我在想……')).toBe(true);
+    });
+
     it('judges the words before a trailing non-speech marker', () => {
         expect(transcriptLooksIncomplete('Oh my goodness. So happy. [laughs]')).toBe(false);
         expect(transcriptLooksIncomplete('That is enough. (sighs) *sniffs*')).toBe(false);

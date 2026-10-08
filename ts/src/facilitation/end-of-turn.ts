@@ -105,7 +105,8 @@ export function transcriptLooksIncomplete(text: string): boolean {
     // Strip closing quotes/brackets so punctuation right before them counts.
     const unwrapped = trimmed.replace(/["'”’)\]]+$/u, '');
     if (/(?:…|\.{2,})$/u.test(unwrapped)) return true;
-    const endsTerminated = /[.!?]$/u.test(unwrapped);
+    // Full-width forms too: without them every 中文 turn read as unfinished.
+    const endsTerminated = /[.!?。！？]$/u.test(unwrapped);
 
     const lastWord =
         unwrapped
