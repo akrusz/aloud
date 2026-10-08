@@ -6,13 +6,19 @@ describe('transcriptLooksIncomplete', () => {
         expect(transcriptLooksIncomplete('I feel a tingling in my feet.')).toBe(false);
         expect(transcriptLooksIncomplete('Is that what you mean?')).toBe(false);
         expect(transcriptLooksIncomplete("That's wonderful!")).toBe(false);
-        expect(transcriptLooksIncomplete('Just resting here…')).toBe(false);
         expect(transcriptLooksIncomplete('He said "I am done."')).toBe(false);
     });
 
     it('flags missing terminal punctuation (Whisper punctuates finished thoughts)', () => {
         expect(transcriptLooksIncomplete("I've never had a really bad time doing")).toBe(true);
         expect(transcriptLooksIncomplete('And yet there is this')).toBe(true);
+    });
+
+    it('flags a trailing ellipsis as a trail-off, not an ending', () => {
+        expect(transcriptLooksIncomplete('Right now it feels sort of warm...')).toBe(true);
+        expect(transcriptLooksIncomplete('Just resting here…')).toBe(true);
+        expect(transcriptLooksIncomplete('She said "let it be..."')).toBe(true);
+        expect(transcriptLooksIncomplete('It was... fine, actually.')).toBe(false);
     });
 
     it('flags trailing commas and mid-clause connectives even with a period', () => {

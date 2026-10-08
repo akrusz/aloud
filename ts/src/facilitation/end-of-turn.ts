@@ -10,6 +10,10 @@
  *
  * Whisper punctuates, so missing terminal punctuation is a strong incompleteness
  * signal; the trailing-word list catches clauses Whisper closed anyway.
+ *
+ * A trailing ellipsis is NOT a terminator: it is how the transcriber writes a
+ * trail-off ("It feels sort of..."). On a real sit's 116 passes it closed 18 of the
+ * 76 pauses the speaker talked through and none of the 40 turn endings.
  */
 
 /** Words that almost never end a finished thought, even with terminal
@@ -100,7 +104,8 @@ export function transcriptLooksIncomplete(text: string): boolean {
 
     // Strip closing quotes/brackets so punctuation right before them counts.
     const unwrapped = trimmed.replace(/["'”’)\]]+$/u, '');
-    const endsTerminated = /[.!?…]$/u.test(unwrapped);
+    if (/(?:…|\.{2,})$/u.test(unwrapped)) return true;
+    const endsTerminated = /[.!?]$/u.test(unwrapped);
 
     const lastWord =
         unwrapped
