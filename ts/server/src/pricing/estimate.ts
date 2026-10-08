@@ -23,7 +23,10 @@
  *     Usage rows written since then already hold billed seconds, so a later
  *     reseed from the admin report needs no such factor.
  *   - TTS band reseeded down (TTS_CHAR_PROFILES): measured cloud-voice
- *     sessions ran ~1k-6.2k chars, all under the old 10k "typical".
+ *     sessions ran ~1k-6.2k chars, all under the old 10k "typical". Then
+ *     `engaged` 7,500 → 8,500 (Oct 2026): a fully metered 40-min sit spoke
+ *     7,031 chars per 50 min (58 turns/hr, ~143 chars a reply), and faster
+ *     talkers than that one exist.
  *   - LLM token fields left at the seed: per-model samples are too small and
  *     track user style.
  *
@@ -74,7 +77,7 @@ export const TYPICAL_SESSION: SessionUsage = {
 export const TTS_CHAR_PROFILES = {
     spacious: 1_200, // terse model / low verbosity / lots of held silence
     typical: 3_500, // mid of the measured band
-    engaged: 7_500, // chattiest measured voice-hour, plus headroom
+    engaged: 8_500, // chattiest measured voice-hour (7,031), plus headroom
 } as const;
 
 export type TtsProfile = keyof typeof TTS_CHAR_PROFILES;
