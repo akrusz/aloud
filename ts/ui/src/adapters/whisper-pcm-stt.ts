@@ -50,6 +50,13 @@ const SPECULATIVE_SILENCE_MS = 750;
 // STT spend). Mid-thought pauses rarely outlast the late trigger, so the pass
 // lands on the terminal pause, where the final reuses it for free.
 const SPEC_EARLY_MAX_BUFFER_MS = 12_000;
+// The same cutoff for hosted STT, where every pass bills (stt-picker
+// createServerAloudStt). The buffer still holds the 2s pre-roll at this point,
+// so this is about 4s of SENT audio: the first phrase previews at 750ms, later
+// pauses wait for the late trigger. Replayed over a real 40-min sit's passes
+// (meditation-pal-m56t): at 12s, 35% of the audio sent was a re-send of a
+// turn's opening; at this, 10%.
+export const CLOUD_SPEC_EARLY_MAX_BUFFER_MS = 6_000;
 // Lead before the submit decision, enough for the round-trip to land first.
 const SPEC_TERMINAL_LEAD_MS = 1500;
 // ⭐ TWEAK ME if a barge-in clips the first word(s): pre-speech audio (ms) kept
@@ -182,6 +189,9 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  use hosted STT - at the price of no preview and a turn that can be cut
      *  at a mid-thought pause the VAD alone can't tell from an ending. */
     speculation?: boolean;
+    /** Buffered audio (ms) past which a speculative pass waits for the late
+     *  trigger. Default SPEC_EARLY_MAX_BUFFER_MS. */
+    specEarlyMaxBufferMs?: number;
     /** Collapse long interior silences in the uploaded payload (default on).
      *  Off exists for A/B measurement (soak harness), not as a user setting. */
     compactSilence?: boolean;
@@ -310,6 +320,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             speculation: options.speculation ?? true,
+            specEarlyMaxBufferMs: options.specEarlyMaxBufferMs ?? SPEC_EARLY_MAX_BUFFER_MS,
             compactSilence: options.compactSilence ?? true,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
@@ -1038,12 +1049,12 @@ export class WhisperPcmSttEngine implements SttEngine {
                     if (this.utteranceDone || this.stopRequested) break;
                     if (!this.speechStarted) continue;
                     const silence = performance.now() - this.lastSpeechMs;
-                    // Late trigger on long buffers (SPEC_EARLY_MAX_BUFFER_MS):
+                    // Late trigger on long buffers (specEarlyMaxBufferMs):
                     // mirror the audio callback's adaptive `needed` so the pass
                     // fires just ahead of the submit decision.
                     const bufferedMs = (this.chunks.length * FRAME_SIZE * 1000) / nativeRate;
                     let specAfterMs = SPECULATIVE_SILENCE_MS;
-                    if (bufferedMs > SPEC_EARLY_MAX_BUFFER_MS) {
+                    if (bufferedMs > this.opts.specEarlyMaxBufferMs) {
                         specAfterMs = Math.max(
                             SPECULATIVE_SILENCE_MS,
                             this.submitWindowMs() - SPEC_TERMINAL_LEAD_MS

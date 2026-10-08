@@ -23,7 +23,7 @@ import type { PacingConfig } from '../../../src/facilitation/pacing.js';
 
 import { rateSuffix } from '../credit-rate.js';
 import { CapacitorSttEngine, type CapacitorSttEngineOptions } from './capacitor-stt.js';
-import { WhisperPcmSttEngine } from './whisper-pcm-stt.js';
+import { CLOUD_SPEC_EARLY_MAX_BUFFER_MS, WhisperPcmSttEngine } from './whisper-pcm-stt.js';
 import {
     WebSpeechSttEngine,
     isWebSpeechSupported,
@@ -106,6 +106,7 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
     return new WhisperPcmSttEngine({
         ...rest,
         ...(model ? { cloudModel: model } : {}),
+        specEarlyMaxBufferMs: CLOUD_SPEC_EARLY_MAX_BUFFER_MS,
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
         // Drop a rejected token and re-sign-in once (mirrors the LLM/TTS
