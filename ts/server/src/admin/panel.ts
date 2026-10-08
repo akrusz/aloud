@@ -26,6 +26,7 @@ import {
     estimateModels,
     estimateStt,
     estimateVoices,
+    type CreditBand,
 } from '../pricing/estimate.js';
 import { ADMIN_STYLE } from './style.js';
 
@@ -42,18 +43,18 @@ export function renderAdminPanel(googleClientId?: string): string {
  * The credits/hr the app ADVERTISES, keyed the way usage rows are keyed
  * (kind:provider:model), so the panel can print each measured rate beside its
  * badge. Computed by the same estimate code the picker uses, never copied.
- * Voices carry the talk band (spacious / typical / engaged) since the picker
- * shows a range; the STT and utility legs are flat.
+ * Voices carry the talk band (spacious / typical / engaged / talkative) since
+ * the picker shows a range; the STT and utility legs are flat.
  */
 function badgeRates(): {
     llm: Record<string, number>;
-    tts: Record<string, { spacious: number; typical: number; engaged: number }>;
+    tts: Record<string, CreditBand>;
     stt: number;
     utility: number;
 } {
     const llm: Record<string, number> = {};
     for (const m of estimateModels()) llm[`${m.provider}:${m.model}`] = m.creditsPerHour;
-    const tts: Record<string, { spacious: number; typical: number; engaged: number }> = {};
+    const tts: Record<string, CreditBand> = {};
     for (const v of estimateVoices()) {
         if (v.costUsdPerHourTypical > 0) tts[v.voiceId] = v.creditsPerHour;
     }
@@ -76,7 +77,7 @@ function assumedPerHour(): Record<string, number> {
         // (a Gemma-era figure the Aug 18 reseed left as an upper bound), so
         // the card compares against what users are actually shown: the band.
         ttsCharsTypical: TTS_CHAR_PROFILES.typical * perHour,
-        ttsCharsEngaged: TTS_CHAR_PROFILES.engaged * perHour,
+        ttsCharsTalkative: TTS_CHAR_PROFILES.talkative * perHour,
         input: TYPICAL_SESSION.llmTokensIn * perHour,
         output: TYPICAL_SESSION.llmTokensOut * perHour,
         cacheRead: TYPICAL_SESSION.llmCacheRead * perHour,
@@ -578,10 +579,10 @@ ${ADMIN_STYLE}</style>
       phCards = phCards.concat([
         ['STT min / cloud hr', num1((Number(att.sttSecondsPerHour) || 0) / 60) +
           ' <span class="assumed">/ ' + num1(EST.sttSeconds / 60) + '</span>'],
-        // Against the badge's talk band (typical–engaged), which is what the
+        // Against the badge's talk band (typical–talkative), which is what the
         // picker shows, rather than TYPICAL_SESSION's upper-bound figure.
         ['TTS chars / voice hr', int(Math.round(Number(att.ttsCharsPerHour) || 0)) +
-          ' <span class="assumed">/ ' + int(Math.round(EST.ttsCharsTypical)) + '–' + int(Math.round(EST.ttsCharsEngaged)) + '</span>'],
+          ' <span class="assumed">/ ' + int(Math.round(EST.ttsCharsTypical)) + '–' + int(Math.round(EST.ttsCharsTalkative)) + '</span>'],
         // Why the STT minutes are what they are (0uw7). Calls/turn much above 1
         // means we bill the same audio more than once (the speculative preview
         // pass re-sends the whole buffer); a big median with calls/turn near 1
@@ -612,7 +613,7 @@ ${ADMIN_STYLE}</style>
       }));
       // The advertised rate for a usage row, or '' when the app has no badge
       // for it (a model since dropped from the roster, a voice off the curated
-      // list). Voices print the picker's typical–engaged band.
+      // list). Voices print the picker's typical–talkative band.
       function badgeFor(kind, provider, model, utility) {
         if (kind === 'llm') {
           // Background calls are priced as the flat utility leg, not at the
@@ -623,7 +624,7 @@ ${ADMIN_STYLE}</style>
         }
         if (kind === 'stt') return dec1(BADGES.stt);
         var v = BADGES.tts[model];
-        return v ? dec1(v.typical) + '–' + dec1(v.engaged) : '';
+        return v ? dec1(v.typical) + '–' + dec1(v.talkative) : '';
       }
       $('perHourRows').innerHTML = (ph.byModel || []).map(function (m) {
         return '<tr><td>' + (SVC[m.kind] || m.kind) + (m.utility ? ' util' : '') + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) +

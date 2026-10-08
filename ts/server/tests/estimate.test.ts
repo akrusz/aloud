@@ -59,6 +59,7 @@ describe('estimateVoices', () => {
         expect(browser.creditsPerHour.spacious).toBe(0);
         expect(browser.creditsPerHour.typical).toBe(0);
         expect(browser.creditsPerHour.engaged).toBe(0);
+        expect(browser.creditsPerHour.talkative).toBe(0);
     });
 
     it('lists exactly the offered voices: the free locals + the curated cloud set', () => {
@@ -73,10 +74,11 @@ describe('estimateVoices', () => {
         expect(ids.some((id) => id.includes('elevenlabs') || id.includes('hume'))).toBe(false);
     });
 
-    it('cloud voice cost rises across the talk band (spacious < typical < engaged)', () => {
+    it('cloud voice cost rises across the talk band (spacious < typical < engaged < talkative)', () => {
         const leda = voices.find((v) => v.voiceId === defaultVoice().providerVoiceId)!;
         expect(leda.creditsPerHour.spacious).toBeLessThan(leda.creditsPerHour.typical);
         expect(leda.creditsPerHour.typical).toBeLessThan(leda.creditsPerHour.engaged);
+        expect(leda.creditsPerHour.engaged).toBeLessThan(leda.creditsPerHour.talkative);
     });
 
     it('prices the value (Neural2) tier below the premium (Chirp3-HD) tier', () => {

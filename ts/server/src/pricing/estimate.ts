@@ -78,6 +78,12 @@ export const TTS_CHAR_PROFILES = {
     spacious: 1_200, // terse model / low verbosity / lots of held silence
     typical: 3_500, // mid of the measured band
     engaged: 8_500, // chattiest measured voice-hour (7,031), plus headroom
+    // MODELLED, not measured: that same 7,031 sit from a quicker talker. Its
+    // meditator spoke at ~124 wpm and left about 37% of the clock as reflective
+    // silence; at conversational pace (~150 wpm) with the silence gone, the
+    // same exchange runs ~105 turns/hr at the same ~143-char replies. A higher
+    // verbosity setting would go past it; pace alone can't.
+    talkative: 12_000,
 } as const;
 
 export type TtsProfile = keyof typeof TTS_CHAR_PROFILES;
@@ -146,6 +152,7 @@ export interface CreditBand {
     spacious: number;
     typical: number;
     engaged: number;
+    talkative: number;
 }
 
 export interface VoiceEstimate {
@@ -220,7 +227,7 @@ function freeVoice(voiceId: string, label: string): VoiceEstimate {
     return {
         voiceId,
         label,
-        creditsPerHour: { spacious: 0, typical: 0, engaged: 0 },
+        creditsPerHour: { spacious: 0, typical: 0, engaged: 0, talkative: 0 },
         costUsdPerHourTypical: 0,
     };
 }
@@ -258,6 +265,7 @@ export function estimateVoices(): VoiceEstimate[] {
                 spacious: perHour(TTS_CHAR_PROFILES.spacious),
                 typical: perHour(TTS_CHAR_PROFILES.typical),
                 engaged: perHour(TTS_CHAR_PROFILES.engaged),
+                talkative: perHour(TTS_CHAR_PROFILES.talkative),
             },
             costUsdPerHourTypical: usdPerHour(TTS_CHAR_PROFILES.typical * rate),
         };
