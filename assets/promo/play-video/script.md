@@ -51,10 +51,10 @@ caption [c4]: settle into deep meditation
 ## 4. felt sense (27-33s)
 
 caption [c5]: felt sense
-aloud   [f3]: Settling in, no rush. When you're ready, just notice what in your body or mind is pulling your attention.
+aloud   [f3]: When you're ready, just notice what in your body or mind is pulling your attention.
 
-> note: f3 is a real opener from FELT_SENSE_OPENERS. Shown on the felt
-> sense screen with the orb speaking.
+> note: f3 is a real opener from FELT_SENSE_OPENERS, without its opening
+> "No rush." Shown on the felt sense screen with the orb speaking.
 
 ## 5. noting (33-35s)
 

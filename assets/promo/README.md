@@ -6,7 +6,7 @@ first when picking the work back up.
 ## Where it stands
 
 - **Play Store video**: first cut built 2026-10-09, waiting on the dev's eyes
-  and ears: `play-video/build/aloud-play-video.mp4` (gitignored), 84.5s,
+  and ears: `play-video/build/aloud-play-video.mp4` (gitignored), 81.7s,
   1920x1080. "Building the video" below has how, and what in it is the dev's
   to judge.
 - **Play Store video script**: `play-video/script.md`, approved as written
@@ -29,10 +29,10 @@ first when picking the work back up.
 - **Facilitator lines are the dev's to handcraft.** Treat what the model said
   in the sit as a draft: he rewrote f1. Only his side of the exchange is
   presented as real, so no caption should call it an unedited session.
-- **Open**: the cut runs 84.5s against a 60s target (Play allows 30s-2min);
+- **Open**: the cut runs 81.7s against a 60s target (Play allows 30s-2min);
   the dev decides what to trim. The script's 77s estimate didn't count c1's
-  own 3s after the cut, and gave f3 6s where Harper takes 9.4. Dropping e3
-  saves 9s; the caption holds are `HOLD` in `tools/build-audio.mjs`.
+  own 3s after the cut. Dropping e3 saves 9s; the caption holds are `HOLD`
+  in `tools/build-audio.mjs`.
 - **Bowl sounds**: done. `bowl-candidates/` has the generator
   (`synth_bowls.py`) and mp3s. `bowl.mp3` (5s mid bowl) and `rin.mp3` (2s rin)
   ship in the app's noting sounds. `bowl-deep-long` (10s) and `rin-long` (7s)
@@ -41,9 +41,11 @@ first when picking the work back up.
   a venv with numpy + scipy).
 - **Auditions** (all in `play-video/build/audition/`, gitignored): the
   excerpt cuts, Harper takes of f0, f1 and f3 in `harper/`, and the rough cut.
-  The video uses the rough cut's takes plus `f3-felt-sense-take2`, the
-  shortest of the three f3 takes (8.7s; all three transcribe right and start
-  clean). The build reads the takes from there, so they are not in the repo.
+  The video uses the rough cut's f1 takes, `f0-settle-take2` and
+  `f3-ready-take2`, the shortest of the three f3 takes (6.0s; all three
+  transcribe right and start clean, and take 1 adds a breath before "is
+  pulling your attention"). The build reads the takes from there, so they
+  are not in the repo.
 
 ## Building the video
 
@@ -88,7 +90,7 @@ refuses UI shots filmed for a different cut.
   one to drop it.
 - n1 and v1 took 8.0 and 8.8 dB of gain to sit with the excerpts, so their
   room tone is near -46 dBFS now.
-- The f3 take, and whether 84.5s is too long.
+- The f3 take, and whether 81.7s is too long.
 - Nothing on screen says whose words e3 and e4 are. A caption for that would
   be new copy, so it isn't there.
 
@@ -104,7 +106,8 @@ How the rough cut was made, and what the build repeats.
 - **Harper**: `play-video/tools/render-line.mts`, one call per sentence, three
   takes; a line's sentences are concatenated as they come (each clip carries
   its own lead and tail silence) and normalized to -19 LUFS. Takes in the
-  cut: `f0-settle-take2`, `f-present-s1-take2`, `f-anywhere-s2-take2`.
+  cut: `f0-settle-take2`, `f-present-s1-take2`, `f-anywhere-s2-take2`,
+  `f3-ready-take2`.
 - **Spacing**: 0.5-0.6s between a line and the reply, on top of the clips' own
   silence. `bowl-deep-long.mp3` opens at 0.22 gain, faded out over 6-10s, with
   the first voice at 2.5s.
@@ -129,8 +132,8 @@ How the rough cut was made, and what the build repeats.
 - **Keep dead air to the first ~3s.** Holding silence is one feature among
   several, not the story.
 - **Noting gets ~2s.** Felt sense is the facilitator reading its real opener
-  (line f3 matches `FELT_SENSE_OPENERS` in `ts/src/facilitation/felt-sense.ts`;
-  keep them in sync).
+  (line f3 matches `FELT_SENSE_OPENERS` in `ts/src/facilitation/felt-sense.ts`,
+  without its opening "No rush."; keep them in sync).
 - Copy style: no em-dashes (use " - " or commas), lowercase-leaning captions to
   match the site.
 

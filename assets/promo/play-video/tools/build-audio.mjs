@@ -50,7 +50,7 @@ const CLIP_OUT = join(AUDIO_DIR, 'clips');
 const HARPER_TAKES = {
     f0: ['f0-settle-take2'],
     f1: ['f-present-s1-take2', 'f-anywhere-s2-take2'],
-    f3: ['f3-felt-sense-take2'],
+    f3: ['f3-ready-take2'],
 };
 
 /** Silence between a line and the reply, on top of the clips' own. */
