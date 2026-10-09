@@ -1,0 +1,350 @@
+/* The app's dark tokens (ts/ui/src/app-base.css) and the orb gradient
+   (dev-docs/style.md). Copied, not imported: the film has to render without
+   the dev server. Keep them in step with the app. */
+:root {
+    --bg-primary: #110d08;
+    --bg-card: #221a13;
+    --border: #302618;
+    --text-primary: #f5efe6;
+    --text-secondary: #c4b49e;
+    --text-muted: #b0a090;
+    --accent: #e71f75;
+    --accent-text: #f5589a;
+    --brand-stroke: #e8b820;
+    --orb-yellow: #e8b820;
+    --orb-orange: #d4692a;
+    --facilitator-bg: #2e1720;
+    --user-bg: #2b2312;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --orb: radial-gradient(circle at 45% 45% in oklab, #fff4c0 0%, #f8f288 18%, #f5d820 38%, #ffb805 49%, #ed7326 65%, #e71f75 71%, #870a3e 76%);
+}
+
+@font-face {
+    font-family: 'Knewave';
+    src: url('/docs/assets/fonts/knewave-v15.woff2') format('woff2');
+    font-display: block;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+}
+
+#stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    transform-origin: 0 0;
+}
+
+/* Firelight falloff, as on the app's body. */
+#stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(8, 4, 0, 0.42) 100%);
+    pointer-events: none;
+    z-index: 50;
+}
+
+.layer {
+    position: absolute;
+    inset: 0;
+}
+
+.abs {
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform, opacity;
+}
+
+/* ---- orb ---- */
+
+.orb {
+    border-radius: 50%;
+    background: var(--orb);
+}
+
+.ring {
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+}
+
+.ember {
+    border-radius: 50%;
+}
+
+/* ---- phone ---- */
+
+.phone {
+    width: 444px;
+    height: 924px;
+    padding: 16px;
+    border-radius: 58px;
+    background: #050302;
+    border: 2px solid #4a3b28;
+    box-shadow: 0 0 0 1px #000, 0 40px 120px rgba(231, 31, 117, 0.16), 0 0 160px rgba(245, 165, 47, 0.1);
+}
+
+.phone .screen {
+    position: relative;
+    width: 412px;
+    height: 892px;
+    border-radius: 42px;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.phone img {
+    display: block;
+    width: 412px;
+    height: 892px;
+}
+
+/* ---- the exchange, large ---- */
+
+.column {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 30px;
+}
+
+.row {
+    display: flex;
+    align-items: flex-start;
+    gap: 22px;
+}
+
+.row.user {
+    justify-content: flex-end;
+}
+
+.row .avatar {
+    flex: none;
+    width: 64px;
+    height: 64px;
+    margin-top: 22px;
+}
+
+.bubble {
+    max-width: 960px;
+    padding: 28px 40px 31px;
+    /* The app's squashed corners, at this size. */
+    border-radius: 36px / 23px;
+    font-size: 50px;
+    line-height: 1.38;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+}
+
+.bubble.facilitator {
+    background: var(--facilitator-bg);
+    border: 2px solid rgba(231, 31, 117, 0.22);
+    --lit: var(--text-primary);
+    --dim: #8b6c7b;
+}
+
+.bubble.user {
+    background: var(--user-bg);
+    border: 2px solid rgba(232, 184, 32, 0.22);
+    --lit: var(--text-primary);
+    --dim: #8c7c52;
+}
+
+.bubble.big {
+    font-size: 72px;
+    font-weight: 650;
+    padding: 30px 52px 34px;
+}
+
+.bubble.mid {
+    max-width: 1060px;
+    font-size: 62px;
+    font-weight: 650;
+    padding: 30px 48px 34px;
+    white-space: nowrap;
+}
+
+.bubble.wide {
+    max-width: 1400px;
+    font-size: 58px;
+    line-height: 1.36;
+    padding: 36px 54px 40px;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.word {
+    display: inline-block;
+    white-space: pre;
+}
+
+/* ---- captions ---- */
+
+.caption {
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    line-height: 1.14;
+    text-wrap: balance;
+}
+
+.centered {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+/* The site's marker underline: a stroke riding the baseline, never over the
+   letters. --ink is drawn left to right as --drawn goes 0 to 1. */
+.hl {
+    background: linear-gradient(var(--ink), var(--ink)) no-repeat 0 94% / calc(var(--drawn, 0) * 100%) 0.13em;
+    padding-bottom: 0.06em;
+}
+
+.sticker {
+    padding: 0.5em 0.8em 0.56em;
+    background: var(--bg-card);
+    border: 3px solid #43341f;
+    border-radius: 44px / 28px;
+    font-size: 132px;
+    font-weight: 780;
+    letter-spacing: -0.025em;
+    line-height: 1.08;
+    white-space: nowrap;
+}
+
+.mode-title {
+    font-size: 68px;
+    font-weight: 780;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.mode-title .bar {
+    display: block;
+    height: 9px;
+    margin-top: 16px;
+    border-radius: 5px;
+    transform-origin: 0 50%;
+}
+
+.ui-card {
+    overflow: hidden;
+    border: 2px solid #43341f;
+    border-radius: 30px / 20px;
+    background: var(--bg-primary);
+}
+
+.ui-card img {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.tune-caption {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-size: 80px;
+    font-weight: 780;
+    letter-spacing: -0.025em;
+    line-height: 1.16;
+}
+
+.tune-caption .sep {
+    color: var(--accent);
+}
+
+.loupe {
+    overflow: hidden;
+    border-radius: 50%;
+    border: 5px solid var(--brand-stroke);
+    background: var(--bg-primary);
+    box-shadow: 9px 9px 0 #000;
+}
+
+.loupe img {
+    position: absolute;
+    display: block;
+}
+
+.tape {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 64px;
+    padding: 0 22px;
+    border: 2px solid #4a3b28;
+    border-radius: 18px / 12px;
+    background: var(--bg-card);
+}
+
+.tape i {
+    display: block;
+    width: 5px;
+    border-radius: 3px;
+    background: #7d6a55;
+}
+
+.wordmark {
+    font-family: 'Knewave';
+    font-size: 168px;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.wordmark span {
+    position: absolute;
+    left: 0;
+    top: 0;
+    paint-order: stroke fill;
+    -webkit-text-stroke-linejoin: round;
+    stroke-linejoin: round;
+}
+
+.wordmark .under {
+    color: #000;
+    -webkit-text-stroke: 28px #000;
+}
+
+.wordmark .over {
+    color: var(--accent);
+    -webkit-text-stroke: 16px #ffd820;
+}
+
+/* ---- preview ---- */
+
+#hud {
+    position: fixed;
+    left: 12px;
+    bottom: 10px;
+    z-index: 100;
+    font: 13px/1.4 ui-monospace, Menlo, monospace;
+    color: #b0a090;
+}
+
+#hud input {
+    width: 60vw;
+    vertical-align: middle;
+}
