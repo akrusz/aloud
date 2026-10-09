@@ -8,17 +8,49 @@ first when picking the work back up.
 - **Play Store video script**: `play-video/script.md`, waiting on the dev's
   edits. The file is the source of truth; build from what it says, not from
   these notes.
-- **Recordings**: none yet. The dev records his lines into
-  `play-video/recordings/<id>.wav` (ids in the script: m1, m2, n1, v1, w1). He
-  may also find a real session excerpt (`excerpt.wav` + transcript), which
-  replaces the scripted exchange in beat 2.
+- **Real excerpts**: chosen (2026-10-08). The dev's own 2026-10-07 sit
+  replaces the scripted exchange in beat 2 and the scripted w1 in beat 8; the
+  script's "Real excerpts" table has the source clips and cut points. A rough
+  audio cut is in `play-video/build/audition/` (`rough-cut-v4.m4a`,
+  gitignored, rebuildable from that table). Keep the raw
+  clips out of the tracked `recordings/` folder unless the dev says otherwise:
+  the repo is public and the sit is personal. Only the excerpts in the script
+  are for use; the sit's bigger moments were left out as too big a promise.
+- **Recordings**: none yet. The dev still records n1 and v1 into
+  `play-video/recordings/<id>.wav`.
+- **Facilitator lines are the dev's to handcraft.** Treat what the model said
+  in the sit as a draft: he rewrote f1. Only his side of the exchange is
+  presented as real, so no caption should call it an unedited session.
+- **Open**: the script runs about 77s as written against a 60s target; the dev
+  decides what to trim (note in beat 8).
 - **Bowl sounds**: done. `bowl-candidates/` has the generator
   (`synth_bowls.py`) and mp3s. `bowl.mp3` (5s mid bowl) and `rin.mp3` (2s rin)
   ship in the app's noting sounds. `bowl-deep-long` (10s) and `rin-long` (7s)
   are for the video only: too long for noting, since the next turn waits for
   the sound to end. The wavs are gitignored; regenerate with the script (needs
   a venv with numpy + scipy).
-- **Nothing rendered yet.** No video frames, no TTS generated.
+- **Audio so far** (all in `play-video/build/audition/`, gitignored): the
+  excerpt cuts, Harper takes of f0, f1 and f3 in `harper/`, and the rough cut.
+  f3 runs 9-10s, longer than its 6s beat. No video frames yet.
+
+## Audio recipe
+
+How the rough cut was made, so the build can repeat it.
+
+- **Excerpts**: cut from the capture at the script's in/out points, then
+  `afade=t=in:d=0.03`, a 50ms fade out, `loudnorm=I=-18:TP=-2:LRA=11`,
+  resampled to 48 kHz mono. No EQ or noise reduction: the capture is already
+  gated to silence between words, so it wants a quiet bed (a bowl tail, room
+  tone) under it more than cleanup.
+- **Harper**: `play-video/tools/render-line.mts`, one call per sentence, three
+  takes; a line's sentences are concatenated as they come (each clip carries
+  its own lead and tail silence) and normalized to -19 LUFS. Takes in the
+  rough cut: `f0-arrive-take2`, `f-present-s1-take2`, `f-anywhere-s2-take2`.
+- **Spacing**: 0.5-0.6s between a line and the reply, on top of the clips' own
+  silence. `bowl-deep-long.mp3` opens at 0.22 gain, faded out over 6-10s, with
+  the first voice at 2.5s.
+- **Checking without ears**: `play-video/tools/transcribe.py` runs the desktop
+  app's Whisper model locally over a cut or a take.
 
 ## Decisions so far
 
@@ -57,20 +89,28 @@ ffmpeg (libx264). Real UI footage: `npm run web:dev` (Vite :4649 + Hono :8787)
 captured via Playwright; `scripts/site-screenshots.mjs` shows how the site shots
 drive the UI. Kill any dev servers afterwards.
 
+**Tools**: `play-video/tools/` has the two scripts above; each file's header
+has its command line.
+
 **Existing assets**: `assets/store/video-title-card.*`,
 `assets/store/video-end-card.*`, `scripts/build-promo-video.sh` (tops and tails
 a phone recording). Use them as a starting point, not a template.
 
-**Facilitator voice**: the app's hosted aloud cloud TTS (lines f1, f2, f3).
+**Facilitator voice**: Harper, the app's default hosted voice (lines f0, f1,
+f3). The dev picked her over Wren, the voice he sat with (2026-10-08). Render
+three takes of each sentence and check the first word: her onsets are
+sometimes soft.
 Cloud spend for promo work is pre-approved at the cents level; confirm with the
 dev before anything reaching dollars. Generate TTS only after the dev finalizes
 the lines, to avoid paying twice. `say` is fine for placeholders.
 
 ## Next steps
 
-1. Once the dev has edited `play-video/script.md`, re-read it and follow it.
-2. Build the visual scenes that don't depend on his audio: orb, caption cards,
-   end card, and real-UI captures of exploration, felt sense, noting and the
-   setup screen.
-3. Generate the facilitator TTS, cut a rough version with placeholder or real
-   recordings, and render to `play-video/build/` (gitignored).
+The dev approved `play-video/script.md` as written on 2026-10-08. The video
+build is the next job.
+
+1. Re-read `play-video/script.md` and follow it.
+2. Build the visual scenes: orb, caption cards, end card, and real-UI captures
+   of exploration, felt sense, noting and the setup screen.
+3. Assemble them with the audio above and render to `play-video/build/`
+   (gitignored). Until the dev records n1 and v1, stand them in with `say`.
