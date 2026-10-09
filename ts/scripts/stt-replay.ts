@@ -15,8 +15,10 @@
  *
  * Models: `openai` and `groq` go through the server's own forwarder
  * (transcribeWhisper), so the request is the production one. `azure` is
- * MAI-Transcribe-2 on the Speech key. `or:<id>` is any model on OpenRouter's
- * transcription API, which lists most of the field behind one key.
+ * MAI-Transcribe-2 on the Speech key, verbatim by default (it writes down
+ * every "um" and cut-off word); `azure:clean` asks for its tidied style.
+ * `or:<id>` is any model on OpenRouter's transcription API, which lists most
+ * of the field behind one key.
  *
  * THE CLIPS ARE SOMEONE'S MEDITATION and a capture never leaves the device on
  * its own: every model named here receives that voice. `--set noise` is the
@@ -120,8 +122,8 @@ function whisperCompatible(id: 'openai' | 'groq', needs: string, price: Model['p
     };
 }
 
-const AZURE: Model = {
-    id: 'azure',
+const azure = (style?: 'clean'): Model => ({
+    id: style ? `azure:${style}` : 'azure',
     needs: 'AZURE_SPEECH_KEY',
     // The $0.10/audio-hr promo, through 2026-12-31. The rate after it is
     // unpublished; its sibling meters are $0.36/hr.
@@ -132,7 +134,14 @@ const AZURE: Model = {
         form.append('audio', new Blob([clip.wav as BlobPart], { type: 'audio/wav' }), 'audio.wav');
         form.append(
             'definition',
-            JSON.stringify({ locales: [LANGUAGE], enhancedMode: { enabled: true, model: 'MAI-Transcribe-2' } })
+            JSON.stringify({
+                locales: [LANGUAGE],
+                enhancedMode: {
+                    enabled: true,
+                    model: 'MAI-Transcribe-2',
+                    ...(style ? { modelOptions: { transcribeStyle: style } } : {}),
+                },
+            })
         );
         const region = env('AZURE_SPEECH_REGION') || 'eastus';
         const data = (await postJson(
@@ -142,7 +151,7 @@ const AZURE: Model = {
         )) as { combinedPhrases?: Array<{ text?: string }> };
         return { text: (data.combinedPhrases ?? []).map((p) => p.text ?? '').join(' ').trim() };
     },
-};
+});
 
 function openRouter(modelId: string): Model {
     return {
@@ -184,9 +193,10 @@ function modelFor(id: string): Model {
         // $0.04/audio-hr list, and every request bills at least 10 seconds.
         return whisperCompatible('groq', 'GROQ_API_KEY', (s) => (Math.max(s, 10) * 0.04) / 3600, '10 s minimum per request');
     }
-    if (id === 'azure') return AZURE;
+    if (id === 'azure') return azure();
+    if (id === 'azure:clean') return azure('clean');
     if (id.startsWith('or:') && id.length > 3) return openRouter(id.slice(3));
-    throw new Error(`Unknown model "${id}". Use openai, groq, azure, or or:<openrouter-model-id>.`);
+    throw new Error(`Unknown model "${id}". Use openai, groq, azure, azure:clean, or or:<openrouter-model-id>.`);
 }
 
 // --- corpus ---------------------------------------------------------------
