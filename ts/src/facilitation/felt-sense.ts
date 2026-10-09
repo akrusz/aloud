@@ -147,9 +147,9 @@ This is the last stage, so there is no [NEXT]. If something new and alive opens 
 // Openers + check-ins
 
 export const FELT_SENSE_OPENERS: readonly string[] = [
-    "Take a moment to settle in... and when you're ready, you might ask inside: what's between me and feeling fine right now?",
-    "Settling in, no rush. When you're ready, just notice what in your body or mind is pulling your attention.",
-    "Let's settle in first. A few easy breaths... then ask inside: what could use my attention right now?",
+    "Take a moment to get comfortable... and when you're ready, you might ask inside: what's between me and feeling fine right now?",
+    "No rush. When you're ready, just notice what in your body or mind is pulling your attention.",
+    "A few easy breaths first... then listen inward: what could use my attention right now?",
     "Whenever you're ready. You might let your attention settle down into the middle of your body, and see what wants to be noticed.",
     "No hurry to begin. Let's land first... and see what you've carried in with you today.",
 ];

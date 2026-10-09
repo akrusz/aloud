@@ -460,12 +460,12 @@ export const FOCUS_OPENERS: Partial<Record<Focus, readonly string[]>> = {
     ],
     emotions: [
         'How are you feeling right now?',
-        'Take a moment to settle in... how are you doing in there?',
+        'Take a moment to feel inward... how are you doing in there?',
         "Settling in. What's the feeling tone right now?",
     ],
     inner_parts: [
         "Checking in with yourself... what's present?",
-        'Take a moment to settle in... how are you doing in there?',
+        'Take a moment to listen inward... how are you doing in there?',
         "Settling in. What's showing up inside?",
     ],
     open_awareness: [

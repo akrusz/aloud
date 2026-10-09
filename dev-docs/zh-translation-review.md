@@ -166,14 +166,14 @@ ZH: 这一坐到这里结束。慢慢来。
 
 ### Felt sense openers 体会模式开场
 
-EN: Take a moment to settle in... and when you're ready, you might ask inside: what's between me and feeling fine right now?
-ZH: 花一点时间安顿下来……当你准备好了，可以在心里问问自己：此刻，是什么隔在我和「感觉还好」之间？
+EN: Take a moment to get comfortable... and when you're ready, you might ask inside: what's between me and feeling fine right now?
+ZH: 花一点时间让自己舒服下来……当你准备好了，可以在心里问问自己：此刻，是什么隔在我和「感觉还好」之间？
 
-EN: Settling in, no rush. When you're ready, just notice what in your body or mind is pulling your attention.
-ZH: 慢慢安顿，不着急。当你准备好了，只需留意一下，身体或心里有什么在牵引你的注意。
+EN: No rush. When you're ready, just notice what in your body or mind is pulling your attention.
+ZH: 不着急。当你准备好了，只需留意一下，身体或心里有什么在牵引你的注意。
 
-EN: Let's settle in first. A few easy breaths... then ask inside: what could use my attention right now?
-ZH: 先让自己安顿下来。几个轻松的呼吸……然后在心里问问：此刻什么需要我的注意？
+EN: A few easy breaths first... then listen inward: what could use my attention right now?
+ZH: 先来几个轻松的呼吸……然后向内听一听：此刻什么需要我的注意？
 
 EN: Whenever you're ready. You might let your attention settle down into the middle of your body, and see what wants to be noticed.
 ZH: 什么时候开始都可以。你可以让注意力慢慢落到身体的中间，看看有什么想被留意到。
@@ -242,8 +242,8 @@ ZH: 此刻你在身体里注意到了什么？
 EN: How are you feeling right now?
 ZH: 你现在感觉怎么样？
 
-EN: Take a moment to settle in... how are you doing in there?
-ZH: 花一点时间安顿下来……你心里还好吗？
+EN: Take a moment to feel inward... how are you doing in there?
+ZH: 花一点时间向内感受……你心里还好吗？
 
 EN: Settling in. What's the feeling tone right now?
 ZH: 慢慢安顿下来。此刻心里是什么样的基调？
@@ -253,8 +253,8 @@ ZH: 慢慢安顿下来。此刻心里是什么样的基调？
 EN: Checking in with yourself... what's present?
 ZH: 先和自己打个招呼……此刻内在有什么？
 
-EN: Take a moment to settle in... how are you doing in there?
-ZH: 花一点时间安顿下来……你心里还好吗？
+EN: Take a moment to listen inward... how are you doing in there?
+ZH: 花一点时间向内倾听……你心里还好吗？
 
 EN: Settling in. What's showing up inside?
 ZH: 慢慢安顿下来。内在有什么浮现出来？
