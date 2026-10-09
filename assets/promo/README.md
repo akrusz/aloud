@@ -16,8 +16,12 @@ first when picking the work back up.
   clips out of the tracked `recordings/` folder unless the dev says otherwise:
   the repo is public and the sit is personal. Only the excerpts in the script
   are for use; the sit's bigger moments were left out as too big a promise.
-- **Recordings**: none yet. The dev still records n1 and v1 into
-  `play-video/recordings/<id>.wav`.
+- **Recordings**: done. `play-video/recordings/n1.wav` and `v1.wav` are his
+  Voice Memos takes with the start and stop clicks trimmed off (the `aloud-*`
+  originals sit beside them). Trimmed and faded only, not levelled: match
+  them to the excerpts with plain gain, since loudnorm misbehaves on clips
+  this short. Their room tone sits near -55 dBFS, where the excerpts are
+  gated silent, so listen for hiss coming and going around them.
 - **Facilitator lines are the dev's to handcraft.** Treat what the model said
   in the sit as a draft: he rewrote f1. Only his side of the exchange is
   presented as real, so no caption should call it an unedited session.
@@ -113,4 +117,4 @@ build is the next job.
 2. Build the visual scenes: orb, caption cards, end card, and real-UI captures
    of exploration, felt sense, noting and the setup screen.
 3. Assemble them with the audio above and render to `play-video/build/`
-   (gitignored). Until the dev records n1 and v1, stand them in with `say`.
+   (gitignored).
