@@ -29,6 +29,12 @@ describe('transcriptLooksIncomplete', () => {
         expect(transcriptLooksIncomplete('It happens when I breathe out and.')).toBe(true);
     });
 
+    it('lets a question end on a tail word', () => {
+        expect(transcriptLooksIncomplete('Can you actually do that?')).toBe(false);
+        expect(transcriptLooksIncomplete('What should I pay attention to?')).toBe(false);
+        expect(transcriptLooksIncomplete('这是为了什么？')).toBe(false);
+    });
+
     it('is not fooled by quotes/brackets around the terminator', () => {
         expect(transcriptLooksIncomplete('She said "let it happen."')).toBe(false);
     });

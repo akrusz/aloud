@@ -16,8 +16,8 @@
  * 76 pauses the speaker talked through and none of the 40 turn endings.
  */
 
-/** Words that almost never end a finished thought, even with terminal
- *  punctuation after them. */
+/** Words that almost never end a finished statement, even with a period
+ *  after them. A question mark outranks the list. */
 const DANGLING_TAIL_WORDS = new Set([
     // Conjunctions / connectives.
     'and',
@@ -105,6 +105,10 @@ export function transcriptLooksIncomplete(text: string): boolean {
     // Strip closing quotes/brackets so punctuation right before them counts.
     const unwrapped = trimmed.replace(/["'”’)\]]+$/u, '');
     if (/(?:…|\.{2,})$/u.test(unwrapped)) return true;
+    // A question is put to the facilitator, and English strands its tail words
+    // there ("Can you do that?", "What is this for?"). Across four recognizers
+    // on a real sit, "?" closed 2 of 40 endings and none of 76 pauses.
+    if (/[?？]$/u.test(unwrapped)) return false;
     // Full-width forms too: without them every 中文 turn read as unfinished.
     const endsTerminated = /[.!?。！？]$/u.test(unwrapped);
 
