@@ -437,7 +437,7 @@ export const EMPTY_REPLY_FALLBACKS: readonly string[] = [
 export const COMMON_OPENERS: readonly string[] = [
     'What do you notice right now?',
     "Let's begin. What's here?",
-    'Taking a moment to arrive... what do you notice?',
+    'Taking a moment to settle in... what do you notice?',
     "When you're ready, what are you aware of?",
     "Settling in. What's present for you?",
     "Let's just start where you are. What's happening right now?",
@@ -460,12 +460,12 @@ export const FOCUS_OPENERS: Partial<Record<Focus, readonly string[]>> = {
     ],
     emotions: [
         'How are you feeling right now?',
-        'Take a moment to arrive... how are you doing in there?',
+        'Take a moment to settle in... how are you doing in there?',
         "Settling in. What's the feeling tone right now?",
     ],
     inner_parts: [
         "Checking in with yourself... what's present?",
-        'Take a moment to arrive... how are you doing in there?',
+        'Take a moment to settle in... how are you doing in there?',
         "Settling in. What's showing up inside?",
     ],
     open_awareness: [
