@@ -58,6 +58,7 @@ html { font-size: 16px; }
     --brand-glow: rgba(255, 220, 80, 0.55);
     --brand-stroke: #e8b820;
     --warm: #c4a850;
+    --warm-text: var(--warm);
     --warm-dim: rgba(196, 168, 80, 0.12);
     --border: #302618;
     /* Zine treatment (shared with the landing page): the orb gradient's yellow
@@ -126,13 +127,13 @@ html[data-platform="android"] {
        keep every rung a visible step or fields sink into the ground. */
     --bg-primary: #f7efd6;
     --bg-secondary: #fcf7e6;
-    --bg-card: #f9d0ae;
+    --bg-card: #f6d8bf;
     --bg-input: #fffaf2;
     --bg-note: #fef9ec;
     --bg-surface: #ffffff;
     --bg-tertiary: #e9dab9;
     /* Light needs no easing - dark ink on a light card doesn't glare. */
-    --bg-dialog: #f9d0ae;
+    --bg-dialog: var(--bg-card);
     --text-dialog: #1f1a18;
     --text-primary: #1f1a18;
     --text-secondary: #5c4a44;
@@ -149,6 +150,8 @@ html[data-platform="android"] {
     --brand-glow: rgba(245, 216, 32, 0.85);
     --brand-stroke: #ffd820;
     --warm: #e5a01a;
+    /* --warm as small text: the fill gold is only ~2:1 on these grounds. */
+    --warm-text: #b88114;
     --warm-dim: rgba(245, 246, 0, 0.14);
     /* A step deeper than before: on the #f7efd6 ground the old #e2d0b8 nearly
        vanished, and the border is what separates input-on-secondary. */
@@ -3265,7 +3268,7 @@ body::before {
 }
 
 .transcript-role.user {
-    color: var(--warm);
+    color: var(--warm-text);
 }
 
 .transcript-text {
