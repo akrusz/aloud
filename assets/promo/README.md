@@ -104,7 +104,7 @@ How the rough cut was made, and what the build repeats.
 - **Harper**: `play-video/tools/render-line.mts`, one call per sentence, three
   takes; a line's sentences are concatenated as they come (each clip carries
   its own lead and tail silence) and normalized to -19 LUFS. Takes in the
-  rough cut: `f0-arrive-take2`, `f-present-s1-take2`, `f-anywhere-s2-take2`.
+  cut: `f0-settle-take2`, `f-present-s1-take2`, `f-anywhere-s2-take2`.
 - **Spacing**: 0.5-0.6s between a line and the reply, on top of the clips' own
   silence. `bowl-deep-long.mp3` opens at 0.22 gain, faded out over 6-10s, with
   the first voice at 2.5s.

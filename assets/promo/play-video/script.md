@@ -28,7 +28,7 @@ Target: ~60s, landscape 1920x1080. As written it runs about 77s.
 
 ## 2. the hook: caring for yourself (3-22s)
 
-aloud [f0]: Taking a moment to arrive... what do you notice?
+aloud [f0]: Taking a moment to settle in... what do you notice?
 you   [e1]: There is a sense of caring for myself by allowing me to be here.
 aloud [f1]: Just being fully present is an act of care. Do you feel it anywhere in the body?
 caption [c1]: a meditation guide that listens, and follows what you notice.

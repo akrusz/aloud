@@ -48,7 +48,7 @@ const CLIP_OUT = join(AUDIO_DIR, 'clips');
  * script.md, render it again and name the new takes here.
  */
 const HARPER_TAKES = {
-    f0: ['f0-arrive-take2'],
+    f0: ['f0-settle-take2'],
     f1: ['f-present-s1-take2', 'f-anywhere-s2-take2'],
     f3: ['f3-felt-sense-take2'],
 };
