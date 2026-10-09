@@ -28,10 +28,11 @@
   /* Light ground: warm paper-white rather than cream. Dark mode works because
      the ground is nearly valueless and the accents glow against it; light gets
      the same physics inverted - brighter paper, deeper section bands, and the
-     peach cards a touch more saturated so they read as colored paper cutouts. */
+     peach cards (the app's light --bg-card, kept in step by hand) reading as
+     colored paper cutouts. */
   --bg-primary:    light-dark(#fffdf2, #110d08);
   --bg-secondary:  light-dark(#f2e9cd, #1a1410);
-  --bg-card:       light-dark(#f9d0ae, #221a13);
+  --bg-card:       light-dark(#f6d8bf, #221a13);
   --bg-surface:    light-dark(#ffffff, #2e2419);
   --text-primary:  light-dark(#1f1a18, #f5efe6);
   --text-secondary:light-dark(#5c4a44, #c4b49e);
