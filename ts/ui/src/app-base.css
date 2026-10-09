@@ -3238,12 +3238,26 @@ body::before {
     line-height: 1.6;
 }
 
+.transcript-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.15rem;
+}
+
 .transcript-role {
     font-weight: 500;
     font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 0.15rem;
+}
+
+.transcript-time {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .transcript-role.facilitator {

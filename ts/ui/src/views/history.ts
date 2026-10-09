@@ -261,15 +261,38 @@ function renderTranscript(exchanges: readonly Exchange[]): string {
     if (exchanges.length === 0) {
         return `<p class="loading-text">${t('No exchanges recorded.')}</p>`;
     }
+    const clock = clockFormat();
     return spokenExchanges(exchanges)
-        .map(
-            (ex) => `
+        .map((ex) => {
+            // Exchanges saved without a timestamp load as 0.
+            const time = ex.timestamp ? formatClock(clock, ex.timestamp) : '';
+            return `
             <div class="transcript-message">
-                <div class="transcript-role ${ex.role}">${escapeHtml(speakerLabel(ex))}</div>
+                <div class="transcript-head">
+                    <span class="transcript-role ${ex.role}">${escapeHtml(speakerLabel(ex))}</span>
+                    ${time ? `<span class="transcript-time">${escapeHtml(time)}</span>` : ''}
+                </div>
                 <div class="transcript-text">${escapeHtml(ex.content)}</div>
-            </div>`
-        )
+            </div>`;
+        })
         .join('');
+}
+
+/** The UI language's wording on the device's 12- or 24-hour clock. */
+function clockFormat(): Intl.DateTimeFormat {
+    const device = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle;
+    return new Intl.DateTimeFormat(uiLocale(), {
+        hour: 'numeric',
+        minute: '2-digit',
+        hourCycle: device === 'h23' || device === 'h24' ? 'h23' : 'h12',
+    });
+}
+
+/** "1:23pm" or "13:23". */
+function formatClock(clock: Intl.DateTimeFormat, timestamp: number): string {
+    return clock
+        .format(new Date(timestamp * 1000))
+        .replace(/\s*([AP])M$/, (_, half: string) => `${half.toLowerCase()}m`);
 }
 
 function formatDate(startTime: number): string {
