@@ -9,7 +9,7 @@ import {
 import { OllamaProvider } from '../src/llm/ollama.js';
 import { OpenAIProvider } from '../src/llm/openai.js';
 
-const noSleep = async (): Promise<void> => {};
+const noSleep = async (_ms: number): Promise<void> => {};
 
 function statuses(...codes: number[]): ReturnType<typeof vi.fn> {
     const fn = vi.fn();
@@ -97,7 +97,7 @@ describe('fetchWithRetry', () => {
             async () => new Response('busy', { status: 503, headers: { 'retry-after': ra } })
         );
         await fetchWithRetry(fetchImpl as unknown as typeof fetch, 'u', {}, { sleep });
-        const total = sleep.mock.calls.reduce((sum, [ms]) => sum + (ms as number), 0);
+        const total = sleep.mock.calls.reduce((sum, [ms]) => sum + ms, 0);
         expect(total).toBeLessThanOrEqual(MAX_TOTAL_RETRY_DELAY_MS);
         expect(fetchImpl).toHaveBeenCalledTimes(2);
     });

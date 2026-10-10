@@ -49,7 +49,7 @@ describe('email-updates opt-in', () => {
     it('PATCH /cloud/v1/me toggles it both ways', async () => {
         const app = makeApp();
         const { token } = await signup(app, { email: 'toggle@example.com', password: 'password1' });
-        const patch = (emailUpdates: boolean): Promise<Response> =>
+        const patch = async (emailUpdates: boolean): Promise<Response> =>
             app.request('/cloud/v1/me', {
                 method: 'PATCH',
                 headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },

@@ -4,10 +4,11 @@ import {
     PacingController,
     TurnDecision,
     defaultPacingConfig,
+    type PacingConfig,
 } from '../src/facilitation/pacing.js';
 import { createFakeClock } from '../src/clock.js';
 
-function makeController(opts?: { config?: Parameters<typeof PacingController['prototype']['constructor']>[0]['config'] }) {
+function makeController(opts?: { config?: Partial<PacingConfig> }) {
     const fake = createFakeClock(1_000_000);
     const controller = new PacingController({
         clock: fake.clock,

@@ -9,7 +9,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 
 import { isCapacitor, capacitorPlatform } from '../ui/src/is-desktop.js';
 
-type Win = { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } };
+type Win = { Capacitor: { isNativePlatform?: () => boolean; getPlatform?: () => string } | undefined };
 
 function setWindow(cap: Win['Capacitor'] | 'no-window'): void {
     if (cap === 'no-window') {

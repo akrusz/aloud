@@ -15,6 +15,7 @@ import {
     JUDGE_SPECS,
     judgeState,
     type ClassifierId,
+    type JudgeId,
     type JudgeAnswers,
     type JudgeContext,
     type JudgeReport,
@@ -174,13 +175,14 @@ describe('typed-judgment path (utterance-judge.ts)', () => {
     /** Answers every ask of the classifier with `p`, or with per-ask overrides. */
     const judgeOf = (
         p: number | Error | JudgeAnswers
-    ): UtteranceJudge & { seen: Array<[ClassifierId, string, JudgeContext | undefined]> } => ({
+    ): UtteranceJudge & { seen: Array<[JudgeId, string, JudgeContext | undefined]> } => ({
         seen: [],
         async judge(id, text, context) {
             this.seen.push([id, text, context]);
             if (p instanceof Error) throw p;
             if (typeof p !== 'number') return p;
-            return Object.fromEntries(Object.keys(JUDGE_SPECS[id].asks).map((k) => [k, p]));
+            // Only the three classifiers are ever asked here.
+            return Object.fromEntries(Object.keys(JUDGE_SPECS[id as ClassifierId].asks).map((k) => [k, p]));
         },
     });
 

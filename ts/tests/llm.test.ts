@@ -79,7 +79,7 @@ describe('AnthropicProvider', () => {
 
     it('sends the direct-browser-access header only when asked, hitting the real API', async () => {
         const headersFor = async (directBrowserAccess: boolean) => {
-            const fetchImpl = vi.fn(async () =>
+            const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
                 mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
             );
             const provider = new AnthropicProvider({
@@ -104,7 +104,7 @@ describe('AnthropicProvider', () => {
 
     it('tunes thinking by model family: effort low on always-on, disable on opt-out, nothing on opt-in', async () => {
         const bodyFor = async (model: string) => {
-            const fetchImpl = vi.fn(async () =>
+            const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
                 mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
             );
             const provider = new AnthropicProvider({
@@ -202,7 +202,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('sends the system prompt without its own cache_control and strips system from messages', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'Welcome.' }],
                 stop_reason: 'end_turn',
@@ -249,7 +249,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('puts the cache breakpoint on the last message only, leaving earlier turns plain', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'ok' }],
                 stop_reason: 'end_turn',
@@ -281,7 +281,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('adds a 1h-TTL anchor breakpoint every 16 messages in a long conversation', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'ok' }],
                 stop_reason: 'end_turn',
@@ -321,7 +321,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('parses the per-TTL cache_creation breakdown (ephemeral_1h_input_tokens)', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'hi' }],
                 stop_reason: 'end_turn',
@@ -346,7 +346,7 @@ describe('AnthropicProvider', () => {
 
     it('surfaces the reported thinking tokens as a diagnostic', async () => {
         const reply = (usage: object) =>
-            vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn', usage }));
+            vi.fn(async (_url: string, _init?: RequestInit) => mockJsonResponse({ content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn', usage }));
         const thinking = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: reply({ input_tokens: 1, output_tokens: 40, output_tokens_details: { thinking_tokens: 30 } }) as unknown as typeof fetch,
@@ -362,7 +362,7 @@ describe('AnthropicProvider', () => {
     it('prepends a user stub when the conversation opens with an assistant message', async () => {
         // The summary-based resume flow leads with an assistant recap;
         // Anthropic requires the first message to be from the user.
-        const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -381,7 +381,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('sends one message per entry, never merging (a merge rewrites a cached block)', async () => {
-        const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -403,7 +403,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('omits the system field when no system prompt provided', async () => {
-        const fetchImpl = vi.fn(async () => mockJsonResponse({ content: [{ type: 'text', text: '' }] }));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockJsonResponse({ content: [{ type: 'text', text: '' }] }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -414,7 +414,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('surfaces API errors with the status code (after exhausting retries)', async () => {
-        const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 }));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => new Response('rate limited', { status: 429 }));
         const provider = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -425,7 +425,7 @@ describe('AnthropicProvider', () => {
 
     it('retries a transient 529 (overloaded) and then succeeds', async () => {
         let calls = 0;
-        const fetchImpl = vi.fn(async () => {
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => {
             calls++;
             if (calls === 1) return new Response('overloaded', { status: 529 });
             return mockJsonResponse({ content: [{ type: 'text', text: 'recovered' }] });
@@ -441,7 +441,7 @@ describe('AnthropicProvider', () => {
     });
 
     it('completeStream yields incremental text deltas + final usage', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'event: message_start\ndata: {"type":"message_start"}',
                 'event: content_block_start\ndata: {"type":"content_block_start"}',
@@ -472,7 +472,7 @@ describe('AnthropicProvider', () => {
 
 describe('OllamaProvider', () => {
     it('sends system as a leading message and uses num_predict for max tokens', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 message: { content: 'What do you notice?' },
                 done_reason: 'stop',
@@ -520,7 +520,7 @@ describe('OllamaProvider', () => {
     it('strips trailing slashes from the base URL', () => {
         const provider = new OllamaProvider({ baseUrl: 'http://localhost:11434/' });
         // The trailing-slash strip is private — verify indirectly via a request.
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ message: { content: '' }, eval_count: 0, prompt_eval_count: 0 })
         );
         const p = new OllamaProvider({
@@ -534,7 +534,7 @@ describe('OllamaProvider', () => {
     });
 
     it('checkModelAvailable matches exact and prefixed model names', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 models: [{ name: 'qwen3.5:4b' }, { name: 'gemma:2b' }],
             })
@@ -553,7 +553,7 @@ describe('OllamaProvider', () => {
     });
 
     it('checkModelAvailable returns false on network error', async () => {
-        const fetchImpl = vi.fn(async () => {
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => {
             throw new Error('econnrefused');
         });
         const provider = new OllamaProvider({
@@ -563,7 +563,7 @@ describe('OllamaProvider', () => {
     });
 
     it('coldLoadMessage returns null when the model is already loaded', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ models: [{ name: 'qwen3.5:4b' }] })
         );
         const provider = new OllamaProvider({
@@ -575,7 +575,7 @@ describe('OllamaProvider', () => {
     });
 
     it('coldLoadMessage returns a status string when the model is not loaded', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ models: [{ name: 'gemma:2b' }] })
         );
         const provider = new OllamaProvider({
@@ -587,7 +587,7 @@ describe('OllamaProvider', () => {
     });
 
     it('coldLoadMessage returns null when Ollama is unreachable', async () => {
-        const fetchImpl = vi.fn(async () => {
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => {
             throw new Error('econnrefused');
         });
         const provider = new OllamaProvider({
@@ -597,7 +597,7 @@ describe('OllamaProvider', () => {
     });
 
     it('completeStream yields NDJSON deltas with final usage', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockNdjsonResponse([
                 { message: { content: 'Hi' }, done: false },
                 { message: { content: ' there' }, done: false },
@@ -665,7 +665,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('sends system as a leading message, bearer auth, and max_completion_tokens for OpenAI direct', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse('Welcome.'));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse('Welcome.'));
         const provider = new OpenAIProvider({
             apiKey: 'sk-test',
             model: 'gpt-5.4-mini',
@@ -700,7 +700,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('omits reasoning_effort for non-reasoning models on OpenAI direct, but still uses max_completion_tokens', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse('ok'));
         const provider = new OpenAIProvider({
             apiKey: 'sk-test',
             model: 'gpt-4o-mini',
@@ -715,7 +715,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('keeps max_tokens for OpenAI-compatible providers with non-reasoning models', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse('ok'));
         const provider = new OpenAIProvider({
             apiKey: 'k',
             baseUrl: 'https://api.groq.com/openai/v1',
@@ -730,7 +730,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('uses max_completion_tokens for gpt-5/o-series models even off api.openai.com', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse('ok'));
         const provider = new OpenAIProvider({
             apiKey: 'sk-test',
             baseUrl: 'https://compat.example/v1',
@@ -759,7 +759,7 @@ describe('OpenAIProvider', () => {
             ['o4-mini', 'low'],
         ];
         for (const [model, effort] of cases) {
-            const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
+            const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse('ok'));
             const provider = new OpenAIProvider({
                 apiKey: 'sk-test',
                 model,
@@ -772,7 +772,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('strips trailing slashes from baseUrl', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse(''));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse(''));
         const provider = new OpenAIProvider({
             apiKey: 'k',
             baseUrl: 'https://api.openai.com/v1////',
@@ -785,7 +785,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('merges extraBody into the request body', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse(''));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse(''));
         const provider = new OpenAIProvider({
             apiKey: 'k',
             extraBody: { reasoning_effort: 'low' },
@@ -799,7 +799,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('surfaces API errors with the status code', async () => {
-        const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 }));
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => new Response('rate limited', { status: 429 }));
         const provider = new OpenAIProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -810,7 +810,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('completeStream yields SSE deltas + [DONE] terminator', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}',
                 'data: {"choices":[{"delta":{"content":" there."},"finish_reason":null}]}',
@@ -852,7 +852,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     // 200 chunk carrying `error` (finish_reason "error"). Left unread, that is a
     // silent empty completion with nothing in any log (meditation-pal-yi02).
     it('completeStream throws on an inline error chunk instead of ending empty', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'data: {"choices":[{"delta":{"content":""},"finish_reason":null}]}',
                 'data: {"error":{"message":"Provider returned error","code":502},"choices":[{"delta":{},"finish_reason":"error"}]}',
@@ -869,7 +869,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('complete throws on a 200 body carrying an error instead of returning empty text', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ error: { message: 'No endpoints found', code: 404 } })
         );
         const provider = new OpenRouterProvider({
@@ -882,7 +882,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('OpenRouter disables reasoning by default', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new OpenRouterProvider({
             apiKey: 'sk-or-test',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -893,7 +893,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('OpenRouter pins effort low for mandatory-reasoning models (kimi-k3) instead of disabling', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new OpenRouterProvider({
             apiKey: 'sk-or-test',
             model: 'moonshotai/kimi-k3',
@@ -905,7 +905,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('OpenRouter omits the reasoning param entirely for models that do not support it (kimi-k2)', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new OpenRouterProvider({
             apiKey: 'sk-or-test',
             model: 'moonshotai/kimi-k2',
@@ -922,7 +922,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('OpenRouter adds reasoning headroom to max_tokens for mandatory-reasoning models', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new OpenRouterProvider({
             apiKey: 'sk-or-test',
             model: 'moonshotai/kimi-k3',
@@ -941,7 +941,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('OpenRouter adds no headroom for models that run without reasoning', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new OpenRouterProvider({
             apiKey: 'sk-or-test',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -952,7 +952,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('Venice uses api.venice.ai and injects extraBody for system prompt suppression', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new VeniceProvider({
             apiKey: 'sk-venice-test',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -967,7 +967,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
     });
 
     it('caller-provided extraBody merges over the default extraBody', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse());
         const provider = new VeniceProvider({
             apiKey: 'k',
             extraBody: { foo: 'bar' },
@@ -987,7 +987,7 @@ describe('Preconfigured OpenAI-compatible providers', () => {
 
 describe('usage split — input/output/cache kept separate', () => {
     it('Anthropic complete() parses input/output + cache fields', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'hi' }],
                 stop_reason: 'end_turn',
@@ -1013,7 +1013,7 @@ describe('usage split — input/output/cache kept separate', () => {
     });
 
     it('Anthropic completeStream merges message_start + message_delta usage', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":50,"cache_read_input_tokens":40}}}',
                 'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"hi"}}',
@@ -1036,7 +1036,7 @@ describe('usage split — input/output/cache kept separate', () => {
     });
 
     it('OpenAI complete() maps prompt/completion tokens to input/output', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
                 usage: { prompt_tokens: 30, completion_tokens: 9, total_tokens: 39 },
@@ -1056,7 +1056,7 @@ describe('usage split — input/output/cache kept separate', () => {
     });
 
     it('OpenAI complete() splits cached + written prompt tokens out of fresh input', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
                 usage: {
@@ -1082,7 +1082,7 @@ describe('usage split — input/output/cache kept separate', () => {
     });
 
     it('Ollama maps prompt_eval_count/eval_count to input/output (no cache)', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 message: { content: 'ok' },
                 done_reason: 'stop',
@@ -1101,7 +1101,7 @@ describe('usage split — input/output/cache kept separate', () => {
     });
 
     it('null usage yields null splits, not zeros', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn' })
         );
         const provider = new AnthropicProvider({
@@ -1148,7 +1148,7 @@ describe('streaming cancellation', () => {
             ['data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n'],
             'text/event-stream'
         );
-        const fetchImpl = vi.fn(async () => response);
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => response);
         const provider = new OpenAIProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -1165,7 +1165,7 @@ describe('streaming cancellation', () => {
             ['{"message":{"content":"Hi"},"done":false}\n'],
             'application/x-ndjson'
         );
-        const fetchImpl = vi.fn(async () => response);
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => response);
         const provider = new OllamaProvider({
             fetchImpl: fetchImpl as unknown as typeof fetch,
         });
@@ -1177,7 +1177,7 @@ describe('streaming cancellation', () => {
     });
 
     it('Ollama completeStream throws an inline mid-stream error instead of ending empty', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             new Response('{"error":"llama runner process has terminated: exit status 2"}\n', {
                 headers: { 'content-type': 'application/x-ndjson' },
             })
@@ -1201,7 +1201,7 @@ describe('streaming cancellation', () => {
             ],
             'text/event-stream'
         );
-        const fetchImpl = vi.fn(async () => response);
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => response);
         const provider = new AnthropicProvider({
             apiKey: 'k',
             fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -1217,7 +1217,7 @@ describe('streaming cancellation', () => {
         const controller = new AbortController();
         const { signal } = controller;
 
-        const anthropicFetch = vi.fn(async () =>
+        const anthropicFetch = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
         );
         await new AnthropicProvider({
@@ -1226,7 +1226,7 @@ describe('streaming cancellation', () => {
         }).complete([{ role: 'user', content: 'hi' }], { signal });
         expect((anthropicFetch.mock.calls[0]?.[1] as RequestInit).signal).toBe(signal);
 
-        const openaiFetch = vi.fn(async () =>
+        const openaiFetch = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] })
         );
         await new OpenAIProvider({
@@ -1235,7 +1235,7 @@ describe('streaming cancellation', () => {
         }).complete([{ role: 'user', content: 'hi' }], { signal });
         expect((openaiFetch.mock.calls[0]?.[1] as RequestInit).signal).toBe(signal);
 
-        const ollamaFetch = vi.fn(async () =>
+        const ollamaFetch = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({ message: { content: 'ok' }, done_reason: 'stop' })
         );
         await new OllamaProvider({
@@ -1246,7 +1246,7 @@ describe('streaming cancellation', () => {
 
     it('passes the signal on streaming requests too', async () => {
         const controller = new AbortController();
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse(['data: [DONE]'])
         );
         const provider = new OpenAIProvider({
@@ -1271,7 +1271,7 @@ describe('streaming cancellation', () => {
  */
 describe('completion diagnostics - hidden reasoning + serving host', () => {
     it('counts streamed delta.reasoning and reports the OpenRouter provider/model', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'data: {"provider":"Novita","model":"moonshotai/kimi-k2","choices":[{"delta":{"reasoning":"Let me think about"}}]}',
                 'data: {"provider":"Novita","model":"moonshotai/kimi-k2","choices":[{"delta":{"reasoning":" this carefully"}}]}',
@@ -1297,7 +1297,7 @@ describe('completion diagnostics - hidden reasoning + serving host', () => {
     });
 
     it('reports message.reasoning and provider on the non-streaming path, zero when absent', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 provider: 'Novita',
                 model: 'moonshotai/kimi-k2-0905',
@@ -1310,7 +1310,7 @@ describe('completion diagnostics - hidden reasoning + serving host', () => {
 
         const plain = new OpenAIProvider({
             apiKey: 'k',
-            fetchImpl: vi.fn(async () =>
+            fetchImpl: vi.fn(async (_url: string, _init?: RequestInit) =>
                 mockJsonResponse({ choices: [{ message: { content: 'hi' }, finish_reason: 'stop' }] })
             ) as unknown as typeof fetch,
         });
@@ -1407,7 +1407,7 @@ describe('mid-conversation system entries (phase notes)', () => {
 
 describe('AnthropicProvider - safety-classifier refusals', () => {
     const request = async (model: string, response: Response = mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })) => {
-        const fetchImpl = vi.fn(async () => response);
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => response);
         const provider = new AnthropicProvider({ apiKey: 'k', model, fetchImpl: fetchImpl as unknown as typeof fetch });
         const result = await provider.complete([{ role: 'user', content: 'hi' }]);
         const init = fetchImpl.mock.calls[0]![1] as RequestInit;
@@ -1506,7 +1506,7 @@ describe('AnthropicProvider - safety-classifier refusals', () => {
     });
 
     it('reads the refusal category and fallback iterations off the stream', async () => {
-        const fetchImpl = vi.fn(async () =>
+        const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'event: message_start\ndata: {"type":"message_start","message":{"model":"claude-opus-5-5","usage":{"input_tokens":4}}}',
                 'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"type":"refusal","category":"bio","explanation":"x"}},"usage":{"output_tokens":42}}',
@@ -1520,7 +1520,7 @@ describe('AnthropicProvider - safety-classifier refusals', () => {
         expect(last?.diagnostics?.refusalCategory).toBe('bio');
         expect(last?.attempts).toBeUndefined();
 
-        const fellBack = vi.fn(async () =>
+        const fellBack = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockSseResponse([
                 'event: message_start\ndata: {"type":"message_start","message":{"model":"claude-opus-4-8","usage":{"input_tokens":12}}}',
                 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":{"model":"claude-opus-4-8"}}}',

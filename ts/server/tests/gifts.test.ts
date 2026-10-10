@@ -197,8 +197,8 @@ describe('returned gifts: claim and re-gift (meditation-pal-bd5)', () => {
         const stranger = await account(d, 'stranger@e.com');
         const g = await returnedGift(d, buyer, 50);
 
-        expect((await claimReturned(d, stranger, g.id, NOW)).reason).toBe('not_owner');
-        expect((await regiftReturned(d, stranger, g.id, 'x@e.com', NOW)).reason).toBe('not_owner');
+        expect(await claimReturned(d, stranger, g.id, NOW)).toEqual({ ok: false, reason: 'not_owner' });
+        expect(await regiftReturned(d, stranger, g.id, 'x@e.com', NOW)).toEqual({ ok: false, reason: 'not_owner' });
         expect(await d.ledger.balance(stranger.id)).toBe(0);
     });
 
@@ -206,7 +206,7 @@ describe('returned gifts: claim and re-gift (meditation-pal-bd5)', () => {
         const d = deps();
         const buyer = await account(d, 'buyer@e.com');
         const g = await returnedGift(d, buyer, 50);
-        expect((await regiftReturned(d, buyer, g.id, 'not-an-email', NOW)).reason).toBe('bad_email');
+        expect(await regiftReturned(d, buyer, g.id, 'not-an-email', NOW)).toEqual({ ok: false, reason: 'bad_email' });
     });
 
     it('cannot claim after re-gift (state moved on)', async () => {
@@ -214,7 +214,7 @@ describe('returned gifts: claim and re-gift (meditation-pal-bd5)', () => {
         const buyer = await account(d, 'buyer@e.com');
         const g = await returnedGift(d, buyer, 50);
         await regiftReturned(d, buyer, g.id, 'new@e.com', NOW);
-        expect((await claimReturned(d, buyer, g.id, NOW)).reason).toBe('not_returned');
+        expect(await claimReturned(d, buyer, g.id, NOW)).toEqual({ ok: false, reason: 'not_returned' });
         expect(await d.ledger.balance(buyer.id)).toBe(0);
     });
 });

@@ -234,11 +234,11 @@ npm test && npm run ui:build && npm run test:server
 
 # TS core + UI (vitest) and typecheck
 cd ts && npm test
-cd ts && npm run typecheck            # tsc over src/ + ui/ ONLY - not the server
+cd ts && npm run typecheck            # tsc over src/, ui/, soak/ and tests/ - not the server
 
 # Hosted server
 cd ts/server && npm test
-cd ts/server && npx tsc --noEmit -p tsconfig.json
+cd ts/server && npx tsc --noEmit -p tsconfig.json   # src/ and tests/
 
 # Rust shell
 cargo check --manifest-path ts/src-tauri/Cargo.toml

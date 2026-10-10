@@ -23,7 +23,7 @@ import type { LLMProvider } from '../../ts/src/llm/base.js';
 import type { TtsEngine } from '../../ts/src/platform/tts.js';
 import type { SttEngine, SttEvent } from '../../ts/src/platform/stt.js';
 
-const realProvider = { model: 'test-model', complete: async () => ({ text: 'hi' }) };
+const realProvider = { model: 'test-model', complete: async () => ({ text: 'hi' }) } as unknown as LLMProvider;
 const realTts: TtsEngine = {
     speak: async () => {},
     cancel: async () => {},
@@ -48,7 +48,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('no fault set - every wrapper is a pass-through', () => {
     it('returns the real objects untouched', async () => {
-        expect(simulateLlmFault(realProvider as LLMProvider)).toBe(realProvider);
+        expect(simulateLlmFault(realProvider)).toBe(realProvider);
         expect(simulateTtsFault(realTts)).toBe(realTts);
         expect(simulateSttFault(realStt)).toBe(realStt);
         const voices = [{ id: 'a' }] as never;
@@ -63,7 +63,7 @@ describe('no fault set - every wrapper is a pass-through', () => {
 describe('cloud faults produce errors the real handlers recognize', () => {
     it('fails complete() with a message describeCloudError maps', async () => {
         setCloudFault('insufficient_credits');
-        const provider = simulateLlmFault(realProvider as LLMProvider);
+        const provider = simulateLlmFault(realProvider);
         await expect(provider.complete([])).rejects.toThrow(/endpoint 402/);
         try {
             await provider.complete([]);
@@ -74,7 +74,7 @@ describe('cloud faults produce errors the real handlers recognize', () => {
 
     it('fails completeStream() too, since callers feature-check it', async () => {
         setCloudFault('quota_exceeded');
-        const provider = simulateLlmFault(realProvider as LLMProvider);
+        const provider = simulateLlmFault(realProvider);
         // A wrapper that only overrode complete() would let the streaming path
         // run clean and silently test nothing.
         await expect(async () => {
@@ -86,7 +86,7 @@ describe('cloud faults produce errors the real handlers recognize', () => {
 
     it('keeps the provider model visible through the wrapper', () => {
         setCloudFault('unauthenticated');
-        expect(simulateLlmFault(realProvider as LLMProvider).model).toBe('test-model');
+        expect(simulateLlmFault(realProvider).model).toBe('test-model');
     });
 
     it('fails the TTS leg with the same recognizable shape', async () => {

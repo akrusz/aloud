@@ -18,7 +18,7 @@
     "scripts": {
         "postinstall": "patch-package",
         "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p ui/tsconfig.json && tsc --noEmit -p soak/tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p ui/tsconfig.json && tsc --noEmit -p soak/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
         "test": "vitest run",
         "test:watch": "vitest",
         "cli": "tsx src/cli.ts",

@@ -288,13 +288,17 @@ describe('deleteAccount — soft-delete + anti-farming (meditation-pal-8jc)', ()
         expect(await d.ledger.balance(second.account.id)).toBe(0);
     });
 
-    it('normalized email variants (dots/+tags) share one grant — no re-farming', async () => {
+    it('a deleted user returning under a dot/+tag variant of the mailbox gets no second grant', async () => {
         const d = deps();
-        const a = await connectIdentity(d, google({ sub: 'g-a', email: 'john.doe@gmail.com' }));
-        expect(a.granted).toBe(20);
-        // A different Google login but the SAME mailbox (dots + tag tricks).
-        const b = await connectIdentity(d, google({ sub: 'g-b', email: 'johndoe+promo@googlemail.com' }));
-        expect(b.granted).toBe(0);
+        const first = await connectIdentity(d, google({ sub: 'g-a', email: 'john.doe@gmail.com' }));
+        expect(first.granted).toBe(20);
+        await deleteAccount(d, first.account);
+        // A different Google login for the SAME mailbox. Nothing live is left to
+        // link to, so only the burned (normalized) grant key can refuse it.
+        const second = await connectIdentity(d, google({ sub: 'g-b', email: 'johndoe+promo@googlemail.com' }));
+        expect(second.isNewAccount).toBe(true);
+        expect(second.granted).toBe(0);
+        expect(await d.ledger.balance(second.account.id)).toBe(0);
     });
 
     it('a genuinely different email still gets its own grant (no false collision)', async () => {

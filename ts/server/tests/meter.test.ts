@@ -118,17 +118,15 @@ describe('long-prompt rate card (Haiku 5.5, over 100K prompt tokens)', () => {
 
 describe('priceSession', () => {
     it('sums all three metered legs (llm + stt + tts)', () => {
-        const turn = priceSession('anthropic', 'claude-haiku-5-5', {
-            llmCalls: 1,
-            llmTokensIn: 1000,
-            llmTokensOut: 1000,
-            llmCacheRead: 0,
-            llmCacheCreation: 0,
-            sttSeconds: 60,
-            ttsChars: 500,
-        });
-        expect(turn.providerCostUsd).toBeGreaterThan(0);
-        expect(turn.credits).toBeGreaterThan(0);
+        const none = { llmCalls: 0, llmTokensIn: 0, llmTokensOut: 0, llmCacheRead: 0, llmCacheCreation: 0, sttSeconds: 0, ttsChars: 0 };
+        const usd = (usage: Partial<typeof none>): number =>
+            priceSession('anthropic', 'claude-haiku-5-5', { ...none, ...usage }).providerCostUsd;
+        const llm = { llmCalls: 1, llmTokensIn: 1000, llmTokensOut: 1000 };
+        const stt = { sttSeconds: 60 };
+        const tts = { ttsChars: 500 };
+        // Every leg costs something, so losing one from the total would show.
+        expect(Math.min(usd(llm), usd(stt), usd(tts))).toBeGreaterThan(0);
+        expect(usd({ ...llm, ...stt, ...tts })).toBeCloseTo(usd(llm) + usd(stt) + usd(tts), 12);
     });
 });
 

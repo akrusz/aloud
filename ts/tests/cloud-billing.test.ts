@@ -74,7 +74,7 @@ describe('startCheckout', () => {
 
     it('POSTs packId + channel + returnPath with the bearer token and returns the url', async () => {
         await kv.set('server:token', 'tok-abc');
-        let seen: { url: string; init?: RequestInit } | null = null;
+        let seen: { url: string; init: RequestInit | undefined } | null = null;
         vi.stubGlobal(
             'fetch',
             vi.fn(async (url: string, init?: RequestInit) => {
@@ -135,7 +135,7 @@ describe('gifts', () => {
 
     it('accept/decline POST to the gift routes with the bearer token', async () => {
         await kv.set('server:token', 'tok');
-        const calls: Array<{ url: string; method?: string }> = [];
+        const calls: Array<{ url: string; method: string | undefined }> = [];
         vi.stubGlobal(
             'fetch',
             vi.fn(async (url: string, init?: RequestInit) => {

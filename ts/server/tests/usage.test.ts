@@ -528,21 +528,24 @@ describe('buildUsageReport - real-sit filter and account weighting', () => {
     });
 
     it('caps how far one heavy account can pull the rate', () => {
-        // One account with 100x the spend of nine others, burning 10x the rate.
-        // Unweighted this lands near 10; one-account-one-vote would land near
-        // 1.9; sqrt sits between, closer to the crowd than to the whale.
+        // A whale sits 100 hours at 10 cr/hr; nine others sit an hour each at
+        // 1 cr/hr. Total/total is nearly all whale (~9.3) and one-account-one
+        // -vote would be 1.9. Sqrt-of-spend lands between (~8.0): the whale
+        // counts for sqrt(1000) ~ 32 of the others, not the 100 its hours buy.
         const events = [
-            ev({ accountId: 'whale', sessionId: 'w', ts: 1000, kind: 'llm', credits: 100, providerCostUsd: 5 }),
-            ev({ accountId: 'whale', sessionId: 'w', ts: 1000 + 3600, kind: 'llm', credits: 0, providerCostUsd: 0 }),
+            ev({ accountId: 'whale', sessionId: 'w', ts: 1000, kind: 'llm', credits: 1000, providerCostUsd: 50 }),
+            ev({ accountId: 'whale', sessionId: 'w', ts: 1000 + 100 * 3600, kind: 'llm', credits: 0, providerCostUsd: 0 }),
             ...Array.from({ length: 9 }, (_, i) => [
-                ev({ accountId: `u${i}`, sessionId: `s${i}`, ts: 1000, kind: 'llm', credits: 10, providerCostUsd: 0.5 }),
+                ev({ accountId: `u${i}`, sessionId: `s${i}`, ts: 1000, kind: 'llm', credits: 1, providerCostUsd: 0.05 }),
                 ev({ accountId: `u${i}`, sessionId: `s${i}`, ts: 1000 + 3600, kind: 'llm', credits: 0, providerCostUsd: 0 }),
             ]).flat(),
         ];
         const r = buildUsageReport(events, 1_000_000, 0, { realSit: { minTurns: 0 } });
         expect(r.perHour.accounts).toBe(10);
-        expect(r.perHour.creditsPerHour).toBeGreaterThan(10);
-        expect(r.perHour.creditsPerHour).toBeLessThan(40);
+        expect(r.perHour.raw.creditsPerHour).toBeCloseTo(1009 / 109, 9);
+        const whale = Math.sqrt(50);
+        const other = Math.sqrt(0.05);
+        expect(r.perHour.creditsPerHour).toBeCloseTo((whale * 10 + 9 * other * 1) / (whale + 9 * other), 9);
     });
 
     it('the real-sit bar is configurable, and a zero disables that criterion', () => {

@@ -270,7 +270,7 @@ describe('no role-labeled transcripts in assembled prompts', () => {
         const builder = new PromptBuilder({
             mode,
             config: {
-                focuses: ['body', 'emotions', 'parts', 'open_awareness'],
+                focuses: ['body_sensations', 'emotions', 'inner_parts', 'open_awareness'],
                 qualities: Object.keys(QUALITY_PROMPTS) as never,
                 directiveness: 7,
                 verbosity: 'high',

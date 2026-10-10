@@ -25,7 +25,7 @@ function fakeFetch(status: number, body: unknown): typeof fetch {
 
 describe('exchangeGoogleCode', () => {
     it('posts the code + PKCE verifier + secret as form-encoded and returns the id_token', async () => {
-        let seen: { url: string; init?: RequestInit } | null = null;
+        let seen: { url: string; init: RequestInit | undefined } | null = null;
         const capturing = (async (url: string, init?: RequestInit) => {
             seen = { url, init };
             return new Response(JSON.stringify({ id_token: 'the.id.token' }), {

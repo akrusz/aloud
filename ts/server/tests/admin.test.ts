@@ -183,13 +183,13 @@ describe('admin routes — data', () => {
         await h.store.appendUsage({
             id: 'u1', accountId: 'a1', sessionId: null, passId: null, ts: 1_000_000,
             kind: 'llm', provider: 'google', model: 'gemini-3.5-flash-lite',
-            tokensIn: 100, tokensOut: 20, cacheRead: 900, cacheCreation: 0,
+            tokensIn: 100, tokensOut: 20, cacheRead: 900, cacheCreation: 0, cacheCreation1h: 0, purpose: null,
             seconds: 0, chars: 0, providerCostUsd: 0.0002, credits: 0.004,
         });
         await h.store.appendUsage({
             id: 'u2', accountId: 'a1', sessionId: null, passId: null, ts: 1_000_010,
             kind: 'tts', provider: 'google', model: 'Leda',
-            tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0,
+            tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0, purpose: null,
             seconds: 0, chars: 400, providerCostUsd: 0.012, credits: 0.24,
         });
 
@@ -225,7 +225,7 @@ describe('admin routes — data', () => {
         const base = {
             sessionId: null, passId: null, kind: 'llm' as const, provider: 'google',
             model: 'gemini-3.5-flash-lite', tokensIn: 100, tokensOut: 20, cacheRead: 0,
-            cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
+            cacheCreation: 0, cacheCreation1h: 0, purpose: null, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
         };
         const now = Date.now() / 1000;
         await h2.store.appendUsage({ id: 'ua', accountId: 'adm', ts: now - 60, ...base });
@@ -250,7 +250,7 @@ describe('admin routes — data', () => {
         const base = {
             sessionId: null, passId: null, kind: 'llm' as const, provider: 'anthropic',
             model: 'claude-opus-5', tokensIn: 100, tokensOut: 20, cacheRead: 0,
-            cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
+            cacheCreation: 0, cacheCreation1h: 0, purpose: null, seconds: 0, chars: 0, providerCostUsd: 0.01, credits: 0.2,
         };
         const now = Date.now() / 1000;
         for (const who of ['adm', 'usr']) {
@@ -508,7 +508,7 @@ describe('admin routes — retreats', () => {
         await store.appendUsage({
             id: 'u1', accountId: 'acct-1', sessionId: null, passId: pass.id, ts: 1_500,
             kind: 'llm', provider: 'google', model: 'gemini-3.5-flash-lite',
-            tokensIn: 10, tokensOut: 5, cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0,
+            tokensIn: 10, tokensOut: 5, cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0, purpose: null, seconds: 0, chars: 0,
             providerCostUsd: 0.02, credits: 0.4,
         });
 

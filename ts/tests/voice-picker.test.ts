@@ -128,7 +128,7 @@ describe('downloadVoiceModel', () => {
         await downloadVoiceModel('en_US-lessac-medium', 'piper', (p) => progress.push(p.completed));
 
         expect(progress).toEqual([50, 100]);
-        const [, init] = fetchMock.mock.calls[0];
+        const [, init] = fetchMock.mock.calls[0]!;
         expect(JSON.parse((init as RequestInit).body as string)).toEqual({
             voice: 'en_US-lessac-medium',
             engine: 'piper',

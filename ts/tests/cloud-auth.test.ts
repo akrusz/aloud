@@ -61,7 +61,7 @@ beforeEach(() => {
 
 describe('googleSignIn', () => {
     it('POSTs the ID token as JSON and caches the returned session token', async () => {
-        let seen: { url: string; init?: RequestInit } | null = null;
+        let seen: { url: string; init: RequestInit | undefined } | null = null;
         setCloudAuthFetch(async (url, init) => {
             seen = { url: String(url), init };
             return new Response(JSON.stringify(AUTH_BODY), { status: 200 });
@@ -186,7 +186,7 @@ describe('fetchMe — tolerant of an older server', () => {
 
 describe('additional sign-in methods (meditation-pal-s75)', () => {
     it('appleSignIn POSTs the identity token to /auth/apple and caches the token', async () => {
-        let seen: { url: string; init?: RequestInit } | null = null;
+        let seen: { url: string; init: RequestInit | undefined } | null = null;
         setCloudAuthFetch(async (url, init) => {
             seen = { url: String(url), init };
             return new Response(JSON.stringify({ ...AUTH_BODY, token: 'tok-apple' }), { status: 200 });

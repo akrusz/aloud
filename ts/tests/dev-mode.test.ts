@@ -21,7 +21,7 @@ function stubStorage(name: 'sessionStorage' | 'localStorage'): void {
         removeItem: (k: string) => void store.delete(k),
     });
 }
-const visit = (search: string): void => vi.stubGlobal('location', { search });
+const visit = (search: string): void => void vi.stubGlobal('location', { search });
 
 beforeEach(() => {
     stubStorage('sessionStorage');

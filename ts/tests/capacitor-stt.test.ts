@@ -18,7 +18,7 @@ const H = vi.hoisted(() => ({
     // (a specific test overrides this to simulate one). The stock plugin's
     // 'started' is onBeginningOfSpeech - user SPEECH, not launch - and never
     // fires on a quiet mic.
-    start: vi.fn(async () => {
+    start: vi.fn(async (_options?: unknown) => {
         H.listeners.get('listeningState')?.({ status: 'ready' });
         return undefined as unknown;
     }),

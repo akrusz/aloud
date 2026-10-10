@@ -1,0 +1,14 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        // Typecheck only; vitest runs the source directly. rootDir dropped so
+        // the tests typecheck alongside the core and UI they import.
+        "noEmit": true,
+        "rootDir": "..",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        // vite/client for the import.meta.env the UI modules read.
+        "types": ["node", "vite/client"]
+    },
+    "include": ["./**/*"],
+    "exclude": ["node_modules"]
+}

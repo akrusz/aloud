@@ -54,7 +54,7 @@ function fakeForwarder(): Forwarder {
             return result;
         },
         async *stream() {
-            yield { text: result.text, done: true, ...result };
+            yield { ...result, done: true };
         },
     } as unknown as Forwarder;
 }
@@ -160,7 +160,7 @@ describe('retreat pass — LLM metering bypass', () => {
         await h.deps.store.appendUsage({
             id: 'pre', accountId: h.accountId, sessionId: null, passId: 'pass-1',
             ts: Date.now() / 1000, kind: 'llm', provider: 'google', model: 'gemini-3.5-flash-lite',
-            tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0,
+            tokensIn: 0, tokensOut: 0, cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0, purpose: null, seconds: 0, chars: 0,
             providerCostUsd: 0.1, credits: 2,
         });
 
@@ -283,7 +283,7 @@ describe('activeRetreatCoverage — cap boundary', () => {
         await store.appendUsage({
             id: 'u1', accountId: 'a', sessionId: null, passId: 'p', ts: now - 10,
             kind: 'llm', provider: 'google', model: 'm', tokensIn: 0, tokensOut: 0,
-            cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0, credits: 4,
+            cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0, purpose: null, seconds: 0, chars: 0, providerCostUsd: 0, credits: 4,
         });
         expect(await activeRetreatCoverage(store, 'a', now)).not.toBeNull();
 
@@ -291,7 +291,7 @@ describe('activeRetreatCoverage — cap boundary', () => {
         await store.appendUsage({
             id: 'u2', accountId: 'a', sessionId: null, passId: 'p', ts: now - 5,
             kind: 'llm', provider: 'google', model: 'm', tokensIn: 0, tokensOut: 0,
-            cacheRead: 0, cacheCreation: 0, seconds: 0, chars: 0, providerCostUsd: 0, credits: 1,
+            cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0, purpose: null, seconds: 0, chars: 0, providerCostUsd: 0, credits: 1,
         });
         expect(await activeRetreatCoverage(store, 'a', now)).toBeNull();
     });
