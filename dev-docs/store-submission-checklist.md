@@ -7,13 +7,22 @@ projects), [mobile-signing.md](mobile-signing.md) (sign + upload) and
 `meditation-pal-7rh`. Finished steps are deleted, not ticked: if it isn't here,
 it's done.
 
-## Where we are (2026-09-19)
+## Where we are (2026-10-10)
 
 **Android** is on Play **internal testing**, installed by a few hand-added
 testers. Signing, Play App Signing, the App-signing-key OAuth client (sign-in
 works in Play-delivered builds), the reviewer demo account + App access
-instructions, the content rating and the Data Safety form are all in. The six
-phone fixes that gated the beta are verified on a device.
+instructions, the content rating and the Data Safety form are all in. The plan
+from here: **open testing** (a public beta, promoted on Twitter), then
+production a few weeks later.
+
+**The build on the track is stale.** The last bundle built on this machine is
+**2.7.0, versionCode 22, 2026-08-25**. Everything since was verified on dev
+installs (`cap:android:run`), so a Play-delivered build has never carried the
+recognizer session model (`lbl5`), the speaker re-request after a lock
+(`wxj5`) or voice commands. A fresh bundle goes up before anything is tested or
+promoted. `release.sh` bumps `versionCode` on every release, so the next upload
+jumps from 22 to 38 or later; that is fine, Play only needs it to rise.
 
 **iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
 on the simulator only, some App Store Connect info filled in. Google sign-in is
@@ -26,32 +35,63 @@ and needs no account; swapping in an AI companion puts you on cloud.
 Known and accepted: no barge-in on native STT (`x4h4`), no anonymous first sit on
 iPhone **web** (`2dy1`; the native apps are unaffected).
 
-## Android: the road to production
+## Android: the road to the open beta
 
 The Play account is personal but long predates Nov 13 2023, so the closed-test
 rule for new personal accounts (N opted-in testers for 14 days) **does not
-apply**: internal testing can be promoted straight to production review.
+apply**: internal testing can be promoted straight to open testing or
+production review.
 
+Why open testing first: people on a test track **cannot leave public ratings or
+reviews** (their feedback arrives privately in the console), while the listing
+is public, searchable and installable from a link. The first open-testing
+release goes through the same review as production.
+
+- [ ] **Cut a release, then build the bundle.** `scripts/android-aab.sh` warns
+      when HEAD is ahead of the last tag. Today it is, and the gap holds the
+      openers the promo video shows ("settle in"), so release first. Upload the
+      `.aab` to **internal testing**.
+- [ ] **The test sit, on the Play-installed build.** Uninstall the dev build
+      first: same `applicationId`, different signing key, so Play cannot install
+      over it (and the wipe gives a true first run). In one sitting:
+      - Signed-out noting on the default circle: no sign-in modal (the claim the
+        reviewer note rests on).
+      - Google sign-in on the Play-signed build, and still signed in after a
+        force-stop.
+      - **30 minutes, screen off, one round trip through backgrounding.** Listen
+        to the loudness after the unlock (`wxj5`).
+      - Start speaking a few seconds after the facilitator stops: the transcript
+        begins where the sentence begins. That closes `0l0w` and the open half
+        of `wlp9`.
+      - One reply on an Inworld voice (Luna, Wren, Silas, Clive): first phoneme
+        intact (`2igi`).
+      - One spoken command, and one tap on buy credits (Stripe opens and
+        returns).
 - [ ] **Listing pass** (see "Each store update" below for the copy): recheck
-      screenshots against the current UI (2+ phone, portrait 9:16), short + full
-      description, feature graphic and 512 icon (`assets/store/`), support +
-      privacy URLs.
-- [ ] **Long-sit audio check** on a Play-installed build: a 30-minute session
-      with the screen off, and one round trip through backgrounding. Short
-      sessions are good; this one was still owed.
-- [ ] **Promote to production**: create the production release from the tested
-      build, pick countries, roll out. **Review takes a few days**, then it is
-      live. Once it is public, update the site's platform line
-      (`docs/index.html`: "iOS and Android are in closed beta"), the README
-      platform notes and the store links.
-- [ ] **Promo video** (optional, its own session). Play takes a YouTube URL, not
-      a file. Screen-record one short real session on the phone (screen
-      recorder, audio source **"media and mic"** so both voices land in the
-      file), then `./scripts/build-promo-video.sh <recording.mp4>` tops and tails
-      it with `assets/store/video-title-card.png` / `video-end-card.png`. Upload
-      **unlisted** and paste the full `watch?v=` URL: Play rejects `youtu.be`
-      links, playlist or timestamp params, age-restricted videos and videos with
-      ads on. 30s to 2min; a proper landscape cut for the production listing.
+      screenshots against the current UI (2+ phone, portrait 9:16; they live
+      only in the console), short + full description, feature graphic and 512
+      icon (`assets/store/`), support + privacy URLs.
+- [ ] **Promo video**: built, `assets/promo/play-video/build/aloud-play-video.mp4`
+      (81.7s, 1920x1080; rebuild per `assets/promo/README.md` → "Building the
+      video"). Play takes a YouTube URL, not a file. Upload **unlisted** and
+      paste the full `watch?v=` URL: Play rejects `youtu.be` links, playlist or
+      timestamp params, age-restricted videos and videos with ads on.
+- [ ] **Reviewer demo account**: sign in with it once and check it still holds
+      credits. The App access text was written in September.
+- [ ] **Open testing release**: Testing → Open testing → promote the tested
+      build from internal. Pick countries (own-billing link-out is sanctioned in
+      the US/UK/EEA per bead `zp47`; anything wider is a decision), give the
+      feedback email, send for review.
+- [ ] **Once approved**: the site's platform line (`docs/index.html`: "iOS and
+      Android are in closed beta") becomes an open-beta line with the Play
+      link. A `docs/` push goes live at once, so not before.
+
+## Android: production (after the beta)
+
+- [ ] **Promote to production**: promote the open-testing release, roll out.
+      Another review, a few days. Public reviews open here.
+- [ ] Then the site's platform line again, the README (it has no mobile mention
+      at all today) and the store links.
 
 ## Each store update (do it in one pass)
 
