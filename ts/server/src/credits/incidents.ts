@@ -80,6 +80,7 @@ export interface Incident {
     id: string;
     /** Seconds since epoch. */
     ts: number;
+    /** '' when there is none: a public route (voice preview) or a server sweep. */
     accountId: string;
     /** Client-supplied meditation-session id, when the call carried one. */
     sessionId: string | null;
@@ -196,7 +197,6 @@ export function buildIncidentReport(rows: Incident[], sinceTs: number, recentLim
             groups.set(r.kind, g);
         }
         g.rows.push(r);
-        // '' = no account: a public route (voice preview) or a server sweep.
         if (r.accountId) g.accounts.add(r.accountId);
         if (r.sessionId) g.sessions.add(r.sessionId);
     }

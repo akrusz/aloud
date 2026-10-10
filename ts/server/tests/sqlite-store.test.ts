@@ -398,17 +398,22 @@ describe('SqliteCreditsStore — canonical-email unique index (duplicate-account
         store.close();
     });
 
-    it('backfills canonical_email and builds the index when reopening an existing DB', async () => {
-        // A DB seeded via raw SQL without canonical_email (simulating a pre-migration
-        // file) gets it backfilled on open, and the uniqueness guard then holds.
+    it('backfills canonical_email and builds the index on a DB that predates the column', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'aloud-canon-'));
         const path = join(dir, 'db.sqlite');
         try {
             const first = new SqliteCreditsStore(path);
             await first.createAccount({ ...ACCOUNT, id: 'a', email: 'jane@gmail.com' });
             first.close();
+            const raw = new DatabaseSync(path);
+            // The index names the column, so it has to go first.
+            raw.exec('DROP INDEX idx_accounts_canonical_live; ALTER TABLE accounts DROP COLUMN canonical_email');
+            raw.close();
             const reopened = new SqliteCreditsStore(path);
             expect((await reopened.findLiveAccountByEmail('j.a.n.e@gmail.com'))?.id).toBe('a');
+            await expect(
+                reopened.createAccount({ ...ACCOUNT, id: 'b', email: 'jane+x@gmail.com' })
+            ).rejects.toThrow(/unique|constraint/i);
             reopened.close();
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -416,24 +421,96 @@ describe('SqliteCreditsStore — canonical-email unique index (duplicate-account
     });
 });
 
-describe('SqliteCreditsStore usage purpose migration', () => {
-    it('adds usage_events.purpose to a DB that predates it, old rows NULL', async () => {
-        const dir = mkdtempSync(join(tmpdir(), 'aloud-purpose-'));
+describe('SqliteCreditsStore column migrations', () => {
+    it('opens a DB whose accounts and usage_events predate every column added since', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'aloud-columns-'));
         const path = join(dir, 'db.sqlite');
+        try {
+            // Both tables as they first shipped (after the google_sub rebuild);
+            // the store creates every other table on open.
+            const old = new DatabaseSync(path);
+            old.exec(`
+                CREATE TABLE accounts (
+                    id TEXT PRIMARY KEY, email TEXT NOT NULL, email_verified INTEGER NOT NULL,
+                    created_at REAL NOT NULL, signup_ip TEXT
+                );
+                CREATE TABLE usage_events (
+                    id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id),
+                    session_id TEXT, ts REAL NOT NULL, kind TEXT NOT NULL, provider TEXT NOT NULL,
+                    model TEXT NOT NULL, tokens_in INTEGER NOT NULL, tokens_out INTEGER NOT NULL,
+                    cache_read INTEGER NOT NULL, cache_creation INTEGER NOT NULL, seconds REAL NOT NULL,
+                    chars INTEGER NOT NULL, provider_cost_usd REAL NOT NULL, credits REAL NOT NULL
+                );
+                INSERT INTO accounts VALUES ('acct-1','a@example.com',1,100,'203.0.113.7');
+                INSERT INTO usage_events VALUES
+                    ('old','acct-1',NULL,1000,'llm','google','gemini-3.5-flash-lite',50,20,4000,0,0,0,0.000123,0.00246);
+            `);
+            old.close();
+
+            const store = new SqliteCreditsStore(path);
+            // Rows written before the columns read back with their defaults.
+            expect(await store.getAccountById('acct-1')).toEqual(ACCOUNT);
+            expect(await store.allUsage()).toEqual([usageEvent({ id: 'old', purpose: null })]);
+            // And each added column takes a write: pass_id, cache_creation_1h,
+            // purpose, email_updates, deleted_at.
+            const covered = usageEvent({ id: 'new', ts: 2000, passId: 'pass-1', cacheCreation1h: 7, purpose: 'facilitation' });
+            await store.appendUsage(covered);
+            expect((await store.allUsage())[1]).toEqual(covered);
+            await store.setAccountEmailUpdates('acct-1', true);
+            expect((await store.getAccountById('acct-1'))?.emailUpdates).toBe(true);
+            await store.markAccountDeleted('acct-1', 200, 'deleted+acct-1@deleted.invalid');
+            expect((await store.getAccountById('acct-1'))?.deletedAt).toBe(200);
+            store.close();
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('SqliteCreditsStore incident account migration', () => {
+    it('lets a DB whose incidents required an account take a row without one, old rows kept', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'aloud-incident-'));
+        const path = join(dir, 'db.sqlite');
+        const row = {
+            id: 'old',
+            ts: 10,
+            accountId: 'acct-1',
+            sessionId: 's',
+            kind: 'tts_error' as const,
+            source: 'server' as const,
+            provider: 'azure',
+            model: 'en-US-Ethan',
+            detail: 'boom',
+        };
         try {
             const first = new SqliteCreditsStore(path);
             await first.createAccount(ACCOUNT);
-            await first.appendUsage(usageEvent({ id: 'old' }));
             first.close();
             const raw = new DatabaseSync(path);
-            raw.exec('ALTER TABLE usage_events DROP COLUMN purpose');
+            raw.exec(`
+                DROP TABLE incidents;
+                CREATE TABLE incidents (
+                    id TEXT PRIMARY KEY, ts REAL NOT NULL,
+                    account_id TEXT NOT NULL REFERENCES accounts(id), session_id TEXT,
+                    kind TEXT NOT NULL, source TEXT NOT NULL, provider TEXT NOT NULL,
+                    model TEXT NOT NULL, detail TEXT NOT NULL
+                );
+                CREATE INDEX idx_incidents_ts ON incidents(ts);
+                INSERT INTO incidents VALUES ('old',10,'acct-1','s','tts_error','server','azure','en-US-Ethan','boom');
+            `);
             raw.close();
             const reopened = new SqliteCreditsStore(path);
-            await reopened.appendUsage(usageEvent({ id: 'new', purpose: 'facilitation' }));
-            const all = await reopened.allUsage();
-            expect(all.find((e) => e.id === 'old')!.purpose).toBeNull();
-            expect(all.find((e) => e.id === 'new')!.purpose).toBe('facilitation');
+            await reopened.appendIncident({ ...row, id: 'new', ts: 20, accountId: '', sessionId: null });
+            expect(await reopened.incidentsSince(0)).toEqual([
+                { ...row, id: 'new', ts: 20, accountId: '', sessionId: null },
+                row,
+            ]);
+            // A real account id is still checked against accounts.
+            await expect(reopened.appendIncident({ ...row, id: 'x', accountId: 'nobody' })).rejects.toThrow(/FOREIGN KEY/);
             reopened.close();
+            const after = new DatabaseSync(path);
+            expect(after.prepare("SELECT name FROM sqlite_master WHERE name = 'idx_incidents_ts'").get()).toBeDefined();
+            after.close();
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

@@ -12,6 +12,7 @@ import type { AuthResponse } from '../src/contract.js';
 import { buildIncidentReport, clipDetail, recordIncident, type Incident } from '../src/credits/incidents.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import { SqliteCreditsStore } from '../src/credits/sqlite-store.js';
+import type { CreditsStore } from '../src/credits/store.js';
 
 const ADMIN = 'admin-token';
 
@@ -318,10 +319,12 @@ describe('incident log - stores + helpers', () => {
         ...over,
     });
 
-    it.each([
+    const stores: Array<[string, () => CreditsStore]> = [
         ['MemoryCreditsStore', () => new MemoryCreditsStore()],
         ['SqliteCreditsStore(:memory:)', () => new SqliteCreditsStore(':memory:')],
-    ])('%s round-trips rows newest first and filters by ts', async (_name, make) => {
+    ];
+
+    it.each(stores)('%s round-trips rows newest first and filters by ts', async (_name, make) => {
         const store = make();
         await store.createAccount({ id: 'acct', email: 'a@b.c', emailVerified: true, createdAt: 1 });
         await store.appendIncident(sample({ id: 'old', ts: 10 }));
@@ -330,6 +333,13 @@ describe('incident log - stores + helpers', () => {
         expect(all.map((r) => r.id)).toEqual(['new', 'old']);
         expect(all[0]).toEqual(sample({ id: 'new', ts: 20, sessionId: 's' }));
         expect((await store.incidentsSince(15)).map((r) => r.id)).toEqual(['new']);
+    });
+
+    // The public voice preview and the model sweep have no account to name.
+    it.each(stores)('%s keeps a row with no account', async (_name, make) => {
+        const store = make();
+        await store.appendIncident(sample({ accountId: '' }));
+        expect(await store.incidentsSince(0)).toEqual([sample({ accountId: '' })]);
     });
 
     it('clips detail to one line and a fixed length', () => {

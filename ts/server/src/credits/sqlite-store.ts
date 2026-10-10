@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS identities (
 );
 CREATE INDEX IF NOT EXISTS idx_identities_account ON identities(account_id);
 -- Gift clouds (meditation-pal-bd5). Funded by a cleared Stripe payment; granted
--- once - to the recipient on accept, or back to the buyer on decline/expiry.
+-- once - to the recipient on accept, or to the buyer when they claim one that
+-- came back 'returned' (declined or expired). Lifecycle: credits/gifts.ts.
 CREATE TABLE IF NOT EXISTS gifts (
     id                TEXT PRIMARY KEY,
     buyer_account_id  TEXT NOT NULL REFERENCES accounts(id),
@@ -148,7 +149,8 @@ CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
 CREATE TABLE IF NOT EXISTS incidents (
     id         TEXT PRIMARY KEY,
     ts         REAL NOT NULL,
-    account_id TEXT NOT NULL REFERENCES accounts(id),
+    -- NULL = no account: a public route (voice preview) or a server sweep.
+    account_id TEXT REFERENCES accounts(id),
     session_id TEXT,
     kind       TEXT NOT NULL,
     source     TEXT NOT NULL,
@@ -258,7 +260,7 @@ function rowToIncident(r: Row): Incident {
     return {
         id: String(r['id']),
         ts: Number(r['ts']),
-        accountId: String(r['account_id']),
+        accountId: r['account_id'] != null ? String(r['account_id']) : '',
         sessionId: r['session_id'] != null ? String(r['session_id']) : null,
         kind: String(r['kind']) as IncidentKind,
         source: String(r['source']) as Incident['source'],
@@ -339,6 +341,7 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddUsageCacheCreation1h();
         this.migrateAddUsagePurpose();
         this.migrateAddEmailUpdates();
+        this.migrateIncidentAccountNullable();
         // Index on pass_id AFTER the column migration above: on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
         // so this can't live in SCHEMA (which runs first).
@@ -371,6 +374,42 @@ export class SqliteCreditsStore implements CreditsStore {
     private migrateAddEmailUpdates(): void {
         if (this.hasColumn('accounts', 'email_updates')) return;
         this.db.exec('ALTER TABLE accounts ADD COLUMN email_updates INTEGER NOT NULL DEFAULT 0');
+    }
+
+    /** incidents.account_id was NOT NULL, so a row with no account (the public
+     *  voice preview, the model sweep) failed the FK and was dropped
+     *  (meditation-pal-shfl). SQLite can't relax a column constraint in place,
+     *  so rebuild the table. Nothing references incidents, so FKs stay on. */
+    private migrateIncidentAccountNullable(): void {
+        const cols = this.db.prepare('PRAGMA table_info(incidents)').all() as Row[];
+        const accountId = cols.find((c) => String(c['name']) === 'account_id');
+        if (!accountId || Number(accountId['notnull']) === 0) return;
+        this.db.exec('BEGIN');
+        try {
+            // DROP TABLE takes idx_incidents_ts with it.
+            this.db.exec(`
+                CREATE TABLE incidents_new (
+                    id         TEXT PRIMARY KEY,
+                    ts         REAL NOT NULL,
+                    account_id TEXT REFERENCES accounts(id),
+                    session_id TEXT,
+                    kind       TEXT NOT NULL,
+                    source     TEXT NOT NULL,
+                    provider   TEXT NOT NULL,
+                    model      TEXT NOT NULL,
+                    detail     TEXT NOT NULL
+                );
+                INSERT INTO incidents_new
+                    SELECT id, ts, account_id, session_id, kind, source, provider, model, detail FROM incidents;
+                DROP TABLE incidents;
+                ALTER TABLE incidents_new RENAME TO incidents;
+                CREATE INDEX idx_incidents_ts ON incidents(ts);
+            `);
+            this.db.exec('COMMIT');
+        } catch (err) {
+            this.db.exec('ROLLBACK');
+            throw err;
+        }
     }
 
     /** Add accounts.canonical_email + its live-only unique index (meditation-pal
@@ -792,7 +831,7 @@ export class SqliteCreditsStore implements CreditsStore {
             .run(
                 incident.id,
                 incident.ts,
-                incident.accountId,
+                incident.accountId || null,
                 incident.sessionId,
                 incident.kind,
                 incident.source,
