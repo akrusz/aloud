@@ -448,7 +448,7 @@ export function adminRoutes(deps: Deps): Hono {
             const p = byPass.get(u.passId) ?? zero();
             add(p, u);
             byPass.set(u.passId, p);
-            const key = `${u.passId} ${u.accountId}`;
+            const key = `${u.passId}\0${u.accountId}`;
             const a = byAccount.get(key) ?? zero();
             add(a, u);
             byAccount.set(key, a);
@@ -466,7 +466,7 @@ export function adminRoutes(deps: Deps): Hono {
                 return {
                     ...p,
                     members: members.map((m) => {
-                        const s = byAccount.get(`${p.id} ${m.accountId}`) ?? zero();
+                        const s = byAccount.get(`${p.id}\0${m.accountId}`) ?? zero();
                         return {
                             accountId: m.accountId,
                             email: emailById.get(m.accountId) ?? '(unknown)',
