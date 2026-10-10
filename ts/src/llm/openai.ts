@@ -38,16 +38,12 @@ function lowestReasoningEffort(model: string): 'none' | 'minimal' | 'low' {
 }
 
 export interface OpenAIProviderOptions {
-    /**
-     * Required for direct calls. Omit when `baseUrl` points at a proxy that
-     * injects the key server-side.
-     */
-    apiKey?: string;
+    apiKey: string;
     model?: string;
     maxTokens?: number;
     /**
      * Base URL ending at `/v1`, no trailing slash. Default api.openai.com;
-     * override for OpenRouter, Venice, Groq, or a proxy.
+     * override for OpenRouter, Venice, Groq, or Google.
      */
     baseUrl?: string;
     /**
@@ -109,22 +105,16 @@ function servedByOf(r: { provider?: string; model?: string }): string | undefine
 export class OpenAIProvider implements LLMProvider {
     readonly model: string;
     readonly maxTokens: number;
-    private readonly apiKey: string | undefined;
+    private readonly apiKey: string;
     private readonly baseUrl: string;
     private readonly extraBody: Record<string, unknown> | undefined;
     private readonly reasoningHeadroom: number;
     private readonly fetchImpl: typeof fetch;
     private readonly retry: RetryOptions;
 
-    constructor(options: OpenAIProviderOptions = {}) {
+    constructor(options: OpenAIProviderOptions) {
         const baseUrl = (options.baseUrl ?? OPENAI_BASE_URL).replace(/\/+$/, '');
-        const usingProxy = baseUrl !== OPENAI_BASE_URL;
-        if (!options.apiKey && !usingProxy) {
-            throw new Error(
-                'OpenAI API key required when calling api.openai.com directly. ' +
-                    'Pass apiKey, or set baseUrl to a proxy that injects the key server-side.'
-            );
-        }
+        if (!options.apiKey) throw new Error(`API key required for ${baseUrl}.`);
         this.apiKey = options.apiKey;
         this.model = options.model ?? DEFAULT_MODEL;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -172,8 +162,8 @@ export class OpenAIProvider implements LLMProvider {
 
         const headers: Record<string, string> = {
             'content-type': 'application/json',
+            authorization: `Bearer ${this.apiKey}`,
         };
-        if (this.apiKey) headers['authorization'] = `Bearer ${this.apiKey}`;
         if (stream) headers['accept'] = 'text/event-stream';
 
         return {
@@ -335,9 +325,9 @@ function preconfigured(defaults: {
     baseUrl: string;
     defaultModel: string;
     extraBody?: Record<string, unknown>;
-}): new (options?: OpenAIProviderOptions) => OpenAIProvider {
+}): new (options: OpenAIProviderOptions) => OpenAIProvider {
     return class extends OpenAIProvider {
-        constructor(options: OpenAIProviderOptions = {}) {
+        constructor(options: OpenAIProviderOptions) {
             super({
                 ...options,
                 baseUrl: options.baseUrl ?? defaults.baseUrl,
@@ -394,7 +384,7 @@ const UNINVITED_REASONING_HEADROOM = 2048;
 
 /** OpenRouter: multi-vendor LLM proxy. */
 export class OpenRouterProvider extends OpenAIProvider {
-    constructor(options: OpenAIProviderOptions = {}) {
+    constructor(options: OpenAIProviderOptions) {
         const model = options.model ?? OPENROUTER_DEFAULT_MODEL;
         const mandatoryReasoning = OPENROUTER_MANDATORY_REASONING.has(model);
         const headroom = mandatoryReasoning
@@ -455,7 +445,7 @@ function geminiReasoningFloor(model: string): 'none' | 'minimal' {
  *  fee). Gemini caches prompts implicitly and reports it as
  *  prompt_tokens_details.cached_tokens, parsed by usageToResult. */
 export class GoogleProvider extends OpenAIProvider {
-    constructor(options: OpenAIProviderOptions = {}) {
+    constructor(options: OpenAIProviderOptions) {
         const model = options.model ?? GOOGLE_DEFAULT_MODEL;
         super({
             ...options,

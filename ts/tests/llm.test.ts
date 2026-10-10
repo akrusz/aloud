@@ -73,7 +73,7 @@ function mockJsonResponse(data: unknown, init: { ok?: boolean; status?: number }
 }
 
 describe('AnthropicProvider', () => {
-    it('throws if no API key provided and no proxy URL', () => {
+    it('throws without an API key', () => {
         expect(() => new AnthropicProvider({ apiKey: '' })).toThrow(/API key/);
     });
 
@@ -659,8 +659,9 @@ describe('OpenAIProvider', () => {
         });
     }
 
-    it('throws if no API key and no proxy URL', () => {
+    it('throws without an API key, whatever the base URL', () => {
         expect(() => new OpenAIProvider({ apiKey: '' })).toThrow(/API key/);
+        expect(() => new OpenAIProvider({ apiKey: '', baseUrl: 'https://compat.example/v1' })).toThrow(/API key/);
     });
 
     it('sends system as a leading message, bearer auth, and max_completion_tokens for OpenAI direct', async () => {
@@ -728,10 +729,11 @@ describe('OpenAIProvider', () => {
         expect(body.reasoning_effort).toBeUndefined();
     });
 
-    it('uses max_completion_tokens for gpt-5/o-series models even via a proxy baseUrl', async () => {
+    it('uses max_completion_tokens for gpt-5/o-series models even off api.openai.com', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
         const provider = new OpenAIProvider({
-            baseUrl: '/cloud/v1/llm/openai',
+            apiKey: 'sk-test',
+            baseUrl: 'https://compat.example/v1',
             model: 'gpt-5.4-mini',
             fetchImpl: fetchImpl as unknown as typeof fetch,
         });

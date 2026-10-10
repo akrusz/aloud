@@ -161,12 +161,7 @@ const CACHE_1H = { type: 'ephemeral', ttl: '1h' } as const;
 const ANCHOR_STEP = 16;
 
 export interface AnthropicProviderOptions {
-    /**
-     * Required for direct calls to api.anthropic.com. Omit when `baseUrl` points
-     * at a proxy that supplies the key server-side; sending no `x-api-key` is
-     * cleaner than a fake one the proxy would reject anyway.
-     */
-    apiKey?: string;
+    apiKey: string;
     model?: string;
     maxTokens?: number;
     /** Endpoint URL, default Anthropic's hosted API. */
@@ -240,20 +235,14 @@ interface AnthropicMessagesResponse {
 export class AnthropicProvider implements LLMProvider {
     readonly model: string;
     readonly maxTokens: number;
-    private readonly apiKey: string | undefined;
+    private readonly apiKey: string;
     private readonly baseUrl: string;
     private readonly directBrowserAccess: boolean;
     private readonly fetchImpl: typeof fetch;
     private readonly retry: RetryOptions;
 
-    constructor(options: AnthropicProviderOptions = {}) {
-        const usingProxy = options.baseUrl !== undefined && options.baseUrl !== ANTHROPIC_API_URL;
-        if (!options.apiKey && !usingProxy) {
-            throw new Error(
-                'Anthropic API key required when calling api.anthropic.com directly. ' +
-                    'Pass apiKey, or set baseUrl to a proxy that injects the key server-side.'
-            );
-        }
+    constructor(options: AnthropicProviderOptions) {
+        if (!options.apiKey) throw new Error('Anthropic API key required.');
         this.apiKey = options.apiKey;
         this.model = options.model ?? DEFAULT_MODEL;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -329,7 +318,7 @@ export class AnthropicProvider implements LLMProvider {
             'anthropic-version': ANTHROPIC_API_VERSION,
         };
         if (fallback) headers['anthropic-beta'] = FALLBACK_BETA;
-        if (this.apiKey) headers['x-api-key'] = this.apiKey;
+        headers['x-api-key'] = this.apiKey;
         if (this.directBrowserAccess) headers['anthropic-dangerous-direct-browser-access'] = 'true';
         if (stream) headers['accept'] = 'text/event-stream';
 
