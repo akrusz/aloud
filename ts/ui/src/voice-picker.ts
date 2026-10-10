@@ -43,8 +43,8 @@ export interface ServerVoice {
 export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
-    /** Relative cost tier for the picker's $ indicator. Optional so an older
-     *  server that doesn't send it still works. */
+    /** Placement bucket: 'premium' lists under Best, 'value' under Very Good.
+     *  Optional so an older server that doesn't send it still works. */
     tier?: 'premium' | 'value';
     /** Estimated credits/hr at a typical talk profile (server-computed). */
     creditsPerHourTypical?: number;
@@ -102,8 +102,6 @@ export interface ScoredVoice {
     model?: string;
     /** Small muted label after the name (e.g. a hosted voice's gender). */
     note?: string;
-    /** Quality tier for a hosted voice, named in the cost badge's tooltip. */
-    costTier?: 'premium' | 'value';
     /** Estimated credits/hr for a hosted voice (shown in the badge tooltip). */
     creditsPerHour?: number;
     /** Doesn't speak the session's language (meditation-pal-c3a0.6): rendered
@@ -238,7 +236,6 @@ export function buildScoredVoiceList(
             engine: 'aloud',
             ...(isValue ? {} : { recommended: true }),
             note: t(hv.gender),
-            ...(hv.tier ? { costTier: hv.tier } : {}),
             ...(hv.creditsPerHourTypical != null ? { creditsPerHour: hv.creditsPerHourTypical } : {}),
             ...(hv.multilingual || speaks('en') ? {} : { langMismatch: true }),
             ...(hv.fixedPace ? { fixedPace: true } : {}),
@@ -498,12 +495,7 @@ function appendRow(
         const cost = document.createElement('span');
         cost.className = 'voice-row-cost';
         cost.textContent = rateText;
-        const tierWord =
-            entry.costTier === 'premium' ? t('Premium') : entry.costTier === 'value' ? t('Value') : t('Cloud');
-        cost.title = t(
-            '{tier} voice · est. ≈ {rate} credits/hour at a concise (exploration) pace (noting mode uses fewer)',
-            { tier: tierWord, rate: entry.creditsPerHour!.toFixed(1) }
-        );
+        cost.title = t('≈ {rate} credits/hour', { rate: entry.creditsPerHour!.toFixed(1) });
         nameSpan.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {

@@ -63,7 +63,6 @@ describe('buildScoredVoiceList with hosted voices', () => {
         const vega = scored.find((v) => v.name === 'Vega')!;
         expect(vega.recommended).toBeFalsy(); // Neural2 → not Best…
         expect(vega.score).toBe(4); // …it lands in the Very Good tier
-        expect(vega.costTier).toBe('value'); // still badged as a paid voice
     });
 
     it('defaults to no hosted voices (availability-driven) when none are passed', () => {
