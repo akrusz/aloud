@@ -41,6 +41,7 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 | `--brand-stroke` | Yellow used for the logo's outline stroke and the tour-overlay-flat tint. |
 | `--brand-glow` | Yellow soft-shadow color - defined but rarely used now that stroke replaced glow on the brand. Keep for future use. |
 | `--warm` | Secondary muted gold accent. |
+| `--warm-text` | `--warm` as small text (the history transcript's "You" label). Deepened in light, where the fill gold is only ~2:1 on the grounds; plain `--warm` in dark. |
 
 ### Light mode
 
@@ -65,6 +66,7 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 --brand-stroke:  #ffd820   /* sunny yellow - matches the site (was #ffee25, lemony) */
 --brand-glow:    rgba(245, 216, 32, 0.85)
 --warm:          #e5a01a
+--warm-text:     #b88114
 --border:        #d9c3a2
 ```
 

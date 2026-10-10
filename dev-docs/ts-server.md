@@ -214,9 +214,9 @@ turn.
 The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-name
 → (provider, voice id) map across Google Cloud TTS, Azure AI Speech and Inworld
 (the flagged default, Harper, is an Azure MAI-Voice-2.1 voice). `GET
-/cloud/v1/voices` publishes them; the client merges them into its picker (top
-"Recommended" tier) and sends the short name back, which `/cloud/v1/tts`
-resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
+/cloud/v1/voices` publishes them; the client merges them into its picker (a
+`premium` voice under "Best", a `value` one under "Very Good") and sends the
+short name back, which `/cloud/v1/tts` resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
 
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a

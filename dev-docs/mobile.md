@@ -202,15 +202,16 @@ Android launcher set (from `assets/app-icon-android-fg.svg`), after
 
 ## Payments (beta)
 
-Zero IAP code for the beta. Credits are bought on **aloud.rest via Stripe** and
-are account-bound, so they appear in the app after purchase via the existing
-ledger/auth. The buy-credits modal opens Stripe in `@capacitor/browser` and
-polls `/me` for the balance to land (Stripe can't redirect back into the
-`capacitor://` origin, so there's no return URL - same waiting flow as desktop).
-USDC/x402 is hidden on mobile (App Store 3.1.1 forbids crypto unlocks; the modal
-already hides it when `window.ethereum` is absent). Native StoreKit / Play
-Billing consumable packs are deferred to public launch - see `zp47`, `czr`,
-`a2j`.
+Zero IAP code for the beta, and nothing is sold in the app: `purchaseChannel()`
+(`ui/src/purchase-channel.ts`) is `'none'` on Capacitor, every buy entry point
+asks it, and the buy-credits modal refuses to open as a backstop. Credits are
+bought on **aloud.rest via Stripe** and are account-bound, so they appear in
+the app through the existing ledger/auth. Neither store allows an in-app button
+or link to that checkout; Android names `aloud.rest/account` as plain text
+(`topUpHint`), iOS says nothing. The store rules and the path to store-billed
+packs (Play Billing / StoreKit) are in
+[store-submission-checklist.md](store-submission-checklist.md) → "Buying ☁ in
+the store builds"; see also `zp47`, `czr`, `a2j`.
 
 ## Still device-dependent (not done, needs real hardware)
 

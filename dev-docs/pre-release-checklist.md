@@ -52,7 +52,11 @@ check each of these still reflects reality:
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must
   match current branding and claims. The Play Store video's script lives in
   `assets/promo/play-video/script.md` (its lines are app voice and features on
-  screen, so a renamed mode or changed flow lands there too).
+  screen, so a renamed mode or changed flow lands there too). The video is
+  **built** from that script and films the real UI at phone size
+  (`assets/promo/play-video/tools/`, steps in `assets/promo/README.md` →
+  "Building the video"), so a script edit, a reworded opener it quotes, or a
+  setup/session UI change means a rebuild and a fresh upload.
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
 - **`dev-docs/`** - dev/build/feature docs (index: `dev-docs/README.md`).
@@ -127,6 +131,13 @@ check each of these still reflects reality:
 - **Changed a default or config option** → the relevant defaults in `ts/src`
   (or `ts/server/.env.example` for server config), the settings UI, and any doc
   that quotes the value.
+- **Changed where ☁ are sold** (`purchaseChannel()` in
+  `ui/src/purchase-channel.ts`, a new payment method, store billing) → every
+  string that tells someone to buy, shown or spoken, on a build that can't
+  (`billing-messages.ts` and its server twin `CANNED_MESSAGES`,
+  `describeCloudError`, the out-of-clouds dialogs), `topUpHint` +
+  `docs/account/`, the terms' payment paragraph, the "Buying ☁" section of
+  `store-submission-checklist.md`, and the Play "App access" text.
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
 - **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a

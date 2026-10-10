@@ -67,7 +67,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 - click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
 - the ember controls add floating particles. just for cozy.
 - click the voice name in the controls bar to open a voice/speed picker.
-- you can continue any past session or access the saved sessions folder from the history page.
+- you can continue any past exploration or felt sense session, or access the saved sessions folder, from the history page.
 - the AI gently checks in if you're quiet for a while. adjust timing or disable in settings.
 - you can change the clock style (session time, clock time, timer with spoken notification) in session setup, or by tapping it in session.
 - found a bug? "report a bug" in the about box, "Report a bug" in the More menu, or Help → Report a Bug… on macOS. the report comes pre-filled with diagnostics.

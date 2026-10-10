@@ -50,10 +50,11 @@ function ensureCapBrowser(): Promise<void> {
  * Returns true if it handled the open. False outside Tauri/Capacitor, so
  * callers can fall back to `window.location.assign`.
  *
- * On Capacitor a true return is also the signal the buy-credits modal uses to
- * enter its "finish in your browser, we'll poll for the credits" waiting state:
- * Stripe can't redirect back into the app's custom-scheme origin, so fulfilment
- * is detected by polling /me, not by a return URL.
+ * A true return is also the signal the buy-credits modal uses to enter its
+ * "finish in your browser, we'll poll for the credits" waiting state: the
+ * checkout runs in the system browser, where its return URL never reaches the
+ * app, so fulfilment is detected by polling /me. Desktop only: the store
+ * builds never open that modal (purchase-channel.ts).
  */
 export async function openExternal(url: string): Promise<boolean> {
     if (isCapacitor()) {
