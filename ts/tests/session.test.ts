@@ -231,7 +231,7 @@ describe('SessionManager — usage tracking', () => {
 describe('SessionManager — meditation type and mode phase', () => {
     it('records the meditation type at start', () => {
         const { manager } = makeManager();
-        const state = manager.startSession(undefined, 'felt_sense');
+        const state = manager.startSession('felt_sense');
         expect(state.meditationType).toBe('felt_sense');
     });
 
@@ -243,7 +243,7 @@ describe('SessionManager — meditation type and mode phase', () => {
 
     it('sets and clears the staged-mode phase', () => {
         const { manager } = makeManager();
-        manager.startSession(undefined, 'felt_sense');
+        manager.startSession('felt_sense');
         manager.setModePhase('sensing');
         expect(manager.state?.modePhase).toBe('sensing');
         manager.setModePhase('asking');
@@ -275,7 +275,6 @@ describe('SessionManager — control entries and system notes', () => {
         ]);
         expect(spokenExchanges(exchanges).map((e) => e.content)).toEqual(['Welcome.', 'Still here.']);
         expect(hasSpokenUserTurn(exchanges)).toBe(false);
-        expect(manager.getLastUserMessage()).toBeNull();
         manager.addUserMessage('hello');
         expect(hasSpokenUserTurn(manager.state!.exchanges)).toBe(true);
     });

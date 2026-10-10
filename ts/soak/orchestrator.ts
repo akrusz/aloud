@@ -107,7 +107,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     });
     const stager = mode.phases ? new StagedModeController(mode) : null;
     const session = new SessionManager({ contextStrategy: 'full' });
-    session.startSession(undefined, mode.id);
+    session.startSession(mode.id);
     if (stager) {
         session.setModePhase(stager.phase.id);
         session.queueSystemNote(stager.phaseNote(), 'phase');

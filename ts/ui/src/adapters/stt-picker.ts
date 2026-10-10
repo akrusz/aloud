@@ -1,25 +1,17 @@
 /**
- * STT adapter selection. Sessions build from an explicit choice:
- * sttEngineOptions lists what the mode offers (first = default),
- * resolveSttChoice settles a stored pick, createSttForChoice builds the engine.
+ * STT adapter selection, always from an explicit choice: sttEngineOptions lists
+ * what the mode offers (first = default), resolveSttChoice settles a stored
+ * pick, createSttForChoice builds the engine.
  *
- * detectSttBackend / createBestStt auto-detect instead, in order of preference:
- *
- *   1. Capacitor native plugin   - best on iOS/Android. The PLATFORM's
- *                                  recognizer, so not necessarily on-device:
- *                                  Android's may send audio to Google
- *   2. Web Speech API            - Chrome / Edge / Android Chrome. NOT iOS,
- *                                  which exposes the API but can only error on
- *                                  it (isWebSpeechSupported)
- *   3. Server Whisper            - covers Firefox, Safari, and anywhere else
- *                                  Web Speech doesn't, given a reachable
- *                                  endpoint (the desktop Rust shell's
- *                                  /app/v1/stt/whisper), so it's the reliable
- *                                  desktop path
- *   4. null                      - no mic (app.ts blocks the start; aloud
- *                                  has no text-only mode)
- *
- * Detection is async (Capacitor + server probe); the result is cached.
+ *   capacitor       - the PLATFORM's recognizer on iOS/Android, so not
+ *                     necessarily on-device: Android's may send audio to Google
+ *   web-speech      - Chrome / Edge / Android Chrome. NOT iOS, which exposes
+ *                     the API but can only error on it (isWebSpeechSupported),
+ *                     and not under Tauri (sttEngineOptions)
+ *   whisper         - the desktop Rust shell's /app/v1/stt/whisper, so the
+ *                     reliable desktop path
+ *   aloud cloud     - /cloud/v1/stt through the same PCM engine; the fallback
+ *                     every mode can reach
  */
 
 import type { SttEngine } from '../../../src/platform/stt.js';
@@ -64,7 +56,6 @@ export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
 // Resolved through appUrl(): the desktop's embedded Rust backend
 // (127.0.0.1:<port>) under Tauri, or the relative /app path (Hono) on the web.
 const SERVER_WHISPER_PATH = '/stt/whisper';
-let cachedBackend: SttBackend | null = null;
 
 async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean> {
     if (!WhisperPcmSttEngine.isAvailable()) return false;
@@ -82,15 +73,6 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
     } catch {
         return false;
     }
-}
-
-/**
- * Force a re-probe on the next detectSttBackend / createBestStt. Needed when
- * the Whisper backend came up after page load - otherwise the picker keeps the
- * cached "none" and the user has to reload.
- */
-export function invalidateSttBackendCache(): void {
-    cachedBackend = null;
 }
 
 /**
@@ -115,67 +97,6 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
         authProvider: ensureCloudToken,
         onAuthError: clearCloudToken,
     });
-}
-
-/** Detect which STT path the current environment supports. vadOpts (when the
- *  caller has them) ride along to the whisper probe, which doubles as the
- *  model warm-up. */
-export async function detectSttBackend(vadOpts: VadOpts = {}): Promise<SttBackend> {
-    if (cachedBackend !== null) return cachedBackend;
-
-    // Prefer the platform's native recognizer (SFSpeechRecognizer / Android
-    // SpeechRecognizer). isCapacitor() is the native-only gate - a plain browser
-    // running the Capacitor web shim reports false and falls through.
-    if (isCapacitor()) {
-        try {
-            const available = await CapacitorSttEngine.isAvailable();
-            if (available) {
-                cachedBackend = 'capacitor';
-                return cachedBackend;
-            }
-        } catch {
-            // Fall through to next option.
-        }
-    }
-
-    // The macOS WKWebView exposes `webkitSpeechRecognition` but recognition
-    // silently never returns results inside an embedded app webview: the mic
-    // captures, no transcript ever arrives. Skip it under Tauri and fall through
-    // to server-Whisper, which is the free/on-device path we want there anyway.
-    if (!isTauri() && isWebSpeechSupported()) {
-        cachedBackend = 'web-speech';
-        return cachedBackend;
-    }
-
-    if (await isServerWhisperReachable(vadOpts)) {
-        cachedBackend = 'server-whisper';
-        return cachedBackend;
-    }
-
-    cachedBackend = 'none';
-    return cachedBackend;
-}
-
-/**
- * Construct the best-available STT engine, or null when no path works (there is
- * no text-only mode to fall back to). Only the server-Whisper path does
- * client-side VAD; Web Speech and Capacitor self-endpoint, but both honor the
- * pause window by holding the turn open across a mid-thought pause (Web Speech
- * runs continuous; Capacitor restart-stitches, since Android won't keep the mic
- * open).
- */
-export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | null> {
-    const backend = await detectSttBackend(vadOpts);
-    switch (backend) {
-        case 'capacitor':
-            return new CapacitorSttEngine(capacitorOpts(vadOpts));
-        case 'web-speech':
-            return new WebSpeechSttEngine(webSpeechOpts(vadOpts));
-        case 'server-whisper':
-            return localWhisperStt(vadOpts);
-        case 'none':
-            return null;
-    }
 }
 
 /**
@@ -253,14 +174,14 @@ async function buildSttForChoice(
         case 'aloud-gpt-transcribe':
             return createServerAloudStt(vadOpts, 'gpt-transcribe');
         case 'web-speech':
-            // Same Tauri guard as detectSttBackend/sttEngineOptions - honor a
-            // stale stored pick with null rather than a mic that pulses forever.
+            // Same Tauri guard as sttEngineOptions - honor a stale stored pick
+            // with null rather than a mic that pulses forever.
             return !isTauri() && isWebSpeechSupported()
                 ? new WebSpeechSttEngine(webSpeechOpts(vadOpts))
                 : null;
         case 'whisper':
-            // The probe doubles as the model warm-up (see above), so pass the
-            // session's model params through.
+            // The probe doubles as the model warm-up (isServerWhisperReachable),
+            // so pass the session's model params through.
             return (await isServerWhisperReachable(vadOpts)) ? localWhisperStt(vadOpts) : null;
     }
 }
@@ -333,10 +254,11 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     if (!webMode && isTauri()) out.push({ value: 'whisper', label: 'Whisper (local)' });
     // Browser speech needs a recognizer that actually works. Not under Tauri:
     // the macOS WKWebView exposes webkitSpeechRecognition but never returns
-    // results (same reason detectSttBackend skips it), and desktop has Whisper +
-    // cloud. Not in the native app either: the plugin above is better. And not
-    // on iOS/iPadOS, where isWebSpeechSupported reports false for a recognizer
-    // that's present but unusable - those browsers default to aloud cloud.
+    // results (the mic captures, no transcript ever arrives), and desktop has
+    // Whisper + cloud. Not in the native app either: the plugin above is
+    // better. And not on iOS/iPadOS, where isWebSpeechSupported reports false
+    // for a recognizer that's present but unusable - those browsers default to
+    // aloud cloud.
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser' });
     }

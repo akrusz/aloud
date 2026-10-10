@@ -17,36 +17,27 @@ import { Preferences } from '@capacitor/preferences';
 
 import type { KvStorage } from '../../../src/platform/storage.js';
 
-export interface CapacitorKvOptions {
-    /** Key prefix to namespace this store. Defaults to "aloud:". */
-    prefix?: string;
-}
+const PREFIX = 'aloud:';
 
 export class CapacitorKv implements KvStorage {
-    private readonly prefix: string;
-
-    constructor(options: CapacitorKvOptions = {}) {
-        this.prefix = options.prefix ?? 'aloud:';
-    }
-
     async get(key: string): Promise<string | null> {
-        const { value } = await Preferences.get({ key: this.prefix + key });
+        const { value } = await Preferences.get({ key: PREFIX + key });
         return value;
     }
 
     async set(key: string, value: string): Promise<void> {
-        await Preferences.set({ key: this.prefix + key, value });
+        await Preferences.set({ key: PREFIX + key, value });
     }
 
     async delete(key: string): Promise<void> {
-        await Preferences.remove({ key: this.prefix + key });
+        await Preferences.remove({ key: PREFIX + key });
     }
 
     async keys(): Promise<string[]> {
         const { keys } = await Preferences.keys();
         return keys
-            .filter((k) => k.startsWith(this.prefix))
-            .map((k) => k.slice(this.prefix.length));
+            .filter((k) => k.startsWith(PREFIX))
+            .map((k) => k.slice(PREFIX.length));
     }
 
     async clear(): Promise<void> {

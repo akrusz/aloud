@@ -93,7 +93,7 @@ export async function mountNotingSessionView(
     // zh circles: zh opener, labels, and timer lines (meditation-pal-c3a0.3).
     const notingLanguage = sessionLanguageOf(setup.language);
     const session = new SessionManager({ contextStrategy: 'full' });
-    session.startSession(undefined, 'noting');
+    session.startSession('noting');
     if (session.state) session.state.language = setup.language;
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).

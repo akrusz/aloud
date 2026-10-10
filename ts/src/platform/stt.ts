@@ -63,41 +63,6 @@ export interface SttEngine {
     setPauseWindow?(baseMs: number, maxMs: number): void;
 }
 
-// In-memory implementation for tests / dry-run CLI usage.
-
-export interface InMemorySttEngineOptions {
-    /** Events to yield on each `start()` call. */
-    script: readonly SttEvent[];
-    /** Delay between events, for tests where timing matters. */
-    delayMs?: number;
-}
-
-export class InMemorySttEngine implements SttEngine {
-    private readonly script: readonly SttEvent[];
-    private readonly delayMs: number;
-    private stopRequested = false;
-
-    constructor(options: InMemorySttEngineOptions) {
-        this.script = options.script;
-        this.delayMs = options.delayMs ?? 0;
-    }
-
-    async *start(): AsyncIterable<SttEvent> {
-        this.stopRequested = false;
-        for (const event of this.script) {
-            if (this.stopRequested) return;
-            if (this.delayMs > 0) {
-                await new Promise<void>((resolve) => setTimeout(resolve, this.delayMs));
-            }
-            yield event;
-        }
-    }
-
-    async stop(): Promise<void> {
-        this.stopRequested = true;
-    }
-}
-
 /**
  * True when a transcript is only non-speech markers or punctuation, so it
  * shouldn't take the user's turn.
@@ -117,16 +82,4 @@ export function isNonSpeechOnly(text: string): boolean {
         .replace(/\[[^\]]*\]/g, '')
         .replace(/\*[^*]*\*/g, '');
     return !/\p{L}/u.test(stripped);
-}
-
-/**
- * Drain an STT iterator to its final transcript, ignoring partials. Null if
- * the stream ends with an error or no final.
- */
-export async function collectFinal(stt: SttEngine): Promise<string | null> {
-    for await (const event of stt.start()) {
-        if (event.type === 'final') return event.text;
-        if (event.type === 'error') return null;
-    }
-    return null;
 }

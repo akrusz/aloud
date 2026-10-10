@@ -61,7 +61,6 @@ function makeSession(id: string, exchanges = 0): SessionState {
             content: `msg ${i}`,
             timestamp: 1_000_000 + i,
         })),
-        tags: [],
         notes: '',
         usage: emptyUsage(),
     };
@@ -105,7 +104,6 @@ describe('SessionStore', () => {
             startTime: 1_000_000,
             endTime: 1_000_500,
             exchanges: [],
-            tags: [],
             notes: '',
         };
         await setJson(kv, 'session:old', legacy);

@@ -17,7 +17,6 @@ function session(over: Partial<SessionState> = {}): SessionState {
         startTime: 0,
         endTime: 100,
         exchanges: [],
-        tags: [],
         notes: '',
         usage: {
             llmCalls: 0,

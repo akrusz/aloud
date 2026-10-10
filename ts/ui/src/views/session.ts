@@ -107,7 +107,6 @@ import {
     createSttForChoice,
     sttBackendForChoice,
     resolveSttChoice,
-    invalidateSttBackendCache,
     sttEngineOptions,
     type SttBackend,
 } from '../adapters/stt-picker.js';
@@ -186,6 +185,7 @@ import {
     voiceRateLabel,
     ENGINE_LABELS,
     type ScoredVoice,
+    stripVoicePrefix,
 } from '../voice-picker.js';
 
 const OLLAMA_PROXY_URL = '/ollama';
@@ -408,7 +408,7 @@ export async function mountSessionView(
         ? new StagedModeController(mode, continueFrom?.modePhase)
         : null;
     const session = new SessionManager({ contextStrategy: 'full' });
-    session.startSession(undefined, mode.id);
+    session.startSession(mode.id);
     // The system prompt is built once, on the opener's first call (after the
     // voice note resolves), and frozen for the sit: any change to it re-bills
     // the whole cached prefix. Anything that changes mid-sit rides the session
@@ -719,9 +719,6 @@ export async function mountSessionView(
     // Tier-2 soak harness: no-op unless DEV and ?soak=1 (ui/src/soak-tap.ts).
     armSoakTap();
 
-    // Re-probe each session start: the local Whisper backend (the desktop Rust
-    // shell) may have come up or gone down since last detection.
-    invalidateSttBackendCache();
     const vadOpts = {
         silenceBaseMs: pacingConfig.silenceBaseMs,
         silenceMaxMs: pacingConfig.silenceMaxMs,
@@ -1268,15 +1265,12 @@ export async function mountSessionView(
         };
     }
 
-    /** Render a billing apology (paused / out-of-credits) as a transient
-     *  facilitator bubble. NOT added to session history, so the saved transcript
-     *  and the next LLM call's context resume from the last real turn once the
-     *  user tops up or switches to a local/BYOK provider. showBuy adds an inline
-     *  top-up button (useful only out-of-credits; a top-up can't lift a
-     *  soft-launch pause). */
-    function appendBillingApology(text: string, showBuy: boolean): void {
+    /** Render the out-of-credits apology as a transient facilitator bubble with
+     *  an inline top-up button. NOT added to session history, so the saved
+     *  transcript and the next LLM call's context resume from the last real turn
+     *  once the user tops up or switches to a local/BYOK provider. */
+    function appendBillingApology(text: string): void {
         const el = appendMessage('assistant', text);
-        if (!showBuy) return;
         // A retreat attendee (meditation-pal-414) shouldn't be nudged to buy:
         // their cap reset restores access, not a top-up.
         if (getRetreatCovered()) return;
@@ -1322,7 +1316,7 @@ export async function mountSessionView(
         }
         const msg = err instanceof Error ? err.message : String(err);
         if (isOutOfCredits(msg)) {
-            appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
+            appendBillingApology(OUT_OF_CREDITS_MESSAGE);
             void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             return;
         }
@@ -2307,7 +2301,7 @@ export async function mountSessionView(
             // ephemeral apology (appendBillingApology), voiced via the free
             // canned endpoint. (meditation-pal-44o, meditation-pal-4l5)
             if (isOutOfCredits(msg)) {
-                appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
+                appendBillingApology(OUT_OF_CREDITS_MESSAGE);
                 void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
             } else if (/claude_proxy_stalled/.test(msg)) {
                 // The local Claude CLI failed across all retries (see
@@ -3523,14 +3517,6 @@ function leaveMessage(destination?: SessionEndDestination): string {
         return t('Leave session to view your account? This will end your current session.');
     }
     return t('Leave your session?');
-}
-
-/** SessionSetup.voice carries a 'server:', 'browser:', or 'aloud:' prefix; the
- *  voice picker works with raw names. Strip the prefix on the way in. */
-function stripVoicePrefix(voice: string | null): string | null {
-    if (!voice) return null;
-    const m = /^(server|browser|aloud):(.*)$/.exec(voice);
-    return m ? (m[2] ?? null) : voice;
 }
 
 // Re-exported for noting-session.ts.

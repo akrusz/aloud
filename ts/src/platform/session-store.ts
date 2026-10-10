@@ -9,12 +9,8 @@
 import { emptyUsage, type SessionState } from '../facilitation/session.js';
 import { type KvStorage, getJson, setJson } from './storage.js';
 
-const DEFAULT_PREFIX = 'session:';
+const KEY_PREFIX = 'session:';
 const INDEX_KEY = 'session:index';
-
-export interface SessionStoreOptions {
-    prefix?: string;
-}
 
 /**
  * The persistence surface the UI depends on. Implemented by SessionStore (any
@@ -29,14 +25,10 @@ export interface SessionStoreApi {
 }
 
 export class SessionStore implements SessionStoreApi {
-    private readonly prefix: string;
-
-    constructor(private readonly storage: KvStorage, options: SessionStoreOptions = {}) {
-        this.prefix = options.prefix ?? DEFAULT_PREFIX;
-    }
+    constructor(private readonly storage: KvStorage) {}
 
     private keyFor(id: string): string {
-        return `${this.prefix}${id}`;
+        return `${KEY_PREFIX}${id}`;
     }
 
     async save(state: SessionState): Promise<void> {

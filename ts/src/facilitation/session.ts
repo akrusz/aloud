@@ -130,7 +130,6 @@ export interface SessionState {
     startTime: number;
     endTime: number | null;
     exchanges: Exchange[];
-    tags: string[];
     notes: string;
     /**
      * A ModeSpec id from modes.ts ('exploration', 'noting', 'felt_sense'). A
@@ -221,13 +220,12 @@ export class SessionManager {
         return end - this._state.startTime;
     }
 
-    startSession(sessionId?: string, meditationType?: string): SessionState {
+    startSession(meditationType?: string): SessionState {
         this._state = {
-            sessionId: sessionId ?? this.generateSessionId(),
+            sessionId: this.generateSessionId(),
             startTime: this.clock(),
             endTime: null,
             exchanges: [],
-            tags: [],
             notes: '',
             ...(meditationType !== undefined && { meditationType }),
             usage: emptyUsage(),
@@ -381,27 +379,6 @@ export class SessionManager {
             if (firstUser > 0) exchanges = exchanges.slice(firstUser);
         }
         return exchanges.map((e) => ({ role: e.role, content: e.content }));
-    }
-
-    getLastUserMessage(): string | null {
-        if (this._state === null) return null;
-        for (let i = this._state.exchanges.length - 1; i >= 0; i--) {
-            const ex = this._state.exchanges[i];
-            if (ex && ex.role === 'user' && !isControlExchange(ex)) return ex.content;
-        }
-        return null;
-    }
-
-    addTag(tag: string): void {
-        if (this._state === null) return;
-        if (!this._state.tags.includes(tag)) {
-            this._state.tags.push(tag);
-        }
-    }
-
-    setNotes(notes: string): void {
-        if (this._state === null) return;
-        this._state.notes = notes;
     }
 
     private requireActive(): SessionState {
