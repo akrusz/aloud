@@ -12,17 +12,17 @@ it's done.
 **Android** is on Play **internal testing**, installed by a few hand-added
 testers. Signing, Play App Signing, the App-signing-key OAuth client (sign-in
 works in Play-delivered builds), the reviewer demo account + App access
-instructions, the content rating and the Data Safety form are all in. The plan
-from here: **open testing** (a public beta, promoted on Twitter), then
-production a few weeks later.
+instructions, the content rating and the Data Safety form are all in.
 
-**The build on the track is stale.** The last bundle built on this machine is
-**2.7.0, versionCode 22, 2026-08-25**. Everything since was verified on dev
-installs (`cap:android:run`), so a Play-delivered build has never carried the
-recognizer session model (`lbl5`), the speaker re-request after a lock
-(`wxj5`) or voice commands. A fresh bundle goes up before anything is tested or
-promoted. `release.sh` bumps `versionCode` on every release, so the next upload
-jumps from 22 to 38 or later; that is fine, Play only needs it to rise.
+**Production is gated.** The console requires a closed test with 12 opted-in
+testers for 14 days before production access can even be applied for, and open
+testing stays locked until then. So the public beta is a **closed test**,
+recruited on Twitter, and production follows the application.
+
+The current bundle is **2.14.0, versionCode 39**: the first Play build since
+2.7.0 in August, so the first to carry the recognizer session model (`lbl5`),
+the speaker re-request after a lock (`wxj5`) and voice commands. Everything in
+between was verified on dev installs only. The test sit on it is still owed.
 
 **iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
 on the simulator only, some App Store Connect info filled in. Google sign-in is
@@ -35,22 +35,19 @@ and needs no account; swapping in an AI companion puts you on cloud.
 Known and accepted: no barge-in on native STT (`x4h4`), no anonymous first sit on
 iPhone **web** (`2dy1`; the native apps are unaffected).
 
-## Android: the road to the open beta
+## Android: the road through the closed test
 
-The Play account is personal but long predates Nov 13 2023, so the closed-test
-rule for new personal accounts (N opted-in testers for 14 days) **does not
-apply**: internal testing can be promoted straight to open testing or
-production review.
+The console's Production page (2026-10-10) asks for three things before
+"Apply for access to production" opens: a published closed testing release, at
+least 12 testers opted in, and 14 days of that test with 12 or more opted in
+the whole time. This file used to say the account was old enough to be exempt.
+It is not, and the console is the authority. Open testing "is available when
+you have production access", so it is not a way around. Internal testers do not
+count.
 
-Why open testing first: people on a test track **cannot leave public ratings or
-reviews** (their feedback arrives privately in the console), while the listing
-is public, searchable and installable from a link. The first open-testing
-release goes through the same review as production.
+A closed test still gives what the open beta was for: testers **cannot leave
+public ratings or reviews**, their feedback arrives privately in the console.
 
-- [ ] **Cut a release, then build the bundle.** `scripts/android-aab.sh` warns
-      when HEAD is ahead of the last tag. Today it is, and the gap holds the
-      openers the promo video shows ("settle in"), so release first. Upload the
-      `.aab` to **internal testing**.
 - [ ] **The test sit, on the Play-installed build.** Uninstall the dev build
       first: same `applicationId`, different signing key, so Play cannot install
       over it (and the wipe gives a true first run). In one sitting:
@@ -82,17 +79,33 @@ release goes through the same review as production.
       credits. The App access text was written in September.
 - [ ] **App access text**: reread it in the console for any line about buying
       credits in the app. Nothing is sold there now (see "Buying ☁" below).
-- [ ] **Open testing release**: Testing → Open testing → promote the tested
-      build from internal. Pick countries (billing no longer limits the
-      choice), give the feedback email, send for review.
-- [ ] **Once approved**: the site's platform line (`docs/index.html`: "iOS and
-      Android are in closed beta") becomes an open-beta line with the Play
-      link. A `docs/` push goes live at once, so not before.
+- [ ] **A tester list people can join by link.** Closed testing takes email
+      lists or Google Groups. A Google Group anyone can join turns "invite by
+      email" into something to tweet; add its address under Closed testing →
+      Testers, with the feedback email.
+- [ ] **Closed testing release**: Create new release → **Add from library** →
+      the tested bundle (promote only goes up the ladder, the library works in
+      any direction). Pick countries (billing no longer limits the choice), send
+      for review. The first closed release is reviewed.
+- [ ] **Recruit, well past 12.** Two links, in this order: join the group, then
+      the opt-in link the console shows under Testers
+      (`https://play.google.com/apps/testing/app.aloud.meditation`), then
+      install from Play with the same Google account. The 12 must hold for the
+      14 days running before the application, and people drop out, so ask
+      testers to stay opted in. The site's platform line (`docs/index.html`:
+      "iOS and Android are in closed beta") can carry the group link once the
+      release is approved; a `docs/` push goes live at once, so not before.
+- [ ] **Keep notes as it runs**: how testers were recruited, what they said,
+      what changed because of it. The application asks exactly that ("Preview
+      questions" on the Production page shows them now).
 
-## Android: production (after the beta)
+## Android: production (after the closed test)
 
-- [ ] **Promote to production**: promote the open-testing release, roll out.
-      Another review, a few days. Public reviews open here.
+- [ ] **Apply for production access** on the Dashboard, once 12 or more testers
+      have been opted in for the last 14 days without a gap.
+- [ ] **Promote to production** once it is granted, roll out. Another review, a
+      few days. Public reviews open here. Open testing unlocks too, if a wider
+      beta is still wanted then.
 - [ ] Then the site's platform line again, the README (it has no mobile mention
       at all today) and the store links.
 
