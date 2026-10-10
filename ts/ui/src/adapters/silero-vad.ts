@@ -1,9 +1,9 @@
 /**
  * Silero VAD frame classifier - a small neural net (~3 MB ONNX, MIT) run
- * client-side over onnxruntime-web's WASM backend. Replaces the absolute
- * RMS-energy thresholds in whisper-pcm-stt.ts as the "is the user speaking"
- * signal: a per-~32ms speech probability, robust to quiet mics, soft trailing
- * speech, and breathing - where a gate tuned on one device fails on another (fgbj).
+ * client-side over onnxruntime-web's WASM backend. The "is the user speaking"
+ * signal for whisper-pcm-stt.ts: a per-~32ms speech probability, robust to
+ * quiet mics, soft trailing speech, and breathing - where an absolute
+ * RMS-energy gate tuned on one device fails on another (fgbj).
  *
  * Classifies SPEECH, not SPEAKERS: the facilitator's own TTS leaking into the
  * mic scores high, so echo rejection stays energy-based (the measured echo gate
@@ -43,8 +43,8 @@ const SPEECH_OFF = 0.35;
 const MAX_PENDING_CHUNKS = 32;
 // Session create succeeding doesn't prove run() does - the 6z11 ort-web bug
 // class is machine-specific and can surface at inference time instead, where
-// the per-chunk catch used to swallow it silently: `speaking` stayed false
-// forever and the app sat deaf with `VAD: ok` in the diagnostics. After this
+// a per-chunk catch alone swallows it silently: `speaking` stays false
+// forever and the app sits deaf with `VAD: ok` in the diagnostics. After this
 // many consecutive run failures (~⅓s of audio) the instance declares itself
 // broken so the engine drops to the energy speech decision.
 const BROKEN_AFTER_FAILURES = 10;
@@ -240,10 +240,9 @@ export class SileroFrameVad {
             })
             .catch((err) => {
                 // A single failed inference shouldn't kill the chain; the next
-                // chunk proceeds with slightly stale state. But an unbroken run
-                // of failures means inference doesn't work on this machine at
-                // all - record it (console.error lands in the bug-report error
-                // log) and flag `broken` so the engine stops trusting us.
+                // chunk proceeds with slightly stale state. An unbroken run of
+                // them trips `broken` (BROKEN_AFTER_FAILURES); console.error
+                // lands in the bug-report error log.
                 this.runFailures++;
                 this.lastRunError = errText(err);
                 if (++this.consecutiveFailures >= BROKEN_AFTER_FAILURES && !this.broken) {

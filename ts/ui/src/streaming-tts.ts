@@ -50,10 +50,9 @@ export interface StreamCompletionOptions extends CompletionOptions {
     /** Forwarded to tts.speak() for each sentence. */
     ttsOptions?: TtsOptions;
     /** Called once with the FIRST TTS failure of this completion. Speak errors
-     *  stay non-fatal (the text lands, the session continues text-only), but
-     *  without this they were swallowed entirely and a mid-session
-     *  out-of-credits on the TTS leg never reached the user. The caller routes
-     *  it through its billing/auth error UI. */
+     *  stay non-fatal (the text lands, the session continues text-only); this
+     *  is how a mid-session out-of-credits on the TTS leg reaches the user. The
+     *  caller routes it through its billing/auth error UI. */
     onTtsError?: (err: unknown) => void;
     /** Abort the whole completion - stop consuming the stream AND speaking. For
      *  when a newer turn supersedes this one and the reply is discarded. */
@@ -65,7 +64,6 @@ export interface StreamCompletionOptions extends CompletionOptions {
 }
 
 export interface StreamCompletionResult {
-    /** Full completion text. */
     text: string;
     /** Promise that resolves when the last TTS chunk finishes playing. */
     ttsDone: Promise<void>;

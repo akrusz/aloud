@@ -1,6 +1,6 @@
 /**
- * POST /v1/stt, metered speech-to-text. Body is raw mono PCM - Int16 with
- * `format=i16` (current clients; half the bytes of the same audio), Float32
+ * POST /cloud/v1/stt, metered speech-to-text. Body is raw mono PCM - Int16
+ * with `format=i16` (current clients; half the bytes of the same audio), Float32
  * otherwise (older clients) - sample rate in the `sample_rate` query param.
  * Forwards to the configured Whisper backend (OpenAI by default, Groq/custom
  * via env; config.ts resolveSttConfig), debits fractional credits by the

@@ -2,11 +2,11 @@
  * Credit ledger over any CreditsStore. Balance is always summed from append-only
  * entries, so it can never drift from its history.
  *
- * Hold lifecycle (meditation-pal-8sj "pre-auth hold at session start"):
+ * Hold lifecycle (a per-turn pre-auth, meditation-pal-8sj):
  *   placeHold(N)        -> appends a -N 'hold' entry, returns holdId
  *   settleHold(holdId, actual) -> releases the hold (+N) and debits `actual`,
  *                          clamped to the balance (never overdraws)
- *   releaseHold(holdId) -> releases the hold (+N), no debit (session aborted)
+ *   releaseHold(holdId) -> releases the hold (+N), no debit (turn aborted)
  * The hold entry is negative, so spendable balance already reflects outstanding
  * holds; settling swaps the estimate for the real cost, atomically as far as the
  * caller can tell.
@@ -203,7 +203,7 @@ export class Ledger {
         });
     }
 
-    /** Release a hold with no charge (session aborted before any usage).
+    /** Release a hold with no charge (turn aborted before any usage).
      *  Idempotent for the same reason as settleHold. */
     releaseHold(accountId: string, holdId: string): Promise<void> {
         return this.runExclusive(accountId, async () => {
@@ -213,9 +213,9 @@ export class Ledger {
         });
     }
 
-    /** Direct debit with no prior hold (e.g. reconciling a turn outside a held
-     *  session). Throws if it would overdraw. Serialized per account so the check
-     *  and the append are atomic against concurrent same-account ops. */
+    /** Direct debit with no prior hold (the upfront STT/TTS legs, zeroing a
+     *  deleted account). Throws if it would overdraw. Serialized per account so
+     *  the check and the append are atomic against concurrent same-account ops. */
     debit(accountId: string, credits: number, reason: string): Promise<void> {
         return this.runExclusive(accountId, async () => {
             const available = await this.balance(accountId);

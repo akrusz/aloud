@@ -12,9 +12,9 @@
  *     mode, so to hold a turn open across a mid-thought pause we
  *     restart-stitch: fold each segment's transcript and relaunch the recognizer
  *     until submitDelayMs of real silence elapses (see start()). submitDelayMs=0
- *     keeps the old one-utterance-per-turn behavior. On Android the patched
- *     plugin (patches/) keeps one SpeechRecognizer warm and flags the closing
- *     transcript, so a relaunch costs ~50ms instead of a fresh service bind.
+ *     is one utterance per turn. On Android the patched plugin (patches/) keeps
+ *     one SpeechRecognizer warm and flags the closing transcript, so a relaunch
+ *     costs ~50ms instead of a fresh service bind.
  *   - In a plain browser (no Capacitor runtime) this throws at start(), not at
  *     import.
  */
@@ -113,10 +113,10 @@ const RELAUNCH_WARMUP_MS = 400;
 //
 // The liveness signal is the patched plugin's listeningState 'ready'
 // (onReadyForSpeech; see patches/). The stock plugin's only launch-ish event,
-// 'started', actually fires on onBeginningOfSpeech - USER SPEECH - so keying
-// the watchdog on it meant every quiet stretch looked like a hung start and
-// got its live recognizer torn down at 2.5s cadence, clipping whatever the
-// user said into the deaf relaunch gaps.
+// 'started', actually fires on onBeginningOfSpeech - USER SPEECH - so a
+// watchdog keyed on it reads every quiet stretch as a hung start and tears
+// the live recognizer down at 2.5s cadence, clipping whatever the user says
+// into the deaf relaunch gaps.
 const STARTUP_WATCHDOG_MS = 2500;
 const MAX_START_RETRIES = 3;
 
@@ -180,10 +180,9 @@ export class CapacitorSttEngine implements SttEngine {
         this.wakeForStop = () => events.wake();
 
         // Clear any half-torn-down native session (the next start() fails
-        // "RecognitionService busy" otherwise). The plugin's stop() NEVER
-        // resolves its call on the success path - fire and forget, never
-        // await it - and it runs before the listeners attach so its
-        // 'stopped' event can't read as this turn ending.
+        // "RecognitionService busy" otherwise). Fire and forget (the plugin's
+        // stop() never resolves, see stop()), and before the listeners attach
+        // so its 'stopped' event can't read as this turn ending.
         void SpeechRecognition.stop().catch(() => {});
         await new Promise<void>((resolve) => setTimeout(resolve, RESTART_GAP_MS));
 
@@ -216,10 +215,10 @@ export class CapacitorSttEngine implements SttEngine {
         // final transcript or an error, and the plugin serialises a start()
         // that lands during a live session. In dictation mode the session
         // outlives end-of-speech - a second 'started' can follow 'stopped' -
-        // so tearing it down at 'stopped' (the pre-2026-09 design) both lost
-        // the words that followed and drew ERROR_CLIENT from the restart
-        // (meditation-pal-lbl5). Here 'stopped' is informational; the segment
-        // folds on `final`. iOS keeps the settle-timer fold.
+        // so tearing it down at 'stopped' both loses the words that follow
+        // and draws ERROR_CLIENT from the restart (meditation-pal-lbl5). Here
+        // 'stopped' is informational; the segment folds on `final`. iOS keeps
+        // the settle-timer fold.
         const nativeSessionEvents = Capacitor.getPlatform() === 'android';
 
         let accumulated = ''; // folded transcript from prior segments this turn
@@ -245,9 +244,9 @@ export class CapacitorSttEngine implements SttEngine {
         // When the current segment's Android end-of-speech fired - the moment the
         // mic went deaf. Used to credit the deaf gap back into endsAt at relaunch.
         let stoppedAt = 0;
-        // Startup watchdog: whether the active segment has reported it started
-        // (via listeningState 'started' or a first partial), and how many times
-        // we've relaunched a hung start this turn (reset on a real start).
+        // Startup watchdog: whether the active segment has reported it came up
+        // (listeningState 'ready'/'started', or a first partial), and how many
+        // times we've relaunched a hung start this turn (reset on a real start).
         let started = false;
         let startRetries = 0;
         // True while a relaunch is tearing down/rebinding; error events in that
@@ -287,13 +286,11 @@ export class CapacitorSttEngine implements SttEngine {
             void SpeechRecognition.stop().catch(() => {});
         };
 
-        // Pause tolerated right now: base + speech-so-far × ramp, capped. Ramps
-        // with speech duration so longer turns get more patience mid-sentence.
+        // Pause tolerated right now: base + speech-so-far × ramp, capped.
         const neededMs = (): number => {
             const speechDur = lastSpeechAt && speechStartMs ? lastSpeechAt - speechStartMs : 0;
             return Math.min(submitDelayMs + speechDur * submitRampRate, submitMaxDelayMs);
         };
-        // Schedule the end timer to fire at the absolute `endsAt` deadline.
         const scheduleEnd = (): void => {
             if (endTimer !== null) clearTimeout(endTimer);
             endTimer = setTimeout(submit, Math.max(0, endsAt - Date.now()));
@@ -331,9 +328,10 @@ export class CapacitorSttEngine implements SttEngine {
                 startTimer = null;
             }
         };
-        // The launch produced no 'started'/partial in time: the start() call hung.
-        // Relaunch (a fresh bind usually comes up fast); give up after a few tries
-        // so a truly-dead recognizer ends the turn rather than spinning.
+        // The launch produced no 'ready'/'started'/partial in time: the start()
+        // call hung. Relaunch (a fresh bind usually comes up fast); give up
+        // after a few tries so a truly-dead recognizer ends the turn rather
+        // than spinning.
         const onStartTimeout = (): void => {
             startTimer = null;
             if (submitted || events.done || this.stopRequested || started) return;
@@ -355,7 +353,7 @@ export class CapacitorSttEngine implements SttEngine {
         const restartSegment = async (): Promise<void> => {
             if (submitted || events.done || this.stopRequested || relaunching) return;
             // Latched until the relaunch lands: the native stop() below can
-            // itself fire onError (now a visible 'error' event, see the state
+            // itself fire onError (a visible 'error' event, see the state
             // listener), which must not trigger a second, racing restart.
             relaunching = true;
             void SpeechRecognition.stop().catch(() => {});
@@ -519,7 +517,7 @@ export class CapacitorSttEngine implements SttEngine {
                 const busy = code !== undefined ? code === ERR_BUSY || code === ERR_CLIENT : /busy|client side/i.test(msg);
                 if (silence) {
                     // Not ours if this segment hasn't come up yet - it's the
-                    // previous one's, and acting on it cost every turn its first
+                    // previous one's, and acting on it costs each turn its first
                     // ~650ms (meditation-pal-wlp9). Time-bounded so an engine
                     // that never reports ready (iOS) still ends a silent turn.
                     if (!started && Date.now() - segmentLaunchedAt < STALE_SILENCE_GUARD_MS) {
@@ -592,7 +590,6 @@ export class CapacitorSttEngine implements SttEngine {
             }
         };
 
-        // Launch (or relaunch) one native recognition segment.
         const launchSegment = (): void => {
             segmentLaunchedAt = Date.now();
             armStart(); // watchdog: relaunch if this start() hangs

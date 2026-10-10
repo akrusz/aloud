@@ -43,7 +43,6 @@ export interface PacingConfig {
     responseDelayMs: number;
     /** Seconds of total silence before a gentle check-in. */
     silenceCheckinSec: number;
-    /** If false, check-ins never fire. */
     silenceCheckinsEnabled: boolean;
     /**
      * If false, [HOLD] is ignored and the session never enters extended silence

@@ -24,8 +24,6 @@ fn ping_version() -> Option<String> {
     crate::ollama::version(Duration::from_millis(500))
 }
 
-// --- restart ----------------------------------------------------------------
-
 /// How Ollama runs now, so restart can bring it back the same way.
 #[derive(Clone, Copy, PartialEq)]
 enum RunMethod {
@@ -174,8 +172,6 @@ pub fn restart_stream(on: &mut Progress) {
     }));
 }
 
-// --- upgrade -----------------------------------------------------------------
-
 /// `Some((error, download_url))` when automatic upgrade isn't possible (Windows,
 /// or macOS without Homebrew); the handler turns it into a 400 so the UI can
 /// offer the download page. `None` → safe to stream an upgrade.
@@ -227,11 +223,9 @@ pub fn upgrade_stream(on: &mut Progress) {
     );
 }
 
-// --- install -----------------------------------------------------------------
-
 /// Validate tool + platform. `Ok(())` → stream the install; `Err((status,
 /// error, download_url?))` → the handler returns that status. Only `ollama` is
-/// installable in the Tauri build; Piper is compiled in.
+/// installable; Piper is compiled in.
 pub fn install_precheck(tool: &str) -> Result<(), (u16, String, Option<String>)> {
     if tool != "ollama" {
         return Err((400, format!("Unknown or unsupported tool: {tool}"), None));
@@ -254,8 +248,6 @@ pub fn install_stream(tool: &str, on: &mut Progress) {
     on(json!({ "status": format!("Installing {tool}...") }));
     stream_bash(install_script(), on, "done");
 }
-
-// --- shared subprocess streaming --------------------------------------------
 
 /// Run a bash script, forwarding each output line as `{status: line}`, then
 /// `{status:"done", message}` (exit 0) or `{status:"error", error}`. stderr is

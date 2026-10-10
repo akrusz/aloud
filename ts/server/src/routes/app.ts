@@ -19,8 +19,8 @@ import { ipRateLimit } from '../auth/middleware.js';
 import { RateGuard } from '../quota/freetier.js';
 import { fetchModels } from '../providers/models.js';
 
-/** BYOK providers the picker may show. Availability is client-key-gated (the
- *  server never sees the key), so report them available and let the client
+/** BYOK providers the picker may show. Availability is client-key-gated (this
+ *  route never sees the key), so report them available and let the client
  *  decide. Ollama and claude_proxy are local-only, reported unavailable so a
  *  forced-local browser-dev session (which shows every provider) marks them ⚙
  *  rather than usable. */

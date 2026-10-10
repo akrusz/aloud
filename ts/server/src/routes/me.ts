@@ -1,7 +1,7 @@
 /**
- * GET /v1/me: the signed-in account and its live credit balance, plus what a
- * client needs to render its model picker and store transparently
- * (/v1/me/models, /v1/me/packs, /v1/me/estimates).
+ * GET /cloud/v1/me: the signed-in account and its live credit balance, plus
+ * what a client needs to render its model picker and store transparently
+ * (/me/models, /me/packs, /me/estimates).
  */
 
 import { Hono } from 'hono';

@@ -33,8 +33,9 @@ import { t } from './i18n.js';
  *
  *  The LLM provider only counts when the session will actually CALL it
  *  (sessionNeedsLlm): mobile has no local provider, so setup.provider is always
- *  'aloud' there, and taking that at face value made an AI-free noting circle
- *  demand sign-in for a model it never asks anything (meditation-pal-vr3w). */
+ *  'aloud' there, and taking that at face value would make an AI-free noting
+ *  circle demand sign-in for a model it never asks anything
+ *  (meditation-pal-vr3w). */
 export function sessionUsesCloud(
     setup: SessionSetup,
     settings: AppSettings,

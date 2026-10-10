@@ -1,6 +1,6 @@
 /**
- * Noting circle orchestrator. Fully client-side: calls generateNotingLabel,
- * per-participant TTS, and the STT engine directly.
+ * Noting circle orchestrator: drives generateNotingLabel, per-participant
+ * TTS, and the STT engine.
  *
  * Flow: opener → User → P1 → P2 → … → User → … Each LLM participant notes a
  * 1-2 word label in its own voice; the user notes by speaking on their turn.
@@ -101,8 +101,8 @@ export async function mountNotingSessionView(
 
     // A circle of fixed phrases and sounds calls no model, and the opener is
     // static, so don't build a provider for one: on mobile the only provider is
-    // 'aloud', and constructing it fetches a cloud token the session never needs
-    // - which is what made an AI-free circle demand sign-in (meditation-pal-vr3w).
+    // 'aloud', and constructing it fetches a cloud token the session never
+    // needs, making an AI-free circle demand sign-in (meditation-pal-vr3w).
     const needsLlm = sessionNeedsLlm('noting', setup.notingParticipants);
     // The account-free flow: a cloud narrator voice with nothing to bill it to
     // (signed out / out of credits) and no other metered leg. The opener and
@@ -282,10 +282,9 @@ export async function mountNotingSessionView(
     let ttsEnabled = true;
 
     // TTS/STT errors are non-fatal to the circle, but hosted billing/auth
-    // failures must still be visible: swallowing them meant an out-of-credits
-    // voice just went silent with no explanation. Toast each distinct cloud
-    // condition once - the circle loops every few seconds, so repeating the
-    // same toast forever is noise.
+    // failures must still be visible, or an out-of-credits voice just goes
+    // silent with no explanation. Toast each distinct cloud condition once -
+    // the circle loops every few seconds, so repeating the same toast is noise.
     let lastCloudErrorToast: string | null = null;
     function surfaceCloudError(err: unknown): void {
         if (torn) return;
@@ -368,10 +367,10 @@ export async function mountNotingSessionView(
 
     // ---- audio: STT, per-participant TTS, chime cue ----
     // The Settings pick, same as views/session.ts - NOT an auto-detect. The
-    // start gate (ensureCloudAccess) already pre-flights sign-in against this
-    // resolved choice, so detecting separately here made the two disagree:
-    // a browser with no Web Speech was asked to sign in for cloud STT and then
-    // handed a mic-less session anyway (meditation-pal-j8k1).
+    // start gate (ensureCloudAccess) pre-flights sign-in against this resolved
+    // choice, and a separate detection here can disagree with it: a browser
+    // with no Web Speech gets asked to sign in for cloud STT and then handed a
+    // mic-less session anyway (meditation-pal-j8k1).
     const stt: SttEngine | null = await createSttForChoice(
         resolveSttChoice(appSettings.sttEngine, isWebMode()),
         {
@@ -583,7 +582,6 @@ export async function mountNotingSessionView(
             const cueDelay = userCadences.length === 0 ? 0 : USER_TURN_CUE_DELAY_MS;
             if (cueDelay > 0) await sleep(cueDelay);
             if (torn || paused) return;
-            // A chosen sound file, or the built-in synth chime.
             if (setup.notingUserTurnCueSound) await playSoundFile(setup.notingUserTurnCueSound);
             else playChime();
             await sleep(250);
@@ -734,7 +732,7 @@ export async function mountNotingSessionView(
     }
 
     // ---- opener ----
-    // Static, not LLM: some models returned meta-commentary here ("Here are a
+    // Static, not LLM: some models return meta-commentary here ("Here are a
     // few ways to say this…").
     async function speakOpener(): Promise<void> {
         if (torn) return;
@@ -791,9 +789,8 @@ export async function mountNotingSessionView(
     });
 
     /**
-     * Show the leave/end confirmation overlay. On confirm, ends the circle and
-     * routes to `destination` (or back to setup). Wires fresh handlers each call
-     * so a re-open doesn't carry the previous click's destination.
+     * Show the leave/end confirmation overlay (end-confirm.ts). On confirm,
+     * ends the circle and routes to `destination` (or back to setup).
      */
     function showEndConfirm(message: string, destination: SessionEndDestination | undefined): void {
         wireEndConfirm(root, message, {
@@ -841,7 +838,6 @@ export async function mountNotingSessionView(
             kasinaToggle.checked = false;
             kasinaToggle.dispatchEvent(new Event('change'));
         }
-        // Remove the window/document-level listeners (kasina drag, beforeunload).
         viewCleanup.abort();
         void appStateListener?.then((h) => h.remove());
         const finalState = session.endSession();

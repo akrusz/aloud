@@ -98,8 +98,7 @@ export async function connectIdentity(
     // in, else mint a fresh one. A linkToAccountId that no longer resolves (a
     // STALE session token, common after an in-memory dev restart wipes accounts
     // while the browser keeps a still-valid-signature token) counts as "not
-    // signed in" and falls through to a new account, NOT a 500 (the bug that made
-    // sign-in look broken).
+    // signed in" and falls through to a new account, NOT a 500.
     let account: Account;
     let isNewAccount = false;
     const linked = opts.linkToAccountId
@@ -263,9 +262,8 @@ export async function buildAccountView(deps: Deps, account: Account): Promise<Ac
  *   - anonymize + tombstone the account row (scrub email + signup IP, clear the
  *     email-updates opt-in, stamp deletedAt) so it can no longer authenticate
  *     while its ledger foreign keys still resolve. With no email, identities,
- *     or IP left, surviving
- *     ledger/usage rows are keyed by a random UUID only, effectively anonymous
- *     (meditation-pal-9rkg).
+ *     or IP left, surviving ledger/usage rows are keyed by a random UUID
+ *     only, effectively anonymous (meditation-pal-9rkg).
  * The email's grant key is KEPT, so the person can return and buy credits but
  * can't re-claim the free grant.
  */

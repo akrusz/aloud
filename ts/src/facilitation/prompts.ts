@@ -7,11 +7,9 @@
  * the dimensions independent.
  */
 
-// Type-only import: modes.ts imports prompt constants from here at runtime, so
-// a value import would be a cycle.
+// Must stay type-only: modes.ts value-imports this module, so a value import
+// back would be a cycle.
 import type { ModeSpec } from './modes.js';
-// language.ts imports nothing, so this can never cycle; the zh twins of this
-// module's pools are registered at the bottom of this file.
 import {
     localizePool,
     registerZhPool,
@@ -57,9 +55,8 @@ export interface PromptConfig {
      *  spoken commands where a judge hears them, the screen everywhere else. */
     appControls: 'voice' | 'screen';
     /** Facilitation language (language.ts). 'zh-CN' appends the respond-in-
-     *  Chinese fragment and swaps every canned pool to its zh twin; 'en' is
-     *  byte-identical to the pre-language prompt, so default sessions keep
-     *  their prompt-cache prefix. */
+     *  Chinese fragment and swaps every canned pool to its zh twin; 'en'
+     *  appends nothing, so default sessions keep their prompt-cache prefix. */
     language: SessionLanguage;
     /** A rule the selected TTS voice needs of the text it will read
      *  (CloudVoice.promptNote, resolved client-side from the picked or default
@@ -173,8 +170,6 @@ export function waitBiasFragment(defaultSec: number): string {
     return `Default to moderate waits around [WAIT:${token}], adjusting as the moment suggests.`;
 }
 
-// Base system prompt: universal, not somatic-specific.
-
 export const BASE_SYSTEM_PROMPT = `You're a meditation facilitator supporting present-moment exploration practice.
 
 Your role is to:
@@ -213,8 +208,6 @@ Example exchanges, each as "what they say" -> "how you might answer":
 "I don't think I'm doing this right, I can't focus" -> "What does that 'can't focus' feel like right now, in your body?"
 `;
 
-// Dimensions preamble: how the composed sections relate.
-
 /** Placed before the focus/vibe/guidance/length sections whenever a mode
  *  composes them (exploration). Giving each dimension a lane makes them read as
  *  one policy instead of competing imperatives, which matters most to small
@@ -228,8 +221,6 @@ The sections below carry the meditator's setup choices. They fit together like t
 Blend, don't checklist: when several focuses or vibes are listed, reach for one at a time, as the moment invites.
 The meditator's live process always outranks these settings.
 `;
-
-// Focus prompts: where to direct attention.
 
 export const FOCUS_PROMPTS: Record<Focus, string> = {
     body_sensations: `Attention focus: Body & sensations
@@ -400,8 +391,6 @@ but still prioritize brevity over elaboration.
 `,
 };
 
-// Check-in prompts (for extended silence)
-
 export const CHECK_IN_PROMPTS: readonly string[] = [
     'Still here with you.',
     "I'm here whenever you're ready.",
@@ -431,8 +420,6 @@ export const EMPTY_REPLY_FALLBACKS: readonly string[] = [
     "I'm here. Take your time.",
     'What are you noticing now?',
 ];
-
-// Session openers, pool-based.
 
 export const COMMON_OPENERS: readonly string[] = [
     'What do you notice right now?',
@@ -501,11 +488,11 @@ export const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
 
 /**
  * Judges one utterance spoken during a held silence: are they calling the
- * facilitator back? Biased hard toward NO (tv9u). The first version asked only
- * whether they wanted to end the silence, so any substantive reflection read as
- * an offer to the facilitator and a third of realistic think-out-loud utterances
- * came back YES on Haiku. The "another recording" sentence is load-bearing:
- * narrating a teacher's instructions was the most reliable false positive.
+ * facilitator back? Biased hard toward NO (tv9u): asked only whether they want
+ * to end the silence, any substantive reflection reads as an offer to the
+ * facilitator, and a third of realistic think-out-loud utterances came back YES
+ * on Haiku. The "another recording" sentence is load-bearing: narrating a
+ * teacher's instructions was the most reliable false positive.
  *
  * Deliberately disagrees with HOLD_REQUEST_SYSTEM_PROMPT on phrases like
  * "let's keep going" - a call back here, a continuation there. Tune the pair
@@ -607,8 +594,6 @@ export const HOLD_CONFIRM_SYSTEM_PROMPT =
     '"好的,安静一会儿吧。" -> YES\n' +
     '"不用,继续陪我说话。" -> NO';
 
-// [HOLD] parser
-
 export type HoldSignal = 'hold' | 'none';
 
 /** The literal token the LLM prefixes to a reply to request silence mode. */
@@ -642,8 +627,6 @@ export function parseHoldSignal(response: string): { signal: HoldSignal; cleanTe
     return { signal: 'none', cleanText: stripped };
 }
 
-// Helpers
-
 function choice<T>(pool: readonly T[], rng: Random): T {
     if (pool.length === 0) throw new Error('choice() called on empty pool');
     const idx = Math.floor(rng() * pool.length);
@@ -655,8 +638,6 @@ function nearestDirectivenessKey(target: number): number {
     const keys = Object.keys(DIRECTIVENESS_ADDITIONS).map(Number);
     return keys.reduce((best, k) => (Math.abs(k - target) < Math.abs(best - target) ? k : best));
 }
-
-// Prompt builder
 
 /** Last sentence of every opener prompt (buildOpenerPrompt). */
 const OPENER_CLOSING =
@@ -709,14 +690,13 @@ export class PromptBuilder {
         const composes = this.mode?.composes;
         const parts: string[] = [this.mode?.basePrompt ?? BASE_SYSTEM_PROMPT];
 
-        // Silence mode off: take the [HOLD] instructions back out (gg50).
-        // Without this the model still bids "Would you like me to be quiet for
-        // a bit?" (the token is stripped, so the meditator just sees a promise)
-        // and the client drops the bid, leaving the facilitator talking through
-        // a silence it agreed to. Cut from the base prompt rather than composed
-        // in, because the fragment reads in place among the other voice rules,
-        // and the on path - the default - has to stay byte-identical or every
-        // session pays a prompt-cache miss.
+        // Silence mode off: take the [HOLD] instructions back out (gg50), or
+        // the model still bids "Would you like me to be quiet for a bit?" and
+        // the client drops the bid, leaving the facilitator talking through a
+        // silence it agreed to. Cut from the base prompt rather than composed
+        // in: the fragment reads in place among the other voice rules, and the
+        // on path - the default - has to stay byte-identical or every session
+        // pays a prompt-cache miss.
         if (!this.config.holdSignal) {
             parts[0] = parts[0]!.replace(`${HOLD_SIGNAL_FRAGMENT}\n\n`, '');
         }
@@ -796,7 +776,6 @@ export class PromptBuilder {
         return localizePool(pool, this.config.language);
     }
 
-    /** Pick a session-opening phrase based on the active dimensions. */
     getSessionOpener(): string {
         if (this.mode?.openers?.length) {
             return choice(this.localized(this.mode.openers), this.random);
@@ -879,7 +858,6 @@ export class PromptBuilder {
         return parts.join(' ');
     }
 
-    /** Pick a gentle check-in phrase for long silences. */
     getCheckInPrompt(): string {
         return choice(
             this.localized(this.mode?.checkIns?.length ? this.mode.checkIns : CHECK_IN_PROMPTS),

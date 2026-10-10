@@ -255,10 +255,6 @@ export function mountOllamaSettings(
     return { refresh, hide };
 }
 
-// ---------------------------------------------------------------------------
-// HTML rendering
-// ---------------------------------------------------------------------------
-
 function renderHTML(info: OllamaInfo): string {
     const controls = renderControls(info);
     const rec = info.recommendation;
@@ -375,10 +371,6 @@ function renderOtherInstalled(m: OtherModel): string {
         </div>
     </div>`;
 }
-
-// ---------------------------------------------------------------------------
-// NDJSON stream consumers
-// ---------------------------------------------------------------------------
 
 /** Read the `/app/v1/ollama/pull` NDJSON stream, advancing the progress bar and
  *  status text. Throws on an error line so the caller can restore the button. */

@@ -4,11 +4,10 @@
  * freeform reason) and carries no token split, cache breakdown, or per-service
  * tag, so from it alone you can't tell what drove a debit. This fills that gap:
  * one row per metered provider call (LLM turn, STT pass, TTS synth) with raw
- * counts AND the full-precision provider cost, not the rounded credit.
+ * counts AND the provider cost in USD.
  *
- * Kept SEPARATE from the ledger so the ledger stays a clean financial audit log,
- * this can carry full-precision USD, and it can be pruned/rebuilt without
- * touching balances.
+ * Kept SEPARATE from the ledger so the ledger stays a clean financial audit log
+ * and this can be pruned/rebuilt without touching balances.
  *
  * Writes are best-effort: a telemetry failure must NEVER break a paid request
  * (recordUsage swallows + logs). Reads power the admin cost dashboard.
@@ -61,7 +60,7 @@ export interface UsageEvent {
     cacheCreation1h: number;
     seconds: number; // STT audio seconds
     chars: number; // TTS characters
-    /** Full-precision provider cost in USD (NOT rounded to credits). */
+    /** Provider cost in USD, full precision. */
     providerCostUsd: number;
     /** Credits actually debited for this call (fractional, at cost). */
     credits: number;
@@ -233,7 +232,6 @@ export interface PerHourReport {
     /** Billed STT audio seconds per hour. Well above the estimate's assumption
      *  means either chattier users or VAD padding billing silence as audio. */
     sttSecondsPerHour: number;
-    /** Cloud-TTS characters per hour. */
     ttsCharsPerHour: number;
     /** The same two volumes over only the hours of sessions that USED that leg.
      *  Compare these, not the two above, against the estimate profile: it
@@ -376,7 +374,6 @@ export interface UsageReportOptions {
      *  population. Totals and the service/model/cache aggregates always cover
      *  every event either way. */
     allSessions?: boolean;
-    /** Override what counts as a real session. */
     realSit?: Partial<RealSit>;
     /** Accounts whose qualifying sessions are itemized in sessionRows. Meant
      *  for the operator's own accounts (routes/admin adminAccountIds); never
@@ -480,7 +477,7 @@ function clusterSessions(events: UsageEvent[]): UsageEvent[][] {
 }
 
 /** Aggregate raw usage events into the admin cost report. Pure: pass the
- *  windowed events in. Mirrors buildMetrics, so it's trivially testable. */
+ *  windowed events in. */
 export function buildUsageReport(
     events: UsageEvent[],
     now: number,
@@ -577,8 +574,7 @@ export function buildUsageReport(
     }
 
     const allSessions = clusterSessions(inWindow);
-    // One bar for everything session-level below: distributions and per-hour
-    // rates describe the SAME population.
+    // One bar (RealSit) for everything session-level below.
     const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
     const turnsIn = (s: UsageEvent[]): number => s.filter(facilitationFilter(s)).length;
     const isRealSit = (s: UsageEvent[]): boolean =>
@@ -606,10 +602,6 @@ export function buildUsageReport(
     // rather than one-account-one-vote: a user with 40 sits has seen more of
     // the product and should count for more, just not 40x more. With one
     // account in the window this equals the unweighted rate.
-    //
-    // AccountAcc is named because weightedRate's hoursOf gets a whole
-    // accumulator: some denominators are a.hours, others a leg's own hours
-    // read back out of a.sums.
     interface AccountAcc {
         weightBasis: number;
         hours: number;
@@ -847,7 +839,6 @@ export function buildUsageReport(
     };
 }
 
-/** Itemize one session (SessionRow). */
 function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
     const isTurn = facilitationFilter(s);
     const hours = minutes / 60;

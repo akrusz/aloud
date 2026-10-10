@@ -14,9 +14,8 @@
 import type { Message } from '@aloud/core/llm';
 import type { JudgeId } from '@aloud/core/facilitation';
 
-/** Providers aloud cloud will forward to. The web tier's ONLY LLM source is this
- *  server; on-device and bring-your-own-key live in the app-store / desktop
- *  builds and never touch this contract. */
+/** Providers aloud cloud will forward to. On-device and bring-your-own-key
+ *  sessions call their provider directly and never touch this contract. */
 export type ProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google' | 'openai';
 
 /** Channel a credit purchase flowed through. Drives the commission lookup; see
@@ -95,11 +94,12 @@ export interface JudgeResponse {
 }
 
 // ---- POST /cloud/v1/stt -----------------------------------------------------------
-// Request body is raw 16-bit-equivalent Float32 PCM (mono), with the sample rate
-// in the `sample_rate` query param (plus an optional `session_id`, see
-// CompleteRequest.sessionId). The server computes duration from the byte length
-// (authoritative: the client can't under-report to underpay), wraps it to WAV,
-// and forwards to the configured Whisper backend (gpt-transcribe by default).
+// Request body is raw mono PCM (Int16 with `format=i16`, else Float32), with the
+// sample rate in the `sample_rate` query param (plus an optional `session_id`,
+// see CompleteRequest.sessionId). The server computes duration from the byte
+// length (authoritative: the client can't under-report to underpay), wraps it to
+// WAV, and forwards to the configured Whisper backend (gpt-transcribe by
+// default).
 
 export interface TranscribeResponse {
     text: string;
@@ -110,10 +110,10 @@ export interface TranscribeResponse {
 
 // ---- POST /cloud/v1/tts -----------------------------------------------------------
 
-/** Longest text a single /v1/tts call will synthesize: the tightest upstream
- *  limit (Inworld refuses over 2000 characters; Google takes 5000 input
- *  bytes). No facilitation sentence comes near it, so the cap turns a client
- *  bug into a clean 400 instead of a charge-shaped provider error. */
+/** Longest text a single /cloud/v1/tts call will synthesize: the tightest
+ *  upstream limit (Inworld refuses over 2000 characters; Google takes 5000
+ *  input bytes). No facilitation sentence comes near it, so the cap turns a
+ *  client bug into a clean 400 instead of a charge-shaped provider error. */
 export const MAX_TTS_CHARS = 2000;
 
 export interface SpeakRequest {
@@ -138,8 +138,9 @@ export interface SpeakRequest {
 export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
-    /** Cost tier for the picker's indicator: 'premium' (priciest offered,
-     *  Chirp3-HD) vs 'value' (a cheaper Google tier at ~half the cost). */
+    /** Quality/placement bucket (voice-catalog VoiceTier): 'premium' leads the
+     *  picker, 'value' is the cheaper Google tier. Not the price: see
+     *  creditsPerHourTypical. */
     tier: 'premium' | 'value';
     /** Estimated credits/hr at a typical talk profile, from the same pricing the
      *  meter bills with, so the picker can show a concrete "~N cr/hr". */
@@ -203,7 +204,7 @@ export interface EmailAuthRequest {
     emailUpdates?: boolean;
 }
 
-/** POST /auth/email/set-password: add or change the password on the
+/** POST /cloud/v1/auth/email/set-password: add or change the password on the
  *  already-signed-in account (bearer required). The email is the account's own,
  *  so only the password travels. */
 export interface SetPasswordRequest {
@@ -211,7 +212,7 @@ export interface SetPasswordRequest {
 }
 
 export interface AuthResponse {
-    /** Bearer token for subsequent requests (our own short-lived JWT). */
+    /** Bearer token for subsequent requests (our own session JWT). */
     token: string;
     account: AccountView;
     /** True only on the request that created the account, so the client can show

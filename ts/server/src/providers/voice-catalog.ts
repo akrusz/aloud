@@ -42,11 +42,10 @@ export interface CuratedVoice {
      *  (meditation-pal-c3a0.6). The picker hides voices without it when the
      *  session language isn't English. Only flag voices actually HEARD in zh:
      *  the Azure *Multilingual family (zh demo clips in voice-previews/) and
-     *  the MAI-Voice-2 /
-     *  DragonHD voices the dev heard handle zh without glitching (2026-08-31;
-     *  a native-speaker quality pass is still pending). Google's en-US
-     *  Chirp3-HD Leda is confirmed BAD at it (glitches), so its missing flag
-     *  is a finding, not an oversight. */
+     *  the MAI-Voice-2 / DragonHD voices the dev heard handle zh without
+     *  glitching (2026-08-31; a native-speaker quality pass is still pending).
+     *  Google's en-US Chirp3-HD Leda is confirmed BAD at it (glitches), so its
+     *  missing flag is a finding, not an oversight. */
     multilingual?: boolean;
     /** A native zh speaker judged this voice native-quality in Chinese
      *  (2026-08-31 listening pass). The other multilingual voices passed the
@@ -94,18 +93,18 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // (MAI Flash), ~$16/1M (multilingual) and ~$22/1M (DragonHD), so premium
     // placement at below-Chirp3-HD burn: tier is QUALITY/placement only, and
     // the picker's credits/hr badge shows the lower real cost.
-    // On MAI-Voice-2.1-Flash since 2026-10-07 (was 2-Flash): same price and
-    // styles, and Microsoft's docs now cover only 2.1.
+    // MAI-Voice-2.1-Flash rather than 2-Flash: same price and styles, and
+    // Microsoft's docs cover only 2.1.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
     { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
-    // Default (dev pick 2026-08-31, was Leda): the softvoice register suits the
-    // app, and a zh session that never picks a voice now gets a voice that can
-    // actually speak it. (zh sessions are further steered client-side to a
-    // zhNative voice - Harper's zh reads accented to a native ear.)
+    // Default (dev pick 2026-08-31): the softvoice register suits the app, and
+    // a zh session that never picks a voice gets one that can actually speak
+    // it. (zh sessions are further steered client-side to a zhNative voice -
+    // Harper's zh reads accented to a native ear.)
     // Azure intermittently garbles Harper's synthesis of a reply that opens
     // with "Right" (provider-side; 2.1 did NOT fix it: 5/24 onsets cut on
     // 2.1-Flash, the same as 2-Flash, 2026-10-07). The prompt note steers the
@@ -176,10 +175,10 @@ export interface ResolvedVoice {
 
 /**
  * Resolve a client-supplied voice to (provider, voiceId). Accepts a curated
- * short name ("Leda", "Lyra"), a raw Google voice id (power-user passthrough),
- * or empty → the default (steered by `available` to a provider with a key -
- * see defaultVoice). The meter bills per char at the RESOLVED provider's
- * rate, so an unrecognized value can't be a billing problem.
+ * short name ("Leda", "Harper"), a raw Google or Azure voice id (power-user
+ * passthrough), or empty → the default (steered by `available` to a provider
+ * with a key - see defaultVoice). The meter bills per char at the RESOLVED
+ * provider's rate, so an unrecognized value can't be a billing problem.
  */
 export function resolveVoice(
     voice: string | undefined,

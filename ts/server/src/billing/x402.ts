@@ -8,8 +8,8 @@
  * to a FACILITATOR's /verify then /settle, and credits on success. All crypto
  * lives elsewhere - the payer's wallet signs the EIP-3009 authorization, the
  * facilitator verifies and settles on-chain. We never touch a private key or a
- * chain RPC, so no viem/web3 (that was ~500 transitive packages of `x402-hono`,
- * replaced here by `fetch`).
+ * chain RPC, so no viem/web3 (`x402-hono` pulls in ~500 transitive packages;
+ * `fetch` covers it).
  *
  * TRUST / ORDERING: verify, then settle, and credit only after the facilitator
  * confirms settlement, keyed idempotently on the settlement tx hash (ledger /

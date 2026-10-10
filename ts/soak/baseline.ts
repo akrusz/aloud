@@ -6,12 +6,8 @@
  * run's repeats, so `--sessions=2` compares like with like. What comes out is
  * deliberately asymmetric: a check that NEWLY fails is the headline, a check
  * that stopped failing is worth saying, and a judge score is a soft signal shown
- * only when it moves more than noise.
- *
- * That last threshold is the honest part. One session per scenario is a single
- * sample of a stochastic model; a 0.5 swing means nothing. JUDGE_DELTA_MIN is
- * set where a drop is worth a look rather than where it is proof, and the report
- * says so rather than pretending a number is a verdict.
+ * only when it moves more than noise (JUDGE_DELTA_MIN: where a drop is worth a
+ * look, not where it is proof).
  */
 
 import { readFileSync } from 'node:fs';

@@ -93,8 +93,6 @@ fn piper_hf_urls(model: &str) -> Vec<(String, String)> {
     ]
 }
 
-// --- /app/v1/voices -----------------------------------------------------------
-
 /// Build the `/app/v1/voices` JSON array. `engine` restricts to one engine (the
 /// Settings page does this); `lang` filters by language prefix. Without an
 /// engine the list aggregates Piper then macOS, deduped by name.
@@ -200,8 +198,6 @@ fn split_macos_voice_line(line: &str) -> Option<(String, String)> {
     None
 }
 
-// --- /app/v1/voices/preview ---------------------------------------------------
-
 /// Synthesize `text` for `voice` into WAV bytes. `engine` forces a backend, or
 /// is inferred (`engine_for_voice`) when None. `rate` is words-per-minute (the
 /// GET contract); Piper maps it to a length_scale, macOS to `say -r`.
@@ -235,8 +231,7 @@ fn synth_piper(
 
     let onnx = piper_model_path(piper_dir, v.model);
     let config = piper_dir.join(format!("{}.onnx.json", v.model));
-    // Never download here: a session must not stall on a 100 MB fetch
-    // mid-synthesis, so the model has to be present already.
+    // Never download here (module doc): the model has to be present already.
     if !onnx.exists() || !config.exists() {
         return Err(format!("Piper voice '{voice}' not downloaded"));
     }
@@ -276,8 +271,6 @@ fn resolve_speaker_id(piper: &Piper, key: &str) -> Result<i64, String> {
         .copied()
         .ok_or_else(|| format!("speaker '{key}' not found in model"))
 }
-
-// --- /app/v1/tts/download-model + /app/v1/tts/uninstall-model --------------------
 
 /// Download a Piper voice's model files, reporting the NDJSON-shaped values
 /// `/app/v1/tts/download-model` emits through `on_progress`:

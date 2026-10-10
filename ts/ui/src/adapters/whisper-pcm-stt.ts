@@ -1,16 +1,15 @@
 /**
  * Whisper-over-HTTP STT: captures mic audio, VADs it client-side, POSTs 16 kHz
- * Int16 PCM (format=i16) to a Whisper endpoint, emits `final` on transcription. Endpoint-
- * agnostic - the same pipeline drives desktop Whisper (/app/v1/stt/whisper) and
- * aloud cloud (/cloud/v1/stt); only the URL + optional bearer token differ (see
- * stt-picker.ts). Universal fallback where Web Speech doesn't reach (Firefox,
- * Safari).
+ * Int16 PCM (format=i16) to a Whisper endpoint, emits `final` on
+ * transcription. Endpoint-agnostic - the same pipeline drives desktop Whisper
+ * (/app/v1/stt/whisper) and aloud cloud (/cloud/v1/stt); only the URL +
+ * optional bearer token differ (see stt-picker.ts). Universal fallback where
+ * Web Speech doesn't reach (Firefox, Safari).
  *
- * Silero (silero-vad.ts) is the speech signal; RMS energy is demoted to the
- * echo reference, since Silero scores the facilitator's own TTS echo as speech.
- * If Silero's ONNX session still can't be created on some machine, the engine
- * degrades to the energy speech decision (FALLBACK_ENERGY_THRESHOLD) instead of
- * losing the mic.
+ * Silero (silero-vad.ts) is the speech signal; RMS energy is the echo
+ * reference, since Silero scores the facilitator's own TTS echo as speech. If
+ * Silero's ONNX session can't be created, the engine degrades to the energy
+ * speech decision (FALLBACK_ENERGY_THRESHOLD) instead of losing the mic.
  * Capture (stream, context, callback) runs continuously for the engine's
  * lifetime - only stop() tears it down - so the onset pre-buffer stays warm and
  * a barge-in's first word isn't clipped. A short pause fires a speculative pass
@@ -35,8 +34,7 @@ const TARGET_SAMPLE_RATE = 16_000;
 const FRAME_SIZE = 4096;
 // Dead-server cap on the transcription POST - an endpoint that accepts the
 // audio then hangs would leave the mic stuck "processing" forever. The listen
-// loop already retries a rejected transcription. Any real utterance is far
-// quicker than this.
+// loop already retries a rejected transcription.
 const TRANSCRIBE_TIMEOUT_MS = 45_000;
 // Pause (ms) that fires a speculative transcription so the user sees their
 // words mid-utterance. Skipped when the submit threshold is shorter (nothing to
@@ -87,11 +85,10 @@ const ECHO_GATE_MARGIN = 2.0;
 const ECHO_GATE_MAX = 0.035;
 
 // Energy-only speech decision, active ONLY while the Silero session is
-// unavailable (create failed - 6z11). This is the absolute-RMS gate Silero
-// replaced (fgbj): a frame is speech when it clears the max of this static
-// floor, 3x the adaptive noise floor, and the echo gates. Worse endpointing on
-// quiet mics and soft trailing speech - but a VAD load failure must degrade
-// the mic, never kill it.
+// unavailable (create failed - 6z11): a frame is speech when it clears the max
+// of this static floor, 3x the adaptive noise floor, and the echo gates. Worse
+// endpointing than Silero on quiet mics and soft trailing speech (fgbj) - but
+// a VAD load failure must degrade the mic, never kill it.
 const FALLBACK_ENERGY_THRESHOLD = 0.015;
 const NOISE_FLOOR_SEED = 0.005;
 
@@ -115,8 +112,8 @@ const TAIL_RETRANSCRIBE_ENERGY = 0.015;
 // Audio (ms) kept after the last even-slightly-speech-like frame before the
 // final payload is POSTed (meditation-pal-0uw7). The submit fires only after
 // silenceBaseMs..silenceMaxMs of silence (+INCOMPLETE_CLAUSE_EXTRA_MS on a
-// dangling clause), and every one of those frames is in the buffer, so we were
-// paying the cloud to transcribe several seconds of known quiet per turn.
+// dangling clause), and every one of those frames is in the buffer: several
+// seconds of known quiet per turn that hosted STT would bill.
 // The cut uses the TAIL_RETRANSCRIBE_* bar, not the VAD's own gate: that's the
 // threshold the tail-recovery path already trusts to mean "there might be a
 // soft word here", so anything it would have rescued survives - plus a full
@@ -259,7 +256,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Rolling per-frame energy + neural prob (-1 when Silero is off), ~85ms per
     // frame at 48 kHz, for the submit diagnostic: peak/threshold alone can't
     // show what the detector heard during the trailing "silence" (soft speech
-    // vs breath vs true quiet), which is the whole tuning question.
+    // vs breath vs true quiet).
     private energyHistory: { t: number; e: number; p: number }[] = [];
     // Chunk count as of the last frame that looked even slightly speech-like
     // (TAIL_RETRANSCRIBE_* bar). The trailing quiet past it is trimmed off the
@@ -314,8 +311,6 @@ export class WhisperPcmSttEngine implements SttEngine {
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
             silenceMaxMs: options.silenceMaxMs ?? defaultPacingConfig.silenceMaxMs,
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
-            // STT min-speech can be looser than facilitation min-speech;
-            // adopt the PacingConfig default but allow caller override.
             minSpeechDurationMs:
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
@@ -579,9 +574,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.energyHistory.shift();
         }
 
-        // The barge-in-grade energy bar during TTS (isSpeechFrame) closes the
+        // The barge-in-grade energy bar during TTS (isSpeechFrame) prevents a
         // session-start phantom turn (8h1x): greeting echo at ~0.016 RMS
-        // cleared the old 0.015 floor before the echo EMA had calibrated.
+        // clears a 0.015 floor before the echo EMA has calibrated.
         if (this.isSpeechFrame(energy, echoGate)) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
@@ -609,14 +604,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             const needed = this.submitWindowMs();
             const silence = now - this.lastSpeechMs;
             // Hold the submit while a speculative pass resolves: it may be about
-            // to set partialIncomplete and extend `needed`. Without the gate a
-            // slow cloud round-trip lets the base window cut a dangling clause
-            // before its verdict lands (kkiz).
+            // to extend `needed` (see specInFlight, kkiz).
             if (silence >= needed && !this.specInFlight) {
                 this.utteranceDone = true;
-                // VAD tuning diagnostic: speech duration, required vs elapsed
-                // trailing silence, loudness, echo floor (for the gate margins),
-                // and inference backpressure.
                 diag(
                     `[vad] submit speech=${Math.round(speechDur)}ms ` +
                         `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
@@ -687,9 +677,9 @@ export class WhisperPcmSttEngine implements SttEngine {
     /**
      * Open the mic stream, AudioContext, and continuous audio graph if they
      * aren't already up. Idempotent - reuses a live stream/context/processor
-     * across turns (re-acquiring is the expensive step that used to clip a
-     * barge-in's first second). Throws on permission denial or a missing
-     * AudioContext. Shared by start() and prime().
+     * across turns (re-acquiring is slow enough to clip a barge-in's first
+     * second). Throws on permission denial or a missing AudioContext. Shared
+     * by start() and prime().
      */
     private async ensureCaptureGraph(): Promise<void> {
         if (streamNeedsRefresh(this.stream)) {
@@ -709,8 +699,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             // tracks keep the mic claimed if we only drop the reference.
             this.releaseStream();
             // On native mobile the WebView only grants getUserMedia audio once
-            // the app holds RECORD_AUDIO; this cloud path never requested it, so
-            // pre-flight it (no-op elsewhere). See mic-permission.ts.
+            // the app holds RECORD_AUDIO, which nothing else on this cloud path
+            // requests, so pre-flight it (no-op elsewhere, mic-permission.ts).
             await ensureMicPermission();
             // echoCancellation matters more than usual here: this stream stays
             // live across turns, so it fills the onset pre-buffer WHILE TTS
@@ -809,8 +799,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             }
         }
 
-        // Wire the continuous graph once; it stays alive across turns so the
-        // pre-buffer keeps filling even while the facilitator speaks.
+        // Wire the continuous graph once; it stays alive across turns.
         this.nativeRate = this.context.sampleRate;
         const stream = this.stream;
         if (!stream) throw new Error('capture stream unavailable');
@@ -848,8 +837,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     /**
      * Register (or clear, with null) a barge-in callback, fired when the user's
      * voice is detected while the facilitator is speaking - used to cancel TTS.
-     * Detecting on this one echo-cancelled stream avoids a second mic stream
-     * that would hear raw TTS echo and trip on the facilitator itself. (d35)
+     * Detected on this one echo-cancelled stream (BARGE_IN_THRESHOLD, d35).
      */
     setBargeInHandler(handler: (() => void) | null): void {
         this.bargeInHandler = handler;
@@ -907,9 +895,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         }
         try {
             // session_id groups the cloud cost report (the desktop ignores
-            // it). lang is independent of model_size: the desktop shell
-            // keys the whisper model's language off it, the cloud route
-            // forwards it to the provider as a transcription hint.
+            // it).
             const query = Object.entries({
                 session_id: getCloudSessionId(),
                 model_size: this.opts.whisperModelSize,
@@ -939,8 +925,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                     'aloud cloud transcription timed out.'
                 );
             let response = await send();
-            // Self-heal a stale token: clear and re-sign-in once on a 401,
-            // matching the cloud LLM/TTS adapters. Hosted path only.
+            // Self-heal a stale token: one retry on a 401 (see onAuthError).
             if (response.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
                 await this.opts.onAuthError();
                 response = await send();
@@ -1035,7 +1020,6 @@ export class WhisperPcmSttEngine implements SttEngine {
             // pass when no further speech arrives so a single-pause turn doesn't
             // re-transcribe the identical buffer (m56t).
             let lastSpecResult: { text: string; seconds: number } | null = null;
-            // Speculative passes so far (MAX_SPECULATIVE_PASSES).
             let specPasses = 0;
             // Loop, not a straight line: debounced speech AFTER the submit
             // decision (postSubmitSpeech - the user was still talking when the
@@ -1080,12 +1064,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                         // (the final pass will emit the authoritative text).
                         if (!this.utteranceDone && result.ok && result.text) {
                             // Dangling clause → extra silence before submit (see
-                            // INCOMPLETE_CLAUSE_EXTRA_MS). Re-evaluated each
-                            // pass, so a completed thought gets the normal window.
+                            // INCOMPLETE_CLAUSE_EXTRA_MS).
                             this.partialIncomplete = transcriptLooksIncomplete(result.text);
                             emittedPartial = true;
-                            // Keep this whole-buffer transcript; the final pass
-                            // reuses it (below) if no new speech arrives.
                             lastSpecResult = { text: result.text, seconds: result.seconds };
                             yield {
                                 type: 'partial',
@@ -1103,10 +1084,9 @@ export class WhisperPcmSttEngine implements SttEngine {
 
                 const speechDuration = this.lastSpeechMs - this.speechStartMs;
                 // Too short to be speech (cough, mic bump) - skip the billable
-                // final pass. Unless a real preview already showed: the user saw
-                // their word land and a deliberate "alright" is a real turn.
-                // Noise that slips through is still dropped downstream by
-                // isNonSpeechOnly.
+                // final pass, unless a real preview already showed
+                // (emittedPartial). Noise that slips through is still dropped
+                // downstream by isNonSpeechOnly.
                 if (speechDuration < this.opts.minSpeechDurationMs && !emittedPartial) {
                     return;
                 }
@@ -1114,10 +1094,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                 // Reuse the last speculative transcript when no new speech has
                 // landed since (the common single-pause turn) - re-running would
                 // bill an identical call. Speech since then invalidates it, and
-                // so does speech-LIKE activity in the untranscribed tail:
-                // trailing words too soft to clear the debounced VAD gate are in
-                // the buffer but not the cached transcript, and reusing it would
-                // drop them (meditation-pal-rcdz, "...in my belly").
+                // so does speech-LIKE activity in the untranscribed tail (see
+                // TAIL_RETRANSCRIBE_*, meditation-pal-rcdz).
                 const tailHasSpeechHints =
                     lastSpecAt > 0 &&
                     this.energyHistory.some(
@@ -1137,10 +1115,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                     diag('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
                 }
 
-                // The user kept talking past the submit decision - the turn
-                // isn't over. Reopen: surface what we have as a partial and loop
-                // back to polling; the next adaptive-silence decision
-                // re-transcribes the whole contiguous buffer.
+                // The user kept talking past the submit decision: reopen (see
+                // the loop comment above).
                 if (this.postSubmitSpeech && !this.stopRequested) {
                     this.postSubmitSpeech = false;
                     this.utteranceDone = false;
@@ -1162,9 +1138,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                     yield { type: 'error', error: result.error };
                     return;
                 }
-                // Billable server-side compute: every pass this turn sent (16 kHz
-                // mono seconds), so the in-app tally matches what hosted STT
-                // charged rather than the final pass alone.
+                // seconds = every pass this turn sent, not the final alone
+                // (turnBilledSec).
                 yield {
                     type: 'final',
                     text: result.text,
@@ -1174,9 +1149,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                 return;
             }
         } finally {
-            // End the turn but keep stream, context, and callback alive so the
-            // pre-buffer keeps filling for the next turn / barge-in. Full
-            // teardown only on stop().
+            // End the turn but keep stream, context, and callback alive for the
+            // next turn / barge-in. Full teardown only on stop().
             this.capturing = false;
         }
     }

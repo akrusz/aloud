@@ -2,7 +2,7 @@
  * Pick a TTS engine from the user's selected voice id, which is prefixed:
  * `server:<name>` plays through the app backend's /app/v1/voices/preview,
  * `browser:<name>` through window.speechSynthesis, `aloud:<name>` through the
- * hosted /v1/tts. The name is the display name (voice-picker.ts's
+ * hosted /cloud/v1/tts. The name is the display name (voice-picker.ts's
  * ScoredVoice.name), handed to BrowserTtsEngine so each speak() actually applies
  * it - without that, every browser voice falls back to the OS default.
  */
@@ -29,9 +29,9 @@ export interface CreateTtsOptions {
 }
 
 /**
- * Hosted TTS via the server's authed /v1/tts (Google Cloud TTS), used when a
- * session runs on the hosted ('aloud') provider. `voice` is a Google Cloud voice
- * name; empty → the server's default Chirp3-HD voice.
+ * Hosted TTS via aloud cloud's authed /cloud/v1/tts: any `aloud:` voice, and
+ * the hosted ('aloud') pipeline's default. `voice` is a curated voice name
+ * (CloudVoice.name); empty → the server's default voice.
  */
 export function createCloudAloudTts(voice = '', options: CreateTtsOptions = {}): TtsEngine {
     const opts: CloudTtsEngineOptions = {
@@ -39,8 +39,6 @@ export function createCloudAloudTts(voice = '', options: CreateTtsOptions = {}):
         endpointUrl: cloudUrl('/tts'),
         usePost: true,
         authProvider: ensureCloudToken,
-        // Drop a rejected token and re-sign-in once (mirrors the LLM proxy), so
-        // a stale session doesn't break hosted TTS for the whole page lifetime.
         onAuthError: clearCloudToken,
     };
     if (options.onServerSynthesize) opts.onSynthesize = options.onServerSynthesize;

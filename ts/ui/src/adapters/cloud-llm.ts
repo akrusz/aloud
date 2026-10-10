@@ -1,10 +1,11 @@
 /**
- * Hosted-server LLM provider - the web tier's only LLM source. POSTs to the
- * aloud cloud's metered proxy (/v1/llm/complete) with a bearer session token
- * (cloud-auth.ts); the server holds the real provider keys, forwards the turn,
- * meters it, and returns text plus credits charged/remaining, so the browser
- * never sees a key. Contrast claude-proxy-http.ts, which targets the desktop
- * backend's `claude` CLI subprocess.
+ * Hosted-server LLM provider - the web tier's LLM source unless BYOK is opted
+ * into. POSTs to the aloud cloud's metered proxy (/cloud/v1/llm/complete) with
+ * a bearer session token (cloud-auth.ts); the server holds the real provider
+ * keys, forwards the turn, meters it, and returns text plus credits
+ * charged/remaining, so the browser never sees a key. Contrast
+ * claude-proxy-http.ts, which targets the desktop backend's `claude` CLI
+ * subprocess.
  *
  * Implements complete() and completeStream() so it slots into the same
  * streaming-TTS pipeline as the BYOK providers. Tickets: meditation-pal-vd3

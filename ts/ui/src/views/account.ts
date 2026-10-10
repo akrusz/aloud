@@ -1,8 +1,7 @@
 /**
- * Account page - the signed-in user's identity + money home, split out from
- * Settings (app-behavior only). Email + connected sign-ins, balance + Buy,
- * returned gifts to re-gift or claim, and a collapsed Danger zone with
- * account deletion.
+ * Account page - the signed-in user's cloud identity + money home (Settings is
+ * app-behavior only): email, balance + Buy, password, email updates, returned
+ * gifts to re-gift or claim, and a collapsed Danger zone with account deletion.
  */
 
 import { detectCapabilities, watchCloudReachable } from '../capabilities.js';

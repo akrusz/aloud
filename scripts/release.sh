@@ -99,9 +99,8 @@ if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
     fi
 fi
 
-# TS + Rust lint (the Tauri/web stack). The only release gate now that Python is
-# gone (meditation-pal-sk8). Guarded so a missing toolchain warns rather than
-# blocks.
+# TS + Rust lint (the Tauri/web stack), the only release gate
+# (meditation-pal-sk8). Guarded so a missing toolchain warns rather than blocks.
 if [ -f ts/package.json ]; then
     if command -v npm >/dev/null 2>&1; then
         if ! (cd ts && npm run --silent typecheck); then

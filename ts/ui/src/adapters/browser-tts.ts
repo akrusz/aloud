@@ -45,8 +45,8 @@ export class BrowserTtsEngine implements TtsEngine {
             const utterance = new SpeechSynthesisUtterance(text);
             if (options?.rate !== undefined) {
                 // speechSynthesis rate is 0.1–10, 1.0 neutral. TtsOptions is
-                // "WPM when meaningful", so normalize WPM (40–280) to 0.5–2.0
-                // and pass a relative rate through.
+                // "WPM when meaningful", so a WPM value (>5) is divided by the
+                // 160 neutral and a relative rate passes through.
                 utterance.rate = options.rate > 5 ? options.rate / 160 : options.rate;
             }
             if (options?.pitch !== undefined) {

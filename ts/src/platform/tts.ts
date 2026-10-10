@@ -40,7 +40,6 @@ export interface TtsEngine {
     prefetch?(text: string, options?: TtsOptions): void;
     /** Cancel any in-progress utterance. No-op when nothing is speaking. */
     cancel(): Promise<void>;
-    /** Return all voices the engine can use. */
     listVoices(): Promise<TtsVoice[]>;
 }
 

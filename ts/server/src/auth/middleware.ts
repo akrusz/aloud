@@ -10,7 +10,6 @@ import { REFRESH_AFTER_SECONDS, issueSessionToken, verifySessionToken } from './
 import type { Account } from '../credits/store.js';
 import { errorJson, tooManyRequests } from '../http.js';
 
-/** Context variables set by the middleware. */
 export interface AuthVars {
     account: Account;
 }
@@ -19,7 +18,6 @@ function nowSeconds(): number {
     return Math.floor(Date.now() / 1000);
 }
 
-/** The request's bearer token, if it carries one. */
 export function bearer(c: Context): string | undefined {
     const header = c.req.header('authorization') ?? c.req.header('Authorization');
     if (!header) return undefined;

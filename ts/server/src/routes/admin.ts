@@ -211,10 +211,9 @@ export function adminRoutes(deps: Deps): Hono {
     // show. The dataset for calibrating USD_PER_CREDIT and pack sizing against
     // what real sessions cost.
     app.get('/usage', adminOnly, async (c) => {
-        // ONE session bar panel-wide (DEFAULT_REAL_SIT: 5+ turns AND 5+ min):
-        // distributions and per-hour rates filter on it together, or not at
-        // all with all=1. sitMinutes/sitTurns stay as curl-level overrides of
-        // the bar; a 0 disables that criterion outright.
+        // The real-sit bar (usage.ts DEFAULT_REAL_SIT), skipped entirely with
+        // all=1. sitMinutes/sitTurns are curl-level overrides of the bar; a 0
+        // disables that criterion outright.
         const allSessions = c.req.query('all') === '1';
         const realSit = {
             ...(c.req.query('sitMinutes') != null
@@ -227,8 +226,8 @@ export function adminRoutes(deps: Deps): Hono {
         const now = Date.now() / 1000;
         const windowSinceTs = windowStart(c, now, 24);
 
-        // Itemized sessions only for the operator's own accounts: real users
-        // appear in aggregate, never as a per-sit line (privacy policy).
+        // Itemized session rows for the operator's own accounts only (privacy
+        // policy, as /calls above).
         const [events, keep, sessionRowsFor] = await Promise.all([
             deps.store.allUsage(),
             adminFilter(c, deps),
@@ -545,7 +544,6 @@ export function adminRoutes(deps: Deps): Hono {
             await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: now });
             return c.json({ status: 'member', email: account.email });
         }
-        // No account yet: pending invite, claimed when they first sign in.
         await deps.store.addRetreatInvite({ passId: pass.id, email: email.toLowerCase(), invitedAt: now });
         return c.json({ status: 'invited', email: email.toLowerCase() });
     });

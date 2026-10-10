@@ -2,8 +2,8 @@
  * Commission lookup by (channel, jurisdiction).
  *
  * The meditation-pal-8sj ADDENDUM: commission is NOT a constant, it's a knob
- * keyed by how the money arrived and where the buyer is. The metered margin
- * multiplier (meter.ts) is validated AGAINST this so net margin stays positive
+ * keyed by how the money arrived and where the buyer is. The pack markup is
+ * validated AGAINST this (meter.ts assertSolvent) so net margin stays positive
  * on every channel, including the 15% IAP floor.
  *
  * These rates live in the open-source tree on purpose. aloud publishes its

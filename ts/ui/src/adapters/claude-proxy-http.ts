@@ -5,8 +5,8 @@
  * /app/v1/llm/claude_proxy/complete (the desktop Rust shell), which makes the
  * subprocess call and returns a CompletionResult-shaped body.
  *
- * Desktop-only by nature - only the app backend serves that route. The
- * settings/setup dropdowns gate the option on isDesktopSync().
+ * Desktop-only by nature - only the Rust shell serves that route. The
+ * settings/setup dropdowns hide the option in web mode (isProviderAvailable).
  */
 
 import type {
@@ -29,10 +29,10 @@ const ENDPOINT = appUrl('/llm/claude_proxy/complete');
  * lets the Rust handler's kill_on_drop reap the child, and we retry on a fresh
  * process rather than wait out the server's 90s cap with no feedback.
  *
- * The big models (opus, fable) legitimately run past 20s on a long prompt -
- * the flat deadline was killing HEALTHY turns near the finish and restarting
- * from zero (3 kills = a minute of silence, then the canned fallback), so
- * they get a longer leash and one fewer retry to bound the worst case.
+ * The big models (opus, fable) legitimately run past 20s on a long prompt - a
+ * flat deadline kills HEALTHY turns near the finish and restarts from zero
+ * (3 kills = a minute of silence, then the canned fallback), so they get a
+ * longer leash and one fewer retry to bound the worst case.
  */
 const ATTEMPT_TIMEOUT_MS = 20_000;
 const SLOW_MODEL_ATTEMPT_TIMEOUT_MS = 60_000;

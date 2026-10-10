@@ -108,8 +108,8 @@ pub fn providers() -> Value {
 /// `GET /app/v1/models/<provider>` body: `[{value, label}]` fetched live from
 /// the provider's API. `api_key` is the BYOK key the UI forwards from its
 /// localStorage as `x-provider-key`. OpenRouter needs no key and claude_proxy
-/// is a static alias list. Any failure returns `[]`, on which the model picker
-/// falls back to a free-form text input.
+/// is a static alias list. Any failure returns `[]`, which the model picker
+/// shows as an explanatory empty state.
 pub fn models(provider: &str, api_key: Option<&str>) -> Value {
     let key = api_key.filter(|k| !k.is_empty());
     let keyed = |fetch: fn(&str) -> Vec<Value>| key.map(fetch).unwrap_or_default();
@@ -181,7 +181,6 @@ fn opt(value: &str, label: &str) -> Value {
     json!({ "value": value, "label": label })
 }
 
-/// Uppercase the first character: `mini` -> `Mini`.
 fn capitalize(word: &str) -> String {
     let mut chars = word.chars();
     chars
@@ -189,8 +188,6 @@ fn capitalize(word: &str) -> String {
         .map(|first| first.to_uppercase().chain(chars).collect())
         .unwrap_or_default()
 }
-
-// ---- OpenAI ----------------------------------------------------------------
 
 fn fetch_openai(key: &str) -> Vec<Value> {
     let data = fetch_data(
@@ -212,7 +209,6 @@ fn fetch_openai(key: &str) -> Vec<Value> {
             chat.then(|| (m["created"].as_i64().unwrap_or(0), id))
         })
         .collect();
-    // Newest first.
     rows.sort_by_key(|&(created, _)| Reverse(created));
     rows.iter().map(|&(_, id)| opt(id, &openai_label(id))).collect()
 }
@@ -234,8 +230,6 @@ fn openai_label(id: &str) -> String {
         .replace("ChatGPT ", "ChatGPT-")
 }
 
-// ---- Anthropic --------------------------------------------------------------
-
 fn fetch_anthropic(key: &str) -> Vec<Value> {
     let data = fetch_data(
         "https://api.anthropic.com/v1/models",
@@ -255,8 +249,6 @@ fn fetch_anthropic(key: &str) -> Vec<Value> {
     rows.iter().map(|&(_, id, label)| opt(id, label)).collect()
 }
 
-// ---- Claude subscription (static aliases) ----------------------------------
-
 fn claude_proxy_models() -> Vec<Value> {
     // Aliases the `claude` CLI resolves to the latest of each family. Fable is
     // the one Anthropic has hinted it may drop from subscriptions, so the UI
@@ -271,8 +263,6 @@ fn claude_proxy_models() -> Vec<Value> {
         opt("haiku", "Haiku (latest)"),
     ]
 }
-
-// ---- OpenRouter (public) ----------------------------------------------------
 
 /// Variant suffixes no live voice session can use: `:batch` is the async
 /// half-price queue (minutes to hours), the others aren't ours to bill.
@@ -301,8 +291,6 @@ fn fetch_openrouter() -> Vec<Value> {
     rows.iter().take(30).map(|&(_, id, label)| opt(id, label)).collect()
 }
 
-// ---- Venice -----------------------------------------------------------------
-
 fn fetch_venice(key: &str) -> Vec<Value> {
     let data = fetch_data(
         "https://api.venice.ai/api/v1/models",
@@ -321,8 +309,6 @@ fn fetch_venice(key: &str) -> Vec<Value> {
         })
         .collect()
 }
-
-// ---- Groq -------------------------------------------------------------------
 
 fn fetch_groq(key: &str) -> Vec<Value> {
     let data = fetch_data(
@@ -355,16 +341,12 @@ fn groq_label(id: &str) -> String {
     tail.split('-').map(capitalize).collect::<Vec<_>>().join(" ")
 }
 
-// --- API-key providers -----------------------------------------------------
-
 fn api_key_provider(env_var: &str) -> Value {
     json!({
         "available": std::env::var(env_var).is_ok_and(|v| !v.is_empty()),
         "hint": format!("Add your API key in Settings or set {env_var} in your environment."),
     })
 }
-
-// --- Ollama ----------------------------------------------------------------
 
 /// One entry from Ollama's `/api/tags`.
 struct RawOllamaModel {
@@ -395,8 +377,6 @@ fn probe_ollama_tags() -> (bool, Vec<RawOllamaModel>) {
     (true, models)
 }
 
-/// The Ollama section of the providers response: availability, hint, models
-/// with sizes, version/outdated info, and the per-machine recommendation.
 fn ollama_section(
     has_bin: bool,
     running: bool,
@@ -501,8 +481,7 @@ fn build_recommendation(
             }
 
             // High-RAM tiers on a machine without a fast GPU get a heads-up
-            // that integrated graphics will be slow. Apple Silicon's unified
-            // memory always counts as fast.
+            // that integrated graphics will be slow.
             let mut note = t.note.to_string();
             if !has_gpu && t.min_gb >= 24 {
                 if !note.is_empty() {
@@ -562,8 +541,6 @@ fn pick_tier(ram_gb: Option<u32>) -> &'static OllamaTier {
         .unwrap_or(last)
 }
 
-// --- Hardware detection ----------------------------------------------------
-
 pub(crate) fn system_ram_gb() -> Option<u32> {
     let mut sys = sysinfo::System::new();
     sys.refresh_memory();
@@ -573,7 +550,7 @@ pub(crate) fn system_ram_gb() -> Option<u32> {
 
 /// Apple Silicon's unified memory is fast enough that macOS always counts as
 /// "has fast GPU". Elsewhere, look for an NVIDIA card via `nvidia-smi` with at
-/// least `min_vram_gb` of VRAM.
+/// least 20 GB of VRAM.
 fn has_fast_gpu() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -603,8 +580,6 @@ fn nvidia_has_vram(min_vram_gb: u64) -> bool {
         .filter_map(|l| l.trim().parse::<u64>().ok())
         .any(|mb| mb >= min_vram_gb * 1024)
 }
-
-// --- Version compare -------------------------------------------------------
 
 fn parse_version(v: &str) -> Vec<u32> {
     v.trim()

@@ -18,8 +18,6 @@ import {
 } from './language.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
-// System prompts
-
 export const NOTING_SYSTEM_PROMPT = `You're part of a noting meditation circle.
 
 In this practice, participants take turns briefly naming what they notice in their present-moment experience, usually one or two words like "warmth", "thinking", "tingling", "belly tension". Then the next person does the same.
@@ -84,8 +82,6 @@ export const NOTING_LABEL_REACTIVE_NONE = `Stay with your own unfolding experien
 Output ONLY your label.
 `;
 
-// Participant model
-
 /** A non-AI participant: speaks a single recorded short label. */
 export interface SoundParticipant {
     type: 'sound';
@@ -93,7 +89,6 @@ export interface SoundParticipant {
     sound: string;
 }
 
-/** An LLM-driven participant. */
 export interface LlmParticipant {
     type: 'llm';
     /** Voice ID for TTS rendering. */
@@ -114,14 +109,11 @@ export const NOTING_STATIC_OPENER =
  *  the zh registry (language.ts localizePool) and the mode spec. */
 export const NOTING_STATIC_OPENERS: readonly string[] = [NOTING_STATIC_OPENER];
 
-// Label generation
-
 export interface GenerateLabelOptions {
     /** All labels in the circle so far (any participant). */
     context?: readonly string[];
     /** This participant's own prior labels (anti-self-repeat hint). */
     ownLabels?: readonly string[];
-    /** How reactive this participant is to others' notes. */
     reactive?: ReactiveLevel;
     /** Session language: zh sessions get zh labels (language.ts). */
     language?: SessionLanguage;

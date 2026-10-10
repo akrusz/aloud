@@ -179,8 +179,6 @@ fn format_history(messages: &[Msg]) -> String {
         .join("\n\n")
 }
 
-// --- Subscription model availability probe ----------------------------------
-
 /// Shorter than a real turn: a hung probe is inconclusive, not worth 90s.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(25);
 /// How long a verdict stays trusted. Long enough to avoid spending quota on

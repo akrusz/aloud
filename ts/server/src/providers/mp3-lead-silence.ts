@@ -26,7 +26,6 @@ export const AZURE_LEAD_SILENCE_MP3: Uint8Array = Uint8Array.from(atob(LEAD_SILE
     c.charCodeAt(0)
 );
 
-/** The clip with the lead silence in front. */
 export function withLeadSilence(mp3: Uint8Array): Uint8Array {
     const out = new Uint8Array(AZURE_LEAD_SILENCE_MP3.length + mp3.length);
     out.set(AZURE_LEAD_SILENCE_MP3, 0);

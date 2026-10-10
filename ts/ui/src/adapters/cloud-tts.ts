@@ -88,8 +88,8 @@ export interface CloudTtsEngineOptions {
     onSynthesize?: (chars: number) => void;
     /**
      * POST a JSON body ({text, voice, rate}) with a bearer token instead of a
-     * GET with query params - targets the cloud's authed /v1/tts (vs the app
-     * backend's open GET), and keeps meditation text out of URLs that
+     * GET with query params - targets the cloud's authed /cloud/v1/tts (vs the
+     * app backend's open GET), and keeps meditation text out of URLs that
      * intermediaries log.
      */
     usePost?: boolean;
@@ -143,7 +143,6 @@ export class CloudTtsEngine implements TtsEngine {
         this.onAuthError = options.onAuthError;
     }
 
-    /** Build the fetch URL + init for one synthesis request. */
     private async buildRequest(
         text: string,
         options: TtsOptions | undefined
@@ -166,12 +165,11 @@ export class CloudTtsEngine implements TtsEngine {
         const params = new URLSearchParams({ voice: this.voiceId, text });
         if (this.engine) params.set('engine', this.engine);
         if (options?.rate !== undefined) params.set('rate', String(options.rate));
-        // Cache-buster for the public preview GET. A voice's server-side
-        // treatment (style, pace) can change under an unchanged URL, and the
-        // old long max-age left stale clips in webview/browser HTTP caches for
-        // a day (the softvoice fix was inaudible until this bump). Bump when a
-        // voice's sound changes server-side; the server's max-age is short now,
-        // so this mostly exists to evict entries cached before the shortening.
+        // Cache-buster for the public preview GET: a voice's server-side
+        // treatment (style, pace) can change under an unchanged URL, leaving
+        // stale clips in webview/browser HTTP caches. The server's max-age is
+        // short, so this mostly evicts entries cached under an older,
+        // day-long one (see PREVIEW_CACHE_REV).
         params.set('r', PREVIEW_CACHE_REV);
         return { url: `${this.endpointUrl}?${params.toString()}`, init: {} };
     }
@@ -198,8 +196,7 @@ export class CloudTtsEngine implements TtsEngine {
                 return timed(this.fetchImpl(url, init));
             };
             let response = await send();
-            // Self-heal a stale token: clear and re-sign-in once on a 401,
-            // matching the LLM proxy.
+            // Self-heal a stale token: one retry on a 401 (see onAuthError).
             if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
                 await this.onAuthError();
                 response = await send();
@@ -256,8 +253,7 @@ export class CloudTtsEngine implements TtsEngine {
         }
         if (abort.signal.aborted) return;
 
-        // Desktop: play through Web Audio so the OS never sees a media element
-        // (avoids the macOS "Apple Music / media library" consent prompt).
+        // Desktop: Web Audio, so the OS never sees a media element (see header).
         if (isTauri()) return this.playViaWebAudio(blob, abort, options?.onStart);
 
         const url = URL.createObjectURL(blob);
@@ -319,7 +315,6 @@ export class CloudTtsEngine implements TtsEngine {
         });
     }
 
-    /** Lazily create (and reuse) the playback AudioContext. */
     private ensureAudioContext(): AudioContext {
         if (!this.audioCtx) {
             const Ctor = audioContextCtor();

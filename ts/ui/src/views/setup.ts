@@ -156,7 +156,7 @@ export interface SetupViewHandle {
     getSetup(): SessionSetup;
 }
 
-/** Human mode name for the resume banner ("felt sense", "exploration", ...). */
+/** Human mode name for the resume modal ("Felt sense", "Exploration", ...). */
 function resumeModeLabel(state: SessionState): string {
     const labels: Record<string, string> = {
         exploration: 'Exploration',
@@ -166,7 +166,7 @@ function resumeModeLabel(state: SessionState): string {
     return t(labels[state.meditationType ?? ''] ?? 'Session');
 }
 
-/** "felt sense · 12 min in" - mode + elapsed for the resume banner. endTime is
+/** "Felt sense · 12 min in" - mode + elapsed for the resume modal. endTime is
  *  the last autosave stamp, so it approximates where the session was cut off. */
 function resumeBannerDetail(state: SessionState): string {
     const end = state.endTime ?? Math.floor(state.startTime);
@@ -179,8 +179,7 @@ export async function mountSetupView(
     onBegin: (setup: SessionSetup, continueFrom: SessionState | null) => void
 ): Promise<SetupViewHandle> {
     const setup = await loadSetup();
-    // Before first render so the provider menu shows only what's reachable
-    // (also populates the is-desktop cache the env-var hints read).
+    // Before first render so the provider menu shows only what's reachable.
     await detectCapabilities();
     const appSettings = await loadAppSettings();
     // BYOK visibility: always in local mode; opt-in in web mode.
@@ -247,10 +246,9 @@ export async function mountSetupView(
     // A pending continuation: a History "Continue" (reason 'history') or a
     // cold-boot resume (reason 'resume', meditation-pal-v73p). The history view /
     // boot seeder writes it to sessionStorage and routes here; initPendingContinue
-    // loads it once. The banner tracks whether the selected mode still matches it,
-    // and Begin follows the selected tab - resume on the paused mode, fresh
-    // otherwise (see the Begin handler). The banner stays in the DOM at a constant
-    // height throughout, so switching tabs never shifts the layout.
+    // loads it once. Begin hands it on whichever tab is selected (app.ts drops
+    // it for noting). The banner stays up across tab switches, so they never
+    // shift the layout.
     let pendingContinue: { state: SessionState; reason: 'resume' | 'history' } | null = null;
 
     function clearContinueStorage(): void {
@@ -260,9 +258,9 @@ export async function mountSetupView(
         sessionStorage.removeItem('continueReason');
     }
 
-    // Drop the offer entirely: on ✕, or when Begin commits to a fresh session in a
-    // different mode. Clears the handoff and, for a cold-boot resume, the durable
-    // pointer so the next launch doesn't re-offer it.
+    // Drop the offer entirely: on ✕, the resume modal's "start fresh", or a
+    // resume in a non-resumable mode. Clears the handoff and, for a cold-boot
+    // resume, the durable pointer so the next launch doesn't re-offer it.
     function dropPendingContinue(): void {
         const wasResume = pendingContinue?.reason === 'resume';
         pendingContinue = null;
@@ -339,8 +337,8 @@ export async function mountSetupView(
         }
     }
 
-    // Select a meditation mode (from a tab tap or the banner's "Switch back"),
-    // keeping the banner and dependent copy/estimates in sync.
+    // Select a meditation mode (a tab tap, or a continuation entering its
+    // session's mode), keeping the banner and dependent copy/estimates in sync.
     function selectMode(tab: MeditationType): void {
         if (setup.meditationType !== tab) {
             setup.meditationType = tab;
@@ -675,7 +673,6 @@ export async function mountSetupView(
         wireModifierGroup<Focus>('focus', () => setup.focuses, (l) => (setup.focuses = l));
         wireModifierGroup<Quality>('quality', () => setup.qualities, (l) => (setup.qualities = l));
 
-        // Directiveness
         const dirSlider = root.querySelector<HTMLInputElement>('#directiveness')!;
         dirSlider.value = String(setup.dirStep);
         dirSlider.addEventListener('input', () => {
@@ -708,7 +705,6 @@ export async function mountSetupView(
             persist();
         });
 
-        // Verbosity
         const verbositySel = root.querySelector<HTMLSelectElement>('#verbosity')!;
         verbositySel.value = setup.verbosity;
         verbositySel.addEventListener('change', () => {
@@ -716,7 +712,6 @@ export async function mountSetupView(
             persist();
         });
 
-        // Custom instructions
         const customEl = root.querySelector<HTMLTextAreaElement>('#custom-instructions')!;
         customEl.value = setup.customInstructions;
         customEl.addEventListener('input', () => {
@@ -766,7 +761,6 @@ export async function mountSetupView(
             });
         }
 
-        // Provider
         const providerSel = root.querySelector<HTMLSelectElement>('#provider')!;
         providerSel.value = setup.provider;
         providerSel.addEventListener('change', () => {
@@ -813,8 +807,7 @@ export async function mountSetupView(
         // API key entry itself lives in Settings, not here.
         void refreshProviderAvailability();
 
-        // One button per tab panel, all opening the same picker modal and all
-        // editing the one app-level default voice.
+        // One button per tab panel, all opening the same picker modal.
         updateVoiceButtonLabel();
         root.querySelectorAll<HTMLButtonElement>('[data-default-voice]').forEach((btn) => {
             btn.addEventListener('click', () => openVoiceModal());
@@ -848,7 +841,7 @@ export async function mountSetupView(
             })
             .catch(() => {});
 
-        // Continuation / resume banner. render() rebuilds the DOM, so re-wire the
+        // Continuation banner. render() rebuilds the DOM, so re-wire the
         // ✕ and repaint from the in-memory pendingContinue every render (the
         // one-time load lives in initPendingContinue, called at mount). ✕ drops
         // the offer, which also shifts layout - fine, it's an explicit dismiss.
@@ -1079,7 +1072,7 @@ export async function mountSetupView(
     }
 
     function wireTabBar(): void {
-        // Persisted activeTab drives which panel shows on (re)render.
+        // The persisted mode drives which panel shows on (re)render.
         applyTabSelection(setup.meditationType);
         root.querySelectorAll<HTMLButtonElement>('.tab-bar .tab-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -1478,8 +1471,6 @@ export async function mountSetupView(
     // Load any pending continuation (History "Continue" / cold-boot resume) once,
     // after the first render so its tab-select + banner paint hit a live DOM.
     void initPendingContinue();
-    // Async so the form is interactive immediately; the picker populates when
-    // the voices arrive.
     void loadVoiceCatalog();
     // autoStart short-circuits when the user has already dismissed, completed,
     // or used the app.
@@ -1538,9 +1529,9 @@ function modifierTogglesHTML(
 /**
  * The Session clock control, rendered once per mode panel. The face is filled
  * in during wiring (renderSetupHTML has no app settings), and every copy is
- * wired together by class, so the mode tabs stay in sync. `key` keeps each
- * copy's info panel a distinct id - toggleInfo resolves by getElementById, so
- * three panels named `info-clock` would all open the first one, in whichever
+ * wired together (data-clock-btn), so the mode tabs stay in sync. `key` keeps
+ * each copy's info panel a distinct id - toggleInfo resolves by getElementById,
+ * so three panels named `info-clock` would all open the first one, in whichever
  * mode tab happens to be hidden.
  */
 function renderClockButton(key: string): string {

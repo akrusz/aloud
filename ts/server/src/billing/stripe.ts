@@ -33,7 +33,7 @@ export interface CreditPack {
 // On $5 to $20 that's the quadratic credits = A·d² + B·d + C (d = dollars) fit
 // through those three anchors; beyond $20 the rate is held flat at the $20 value
 // (CAP_CREDITS_PER_DOLLAR) so bigger buys don't run past solvency. Credits round
-// to nearest (fair both ways). Tunable during pre-launch calibration (7xl).
+// to nearest (fair both ways). Tunable (calibration: 7xl).
 export const CURVE_A = 0.04;
 export const CURVE_B = 9;
 export const CURVE_C = -6;
@@ -63,7 +63,6 @@ export function creditsForCents(cents: number): number {
  *  curve, flat rate beyond the cap, derived from the same constants so it can't
  *  drift from creditsForCents. Rounds the price to the nearest cent. */
 export function centsForCredits(credits: number): number {
-    // Beyond the cap: flat best rate.
     if (credits >= creditsForCents(CAP_SPEND_CENTS)) {
         return Math.round((credits / CAP_CREDITS_PER_DOLLAR) * 100);
     }
@@ -98,15 +97,13 @@ export function packById(id: string): CreditPack | undefined {
 // ---- Custom amounts (type-your-own credits) ---------------------------------
 // Any whole-credit amount instead of a preset, priced on the SAME curve
 // (centsForCredits), so it gets the same volume discount and is never a
-// premium. Floor is the smallest preset; the ceiling guards a fat-fingered
-// charge. Server-priced; the client number is only a preview.
+// premium. Server-priced; the client number is only a preview.
 
 /** Floor: never below the smallest preset pack (kept in sync with CREDIT_PACKS). */
 export const MIN_CUSTOM_CREDITS = Math.min(...CREDIT_PACKS.map((p) => p.credits));
 /** Ceiling: a sanity cap so a typo can't trigger a four-figure charge. */
 export const MAX_CUSTOM_CREDITS = 100_000;
 
-/** Whether a requested custom amount is a whole number within bounds. */
 export function isValidCustomCredits(credits: number): boolean {
     return (
         Number.isInteger(credits) &&

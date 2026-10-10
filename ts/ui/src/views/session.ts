@@ -341,10 +341,10 @@ export interface SessionViewHandle {
 export type SessionEndDestination = 'setup' | 'history' | 'settings' | 'account';
 
 /** Re-generate the background recap only after this many new exchanges land.
- *  A refresh is an LLM call (cheap on a warm prompt cache, but non-zero for
- *  cloud users), so keep it to once or twice per long session. It can afford to
- *  lag: summary-based resume keeps the last RESUME_RECENT_KEEP exchanges
- *  verbatim, so the recap only has to cover the older portion. */
+ *  A refresh is an LLM call over the whole transcript (see buildRecapProvider),
+ *  so keep it to once or twice per long session. It can afford to lag:
+ *  summary-based resume keeps the last RESUME_RECENT_KEEP exchanges verbatim,
+ *  so the recap only has to cover the older portion. */
 const SUMMARY_MIN_NEW_EXCHANGES = 12;
 
 export async function mountSessionView(
@@ -355,8 +355,6 @@ export async function mountSessionView(
 ): Promise<SessionViewHandle> {
     root.innerHTML = renderSessionHTML();
 
-    // The mode spec carries the base prompt, which user dimensions compose, and
-    // (for staged modes) the phase arc the facilitator privately moves through.
     const mode = getMode(setup.meditationType) ?? EXPLORATION_MODE;
     // Loaded before the prompt builder because smart check-in timing rides on
     // the system prompt (the [WAIT:Nm] fragment). Also feeds the pacing config.
@@ -394,7 +392,7 @@ export async function mountSessionView(
             waitSignal: checkinTiming === 'smart',
             checkinWaitSec: setup.firstSit ? FIRST_SIT_CHECKIN_WAIT_SEC : null,
             holdSignal: appSettings.silenceModeEnabled,
-            // Set for real once the judge gate is known, a few lines down.
+            // Set for real once the judge gate is known (below).
             appControls: 'screen',
             // zh sessions: respond-in-Chinese fragment + zh canned pools
             // (openers, check-ins, hold re-entry). meditation-pal-c3a0.3.
@@ -402,8 +400,9 @@ export async function mountSessionView(
         },
         mode,
     });
-    // Staged modes: the active phase rides on the system prompt and the LLM
-    // signals movement with [NEXT]/[BACK] (parsed each turn below). A continued
+    // Staged modes: the whole arc sits in the system prompt, the active phase
+    // travels as a note in the session log (queued just below), and the LLM
+    // signals movement with [NEXT]/[BACK] (parsed each turn). A continued
     // session resumes where it left off (SessionState.modePhase).
     const stager = mode.phases
         ? new StagedModeController(mode, continueFrom?.modePhase)
@@ -515,7 +514,7 @@ export async function mountSessionView(
     // Jev (TypeSafe) for the silence classifiers and the spoken commands. Always
     // on for aloud cloud; an opt-in everywhere else (voice-commands.ts). Up here
     // because status text and the info panel below both depend on it. `let`s:
-    // the info panel can turn it on mid-sit (enableVoiceCommands).
+    // the info panel can turn it on mid-sit (offerVoiceCommands).
     const ownKey = await ownJudgeKey();
     let judgeAccess = voiceCommandsAccess({
         provider: setup.provider,
@@ -554,8 +553,6 @@ export async function mountSessionView(
                   : 'Listening…'
         );
 
-    // Session facts live behind the nav "ⓘ" button rather than in the always-on
-    // chrome.
     function buildSessionInfoRows(): SessionInfoRow[] {
         const providerLabel =
             ALL_PROVIDERS.find((p) => p.value === setup.provider)?.label ?? setup.provider;
@@ -600,8 +597,7 @@ export async function mountSessionView(
         }
         // What the sit speaks with and hears: the live voice (tap to change -
         // same modal as the input-row button), the recognizer, and the
-        // language the whole session runs in (fixed at setup; a resume keeps
-        // the original, whatever the app setting says now).
+        // session's language (see sessionLanguage).
         const voiceName = stripVoicePrefix(setup.voice);
         const voiceEntry = voiceName ? scoredVoices.find((v) => v.name === voiceName) : undefined;
         const engineId = voiceEntry?.displayEngine ?? voiceEntry?.engine;
@@ -723,8 +719,8 @@ export async function mountSessionView(
     // Tier-2 soak harness: no-op unless DEV and ?soak=1 (ui/src/soak-tap.ts).
     armSoakTap();
 
-    // Re-probe each session start: the Whisper backend (desktop Rust shell /
-    // Hono in the browser) may have come up or gone down since last detection.
+    // Re-probe each session start: the local Whisper backend (the desktop Rust
+    // shell) may have come up or gone down since last detection.
     invalidateSttBackendCache();
     const vadOpts = {
         silenceBaseMs: pacingConfig.silenceBaseMs,
@@ -749,14 +745,14 @@ export async function mountSessionView(
     // server-Whisper detects barge-in on its own continuous capture stream, so
     // don't ALSO wrap TTS with the separate-stream detector there: a second mic
     // stream doesn't get the OS echo-cancellation and trips on the facilitator's
-    // own voice (the self-barge-in bug). web-speech / capacitor have no such
-    // stream, so they keep the wrapper.
+    // own voice (the self-barge-in bug). web-speech has no such stream, so it
+    // keeps the wrapper, except on phones (see buildTts).
     let engineDrivenBargeIn = sttBackend === 'server-whisper';
     // Continuous capture (meditation-pal-57gl): on the engine-driven path the
     // mic stays live through the LLM+TTS window instead of pausing while `busy`,
     // so the user is never "deaf" mid-response. Safe because that VAD rejects
     // TTS echo (measured echo gate + energy floor vs ~0.005 echo); web-speech /
-    // capacitor recognizers can't, so they keep pause-while-busy + the wrapper.
+    // capacitor recognizers can't, so they keep pause-while-busy.
     let continuousCapture = engineDrivenBargeIn;
     // Turn supersession + barge-in plumbing. turnGen bumps each turn so a stale
     // turn bails; activeFullAbort stops a superseded turn generating;
@@ -856,8 +852,8 @@ export async function mountSessionView(
     let ttsSpeakingDepth = 0;
     // Hold the engine's echo gate through the gaps BETWEEN a reply's sentence
     // chunks and briefly past playback: room reverb, AEC tails, and VAD debounce
-    // all outlive the audio element, and per-speak() on/off flips left ungated
-    // windows where trailing-fragment echo snuck through (meditation-pal-p8lx).
+    // all outlive the audio element, and per-speak() on/off flips leave ungated
+    // windows where trailing-fragment echo sneaks through (meditation-pal-p8lx).
     const TTS_ACTIVE_HANGOVER_MS = 1000;
     let ttsActiveOffTimer: ReturnType<typeof setTimeout> | null = null;
     // When playback last ended; with the depth counter this defines the
@@ -991,7 +987,6 @@ export async function mountSessionView(
     const orbEl = document.getElementById('orb');
     const endBtn = document.getElementById('end-btn') as HTMLAnchorElement | null;
 
-    // The hold's orb glow and "Just Listen" highlight, flipped together.
     function setHolding(holding: boolean): void {
         if (orbEl) orbEl.classList.toggle('orb-holding', holding);
         listenBtn.classList.toggle('active', holding);
@@ -1130,7 +1125,8 @@ export async function mountSessionView(
             stopMeter();
             clearSttTrouble();
             // Ends the loop's in-flight `for await` on the old engine; it re-enters
-            // on the new `stt`. Restart it if it had already fallen out.
+            // on the new `stt`. resumeCapture below restarts it if it had already
+            // fallen out.
             void prev?.stop();
             if (!muted) {
                 setStatus(listeningStatus());
@@ -1220,11 +1216,11 @@ export async function mountSessionView(
     /**
      * Progressive facilitator bubble revealed in step with the voice: each
      * sentence appears when its audio starts (streaming-tts onSpeakStart), not
-     * when generation finishes - text running ahead of the voice was the
-     * immersion-breaker beta users flagged. finalize() swaps in the exact clean
-     * text (original whitespace, plus anything never spoken because TTS was
-     * hushed or failed), so the transcript always ends complete. The typing dots
-     * stay up until the first reveal so the wait doesn't look dead.
+     * when generation finishes - text running ahead of the voice breaks
+     * immersion (beta feedback). finalize() swaps in the exact clean text
+     * (original whitespace, plus anything never spoken because TTS was hushed
+     * or failed), so the transcript always ends complete. The typing dots stay
+     * up until the first reveal so the wait doesn't look dead.
      */
     function createAssistantReveal(): {
         anchor: () => void;
@@ -1439,7 +1435,6 @@ export async function mountSessionView(
         return turnGaps.reduce((a, b) => a + b, 0) / turnGaps.length;
     }
 
-    // Initial mic / status hint.
     if (stt === null) {
         micBtn.disabled = true;
         micBtn.classList.add('disabled');
@@ -1465,7 +1460,6 @@ export async function mountSessionView(
         conversation.insertBefore(divider, typingIndicator);
     }
 
-    // On continue, render the old exchanges under a "continuing from" divider.
     if (continueFrom && continueFrom.exchanges.length > 0) {
         const oldDate = new Date(continueFrom.startTime * 1000).toLocaleString();
         insertDivider(t('continuing from {date}', { date: oldDate }));
@@ -1475,7 +1469,6 @@ export async function mountSessionView(
         insertDivider(t('resumed'));
     }
 
-    // Show the intention as a faint first line of context, if set.
     if (setup.intention.trim()) {
         insertDivider(t('intention: {intention}', { intention: setup.intention }));
     }
@@ -1522,7 +1515,7 @@ export async function mountSessionView(
         if (!debugPanel) return;
         const over = pacing.hasCheckinOverride() ? ' (wait)' : '';
         // Hold state is otherwise invisible: the re-entry window is a timestamp
-        // with no UI, so testing it meant guessing at the clock.
+        // with no UI.
         const sinceHold = Date.now() - leftHoldAt;
         const hold = silenceMode
             ? 'held'
@@ -1572,9 +1565,8 @@ export async function mountSessionView(
     let currentSummary = continueFrom?.notes ?? '';
     let summaryAtExchangeCount = 0;
     let summaryRefreshing = false;
-    // Utterances spoken during a silence hold, accumulated until the
-    // resume-intent classifier says the meditator wants to continue; the whole
-    // buffer then becomes the resume turn's context. Cleared on entry to hold.
+    // Utterances spoken during a silence hold (see handleSilenceUtterance).
+    // Cleared on entry to hold.
     let silenceBuffer: string[] = [];
     // True while the voice-picker modal is open: pause listening so the
     // mic doesn't transcribe a voice preview's own audio and "respond" to it.
@@ -1610,10 +1602,9 @@ export async function mountSessionView(
         });
     }
 
-    // Shared by the three silence classifiers. A hosted session puts Jev in front
-    // of the Haiku call (the dev flag can demote it to shadow or off); everywhere
-    // else there is no server to hold the key, so the LLM classifier is the only
-    // path.
+    // Shared by the three silence classifiers. A judge session puts Jev in front
+    // of the utility-model call (on a hosted one the dev flag can demote it to
+    // shadow or off); with no judge the LLM classifier is the only path.
     const classifierOptions: ClassifyResumeIntentOptions = {
         onUsage: (u) => session.recordLlmUsage(u),
     };
@@ -1989,16 +1980,15 @@ export async function mountSessionView(
         // the normal error banner instead of trapping the user in limbo.
         const joined = silenceBuffer.join(' ');
         silenceBuffer = [];
-        // Bubbles for the buffered utterances are already on screen; respondTo
-        // records the joined text in history and runs the resume turn.
+        // The buffered utterances' bubbles are already on screen.
         await respondTo(joined, { skipUserBubble: true });
     }
 
-    // The meditator's reply to the facilitator's "shall I be quiet?" bid
-    // (awaitingHoldConfirm). A yes/no classifier, not a second [HOLD] from the
-    // model, decides (rlgm): a clear yes enters the hold; a no (or a classifier
-    // error, or the user carrying on after an eager mis-bid) runs as a normal
-    // turn. Awaited by the listen loop, so no race with the check-in timer.
+    // The meditator's reply to the facilitator's "shall I be quiet?" bid (see
+    // awaitingHoldConfirm, rlgm): a clear yes enters the hold; a no (or a
+    // classifier error, or the user carrying on after an eager mis-bid) runs as
+    // a normal turn. Awaited by the listen loop, so no race with the check-in
+    // timer.
     async function handleHoldConfirm(userText: string): Promise<void> {
         if (isNonSpeechOnly(userText)) return;
         awaitingHoldConfirm = false;
@@ -2075,7 +2065,7 @@ export async function mountSessionView(
         // at each such point so the live turn owns the transcript + dots.
         const superseded = (): boolean => torn || myGen !== turnGen;
         // If the user just spoke to break a silence hold, a [HOLD] in the reply
-        // shouldn't snap straight back into silence on the same turn - it reads
+        // shouldn't bid to go straight back under on the same turn - it reads
         // as "I can't get out of silence mode."
         const wasSilent = silenceMode;
         // aloud cloud is the convenience path: its glitches are smoothed over
@@ -2136,8 +2126,6 @@ export async function mountSessionView(
                     },
                 });
             let { text: rawText, ttsDone, usage, finishReason } = await attemptCompletion(bubble);
-            // A newer utterance took over mid-generation: drop this reply; the
-            // live turn owns the typing dots + history.
             if (superseded()) {
                 bubble.discard();
                 return;
@@ -2145,14 +2133,13 @@ export async function mountSessionView(
             // A completion with NO text at all is a glitch, not a reply: some
             // endpoints intermittently burn the whole budget on a hidden
             // thinking preamble (Kimi K2, finish "length", meditation-pal-yi02).
-            // One quiet retry before anything is said or shown about it; the
-            // dots stay up, so from the chair it is just a slower turn.
-            // Cloud only: on a local/BYOK provider nothing is hidden - the user
-            // owns that setup and should see its failures as they happen.
-            // Not after a safety-classifier refusal: the same prompt mostly
-            // draws the same decline, and where the model has a fallback the
-            // server already tried it before this refusal came back
-            // (anthropic.ts takesRefusalFallback), so a retry only adds dead air.
+            // One quiet retry before anything is said or shown; the dots stay
+            // up, so from the chair it is just a slower turn. Cloud only: a
+            // local/BYOK user owns that setup and should see its failures as
+            // they happen. Not after a safety-classifier refusal: the same
+            // prompt mostly draws the same decline, and where the model has a
+            // fallback the server already tried it (anthropic.ts
+            // takesRefusalFallback), so a retry only adds dead air.
             if (
                 cloudSmooth &&
                 !rawText.trim() &&
@@ -2213,16 +2200,14 @@ export async function mountSessionView(
                     debugLog(`turn [WAIT] ${waitSec}s ignored (timing ${checkinTiming})`);
                 }
             }
-            // Nothing to say is not a valid turn, whether the completion was
-            // blank or carried only control tokens. A signal-only reply
-            // ("[WAIT:8m]", a bare "[HOLD]") keeps rawText non-empty but leaves
-            // cleanText empty once parseTurnSignals strips it - recording that
-            // blank turn and speaking it gives the meditator total silence in
-            // answer to what they said. The signals above are already applied,
-            // so the model's intent still lands; only the empty turn is dropped.
-            // A bare [HOLD] must NOT arm awaitingHoldConfirm (set further down,
-            // past this bail): no question was asked, so the meditator's next
-            // words are a normal turn, not an answer. (meditation-pal-9era)
+            // An empty cleanText is never recorded or spoken as a turn, whether
+            // the completion was blank or carried only control tokens
+            // ("[WAIT:8m]", a bare "[HOLD]": rawText non-empty, cleanText empty
+            // once parseTurnSignals strips it). The signals above are already
+            // applied, so the model's intent still lands. A bare [HOLD] must
+            // NOT arm awaitingHoldConfirm (set further down, past this bail):
+            // no question was asked, so the meditator's next words are a
+            // normal turn, not an answer. (meditation-pal-9era)
             if (!ephemeral && !cleanText.trim()) {
                 if (rawText.trim()) {
                     // The model chose to say nothing beyond its signals. That
@@ -2292,12 +2277,11 @@ export async function mountSessionView(
             bubble.finalize(cleanText);
             tapTurn('assistant', 'reply', cleanText, { raw: rawText, latencyMs: turnLatencyMs });
             if (superseded()) return;
-            // A [HOLD] is only a bid: the facilitator just asked whether to go
-            // quiet. Don't go silent here - the meditator's next utterance is
-            // classified for a yes (rlgm). When silenceModeEnabled is false,
-            // [HOLD] is ignored entirely.
-            // (Re-entry right after a hold never reaches here: handleReHoldRequest
-            // takes that turn before the model is asked for a reply.)
+            // A [HOLD] is only a bid (see awaitingHoldConfirm, rlgm): the
+            // meditator's next utterance is classified for a yes. Ignored
+            // entirely when silenceModeEnabled is false. (Re-entry right after
+            // a hold never reaches here: handleReHoldRequest takes that turn
+            // before the model is asked for a reply.)
             awaitingHoldConfirm =
                 !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
             tapFlags({ awaitingHoldConfirm });
@@ -2319,11 +2303,9 @@ export async function mountSessionView(
             if (cloudSmooth && !isOutOfCredits(msg)) {
                 reportCloudIncident('client_llm_error', { detail: msg, model: setup.model });
             }
-            // Running out of credits is a graceful stop, not an error. Ephemeral
-            // apology (NOT saved to history - we resume from the last real turn
-            // once topped up or switched to local/BYOK), voiced via the free
-            // canned endpoint, with a one-tap top-up in the transcript.
-            // (meditation-pal-44o, meditation-pal-4l5)
+            // Running out of credits is a graceful stop, not an error: the
+            // ephemeral apology (appendBillingApology), voiced via the free
+            // canned endpoint. (meditation-pal-44o, meditation-pal-4l5)
             if (isOutOfCredits(msg)) {
                 appendBillingApology(OUT_OF_CREDITS_MESSAGE, true);
                 void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
@@ -2377,9 +2359,7 @@ export async function mountSessionView(
             lastActivityAt = Date.now();
             signInNudge = false;
             recordTurnGap();
-            // Persist every round (user message + whatever response or error) so
-            // an offline LLM call or a crash still leaves the transcript
-            // recoverable. No-op unless logging is on.
+            // Every round, failed ones included (see autosaveSession).
             void autosaveSession();
         }
     }
@@ -2388,13 +2368,12 @@ export async function mountSessionView(
      * Always-on listening loop: one STT utterance per iteration, dispatched
      * when speech ends.
      *
-     * On the engine-driven (server-Whisper) path the loop runs CONTINUOUSLY,
-     * never pausing while the facilitator thinks or speaks, so the user is never
-     * "deaf" mid-response (meditation-pal-57gl). That path's VAD rejects TTS
-     * echo, a barge-in hushes the facilitator, and an utterance landing during a
-     * response supersedes it in respondTo, so the response isn't awaited here.
-     * Other backends (web-speech, capacitor) would transcribe the facilitator's
-     * own TTS, so they pause while `busy` and use the barge-in wrapper.
+     * With continuous capture (see `continuousCapture`, meditation-pal-57gl)
+     * the loop never pauses while the facilitator thinks or speaks: a barge-in
+     * hushes the facilitator, and an utterance landing during a response
+     * supersedes it in respondTo, so the response isn't awaited here. Other
+     * backends (web-speech, capacitor) would transcribe the facilitator's own
+     * TTS, so they pause while `busy`.
      */
     async function listenLoop(): Promise<void> {
         if (!stt || listenLoopRunning) return;
@@ -2580,9 +2559,6 @@ export async function mountSessionView(
                         showErrorToast(micError);
                         lastMicErrorToast = micError;
                     }
-                    // Raise the persistent banner once failures stop looking
-                    // like a one-off, so a sustained outage stays visible after
-                    // the toast fades and the status reverts.
                     noteSttFailure();
                     // Brief backoff so a broken mic doesn't tight-loop us.
                     await sleep(2000);
@@ -2694,8 +2670,7 @@ export async function mountSessionView(
         if (muted) hintVoiceCommand('mute');
     });
 
-    // TTS toggle: when off, cancel in-flight speech and skip later speak()
-    // calls. The .active class shows the wave icons; without it, the mute-line.
+    // The .active class shows the wave icons; without it, the mute-line.
     let ttsEnabled = true;
     function setTtsEnabled(on: boolean): void {
         ttsEnabled = on;
@@ -2714,8 +2689,7 @@ export async function mountSessionView(
             pacing.exitSilenceMode();
             setStatus(stt ? listeningStatus() : t('Ready'));
         } else {
-            // Clicking the button IS the confirmation: bypass the auto-[HOLD]
-            // bid/classify handshake (rlgm) and go straight into the hold.
+            // Clicking IS the confirmation: no [HOLD] bid handshake (rlgm).
             enterHold();
         }
     });
@@ -2725,7 +2699,6 @@ export async function mountSessionView(
     // sessions. One AbortController covers them all; endSession() aborts it, and
     // it's handed to initKasinaMode() so its document listeners detach too.
     const viewCleanup = new AbortController();
-    // Tear the info panel's overlay + document listener down with the view.
     viewCleanup.signal.addEventListener('abort', () => infoPanel.dispose());
 
     // Guard against accidentally closing/reloading the tab mid-session (the
@@ -2759,8 +2732,7 @@ export async function mountSessionView(
         })();
     }
 
-    // Kasina gazing mode, shared with the noting session view. Document-level
-    // listeners are tied to viewCleanup so they don't leak across sessions.
+    // Kasina gazing mode, shared with the noting session view.
     if (orbEl) {
         initKasinaMode({
             orb: orbEl,
@@ -2770,8 +2742,6 @@ export async function mountSessionView(
         });
     }
 
-    // Voice picker: the setup view's modal layout, but selecting a voice here
-    // also rebuilds the live tts engine so the next utterance uses it.
     void initVoicePicker();
 
     async function initVoicePicker(): Promise<void> {
@@ -2801,8 +2771,7 @@ export async function mountSessionView(
         speedSlider.value = String(setup.ttsRate);
         syncSpeedControlForVoice(speedSlider, speedLabel, currentName, scoredVoices, setup.ttsRate);
         modal.classList.remove('hidden');
-        // Pause listening and stop in-flight capture while the modal is open, so
-        // voice previews aren't transcribed as user turns.
+        // Park the listen loop (see voiceModalOpen) and stop in-flight capture.
         voiceModalOpen = true;
         void stt?.stop();
 
@@ -2869,8 +2838,8 @@ export async function mountSessionView(
         builder.config.voiceNote = hostedVoicePromptNote(setup.voice, setup.provider, hosted);
     });
 
-    // Greet before the listen loop starts. busy so the mic loop doesn't hear
-    // input until the opener finishes. Resuming gets a welcome-back.
+    // Greet first. busy holds check-ins, and the mic on pause-while-busy
+    // backends, until the opener finishes. Resuming gets a welcome-back.
     {
         busy = true;
         void (async () => {
@@ -2970,16 +2939,13 @@ export async function mountSessionView(
         setStatus(idleStatus());
     }
 
-    // Kick off always-on listening when the view mounts.
     if (stt) {
         setMicButtonState();
         resumeCapture();
     }
 
-    // Background check-in loop, polling the PacingController. When it decides
-    // it's been long enough since anything happened, a gentle check-in reminds
-    // the user the facilitator is still there. Off in silence mode or when
-    // check-ins are disabled.
+    // Background check-in loop, polling the PacingController for when it's been
+    // quiet long enough. Off in silence mode or when check-ins are disabled.
     const CHECK_IN_POLL_MS = 10_000;
     const checkInTimer: ReturnType<typeof setInterval> | null = pacingConfig.silenceCheckinsEnabled
         ? setInterval(() => {
@@ -3126,10 +3092,10 @@ export async function mountSessionView(
 
     /**
      * A timer notice and a command's acknowledgment are the only things allowed
-     * to speak into a silence hold, but they must not END the hold: respondWithFacilitatorLine calls
-     * pacing.onResponseEnd, which drops the controller back to Listening. Put
-     * the hold back unless the meditator themselves came out of it while we
-     * were speaking.
+     * to speak into a silence hold, but they must not END the hold:
+     * respondWithFacilitatorLine calls pacing.onResponseEnd, which drops the
+     * controller back to Listening. Put the hold back unless the meditator
+     * themselves came out of it while we were speaking.
      */
     function restoreHoldAfterNotice(after: 'timer' | 'command' = 'timer'): void {
         if (torn || !silenceMode) return;
@@ -3140,8 +3106,7 @@ export async function mountSessionView(
 
     // Auto-quit-after-silence: once a session goes untouched past the configured
     // window, save (if logging is on) and end it. An open session keeps
-    // listening and checking in, which slowly spends cloud credit. Settings are
-    // read at fire time, so toggling them mid-session takes effect immediately.
+    // listening and checking in, which slowly spends cloud credit.
     const AUTO_QUIT_POLL_MS = 30_000;
     const idleQuitTimer = setInterval(() => {
         if (torn || busy) return;
@@ -3157,9 +3122,9 @@ export async function mountSessionView(
     }, AUTO_QUIT_POLL_MS);
 
     /**
-     * Speak a facilitator-initiated line (a check-in, not a response to user
-     * input): transcript + session history + TTS. No LLM call; the caller
-     * decides the text.
+     * Speak a line the caller already has (a check-in, timer notice, command
+     * acknowledgment, or hold re-entry line): transcript + session history +
+     * TTS. No LLM call here.
      */
     async function respondWithFacilitatorLine(
         text: string,
@@ -3330,10 +3295,9 @@ export async function mountSessionView(
     }
 
     /**
-     * Show the End-Session confirmation overlay. On confirm/skip-save the
-     * session ends and onEnd fires with `destination` so the router knows where
-     * to land the user. Wires fresh handlers each call so a re-open doesn't
-     * carry the previous click's destination.
+     * Show the End-Session confirmation overlay (end-confirm.ts). On
+     * confirm/skip-save the session ends and onEnd fires with `destination` so
+     * the router knows where to land the user.
      */
     function showEndConfirm(
         message: string,
@@ -3384,8 +3348,8 @@ export async function mountSessionView(
         // handler re-acquiring the wake lock.
         releaseWakeLock();
         delete document.body.dataset['sessionActive'];
-        // Cleanly ended: drop the resume pointer so relaunch doesn't offer it.
         void appStateListener?.then((h) => h.remove());
+        // Cleanly ended: drop the resume pointer so relaunch doesn't offer it.
         void clearActiveSession();
         // Embers are session-only.
         unmountEmberContainer();
@@ -3393,7 +3357,6 @@ export async function mountSessionView(
         // pre-kasina theme and moves the orb back into the nav (about to be
         // cleared) rather than orphaning it in <body>.
         setKasina(false);
-        // Remove the window/document-level listeners (kasina drag, beforeunload).
         viewCleanup.abort();
         // Restore the global nav slots we replaced on mount.
         if (navCenter) navCenter.innerHTML = '';
@@ -3452,7 +3415,7 @@ export async function mountSessionView(
      * so a crash or going offline still leaves a recoverable transcript. No-op
      * when "Save session logs" is off, or before any user turn exists. The
      * detailed summary is generated only on a clean end (endSession); until then
-     * the "Exploration" type label stands in for it in the history list.
+     * the background recap or the intention stands in for it (`notes` below).
      */
     async function autosaveSession(): Promise<void> {
         if (!appSettings.saveSessionLogs) return;
@@ -3481,7 +3444,6 @@ export async function mountSessionView(
         } catch (err) {
             console.warn('Session autosave failed', err);
         }
-        // Kick a throttled recap refresh for next time (fire-and-forget).
         void refreshSummaryThrottled();
     }
 
@@ -3489,10 +3451,10 @@ export async function mountSessionView(
      * Refresh `currentSummary` in the background, throttled. Generating a recap
      * is an LLM call, so it only runs once SUMMARY_MIN_NEW_EXCHANGES have landed
      * since the last one, on the cheapest utility model we have
-     * (buildRecapProvider). It reuses the warm prompt cache (the facilitation
-     * system prompt) so the transcript reads at ~0.1x, making an in-session
-     * refresh cheap. Never runs mid-turn (busy) or into a torn-down view; its
-     * token cost folds into the session tally.
+     * (buildRecapProvider). It sends the facilitation system prompt, so where
+     * that model is also the facilitation model the transcript reads from the
+     * warm prompt cache. Never runs mid-turn (busy) or into a torn-down view;
+     * its token cost folds into the session tally.
      */
     async function refreshSummaryThrottled(): Promise<void> {
         if (!appSettings.saveSessionLogs) return;
@@ -3500,7 +3462,6 @@ export async function mountSessionView(
         const state = session.state;
         if (!state || !hasSpokenUserTurn(state.exchanges)) return;
         const exCount = state.exchanges.length;
-        // Only re-summarize once a few new exchanges have landed.
         if (exCount - summaryAtExchangeCount < SUMMARY_MIN_NEW_EXCHANGES) return;
         summaryRefreshing = true;
         try {
@@ -3564,8 +3525,8 @@ function leaveMessage(destination?: SessionEndDestination): string {
     return t('Leave your session?');
 }
 
-/** SessionSetup.voice carries a 'server:' or 'browser:' prefix; the voice
- *  picker works with raw names. Strip the prefix on the way in. */
+/** SessionSetup.voice carries a 'server:', 'browser:', or 'aloud:' prefix; the
+ *  voice picker works with raw names. Strip the prefix on the way in. */
 function stripVoicePrefix(voice: string | null): string | null {
     if (!voice) return null;
     const m = /^(server|browser|aloud):(.*)$/.exec(voice);

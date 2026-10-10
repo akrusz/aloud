@@ -53,7 +53,6 @@ export function showEndConfirm(
         if (save) config.onBeforeSave?.();
         config.end(!save);
     };
-    // Primary saves only when saving is the default; otherwise the link saves.
     const onYes = (): void => choose(config.saveByDefault);
     const onSkip = (): void => choose(!config.saveByDefault);
     const onNo = (): void => cleanup();

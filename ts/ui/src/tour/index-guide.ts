@@ -23,8 +23,6 @@ const FOLLOW_UP_KEY = 'aloud-first-sit-follow-up';
 const PADDING = 10;
 const FOOTER_HEIGHT = 60;
 
-// ---- Standalone info panel toggle ----
-
 function hideInfoPanels(): void {
     document.querySelectorAll('.info-panel').forEach(function (p) {
         p.classList.add('hidden');
@@ -58,8 +56,6 @@ function installInfoBtnHandler(): void {
         if (info) toggleInfo(info);
     });
 }
-
-// ---- Tour state ----
 
 let overlayEl: HTMLDivElement | null = null;
 let spotlightEl: HTMLDivElement | null = null;
@@ -126,8 +122,6 @@ const SECTIONS: ReadonlyArray<Section> = [
 ];
 
 const TOTAL_STEPS = SECTIONS.length + 2; // welcome + sections + done
-
-// ---- DOM helpers ----
 
 function createOverlay(): void {
     overlayEl = document.createElement('div');
@@ -251,8 +245,6 @@ function ensureTab(tab: string): void {
     if (btn && !btn.classList.contains('active')) btn.click();
 }
 
-// ---- Steps ----
-
 function quickStartNote(): string {
     return t('Takes {min} minutes, nothing to set up.', { min: FIRST_SIT_TIMER_MIN });
 }
@@ -363,8 +355,6 @@ function showDone(): void {
     showCard(html, 'tour-welcome');
 }
 
-// ---- Navigation ----
-
 function goToStep(step: number): void {
     if (step === 0) showWelcome();
     else if (step <= SECTIONS.length) showSection(step - 1);
@@ -393,8 +383,6 @@ function dismissRemindLater(): void {
     cleanup();
 }
 
-// ---- Event handlers ----
-
 function onScroll(): void {
     if (!guideActive || !spotlightEl || spotlightEl.style.display === 'none') return;
     const idx = currentStep - 1;
@@ -420,8 +408,6 @@ function onResizeDebounced(): void {
 function onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') dismissRemindLater();
 }
-
-// ---- Entry points ----
 
 function startGuide(startStep?: number): void {
     if (guideActive) return;

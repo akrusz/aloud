@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Dev launcher: runs several long-lived processes as one.
-//
-// Replaces `(trap 'kill 0' SIGINT; a & b & wait)`, which needed multiple Ctrl-C
-// to fully exit and left the server running when the Tauri window was closed.
+// Dev launcher: runs several long-lived processes as one. A bare
+// `(trap 'kill 0' SIGINT; a & b & wait)` needs multiple Ctrl-C to fully exit
+// and leaves the server running when the Tauri window is closed.
 //
 // Properties:
 //   - A single Ctrl-C tears the whole tree down.
@@ -10,7 +9,7 @@
 //     others are stopped too and the launcher exits.
 //
 // Each child runs in its own process group (detached) with /dev/null on stdin,
-// so the terminal's Ctrl-C goes only to this launcher — which then signals each
+// so the terminal's Ctrl-C goes only to this launcher, which then signals each
 // child's group exactly once. No double-delivery, no job-control surprises.
 //
 // Usage: node scripts/dev.mjs "label=shell command" "label=shell command" ...

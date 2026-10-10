@@ -11,7 +11,7 @@
  * message-prefix caches, and a 5m system block is processed before the messages
  * (order: tools, system, messages), so it would precede the 1h anchor, which
  * Anthropic 400s ("a 1h cache_control block must not come after a 5m block").
- * That error appeared once sessions grew long enough for the anchor (~msg 16).
+ * It only shows once a session is long enough for the anchor (~msg 16).
  *
  * The cache only pays if each request starts byte-identically with the last, so
  * the conversation is rendered 1:1 from the session log: no merging, no stubs,
@@ -140,9 +140,8 @@ function isFallbackRejection(detail: string): boolean {
 
 /**
  * Two ephemeral cache TTLs, both used: 5m (write 1.25x input) on the rolling
- * tail, refreshed by each turn's read so the prefix stays warm cheaply; 1h
- * (write 2x) on a slowly-advancing anchor (ANCHOR_STEP), which survives a >5min
- * [HOLD] silence so the resume still reads the transcript at ~0.1x.
+ * tail, refreshed by each turn's read; 1h (write 2x) on the slowly-advancing
+ * anchor (ANCHOR_STEP), which survives a >5min [HOLD] silence.
  *
  * The 1h write is priced at 2x in the server table (providers.ts
  * cacheCreation1h) off Anthropic's ephemeral_1h_input_tokens; keep them in
@@ -189,8 +188,8 @@ export interface AnthropicProviderOptions {
     /**
      * Retries on transient upstream failures (429 / 5xx / network), default 3
      * (retry.ts). Anthropic, Haiku especially, returns 429 and 529 under load;
-     * without retry a single hiccup killed the turn, which made mid-session
-     * turns fail ~5/6 of the time.
+     * without retry a single hiccup kills the turn (mid-session turns failed
+     * ~5/6 of the time).
      */
     maxRetries?: number;
     /** Override the inter-retry sleep (tests inject a no-op to stay fast). */
@@ -296,9 +295,7 @@ export class AnthropicProvider implements LLMProvider {
         );
         const tailIndex = cacheableAtOrBefore(convo, lastIndex);
 
-        // Tail → 5m rolling breakpoint, anchor → 1h, rest plain. The tail writes
-        // a cache entry for the full system+conversation prefix so the NEXT turn
-        // reads it at ~0.1x instead of re-billing the transcript.
+        // Tail → 5m rolling breakpoint, anchor → 1h, rest plain.
         const anthropicMessages = convo.map((m, i) => {
             const ttl = i === tailIndex ? CACHE_5M : i === anchorIndex ? CACHE_1H : null;
             return ttl
@@ -306,9 +303,8 @@ export class AnthropicProvider implements LLMProvider {
                 : { role: m.role, content: m.content };
         });
 
-        // No cache_control here on purpose (see the file header): the system is
-        // cached via the message-prefix breakpoints, and a 5m block here would
-        // precede the 1h anchor and 400.
+        // No cache_control here on purpose: a 5m block would precede the 1h
+        // anchor and 400 (see the file header).
         const systemParam = options.system
             ? [{ type: 'text', text: options.system }]
             : undefined;
@@ -411,8 +407,6 @@ export class AnthropicProvider implements LLMProvider {
     ): AsyncIterable<StreamChunk> {
         const response = await this.send(messages, options, true);
 
-        // Events of interest: content_block_delta (text deltas), message_delta
-        // (final stop_reason + usage), message_stop (terminator).
         let stopReason: string | null = null;
         let stopDetails: AnthropicStopDetails | null | undefined;
         let servedModel: string | undefined;
@@ -571,9 +565,9 @@ function usageToResult(
 /**
  * The per-model attempts of a call that fell back, or undefined when one
  * model did all the work (no `fallback_message` iteration): then the
- * top-level usage is the whole bill, as it always was. The answering attempt
- * takes the top-level counts, which carry the 1h cache-write split an
- * iteration entry may not.
+ * top-level usage is the whole bill. The answering attempt takes the
+ * top-level counts, which carry the 1h cache-write split an iteration entry
+ * may not.
  */
 function attemptsOf(usage: AnthropicUsage | undefined): CompletionAttempt[] | undefined {
     const iterations = usage?.iterations;

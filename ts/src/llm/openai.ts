@@ -226,8 +226,6 @@ export class OpenAIProvider implements LLMProvider {
     ): AsyncIterable<StreamChunk> {
         const response = await this.post(messages, options, true);
 
-        // SSE format: `data:` chunks carrying choices[].delta.content, the last
-        // with finish_reason + usage, then `data: [DONE]`.
         let finishReason: string | null = null;
         let usage: OpenAIUsage | undefined;
         // Hidden reasoning is never spoken, but its size explains a blank turn
@@ -329,12 +327,9 @@ function inlineErrorMessage(err: OpenAIInlineError, phase: string): string {
     return `OpenAI-compatible API error ${phase}${err.code !== undefined ? ` (${err.code})` : ''}: ${detail}`;
 }
 
-// Pre-configured providers: OpenAIProvider with a different default base URL
-// and model. Callers can still override either at construction.
-
 /**
- * Returns a class with provider-specific defaults baked in. Easier to typecheck
- * than several class declarations varying only in two constants.
+ * Returns an OpenAIProvider subclass with a provider's default base URL and
+ * model baked in; callers can still override either at construction.
  */
 function preconfigured(defaults: {
     baseUrl: string;

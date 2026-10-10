@@ -47,8 +47,8 @@ export interface ClassifyResumeIntentOptions {
  * - `stay`   - think-out-loud; stay held.
  * - `error`  - the classifier call failed (provider 429/5xx/network).
  *
- * `error` is DISTINCT from `stay` on purpose: collapsing them trapped the
- * meditator in silence with no voice escape whenever the provider was down, so
+ * `error` is DISTINCT from `stay` on purpose: collapsing them traps the
+ * meditator in silence with no voice escape whenever the provider is down, so
  * a 429-quota'd session could never be resumed by speech (ff1y). The caller
  * decides how to fail.
  */
@@ -138,8 +138,7 @@ async function classifyYesNo(
 
 /**
  * Does `text` (one utterance spoken during held silence) signal a wish to
- * resume? Provider failure surfaces as `error`, not a silent `stay`, so the
- * caller can avoid trapping the user in a hold they can't leave.
+ * resume? Provider failure is `error`, not `stay` (see ResumeVerdict).
  */
 export async function classifyResumeIntent(
     provider: LLMProvider,
@@ -169,7 +168,8 @@ export async function classifyHoldRequest(
  * Classify the reply to "would you like me to be quiet?". The client uses this,
  * not a second [HOLD] from the model, to decide whether to enter silence (rlgm).
  * True only on a clear yes: 'no' and 'error' both stay OUT of the hold, since a
- * missed hold just keeps facilitating while a wrong hold is the bug being fixed.
+ * missed hold just keeps facilitating while a wrong one goes quiet on someone
+ * who never asked.
  */
 export async function classifyHoldConfirm(
     provider: LLMProvider,

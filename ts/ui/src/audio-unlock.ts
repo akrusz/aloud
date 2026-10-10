@@ -8,8 +8,7 @@
  * so a freshly constructed `new Audio(blobUrl)` is unprivileged by then and
  * play() rejects with NotAllowedError: the sit runs mute (macOS Safari's
  * default per-site "Stop Media with Sound" auto-play setting does the same).
- * Chrome doesn't gate this way, which is why it went unnoticed until a Safari
- * session reported no voice at all.
+ * Chrome doesn't gate this way.
  *
  * So: prime this element with a silent clip inside the Begin handler, then
  * reuse it for every utterance. The permission rides on the element. The shared

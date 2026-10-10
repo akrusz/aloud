@@ -122,8 +122,8 @@ const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
  * Synthesize `text` to MP3 bytes via Inworld TTS. `voice` is the catalog's
  * `<voiceId>:<modelId>` (Luna:inworld-tts-2); the model rides in the id because
  * it sets the rate (pricing/providers.inworldTtsRateFor). The voice is steered
- * by a style instruction, which Inworld does not bill. Audio
- * comes back base64 in JSON. Throws on an upstream error.
+ * by a style instruction, which Inworld does not bill. Audio comes back base64
+ * in JSON. Throws on an upstream error.
  */
 export async function synthesizeWithInworld(
     text: string,
@@ -165,12 +165,10 @@ function xmlEscape(s: string): string {
 }
 
 /**
- * Azure's SSML body for a synthesis: the bare escaped text, wrapped in a
- * <prosody> rate when the session speed isn't 1.0 (Azure has no top-level
- * speakingRate knob; SSML is the only input shape it takes). This mirrors the
- * audition's 'plain' treatment (scripts/audition/sources.ts) — the richer
- * treatments (breaks, mstts styles) stay audition-only until one is chosen to
- * ship.
+ * Azure's SSML body for a synthesis: the escaped text, wrapped in a <prosody>
+ * rate when the speed isn't 1.0 and in an mstts express-as when the voice
+ * carries a style (Azure has no top-level speakingRate knob; SSML is the only
+ * input shape it takes).
  *
  * Exported alongside billedChars because Azure's bill is NOT text.length
  * (learn.microsoft.com text-to-speech "Billable characters"):

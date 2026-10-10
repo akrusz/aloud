@@ -3,13 +3,14 @@
  * Menus key off it so they only offer sources that work here.
  *
  * Three independent axes, NOT one "desktop" binary:
- *   - flask:  the local app backend (Piper/macOS voices, claude_proxy,
+ *   - flask:  the local app backend, i.e. the desktop Rust shell; the key
+ *             keeps its Flask-era name (Piper/macOS voices, claude_proxy,
  *             Ollama proxy, config-folder + voice-management tools).
  *   - cloud:  aloud cloud, the @aloud/server proxy (LLM/STT/TTS, credits).
  *   - ollama: a local Ollama daemon (reachable via the dev proxy).
  *
  * Probes run once at boot, cached, re-runnable via invalidate + detect. The
- * `flask` axis delegates to is-desktop.ts so isDesktop()/isDesktopSync()
+ * `flask` axis delegates to is-desktop.ts so detectIsDesktop()/isDesktopSync()
  * callers and this share one probe.
  */
 

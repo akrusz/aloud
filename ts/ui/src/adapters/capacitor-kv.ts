@@ -5,8 +5,9 @@
  * Not localStorage: a WKWebView's localStorage lives in the WebKit data store,
  * which iOS may evict under storage pressure and a "clear website data" sweep
  * wipes. Preferences is real native persistence, so settings, STT/voice picks,
- * and SessionStore history survive. Mobile is always a fresh install when this
- * first runs, so there's no localStorage→Preferences migration.
+ * and SessionStore history survive. Nothing is migrated from localStorage
+ * here; the two slots older mobile builds kept there lift themselves
+ * (cloud-auth.ts liftLegacyToken, settings.ts loadRawSetup).
  *
  * Same "aloud:" prefix as LocalStorageKv, so keys()/clear() touch only our own
  * entries and the two stores stay interchangeable.

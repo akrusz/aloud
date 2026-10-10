@@ -1,7 +1,8 @@
 /**
  * Buy-credits modal. Lists the packs and, on pick, either starts a Stripe
- * Checkout (card) or pays USDC on Base via x402. Reuses the `.voice-modal-*` classes and floats above whatever view
- * is mounted, so it can fire mid-session (out-of-credits) or from Settings.
+ * Checkout (card) or pays USDC on Base via x402. Reuses the `.voice-modal-*`
+ * classes and floats above whatever view is mounted, so it can fire
+ * mid-session (out-of-credits) or from Settings.
  *
  * Card: on web the tab redirects to Stripe and the outcome comes back via
  * `?purchase=` (cloud-billing.consumePurchaseReturn). In the desktop webview a

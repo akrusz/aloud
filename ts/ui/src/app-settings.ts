@@ -56,8 +56,6 @@ export interface AppSettings {
      *  ticking balance is distracting mid-meditation, and it's a tap away on the
      *  setup pill and in Settings. meditation-pal-14s. */
     showSessionBalance: boolean;
-    /** What the session clock reads out. Persists across sessions: tapping the
-     *  clock (or the Session clock button on setup) opens the picker. */
     sessionClockMode: SessionClockMode;
     /** Timer length in minutes, remembered so a daily 20-minute sit re-arms
      *  itself. Only meaningful under sessionClockMode 'timer'. */
@@ -68,10 +66,8 @@ export interface AppSettings {
      *  timer's spoken notices. */
     showSessionClock: boolean;
     /** End the session once the timer's closing word has been spoken (default
-     *  off). Off means the timer only says the time is up and the sit stays
-     *  open, which is what a meditation timer usually means; on is for people
-     *  who want the sit to actually stop. Either way the facilitator says so
-     *  first - nothing ends the session without a spoken close. */
+     *  off: the timer only says the time is up and the sit stays open). Either
+     *  way nothing ends the session without a spoken close. */
     endSessionOnTimer: boolean;
     /** Keep a local log of sessions (default on). When on, every turn autosaves
      *  without an LLM summary, so a crash or going offline still leaves a
@@ -214,8 +210,7 @@ export function detectLocale(): string {
 const KEY = 'app:settings';
 // Lazy: constructing a backend at module scope makes merely IMPORTING this file
 // (or anything that re-exports through settings.ts) throw outside a browser,
-// which is how a Node test that only wanted a pure helper ended up building
-// localStorage. Same lazy pattern as cloud-auth.ts.
+// e.g. in a Node test that only wants a pure helper. Same as cloud-auth.ts.
 let lazyKv: KvStorage | null = null;
 function kv(): KvStorage {
     if (!lazyKv) lazyKv = createKv();

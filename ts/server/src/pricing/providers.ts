@@ -1,6 +1,6 @@
 /**
- * Underlying provider cost tables: what aloud PAYS, in USD. Retail is this times
- * the margin multiplier (meter.ts).
+ * Underlying provider cost tables: what aloud PAYS, in USD. Credits debit at
+ * this cost; the margin is added where credits are sold (meter.ts).
  *
  * Token rates are USD per token (list price / 1e6). Input, output, and cache
  * read are priced separately and never summed - output runs ~4-5x input and a
@@ -8,8 +8,8 @@
  * long sessions badly. Mirrors the split the core usage tracker already carries
  * (ts/src/llm/base.ts CompletionResult).
  *
- * LIST prices as of early 2026, and they WILL drift; they live here in the open
- * so a price change is a one-line diff. This table's model allowlist also gates
+ * LIST prices, and they WILL drift; they live here in the open so a price
+ * change is a one-line diff. This table's model allowlist also gates
  * which models a client may bill against (meditation-pal-8sj: a client must not
  * be able to invoke an arbitrary expensive model on a user's credits).
  */
@@ -17,17 +17,15 @@
 import type { ProviderId } from '../contract.js';
 import type { TtsProvider } from '../providers/voice-catalog.js';
 
+/** All USD per token. */
 export interface TokenRates {
-    /** USD per input token. */
     input: number;
-    /** USD per output token. */
     output: number;
-    /** USD per cached-read input token. */
     cacheRead: number;
-    /** USD per cache-write (creation) input token at the DEFAULT 5-minute TTL
+    /** Cache-write (creation) input token at the DEFAULT 5-minute TTL
      *  (Anthropic ~1.25x input). */
     cacheCreation: number;
-    /** USD per cache-write at the 1-hour TTL (Anthropic 2x input). Used by the
+    /** Cache-write at the 1-hour TTL (Anthropic 2x input). Used by the
      *  "anchor" breakpoint that survives long [HOLD] silences. Providers with
      *  automatic caching (OpenAI/Google) have no 1h write and report none, so
      *  this sits at the input rate and never accrues. */
@@ -122,9 +120,9 @@ const M = 1_000_000;
  *  renders it as sent), so it's curated by hand: the default first, since an
  *  unmatched pick falls back to the first visible model. */
 const MODELS: Record<string, ModelPricing> = {
-    // Opus 5.5, the default. Thinking CAN'T be disabled (the disable 400s at
-    // every effort), so the core AnthropicProvider pins effort `low` like Fable
-    // (thinkingPolicy 'always-on'); the API default is `medium`.
+    // Opus 5.5, the default. Thinking can't be disabled, so effort is pinned
+    // `low` like Fable (core thinkingPolicy 'always-on'); the API default is
+    // `medium`.
     'anthropic:claude-opus-5-5': {
         provider: 'anthropic',
         model: 'claude-opus-5-5',
@@ -150,9 +148,8 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation1h: 20 / M, // 1h write, 2x input
     },
     // Opus 5, expanded-tier: ear-tested in production, and a sitter who picked
-    // it keeps it. Thinking is ON by default, so the core AnthropicProvider
-    // sends an explicit disable (thinkingPolicy 'opt-out') to keep the voice
-    // loop prompt.
+    // it keeps it. Thinking is ON by default and disabled per request
+    // (thinkingPolicy 'opt-out').
     'anthropic:claude-opus-5': {
         provider: 'anthropic',
         model: 'claude-opus-5',
@@ -192,10 +189,9 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
     // Sonnet 5.5, the midrange slot, at Sonnet 5's $2/$10. Its tokenizer (~30%
-    // more tokens than 4.6) inflates COUNTS, not these rates. The thinking
-    // disable 400s here, so the core AnthropicProvider sends `between_tools`
-    // instead (thinkingPolicy 'between-tools'): still no thinking, so no
-    // thinking tokens accrue.
+    // more tokens than 4.6) inflates COUNTS, not these rates. Thinking is off
+    // via `between_tools` (thinkingPolicy 'between-tools'), so no thinking
+    // tokens accrue.
     'anthropic:claude-sonnet-5-5': {
         provider: 'anthropic',
         model: 'claude-sonnet-5-5',
@@ -222,10 +218,10 @@ const MODELS: Record<string, ModelPricing> = {
     // Haiku 5.5: the curated list's budget slot, and the model the app's
     // background calls run on (ui/views/session.ts HAIKU_MODEL). A tenth of
     // 4.5's rates, on the newer tokenizer (~30% more tokens, as Sonnet 5.5).
-    // Thinking is ON by default, so the core AnthropicProvider sends the
-    // disable (thinkingPolicy 'opt-out'). Runs Anthropic's safety classifiers
-    // with NO server-side fallback: a decline comes back as a refusal.
-    // Priced by prompt length - see longPrompt.
+    // Thinking is ON by default and disabled per request (thinkingPolicy
+    // 'opt-out'). Runs Anthropic's safety classifiers with NO server-side
+    // fallback: a decline comes back as a refusal. Priced by prompt length -
+    // see longPrompt.
     'anthropic:claude-haiku-5-5': {
         provider: 'anthropic',
         model: 'claude-haiku-5-5',
@@ -276,15 +272,14 @@ const MODELS: Record<string, ModelPricing> = {
     // at full input every turn. 'groq' stays a provider for STT.)
     //
     // Gemini 3.5 Flash-Lite, the one Google entry: direct via Google's
-    // OpenAI-compatible endpoint, at Google's list prices. Took the slot from
-    // 2.5 Flash-Lite (Oct 2026), which Google now serves only to keys that
-    // already used it. 3x/6x dearer than 2.5, so no longer the floor (Haiku
-    // 5.5 and GPT-6 Luna undercut it); here as the Google voice. Thinking
+    // OpenAI-compatible endpoint, at Google's list prices. (Google serves 2.5
+    // Flash-Lite only to keys that already used it.) Not the floor - Haiku 5.5
+    // and GPT-6 Luna undercut it - but here as the Google voice. Thinking
     // can't be switched fully off on Gemini 3.x: the core GoogleProvider sends
     // the 'minimal' floor (openai.ts geminiReasoningFloor), which billed no
     // reasoning tokens. Implicit-cache reads ARE reported
     // (prompt_tokens_details.cached_tokens) but covered only ~60% of a
-    // repeated prefix where 2.5 covered ~90%, so the estimate runs a little
+    // repeated prefix (2.5 covered ~90%), so the estimate runs a little
     // optimistic. Cache writes aren't surfaced, so cacheCreation sits at the
     // input rate and never accrues.
     'google:gemini-3.5-flash-lite': {
@@ -320,9 +315,9 @@ const MODELS: Record<string, ModelPricing> = {
     // Sol's $5/$30. Same caching contract as the 5.6 family: 0.1x reads, a
     // reported 1.25x write fee, no 1h tier. Reasoning defaults to `medium` but
     // takes 'none' (openai.ts lowestReasoningEffort). Requests over 272K input
-    // bill 2x, which a session never reaches. Took 5.6 Sol's curated slot and
-    // the zh default (2026-09-22): cheaper, faster, and it mirrors the
-    // meditator's words where 5.6 Sol only asks.
+    // bill 2x, which a session never reaches. Curated and the zh default over
+    // 5.6 Sol: cheaper, faster, and it mirrors the meditator's words where 5.6
+    // Sol only asks.
     'openai:gpt-6-sol': {
         provider: 'openai',
         model: 'gpt-6-sol',
@@ -352,7 +347,7 @@ const MODELS: Record<string, ModelPricing> = {
     // and reports them (prompt_tokens_details.cache_write_tokens), so
     // cacheCreation is a real accruing rate here. No 1h tier on automatic
     // caching, so cacheCreation1h mirrors the 5m rate and never accrues.
-    // Expanded since GPT-6 Sol took its slot.
+    // Expanded: GPT-6 Sol holds the curated slot.
     'openai:gpt-5.6-sol': {
         provider: 'openai',
         model: 'gpt-5.6-sol',

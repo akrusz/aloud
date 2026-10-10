@@ -116,9 +116,9 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const purchase = parseCheckoutCompleted(event);
         if (purchase && purchase.giftToEmail) {
             // A GIFT: the payment cleared, but the credits become a pending gift
-            // the recipient accepts on next sign-in (declined/expired → back to
-            // buyer). createGift is idempotent on the session id, so a webhook
-            // retry is safe.
+            // the recipient accepts on next sign-in (declined/expired → held for
+            // the buyer to re-gift or claim). createGift is idempotent on the
+            // session id, so a webhook retry is safe.
             await deps.store.createGift({
                 id: randomUUID(),
                 buyerAccountId: purchase.accountId,

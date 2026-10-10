@@ -6,13 +6,14 @@
  * check-in pools, and for staged modes an ordered phase list. The session view
  * looks the spec up by id; the rest of the engine stays mode-agnostic.
  *
- * Staged modes put a small state machine on top of the LLM: the active phase's
- * guidance is appended to the system prompt each turn, and the LLM signals
- * movement by prefixing [NEXT]/[BACK], parsed like [HOLD]. Advancement is
- * conservative - the protocol section tells the model to stay put when unsure,
- * since rushing a meditator past an unfinished step is the worst failure mode.
- * Future staged modes (NEDERA, meditation-pal-hysr) ride the same rails and can
- * add corroboration requirements on top.
+ * Staged modes put a small state machine on top of the LLM: the whole arc sits
+ * in the frozen system prompt, the active phase's guidance is appended to the
+ * session log as a stage note each time the phase is entered, and the LLM
+ * signals movement by prefixing [NEXT]/[BACK], parsed like [HOLD]. Advancement
+ * is conservative - the protocol section tells the model to stay put when
+ * unsure, since rushing a meditator past an unfinished step is the worst
+ * failure mode. Future staged modes (NEDERA, meditation-pal-hysr) ride the
+ * same rails and can add corroboration requirements on top.
  */
 
 import { BASE_SYSTEM_PROMPT } from './prompts.js';
@@ -22,8 +23,6 @@ import {
     NOTING_STATIC_OPENERS,
 } from './noting.js';
 import { FELT_SENSE_MODE } from './felt-sense.js';
-
-// Spec types
 
 export interface ModePhase {
     /** Stable id, persisted on SessionState.modePhase for resume. */
@@ -81,8 +80,6 @@ export interface ModeSpec {
      *  directive check-ins). */
     checkinPaceSlider?: boolean;
 }
-
-// Stage signals: [NEXT] / [BACK], parsed like [HOLD].
 
 export type StageSignal = 'advance' | 'back' | 'none';
 
@@ -200,17 +197,17 @@ const XML_TAG_RE = /<\/?[a-z][\w.:-]*(?:\s[^<>]*?)?\/?>/gi;
 /**
  * Where a reply stops being the reply and starts being a fabricated transcript:
  * the model continuing past its own turn to write the meditator's next line
- * (seen in the wild from Opus via a role-labeled example block since removed
- * from BASE_SYSTEM_PROMPT). Left in, it gets spoken AND stored, and the stored
- * copy re-teaches the pattern for the rest of the session.
+ * (seen in the wild from Opus when the system prompt carried a role-labeled
+ * example block). Left in, it gets spoken AND stored, and the stored copy
+ * re-teaches the pattern for the rest of the session.
  *
  * Deliberately narrow, since a false positive truncates a real reply mid-sit:
  * a chat delimiter, a line-start "Role:", or a bare user/assistant after a
  * sentence end. Only those two role words match bare ("human"/"system" are
  * ordinary meditation words), case-sensitively: template markers are
- * lowercase, prose "Users of this practice" capitalizes. The joints are \s*
- * because markers can arrive FUSED to their neighbors ("need?usernothing" -
- * an Opus 4.5 leak the old \s+ pattern let into history).
+ * lowercase, prose "Users of this practice" capitalizes. The joints are \s*,
+ * not \s+, because markers can arrive FUSED to their neighbors
+ * ("need?usernothing", an Opus 4.5 leak).
  */
 const ROLE_LEAK_RE =
     /<\|[a-z_]+\|>|^[ \t]*(?:[Uu]ser|[Aa]ssistant|[Hh]uman|[Ss]ystem)[ \t]*:|(?:[.!?…"']\s*|\n\s*|^)(user|assistant)(?:[ \t]*\n|[ \t]+(?=\S)|(?=[A-Za-z]))/m;
@@ -299,8 +296,6 @@ export function parseTurnSignals(response: string): TurnSignals {
     // reply, and this is the path whose output reaches history.
     return { hold, stage, waitSec, cleanText: scrubControlTokens(stripRoleLeak(text)) };
 }
-
-// Staged-mode controller
 
 /**
  * Tracks the active phase of a staged mode and renders its system-prompt
@@ -400,8 +395,6 @@ function buildStageNote(spec: ModeSpec, index: number): string {
         `stage ${index + 1} of ${phases.length}, ${phase.label}.\n\n${phase.prompt.trim()}`
     );
 }
-
-// Registry
 
 /** The classic mode. No openers/openerPrompt on purpose: PromptBuilder's pools
  *  (keyed off focuses/qualities/directiveness) are richer than a flat list, so

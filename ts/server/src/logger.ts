@@ -1,9 +1,9 @@
 /**
  * Structured logger with a HARD privacy invariant: meditation content never
  * touches a log line. Operational half of meditation-pal-dn2 (no-retention
- * default for aloud cloud): sessions stay client-side, and this keeps the one
- * place content transits the server (the forwarding proxy) from persisting it
- * via logs.
+ * default for aloud cloud): sessions stay client-side, and this keeps the
+ * routes content transits (the forwarding proxy, STT, TTS, the judge) from
+ * persisting it via logs.
  *
  * The proxy's `messages[]` and completion `text` are NEVER passed to the
  * logger. To make that auditable, `log()` runs `assertNoContent()` over its

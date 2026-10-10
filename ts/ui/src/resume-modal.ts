@@ -13,7 +13,6 @@ const OVERLAY_ID = 'resume-modal-overlay';
 export interface ResumeModalConfig {
     /** "felt sense · 12 min in" - where the session was cut off. */
     detail: string;
-    /** Resume the interrupted session. */
     onResume: () => void;
     /** Drop it and start clean (clears the durable resume pointer). */
     onStartFresh: () => void;

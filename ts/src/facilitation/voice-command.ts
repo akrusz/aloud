@@ -134,7 +134,7 @@ export function resolveCommands(answers: JudgeAnswers): VoiceCommandId[] {
  * One retry first, though. A timeout is not a no: the first call through a
  * freshly started server runs ~1s, at the edge of its timeout, and the next one
  * ~160ms. Unlike the silence classifiers there is no LLM behind this, so without
- * the retry "can you cancel the timer?" became a turn the facilitator answered.
+ * the retry "can you cancel the timer?" becomes a turn the facilitator answers.
  */
 export async function detectVoiceCommand(
     judge: UtteranceJudge,

@@ -9,10 +9,10 @@
  * "Focusing" out of product copy.
  *
  * First mode on the staged-mode rails (modes.ts): the facilitator privately
- * holds the arc, the active phase's guidance rides on the system prompt, and
- * the LLM signals movement with [NEXT]/[BACK]. Unlike the directive NEDERA
- * design (meditation-pal-pmxb), facilitation stays follow-the-meditator within
- * each phase - the listener says almost nothing.
+ * holds the arc, the active phase's guidance arrives as a stage note in the
+ * session log, and the LLM signals movement with [NEXT]/[BACK]. Unlike the
+ * directive NEDERA design (meditation-pal-pmxb), facilitation stays
+ * follow-the-meditator within each phase - the listener says almost nothing.
  *
  * These strings shape the whole mode; edit with the same care as prompts.ts.
  */
@@ -144,8 +144,6 @@ This is the last stage, so there is no [NEXT]. If something new and alive opens 
     },
 ];
 
-// Openers + check-ins
-
 export const FELT_SENSE_OPENERS: readonly string[] = [
     "Take a moment to get comfortable... and when you're ready, you might ask inside: what's between me and feeling fine right now?",
     "No rush. When you're ready, just notice what in your body or mind is pulling your attention.",
@@ -181,8 +179,6 @@ export const FELT_SENSE_CHECK_INS: readonly string[] = [
     'Still with you.',
     'However long it takes is fine.',
 ];
-
-// Mode spec
 
 /** The protocol defines attention, tone, guidance, and brevity itself, so no
  *  exploration dimension composes (the setup UI hides those controls here).

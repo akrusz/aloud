@@ -216,7 +216,6 @@ export class SessionClock {
         return null;
     }
 
-    /** Seconds since the session began. */
     elapsedSec(): number {
         return (Date.now() - this.startMs) / 1000;
     }

@@ -3,8 +3,8 @@
  *
  * Metered proxies are behind bearer auth: every request carries a session JWT
  * the server minted, from Google/Apple/email sign-in. A dev build with no
- * Google client id falls back to /v1/auth/dev (local-only) so the loop runs
- * end-to-end locally.
+ * Google client id falls back to /cloud/v1/auth/dev (local-only) so the loop
+ * runs end-to-end locally.
  *
  * Cached in a KvStorage slot picked per platform (createKv): native Preferences
  * on mobile, localStorage everywhere else. Same pattern as api-keys.ts. Not a
@@ -127,8 +127,8 @@ export function isAppleSignInConfigured(): boolean {
 /** True when the cloud offers ANY interactive sign-in: web Google, the desktop
  *  loopback Google client, or Apple. The session gate (cloud-gate) keys off this
  *  rather than web-Google-only, since a desktop release talks to a server with
- *  only the *desktop* client configured, and gating on the web id alone let
- *  credit-spending sessions start unauthenticated. The silent dev-sign-in
+ *  only the *desktop* client configured, and gating on the web id alone would
+ *  let credit-spending sessions start unauthenticated. The silent dev-sign-in
  *  fallback is only correct against a bare server advertising none of them. */
 export function isInteractiveSignInConfigured(): boolean {
     return (
@@ -152,12 +152,12 @@ export async function getCloudToken(): Promise<string | null> {
     return liftLegacyToken();
 }
 
-/** Mobile used to keep the token in the webview's localStorage, which iOS can
- *  evict (meditation-pal-7n22). It now lives in native Preferences, so lift a
- *  token written by an older build once rather than silently ending a tester's
- *  session at the upgrade. Native only, and only when the durable slot is empty.
- *  Sign-out sets the flag too, so a stale localStorage copy can never resurrect
- *  a session the user just ended. */
+/** One-time lift of a token an older mobile build left in the webview's
+ *  localStorage (which iOS can evict - meditation-pal-7n22) into native
+ *  Preferences, rather than silently ending a tester's session at the upgrade.
+ *  Native only, and only when the durable slot is empty. Sign-out sets the flag
+ *  too, so a stale localStorage copy can never resurrect a session the user
+ *  just ended. */
 let legacyLifted = false;
 async function liftLegacyToken(): Promise<string | null> {
     if (legacyLifted || backendOverride || !isCapacitor()) return null;
@@ -260,7 +260,7 @@ async function serverErrorMessage(res: Response): Promise<string> {
     }
 }
 
-/** POST /v1/auth/dev - mint (or reuse) the local dev session. */
+/** POST /cloud/v1/auth/dev - mint (or reuse) the local dev session. */
 export async function devSignIn(): Promise<AuthResponse> {
     const res = await fetchImpl(cloudUrl('/auth/dev'), { method: 'POST' });
     if (!res.ok) {
@@ -389,8 +389,9 @@ export async function setEmailUpdates(optIn: boolean): Promise<AccountView> {
  * Return a valid server token. A cached one wins. Otherwise a hosted
  * (Google-configured) build can't mint one non-interactively and throws
  * CloudSignInRequiredError for the caller to surface sign-in; a dev build uses
- * the local dev route. The JWT is long-lived (90 days, sliding) so there's no proactive
- * refresh: expiry surfaces as a proxy 401, which the caller clears and retries.
+ * the local dev route. The JWT is long-lived (90 days, sliding) so there's no
+ * proactive refresh: expiry surfaces as a proxy 401, which the caller clears
+ * and retries.
  */
 export async function ensureCloudToken(): Promise<string> {
     const existing = await getCloudToken();

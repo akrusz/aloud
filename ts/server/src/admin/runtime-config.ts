@@ -3,8 +3,9 @@
  * stop handing out free credits while still testing the live service.
  *
  * Source of truth at runtime:
- *   - freeSignupCredits  → deps.config.freeSignupCredits (auth.ts reads it per
- *                          sign-in, so a mutation applies immediately)
+ *   - freeSignupCredits  → deps.config.freeSignupCredits (auth/identity.ts
+ *                          reads it per sign-in, so a mutation applies
+ *                          immediately)
  *   - freeGrantBudget/hr → deps.grantBreaker (the live circuit-breaker budget)
  *
  * Overrides persist in the store's settings KV so a redeploy won't snap the knob

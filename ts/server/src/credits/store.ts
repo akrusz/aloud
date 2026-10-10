@@ -8,13 +8,11 @@
  *  - Append-only ledger: balance is derived from entries, never mutated in
  *    place, giving the full audit trail (grant, debit, hold, release, top-up)
  *    billing disputes need.
- *  - Holds are first-class: a session holds at start, then settles to an actual
- *    debit (releasing the remainder). An unsettled hold reduces spendable
- *    balance without yet being a charge.
+ *  - Holds are first-class: an LLM turn holds its estimate up front, then
+ *    settles to the actual debit (releasing the remainder). An unsettled hold
+ *    reduces spendable balance without yet being a charge.
  */
 
-// Type-only import: the raw usage telemetry row this store also persists.
-// Defined with its aggregation logic in usage.ts; here we need only the shape.
 import type { UsageEvent } from './usage.js';
 import type { Incident } from './incidents.js';
 
@@ -179,14 +177,12 @@ export interface CreditsStore {
     setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void>;
 
     // ---- Identities (sign-in methods, meditation-pal-116) -------------------
-    /** Look up an identity by its globally-unique (provider, sub). */
     getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined>;
     /** Link a new identity to an account. Must be atomic; throws the contract
      *  error 'identity already linked' if (provider, sub) already exists. */
     createIdentity(identity: Identity): Promise<void>;
     /** All identities linked to an account (to decide "already granted?"). */
     getIdentitiesForAccount(accountId: string): Promise<Identity[]>;
-    /** Flip an identity's grantedCredits flag to true after a grant settles. */
     markIdentityGranted(provider: IdentityProvider, sub: string): Promise<void>;
     /** Replace an identity's credential hash: a Google/Apple user adding an
      *  email/password, or later changing it. No-op if (provider, sub) is absent. */
@@ -210,7 +206,6 @@ export interface CreditsStore {
     // received the free grant. Survives account deletion, so delete-then-recreate
     // can't claim the freebie twice. Never carries the address.
 
-    /** True if this grant key has ever been recorded (i.e. already granted). */
     hasGrantKey(keyHash: string): Promise<boolean>;
     /** Record that this grant key received a free grant. Idempotent. */
     recordGrantKey(keyHash: string, createdAt: number): Promise<void>;
@@ -254,7 +249,6 @@ export interface CreditsStore {
     // Raw per-call cost records, separate from the money ledger (see usage.ts).
     // Best-effort writes; reads feed the admin cost dashboard.
 
-    /** Append a raw usage telemetry row. */
     appendUsage(event: UsageEvent): Promise<void>;
     /** Every usage row across all accounts (trial-scale scan). */
     allUsage(): Promise<UsageEvent[]>;
@@ -262,7 +256,6 @@ export interface CreditsStore {
     // ---- Incident log (meditation-pal-xtgh) ---------------------------------
     // What went wrong on metered calls, for the admin panel. Best-effort writes.
 
-    /** Append one incident row. */
     appendIncident(incident: Incident): Promise<void>;
     /** Incidents at or after `sinceTs`, newest first. */
     incidentsSince(sinceTs: number): Promise<Incident[]>;
@@ -273,7 +266,6 @@ export interface CreditsStore {
     // restart/redeploy instead of snapping back to the env default. Never
     // carries user content.
 
-    /** A persisted setting value, or undefined if never set. */
     getSetting(key: string): Promise<string | undefined>;
     /** Persist a setting value (upsert). */
     setSetting(key: string, value: string): Promise<void>;
@@ -295,7 +287,6 @@ export interface CreditsStore {
     deleteRetreatPass(id: string): Promise<void>;
     /** Add an account to a pass. Idempotent on (passId, accountId). */
     addRetreatMember(membership: RetreatMembership): Promise<void>;
-    /** Members of a pass (for the admin roster / attendee count). */
     listRetreatMembers(passId: string): Promise<RetreatMembership[]>;
     /** The pass covering this account right now: an 'active' pass it's a member
      *  of whose window contains `now`. Latest-ending match wins (a member is
@@ -309,11 +300,9 @@ export interface CreditsStore {
     // ---- Retreat invites (pending membership by email, meditation-pal-n9kd) --
     /** Add a pending invite. Idempotent on (passId, email). */
     addRetreatInvite(invite: RetreatInvite): Promise<void>;
-    /** Pending invites for a pass (for the admin roster). */
     listRetreatInvites(passId: string): Promise<RetreatInvite[]>;
     /** All pending invites addressed to an email (lower-cased), across passes,
      *  resolved to memberships on that account's first sign-in. */
     invitesForEmail(email: string): Promise<RetreatInvite[]>;
-    /** Remove an invite (after it's claimed into a membership). */
     removeRetreatInvite(passId: string, email: string): Promise<void>;
 }

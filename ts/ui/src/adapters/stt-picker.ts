@@ -1,5 +1,9 @@
 /**
- * Pick an STT adapter at runtime, in order of preference:
+ * STT adapter selection. Sessions build from an explicit choice:
+ * sttEngineOptions lists what the mode offers (first = default),
+ * resolveSttChoice settles a stored pick, createSttForChoice builds the engine.
+ *
+ * detectSttBackend / createBestStt auto-detect instead, in order of preference:
  *
  *   1. Capacitor native plugin   - best on iOS/Android. The PLATFORM's
  *                                  recognizer, so not necessarily on-device:
@@ -69,7 +73,7 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
         // Hono 404s, Vite's proxy 5xxes when the backend is down - both fail
         // closed). The model params make the shell start loading THIS
         // session's model now, during setup - without the warm, the retarget
-        // waited for the first utterance, which 503'd into a lost first turn
+        // waits for the first utterance, which 503s into a lost first turn
         // after a model/language change.
         const response = await fetch(
             whisperWarmUrl(vadOpts.whisperModelSize, vadOpts.language ?? 'en')
@@ -109,8 +113,6 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
         specEarlyMaxBufferMs: CLOUD_SPEC_EARLY_MAX_BUFFER_MS,
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
-        // Drop a rejected token and re-sign-in once (mirrors the LLM/TTS
-        // adapters), so a stale session doesn't break hosted STT page-wide.
         onAuthError: clearCloudToken,
     });
 }
@@ -121,7 +123,7 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
 export async function detectSttBackend(vadOpts: VadOpts = {}): Promise<SttBackend> {
     if (cachedBackend !== null) return cachedBackend;
 
-    // Prefer the native on-device recognizer (SFSpeechRecognizer / Android
+    // Prefer the platform's native recognizer (SFSpeechRecognizer / Android
     // SpeechRecognizer). isCapacitor() is the native-only gate - a plain browser
     // running the Capacitor web shim reports false and falls through.
     if (isCapacitor()) {
@@ -155,11 +157,12 @@ export async function detectSttBackend(vadOpts: VadOpts = {}): Promise<SttBacken
 }
 
 /**
- * Construct the best-available STT engine, or null so the caller can switch the
- * UI into text-only mode. Only the server-Whisper path does client-side VAD;
- * Web Speech and Capacitor self-endpoint, but both honor the pause window by
- * holding the turn open across a mid-thought pause (Web Speech runs continuous;
- * Capacitor restart-stitches, since Android won't keep the mic open).
+ * Construct the best-available STT engine, or null when no path works (there is
+ * no text-only mode to fall back to). Only the server-Whisper path does
+ * client-side VAD; Web Speech and Capacitor self-endpoint, but both honor the
+ * pause window by holding the turn open across a mid-thought pause (Web Speech
+ * runs continuous; Capacitor restart-stitches, since Android won't keep the mic
+ * open).
  */
 export async function createBestStt(vadOpts: VadOpts = {}): Promise<SttEngine | null> {
     const backend = await detectSttBackend(vadOpts);
@@ -276,10 +279,9 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
     }
 }
 
-/** aloud cloud STT bills at provider cost — ~0.6 credits/hour of speech at the
- *  assumed talk profile, for either hosted model. UNROUNDED, like the server's
- *  model/voice rates: it badges as "1☁" on its own but composes honestly into
- *  the setup footer's session total.
+/** aloud cloud STT bills at provider cost: credits/hour of speech at the
+ *  assumed talk profile. UNROUNDED, like the server's model/voice rates, so it
+ *  composes honestly into the setup footer's session total.
  *
  *  This is a SEED, not the authority: /me/models carries the server's own
  *  estimateStt figure and setCloudSttCreditsPerHour overwrites this the moment
@@ -293,7 +295,7 @@ let sttCreditsPerHour = FALLBACK_STT_CREDITS_PER_HOUR;
 
 /** Adopt the server's hosted-STT rate (model-picker.ts, from /me/models). A
  *  missing or non-positive value leaves the seed in place rather than zeroing
- *  the leg — a hosted choice must never read as free. */
+ *  the leg - a hosted choice must never read as free. */
 export function setCloudSttCreditsPerHour(rate: number | null | undefined): void {
     if (typeof rate === 'number' && rate > 0) sttCreditsPerHour = rate;
 }
@@ -303,7 +305,7 @@ export function isHostedSttChoice(choice: SttEngineChoice): boolean {
     return choice === 'aloud-gpt-transcribe';
 }
 
-/** ☁/hr for a picker choice — 0 for the free local/browser engines. */
+/** ☁/hr for a picker choice - 0 for the free local/browser engines. */
 export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
     return isHostedSttChoice(choice) ? sttCreditsPerHour : 0;
 }
@@ -318,11 +320,11 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
     // The native mobile recognizer: free, no sign-in, no credits. Labelled for
     // what it IS, not where the audio goes - Android's routes to Google, so
-    // don't reintroduce a privacy claim ("private" went in 580e049, "On-device"
-    // after it; sn1w tracks earning it back). Capacitor-only (web/desktop builds
-    // never have it), and first so it defaults there. Vocabulary per the plan
-    // (meditation-pal-7ej); meditation-speech quality still device-validated
-    // (meditation-pal-0ao), with aloud cloud one tap below if it disappoints.
+    // don't reintroduce a privacy claim ("private", "On-device"; sn1w tracks
+    // earning one back). Capacitor-only (web/desktop builds never have it), and
+    // first so it defaults there. Vocabulary per the plan (meditation-pal-7ej);
+    // meditation-speech quality still device-validated (meditation-pal-0ao),
+    // with aloud cloud one tap below if it disappoints.
     if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in transcription' });
     // Local Whisper exists only in the desktop (Tauri) Rust shell: Hono doesn't
     // serve the /app whisper route, and the desktop's loopback backend isn't
@@ -339,9 +341,8 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
         out.push({ value: 'web-speech', label: 'Browser' });
     }
     // OpenAI's gpt-transcribe: cheaper upstream and (per benchmarks) more
-    // accurate than gpt-4o-transcribe, which it replaced outright after real
-    // sessions raised no regression (meditation-pal-vazw). Always offered, and
-    // last, so it's the fallback every mode can reach.
+    // accurate than gpt-4o-transcribe (meditation-pal-vazw). Always offered,
+    // and last, so it's the fallback every mode can reach.
     out.push({
         value: 'aloud-gpt-transcribe',
         label: `aloud cloud${rateSuffix(sttCreditsPerHour)}`,

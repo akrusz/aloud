@@ -16,8 +16,6 @@ const PADDING = 10;
 const FOOTER_HEIGHT = 60; // approximate footer height
 const TOTAL_STEPS = 4; // welcome, llm, voice, done
 
-// ---- State ----
-
 let overlayEl: HTMLDivElement | null = null;
 let spotlightEl: HTMLDivElement | null = null;
 let cardEl: HTMLDivElement | null = null;
@@ -33,8 +31,6 @@ interface TourOptions {
 }
 
 let tourOptions: TourOptions = {};
-
-// ---- DOM helpers ----
 
 function createOverlay(): void {
     overlayEl = document.createElement('div');
@@ -104,15 +100,11 @@ function wireActions(): void {
     });
 }
 
-// ---- Footer (dots + nav) ----
-
 /** The shared footer, minus the voice step's dot when that step is skipped. */
 function footerHtml(opts: FooterOpts): string {
     if (!skipVoiceStep) return sharedFooterHtml(opts, TOTAL_STEPS, currentStep, 'skip');
     return sharedFooterHtml(opts, TOTAL_STEPS - 1, currentStep > 2 ? currentStep - 1 : currentStep, 'skip');
 }
-
-// ---- Positioning ----
 
 function positionSpotlight(el: HTMLElement, fixed: boolean): void {
     if (!spotlightEl) return;
@@ -479,8 +471,6 @@ function showDoneStep(): void {
     cardEl.style.left = left + 'px';
 }
 
-// ---- Navigation ----
-
 function goToStep(step: number): void {
     if (step === 0) showWelcome();
     else if (step === 1) showLLMStep();
@@ -516,8 +506,6 @@ function dismissRemindLater(): void {
     cleanup();
 }
 
-// ---- Event handlers ----
-
 function onScroll(): void {
     if (!spotlightEl || spotlightEl.style.display === 'none') return;
     if (currentStep === 3) return; // footer spotlight is fixed
@@ -538,8 +526,6 @@ function onResizeDebounced(): void {
 function onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') dismissRemindLater();
 }
-
-// ---- Entry point ----
 
 /** Clear the dismissed / remind-later flags and walk the wizard from the
  *  welcome step (the Settings "Setup guide" button). */

@@ -4,11 +4,9 @@
  * (aloud-screen-*.webp) and an exploration session (aloud-session-*.webp),
  * each in both themes. The site shows them as a carousel (docs/js/shots.js).
  *
- * These used to be hand-taken macOS window grabs, which meant a new pair every
- * release at whatever size the window happened to be. This drives headless
- * Chrome over CDP instead: same framing every time, exact pixel width, both
- * themes, no npm dependencies (Node 22's WebSocket + the Chrome you already
- * have + ImageMagick).
+ * Drives headless Chrome over CDP, so every release gets the same framing at
+ * an exact pixel width in both themes, with no npm dependencies (Node 22's
+ * WebSocket + the Chrome you already have + ImageMagick).
  *
  * The window chrome is drawn here rather than captured: the shot is of the web
  * UI, told to dress as the desktop shell (data-shell/data-titlebar, which is
@@ -262,14 +260,10 @@ async function waitFor(cdp, selector, tries = 100) {
 }
 
 /**
- * Begin a session and stage the transcript.
- *
- * The turns are written straight into the DOM rather than spoken: a real
- * exchange needs a mic, an LLM and a person. Everything around them - the
- * clock, the orb, the controls bar, the input row - is the live view, so only
- * the words are staged. Whatever the session view put there on mount (an
- * opener, or a provider error, since nothing is configured here) is cleared
- * first.
+ * Begin a session and stage the transcript: SAMPLE_TURNS written straight
+ * into the DOM, since a real exchange needs a mic, an LLM and a person.
+ * Whatever the session view put there on mount (an opener, or a provider
+ * error, since nothing is configured here) is cleared first.
  */
 async function enterSession(cdp) {
     await cdp.eval(`document.querySelector('#begin-btn').click()`);

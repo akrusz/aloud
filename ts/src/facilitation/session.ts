@@ -126,9 +126,8 @@ export function hasSpokenUserTurn(
 
 export interface SessionState {
     sessionId: string;
-    /** Unix timestamp in seconds. */
+    /** Unix timestamps in seconds. */
     startTime: number;
-    /** Unix timestamp in seconds. */
     endTime: number | null;
     exchanges: Exchange[];
     tags: string[];
@@ -237,7 +236,6 @@ export class SessionManager {
         return this._state;
     }
 
-    /** Record or clear the active staged-mode phase (SessionState.modePhase). */
     setModePhase(phaseId: string | null): void {
         if (this._state === null) return;
         if (phaseId === null) delete this._state.modePhase;

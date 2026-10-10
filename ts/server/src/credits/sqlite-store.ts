@@ -345,9 +345,8 @@ export class SqliteCreditsStore implements CreditsStore {
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_usage_pass ON usage_events(pass_id)');
     }
 
-    /** Add usage_events.cache_creation_1h to a DB predating the 1h cache anchor
-     *  (SCHEMA's CREATE only covers fresh DBs). Existing rows default to 0: no 1h
-     *  writes were billed before the anchor shipped. */
+    /** Add usage_events.cache_creation_1h to a DB predating the 1h cache anchor.
+     *  Existing rows default to 0: no 1h writes were billed before it. */
     private migrateAddUsageCacheCreation1h(): void {
         if (this.hasColumn('usage_events', 'cache_creation_1h')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN cache_creation_1h INTEGER NOT NULL DEFAULT 0');
@@ -361,8 +360,7 @@ export class SqliteCreditsStore implements CreditsStore {
     }
 
     /** Add usage_events.pass_id to a DB predating retreat passes
-     *  (meditation-pal-414). SCHEMA's CREATE only covers fresh DBs; no-op once
-     *  the column is there. */
+     *  (meditation-pal-414). */
     private migrateAddUsagePassId(): void {
         if (this.hasColumn('usage_events', 'pass_id')) return;
         this.db.exec('ALTER TABLE usage_events ADD COLUMN pass_id TEXT');
@@ -380,10 +378,9 @@ export class SqliteCreditsStore implements CreditsStore {
      *  not SQL, so the backfill runs row by row. The UNIQUE index is partial
      *  (WHERE deleted_at IS NULL) so tombstones don't collide and a deleted
      *  mailbox can sign up fresh. Creating it THROWS if duplicate live accounts
-     *  already share a mailbox (exactly the bug being fixed); we catch, warn, and
-     *  carry on. The app-level guard still blocks new dupes, and the index is
-     *  created on the next boot once the operator resolves the duplicate in the
-     *  admin panel. Self-healing. */
+     *  already share a mailbox; we catch, warn, and carry on. The app-level
+     *  guard still blocks new dupes, and the index is created on the next boot
+     *  once the operator resolves the duplicate in the admin panel. */
     private migrateAddCanonicalEmail(): void {
         if (!this.hasColumn('accounts', 'canonical_email')) {
             this.db.exec('ALTER TABLE accounts ADD COLUMN canonical_email TEXT');

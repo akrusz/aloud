@@ -25,10 +25,6 @@ import { t } from './i18n.js';
 import { alertDialog } from './dialog.js';
 import { readNdjson } from './ndjson.js';
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 /** Raw voice metadata returned from `/app/v1/voices`. */
 export interface ServerVoice {
     name: string;
@@ -42,7 +38,7 @@ export interface ServerVoice {
     model?: string;
 }
 
-/** A curated hosted voice from GET /v1/voices (hand-mirrors the server's
+/** A curated hosted voice from GET /cloud/v1/voices (hand-mirrors the server's
  *  CloudVoice contract). */
 export interface CloudVoice {
     name: string;
@@ -111,8 +107,8 @@ export interface ScoredVoice {
     /** Estimated credits/hr for a hosted voice (shown in the badge tooltip). */
     creditsPerHour?: number;
     /** Doesn't speak the session's language (meditation-pal-c3a0.6): rendered
-     *  dimmed with a language badge, sunk below its tier-mates, still pickable
-     *  (the mismatch is a warning, not a wall). */
+     *  dimmed with a tooltip, sunk below its tier-mates, still pickable (the
+     *  mismatch is a warning, not a wall). */
     langMismatch?: boolean;
     /** Known to misbehave in this browser (see `isFirefoxOnMac`): dimmed like a
      *  language mismatch and sunk below tier-mates, still pickable. */
@@ -178,10 +174,6 @@ function isFirefoxOnMac(): boolean {
     return isMac() && typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent || '');
 }
 
-// ---------------------------------------------------------------------------
-// Scoring
-// ---------------------------------------------------------------------------
-
 export function scoreVoice(name: string, engine?: string): number {
     const baseName = name.replace(/\s*\(.*\)$/, '');
     // Apple "Premium" system voices: best local option, a rung below
@@ -195,8 +187,8 @@ export function scoreVoice(name: string, engine?: string): number {
     if (/Online|Natural/i.test(name)) return 2;
     if (/^Google/i.test(name)) return 1;
     if (MACOS_QUALITY_VOICES.test(baseName)) return 1;
-    // Piper (the desktop's bundled neural voices) tops the local tiers per the
-    // developer's preference - they're genuinely solid.
+    // Piper (the desktop's bundled neural voices): genuinely solid, one rung
+    // under Apple Premium.
     if (engine === 'piper') return 3;
     return 0;
 }
@@ -234,13 +226,10 @@ export function buildScoredVoiceList(
     const seen = new Set<string>();
 
     // Curated hosted voices (present only when the server is reachable and has a
-    // TTS key) lead the "Best" tier, which is reserved for these and Chrome's
-    // cloud voices.
+    // TTS key).
     for (const hv of hostedVoices) {
-        // Chirp3-HD ("premium") leads Best; the cheaper Neural2 ("value") voices
-        // are still excellent but drop one rung to "Very Good" (4) alongside
-        // Apple Premium. An older server omitting tier defaults to Best, the
-        // safe direction.
+        // "premium" leads Best; "value" drops one rung to "Very Good" (4). An
+        // older server omitting tier defaults to Best, the safe direction.
         const isValue = hv.tier === 'value';
         scored.push({
             name: hv.name,
@@ -353,10 +342,6 @@ export function buildScoredVoiceList(
     return scored;
 }
 
-// ---------------------------------------------------------------------------
-// Modal rendering
-// ---------------------------------------------------------------------------
-
 export interface RenderListOptions {
     /** Show an engine badge (e.g. "macOS") after the voice name. */
     showEngine?: boolean;
@@ -367,8 +352,8 @@ export interface RenderListOptions {
     showLockedPiper?: boolean;
     /** Session pickers (setup + in-session): hide voices that can't speak the
      *  session language, plus not-yet-downloaded Piper voices, behind one
-     *  "Show all voices" line - dimming alone wasn't a clear enough signal.
-     *  Settings omits this and shows the full catalog. */
+     *  "Show all voices" line. Settings omits this and shows the full
+     *  catalog. */
     hideIncompatible?: boolean;
     /** Internal: the "Show all voices" line was clicked. */
     showAll?: boolean;
@@ -529,8 +514,7 @@ function appendRow(
         nameSpan.appendChild(badge);
     }
     if (entry.langMismatch) {
-        // No badge (session pickers hide these behind "Show all voices", so a
-        // per-row tag was noise); the dimmed style plus this tooltip carry it.
+        // No badge: the dimmed style plus this tooltip carry it.
         row.title = t('This voice may not speak the session language well');
     } else if (entry.glitchy) {
         row.title = t('macOS 27 voices may interact poorly with Firefox.');
@@ -609,10 +593,6 @@ export function updateVoiceSelection(
     });
 }
 
-// ---------------------------------------------------------------------------
-// Preview
-// ---------------------------------------------------------------------------
-
 let activePreviewEngine: TtsEngine | null = null;
 
 /**
@@ -621,9 +601,8 @@ let activePreviewEngine: TtsEngine | null = null;
  * backend when the same name exists across several.
  *
  * Rejects on a real failure (not signed in, out of credits, server unreachable,
- * autoplay blocked) so the caller can say WHY a preview was silent - swallowing
- * these hid hosted-voice problems, especially on mobile. Cancelling one preview
- * by starting another resolves quietly.
+ * autoplay blocked) so the caller can say WHY a preview was silent. Cancelling
+ * one preview by starting another resolves quietly.
  */
 export async function previewVoice(
     voiceName: string,
@@ -685,8 +664,8 @@ export function previewErrorMessage(err: unknown): string {
         return t("That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.");
     }
     // The server answered, so "check your connection" would send the user
-    // chasing the wrong thing (a field report did exactly that): say the
-    // service had the problem, with the status so a report carries it.
+    // chasing the wrong thing: say the service had the problem, with the
+    // status so a report carries it.
     if (/\b429\b/.test(msg)) return t('Too many previews at once - wait a moment and try again.');
     // The provider behind the voice refused aloud's account (trial ended, key
     // revoked): retrying won't help, another voice (another provider) might.
@@ -710,16 +689,9 @@ export function stopPreview(): void {
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
 }
 
-// ---------------------------------------------------------------------------
-// Modal HTML helpers
-// ---------------------------------------------------------------------------
-
 export interface VoiceModalConfig {
-    /** id for the overlay div. */
     modalId: string;
-    /** id for the close button. */
     closeId: string;
-    /** id for the list container. */
     listId: string;
     title?: string;
     /** Speed slider - omit to hide the footer. */
@@ -729,12 +701,6 @@ export interface VoiceModalConfig {
     speedValue?: number;
 }
 
-/**
- * Gray the modal's speed footer while a fixed-pace voice is selected (styled
- * Azure voices: the rate knob no-ops server-side, so an active slider would
- * lie). Call on modal open and again on every selection change; `wpm` restores
- * the readout when the pick moves back to an adjustable voice.
- */
 export function voiceHasFixedPace(
     voiceName: string | null,
     list: readonly ScoredVoice[]
@@ -753,6 +719,12 @@ export function voiceRateLabel(
     return voiceHasFixedPace(voiceName, list) ? t('fixed speed') : t('{rate} wpm', { rate: wpm });
 }
 
+/**
+ * Gray the modal's speed footer while a fixed-pace voice is selected (styled
+ * Azure voices: the rate knob no-ops server-side, so an active slider would
+ * lie). Call on modal open and again on every selection change; `wpm` restores
+ * the readout when the pick moves back to an adjustable voice.
+ */
 export function syncSpeedControlForVoice(
     slider: HTMLInputElement,
     label: HTMLElement,
@@ -792,10 +764,6 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
         </div>
     </div>`;
 }
-
-// ---------------------------------------------------------------------------
-// /app/v1/voices loader
-// ---------------------------------------------------------------------------
 
 const SERVER_VOICES_URL = '/voices';
 let serverVoicesCache: ServerVoice[] | null = null;
@@ -896,7 +864,6 @@ export async function downloadVoiceFromRow(
     }
 }
 
-/** Remove a downloaded Piper voice model. Resolves on success. */
 export async function uninstallVoiceModel(
     voiceName: string,
     engine: string | undefined
@@ -942,10 +909,6 @@ export function downloadPercent(p: DownloadProgress): number {
     if (denom <= 0) return 0;
     return Math.min(100, Math.round((p.completed / denom) * 100));
 }
-
-// ---------------------------------------------------------------------------
-// /v1/voices loader (aloud cloud)
-// ---------------------------------------------------------------------------
 
 let cloudVoicesCache: CloudVoice[] | null = null;
 

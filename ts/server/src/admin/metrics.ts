@@ -110,7 +110,6 @@ export function buildMetrics(
         if (!purchasedAccounts.has(accountId)) freeBurnCredits += debited;
     }
 
-    // Windowed slice.
     const win = { signups: 0, creditsGranted: 0, creditsPurchased: 0, creditsDebited: 0 };
     for (const e of entries) {
         if (e.createdAt < windowSinceTs) continue;

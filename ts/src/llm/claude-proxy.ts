@@ -149,8 +149,6 @@ export class ClaudeProxyProvider implements LLMProvider {
     }
 }
 
-// Helpers
-
 /**
  * Encode multi-turn history as one prompt string: the CLI takes a single prompt
  * argument, so prior turns go inline as a "User: ... / Assistant: ..."

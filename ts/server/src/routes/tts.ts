@@ -1,10 +1,10 @@
 /**
- * POST /v1/tts, metered text-to-speech. Takes JSON { text, voice?, rate? },
- * synthesizes via the resolved voice's provider (Google, Azure, or Inworld),
- * debits fractional credits by billed character count, returns MP3 bytes
- * (audio/mpeg). Cost rides in X-Credits-Charged / X-Credits-Remaining so the
- * body stays a clean audio stream the client hands straight to an <audio>
- * element.
+ * POST /cloud/v1/tts, metered text-to-speech. Takes JSON
+ * { text, voice?, rate? }, synthesizes via the resolved voice's provider
+ * (Google, Azure, or Inworld), debits fractional credits by billed character
+ * count, returns MP3 bytes (audio/mpeg). Cost rides in X-Credits-Charged /
+ * X-Credits-Remaining so the body stays a clean audio stream the client hands
+ * straight to an <audio> element.
  *
  * POST (not GET) keeps the meditation text out of URL query strings, which
  * intermediaries/access logs could capture; the body is never logged
@@ -120,9 +120,9 @@ export function billedCharsFor(resolved: ResolvedVoice, text: string, rate: numb
 }
 
 /** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`.
- *  The texts are fixed and server-owned, so each (reason, voice) pair is synthesized once per
- *  process and served free thereafter: no per-user provider cost. Re-warmed
- *  lazily after a restart. */
+ *  The texts are fixed and server-owned, so each (reason, voice) pair is
+ *  synthesized once per process and served free thereafter: no per-user
+ *  provider cost. Re-warmed lazily after a restart. */
 const CANNED_AUDIO = new Map<string, Uint8Array>();
 
 /** Synthesized voice-preview audio, keyed `${provider}:${voiceId}:${style}:${rate}`.

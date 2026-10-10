@@ -1,6 +1,6 @@
 /**
- * POST /v1/llm/complete, the metered proxy. Hot path, and the only route that
- * sees meditation content (forwarded, never stored; logger.ts).
+ * POST /cloud/v1/llm/complete, the metered proxy. Hot path; sees meditation
+ * content (forwarded, never stored; logger.ts).
  *
  * Per turn:
  *   1. rate-guard the account (meditation-pal-2yb)

@@ -12,9 +12,7 @@ export type VoiceSource = 'browser' | 'server';
 export interface VoiceEntry {
     /** Stable id we round-trip in settings. */
     id: string;
-    /** Display name. */
     name: string;
-    /** Where to play this voice from. */
     source: VoiceSource;
     /** speechSynthesis engine name (browser) or backend engine (piper, macos, elevenlabs). */
     engine: string | undefined;

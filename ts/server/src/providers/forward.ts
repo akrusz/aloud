@@ -1,8 +1,8 @@
 /**
  * Forward a completion to the chosen provider with aloud's server-held API key
- * injected. The ONE place meditation content transits the server, and it is
- * stateless: request in, stream out, nothing persisted (privacy invariant;
- * logger.ts, meditation-pal-dn2).
+ * injected. Meditation content transits here (as it does the STT, TTS and
+ * judge routes), statelessly: request in, stream out, nothing persisted
+ * (privacy invariant; logger.ts, meditation-pal-dn2).
  *
  * Runtime reuse of @aloud/core: we construct the SAME provider classes the
  * client uses rather than re-implementing request building and, critically,

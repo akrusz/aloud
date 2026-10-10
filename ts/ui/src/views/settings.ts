@@ -112,20 +112,17 @@ export interface SettingsViewHandle {
 export async function mountSettingsView(root: HTMLElement): Promise<SettingsViewHandle> {
     const settings = await loadAppSettings();
     // Before first render so the provider menu shows only what's reachable
-    // (also populates the is-desktop cache the env-var hints + config-folder
-    // link read).
+    // (also populates the is-desktop cache the TTS engine hint and the tour
+    // read).
     await detectCapabilities();
     let scoredVoices: ScoredVoice[] = [];
 
-    // There's no global Save; controls auto-apply. Display is the exception -
-    // live-resizing the UI mid-drag is disorienting, so those stay in the
-    // preview pane until "Apply". The bottom-bar button is Undo, reverting to
-    // the state at view open.
+    // Display is the one section that doesn't auto-apply: its changes sit here
+    // (and in the preview pane) until "Apply" - see wireDisplaySection.
     const pendingChrome = pickChrome(settings);
 
     // Backs the ⚙/✱ markers and the status hint, from /app/v1/providers plus
-    // the BYOK key store (see provider-markers.ts). Unlike setup, settings only
-    // annotates: it never reorders or auto-switches the saved default.
+    // the BYOK key store (see provider-markers.ts).
     let providerStatus: ProviderStatusMap | null = null;
     let keyPresent: Record<string, boolean> = {};
 
@@ -169,20 +166,17 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         return undoSnapshot() !== baseline;
     }
 
-    /** Reflect Undo availability on the bottom-bar button. */
     function updateUndoState(): void {
         const undoBtn = root.querySelector<HTMLButtonElement>('#s-undo');
         if (undoBtn) undoBtn.disabled = !isUndoable();
     }
 
-    /** Are the Display controls showing an un-applied change? */
     function isDisplayDirty(): boolean {
         return (Object.keys(pendingChrome) as Array<keyof ChromePrefs>).some(
             (k) => pendingChrome[k] !== settings[k]
         );
     }
 
-    /** Enable the Display "Apply" button only when there's a pending change. */
     function updateApplyDisplayState(): void {
         const applyBtn = root.querySelector<HTMLButtonElement>('#s-apply-display');
         if (applyBtn) applyBtn.disabled = !isDisplayDirty();
@@ -282,8 +276,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         };
         syncOllamaSection();
 
-        // Per-provider API key rows: input, "Get a key" link, and a Paste
-        // button when the browser exposes the clipboard API.
+        // Per-provider API key rows (see attachApiKeyHelpers).
         for (const p of ALL_PROVIDERS) {
             if (!p.needsKey) continue;
             const cfg = API_KEY_INFO[p.value];
@@ -598,8 +591,8 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         root.querySelector<HTMLElement>('#s-stt-speculation-group')?.classList.toggle('hidden', !micPickApplies);
         const canEnumerate = !!navigator.mediaDevices?.enumerateDevices;
         // `.slot-hidden` (style.css) keeps the column's empty slot at wide
-        // widths so Language/Recognition stay at a third each rather than
-        // stretching to halves as you toggle STT, and collapses to
+        // widths so its row-mate (Language) stays at half width rather than
+        // stretching to the full row as you toggle STT, and collapses to
         // display:none once the row stacks.
         root.querySelector<HTMLElement>('#s-mic-device-group')?.classList.toggle(
             'slot-hidden',
@@ -1334,7 +1327,6 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         });
     }
 
-    /** A checkbox mirroring one boolean setting. */
     function bindCheckbox(id: string, key: BooleanSettingKey): void {
         const box = root.querySelector<HTMLInputElement>(`#${id}`);
         if (!box) return;
@@ -1459,7 +1451,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     // ---- Advanced section (expert controls shelf) ----------------------
-    // Same reveal pattern; the controls inside are wired by their own sections.
+    // Only the reveal; the controls inside are wired by their own sections.
     function wireAdvancedReveal(): void {
         const toggle = root.querySelector<HTMLButtonElement>('#s-advanced-toggle');
         const body = root.querySelector<HTMLElement>('#s-advanced-body');
@@ -1514,10 +1506,10 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             void resetSettingsTour({ piperAvailable: isDesktopSync(), isMac: isMacPlatform() });
         });
 
-        // Only shown when the app backend actually answers: the browser preview
-        // reaches it, a standalone hosted tab doesn't. Never probed on native
-        // mobile - there's no folder to open, and Capacitor's local static
-        // server answers any /app path with the SPA fallback, fooling the probe.
+        // Only shown when the app backend has the route: the desktop shell
+        // does, the web Hono doesn't. Never probed on native mobile - there's
+        // no folder to open, and Capacitor's local static server answers any
+        // /app path with the SPA fallback, fooling the probe.
         const openConfigBtn = root.querySelector<HTMLButtonElement>('#btn-open-config-folder');
         if (openConfigBtn && !isCapacitor()) {
             void (async () => {

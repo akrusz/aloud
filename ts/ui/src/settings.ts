@@ -37,8 +37,8 @@ export interface ProviderMeta {
 }
 
 export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
-    // Credits-metered premium LLMs, no key or local model. The only LLM source
-    // for the web tier (meditation-pal-vd3).
+    // Credits-metered premium LLMs, no key or local model. The web tier's LLM
+    // source unless BYOK is opted into (meditation-pal-vd3).
     { value: 'aloud', label: 'aloud cloud', needsKey: false, requires: 'cloud' },
     // Only when a local daemon is reachable (so, not on the hosted website).
     { value: 'ollama', label: 'Ollama (Local)', needsKey: false, requires: 'ollama' },
@@ -114,7 +114,6 @@ export function resolveSetupProvider(
 export type MeditationType = 'exploration' | 'noting' | 'felt_sense';
 
 export interface SessionSetup {
-    /** Which top-level meditation mode the user is in. */
     meditationType: MeditationType;
     /**
      * The ACTIVE mode's intention - what sessions, prompts, and history consume.
@@ -157,16 +156,17 @@ export interface SessionSetup {
      * Session language: a 2-letter code from app-settings.LANGUAGES. Drives the
      * STT recognizer AND (for zh) the facilitation language - prompts and canned
      * lines (src/facilitation/language.ts). Mirrors AppSettings.language like
-     * voice/rate - Settings is canonical, there's no per-session pick (setup's
-     * selector was removed 2026-08-31); a resumed session keeps the language it
-     * was started in (meditation-pal-c3a0.2).
+     * voice/rate - Settings is canonical, there's no per-session pick; a
+     * resumed session keeps the language it was started in
+     * (meditation-pal-c3a0.2).
      */
     language: string;
     provider: Provider;
     model: string;
     /**
-     * Voice ID from voices.ts. null = use the browser's default voice.
-     * Format: 'browser:<voiceURI>' or 'server:<engine-voice-name>'.
+     * Prefixed voice id (voice-picker.ts prefixedVoiceId): 'browser:<name>',
+     * 'aloud:<name>' or 'server:<name>'. null = no pick, the pipeline's default
+     * voice.
      */
     voice: string | null;
     /** TTS rate in words-per-minute. Browser TTS normalizes; server TTS passes through. */
@@ -232,7 +232,7 @@ export function notingSoundLabel(name: string): string {
 export type NotingParticipantConfig =
     | {
           type: 'llm';
-          /** Voice id ('browser:<name>' | 'server:<name>'). */
+          /** Prefixed voice id, as SessionSetup.voice. */
           voice: string | null;
           /** How much this participant reacts to what others have noted. */
           reactive: NotingReactive;
@@ -265,9 +265,9 @@ export type NotingParticipantConfig =
  * circle of those (or a solo circle with none at all) generates no text.
  *
  * One predicate because three places have to agree - the cloud gate, the setup
- * pickers, and the noting view. When they disagreed, a circle that makes zero
- * LLM calls still demanded sign-in, which broke the "noting works with no
- * account" claim the store listing rests on (meditation-pal-vr3w).
+ * pickers, and the noting view. If they disagree, a circle that makes zero LLM
+ * calls still demands sign-in, breaking the "noting works with no account"
+ * claim the store listing rests on (meditation-pal-vr3w).
  */
 export function sessionNeedsLlm(
     mode: MeditationType,
@@ -343,12 +343,11 @@ export const defaultSetup: SessionSetup = {
     voice: null,
     ttsRate: 140,
     // One sound participant on adaptive timing: a companion in the circle that
-    // calls no model, so noting needs no account (sessionNeedsLlm). It used to
-    // default to an AI participant, which made the very first thing a new user
-    // touched demand sign-in - on mobile there is no local provider, so 'aloud'
-    // is the only option there (meditation-pal-vr3w). A solo circle would also
-    // be free but sits oddly: noting alone with nothing answering. Swapping the
-    // AI back in is one tap in setup.
+    // calls no model, so noting needs no account (sessionNeedsLlm). An AI
+    // participant here would make the very first thing a new user touches
+    // demand sign-in - on mobile there is no local provider, so 'aloud' is the
+    // only option there (meditation-pal-vr3w). A solo circle would also be free
+    // but sits oddly: noting alone with nothing answering.
     // Revisit when mobile can run a model for free: meditation-pal-c17d.
     notingParticipants: [{ type: 'sound', sound: 'plop', timing: 'adaptive', fixedDelaySec: 4 }],
     notingUserTurnCue: false,
@@ -356,20 +355,18 @@ export const defaultSetup: SessionSetup = {
 };
 
 const SETTINGS_KEY = 'preview:setup';
-// Lazy for the same reason as app-settings.ts: importing this module for a pure
-// helper must not construct a storage backend (LocalStorageKv throws outside a
-// browser).
+// Lazy for the same reason as app-settings.ts.
 let lazyKv: KvStorage | null = null;
 function kv(): KvStorage {
     if (!lazyKv) lazyKv = createKv();
     return lazyKv;
 }
 
-/** Mobile used to keep the setup in the webview's localStorage, which iOS can
- *  evict (meditation-pal-76cs; same class as the auth token, 7n22). It now
- *  rides the platform KV, so lift a setup written by an older build once
- *  rather than resetting a tester's mode/intention/circle at the upgrade.
- *  Native only, and only when the durable slot is empty. */
+/** One-time lift of a setup an older mobile build left in the webview's
+ *  localStorage (which iOS can evict - meditation-pal-76cs; same class as the
+ *  auth token, 7n22) into the platform KV, rather than resetting a tester's
+ *  mode/intention/circle at the upgrade. Native only, and only when the
+ *  durable slot is empty. */
 let legacyLifted = false;
 async function loadRawSetup(): Promise<string | null> {
     const raw = await kv().get(SETTINGS_KEY);
@@ -395,9 +392,8 @@ export async function loadSetup(): Promise<SessionSetup> {
     //
     //  - voice/ttsRate: the app-level default is canonical and ALWAYS wins.
     //    There is no per-session voice; the setup picker writes through to app
-    //    settings (setup.ts:persistDefaultVoice). Fix for meditation-pal-9hu:
-    //    setup.voice used to shadow the Settings default forever, so changing
-    //    the default voice never took effect.
+    //    settings (views/setup.ts persistDefaultVoice). Otherwise a stored
+    //    setup.voice shadows the Settings default forever (meditation-pal-9hu).
     const s = await loadAppSettings();
     const base: SessionSetup = {
         ...defaultSetup,
@@ -417,9 +413,8 @@ export async function loadSetup(): Promise<SessionSetup> {
     // App-level voice/rate win; clobber anything an older 'preview:setup' has.
     merged.voice = s.defaultVoice;
     merged.ttsRate = s.defaultTtsRate;
-    // Language follows the voice/rate rule since the setup page dropped its
-    // selector (2026-08-31): the Settings value is canonical and always wins
-    // (loadAppSettings already normalized it against LANGUAGES).
+    // Language follows the voice/rate rule: the Settings value is canonical and
+    // always wins (loadAppSettings already normalized it against LANGUAGES).
     merged.language = s.language;
     // Migrate a pre-split setup (one shared intention, no per-mode map): credit
     // the legacy text to the mode it was last used with, then make `intention`

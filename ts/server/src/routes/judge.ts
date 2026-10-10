@@ -1,9 +1,9 @@
 /**
- * POST /v1/judge, the typed-judgment path for the silence classifiers and spoken
- * commands (v36y). The client names one (core JudgeId) and sends one utterance; the question itself
- * comes from core (JUDGE_SPECS), so this can't be driven as an open Jev proxy.
- * Returns P(yes) per ask and leaves the thresholds to the client (core
- * judgeVerdict), where the A/B reads them.
+ * POST /cloud/v1/judge, the typed-judgment path for the silence classifiers and
+ * spoken commands (v36y). The client names one (core JudgeId) and sends one
+ * utterance; the question itself comes from core (JUDGE_SPECS), so this can't be
+ * driven as an open Jev proxy. Returns P(yes) per ask and leaves the thresholds
+ * to the client (core judgeVerdict), where the A/B reads them.
  *
  * Not charged: a silence-classifier call costs the server ~$0.00003 and a command
  * check ~$0.00018 (24 asks, ~4,200 tokens), both under anything the ledger can

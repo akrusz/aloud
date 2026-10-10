@@ -544,8 +544,7 @@ mod whisper_integrity_tests {
     }
 }
 
-/// `GET /app/v1/system-info` - platform + tool availability. A successful
-/// response is also the UI's "is desktop" signal.
+/// `GET /app/v1/system-info` - platform + tool availability.
 async fn system_info(State(state): State<Shared>) -> Json<Value> {
     let tool = |name: &str| {
         let path = which::which(name).ok().map(|p| p.display().to_string());
@@ -680,7 +679,6 @@ fn retarget_whisper(state: &Shared, size: &str, lang: &str) -> ApiResult<()> {
     let mut current = state.whisper_model.lock().unwrap();
     if *current != file {
         log::info!("whisper model switch: {} -> {file}", *current);
-        // Remember across launches so boot loads THIS model, not the default.
         let _ = std::fs::write(state.data_dir.join(LAST_WHISPER_MODEL_FILE), &file);
         *current = file;
         state.whisper_ready.store(false, Ordering::SeqCst);
@@ -792,20 +790,20 @@ async fn stt_whisper_remove_model(
 struct SttQuery {
     sample_rate: Option<u32>,
     /// Settings model size (tiny/base/small/medium/large). Absent = keep the
-    /// current model - the UI's reachability probe sends a bare POST and must
+    /// current model: the bug-report roundtrip and a sizeless warm probe must
     /// not retarget.
     model_size: Option<String>,
     /// 2-letter language (Settings). Picks .en vs multilingual model files and
     /// steers transcription.
     #[serde(default = "default_lang")]
     lang: String,
-    /// PCM wire format: "i16" (current clients; half the bytes) or absent/"f32"
-    /// (older clients).
+    /// PCM wire format: "i16" (the session engine; half the bytes) or
+    /// absent/"f32" (the bug-report roundtrip).
     format: Option<String>,
 }
 
 /// Transcribe raw mono PCM (i16 or f32 per `format`). Body and response match
-/// the CloudWhisperSttEngine adapter.
+/// the UI's WhisperPcmSttEngine adapter.
 async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
@@ -903,8 +901,6 @@ fn status_ok() -> Json<Value> {
     Json(json!({ "status": "ok" }))
 }
 
-// --- TTS: /app/v1/voices + /app/v1/voices/preview --------------------------------
-
 /// Fallback when the client sends no `?text=`. The UI always sends text, so
 /// this is rarely hit.
 const DEFAULT_PREVIEW_TEXT: &str = "Take a slow breath, and let your shoulders soften.";
@@ -946,7 +942,6 @@ async fn voices_preview(State(state): State<Shared>, Query(q): Query<PreviewQuer
     };
     let text = q.text.unwrap_or_else(|| DEFAULT_PREVIEW_TEXT.to_string());
 
-    // Synthesis is blocking and CPU-heavy.
     let result = tokio::task::spawn_blocking(move || {
         crate::tts::synth_preview(
             &state.piper_dir,
@@ -980,10 +975,8 @@ struct ModelReq {
     voice: String,
 }
 
-/// `POST /app/v1/tts/download-model` - stream a Piper model download as NDJSON
-/// progress lines. The download runs on a blocking thread and pushes events
-/// through a channel backing the response body, so the UI gets live progress
-/// for a 60-105 MB fetch.
+/// `POST /app/v1/tts/download-model` - stream a Piper model download
+/// (60-105 MB) as NDJSON progress lines.
 async fn tts_download_model(
     State(state): State<Shared>,
     Json(req): Json<ModelReq>,
@@ -1008,8 +1001,6 @@ async fn tts_uninstall_model(State(state): State<Shared>, Json(req): Json<ModelR
     Ok(Json(json!({ "status": status })))
 }
 
-// --- /app/v1/providers + /app/v1/models/<provider> -------------------------------
-
 /// `GET /app/v1/providers` - claude / ollama probes plus env-var checks for the
 /// API-key providers, including the Ollama tier/recommendation block. See
 /// `crate::providers`.
@@ -1020,9 +1011,8 @@ async fn providers() -> Json<Value> {
     Json(v)
 }
 
-/// `GET /app/v1/models/{provider}` - the provider's live model list. The UI
-/// forwards the user's BYOK key as `x-provider-key`, which never leaves
-/// loopback; OpenRouter needs none, claude_proxy is static. See
+/// `GET /app/v1/models/{provider}` - the provider's live model list, fetched
+/// with the BYOK key the UI forwards over loopback as `x-provider-key`. See
 /// `providers::models`.
 async fn models(
     axum::extract::Path(provider): axum::extract::Path<String>,
@@ -1160,8 +1150,6 @@ async fn install_tool(axum::extract::Path(tool): axum::extract::Path<String>) ->
     ndjson_stream(move |send| crate::ollama_tools::install_stream(&tool, send))
 }
 
-// --- /app/v1/open-* shell escapes ---------------------------------------------
-
 #[cfg(target_os = "macos")]
 const OPENER: &str = "open";
 #[cfg(target_os = "windows")]
@@ -1177,7 +1165,6 @@ fn spawned(cmd: &mut std::process::Command, what: &str) -> ApiResult {
         .map_err(|e| internal(format!("could not {what}: {e}")))
 }
 
-/// Reveal a directory in the platform file browser (Finder / Explorer / xdg).
 fn reveal_dir(path: &Path) -> ApiResult {
     let _ = std::fs::create_dir_all(path); // best-effort; the dir may not exist yet
     spawned(std::process::Command::new(OPENER).arg(path), "open folder")
@@ -1232,8 +1219,6 @@ async fn open_voice_settings() -> ApiResult {
         "open settings",
     )
 }
-
-// --- /app/v1/sessions - on-disk session logs (desktop persistence) ------------
 
 /// Session ids are `YYYY-MM-DD-HHMMSS`, but the client is untrusted, so allow
 /// only a safe filename charset. This is what keeps `{id}` from escaping the
@@ -1379,7 +1364,7 @@ fn transcribe(
     sample_rate: u32,
     lang: &str,
 ) -> Result<(String, f64), String> {
-    // The TS client downsamples to the 16 kHz mono f32 whisper.cpp wants before
+    // The TS client downsamples to the 16 kHz mono whisper.cpp wants before
     // POSTing, so guard the assumption rather than resample here.
     if sample_rate != TARGET_SAMPLE_RATE {
         return Err(format!(

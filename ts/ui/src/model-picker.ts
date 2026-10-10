@@ -241,10 +241,10 @@ export function cloudUtilityCreditsPerHour(): number {
 export async function fetchModels(provider: string): Promise<ModelOption[] | null> {
     if (cache.has(provider)) return cache.get(provider)!;
 
-    // aloud cloud publishes its allowlisted models with pricing at /v1/me/models
-    // (public, no auth). The value encodes provider/model so buildProvider can
-    // route the turn - model ids can contain slashes themselves (openrouter), so
-    // the LEADING segment is the provider.
+    // aloud cloud publishes its allowlisted models with pricing at
+    // /cloud/v1/me/models (public, no auth). The value encodes provider/model
+    // so buildProvider can route the turn - model ids can contain slashes
+    // themselves (openrouter), so the LEADING segment is the provider.
     if (provider === 'aloud') {
         try {
             const resp = await fetch(cloudUrl('/me/models'));
@@ -334,8 +334,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
  */
 export async function cloudUtilityModel(): Promise<{ provider: string; model: string } | null> {
     const hit = (await fetchModels('aloud'))?.find((o) => o.utility);
-    // `value` is "provider/model" and model ids can themselves contain slashes
-    // (openrouter), so split on the FIRST separator only.
+    // Split on the FIRST slash only (see fetchModels).
     const slash = hit?.value.indexOf('/') ?? -1;
     if (!hit || slash < 0) return null;
     return { provider: hit.value.slice(0, slash), model: hit.value.slice(slash + 1) };
@@ -411,8 +410,8 @@ export function mountModelPicker(
         const optionsHTML = visible
             .map((m) => `<option value="${escapeHtml(m.value)}">${escapeHtml(m.label)}</option>`)
             .join('');
-        // Under the hosted selector, the tier toggle (it took over the slot the
-        // rate legend used to fill; the ☁ badges read fine without it).
+        // The tier toggle sits under the hosted selector in the rate legend's
+        // slot, hence the class.
         const toggle =
             provider === 'aloud'
                 ? `<p class="credit-rate-legend"><button type="button" class="btn-link" id="model-show-all">${escapeHtml(
@@ -465,8 +464,7 @@ export function mountModelPicker(
             onChange(currentValue);
         });
         // Can the local `claude` CLI still serve a listed-but-removable model
-        // (Fable)? Anthropic has long hinted at pulling models from
-        // subscriptions. Non-blocking - the dropdown renders immediately.
+        // (Fable)? Non-blocking - the dropdown renders immediately.
         if (provider === 'claude_proxy') {
             void annotateSubscriptionAvailability(sel, updateSlowNote);
         }
@@ -505,11 +503,9 @@ export function mountModelPicker(
         }
     }
 
-    /**
-     * No model list could be fetched. Deliberately no free-text fallback - a
-     * selector only appears when we can list the provider's currently-accessible
-     * models. Show why (missing key vs unreachable) so the user knows what to fix.
-     */
+    /** No model list could be fetched (and no free-text fallback, see the file
+     *  header). Show why (missing key vs unreachable) so the user knows what
+     *  to fix. */
     async function renderUnavailable(provider: string): Promise<void> {
         const reason =
             providerNeedsKey(provider as Provider) && !(await hasApiKey(provider as Provider))

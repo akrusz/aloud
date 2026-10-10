@@ -101,10 +101,10 @@ export async function bootApp(): Promise<void> {
         if (caps.cloud) revealAccountNav();
     });
 
-    // Mobile: if Android killed a backgrounded session, surface it as a resume
-    // banner on setup (meditation-pal-v73p) by seeding the same continueFrom
-    // handoff the History "Continue" flow uses. Must run before routeTo mounts
-    // setup, since the banner reads sessionStorage at mount.
+    // Mobile: if Android killed a backgrounded session, offer to resume it on
+    // setup (meditation-pal-v73p) by seeding the same continueFrom handoff the
+    // History "Continue" flow uses. Must run before routeTo mounts setup, which
+    // reads sessionStorage at mount.
     await seedInterruptedResume();
 
     wireNav();
@@ -141,16 +141,16 @@ export async function bootApp(): Promise<void> {
 }
 
 /**
- * Restore an interrupted mobile session as a setup resume banner
+ * Offer an interrupted mobile session back through setup's resume modal
  * (meditation-pal-v73p). The session view leaves a durable pointer while live
  * and clears it on a clean end; a pointer surviving into the next launch means
  * the OS killed us mid-session. We verify the transcript still loads with real
  * content, then hand it to setup via the existing continueFrom keys - tagged
- * `resume` so setup shows resume copy rather than "Continuing from". A stale or
- * empty pointer is cleared so it never nags twice.
+ * `resume` so setup shows the modal rather than History's "Continuing from"
+ * banner. A stale or empty pointer is cleared so it never nags twice.
  *
  * Mobile-only: web reload has its own semantics (per-tab sessionStorage, the
- * beforeunload prompt) and shouldn't sprout a resume banner on every refresh.
+ * beforeunload prompt) and shouldn't sprout a resume prompt on every refresh.
  */
 async function seedInterruptedResume(): Promise<void> {
     if (!isCapacitor()) return;
@@ -172,9 +172,9 @@ async function seedInterruptedResume(): Promise<void> {
         return;
     }
     sessionStorage.setItem('continueFrom', id);
-    // 'resume' tag drives resume-specific banner copy; the resume banner shows
-    // mode + elapsed (resumeBannerDetail), not the notes summary, so we don't
-    // seed continueFromSummary here.
+    // The 'resume' tag selects the resume modal, which shows mode + elapsed
+    // (resumeBannerDetail), not the notes summary, so we don't seed
+    // continueFromSummary here.
     sessionStorage.setItem('continueReason', 'resume');
 }
 
@@ -444,7 +444,6 @@ async function goSession(
     // wirePopstate intercepts it to confirm before leaving. Normal exits below
     // route via routeTo, which replaces this URL.
     window.history.pushState({ view: 'session' }, '', routePath('/session'));
-    // routeTo replaces the '/session' URL pushed above.
     currentSession = await mountSessionView(
         root,
         setup,

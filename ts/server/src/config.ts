@@ -15,7 +15,7 @@ export interface ProviderKeys {
     groq?: string;
     openrouter?: string;
     google?: string;
-    /** OpenAI: the metered GPT flagship LLM (and, via fallback, TTS). */
+    /** OpenAI: the metered GPT models (and, via fallback, STT). */
     openai?: string;
 }
 
@@ -42,9 +42,8 @@ const STT_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
  *  of the configured backend's default. gpt-4o-transcribe is no longer offered
  *  in the picker, but stays allowlisted (and priced, pricing/providers.ts
  *  STT_USD_PER_SECOND_BY_MODEL) so STT_MODEL can roll back to it without a
- *  deploy.
- *  Other backends accept only their configured model: the model keys billing,
- *  so an arbitrary client value could otherwise name a cheaper rate. */
+ *  deploy. Other backends accept only their configured model: the model keys
+ *  billing, so an arbitrary client value could otherwise name a cheaper rate. */
 export function sttModelChoices(backend: SttBackend): readonly string[] {
     if (backend.provider !== 'openai') return [backend.model];
     return [...new Set([backend.model, 'gpt-4o-transcribe', 'gpt-transcribe'])];
@@ -55,8 +54,7 @@ export function sttModelChoices(backend: SttBackend): readonly string[] {
  *   1. STT_API_KEY: explicit/custom backend (STT_BASE_URL + STT_MODEL +
  *      STT_PROVIDER label; defaults to the OpenAI host if base/model omitted).
  *   2. OPENAI_STT_API_KEY || OPENAI_API_KEY: the recommended backend, since the
- *      same key already powers the GPT LLM. Defaults to
- *      gpt-transcribe.
+ *      same key already powers the GPT LLM. Defaults to gpt-transcribe.
  *   3. GROQ_API_KEY: legacy (cheap, but new paid signups are frozen).
  * Undefined when none is set; /cloud/v1/stt then reports not-configured and the
  * client falls back to browser SpeechRecognition.
@@ -77,7 +75,7 @@ export function resolveSttConfig(env: NodeJS.ProcessEnv): SttBackend | undefined
             model: env['STT_MODEL'] ?? fallback.model,
         };
     }
-    // OpenAI STT can ride the LLM key or split onto its own (mirrors TTS).
+    // OpenAI STT can ride the LLM key or split onto its own.
     const openaiSttKey = env['OPENAI_STT_API_KEY'] || env['OPENAI_API_KEY'];
     if (openaiSttKey) {
         return { provider: 'openai', apiKey: openaiSttKey, ...STT_DEFAULTS['openai']! };
@@ -125,10 +123,11 @@ export interface Config {
      *  still buy) and it's logged. Default is generous (~100 signups/hr). */
     freeGrantBudgetPerHour: number;
 
-    /** Soft-launch switch (operator-tunable via admin panel): when true, metered
-     *  endpoints (LLM/STT/TTS) refuse with `service_paused`, so signed-up users
-     *  keep their granted credits but can't spend yet. `testerEmails` bypass it
-     *  so the operator can keep testing. */
+    /** Soft-launch switch (operator-tunable via admin panel): when true, the
+     *  LLM route answers with a canned turn instead of a billed one
+     *  (isMeteredBlocked), so signed-up users keep their granted credits but
+     *  can't spend yet. `testerEmails` bypass it so the operator can keep
+     *  testing. */
     meteredPaused: boolean;
 
     /** Emails exempt from `meteredPaused` (the operator's own test accounts).
@@ -234,8 +233,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (env['OPENROUTER_API_KEY']) providerKeys.openrouter = env['OPENROUTER_API_KEY'];
     // Gemini direct (AI Studio key): value tier without the OpenRouter fee.
     if (env['GEMINI_API_KEY']) providerKeys.google = env['GEMINI_API_KEY'];
-    // OpenAI direct: the metered GPT flagship. The same key also backs OpenAI
-    // TTS below (one key with "Model capabilities: Write" covers both).
+    // OpenAI direct: the metered GPT models. The same key also backs STT
+    // (resolveSttConfig; one key with "Model capabilities: Write" covers both).
     if (env['OPENAI_API_KEY']) providerKeys.openai = env['OPENAI_API_KEY'];
 
     const config: Config = {

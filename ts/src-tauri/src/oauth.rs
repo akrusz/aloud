@@ -210,7 +210,7 @@ async fn finish_redirect(
     } else {
         ("400 Bad Request", "Sign-in didn't complete. You can close this tab and try again in aloud.")
     };
-    // Matches the app's dark theme (ui/app-base.css --bg-primary /
+    // Matches the app's dark theme (ui/src/app-base.css --bg-primary /
     // --text-primary / --accent). Color/size/weight for hierarchy, never opacity.
     let html = format!(
         "<!doctype html><meta charset=utf-8>\
