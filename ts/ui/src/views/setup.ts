@@ -246,10 +246,20 @@ export async function mountSetupView(
     // A pending continuation: a History "Continue" (reason 'history') or a
     // cold-boot resume (reason 'resume', meditation-pal-v73p). The history view /
     // boot seeder writes it to sessionStorage and routes here; initPendingContinue
-    // loads it once. Begin hands it on whichever tab is selected (app.ts drops
-    // it for noting). The banner stays up across tab switches, so they never
-    // shift the layout.
+    // loads it once. While a History one is pending the mode tabs are locked to
+    // its session's mode (continuationMode); app.ts still drops it for noting,
+    // which always starts fresh.
     let pendingContinue: { state: SessionState; reason: 'resume' | 'history' } | null = null;
+
+    /** The mode a pending History continuation holds the tabs to: its
+     *  session's own, or exploration for one saved before modes were recorded.
+     *  A transcript resumed under another mode's prompt was never intended;
+     *  whether it should be allowed is meditation-pal-g3ou. */
+    function continuationMode(): MeditationType | null {
+        if (pendingContinue?.reason !== 'history') return null;
+        const t = pendingContinue.state.meditationType;
+        return t === 'exploration' || t === 'noting' || t === 'felt_sense' ? t : 'exploration';
+    }
 
     function clearContinueStorage(): void {
         if (typeof sessionStorage === 'undefined') return;
@@ -268,10 +278,15 @@ export async function mountSetupView(
         if (wasResume) void clearActiveSession();
     }
 
-    // Paint the inline banner from the in-memory pendingContinue. This banner is
-    // ONLY for a History "Continue" (reason 'history') - a cold-boot resume uses
-    // the modal instead, so it never paints here.
-    function updateContinueBanner(): void {
+    // Paint the inline banner and the tab lock from the in-memory
+    // pendingContinue. Both are ONLY for a History "Continue" (reason
+    // 'history') - a cold-boot resume uses the modal instead, so it never
+    // paints here.
+    function paintContinuation(): void {
+        const locked = continuationMode();
+        root.querySelectorAll<HTMLButtonElement>('.tab-bar .tab-btn').forEach((btn) => {
+            btn.disabled = locked !== null && btn.dataset['tab'] !== locked;
+        });
         const banner = root.querySelector<HTMLElement>('#continue-banner');
         const text = root.querySelector<HTMLElement>('#continue-banner-text');
         if (!banner || !text) return;
@@ -326,20 +341,14 @@ export async function mountSetupView(
         }
 
         pendingContinue = { state, reason };
-        const t = state.meditationType;
-        if (
-            (t === 'exploration' || t === 'noting' || t === 'felt_sense') &&
-            t !== setup.meditationType
-        ) {
-            selectMode(t); // repaints tabs + banner
-        } else {
-            updateContinueBanner();
-        }
+        selectMode(continuationMode() ?? setup.meditationType); // repaints tabs + banner
     }
 
     // Select a meditation mode (a tab tap, or a continuation entering its
     // session's mode), keeping the banner and dependent copy/estimates in sync.
     function selectMode(tab: MeditationType): void {
+        const locked = continuationMode();
+        if (locked !== null && tab !== locked) return;
         if (setup.meditationType !== tab) {
             setup.meditationType = tab;
             // Noting has no intention field, so its slot is always empty.
@@ -352,7 +361,7 @@ export async function mountSetupView(
             updateAiNotes();
             updateSessionEstimate();
         }
-        updateContinueBanner();
+        paintContinuation();
     }
 
     function persist(): void {
@@ -848,9 +857,9 @@ export async function mountSetupView(
         const bannerCancel = root.querySelector<HTMLButtonElement>('#continue-cancel');
         bannerCancel?.addEventListener('click', () => {
             dropPendingContinue();
-            updateContinueBanner();
+            paintContinuation();
         });
-        updateContinueBanner();
+        paintContinuation();
     }
 
     // Provider status from /app/v1/providers - see provider-markers.ts.
@@ -1125,6 +1134,11 @@ export async function mountSetupView(
         if (guideLink) {
             guideLink.addEventListener('click', (e) => {
                 e.preventDefault();
+                // The tour walks every mode's tab, which a continuation locks.
+                if (continuationMode() !== null) {
+                    dropPendingContinue();
+                    paintContinuation();
+                }
                 void resetGuide();
             });
         }
@@ -1470,11 +1484,12 @@ export async function mountSetupView(
     render();
     // Load any pending continuation (History "Continue" / cold-boot resume) once,
     // after the first render so its tab-select + banner paint hit a live DOM.
-    void initPendingContinue();
-    void loadVoiceCatalog();
     // autoStart short-circuits when the user has already dismissed, completed,
-    // or used the app.
-    void autoStartGuide(quickStart);
+    // or used the app; it follows the load so it knows whether to hold the card.
+    void initPendingContinue().finally(
+        () => void autoStartGuide(quickStart, continuationMode() !== null)
+    );
+    void loadVoiceCatalog();
     watchWhisper(sttSetupSelected);
 
     return {
@@ -1485,7 +1500,7 @@ export async function mountSetupView(
                     sttSetupSelected
             );
             await loadVoiceCatalog();
-            void autoStartGuide(quickStart);
+            void autoStartGuide(quickStart, continuationMode() !== null);
         },
         hide() {
             closeGuideIfActive();

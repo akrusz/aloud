@@ -461,10 +461,13 @@ async function pendingWelcome(): Promise<WelcomeVariant | null> {
 }
 
 /** @param offer The setup view's first-sit hook; without one the welcome card
- *  has no "Try right now". */
-export async function autoStart(offer: QuickStart | null = null): Promise<void> {
+ *  has no "Try right now".
+ *  @param hold Keep the card down for this visit, unspent: the setup view has
+ *  the mode tabs locked (a continuation), and the tour walks all of them. */
+export async function autoStart(offer: QuickStart | null = null, hold = false): Promise<void> {
     installInfoBtnHandler();
     quickStart = offer;
+    if (hold) return;
     const variant = await pendingWelcome();
     if (!variant) return;
     if (pendingAutoStart) clearTimeout(pendingAutoStart);

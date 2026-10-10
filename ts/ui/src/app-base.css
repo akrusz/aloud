@@ -441,8 +441,14 @@ body {
     transition: color 0.2s, border-color 0.2s;
 }
 
-.tab-btn:hover {
+.tab-btn:hover:not(:disabled) {
     color: var(--text-primary);
+}
+
+/* Held to another mode by a pending continuation (setup.ts continuationMode). */
+.tab-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* The active tab's underline wears its mode's orb band - the same yellow /
