@@ -646,6 +646,7 @@ export const ZH: Record<string, string> = {
     "aloud can't reach a microphone on this device.": "aloud 无法使用此设备上的麦克风。",
     "aloud cloud needs you to sign in again (in Settings).": "aloud cloud 需要你重新登录（在设置中）。",
     "aloud cloud needs you to sign in again. Check Settings.": "aloud cloud 需要你重新登录。请查看设置。",
+    "aloud cloud requires credits. Choose a different provider in Settings.": "aloud cloud 需要积分。请在设置中选择其他服务商。",
     "aloud cloud requires credits. Purchase more, or choose a different provider in Settings.": "aloud cloud 需要积分。请购买，或在设置中选择其他服务商。",
     "aloud cloud uses ☁ to power high-quality speech, voice recognition, and facilitation AI.": "aloud cloud 用 ☁ 来驱动高品质语音、语音识别和引导 AI。",
     "aloud cloud voices need credits to preview. Add credits, or pick a free voice.": "试听 aloud cloud 语音需要积分。请充值，或选择免费语音。",

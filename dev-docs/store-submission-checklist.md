@@ -174,7 +174,10 @@ the App ID, `PrivacyInfo.xcprivacy`, export-compliance flag).
 
 Nothing is sold in the mobile app: `purchaseChannel()` (`purchase-channel.ts`)
 is `'none'` there, and every buy entry point asks it. ☁ bought on the web land
-in the same account. The rules as read on 2026-10-10 (they move, reread them):
+in the same account. The words follow it too: the out-of-credits line a store
+build shows and speaks (`outOfCreditsNotice`, the server's
+`OUT_OF_CREDITS_PLAIN_MESSAGE`) and the cloud error (`describeCloudError`) carry
+no "add more" or "purchase". The rules as read on 2026-10-10 (they move, reread them):
 
 - **Play**: Payments policy section 4 bars in-app "buttons, links, messaging ...
   or other calls to action" toward another payment method, in every country.

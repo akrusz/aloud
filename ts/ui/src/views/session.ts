@@ -154,10 +154,10 @@ import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
 import { alertDialog, confirmDialog } from '../dialog.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
-import { purchaseChannel } from '../purchase-channel.js';
+import { purchaseChannel, topUpHint } from '../purchase-channel.js';
 import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
-import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
+import { outOfCreditsNotice, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
@@ -1289,6 +1289,15 @@ export async function mountSessionView(
         el.appendChild(btn);
     }
 
+    /** Show and voice the out-of-credits notice. A build that sells nothing
+     *  gets the plain wording, and on Android the bubble (never the voice) adds
+     *  where ☁ are sold. */
+    function apologizeOutOfCredits(): void {
+        const notice = outOfCreditsNotice();
+        appendBillingApology([notice.text, topUpHint()].filter(Boolean).join(' '));
+        void playCannedApology(notice.reason, cannedVoice(), notice.text);
+    }
+
     /** The voice name to voice a canned apology in. Strips the `aloud:` prefix
      *  for the hosted endpoint; returns null (server default, then browser
      *  fallback) for a browser-side voice or non-hosted provider. */
@@ -1318,8 +1327,7 @@ export async function mountSessionView(
         }
         const msg = err instanceof Error ? err.message : String(err);
         if (isOutOfCredits(msg)) {
-            appendBillingApology(OUT_OF_CREDITS_MESSAGE);
-            void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
+            apologizeOutOfCredits();
             return;
         }
         // A hosted voice that failed for any other reason (5xx, timeout,
@@ -2303,8 +2311,7 @@ export async function mountSessionView(
             // ephemeral apology (appendBillingApology), voiced via the free
             // canned endpoint. (meditation-pal-44o, meditation-pal-4l5)
             if (isOutOfCredits(msg)) {
-                appendBillingApology(OUT_OF_CREDITS_MESSAGE);
-                void playCannedApology('insufficient_credits', cannedVoice(), OUT_OF_CREDITS_MESSAGE);
+                apologizeOutOfCredits();
             } else if (/claude_proxy_stalled/.test(msg)) {
                 // The local Claude CLI failed across all retries (see
                 // ClaudeProxyHttpProvider). First rule out a *removed* model:

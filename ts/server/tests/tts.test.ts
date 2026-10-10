@@ -235,6 +235,24 @@ describe('POST /cloud/v1/tts/canned', () => {
         expect(pausedCalls).toHaveLength(1);
     });
 
+    it('voices a plain out-of-credits line for a build that sells nothing', async () => {
+        const a = brokeApp();
+        const token = await devToken(a);
+        const before = googleCalls.length;
+        const res = await a.request('/cloud/v1/tts/canned', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ reason: 'insufficient_credits_plain', voice: 'en-US-Chirp3-HD-Achernar' }),
+        });
+        expect(res.status).toBe(200);
+        const said = googleCalls
+            .slice(before)
+            .map((c) => (c.body as { input: { text: string } }).input.text);
+        expect(said).toHaveLength(1);
+        // The store apps may not point at a purchase, and have no local provider.
+        expect(said[0]).not.toMatch(/add more|buy|purchase|local/i);
+    });
+
     it('400s on an unknown reason', async () => {
         const a = brokeApp();
         const token = await devToken(a);

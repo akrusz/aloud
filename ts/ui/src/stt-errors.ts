@@ -6,6 +6,7 @@
  */
 
 import { t } from './i18n.js';
+import { purchaseChannel } from './purchase-channel.js';
 
 /**
  * Map a hosted-server error to a clear, actionable message. The server returns
@@ -16,9 +17,12 @@ import { t } from './i18n.js';
  */
 export function describeCloudError(msg: string): string | null {
     if (/insufficient_credits|out of credits|endpoint 402/i.test(msg)) {
-        return t(
-            'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.'
-        );
+        // A build that sells nothing (purchase-channel.ts) can't say "purchase".
+        return purchaseChannel() === 'none'
+            ? t('aloud cloud requires credits. Choose a different provider in Settings.')
+            : t(
+                  'aloud cloud requires credits. Purchase more, or choose a different provider in Settings.'
+              );
     }
     if (/unauthenticated|endpoint 401/i.test(msg)) {
         return t('aloud cloud needs you to sign in again. Check Settings.');
