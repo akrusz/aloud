@@ -247,8 +247,8 @@ export async function mountSetupView(
     // cold-boot resume (reason 'resume', meditation-pal-v73p). The history view /
     // boot seeder writes it to sessionStorage and routes here; initPendingContinue
     // loads it once. While a History one is pending the mode tabs are locked to
-    // its session's mode (continuationMode); app.ts still drops it for noting,
-    // which always starts fresh.
+    // its session's mode (continuationMode). Noting can't resume (app.ts
+    // goNotingSession takes no transcript), so History offers none there.
     let pendingContinue: { state: SessionState; reason: 'resume' | 'history' } | null = null;
 
     /** The mode a pending History continuation holds the tabs to: its

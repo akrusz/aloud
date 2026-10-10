@@ -2,7 +2,8 @@
  * History view - past sessions with per-row Continue / Copy / Delete; rows
  * expand inline to the transcript. Continue stashes the session id in
  * sessionStorage and routes to setup, which picks it up and hydrates the next
- * session with the old exchanges.
+ * session with the old exchanges. A noting circle can't resume, so its row has
+ * no Continue.
  */
 
 import {
@@ -212,7 +213,12 @@ function renderShellHTML(sessions: readonly SessionState[]): string {
  * before `meditationType` existed stored the literal `"noting circle"` in
  * `notes` (the LLM-summary slot), so infer the type and drop it as a summary.
  */
-function sessionTypeAndSummary(session: SessionState): { typeLabel: string; summary: string } {
+function sessionTypeAndSummary(session: SessionState): {
+    typeLabel: string;
+    summary: string;
+    /** A noting circle can't be continued: its session takes no transcript. */
+    resumable: boolean;
+} {
     const rawNotes = session.notes ?? '';
     const legacyNoting = !session.meditationType && rawNotes === 'noting circle';
     const type = session.meditationType ?? (legacyNoting ? 'noting' : undefined);
@@ -221,6 +227,7 @@ function sessionTypeAndSummary(session: SessionState): { typeLabel: string; summ
         // A mode this build doesn't know (removed, or newer) shows no label.
         typeLabel: mode ? (mode.historyLabel ?? mode.label) : '',
         summary: legacyNoting ? '' : rawNotes,
+        resumable: type !== 'noting',
     };
 }
 
@@ -228,7 +235,7 @@ function renderItem(session: SessionState): string {
     const dateText = formatDate(session.startTime);
     const durationText = formatDuration(session);
     const turnCount = spokenExchanges(session.exchanges).length;
-    const { typeLabel, summary } = sessionTypeAndSummary(session);
+    const { typeLabel, summary, resumable } = sessionTypeAndSummary(session);
     const meta =
         `${durationText} · ${t('{n} exchanges', { n: turnCount })}` +
         (typeLabel ? ` · ${t(typeLabel)}` : '');
@@ -248,7 +255,7 @@ function renderItem(session: SessionState): string {
                 <p class="loading-text">${t('Loading...')}</p>
             </div>
             <div class="session-actions">
-                <button type="button" class="btn btn-secondary btn-small btn-continue">${t('Continue from here')}</button>
+                ${resumable ? `<button type="button" class="btn btn-secondary btn-small btn-continue">${t('Continue from here')}</button>` : ''}
                 <button type="button" class="btn btn-secondary btn-small btn-copy">${t('Copy text')}</button>
                 ${isTauri() ? `<button type="button" class="btn btn-secondary btn-small btn-reveal">${t('Open on disk')}</button>` : ''}
                 <button type="button" class="btn btn-danger btn-small btn-delete">${t('Delete')}</button>
