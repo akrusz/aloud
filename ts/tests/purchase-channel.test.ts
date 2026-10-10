@@ -39,7 +39,7 @@ describe('topUpHint', () => {
     it('names the website on Android as plain text, never a link', () => {
         setNative('android');
         const hint = topUpHint();
-        expect(hint).toContain('aloud.rest');
+        expect(hint).toContain('aloud.rest/account');
         expect(hint).not.toMatch(/https?:|<a\b|href/);
     });
 

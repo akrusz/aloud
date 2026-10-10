@@ -67,7 +67,7 @@ release goes through the same review as production.
         intact (`2igi`).
       - One spoken command.
       - No buy button anywhere: the Account page shows the balance and "at
-        aloud.rest" as text that does nothing when tapped, and "What are ☁?"
+        aloud.rest/account" as text that does nothing when tapped, and "What are ☁?"
         offers only "Got it" once signed in.
 - [ ] **Listing pass** (see "Each store update" below for the copy): recheck
       screenshots against the current UI (2+ phone, portrait 9:16; they live

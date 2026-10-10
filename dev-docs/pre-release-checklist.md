@@ -23,6 +23,9 @@ check each of these still reflects reality:
 - **`docs/delete-account/index.html`** - the account-deletion instructions Play
   requires (a public URL, reachable without the app). Must match what
   `identity.ts` actually does on delete, including the credit balance.
+- **`docs/account/index.html`** - a redirect to the web app's Account page. The
+  Android app names its address in plain text (`topUpHint` in
+  `ts/ui/src/purchase-channel.ts`), so the page and that string move together.
 - **`docs/js/shots.js`** - the landing carousel's captions and image `alt` text.
   It describes the app screen by screen ("the session setup screen", "an
   exploration session"), so a renamed or restructured screen lands here too.

@@ -29,5 +29,5 @@ export function purchaseChannel(): PurchaseChannel {
  */
 export function topUpHint(): string | null {
     if (purchaseChannel() !== 'none' || capacitorPlatform() !== 'android') return null;
-    return t('You can add more at aloud.rest');
+    return t('You can add more at aloud.rest/account');
 }
