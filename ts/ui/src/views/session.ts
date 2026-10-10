@@ -709,11 +709,11 @@ export async function mountSessionView(
     }
 
     // Barge-in (wrapTtsWithBargeIn opens its own mic stream during speak() and
-    // cancels on sustained energy): drop the holding-orb. The listen loop picks
-    // up the user's next utterance naturally.
+    // cancels on sustained energy). The listen loop picks up the user's next
+    // utterance naturally. Never a hold exit: a timer notice or command ack
+    // spoken into a hold can be barged over, and the hold outlives it.
     const onBargeIn = () => {
         tapEvent('audio', 'barge-in');
-        setHolding(false);
     };
 
     // Tier-2 soak harness: no-op unless DEV and ?soak=1 (ui/src/soak-tap.ts).

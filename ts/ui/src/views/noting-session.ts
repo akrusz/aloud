@@ -57,6 +57,7 @@ import {
 import { initKasinaMode } from '../kasina.js';
 import { type SessionSetup, ALL_PROVIDERS, notingSoundLabel, sessionNeedsLlm } from '../settings.js';
 import { sessionModelLabel, isSlowModel, SLOW_MODEL_NOTE } from '../model-picker.js';
+import { stripVoicePrefix } from '../voice-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { t } from '../i18n.js';
@@ -928,11 +929,9 @@ function sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Strip the 'browser:'/'server:' prefix and any "(Premium)"-style qualifier. */
+/** Strip the engine prefix and any "(Premium)"-style qualifier. */
 function stripVoiceLabel(voice: string | null): string {
-    if (!voice) return '';
-    const noPrefix = voice.replace(/^(browser:|server:)/, '');
-    return noPrefix.replace(/\s*\(.*\)$/, '').trim();
+    return (stripVoicePrefix(voice) ?? '').replace(/\s*\(.*\)$/, '').trim();
 }
 
 function mountError(

@@ -4,10 +4,14 @@
  * The recap is dual-purpose: the history-list label AND the seed for a cheap
  * resume (see resume.ts). Hence a couple of sentences, not a few words.
  *
- * Warm-cache reuse: pass `systemPrompt` = the session's facilitation system
- * prompt. The instruction is appended as the final user message, so the cached
- * system+transcript prefix reads at ~0.1x and only the instruction and output
- * are fresh. Omit it to use the standalone summary prompt.
+ * Cache reuse: pass `systemPrompt` = the session's facilitation system prompt.
+ * The instruction is appended as the final user message, so when `provider` is
+ * the model that facilitated (Ollama, non-Anthropic BYOK) the system+transcript
+ * prefix reads from its warm cache at ~0.1x. Hosted, Anthropic and subscription
+ * sessions recap on a separate utility model (the UI's buildUtilityProvider /
+ * buildRecapProvider), which has no such cache: there the call is a cold
+ * full-transcript pass, affordable because that model is cheap. Omit
+ * `systemPrompt` to use the standalone summary prompt.
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
@@ -70,8 +74,8 @@ export interface GenerateSummaryOptions {
     maxTokens?: number;
     /**
      * System prompt to use instead of the standalone summary prompt. Pass the
-     * session's facilitation prompt to hit the warm cache (~0.1x on the
-     * transcript instead of a cold full-input pass).
+     * session's facilitation prompt so a provider that facilitated reads the
+     * transcript from its warm cache (see the file header for when it can't).
      */
     systemPrompt?: string;
     /**

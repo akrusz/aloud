@@ -32,8 +32,11 @@ pub fn pull_stream<F: FnMut(Value)>(model: &str, mut on_progress: F) -> Result<(
     let url = format!("{OLLAMA_URL}/api/pull");
     let resp = ureq::post(&url)
         .config()
-        // Pulls take minutes; only the initial connect should be quick.
-        .timeout_global(Some(Duration::from_secs(600)))
+        // Bound reaching the daemon, never the body: a pull streams for as long
+        // as the download takes, and ureq's timeout_global would run through
+        // the last body byte.
+        .timeout_connect(Some(Duration::from_secs(5)))
+        .timeout_recv_response(Some(Duration::from_secs(60)))
         .build()
         .send_json(json!({ "model": model, "stream": true }))
         .map_err(|e| e.to_string())?;
