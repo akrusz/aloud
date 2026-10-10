@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 import {
-    ConversationState,
     PacingController,
     TurnDecision,
     defaultPacingConfig,
@@ -16,49 +15,6 @@ function makeController(opts?: { config?: Parameters<typeof PacingController['pr
     });
     return { controller, fake };
 }
-
-describe('PacingController — state transitions', () => {
-    let controller: PacingController;
-
-    beforeEach(() => {
-        controller = makeController().controller;
-    });
-
-    it('startSession transitions to LISTENING', () => {
-        controller.startSession();
-        expect(controller.state).toBe(ConversationState.Listening);
-    });
-
-    it('endSession returns to IDLE', () => {
-        controller.startSession();
-        controller.endSession();
-        expect(controller.state).toBe(ConversationState.Idle);
-    });
-
-    it('onSpeechEnd transitions to PROCESSING', () => {
-        controller.startSession();
-        controller.onSpeechEnd();
-        expect(controller.state).toBe(ConversationState.Processing);
-    });
-
-    it('onResponseStart → RESPONDING; onResponseEnd → LISTENING', () => {
-        controller.startSession();
-        controller.onResponseStart();
-        expect(controller.state).toBe(ConversationState.Responding);
-        controller.onResponseEnd();
-        expect(controller.state).toBe(ConversationState.Listening);
-    });
-
-    it('enterSilenceMode → SILENT_HOLD; exitSilenceMode → LISTENING', () => {
-        controller.startSession();
-        controller.enterSilenceMode();
-        expect(controller.state).toBe(ConversationState.SilentHold);
-        expect(controller.isInSilenceMode()).toBe(true);
-        controller.exitSilenceMode();
-        expect(controller.state).toBe(ConversationState.Listening);
-        expect(controller.isInSilenceMode()).toBe(false);
-    });
-});
 
 describe('PacingController — shouldRespond timing', () => {
     it('responds when silence exceeds response delay', () => {
@@ -171,10 +127,9 @@ describe('PacingController — transcription', () => {
         const { controller } = makeController();
         controller.startSession();
         controller.enterSilenceMode();
-        expect(controller.isInSilenceMode()).toBe(true);
-        controller.onTranscription("I'm ready");
-        expect(controller.isInSilenceMode()).toBe(false);
-        expect(controller.state).toBe(ConversationState.Listening);
+        expect(controller.shouldRespond()).toBe(TurnDecision.Hold);
+        controller.onTranscription();
+        expect(controller.shouldRespond()).not.toBe(TurnDecision.Hold);
     });
 });
 

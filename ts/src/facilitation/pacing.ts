@@ -17,16 +17,6 @@
 
 import { realClock, type Clock } from '../clock.js';
 
-export const ConversationState = {
-    Idle: 'idle',
-    Listening: 'listening',
-    Processing: 'processing',
-    Responding: 'responding',
-    SilentHold: 'silent_hold',
-} as const;
-export type ConversationState =
-    (typeof ConversationState)[keyof typeof ConversationState];
-
 export const TurnDecision = {
     Wait: 'wait',
     Respond: 'respond',
@@ -96,7 +86,6 @@ export class PacingController {
     readonly config: PacingConfig;
     private readonly clock: Clock;
 
-    private _state: ConversationState = ConversationState.Idle;
     private _lastSpeechEnd = 0;
     private _lastResponseTime = 0;
     private _silenceModeStart: number | null = null;
@@ -108,12 +97,7 @@ export class PacingController {
         this.clock = options.clock ?? realClock;
     }
 
-    get state(): ConversationState {
-        return this._state;
-    }
-
     startSession(): void {
-        this._state = ConversationState.Listening;
         this._lastSpeechEnd = 0;
         this._lastResponseTime = this.clock();
         this._silenceModeStart = null;
@@ -151,30 +135,19 @@ export class PacingController {
         return Math.max(0, this.getCheckinInterval() - elapsed);
     }
 
-    endSession(): void {
-        this._state = ConversationState.Idle;
-    }
-
-    onSpeechStart(): void {
-        this._state = ConversationState.Listening;
-    }
-
     onSpeechEnd(): void {
         this._lastSpeechEnd = this.clock();
-        this._state = ConversationState.Processing;
         this._hasSpoken = true;
     }
 
     /**
-     * Decide turn-taking for a transcribed utterance. Any speech auto-exits
-     * silence mode; entering it is the LLM's call, handled externally via
-     * the [HOLD] signal.
+     * A transcribed utterance arrived. Any speech auto-exits silence mode;
+     * entering it is the LLM's call, handled externally via the [HOLD] signal.
      */
-    onTranscription(_text: string): TurnDecision {
+    onTranscription(): void {
         if (this._silenceModeStart !== null) {
             this.exitSilenceMode();
         }
-        return TurnDecision.Respond;
     }
 
     /** Timing-based decision, called periodically during silence. */
@@ -204,25 +177,18 @@ export class PacingController {
         return TurnDecision.Wait;
     }
 
-    onResponseStart(): void {
-        this._state = ConversationState.Responding;
-    }
-
     onResponseEnd(): void {
-        this._state = ConversationState.Listening;
         this._lastResponseTime = this.clock();
         this._lastSpeechEnd = 0;
     }
 
     /** Called after the LLM signals [HOLD]. */
     enterSilenceMode(): void {
-        this._state = ConversationState.SilentHold;
         this._silenceModeStart = this.clock();
     }
 
     /** Called when the meditator speaks again. */
     exitSilenceMode(): void {
-        this._state = ConversationState.Listening;
         this._silenceModeStart = null;
     }
 
@@ -237,16 +203,7 @@ export class PacingController {
         return now - this._lastResponseTime;
     }
 
-    isInSilenceMode(): boolean {
-        return this._silenceModeStart !== null;
-    }
-
-    // Hooks for tests that set up timing scenarios without driving the
-    // controller through a full transcript.
-    /** @internal */
-    _setLastSpeechEnd(t: number): void { this._lastSpeechEnd = t; }
-    /** @internal */
-    _setLastResponseTime(t: number): void { this._lastResponseTime = t; }
-    /** @internal */
+    /** Test hook: set up a check-in scenario without driving a transcript.
+     *  @internal */
     _setHasSpoken(v: boolean): void { this._hasSpoken = v; }
 }

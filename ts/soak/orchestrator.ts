@@ -220,7 +220,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     /** A full facilitation turn (respondTo in the view). */
     async function respondTo(userText: string, opts2: { skipTranscript?: boolean } = {}): Promise<void> {
         pacing.onSpeechEnd();
-        pacing.onTranscription(userText);
+        pacing.onTranscription();
         smartCheckinStreak = 0;
         smartCheckinPasses = 0;
         const wasSilent = silenceMode;

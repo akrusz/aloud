@@ -1,7 +1,8 @@
 # Pacing: check-ins and the session timer
 
-The pacing state machine runs IDLE → LISTENING → PROCESSING → RESPONDING →
-SILENT_HOLD; a check-in fires after a silence interval and the timer resets.
+`PacingController` (`ts/src/facilitation/pacing.ts`) times the turn from three
+timestamps (last speech, last response, hold start): respond once the response
+delay has passed, check in after a silence interval, stay quiet in a hold.
 This doc covers what a check-in says, when it fires, and the meditation timer
 that rides the same path. Silence holds themselves: [silence-mode.md](silence-mode.md).
 

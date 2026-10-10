@@ -2072,7 +2072,7 @@ export async function mountSessionView(
         let reveal: ReturnType<typeof createAssistantReveal> | null = null;
         try {
             pacing.onSpeechEnd();
-            pacing.onTranscription(userText);
+            pacing.onTranscription();
             smartCheckinStreak = 0;
             smartCheckinPasses = 0;
             if (silenceMode) exitHold();
@@ -3329,7 +3329,6 @@ export async function mountSessionView(
         if (debugTimer) clearInterval(debugTimer);
         clearInterval(timerPoll);
         sessionClock.destroy();
-        pacing.endSession();
         const finalState = session.endSession();
         document.removeEventListener('visibilitychange', onVisibilityChange);
         void stt?.stop();

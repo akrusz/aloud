@@ -1,5 +1,4 @@
 export {
-    ConversationState,
     TurnDecision,
     PacingController,
     defaultPacingConfig,
