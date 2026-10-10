@@ -16,7 +16,7 @@ const APP_VERSION = JSON.parse(
 const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
 // aloud cloud (@aloud/server, Hono). Serves BOTH the app's own backend
 // (/app/v1/*) and the cloud service (/cloud/v1/*) in dev, so browser
-// preview needs only this one server running — no Python/Flask. Defaults to the
+// preview needs only this one server running. Defaults to the
 // dev port in ts/server/.env.example; override with ALOUD_CLOUD_URL.
 const SERVER_URL = process.env['ALOUD_CLOUD_URL'] ?? 'http://localhost:8787';
 
@@ -37,9 +37,8 @@ export default defineConfig({
         fs: {
             allow: [resolve(__dirname, '../..')],
         },
-        // aloud's dev port. Reuses 4649 (the retired Flask port) now that the
-        // browser preview no longer depends on Python — one memorable port for
-        // "the app" in dev, matching `tauri dev` (tauri.conf.json devUrl).
+        // aloud's dev port: one memorable port for "the app" in dev, matching
+        // `tauri dev` (tauri.conf.json devUrl).
         port: 4649,
         strictPort: false,
         proxy: {
@@ -47,11 +46,10 @@ export default defineConfig({
             // metered LLM/STT/TTS forwarding (/cloud/v1/*). The Hono server
             // speaks /cloud/v1 directly — no rewrite needed.
             '/cloud': SERVER_URL,
-            // The app's own backend (/app/v1/*). Now served by the same Hono
-            // server (routes/app.ts) — Flask is gone from the dev/browser-preview
-            // path. No rewrite: Hono speaks /app/v1 natively. Desktop builds
-            // don't use this proxy; they hit the Tauri Rust backend.
-            // (meditation-pal-5d9)
+            // The app's own backend (/app/v1/*), served by the same Hono
+            // server (routes/app.ts). No rewrite: Hono speaks /app/v1
+            // natively. Desktop builds don't use this proxy; they hit the
+            // Tauri Rust backend. (meditation-pal-5d9)
             '/app': SERVER_URL,
             // Ollama is direct-to-local but we route through Vite so the
             // browser sees same-origin (no need to widen OLLAMA_ORIGINS).

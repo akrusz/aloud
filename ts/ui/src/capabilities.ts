@@ -3,14 +3,14 @@
  * Menus key off it so they only offer sources that work here.
  *
  * Three independent axes, NOT one "desktop" binary:
- *   - flask:  the local app backend, i.e. the desktop Rust shell; the key
- *             keeps its Flask-era name (Piper/macOS voices, claude_proxy,
- *             Ollama proxy, config-folder + voice-management tools).
+ *   - shell:  the local app backend, i.e. the desktop Rust shell (Piper/macOS
+ *             voices, claude_proxy, Ollama proxy, config-folder +
+ *             voice-management tools).
  *   - cloud:  aloud cloud, the @aloud/server proxy (LLM/STT/TTS, credits).
  *   - ollama: a local Ollama daemon (reachable via the dev proxy).
  *
  * Probes run once at boot, cached, re-runnable via invalidate + detect. The
- * `flask` axis delegates to is-desktop.ts so detectIsDesktop()/isDesktopSync()
+ * `shell` axis delegates to is-desktop.ts so detectIsDesktop()/isDesktopSync()
  * callers and this share one probe.
  */
 
@@ -22,10 +22,10 @@ import {
     setRuntimeAppleClientId,
 } from './cloud-auth.js';
 
-export type Capability = 'flask' | 'cloud' | 'ollama';
+export type Capability = 'shell' | 'cloud' | 'ollama';
 
 export interface Capabilities {
-    flask: boolean;
+    shell: boolean;
     cloud: boolean;
     ollama: boolean;
 }
@@ -102,7 +102,7 @@ async function probeCloudWithRetry(): Promise<CloudConfig> {
 export async function detectCapabilities(): Promise<Capabilities> {
     // A positive cache holds for the session. A negative `cloud` is usually a
     // transient blip, so don't freeze it: re-probe cloud only on the next call
-    // so sign-in/credits self-heal as the user navigates. flask/ollama are
+    // so sign-in/credits self-heal as the user navigates. shell/ollama are
     // structural and stable for the session, so they aren't re-hammered.
     if (cached?.cloud) return cached;
     if (inflight) return inflight;
@@ -124,23 +124,23 @@ export async function detectCapabilities(): Promise<Capabilities> {
         // desktop, self-host) has that route, so the probe could only 404 (the
         // console noise on aloud.rest); skip it there. Desktop Ollama
         // availability comes from /app/v1/providers (provider-markers.ts).
-        const [flask, cloud, ollama] = await Promise.all([
+        const [shell, cloud, ollama] = await Promise.all([
             detectIsDesktop(), // GET /app/v1/system-info
             probeCloudWithRetry(),
             import.meta.env.DEV ? reachable('/ollama/api/tags') : Promise.resolve(false),
         ]);
         adoptCloudConfig(cloud);
-        cached = { flask, cloud: cloud.reachable, ollama };
+        cached = { shell, cloud: cloud.reachable, ollama };
         inflight = null;
         return cached;
     })();
     return inflight;
 }
 
-/** Cached read for sync render paths; unprobed axes read false (flask falls
+/** Cached read for sync render paths; unprobed axes read false (shell falls
  *  back to the shared is-desktop cache). */
 export function capabilitiesSync(): Capabilities {
-    return cached ?? { flask: isDesktopSync(), cloud: false, ollama: false };
+    return cached ?? { shell: isDesktopSync(), cloud: false, ollama: false };
 }
 
 export function invalidateCapabilities(): void {

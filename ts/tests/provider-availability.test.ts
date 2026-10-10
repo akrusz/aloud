@@ -18,7 +18,7 @@ beforeAll(async () => {
 });
 
 const caps = (over: Partial<Capabilities>): Capabilities => ({
-    flask: false,
+    shell: false,
     cloud: false,
     ollama: false,
     ...over,
@@ -55,7 +55,7 @@ describe('isProviderAvailable', () => {
     it('web mode hides local providers even when a local daemon IS reachable', () => {
         // A forced-web dev session (or the hosted site) must not surface a stray
         // local Ollama / app backend the capability probe happened to find.
-        const localUp = caps({ cloud: true, ollama: true, flask: true });
+        const localUp = caps({ cloud: true, ollama: true, shell: true });
         expect(mod.isProviderAvailable(mod.ALL_PROVIDERS.find((p) => p.value === 'ollama')!, localUp, { webMode: true })).toBe(false);
         expect(mod.isProviderAvailable(mod.ALL_PROVIDERS.find((p) => p.value === 'claude_proxy')!, localUp, { webMode: true })).toBe(false);
         // ...but local mode still shows them.

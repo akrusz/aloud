@@ -35,7 +35,7 @@ tauri-plugin-opener = "2"
 # the next open). Wired in lib.rs; the window is built dynamically so we call
 # restore_state() on it after build.
 tauri-plugin-window-state = "2"
-# Embedded local backend (replaces Flask /api/* on desktop). The same UI
+# Embedded local backend (/app/v1/* on desktop). The same UI
 # adapters that hit the hosted server over HTTP hit this over HTTP too, so
 # desktop and web share one code path (see dev-docs/desktop.md).
 axum = "0.8"

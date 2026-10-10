@@ -6,7 +6,7 @@
  * also answers /app/v1/system-info, with desktop:false. A response omitting the
  * field counts as desktop, preserving browser-against-local-backend dev. Views
  * gate desktop-only features on isDesktopSync(), or on capabilities.ts's
- * `flask` axis, which shares this probe.
+ * `shell` axis, which shares this probe.
  *
  * Monotonic: once decided "desktop" it sticks for the session, so a backend
  * flap can't yank the controls.

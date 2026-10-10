@@ -43,7 +43,7 @@ export const ALL_PROVIDERS: ReadonlyArray<ProviderMeta> = [
     // Only when a local daemon is reachable (so, not on the hosted website).
     { value: 'ollama', label: 'Ollama (Local)', needsKey: false, requires: 'ollama' },
     // Shells out to the local `claude` CLI via the app backend - desktop only.
-    { value: 'claude_proxy', label: 'Anthropic (Subscription)', needsKey: false, requires: 'flask' },
+    { value: 'claude_proxy', label: 'Anthropic (Subscription)', needsKey: false, requires: 'shell' },
     { value: 'anthropic', label: 'Anthropic (API Key)', needsKey: true },
     { value: 'openai', label: 'OpenAI (API Key)', needsKey: true },
     { value: 'groq', label: 'Groq (API Key)', needsKey: true },
@@ -74,7 +74,7 @@ export function isProviderAvailable(
     opts: ProviderAvailabilityOpts = {}
 ): boolean {
     if (opts.webMode) {
-        if (meta.requires === 'ollama' || meta.requires === 'flask') return false;
+        if (meta.requires === 'ollama' || meta.requires === 'shell') return false;
         // Always offered on web - it's the point of the hosted app. Whether
         // it's reachable right now is a transient question, surfaced at the
         // model picker + Begin gate so the option never vanishes on a blip.
