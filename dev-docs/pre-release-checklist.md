@@ -67,8 +67,7 @@ check each of these still reflects reality:
   until re-keyed (`tests/i18n.test.ts` fails on the orphan). Pools pair by
   position, so a reworded English entry keeps its old translation and a new one
   needs its twin in the same slot (`tests/language.test.ts` checks lengths
-  only). Detail in [language.md](language.md); after zh changes, regenerate
-  `zh-translation-review.md` (`npm run zh:review-doc`).
+  only). Detail in [language.md](language.md).
 - **`ts/src/facilitation/voice-command.ts`** - `COMMAND_LINES`, what the app
   says back after a spoken command. These carry their **zh inline** (`zhOr`),
   not through `registerZhPool`, because most of them take a number; a new

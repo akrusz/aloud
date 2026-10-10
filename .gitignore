@@ -13,6 +13,10 @@ sessions/
 # ephemeral artifact, no longer committed (avoids stale build drift).
 docs/app/
 
+# The zh translation review doc: generated on demand for a reviewer
+# (npm --prefix ts run zh:review-doc), so a committed copy only goes stale.
+dev-docs/zh-translation-review.md
+
 # Recreational Claude scratchpad
 recess.md
 

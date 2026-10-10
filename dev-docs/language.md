@@ -37,7 +37,7 @@ the ones that can't.
 
 ## Translation review
 
-`npm run zh:review-doc` (`ts/scripts/zh-review.ts`) regenerates
-[zh-translation-review.md](zh-translation-review.md): every zh string paired
-with its English source, for a native reviewer to edit and send back. It is
-generated, so regenerate after merging edits rather than editing it by hand.
+`npm run zh:review-doc` (`ts/scripts/zh-review.ts`) writes
+`dev-docs/zh-translation-review.md`: every zh string paired with its English
+source, for a native reviewer to edit and send back. It is generated on demand
+and gitignored, so run it when a review is wanted.

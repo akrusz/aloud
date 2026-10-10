@@ -1,8 +1,7 @@
 /**
  * Emit the bilingual Chinese-translation review doc: every zh string in the
  * app paired with its English source, plus the constraints a reviewer (or
- * their AI) must respect. Regenerate after merging edits so the doc always
- * reflects the shipped strings.
+ * their AI) must respect. Generated on demand; the output is gitignored.
  *
  *   npm run zh:review-doc      (writes dev-docs/zh-translation-review.md)
  */

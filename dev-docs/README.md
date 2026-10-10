@@ -49,7 +49,6 @@ params, gotchas. It's the one to keep open.
 | Doc | |
 |---|---|
 | [style.md](style.md) | Brand and color system. Prefer this over what's "natural" to grep - old warm/amber values still lurk. |
-| [zh-translation-review.md](zh-translation-review.md) | Generated (`npm run zh:review-doc`): every zh string beside its English source, for a native reviewer. Don't hand-edit. |
 
 ## Working notes
 
