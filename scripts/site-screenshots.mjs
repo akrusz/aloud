@@ -267,7 +267,20 @@ async function waitFor(cdp, selector, tries = 100) {
  */
 async function enterSession(cdp) {
     await cdp.eval(`document.querySelector('#begin-btn').click()`);
-    await waitFor(cdp, '#conversation');
+    try {
+        await waitFor(cdp, '#conversation');
+    } catch {
+        // Begin has gates (provider, mic, sign-in, credits); say which one
+        // stopped us. Overlays sit in the DOM hidden, so only a laid-out one counts.
+        const why = await cdp.eval(`(() => {
+            if (document.querySelector('#begin-btn')?.disabled) return 'the Begin button is disabled';
+            const open = [...document.querySelectorAll(
+                '.voice-modal-overlay, .app-dialog-overlay, .modal-overlay'
+            )].find((el) => el.getClientRects().length > 0);
+            return open ? 'on screen: ' + open.innerText.replace(/\\s+/g, ' ').slice(0, 200) : '';
+        })()`);
+        throw new Error(`Begin never reached the session view${why ? ` (${why})` : ''}`);
+    }
     await sleep(1500);
     await cdp.eval(`(() => {
         const conv = document.querySelector('#conversation');
@@ -403,7 +416,9 @@ async function main() {
     } finally {
         cdp?.close();
         chrome.kill();
-        if (!KEEP) await rm(profile, { recursive: true, force: true });
+        // Chrome is still flushing its profile as it dies; without the retries
+        // this throws ENOTEMPTY and hides whatever error brought us here.
+        if (!KEEP) await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     }
 
     console.log(
