@@ -78,10 +78,22 @@ release goes through the same review as production.
       timestamp params, age-restricted videos and videos with ads on.
 - [ ] **Reviewer demo account**: sign in with it once and check it still holds
       credits. The App access text was written in September.
+- [ ] **Decide the purchase path before review.** The app's buy button opens
+      Stripe (`buy-credits-modal.ts` → `openExternal`, no mobile gate). Bead
+      `zp47` called that sanctioned in the US/UK/EEA; Google's pages as read on
+      2026-10-10 say otherwise. Payments policy section 4 bars in-app "buttons,
+      links, messaging ... or other calls to action" toward another payment
+      method **in every country**, and each exception is a program to enroll in
+      first, with its own API integration (information screen, transaction
+      reporting) and service fee: external content links (US, fees since
+      2026-10-01), external offers (EEA), billing choice (UK). Picking
+      countries does not cover it. Internal testing has no review, so this has
+      never been looked at. The choices: no purchase path in the Android app
+      (credits bought on the web still land in the account), enroll, or Play
+      Billing packs.
 - [ ] **Open testing release**: Testing → Open testing → promote the tested
-      build from internal. Pick countries (own-billing link-out is sanctioned in
-      the US/UK/EEA per bead `zp47`; anything wider is a decision), give the
-      feedback email, send for review.
+      build from internal. Pick countries, give the feedback email, send for
+      review.
 - [ ] **Once approved**: the site's platform line (`docs/index.html`: "iOS and
       Android are in closed beta") becomes an open-beta line with the Play
       link. A `docs/` push goes live at once, so not before.
@@ -171,5 +183,6 @@ the App ID, `PrivacyInfo.xcprivacy`, export-compliance flag).
 
 - [ ] Trademark the stylized "aloud." mark (bead `lkh`): for clone takedowns
       later, not for approval.
-- [ ] Native StoreKit / Play Billing credit packs. Deferred: the beta uses the
-      web Stripe link-out, sanctioned in the US/UK/EEA per bead `zp47`.
+- [ ] Native StoreKit / Play Billing credit packs. Deferred, but see "Decide
+      the purchase path" above: the Stripe link-out it was deferred in favour of
+      is not cleared on Play.
