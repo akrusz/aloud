@@ -288,18 +288,18 @@ describe('buildScoredVoiceList session language (c3a0.6)', () => {
             false,
             [
                 { name: 'Leda', gender: 'female', tier: 'premium' },
-                { name: 'Ada (GB)', gender: 'female', tier: 'premium', multilingual: true },
+                { name: 'Davis', gender: 'male', tier: 'premium', multilingual: true },
             ],
             'zh'
         );
         const leda = scored.find((v) => v.name === 'Leda')!;
-        const ada = scored.find((v) => v.name === 'Ada (GB)')!;
+        const davis = scored.find((v) => v.name === 'Davis')!;
         const sam = scored.find((v) => v.name === 'Samantha')!;
         expect(leda.langMismatch).toBe(true);
-        expect(ada.langMismatch).toBeUndefined();
+        expect(davis.langMismatch).toBeUndefined();
         expect(sam.langMismatch).toBe(true);
         // Within the shared Best/recommended group, the speaking voice leads.
-        expect(scored.indexOf(ada)).toBeLessThan(scored.indexOf(leda));
+        expect(scored.indexOf(davis)).toBeLessThan(scored.indexOf(leda));
     });
 
     it('includes session-language voices the en/navigator filter would drop', () => {

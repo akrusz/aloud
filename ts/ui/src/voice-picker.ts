@@ -3,16 +3,16 @@
  * (.voice-row, .voice-tier-label, …) come from the base CSS.
  *
  * Scoring tiers (descending):
- *   4  Very Good - "Premium" in the name (Apple Premium) + hosted Neural2 ("value")
+ *   4  Very Good - "Premium" in the name (Apple Premium) + hosted "value" voices
  *   3  Good      - Piper (desktop)
  *   2  Quality   - "Enhanced", "Online", "Natural"
  *   1  Standard  - Google, known-good macOS voices
  *   0  Other     - everything else
  *
- * A "Best" group sits above the tiers, reserved for hosted Chirp3-HD ("premium")
+ * A "Best" group sits above the tiers, reserved for hosted "premium" voices
  * and Chrome's cloud voices. Per the developer's preference cloud-neural beats
- * local, and the cheaper Neural2 tier sits a notch below Chirp3-HD, so Neural2
- * and Apple Premium drop into "Very Good" and Piper into "Good".
+ * local, and the hosted "value" tier sits a notch below "premium", so it and
+ * Apple Premium drop into "Very Good" and Piper into "Good".
  */
 
 import type { TtsEngine } from '../../src/platform/index.js';

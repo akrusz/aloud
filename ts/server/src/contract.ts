@@ -139,7 +139,7 @@ export interface CloudVoice {
     name: string;
     gender: 'female' | 'male' | 'androgynous';
     /** Quality/placement bucket (voice-catalog VoiceTier): 'premium' leads the
-     *  picker, 'value' is the cheaper Google tier. Not the price: see
+     *  picker, 'value' sits one rung below it. Not the price: see
      *  creditsPerHourTypical. */
     tier: 'premium' | 'value';
     /** Estimated credits/hr at a typical talk profile, from the same pricing the

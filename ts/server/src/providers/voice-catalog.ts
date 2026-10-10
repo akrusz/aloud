@@ -15,12 +15,13 @@ export type TtsProvider = 'google' | 'azure' | 'inworld';
 
 /** Voice quality/placement bucket (also the picker's cost-badge hint).
  *  'premium' = "Best", leads the picker, flagged recommended: Google Chirp3-HD
- *  (~$30/1M) AND the Azure and Inworld voices (premium QUALITY at a
- *  below-Chirp3-HD cost). 'value' = "Very Good", the cheaper Google
- *  Neural2 (~$16/1M). The real per-char rate comes from (provider, voiceId) via
- *  the meter (pricing/providers.ttsRateFor), and the picker's concrete
- *  credits/hr keeps the burn honest regardless of bucket, so a premium-bucket
- *  voice can read as a lower cost/hr. */
+ *  (~$30/1M) AND most Azure and Inworld voices (premium QUALITY at a
+ *  below-Chirp3-HD cost). 'value' = "Very Good", one rung down: the cheaper
+ *  Google Neural2 (~$16/1M), plus any Azure/Inworld voice the dev places
+ *  there (a taste call, not a price one). The real per-char rate comes from
+ *  (provider, voiceId) via the meter (pricing/providers.ttsRateFor), and the
+ *  picker's concrete credits/hr keeps the burn honest regardless of bucket, so
+ *  a premium-bucket voice can read as a lower cost/hr. */
 export type VoiceTier = 'premium' | 'value';
 
 export interface CuratedVoice {
@@ -91,11 +92,11 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // express-as register the voice supports; multilingual entries (Ada, Davis)
     // also speak zh natively - groundwork for meditation-pal-c3a0. ~$15/1M
     // (MAI Flash), ~$16/1M (multilingual) and ~$22/1M (DragonHD), so premium
-    // placement at below-Chirp3-HD burn: tier is QUALITY/placement only, and
-    // the picker's credits/hr badge shows the lower real cost.
+    // placement (Ada aside) at below-Chirp3-HD burn: tier is QUALITY/placement
+    // only, and the picker's credits/hr badge shows the lower real cost.
     // MAI-Voice-2.1-Flash rather than 2-Flash: same price and styles, and
     // Microsoft's docs cover only 2.1.
-    { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'premium' },
+    { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'value' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
     { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
@@ -130,7 +131,7 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // the Inworld workspace behind INWORLD_API_KEY, so a key from any other
     // account 404s them. Wren was picked on Flash; the rest on TTS-2.
     { name: 'Luna', provider: 'inworld', providerVoiceId: 'Luna:inworld-tts-2', gender: 'female', tier: 'premium' },
-    { name: 'Wren', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-22273db5:inworld-tts-2-flash', gender: 'female', tier: 'premium' },
+    { name: 'Wren', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-22273db5:inworld-tts-2-flash', gender: 'female', tier: 'value' },
     { name: 'Silas', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-446019ec:inworld-tts-2', gender: 'male', tier: 'premium' },
     { name: 'Clive (GB)', provider: 'inworld', providerVoiceId: 'Clive:inworld-tts-2', gender: 'male', tier: 'premium' },
 ];
