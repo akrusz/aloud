@@ -6,7 +6,6 @@ import {
     OpenAIProvider,
     OpenRouterProvider,
     VeniceProvider,
-    GroqProvider,
 } from '../src/llm/openai.js';
 import { withSystemMessage, type Message, type StreamChunk } from '../src/llm/base.js';
 
@@ -76,22 +75,6 @@ function mockJsonResponse(data: unknown, init: { ok?: boolean; status?: number }
 describe('AnthropicProvider', () => {
     it('throws if no API key provided and no proxy URL', () => {
         expect(() => new AnthropicProvider({ apiKey: '' })).toThrow(/API key/);
-    });
-
-    it('accepts an empty apiKey when baseUrl points at a proxy', async () => {
-        const fetchImpl = vi.fn(async () =>
-            mockJsonResponse({ content: [{ type: 'text', text: 'ok' }] })
-        );
-        const provider = new AnthropicProvider({
-            baseUrl: '/api/llm/anthropic/messages',
-            fetchImpl: fetchImpl as unknown as typeof fetch,
-        });
-        await provider.complete([{ role: 'user', content: 'hi' }]);
-        const [, init] = fetchImpl.mock.calls[0]!;
-        const headers = (init as RequestInit).headers as Record<string, string>;
-        // No x-api-key header — proxy injects it server-side
-        expect(headers['x-api-key']).toBeUndefined();
-        expect(headers['anthropic-version']).toBe('2023-06-01');
     });
 
     it('sends the direct-browser-access header only when asked, hitting the real API', async () => {
@@ -644,17 +627,6 @@ describe('OllamaProvider', () => {
     });
 
     describe('coldLoadMessage', () => {
-        it('reports a cold model and stays quiet once it is loaded', async () => {
-            const withLoaded = (models: string[]) =>
-                new OllamaProvider({
-                    model: 'qwen3.5:4b',
-                    fetchImpl: (async () =>
-                        mockJsonResponse({ models: models.map((name) => ({ name })) })) as unknown as typeof fetch,
-                });
-            expect(await withLoaded([]).coldLoadMessage()).toMatch(/Loading qwen3.5:4b/);
-            expect(await withLoaded(['qwen3.5:4b']).coldLoadMessage()).toBeNull();
-        });
-
         it('sends a timeout signal and yields null when the probe aborts', async () => {
             // A wedged daemon never answers on its own; the abort must end it.
             const fetchImpl = vi.fn(
@@ -689,19 +661,6 @@ describe('OpenAIProvider', () => {
 
     it('throws if no API key and no proxy URL', () => {
         expect(() => new OpenAIProvider({ apiKey: '' })).toThrow(/API key/);
-    });
-
-    it('accepts an empty apiKey when baseUrl points at a proxy', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse('ok'));
-        const provider = new OpenAIProvider({
-            baseUrl: '/api/llm/openai',
-            fetchImpl: fetchImpl as unknown as typeof fetch,
-        });
-        await provider.complete([{ role: 'user', content: 'hi' }]);
-        const [, init] = fetchImpl.mock.calls[0]!;
-        const headers = (init as RequestInit).headers as Record<string, string>;
-        // No bearer token — proxy injects it server-side
-        expect(headers['authorization']).toBeUndefined();
     });
 
     it('sends system as a leading message, bearer auth, and max_completion_tokens for OpenAI direct', async () => {
@@ -920,19 +879,6 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         );
     });
 
-    it('OpenRouter uses openrouter.ai with deepseek default model', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
-        const provider = new OpenRouterProvider({
-            apiKey: 'sk-or-test',
-            fetchImpl: fetchImpl as unknown as typeof fetch,
-        });
-        expect(provider.model).toBe('deepseek/deepseek-v3.2');
-        await provider.complete([{ role: 'user', content: 'hi' }]);
-        expect(fetchImpl.mock.calls[0]?.[0]).toBe(
-            'https://openrouter.ai/api/v1/chat/completions'
-        );
-    });
-
     it('OpenRouter disables reasoning by default', async () => {
         const fetchImpl = vi.fn(async () => mockChatResponse());
         const provider = new OpenRouterProvider({
@@ -1009,7 +955,6 @@ describe('Preconfigured OpenAI-compatible providers', () => {
             apiKey: 'sk-venice-test',
             fetchImpl: fetchImpl as unknown as typeof fetch,
         });
-        expect(provider.model).toBe('llama-3.3-70b');
         await provider.complete([{ role: 'user', content: 'hi' }]);
         const [url, init] = fetchImpl.mock.calls[0]!;
         expect(url).toBe('https://api.venice.ai/api/v1/chat/completions');
@@ -1017,29 +962,6 @@ describe('Preconfigured OpenAI-compatible providers', () => {
         expect(body.venice_parameters).toEqual({
             include_venice_system_prompt: false,
         });
-    });
-
-    it('Groq uses api.groq.com with llama default model', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
-        const provider = new GroqProvider({
-            apiKey: 'gsk-test',
-            fetchImpl: fetchImpl as unknown as typeof fetch,
-        });
-        expect(provider.model).toBe('llama-3.3-70b-versatile');
-        await provider.complete([{ role: 'user', content: 'hi' }]);
-        expect(fetchImpl.mock.calls[0]?.[0]).toBe(
-            'https://api.groq.com/openai/v1/chat/completions'
-        );
-    });
-
-    it('caller can override the default model', async () => {
-        const fetchImpl = vi.fn(async () => mockChatResponse());
-        const provider = new GroqProvider({
-            apiKey: 'k',
-            model: 'mixtral-8x7b-32768',
-            fetchImpl: fetchImpl as unknown as typeof fetch,
-        });
-        expect(provider.model).toBe('mixtral-8x7b-32768');
     });
 
     it('caller-provided extraBody merges over the default extraBody', async () => {

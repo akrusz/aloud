@@ -168,11 +168,10 @@ describe('Opus 5 (anthropic)', () => {
         expect(p!.default).toBeUndefined();
         expect(p!.expanded).toBe(true);
 
-        // Opus 4.8 and Opus 4.5 were swapped out for their same-price
-        // successors, then deliberately RE-ADDED as expanded-tier (July 2026,
-        // "older personalities speak differently, not worse"). They must bill
-        // at the same rates as their successor and stay behind the picker's
-        // "Show all available models" toggle.
+        // Opus 4.8 and Opus 4.5 are kept as expanded-tier ("older
+        // personalities speak differently, not worse"). They must bill at the
+        // same rates as their successor and stay behind the picker's "Show all
+        // available models" toggle.
         for (const [model, successor] of [
             ['claude-opus-4-8', 'claude-opus-5'],
             ['claude-opus-4-5', 'claude-opus-5'], // oldest Opus at the $5/$25 tier

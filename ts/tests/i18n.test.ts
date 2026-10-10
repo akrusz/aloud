@@ -45,12 +45,6 @@ describe('zh catalog hygiene', () => {
         }
     });
 
-    it('no entry is empty or identical to its key unless deliberate', () => {
-        for (const [key, val] of Object.entries(ZH)) {
-            expect(typeof val, `zh for "${key}"`).toBe('string');
-        }
-    });
-
     /**
      * Orphan guard: t() falls back to English by design, so when an English
      * source string is edited its catalog entry doesn't break anything - it

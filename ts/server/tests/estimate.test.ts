@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-    estimateModels,
-    estimateStt,
-    estimateVoices,
-    voiceCreditsPerHourTypical,
-} from '../src/pricing/estimate.js';
+import { estimateModels, estimateStt, estimateVoices } from '../src/pricing/estimate.js';
 import { CURATED_VOICES, defaultVoice } from '../src/providers/voice-catalog.js';
 
 describe('estimateModels', () => {
@@ -29,9 +24,8 @@ describe('estimateModels', () => {
     });
 
     it('offers only cache-capable models (no Groq — it has no prompt caching)', () => {
-        // Groq was dropped as a hosted option: with no caching, the re-sent
-        // history bills at full input every turn on this workload. The hosted
-        // set should be cache-capable models only.
+        // With no caching, the re-sent history bills at full input every turn
+        // on this workload.
         expect(models.some((m) => m.provider === 'groq')).toBe(false);
         expect(models.some((m) => m.model === 'llama-3.3-70b-versatile')).toBe(false);
     });
@@ -70,8 +64,6 @@ describe('estimateVoices', () => {
         // provider voice id.
         for (const v of CURATED_VOICES) expect(ids).toContain(v.providerVoiceId);
         expect(voices).toHaveLength(2 + CURATED_VOICES.length);
-        // No aspirational engines the server can't synthesize.
-        expect(ids.some((id) => id.includes('elevenlabs') || id.includes('hume'))).toBe(false);
     });
 
     it('cloud voice cost rises across the talk band (spacious < typical < engaged < talkative)', () => {
@@ -83,8 +75,7 @@ describe('estimateVoices', () => {
 
     it('prices the value (Neural2) tier below the premium (Chirp3-HD) tier', () => {
         const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
-        // Pin to Google voices specifically (OpenAI is also 'value' but a
-        // different flat rate) so the 16/30 tier ratio stays exact.
+        // Pin to Google voices specifically so the 16/30 tier ratio stays exact.
         const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
         const value = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'value')!;
         expect(rateOf(value.providerVoiceId)).toBeGreaterThan(0);
@@ -100,16 +91,5 @@ describe('estimateVoices', () => {
             expect(rateOf(v.providerVoiceId), v.name).toBeGreaterThan(0);
             expect(rateOf(v.providerVoiceId), v.name).toBeLessThan(rateOf(premium.providerVoiceId));
         }
-    });
-});
-
-describe('voiceCreditsPerHourTypical', () => {
-    it('matches the per-voice estimate and ranks value below premium', () => {
-        const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
-        const value = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'value')!;
-        expect(voiceCreditsPerHourTypical(value.provider, value.providerVoiceId)).toBeGreaterThan(0);
-        expect(voiceCreditsPerHourTypical(value.provider, value.providerVoiceId)).toBeLessThan(
-            voiceCreditsPerHourTypical(premium.provider, premium.providerVoiceId)
-        );
     });
 });

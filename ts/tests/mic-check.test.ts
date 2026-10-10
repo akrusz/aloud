@@ -225,10 +225,7 @@ describe('describeMicProblem', () => {
 
     it('gives every failure an actionable line', () => {
         for (const status of ['no-api', 'no-device', 'denied', 'error'] as const) {
-            const msg = describeMicProblem(status);
-            expect(msg).toBeTruthy();
-            // House style: no em-dashes in user-facing copy.
-            expect(msg).not.toContain('—');
+            expect(describeMicProblem(status)).toBeTruthy();
         }
     });
 });

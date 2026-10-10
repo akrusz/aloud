@@ -1,18 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-import {
-    generateNotingLabel,
-    NOTING_LABEL_SYSTEM_PROMPT,
-} from '../src/facilitation/noting.js';
+import { generateNotingLabel } from '../src/facilitation/noting.js';
 import type { LLMProvider, CompletionResult, Message, CompletionOptions } from '../src/llm/index.js';
 
 class StubProvider implements LLMProvider {
     readonly model = 'stub';
     seenSystem: string | undefined = undefined;
-    seenMessages: Message[] = [];
     constructor(private readonly response: string | Error) {}
-    async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
-        this.seenMessages = messages;
+    async complete(_messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
         this.seenSystem = options.system;
         if (this.response instanceof Error) throw this.response;
         return { text: this.response, finishReason: 'stop', tokensUsed: null };
@@ -20,20 +15,6 @@ class StubProvider implements LLMProvider {
 }
 
 describe('generateNotingLabel', () => {
-    it('uses the noting label system prompt as the base', async () => {
-        const provider = new StubProvider('warmth');
-        await generateNotingLabel(provider);
-        expect(provider.seenSystem).toContain(NOTING_LABEL_SYSTEM_PROMPT);
-    });
-
-    it('passes a single user-turn prompt as the message', async () => {
-        const provider = new StubProvider('warmth');
-        await generateNotingLabel(provider);
-        expect(provider.seenMessages).toEqual([
-            { role: 'user', content: 'Your turn. Say something you notice now, 1-2 words.' },
-        ]);
-    });
-
     it('appends the circle context when provided', async () => {
         const provider = new StubProvider('softness');
         await generateNotingLabel(provider, {

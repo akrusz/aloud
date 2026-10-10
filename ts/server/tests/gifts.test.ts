@@ -99,7 +99,7 @@ describe('decline → returned (held for the buyer, no auto-credit)', () => {
 
         const r = await declineGift(d, recip, g.id, NOW);
         expect(r).toEqual({ ok: true, credits: 50 });
-        expect(await d.ledger.balance(buyer.id)).toBe(0); // not auto-credited anymore
+        expect(await d.ledger.balance(buyer.id)).toBe(0); // not auto-credited
         expect(await d.ledger.balance(recip.id)).toBe(0);
         const returned = await d.store.getReturnedGiftsForBuyer(buyer.id);
         expect(returned.map((x) => x.id)).toContain(g.id);
@@ -140,10 +140,6 @@ describe('expiry → returned', () => {
         expect(await reconcileExpiredGifts(d, NOW)).toBe(0); // already returned
         expect(await d.ledger.balance(buyer.id)).toBe(0);
         expect(await d.store.getReturnedGiftsForBuyer(buyer.id)).toHaveLength(1);
-    });
-
-    it('uses a 30-day window', () => {
-        expect(GIFT_EXPIRY_SECONDS).toBe(30 * 24 * 3600);
     });
 
     it('does not expire a gift that is still within the window', async () => {

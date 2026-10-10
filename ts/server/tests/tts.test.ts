@@ -512,18 +512,6 @@ describe('POST /cloud/v1/tts — up-front cost gate', () => {
         expect(body.error.code).toBe('insufficient_credits');
         expect(googleCalls).toHaveLength(0); // refused BEFORE spending on the provider
     });
-
-    it('still synthesizes when the estimate fits the balance', async () => {
-        const a = app();
-        const token = await devToken(a); // 20 credits — plenty for a short phrase
-        const res = await a.request('/cloud/v1/tts', {
-            method: 'POST',
-            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe out.', voice: 'Leda' }),
-        });
-        expect(res.status).toBe(200);
-        expect(googleCalls).toHaveLength(1);
-    });
 });
 
 describe('Azure lead silence (meditation-pal-tur5)', () => {

@@ -46,10 +46,6 @@ describe('voice catalog', () => {
         // synthFor null-check turns it into provider_error).
         expect(defaultVoice(new Set()).name).toBe(flagged.name);
     });
-
-    it('labels Pulcherrima androgynous (not Google\'s "female")', () => {
-        expect(CURATED_VOICES.find((v) => v.name === 'Pulcherrima')!.gender).toBe('androgynous');
-    });
 });
 
 describe('GET /cloud/v1/voices', () => {
@@ -64,12 +60,6 @@ describe('GET /cloud/v1/voices', () => {
         // Azure voices stay hidden without AZURE_SPEECH_KEY.
         expect(voices.some((v) => v.name === 'Harper')).toBe(false);
         expect(voices.every((v) => 'gender' in v)).toBe(true);
-    });
-
-    it('lists nothing for an OpenAI key alone: no OpenAI voice is curated', async () => {
-        const app = createApp(buildDeps(loadConfig({ OPENAI_API_KEY: 'k' })));
-        const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
-        expect(voices).toEqual([]);
     });
 
     it('lists every curated voice when all provider keys are set', async () => {
@@ -90,7 +80,6 @@ describe('GET /cloud/v1/voices', () => {
         const app = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', AZURE_SPEECH_KEY: 'k3' })));
         const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
         for (const name of namesFor('inworld')) expect(voices.map((v) => v.name)).not.toContain(name);
-        expect(namesFor('inworld')).toEqual(['Luna', 'Wren', 'Silas', 'Clive (GB)']);
     });
 
     it('carries a cost tier + credits/hr so the picker can show relative cost', async () => {

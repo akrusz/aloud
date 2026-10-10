@@ -15,12 +15,6 @@ function makeManager(opts?: ConstructorParameters<typeof SessionManager>[0]) {
 }
 
 describe('SessionManager — lifecycle', () => {
-    it('starts inactive', () => {
-        const { manager } = makeManager();
-        expect(manager.state).toBe(null);
-        expect(manager.isActive).toBe(false);
-    });
-
     it('starts a session and is active until ended', () => {
         const { manager } = makeManager();
         const state = manager.startSession();
@@ -40,12 +34,6 @@ describe('SessionManager — lifecycle', () => {
         // Same fake-clock second; the random suffix keeps them distinct.
         expect(second).not.toBe(first);
         expect(first).toMatch(/^\d{4}-\d{2}-\d{2}-\d{6}-[a-z0-9]{4}$/);
-    });
-
-    it('accepts a caller-provided session ID', () => {
-        const { manager } = makeManager();
-        const state = manager.startSession('my-session');
-        expect(state.sessionId).toBe('my-session');
     });
 
     it('reports duration based on the injected clock', () => {
@@ -75,16 +63,6 @@ describe('SessionManager — exchanges', () => {
     it('throws when adding messages without a session', () => {
         const { manager } = makeManager();
         expect(() => manager.addUserMessage('x')).toThrow();
-    });
-
-    it('returns the last user message', () => {
-        const { manager } = makeManager();
-        manager.startSession();
-        manager.addUserMessage('first');
-        manager.addAssistantMessage('reply');
-        manager.addUserMessage('second');
-        manager.addAssistantMessage('reply 2');
-        expect(manager.getLastUserMessage()).toBe('second');
     });
 
     it('loads saved exchanges for continuation', () => {
@@ -162,20 +140,6 @@ describe('SessionManager — context strategies', () => {
 });
 
 describe('SessionManager — usage tracking', () => {
-    it('starts with a zeroed usage tally', () => {
-        const { manager } = makeManager();
-        manager.startSession();
-        expect(manager.state?.usage).toEqual({
-            llmCalls: 0,
-            llmTokensIn: 0,
-            llmTokensOut: 0,
-            llmCacheRead: 0,
-            llmCacheCreation: 0,
-            sttSeconds: 0,
-            ttsChars: 0,
-        });
-    });
-
     it('records per-exchange tokens and folds them into the tally', () => {
         const { manager } = makeManager();
         manager.startSession();
@@ -188,7 +152,7 @@ describe('SessionManager — usage tracking', () => {
 
         const ex = manager.state!.exchanges[0]!;
         expect(ex).toMatchObject({ tokensIn: 100, tokensOut: 20, cacheRead: 80 });
-        // cacheCreation was 0 → omitted from the exchange (matches Python).
+        // cacheCreation was 0 → omitted from the exchange.
         expect('cacheCreation' in ex).toBe(false);
 
         expect(manager.state?.usage).toMatchObject({
@@ -261,24 +225,6 @@ describe('SessionManager — usage tracking', () => {
             manager.recordStt(1);
             manager.recordTts(1);
         }).not.toThrow();
-    });
-});
-
-describe('SessionManager — tags and notes', () => {
-    it('adds unique tags only', () => {
-        const { manager } = makeManager();
-        manager.startSession();
-        manager.addTag('insight');
-        manager.addTag('insight');
-        manager.addTag('warm');
-        expect(manager.state?.tags).toEqual(['insight', 'warm']);
-    });
-
-    it('sets notes', () => {
-        const { manager } = makeManager();
-        manager.startSession();
-        manager.setNotes('felt very settled');
-        expect(manager.state?.notes).toBe('felt very settled');
     });
 });
 

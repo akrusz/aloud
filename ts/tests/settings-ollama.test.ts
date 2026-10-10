@@ -51,11 +51,6 @@ describe('renderTier', () => {
         expect(html).toContain('ollama-remove-btn');
         expect(html).not.toContain('ollama-pull-btn');
     });
-
-    it('renders size as a single "download, in memory" line', () => {
-        const html = renderTier(TIER_GEMMA_E4B, 'qwen3.5:4b');
-        expect(html).toContain('~9.6GB download, ~10GB in memory');
-    });
 });
 
 describe('renderHTML', () => {
@@ -139,7 +134,6 @@ describe('renderHTML', () => {
         });
         expect(html).toContain('ollama-others-heading');
         expect(html).toContain('mistral:latest');
-        // Python's "on disk" suffix on size text.
         expect(html).toContain('4.1GB on disk');
         // Has a Remove button targeting mistral.
         expect(html).toContain('data-model="mistral:latest"');

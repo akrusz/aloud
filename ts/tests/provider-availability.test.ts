@@ -25,11 +25,6 @@ const caps = (over: Partial<Capabilities>): Capabilities => ({
 });
 
 describe('isProviderAvailable', () => {
-    it('always offers BYOK providers (no capability requirement)', () => {
-        const byok = mod.ALL_PROVIDERS.find((p) => p.value === 'openai')!;
-        expect(mod.isProviderAvailable(byok, caps({}))).toBe(true);
-    });
-
     it('local mode (desktop): removes nothing — even with no capability reachable', () => {
         // Runtime readiness is shown via the ⚙/✱ markers (provider-markers.ts),
         // so the menu keeps every provider in local mode. caps all-false stands
@@ -49,11 +44,6 @@ describe('isProviderAvailable', () => {
         expect(mod.isProviderAvailable(get('aloud'), caps({}), { webMode: true })).toBe(true);
     });
 
-    it('in local mode, BYOK shows by default', () => {
-        const byok = mod.ALL_PROVIDERS.find((p) => p.value === 'anthropic')!;
-        expect(mod.isProviderAvailable(byok, caps({}), { webMode: false })).toBe(true);
-    });
-
     it('in web mode, BYOK is hidden unless explicitly enabled', () => {
         const byok = mod.ALL_PROVIDERS.find((p) => p.value === 'anthropic')!;
         expect(mod.isProviderAvailable(byok, caps({ cloud: true }), { webMode: true })).toBe(false);
@@ -64,7 +54,7 @@ describe('isProviderAvailable', () => {
 
     it('web mode hides local providers even when a local daemon IS reachable', () => {
         // A forced-web dev session (or the hosted site) must not surface a stray
-        // local Ollama / Flask the capability probe happened to find.
+        // local Ollama / app backend the capability probe happened to find.
         const localUp = caps({ cloud: true, ollama: true, flask: true });
         expect(mod.isProviderAvailable(mod.ALL_PROVIDERS.find((p) => p.value === 'ollama')!, localUp, { webMode: true })).toBe(false);
         expect(mod.isProviderAvailable(mod.ALL_PROVIDERS.find((p) => p.value === 'claude_proxy')!, localUp, { webMode: true })).toBe(false);

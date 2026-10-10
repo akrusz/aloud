@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 
 import {
     BASE_SYSTEM_PROMPT,
-    CHECK_IN_PROMPTS,
     DIMENSIONS_PREAMBLE,
     DIRECTIVENESS_ADDITIONS,
     FOCUS_PROMPTS,
@@ -10,7 +9,6 @@ import {
     PromptBuilder,
     QUALITY_PROMPTS,
     WAIT_SIGNAL_FRAGMENT,
-    defaultWaitSeconds,
     parseHoldSignal,
 } from '../src/facilitation/prompts.js';
 import { listModes } from '../src/facilitation/modes.js';
@@ -110,10 +108,6 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         expect(
             new PromptBuilder({ config: { directiveness: 10 } }).buildSystemPrompt()
         ).not.toContain('[WAIT:30s]');
-    });
-
-    it('defaultWaitSeconds maps the five slider stops', () => {
-        expect([0, 3, 5, 7, 10].map(defaultWaitSeconds)).toEqual([1200, 480, 300, 90, 30]);
     });
 
     // A first sit checks in sooner than its guidance stop would, and the
@@ -245,13 +239,6 @@ describe('PromptBuilder.buildOpenerPrompt', () => {
         // Everything after the lead still composes.
         expect(first).toContain('focus areas: emotions');
         expect(first).toContain('suggest where to begin');
-    });
-});
-
-describe('PromptBuilder.getCheckInPrompt', () => {
-    it('returns a non-empty phrase from the pool', () => {
-        const builder = new PromptBuilder({ random: DETERMINISTIC_RNG });
-        expect(builder.getCheckInPrompt()).toBe(CHECK_IN_PROMPTS[0]);
     });
 });
 

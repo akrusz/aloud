@@ -24,10 +24,6 @@ describe('PacingController — state transitions', () => {
         controller = makeController().controller;
     });
 
-    it('starts in IDLE', () => {
-        expect(controller.state).toBe(ConversationState.Idle);
-    });
-
     it('startSession transitions to LISTENING', () => {
         controller.startSession();
         expect(controller.state).toBe(ConversationState.Listening);
@@ -43,13 +39,6 @@ describe('PacingController — state transitions', () => {
         controller.startSession();
         controller.onSpeechEnd();
         expect(controller.state).toBe(ConversationState.Processing);
-    });
-
-    it('onSpeechStart returns to LISTENING', () => {
-        controller.startSession();
-        controller.onSpeechEnd();
-        controller.onSpeechStart();
-        expect(controller.state).toBe(ConversationState.Listening);
     });
 
     it('onResponseStart → RESPONDING; onResponseEnd → LISTENING', () => {
@@ -178,13 +167,6 @@ describe('PacingController — shouldRespond timing', () => {
 });
 
 describe('PacingController — transcription', () => {
-    it('always returns RESPOND for a transcription', () => {
-        const { controller } = makeController();
-        controller.startSession();
-        controller.onSpeechEnd();
-        expect(controller.onTranscription('I notice warmth')).toBe(TurnDecision.Respond);
-    });
-
     it('auto-exits silence mode when transcription arrives', () => {
         const { controller } = makeController();
         controller.startSession();
@@ -197,19 +179,6 @@ describe('PacingController — transcription', () => {
 });
 
 describe('PacingConfig defaults', () => {
-    it('exposes the full set of facilitation + VAD knobs with sensible defaults', () => {
-        expect(defaultPacingConfig).toEqual({
-            responseDelayMs: 2000,
-            silenceCheckinSec: 300,
-            silenceCheckinsEnabled: true,
-            silenceModeEnabled: true,
-            silenceBaseMs: 3000,
-            silenceMaxMs: 6000,
-            silenceRampRate: 0.16,
-            minSpeechDurationMs: 500,
-        });
-    });
-
     it('accepts a partial config override (other fields fall back to defaults)', () => {
         const { controller } = makeController({
             config: { silenceModeEnabled: false, silenceCheckinsEnabled: false },

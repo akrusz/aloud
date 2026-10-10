@@ -62,10 +62,6 @@ describe('timer event turns', () => {
         expect(buildTimerCompletionEvent(20)).not.toContain(PASS_PREFIX);
     });
 
-    it('tells the model not to read the clock out', () => {
-        expect(buildTimerApproachEvent(180, 20)).toContain('Do not announce the time');
-    });
-
     it('states the length the meditator actually set', () => {
         expect(buildTimerApproachEvent(180, 45)).toContain('45 minute sit');
         expect(buildTimerCompletionEvent(45)).toContain('45 minutes');

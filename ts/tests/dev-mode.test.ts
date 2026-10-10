@@ -30,12 +30,6 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('?debug=checkin', () => {
-    it('is off with no param and no toggle', () => {
-        visit('');
-        adoptCheckinDebugParam();
-        expect(isCheckinDebugOn()).toBe(false);
-    });
-
     it('outlives the query it arrived in, for the tab', () => {
         for (const value of ['checkin', '1', 'pacing']) {
             stubStorage('sessionStorage');

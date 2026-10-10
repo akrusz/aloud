@@ -39,7 +39,7 @@ describe('prefixedVoiceId', () => {
 describe('buildScoredVoiceList with hosted voices', () => {
     it('floats curated hosted voices into Recommended with a gender note', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
-        // No speechSynthesis in this env → browser voices empty; no Flask voices.
+        // No speechSynthesis in this env → browser voices empty; no server voices.
         const scored = buildScoredVoiceList(null, false, [
             { name: 'Pulcherrima', gender: 'androgynous' },
             { name: 'Leda', gender: 'female' },

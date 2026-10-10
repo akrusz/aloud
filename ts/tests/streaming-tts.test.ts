@@ -86,13 +86,9 @@ describe('splitOffSentences', () => {
     });
 
     it('keeps ellipses attached to the surrounding sentence', () => {
-        // The Python regex uses `[^.!?][.!?]` to avoid splitting on
-        // ellipses; we mirror it. "I see..." should NOT split into "I see."
         const result = splitOffSentences('I see... and then what?');
-        // Could split as "I see..." or "I see... and then what?" — the
-        // crucial property is that we don't break "..." into separate
-        // sentences. The `.` after `..` qualifies as a non-punct→punct
-        // boundary, so we accept either grouping but never a 3-way split.
+        // Either grouping is fine ("I see..." alone or the whole line); the
+        // property is that "..." never breaks into separate sentences.
         expect(result.complete.length).toBeLessThanOrEqual(1);
         if (result.complete[0]) expect(result.complete[0]).toContain('I see');
     });

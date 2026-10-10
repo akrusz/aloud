@@ -47,9 +47,4 @@ describe('GoogleProvider', () => {
             expect(body.reasoning_effort).toBe(floor);
         }
     });
-
-    it('defaults to the value-tier model', () => {
-        const { fetchImpl } = captureFetch();
-        expect(new GoogleProvider({ apiKey: 'k', fetchImpl }).model).toBe('gemini-3.5-flash-lite');
-    });
 });

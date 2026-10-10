@@ -107,13 +107,6 @@ describe('parseCheckoutCompleted', () => {
     });
 });
 
-describe('packById', () => {
-    it('looks up known packs', () => {
-        expect(packById('starter')?.credits).toBe(40); // $5 on the curve
-        expect(packById('nope')).toBeUndefined();
-    });
-});
-
 describe('custom amounts', () => {
     it('floors at the smallest preset and caps at the ceiling', () => {
         const smallestPreset = Math.min(...CREDIT_PACKS.map((p) => p.credits));

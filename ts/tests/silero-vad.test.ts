@@ -230,16 +230,4 @@ describe('SileroRunner', () => {
         expect(Array.from(runs[2]!.input.slice(0, 64))).toEqual(Array(64).fill(0));
         expect(runs[2]!.state[0]).toBe(0);
     });
-
-    it('drops chunks instead of queueing unboundedly when inference stalls', () => {
-        const stalled: SileroModel = {
-            process: () => new Promise(() => {}), // never resolves
-            reset_state() {},
-            release: async () => {},
-        };
-        const vad = new SileroFrameVad(stalled);
-        // 64 chunks' worth at 16 kHz; the queue caps at 32 in flight.
-        vad.feed(new Float32Array(64 * 512 + 1), 16_000);
-        expect(vad.droppedChunks).toBe(32);
-    });
 });

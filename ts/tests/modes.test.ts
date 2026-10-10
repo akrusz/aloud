@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
     getMode,
-    listModes,
     parseTurnSignals,
     scrubControlTokens,
     StagedModeController,
@@ -25,18 +24,6 @@ describe('mode registry', () => {
     it('returns undefined for unknown or missing ids', () => {
         expect(getMode('zen_archery')).toBeUndefined();
         expect(getMode(undefined)).toBeUndefined();
-    });
-
-    it('lists every registered mode', () => {
-        const ids = listModes().map((m) => m.id);
-        expect(ids).toEqual(['exploration', 'noting', 'felt_sense']);
-    });
-
-    it('exploration mode keeps the classic base prompt', () => {
-        expect(EXPLORATION_MODE.basePrompt).toBe(BASE_SYSTEM_PROMPT);
-        // No composes overrides — all dimensions still apply.
-        expect(EXPLORATION_MODE.composes).toBeUndefined();
-        expect(EXPLORATION_MODE.phases).toBeUndefined();
     });
 });
 
@@ -233,12 +220,6 @@ const TINY_STAGED: ModeSpec = {
 };
 
 describe('StagedModeController', () => {
-    it('starts at the first phase by default', () => {
-        const c = new StagedModeController(TINY_STAGED);
-        expect(c.phase.id).toBe('one');
-        expect(c.phaseIndex).toBe(0);
-    });
-
     it('resumes from a persisted phase id, falling back on unknown ids', () => {
         expect(new StagedModeController(TINY_STAGED, 'two').phase.id).toBe('two');
         expect(new StagedModeController(TINY_STAGED, 'renamed-away').phase.id).toBe('one');
@@ -343,7 +324,6 @@ describe('PromptBuilder with a mode', () => {
         const prompt = builder.buildSystemPrompt(c.promptSection());
         expect(prompt).toContain('Session arc');
         expect(prompt.indexOf('felt-sense session')).toBeLessThan(prompt.indexOf('Session arc'));
-        expect(c.phaseNote()).toContain('Settling in (clearing a space)');
     });
 
     it('mode pools drive the opener and check-ins', () => {

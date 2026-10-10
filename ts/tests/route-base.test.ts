@@ -1,9 +1,9 @@
 /**
- * Locks the deploy-base prefix math (route-base.ts). The hosted demo serves the
- * SPA under '/app/' off GitHub Pages; the kickoff flagged this as the part that
- * silently breaks in-app navigation if done blind (pushState/refresh resolve to
- * the wrong path). routePathFor/appPathFor are inverses, so assert the round
- * trip at both bases — root (dev/desktop) and '/app' (hosted).
+ * Locks the deploy-base prefix math (route-base.ts). The hosted app serves the
+ * SPA under '/app/'; a wrong prefix silently breaks in-app navigation
+ * (pushState/refresh resolve to the wrong path). routePathFor/appPathFor are
+ * inverses, so assert the round trip at both bases — root (dev/desktop) and
+ * '/app' (hosted).
  */
 import { describe, it, expect } from 'vitest';
 import { normalizePrefix, routePathFor, appPathFor } from '../ui/src/route-base.js';

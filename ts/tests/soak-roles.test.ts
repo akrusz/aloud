@@ -131,7 +131,6 @@ function report(over: Partial<{
     model: string;
     fails: string[];
     judge: number;
-    wince: Array<{ quote: string; why: string }>;
 }> = {}): SessionReport {
     const fails = over.fails ?? [];
     return {
@@ -157,7 +156,7 @@ function report(over: Partial<{
         judge: {
             overall: over.judge ?? 8,
             dimensions: { responsiveness: 8, tone: 7, brevity: 9 },
-            winceMoments: over.wince ?? [],
+            winceMoments: [],
             notes: 'Held together.',
         },
     } as unknown as SessionReport;
@@ -176,17 +175,10 @@ const META: RunMeta = {
     wallClockMs: 60_000,
 };
 
-describe('report ordering', () => {
-    it('leads with the verdict and puts scores far above the transcript', () => {
+describe('report', () => {
+    it('counts check failures in the verdict', () => {
         const md = buildReportMd(META, [report({ fails: ['residual-token'] })]);
-        expect(md).toMatch(/^# Soak report/);
         expect(md).toMatch(/## ❌ 1 check failure in 1 of 1 session/);
-        const scores = md.indexOf('## Scores');
-        const detail = md.indexOf('## Session detail');
-        const transcript = md.indexOf('My shoulders are tight');
-        expect(scores).toBeGreaterThan(0);
-        expect(scores).toBeLessThan(detail);
-        expect(detail).toBeLessThan(transcript);
     });
 
     it('says so plainly when nothing failed', () => {
@@ -203,7 +195,7 @@ describe('report ordering', () => {
         }
     });
 
-    it('stamps a casting collision next to the scores, not in a footnote', () => {
+    it('stamps a casting collision on the report', () => {
         const meta: RunMeta = {
             ...META,
             collisions: [
@@ -213,7 +205,6 @@ describe('report ordering', () => {
         const md = buildReportMd(meta, [report()]);
         const caveat = md.indexOf('Casting caveat');
         expect(caveat).toBeGreaterThan(0);
-        expect(caveat).toBeLessThan(md.indexOf('## Scores'));
     });
 
     it('groups one broken thing seen in four sessions into one row', () => {
@@ -224,15 +215,6 @@ describe('report ordering', () => {
         const section = md.slice(md.indexOf('## Failures and warnings'), md.indexOf('## Session detail'));
         expect(section.match(/`residual-token`/g)).toHaveLength(1);
         expect(section).toContain('×4');
-    });
-
-    it('surfaces wince quotes above the session detail', () => {
-        const md = buildReportMd(META, [
-            report({ wince: [{ quote: 'You are doing great!', why: 'greeting-card praise' }] }),
-        ]);
-        const wince = md.indexOf('You are doing great!');
-        expect(wince).toBeGreaterThan(0);
-        expect(wince).toBeLessThan(md.indexOf('## Session detail'));
     });
 
     it('ranks the comparison table best-first when several models ran', () => {

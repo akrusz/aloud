@@ -1,13 +1,9 @@
 /**
- * cloud-auth.ts — the hosted-session token flow. Covers the new Google
- * sign-in path (meditation-pal-rfb) and the dev fallback, with an injected KV
- * + fetch so it runs hermetically in Node.
+ * cloud-auth.ts — the hosted-session token flow (meditation-pal-rfb), with an
+ * injected KV + fetch so it runs hermetically in Node.
  *
- * Note: VITE_GOOGLE_CLIENT_ID is unset in the test env, so
- * isGoogleSignInConfigured() is false here — ensureCloudToken takes the dev
- * branch. The Google-configured branch (throws CloudSignInRequiredError) is a
- * build-time toggle we can't flip per-test; it's exercised by typecheck + the
- * unit assertion on googleSignIn directly.
+ * VITE_GOOGLE_CLIENT_ID is unset in the test env, so ensureCloudToken takes the
+ * dev branch unless a test sets a runtime client id.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';

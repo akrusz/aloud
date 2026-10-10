@@ -38,10 +38,6 @@ describe('CapacitorKv', () => {
         expect(await kv.get('theme')).toBe('dark');
     });
 
-    it('returns null for a missing key', async () => {
-        expect(await new CapacitorKv().get('nope')).toBeNull();
-    });
-
     it('delete removes only the prefixed key', async () => {
         const kv = new CapacitorKv();
         await kv.set('a', '1');
@@ -64,11 +60,5 @@ describe('CapacitorKv', () => {
         await kv.clear();
         expect(await kv.keys()).toEqual([]);
         expect(store.get('other-plugin:x')).toBe('y');
-    });
-
-    it('honours a custom prefix', async () => {
-        const kv = new CapacitorKv({ prefix: 'mp:' });
-        await kv.set('k', 'v');
-        expect(store.get('mp:k')).toBe('v');
     });
 });

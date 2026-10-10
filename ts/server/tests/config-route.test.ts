@@ -37,9 +37,4 @@ describe('GET /cloud/v1/config', () => {
             appleClientId: '',
         });
     });
-
-    it('needs no auth (it runs before sign-in)', async () => {
-        const res = await app({ GOOGLE_CLIENT_IDS: 'web-client-1' }).request('/cloud/v1/config');
-        expect(res.status).toBe(200);
-    });
 });

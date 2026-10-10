@@ -134,7 +134,7 @@ describe('CloudTtsEngine (hosted POST mode)', () => {
         expect(events).toEqual(['start', 'done']);
     });
 
-    it('still supports the legacy GET query mode (Flask)', async () => {
+    it('GETs with query params when usePost is off (the app backend and the public preview)', async () => {
         let seenUrl = '';
         const fetchImpl = (async (url: string | URL | Request) => {
             seenUrl = String(url);

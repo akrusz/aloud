@@ -1,15 +1,12 @@
 /**
- * Locks the cloud-access gate's core predicate (cloud-gate.ts). The load-
- * bearing insight: sign-in/credits are NOT gated by the LLM provider alone —
- * Cloud STT bills independently, so a local/BYOK LLM paired with the hosted
- * (hosted) STT choice must still trip the gate. A regression here would let a
- * hosted STT session start unauthenticated and fail mid-utterance.
+ * The cloud-access gate's core predicate (cloud-gate.ts). Sign-in/credits are
+ * NOT gated by the LLM provider alone: Cloud STT bills independently, so a
+ * local/BYOK LLM paired with the hosted STT choice must still trip the gate, or
+ * a hosted STT session starts unauthenticated and fails mid-utterance.
  *
- * sessionUsesCloud takes webMode as a param, but it also resolves the STT
- * choice (resolveSttChoice → sttEngineOptions), which gates the on-device
- * Whisper option on isTauri(). We mock isTauri so the "on desktop" case is
- * deterministic; the hosted-STT cases don't depend on it (the hosted choice is always
- * offered).
+ * sessionUsesCloud resolves the STT choice (resolveSttChoice → sttEngineOptions),
+ * which offers on-device Whisper only under isTauri(), so isTauri is mocked to
+ * make the "on desktop" cases deterministic.
  */
 import { describe, it, expect, vi } from 'vitest';
 
@@ -47,8 +44,6 @@ describe('sessionUsesCloud', () => {
         // resolves to itself regardless of webMode.
         expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud-gpt-transcribe'), true)).toBe(true);
         expect(sessionUsesCloud(setupWith('openai'), settingsWith('aloud-gpt-transcribe'), false)).toBe(true);
-        // The second hosted model spends credits just the same.
-        expect(sessionUsesCloud(setupWith('ollama'), settingsWith('aloud-gpt-transcribe'), true)).toBe(true);
     });
 
     it('is false for a local LLM + local Whisper STT on desktop (no cloud touched)', () => {
@@ -90,7 +85,7 @@ describe('sessionUsesCloud', () => {
 
         it('still trips on hosted STT, which bills whatever the circle is', () => {
             const setup = notingSetup('aloud', [{ type: 'sound' }]);
-            expect(sessionUsesCloud(setup, settingsWith('aloud'), true, 'noting')).toBe(true);
+            expect(sessionUsesCloud(setup, settingsWith('aloud-gpt-transcribe'), true, 'noting')).toBe(true);
         });
 
         it('still trips on an aloud: voice, which bills whatever the circle is', () => {
@@ -143,7 +138,7 @@ describe('sessionUsesCloud', () => {
             } as unknown as SessionSetup;
             expect(narratorIsOnlyCloudLeg(withCloudVoice, settingsWith('whisper'), false, 'noting')).toBe(false);
             expect(
-                narratorIsOnlyCloudLeg(soundCircleWithCloudNarrator, settingsWith('aloud'), true, 'noting')
+                narratorIsOnlyCloudLeg(soundCircleWithCloudNarrator, settingsWith('aloud-gpt-transcribe'), true, 'noting')
             ).toBe(false);
         });
 
