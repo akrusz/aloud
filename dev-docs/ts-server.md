@@ -28,11 +28,9 @@ curl localhost:8787/cloud/v1/me/estimates # public: credit-use bands per model/S
 curl localhost:8787/cloud/v1/me/packs     # public: credit packs for sale
 ```
 
-`npm run dev` (watch) vs `npm start` (one-shot) - both run via `tsx`, which
+`npm run dev` (watch) and `npm start` (one-shot) both run via `tsx`, which
 resolves the `@aloud/core` path alias at runtime so the proxy reuses core's
-provider classes (`AnthropicProvider`, etc.) for request-building and
-token-usage parsing. Billing rides on that shared usage split - that's the
-whole reason the server lives in this monorepo.
+provider classes (why: `ts/server/README.md`).
 
 ## Dev mode vs production mode
 
@@ -40,7 +38,7 @@ The boundary is the `ALOUD_ENV` env var (`loadConfig` in `config.ts`):
 
 | | Dev (default) | Production (`ALOUD_ENV=production`) |
 |---|---|---|
-| Missing secrets | boots with stubs (`dev-insecure-secret`, in-memory store) | **refuses to start** unless session secret + ≥1 Google client id + ≥1 provider key are set |
+| Missing secrets | boots with stubs (`dev-insecure-secret`, in-memory store) | **refuses to start** unless session secret, ≥1 Google client id, `ALOUD_DB_PATH`, `ALOUD_CORS_ORIGINS` and ≥1 provider key are set |
 | Content-check in logger | throws on a stray content field (catches mistakes loudly) | downgrades to drop-the-field (a logging slip can't crash a paying request) |
 | Stripe unset | billing routes report "not configured"; runs on free-grant only | same, but you'll want it configured |
 
@@ -58,7 +56,7 @@ load logic is `loadConfig` in `config.ts`.
 |---|---|---|
 | `ALOUD_ENV` | toggle prod checks | `production` or unset |
 | `PORT` | - | default 8787 |
-| `ALOUD_CORS_ORIGINS` | browser client | comma-sep; the `ui/dist` host origin(s) |
+| `ALOUD_CORS_ORIGINS` | browser + desktop clients | comma-sep; the `ui/dist` host origin(s) plus the desktop and mobile webview origins (listed at the top of [deploy.md](deploy.md)); **required in prod** (unset, CORS falls open to `*`) |
 | `ALOUD_DB_PATH` | durable credit ledger | SQLite file path (e.g. `/data/aloud.db` on a Fly volume); **required in prod**. Unset in dev → in-memory store, lost on restart |
 | `ALOUD_SESSION_SECRET` | signing session JWTs | `openssl rand -hex 32`; required in prod |
 | `GOOGLE_CLIENT_IDS` | sign-in | comma-sep web/iOS/android client ids; required in prod |
@@ -77,42 +75,29 @@ load logic is `loadConfig` in `config.ts`.
 | `ALOUD_ADMIN_TOKEN` | `/cloud/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
 | `ALOUD_ADMIN_EMAILS` | `/cloud/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access - the panel's Google sign-in path, so a phone never holds the static token |
 
-### Keys for the full hosted pipeline
-
-The whole meditation loop can run through the server:
-
-| Hop | Provider | Key |
-|---|---|---|
-| LLM (premium) | Anthropic | `ANTHROPIC_API_KEY` |
-| LLM (value tier) | Google Gemini (direct) | `GEMINI_API_KEY` |
-| STT | OpenAI Whisper (default) | `OPENAI_API_KEY` |
-| TTS | Azure AI Speech (default voice Harper), Google Cloud TTS, Inworld | `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`, `GOOGLE_TTS_API_KEY`, `INWORLD_API_KEY` |
-
 ## Running the full loop locally (UI ↔ server)
 
 Put one real provider key in `.env` (e.g. `ANTHROPIC_API_KEY`; `/health` then
-lists it under `providers`), and run `npm run web:dev` from the repo root (Vite
-on :4649 proxying `/app/v1` + `/cloud/v1` to Hono on :8787). In the UI pick
-provider **aloud cloud**, choose a model (populated live from
+lists it under `providers`), and run `npm run web:dev` from the repo root. In
+the UI pick provider **aloud cloud**, choose a model (populated live from
 `GET /cloud/v1/me/models`), and start a session; the first LLM turn signs in
 via the dev route below and caches the token.
 
 **On the hosted provider, STT and TTS also route through the server**
-(`/cloud/v1/stt`, OpenAI by default, and `/cloud/v1/tts`), so the whole pipeline
-runs server-side. STT needs `OPENAI_API_KEY` (or any backend via the
-`STT_*` overrides - see `config.ts` `resolveSttConfig`); TTS needs at least one
-TTS key (with none, the client falls back to browser `speechSynthesis`). Wiring: `stt-picker.createServerAloudStt`
-and `tts-picker.createCloudAloudTts`, selected in `views/session.ts` when
-`setup.provider === 'aloud'`.
+(`/cloud/v1/stt` and `/cloud/v1/tts`). STT needs `OPENAI_API_KEY` (or the
+`STT_*` overrides); TTS needs at least one TTS key (with none, the client falls
+back to browser `speechSynthesis`). Client wiring:
+`stt-picker.createServerAloudStt` and `tts-picker.createCloudAloudTts`, selected
+in `views/session.ts` when `setup.provider === 'aloud'`; the LLM leg is
+`ui/src/adapters/cloud-llm.ts`.
 
-**Auth - dev shortcut.** `/cloud/v1/llm/complete` is behind bearer auth. On a
-dev build with no Google client id configured, `ensureCloudToken()`
-(`ui/src/cloud-auth.ts`) falls back to `POST /cloud/v1/auth/dev` - a
-**local-only** route that mints a session for a fixed `dev@localhost` account
-(seeded with `ALOUD_FREE_SIGNUP_CREDITS`, auto-refilled when it runs dry). It
-**404s in production** (strict mode), so it's a dev convenience, not a backdoor.
-Client wiring: `ui/src/cloud-auth.ts` (token) + `ui/src/adapters/cloud-llm.ts`
-(`complete` + SSE `completeStream`).
+**Auth - dev shortcut.** `POST /cloud/v1/auth/dev` mints a session for a fixed
+`dev@localhost` account (seeded with `ALOUD_FREE_SIGNUP_CREDITS`, refilled when
+it runs dry). The route exists only when the server sets
+`ALOUD_ENABLE_DEV_AUTH` (opt-in, so a deploy that forgets `ALOUD_ENV` can't
+ship it); otherwise it 404s. A dev build's `ensureCloudToken()`
+(`ui/src/cloud-auth.ts`) uses it when no Google client id is configured, or
+with `?dev` when one is (see the cheatsheet's dev URL params).
 
 Quick handshake without the UI:
 
@@ -141,7 +126,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116). Optional `emailUpdates` body flag carries the signup opt-in |
 | `POST /cloud/v1/auth/email/login` | public | email/password sign-in; one generic 401 for wrong-password / unknown-email |
 | `POST /cloud/v1/auth/email/set-password` | session | add/change a password on an OAuth-created account |
-| `POST /cloud/v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s in production |
+| `POST /cloud/v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s unless `ALOUD_ENABLE_DEV_AUTH` is set |
 | `GET /cloud/v1/me` | session | account + live balance |
 | `PATCH /cloud/v1/me` | session | flip the email-updates opt-in (`{emailUpdates: boolean}`); returns the updated account view |
 | `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods). Also clears the email-updates opt-in with the scrubbed address |
@@ -151,7 +136,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
-| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), so it has its own per-minute guard plus a 5,000-a-day cap that only binds accounts with no credits (`deps.ts`). A command is two calls: the one-ask `command-gate`, then `command` if that says maybe. Not charged (~$0.00007/call); usage recorded as `typesafe`. Own rate budget (`deps.judgeGuard`, 90/min/account), separate from the 60/min every other metered route shares. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
+| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), and not charged (~$0.00007/call; usage recorded as `typesafe`), so it has its own rate budget (`deps.judgeGuard`, 90/min/account, separate from the 60/min every other metered route shares) plus a 5,000-a-day cap that only binds accounts with no credits. A command is two calls: the one-ask `command-gate`, then `command` if that says maybe. Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
 | `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
 | `POST /cloud/v1/billing/x402/buy/:packId` | session + payment | USDC-on-Base pack purchase (402 → sign → settle). Config-gated; see [x402.md](x402.md) |
@@ -239,10 +224,9 @@ sortable, filterable page with a player per voice, a shortlist that emits
 paste-ready `CURATED_VOICES` lines, and keyboard shortcuts (`e` play/pause,
 `w`/`s` prev/next, `f` shortlist; space is left alone so it still scrolls).
 
-Run it from **anywhere in the repo** through the npm delegate. Note the `--`,
-which passes the rest of the arguments through; and note that there is also a
-`scripts/` directory at the repo root, so calling the file by a bare relative
-path from the wrong one fails with a confusing `MODULE_NOT_FOUND`.
+Run it through the npm delegate, from anywhere in the repo (there is a second
+`scripts/` directory at the repo root, so a bare relative path from the wrong
+place fails with a confusing `MODULE_NOT_FOUND`):
 
 ```bash
 npm run voices                    # what we ship, as a session hears it (the default)
@@ -267,23 +251,20 @@ read from the catalog on every build, and an as-shipped clip whose voice has
 left the catalog (or changed style or pace) is dropped.
 
 Runs **merge**: auditioning one source adds to the page rather than replacing
-it, so building up google, then openai, then a new candidate as its key arrives
-works, and a quick spot-check does not destroy a roster that took minutes to
+it, so a quick spot-check does not destroy a roster that took minutes to
 render. `--fresh` starts over. State lives in `voice-previews/rows.json`.
 
-`curated` is the default and shows **only the voices already in
-`CURATED_VOICES`** - it is the set-the-defaults pass, not the discovery one.
-To find new voices, name a source. Google alone has ~130 English voices across
-en-US/en-GB/en-AU (30 Chirp3-HD per locale, plus Neural2 and Standard), which
-is roughly $0.70 and a few minutes to audition in full.
+`curated` (the default) shows **only the voices already in `CURATED_VOICES`**;
+to find new voices, name a source. Google alone has ~130 English voices across
+en-US/en-GB/en-AU (30 Chirp3-HD per locale, plus Neural2 and Standard), roughly
+$0.70 and a few minutes to audition in full.
 
 Sources are declared in `scripts/audition/sources.ts` - roster, synth call,
 prosody treatments, and cost model per engine. Beyond the three we ship (Google,
 Azure, Inworld) it carries key-gated adapters for OpenAI, Gemini TTS, Cartesia
-and Deepgram Aura-2;
-anything without a key is skipped and listed on the page with a signup link, so a
-partial run still produces a usable page. The keys are documented in
-`.env.example` under "Voice-audition keys":
+and Deepgram Aura-2; anything without a key is skipped and listed on the page
+with a signup link. The keys (also in `.env.example` under "Voice-audition
+keys"):
 
 | Env var | Engine | Billing | Get a key |
 |---|---|---|---|
@@ -320,8 +301,7 @@ Two things the page exists to make visible:
   (weakly honored - see meditation-pal-5yi1); Deepgram Aura-2 exposes no prosody
   control at all.
 
-Needs `GOOGLE_TTS_API_KEY`, `AZURE_SPEECH_KEY` and/or `INWORLD_API_KEY` in `.env`
-for the shipping sources. Costs a few cents (one short clip per voice per treatment).
+A curated run costs a few cents (one short clip per voice per treatment).
 
 ## Known limits
 

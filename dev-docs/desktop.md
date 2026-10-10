@@ -1,7 +1,7 @@
 # Desktop shell (Tauri 2)
 
-The desktop build wraps the TS UI (`ts/ui`) in a Tauri 2 native window.
-Scaffolded 2026-05-27; lives in `ts/src-tauri/`.
+The desktop build wraps the TS UI (`ts/ui`) in a Tauri 2 native window. It
+lives in `ts/src-tauri/`.
 
 ## Run it
 
@@ -126,15 +126,16 @@ Endpoints:
   (the webview can't run the web GIS popup); hands the result to aloud cloud's
   `/cloud/v1/auth/google/desktop`.
 - `/app/v1/open-config-folder`, `/app/v1/open-sessions-folder`,
-  `/app/v1/open-session-file/{id}`, `/app/v1/open-voice-settings` - cross-platform
-  `reveal_path()` helper reveals the app data dir, the sessions dir, or one
-  session's JSON; voice-settings opens macOS System Settings → Spoken Content on
-  Darwin, 400s elsewhere.
+  `/app/v1/open-session-file/{id}`, `/app/v1/open-voice-settings` - reveal the
+  app data dir or the sessions dir (`reveal_dir`), or open one session's JSON;
+  voice-settings opens macOS System Settings → Spoken Content on Darwin, 400s
+  elsewhere.
 
 ## Config notes
 
 - `tauri.conf.json`: identifier `app.aloud.meditation` (matches the Capacitor
-  bundle ID); window 1000×820, min 480×600.
+  bundle ID). The window (1000×820, min 480×600) is built in
+  `src-tauri/src/lib.rs`, not in the conf.
 - **Bundle art**: the app icon set (`src-tauri/icons/`) is generated from
   `assets/app-icon.svg` via `npx tauri icon` (dark `#110d08` rounded tile so it
   doesn't render as a "fried egg" on a transparent fill), then
@@ -146,15 +147,11 @@ Endpoints:
   without that, a dev run keeps yesterday's icon set and yesterday's usage
   strings (the merged plist is embedded in the binary, which is what macOS reads
   when dev runs it unbundled) with nothing to say the edit hadn't landed.
-  `tauri:build` was never affected: the bundler reads both at bundle time.
-  The DMG uses Tauri's
-  default window layout (light background, readable labels). A custom wordmark
-  background is parked in `assets/dmg-background.svg` (regen command in its header)
-  but **not currently wired** - a dark bundle background made the Finder icon
-  labels unreadable, so it's deferred until the layout/label contrast is sorted.
+  The DMG uses Tauri's default window layout. A custom wordmark background is
+  parked in `assets/dmg-background.svg` (regen command in its header) but **not
+  wired**: a dark background made the Finder icon labels unreadable.
 - `Cargo.toml`: crate name is `app` / lib `app_lib` (Tauri default; left as-is to
   avoid churn).
-- `src-tauri/target/` and `src-tauri/gen/schemas` are gitignored.
 
 ## Release (CI)
 
@@ -188,9 +185,9 @@ below).
 / `aloud_<version>_<arch>-setup.exe`. The website's `docs/js/download.js` matches these names - keep the two in
 sync if bundle naming changes.
 
-`scripts/release.sh` reads the version from `tauri.conf.json` (the source of
-truth), bumps it + `ts/package.json` (and its lockfile) in lockstep, and lints
-the TS/Rust stack (typecheck + `audit-gate.mjs` + `cargo check` + `cargo deny`).
+Cutting the release itself (`scripts/release.sh`; `tauri.conf.json` is the
+version source of truth): the cheatsheet's
+[Building & releasing](dev-cheatsheet.md#building--releasing).
 
 ## Auto-update (Tauri updater plugin)
 

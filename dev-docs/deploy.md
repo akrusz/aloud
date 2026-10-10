@@ -13,12 +13,13 @@ Two halves, deployed together (see [Release deploys](#release-deploys-one-tag-sh
 They're stitched together by two settings: the UI is **built** with
 `VITE_ALOUD_CLOUD_URL` = the server's public origin, and the server is
 **configured** with `ALOUD_CORS_ORIGINS` = every origin a client calls from.
-That's the web UI origin **plus the desktop webview origins** - the Tauri app
-calls the same hosted server cross-origin from `tauri://localhost` (macOS /
-Linux) and `http://tauri.localhost` (Windows), so leaving those out breaks
-sign-in/credits on desktop only (a failure mode that's invisible in browser
-testing). Mic capture needs a secure context, so the web halves must be real
-HTTPS (a self-signed LAN cert won't do here).
+That's the web UI origin **plus the app webview origins**: the desktop and
+mobile apps call the same hosted server cross-origin, from `tauri://localhost`
+(macOS / Linux), `http://tauri.localhost` (Windows), `capacitor://localhost`
+(iOS) and `https://localhost` (Android). Leaving one out breaks sign-in/credits
+on that platform only (a failure mode that's invisible in browser testing). Mic
+capture needs a secure context, so the web halves must be real HTTPS (a
+self-signed LAN cert won't do here).
 
 ---
 
@@ -88,7 +89,7 @@ fly secrets set \
   AZURE_SPEECH_KEY=... \
   INWORLD_API_KEY=... \
   TYPESAFE_API_KEY=... \
-  ALOUD_CORS_ORIGINS='https://<your-ui-host>,tauri://localhost,http://tauri.localhost' \
+  ALOUD_CORS_ORIGINS='https://<your-ui-host>,tauri://localhost,http://tauri.localhost,capacitor://localhost,https://localhost' \
   STRIPE_SECRET_KEY=sk_live_... \
   STRIPE_WEBHOOK_SECRET=whsec_... \
   ALOUD_ADMIN_TOKEN=$(openssl rand -hex 32)
@@ -107,7 +108,8 @@ fly secrets set \
 
 Required vs optional in production is enforced at boot (`loadConfig`, strict
 mode): the server **refuses to start** without `ALOUD_SESSION_SECRET`,
-`GOOGLE_CLIENT_IDS`, **`ALOUD_DB_PATH`** (set in `fly.toml` → the volume), and
+`GOOGLE_CLIENT_IDS`, **`ALOUD_DB_PATH`** (set in `fly.toml` → the volume),
+`ALOUD_CORS_ORIGINS`, and
 ≥1 provider key. Stripe/STT/TTS/admin are optional (features degrade or report
 "not configured"). Full annotated list: `ts/server/.env.example` and the config
 table in [ts-server.md](ts-server.md).
@@ -127,52 +129,44 @@ curl https://<your-app>.fly.dev/health      # {"ok":true,"providers":[...],...}
 
 ### Deploy hygiene (read before `fly deploy`)
 
-A few non-obvious things that have bitten us. This is a money server (the credit
-ledger) - treat a deploy as a production change, not a save button.
+Things that have bitten us. This is the money server (the credit ledger).
 
 1. **`fly deploy` ships your whole working tree, not a commit.** The Docker build
-   context is whatever's in `ts/` *right now* - uncommitted edits, and every
-   commit on your current branch that isn't live yet. So deploying from a feature
-   branch pushes that entire branch's divergence to prod, even the part you
-   weren't thinking about. **Habit:** before deploying, run `git status` (clean?)
-   and know what's on this branch vs what's running. Deploy from `main` or a
-   branch you've deliberately readied - not "whatever I happen to have checked
-   out." (This is how a half-finished schema change once rode along with an
-   unrelated deploy and crashed the boot.)
+   context is whatever's in `ts/` *right now*: uncommitted edits, and every
+   commit on the current branch that isn't live yet. Run `git status` first and
+   deploy from `main` or a branch you've deliberately readied. (A half-finished
+   schema change once rode along with an unrelated deploy and crashed the boot.)
 
-2. **A release marked `complete` does NOT mean the server booted.** `fly
-   releases` showing "complete" means the *config* rolled out; a broken image
-   can still crash-loop. **So always hit it and watch the boot after deploying:**
+2. **A release marked `complete` does NOT mean the server booted.** It means
+   the *config* rolled out; a broken image can still crash-loop. Hit it and
+   watch the boot after deploying:
 
    ```bash
    curl https://aloud-cloud.fly.dev/health
    fly logs -a aloud-cloud                      # watch it boot; look for "aloud cloud up"
    ```
 
-3. **Rolling back is one command** - your escape hatch when a deploy goes bad.
-   Every release keeps its image; redeploy a previous one by digest:
+3. **Rolling back is one command.** Every release keeps its image; redeploy a
+   previous one by digest:
 
    ```bash
    fly releases -a aloud-cloud --image          # find a known-good DOCKER IMAGE ref
    fly deploy --image <that-ref> --config server/fly.toml -a aloud-cloud
    ```
 
-   The volume (and thus the ledger) is untouched by a rollback - you're only
-   swapping the code image, not the data.
+   A rollback swaps the code image only; the volume (the ledger) is untouched.
 
-4. **Build it locally first when the Dockerfile changed.** `docker build -f
-   server/Dockerfile -t aloud-cloud .` from `ts/` runs the exact same build Fly
-   does, so a typo fails on your laptop in seconds instead of after a push.
+4. **Build it locally first when the Dockerfile changed**: `docker build -f
+   server/Dockerfile -t aloud-cloud .` from `ts/` is the same build Fly runs.
 
 ### Durability & scale
 
 The credit ledger is a SQLite file (`SqliteCreditsStore`, `node:sqlite`) on the
-mounted volume at `/data/aloud.db`. This is the durable swap for the in-memory
-dev store - **balances survive restarts and redeploys**. Because a Fly
-volume binds to one machine, this app is **single-machine by design**
-(`min_machines_running = 1`, kept warm so the first turn after an idle stretch
-has no cold start; `auto_stop_machines = "stop"`, never `"suspend"`, see below).
-That's correct at trial scale. To scale out later: implement `CreditsStore` over Postgres
+mounted volume at `/data/aloud.db`, so balances survive restarts and redeploys.
+Because a Fly volume binds to one machine, this app is **single-machine by
+design** (`min_machines_running = 1`, kept warm so the first turn after an idle
+stretch has no cold start; `auto_stop_machines = "stop"`, never `"suspend"`,
+see below). To scale out later: implement `CreditsStore` over Postgres
 (`ts/server/src/credits/store.ts` is the whole interface - the ledger logic on
 top is storage-agnostic) and drop the `[mounts]` block.
 
@@ -290,13 +284,12 @@ directly: `cd ts && npm ci && ALOUD_ENV=production ALOUD_DB_PATH=/var/lib/aloud/
 
 ## UI hosting (aloud.rest/app)
 
-**Decided** (meditation-pal-sgp): the browser app is a **subpath under the
-existing GitHub Pages site** - built with Vite `base: '/app/'` into `docs/app/`,
-so it serves at `https://aloud.rest/app/` alongside the marketing site at `/`.
-Reuses the existing Pages + cert + domain; the SPA router is base-path aware
+The browser app is a **subpath under the GitHub Pages site**: built with Vite
+`base: '/app/'` into `docs/app/`, so it serves at `https://aloud.rest/app/`
+alongside the marketing site at `/`. The SPA router is base-path aware
 (`ui/src/route-base.ts`) and `docs/404.html` carries the deep-link redirect.
 
-### Deploy (recommended): the workflow
+### Deploy: the workflow
 
 `.github/workflows/deploy-web.yml` builds the hosted UI into `docs/app/` in the
 runner, then uploads the whole `docs/` tree (marketing site + built app) to Pages
@@ -314,47 +307,35 @@ It runs three ways, and **which app it builds depends on how it was triggered**:
 The app is never built from `main` (except on a repo with no releases at all,
 which warns) - that's what keeps the hosted client in step with the server.
 
-One-time setup: set **Pages source to "GitHub Actions"** (Settings → Pages →
-Build and deployment → Source), and add a **`v*` tag rule** to the
-`github-pages` environment (Settings → Environments → github-pages → Deployment
-branches and tags). Pages ships with a default-branch-only policy, and a release
-deploy runs under the tag - without the rule it fails with *"Tag v2.3.0 is not
-allowed to deploy to github-pages"* (hit on v2.3.0). Recovery, if it ever
-resurfaces: run **Deploy web app** from `main` with `app_ref` set to the tag,
-which publishes the same thing from an allowed ref.
+Repo settings it depends on (set once):
 
-The custom domain (`aloud.rest`) is preserved via `docs/CNAME`, which rides along
-in the artifact. The build output `docs/app/` is gitignored - local
-`ui:build:hosted` runs won't dirty the tree.
+- **Pages source = "GitHub Actions"** (Settings → Pages → Build and deployment).
+- A **`v*` tag rule** on the `github-pages` environment (Settings →
+  Environments → github-pages → Deployment branches and tags). Pages ships with
+  a default-branch-only policy and a release deploy runs under the tag, so
+  without the rule it fails with *"Tag v2.3.0 is not allowed to deploy to
+  github-pages"* (hit on v2.3.0). Recovery if it resurfaces: run **Deploy web
+  app** from `main` with `app_ref` set to the tag.
+- Repo **Variables** (Settings → Secrets and variables → Actions):
+  `ALOUD_CLOUD_URL`, the hosted `/cloud` origin (e.g.
+  `https://aloud-cloud.fly.dev`), and optionally `GOOGLE_CLIENT_ID`, the web
+  OAuth client id. The UI discovers the client id at runtime from
+  `GET /cloud/v1/config` (`setRuntimeGoogleClientId`), so baking it only lets
+  the button paint before that probe resolves.
 
-Also set two repo **Variables** (Settings → Secrets
-and variables → Actions → Variables):
+The custom domain (`aloud.rest`) rides along in the artifact as `docs/CNAME`.
 
-- `ALOUD_CLOUD_URL` - the hosted `/cloud` origin (e.g. `https://aloud-cloud.fly.dev`).
-- `GOOGLE_CLIENT_ID` - the web OAuth client id (= `GOOGLE_CLIENT_IDS` on the
-  server). Not secret; it's baked into the public client. **Optional now**: the
-  UI also discovers the client id at runtime from the server's public
-  `GET /cloud/v1/config` (capabilities probe → `setRuntimeGoogleClientId`), so
-  sign-in works on any install - desktop/local included - that points at a
-  Google-configured server, even with nothing baked in. Baking it just lets the
-  button paint before the probe resolves.
-
-### Deploy (manual fallback)
+### Building it by hand
 
 ```bash
 cd ts
 VITE_ALOUD_CLOUD_URL=https://aloud-cloud.fly.dev \
   VITE_GOOGLE_CLIENT_ID=<web-oauth-client-id> \
   npm run ui:build:hosted          # → repo-root docs/app/ (gitignored)
-# Then publish docs/ to Pages yourself, e.g. via the gh-pages CLI or by
-# re-running the workflow. docs/app/ is no longer committed.
 ```
 
-Either way, the server's `ALOUD_CORS_ORIGINS` must include the UI origin
-(`https://aloud.rest`) so the browser may call the API cross-origin.
-
-> The dev/desktop build (`npm run ui:build`, base `/` → `ui/dist`) is untouched;
-> only `ui:build:hosted` (base `/app/`) writes `docs/app`.
+Only `ui:build:hosted` (base `/app/`) writes `docs/app`; the dev/desktop build
+(`npm run ui:build`, base `/` → `ui/dist`) doesn't touch it.
 
 ---
 
@@ -371,7 +352,7 @@ nothing needs baking into the build.
   the free grant.
 - **Apple** - set `APPLE_CLIENT_IDS`. Trusted, same as Google.
 
-**Account deletion + anti-farming (meditation-pal-8jc).** Settings → *Danger zone*
+**Account deletion + anti-farming (meditation-pal-8jc).** Account → *Danger zone*
 → *Delete account* calls `DELETE /cloud/v1/me`, a **soft-delete**: the account is
 anonymized and tombstoned (can't sign in), its identities are freed (so the same
 Google/Apple/email can start fresh), and any remaining balance is forfeited - but
@@ -380,84 +361,61 @@ money, it's gated on a hash of the **normalized email** (`auth/email-key.ts` - c
 that **survives deletion**. So a deleted user can return and buy credits but can't
 re-claim the freebie. No config; works on any store.
 
-### Sign in with Apple - one-time Apple Developer setup
+### Sign in with Apple (web) - Apple Developer setup
 
-You have an Apple Developer membership; this is what to create (all in
-[developer.apple.com](https://developer.apple.com) → Certificates, IDs & Profiles):
+All in [developer.apple.com](https://developer.apple.com) → Certificates, IDs &
+Profiles. Two things that cost time the first time:
 
-> **You do NOT need a Key.** Skip the **Keys** section entirely. This is a
-> verify-only flow: the browser's Apple JS popup returns an `id_token` (JWT) that
-> the server verifies against Apple's *public* JWKS (`auth/apple.ts`). The private
-> `.p8` key is only for server-to-server token-endpoint calls (code exchange /
-> refresh / revoke), which we don't make. If registering a Sign in with Apple
-> **key** shows *"There are no identifiers available to associate"* - that's not a
-> key problem, it's the prerequisite below: no App ID has the capability enabled
-> yet (the same reason the Services ID's "Primary App ID" dropdown would be empty).
+- **No Key is needed.** This is a verify-only flow: the browser's Apple JS popup
+  returns an `id_token` that the server verifies against Apple's *public* JWKS
+  (`auth/apple.ts`). The `.p8` key is only for token-endpoint calls (code
+  exchange / refresh / revoke), which we don't make. If registering a key shows
+  *"There are no identifiers available to associate"*, no App ID has the
+  capability enabled yet (the same reason the Services ID's "Primary App ID"
+  dropdown would be empty).
+- **The token's `aud` differs by platform.** A native iOS token carries the
+  **App ID / bundle id** (`app.aloud.meditation`); a web token carries a
+  separate **Services ID**, which can't reuse the bundle id string
+  (`app.aloud.meditation.web`). `APPLE_CLIENT_IDS` takes both, comma-separated,
+  and the server accepts a token whose `aud` matches any of them.
 
-> **Bundle ID vs Services ID - you are not stuck with your existing bundle id.**
-> Apple uses two different identifier *types*, and the `aud` of the token differs
-> by platform: a **native** iOS app's token is `aud` = the **App ID / bundle id**
-> (your existing `app.aloud.meditation`); a **web** sign-in's token is `aud` = a
-> separate **Services ID**. Identifiers must be globally unique, so the Services
-> ID can't be the same string as the bundle id - make a new one (e.g.
-> `app.aloud.meditation.web`). Keep `app.aloud.meditation` for the future native
-> app; create the Services ID for the web flow now. `APPLE_CLIENT_IDS` accepts
-> BOTH (comma-separated) - the server verifies a token whose `aud` matches any of
-> them, so one server handles web + native.
+1. **App ID** `app.aloud.meditation`: enable **Sign in with Apple** (Edit →
+   Capabilities).
+2. **Services ID** `app.aloud.meditation.web` (Identifiers → +, type Services
+   IDs): enable **Sign in with Apple**, click **Configure**. Primary App ID
+   `app.aloud.meditation`; Domain `aloud.rest`; Return URL
+   `https://aloud.rest/app/`, the exact origin + base path the UI posts back to
+   (`redirectURI` in `ui/src/apple-signin.ts`). Add `https://localhost:4649/`
+   to test Apple locally.
+3. `fly secrets set APPLE_CLIENT_IDS=app.aloud.meditation.web` (append
+   `,app.aloud.meditation` when the native app ships) and redeploy. List the
+   **web Services ID first**: the client reads the first id from
+   `/cloud/v1/config`.
 
-1. **App ID** (Identifiers → +, type App): you already have `app.aloud.meditation` - just confirm **Sign in with Apple** is enabled on it (Edit → Capabilities).
-2. **Services ID** (Identifiers → +, type Services IDs) - THIS is the web client
-   id the browser uses. Give it a new, unique identifier, e.g.
-   `app.aloud.meditation.web`. Enable **Sign in with Apple**, click **Configure**:
-   - **Primary App ID**: `app.aloud.meditation`.
-   - **Domains**: `aloud.rest`.
-   - **Return URLs**: the exact app origin + base path the browser posts back to - `https://aloud.rest/app/` (the UI uses `window.location.origin + BASE_URL`).
-     Add `https://localhost:4649/` too if you want to test Apple locally.
-3. Set the server secret to the **Services ID** (add the bundle id later when the
-   native app ships): `fly secrets set APPLE_CLIENT_IDS=app.aloud.meditation.web` - or both: `APPLE_CLIENT_IDS=app.aloud.meditation.web,app.aloud.meditation`.
-   That's all the server needs - it verifies Apple's token against Apple's public
-   JWKS; **no private key or client-secret JWT is required** for this verify-only,
-   popup web flow.
-4. Redeploy. The Apple button now appears wherever the UI reaches the server (the
-   client reads the Services ID from `/cloud/v1/config` - the first id in
-   `APPLE_CLIENT_IDS`, so list the **web Services ID first**).
-
-> Note: Apple's web popup requires HTTPS and an exact Return URL match - a
-> mismatch is the usual "it silently won't open" cause. The id token's `email`
-> may be a private-relay address, and Apple omits it on repeat sign-ins (the
-> identity is already linked by then, so that's fine).
+Apple's web popup requires HTTPS and an exact Return URL match; a mismatch is
+the usual "it silently won't open" cause. The id token's `email` may be a
+private-relay address, and Apple omits it on repeat sign-ins (the identity is
+already linked by then).
 
 ---
 
-## Wiring checklist
+## Wiring checklist (standing up a new instance)
 
 - [ ] Server deployed; `GET /health` returns `ok:true` with your providers.
 - [ ] Volume mounted; `ALOUD_DB_PATH=/data/aloud.db` (balances persist across a
       `fly deploy`).
-- [ ] R2 backup wired: `R2_*` secrets set; `fly logs | grep litestream` shows
-      replication and `litestream snapshots /data/aloud.db` lists a snapshot
+- [ ] `R2_*` secrets set and replication verified
       (see [Backups](#backups-litestream--r2)).
 - [ ] Google OAuth web client id created; `GOOGLE_CLIENT_IDS` set on the server.
-      The UI then serves the sign-in button to any install via `/cloud/v1/config`
-      (baking `VITE_GOOGLE_CLIENT_ID` is optional - it only avoids a one-probe
-      delay). Without `GOOGLE_CLIENT_IDS` the client falls back to dev sign-in,
-      which 404s in prod.
-- [ ] (Optional) Apple Services ID created + `APPLE_CLIENT_IDS` set (see
-      "Sign in with Apple" above). Email/password needs no setup.
+      Without it the client falls back to dev sign-in, which 404s in prod.
+- [ ] (Optional) Apple Services ID created + `APPLE_CLIENT_IDS` set.
+      Email/password needs no setup.
 - [ ] UI built with `VITE_ALOUD_CLOUD_URL` = the server origin.
-- [ ] Server `ALOUD_CORS_ORIGINS` includes the UI origin **and the desktop
-      webview origins**: `https://aloud.rest`, `tauri://localhost` (macOS /
-      Linux), `http://tauri.localhost` (Windows). The desktop app calls this
-      same server cross-origin from inside the Tauri webview; if its origins
-      are missing, sign-in and credits fail **only on desktop**, which browser
-      testing won't catch.
+- [ ] Server `ALOUD_CORS_ORIGINS` = the UI origin **and every app webview
+      origin** (top of this doc): a missing one fails sign-in and credits on
+      that platform only, which browser testing won't catch.
 - [ ] Stripe live keys + webhook endpoint (`POST /cloud/v1/billing/webhook`)
-      registered in the Stripe dashboard, if selling credits at launch.
-- [ ] `ALOUD_ADMIN_TOKEN` set; spot-check `GET /cloud/v1/admin/metrics` for
-      spend monitoring.
+      registered in the Stripe dashboard.
+- [ ] `ALOUD_ADMIN_TOKEN` set; spot-check `GET /cloud/v1/admin/metrics`.
 
-## Known limits
-
-See [ts-server.md → Known limits](ts-server.md#known-limits). The durable store,
-UI sign-in, and Stripe are all live; the standing constraint is that the ledger
-is single-machine (above).
+Standing limits: [ts-server.md → Known limits](ts-server.md#known-limits).

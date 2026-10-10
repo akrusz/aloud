@@ -147,16 +147,10 @@ How the rough cut was made, and what the build repeats.
    kinetic type, a git-history time-lapse (Flask to TS, glooow to aloud., the
    first paying user), a founder clip in his own voice.
 
-**Toolchain** (all installed, nothing new needed): build scenes as HTML/canvas
-using the app's real CSS tokens (`ts/ui/src/app-base.css`,
-`dev-docs/style.md`), Knewave for the logo only, and the orb. Render them frame
-by frame with playwright-core driving the system Chrome, then assemble with
-ffmpeg (libx264). Real UI footage: `npm run web:dev` (Vite :4649 + Hono :8787)
-captured via Playwright; `scripts/site-screenshots.mjs` shows how the site shots
-drive the UI. Kill any dev servers afterwards.
-
-**Tools**: `play-video/tools/` has the two scripts above and the three build
-stages; each file's header has its command line.
+**Toolchain** for the other two cuts is the Play video's ("Building the video"
+above): scenes as HTML using the app's real CSS tokens, Knewave for the logo
+only, rendered frame by frame in the system Chrome and assembled with ffmpeg.
+Kill any dev servers afterwards.
 
 **Existing assets**: `assets/store/video-title-card.*`,
 `assets/store/video-end-card.*`, `scripts/build-promo-video.sh` (tops and tails

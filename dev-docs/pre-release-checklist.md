@@ -37,9 +37,9 @@ check each of these still reflects reality:
   graphic and both video cards from their SVGs (needs Knewave installed).
 - **`README.md`** - product description, modes, provider list, platform notes,
   tips, install instructions, screenshot reference. The **download links are
-  expected to name the last published release**, not the one being cut - they're
-  bumped after the release ships and its assets exist. A version behind is
-  correct here; don't report it.
+  expected to name the last published release**, not the one being cut:
+  `scripts/release.sh` rewrites them in its version-bump commit (stable
+  releases only). A version behind is correct here; don't report it.
 - **App Store / Play listings** - name, subtitle, description, keywords; especially
   the provider/feature claims and the mobile-provider caveat. The **draft copy is
   tracked** in `dev-docs/store-descriptions.md`; the live listings are in the

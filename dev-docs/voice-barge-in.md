@@ -63,8 +63,9 @@ On the engine-driven path two things sit on top of that energy test
 The generic wrapper (`barge-in.ts`) has neither: it is the plain
 energy-over-threshold test described above.
 
-The Silero model itself (which export, why, and how to upgrade it) is documented
-in [`ts/ui/src/assets/README.md`](../ts/ui/src/assets/README.md).
+The Silero model (run by `ts/ui/src/adapters/silero-vad.ts`; which export, why,
+and how to upgrade it) is documented in
+[`ts/ui/src/assets/README.md`](../ts/ui/src/assets/README.md).
 
 ### Echo cancellation (first line of defense)
 
@@ -117,13 +118,4 @@ and no watchdog/cooldown machinery is needed.
 | `PRE_BUFFER_MS` | 2000 | `whisper-pcm-stt.ts` | Onset retained so a barge-in's first word survives |
 | `LEAD_KEEP_MS` | 500 | `whisper-pcm-stt.ts` | How much of that onset survives the pre-POST quiet trim (`submitPayload`), so the retained ramp isn't billed as room tone. Raise if a first word ever clips |
 
-## Key files
-
-| File | Role |
-|---|---|
-| `ts/ui/src/barge-in.ts` | `BargeInListener` + `wrapTtsWithBargeIn` - the generic parallel-stream detector |
-| `ts/ui/src/adapters/whisper-pcm-stt.ts` | Engine-driven barge-in on the continuous stream + onset pre-buffer |
-| `ts/ui/src/adapters/silero-vad.ts` | The speech-probability model behind `isSpeechLike` (onnxruntime-web; model + provenance in [`ts/ui/src/assets/README.md`](../ts/ui/src/assets/README.md)) |
-| `ts/ui/src/views/session.ts` | Picks the pathway (`engineDrivenBargeIn`), wires `onBargeIn` / `setBargeInHandler`, owns the phone mic cooldown + the echo-window check |
-| `ts/src/facilitation/echo-guard.ts` | `looksLikeTtsEcho` - the transcript-level backstop |
-| `ts/tests/barge-in.test.ts` | Detector unit tests |
+Detector unit tests: `ts/tests/barge-in.test.ts`.

@@ -55,9 +55,9 @@ apply**: internal testing can be promoted straight to production review.
 
 ## Each store update (do it in one pass)
 
-- [ ] Bump `versionCode` **and** `versionName` in `ts/android/app/build.gradle`
-      (Play refuses a reused `versionCode`), then `scripts/android-aab.sh` and
-      upload the `.aab` to the track.
+- [ ] `scripts/android-aab.sh` (it bumps `versionCode` and syncs `versionName`
+      in `ts/android/app/build.gradle` itself; Play refuses a reused
+      `versionCode`), then upload the `.aab` to the track.
 - [ ] Release notes ("What's new") for the track.
 - [ ] **Store copy**: `dev-docs/store-descriptions.md` is the source, the
       consoles are the deploy. Paste any changed paragraph into Play Console

@@ -20,35 +20,26 @@ cd ts && npm run tauri:dev       # desktop shell only
 cd ts && npm run desktop:dev     # desktop shell + Hono server (:8787) together
 ```
 
-`tauri:dev` starts Vite (UI on **:4649**) + compiles and runs the Rust shell. The
-shell's embedded backend serves `/app/v1/*` on a loopback port.
-For hosted features (accounts/credits/hosted voices) the Hono server must also be
-running; without it, `/cloud/v1/*` calls fail with `ECONNREFUSED` and the UI
-degrades to "hosted unavailable" (expected, harmless). `desktop:dev` is the
-Tauri analog of `web:dev`: it runs the shell + Hono in one terminal so hosted
-features resolve. Both combined launchers go through `scripts/dev.mjs`: a single
-Ctrl-C stops everything, and if either side exits on its own (e.g. you close the
-Tauri window) the other is torn down too.
+`tauri:dev` starts Vite (UI on **:4649**) + compiles and runs the Rust shell,
+whose embedded backend serves `/app/v1/*` on a loopback port. Hosted features
+(accounts/credits/hosted voices) also need the Hono server: without it,
+`/cloud/v1/*` calls fail with `ECONNREFUSED` and the UI degrades to "hosted
+unavailable" (expected, harmless). `desktop:dev` runs the shell + Hono in one
+terminal. Both combined launchers (`desktop:dev`, `web:dev`) go through
+`ts/scripts/dev.mjs`: one Ctrl-C stops everything, and either side exiting (e.g.
+closing the Tauri window) tears the other down.
 
 ### Web UI in a browser (Vite)
 
 ```bash
 cd ts && npm run web:dev         # UI (:4649) + Hono server (:8787) together
-cd ts && npm run ui:dev          # UI only (:4649) - needs the Hono server too (below)
+cd ts && npm run ui:dev          # UI only (:4649) - needs the Hono server too
 ```
 
-`web:dev` runs both in one terminal (one Ctrl-C, or either side exiting, stops
-both - see `scripts/dev.mjs`); use it for browser preview so
-STT/voices/providers/billing resolve.
-
-The Vite proxy (`ui/vite.config.ts`) forwards:
-- `/app/v1/*` → **Hono** on :8787 (the app-backend surface; no rewrite - Hono
-  speaks `/app/v1` natively).
-- `/cloud/v1/*` → **Hono** on :8787 (same server; hosted accounts/credits/proxy).
-- `/ollama/*` → local Ollama daemon on :11434.
-
-So with `ui:dev` alone, start Hono separately (`npm run server:dev`) and load
-:4649.
+Use `web:dev` for browser preview so STT/voices/providers/billing resolve. The
+Vite proxy (`ui/vite.config.ts`) forwards `/app/v1/*` and `/cloud/v1/*` to Hono
+on :8787 and `/ollama/*` to the local Ollama daemon on :11434, so with `ui:dev`
+alone, start Hono separately (`npm run server:dev`).
 
 ### Phone dev over USB (chrome://inspect port forwarding)
 
@@ -140,17 +131,14 @@ so it works in bundled builds too. Sticky for the tab; `?debug=off` clears it
 
 ### Developer mode (hidden settings section)
 
-The desktop webview has no URL bar, so the params above get a settings home:
-tap the **version line in the About box 7 times** to toggle developer mode
+Tap the **version line in the About box 7 times** to toggle developer mode
 (`dev-mode.ts`, persisted in `localStorage aloud:devMode`; the version line
-grows a `· dev` marker). Settings then shows a **Developer** section: a
-**URL params** field (type a query, or paste a URL, and the app reloads with
-it), then one row per switch with its param beside it. The check-in debug HUD
-and the update-preview banner are there in every build; the `?mode=` override,
-the `?dev` cloud sign-in bypass and the simulated failures only in dev builds,
-behind the same compile-time gate as their params. A release build therefore
-honors only `?debug=` and `?previewUpdate`, typed or not. Invisible to anyone
-who just installed the app.
+grows a `· dev` marker). Settings then shows the **Developer** section
+described above. The check-in debug HUD and the update-preview banner are there
+in every build; the `?mode=` override, the `?dev` cloud sign-in bypass and the
+simulated failures only in dev builds, behind the same compile-time gate as
+their params. A release build therefore honors only `?debug=` and
+`?previewUpdate`, typed or not.
 
 Three switches also live there with no URL twin:
 
@@ -306,14 +294,11 @@ minimal environment as double-clicking the installed app:
 scripts/dev-bundle.sh                 # debug .app build + `open` (reads ~/.tauri key, prompts once)
 ```
 
-Most work doesn't need this - `tauri:dev` runs the real Rust backend + UI with
-hot reload, so providers/modes/About/voices/STT all iterate instantly there.
-Reach for `dev-bundle.sh` only for bundle-launch-specific bugs, and GitHub RCs
-only as the final "does the signed, shipped artifact work" gate.
+Everything else iterates in `tauri:dev`; GitHub RCs are only the final "does
+the signed, shipped artifact work" gate.
 
-Landing-page screenshots are generated, not hand-taken - so they're the same
-size and framing every time and cheap to redo when the UI changes. Four files:
-the setup screen (`aloud-screen-{light,dark}.webp`) and an exploration session
+Landing-page screenshots are generated, not hand-taken. Four files: the setup
+screen (`aloud-screen-{light,dark}.webp`) and an exploration session
 (`aloud-session-{light,dark}.webp`), shown as a carousel by `docs/js/shots.js`.
 
 ```bash
@@ -353,8 +338,9 @@ upstream, so a missed pull fails before any prompts.
 updater endpoint - and never auto-update existing installs. Promote to a real
 release (the non-prerelease that becomes `latest`) only once an RC checks out.
 
-It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth) +
-`ts/package.json` (and its lockfile) in lockstep, lints TS (`typecheck`) + Rust
+It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth),
+`ts/package.json` (and its lockfile), the Android `versionName`/`versionCode`
+and, for a stable release, the README download links, lints TS (`typecheck`) + Rust
 (`cargo check`), runs both advisory gates (`audit-gate.mjs`, `cargo deny`), and
 offers the pre-release doc check
 ([pre-release-checklist.md](pre-release-checklist.md)). **Prerequisites:** clean
@@ -392,9 +378,8 @@ npm run cap:ios        # + open Xcode
 npm run cap:android    # + open Android Studio
 ```
 
-Rebuilding from *inside* Android Studio repackages whatever `cap sync` last
-copied into `android/` - it never rebuilds `ui/dist` - so web-side changes only
-reach the device through the `cap:*` scripts above.
+Rebuilding from *inside* Android Studio never rebuilds `ui/dist`, so web-side
+changes only reach the device through the `cap:*` scripts above.
 
 **Play Store release bundle** (`cap:android:run` installs a debug APK; Play
 uploads need the signed `.aab`):
@@ -405,40 +390,27 @@ scripts/android-aab.sh   # bump versionCode + sync versionName from package.json
 # → ts/android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-Pass `--no-bump` to rebuild the current version. Signing comes from the
-gitignored `android/keystore.properties`; the script commits the `build.gradle`
-version bump itself once the bundle builds (pathspec commit - a failed build
-leaves it uncommitted), and prints the latest stable release's notes for Play's
-"What's new" box. Full keystore/Play App Signing detail:
-[mobile-signing.md](mobile-signing.md).
-
-The mobile app wraps `ui/dist` in the OS WebView, runs in **web mode**, and
-talks to aloud cloud (`VITE_ALOUD_CLOUD_URL` from the committed
-`ts/ui/.env.production`). Adapters, native config and the patched speech plugin:
-**[mobile.md](mobile.md)**.
+Pass `--no-bump` to rebuild the current version. The script commits the
+`build.gradle` version bump itself once the bundle builds, and prints the latest
+stable release's notes for Play's "What's new" box. Keystore and Play App
+Signing: [mobile-signing.md](mobile-signing.md). Everything else mobile
+(adapters, native config, the patched speech plugin): **[mobile.md](mobile.md)**.
 
 ## Config & environment
 
-- **Hosted server**: `ts/server/.env` (see `.env.example`) - provider keys
-  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
-  `GEMINI_API_KEY`; `OPENAI_API_KEY` also drives server STT by default, or the
-  `STT_*` overrides), the hosted-voice keys (`AZURE_SPEECH_KEY`,
-  `GOOGLE_TTS_API_KEY`, `INWORLD_API_KEY`), `TYPESAFE_API_KEY` (the judge),
-  `ALOUD_SESSION_SECRET`,
-  `GOOGLE_CLIENT_IDS`, Stripe keys,
-  `ALOUD_ADMIN_TOKEN`, and `ALOUD_UI_DIR` (serve `ui/dist` from the same process - the single-box self-host story).
+- **Hosted server**: `ts/server/.env` (copy `.env.example`, which annotates
+  every var). What each key turns on, and what degrades without it: the table
+  in [ts-server.md](ts-server.md#configuration).
 - **UI build**: `VITE_ALOUD_CLOUD_URL` - the hosted origin baked into a
   static/desktop/mobile build so `/app/v1` + `/cloud/v1` resolve off-origin.
   Committed default in `ts/ui/.env.production` (production builds only; dev
   uses the Vite proxy); an env var / CI repo var overrides it.
 - **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono - both `/app` and `/cloud`
   proxy targets), `OLLAMA_URL`.
-- **BYOK keys** entered in the UI live in the device's localStorage; sessions
-  call the provider directly. Only the model-list lookup relays one
-  (`x-provider-key` to `/app/v1/models`), and nothing is persisted server-side.
-  The desktop's own TypeSafe key (voice commands without aloud cloud) rides the
-  same header to the shell's `/app/v1/judge`, so it stays on the device's own
-  backend.
+- **BYOK keys** live in the device's localStorage and sessions call the
+  provider directly. Only the model-list lookup (`x-provider-key` to
+  `/app/v1/models`) and the desktop's own-TypeSafe-key judge relay
+  (`/app/v1/judge`, on-device) carry one; nothing is persisted server-side.
 
 ## Adding a hosted model
 
@@ -464,8 +436,6 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
   through `t()` with a matching entry in `ui/src/i18n/zh.ts`; rewording English
   orphans the zh entry and `tests/i18n.test.ts` fails until it's re-keyed. See
   [language.md](language.md).
-- **`/cloud/v1/*` `ECONNREFUSED` in `tauri:dev`** → the Hono server isn't
-  running. Start `cd ts/server && npm run dev`, or ignore it for local-only work.
 - **whisper.cpp's `whisper_model_load:` dump** is silenced
   (`whisper_rs::install_logging_hooks()` in `server.rs`); enable whisper-rs's
   `log_backend` feature to see those internals again.
@@ -494,17 +464,10 @@ Declared npm/Cargo dependencies don't; the manifests cover those.
 
 ## Landing site
 
-Static site in `docs/` (hand-written). Published to GitHub Pages as an
-**artifact** by `.github/workflows/deploy-web.yml` (Pages source = "GitHub
-Actions" - the old "serve `/docs` from a branch" mode is retired), which uploads
-the whole `docs/` tree: marketing pages plus the built app at `docs/app/`.
-Download buttons hit the GitHub `releases/latest` API at load, so no redeploy
-per release.
-
-**The two halves are on different clocks.** Marketing pages publish on every
-push to `main` that touches `docs/`; the app is built from the **latest
-published release**, and only a release (`deploy-release.yml`) moves it - after
-the server deploy succeeds, so client and API ship together. See
+Static site in `docs/` (hand-written; layout in `docs/README.md`), published to
+GitHub Pages by `.github/workflows/deploy-web.yml` together with the built app
+at `docs/app/`. Marketing pages publish on every push to `main` that touches
+`docs/`; the app only moves on a release. Detail:
 [deploy.md](deploy.md#release-deploys-one-tag-ships-everything).
 
 ```bash

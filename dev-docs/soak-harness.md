@@ -33,7 +33,7 @@ in `ts/soak-runs/<timestamp>/` (gitignored): `report.md` (read this one),
 `run.json`, and one JSON per session with the full transcript + event log. Exit
 code 1 when any deterministic check fails, so a release script can gate on it.
 
-## Before you run: two things that bite
+## Before you run: three things that bite
 
 **`soak:web` owns the machine's audio in and out.** BlackHole becomes both the
 default output and the default input for the run's duration. Don't play anything
@@ -117,8 +117,7 @@ invalidate the result:
 - **Judge = facilitator.** LLM judges prefer their own generations. In a
   `--facilitator=a,b,c` comparison the bias lands on ONE contestant, which is worse
   than applying to all of them: the ranking becomes partly an artifact of who the
-  judge is. This used to be the shipped default, which is why the default judge is
-  now a different family.
+  judge is.
 - **Meditator = facilitator.** Both halves of the conversation stop being
   independent.
 
@@ -251,14 +250,6 @@ hold together?" Run evals when choosing a model; run soak when changing the engi
 or prompts. `--facilitator=<a,b,c>` bridges them: the same scenarios under each
 model, scored by one judge that never sees the model's name. Use `--sessions=3`+
 for a decision. The judge rubric here and `evals/rubric.md` should converge.
-
-## What it has caught
-
-- **`meditation-pal-9era`** (fixed, f2699f6) - a reply of nothing but control
-  tokens (`[WAIT:8m]`, a bare `[HOLD]`) scrubbed to empty, so the app recorded a
-  blank turn and spoke silence at the meditator with no error. The bare `[HOLD]`
-  was worse: it armed the confirm handshake for a question never asked. Found live
-  in a tier-1 run, 2026-08-21; the `empty-spoken-turn` check now guards it.
 
 ## Tier 3: hostile lifecycle, not "tier 2 on a phone"
 

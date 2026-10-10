@@ -19,7 +19,7 @@ Logo treatment:
 - **Stroke**: `var(--brand-stroke)` (yellow), via `-webkit-text-stroke` + `paint-order: stroke fill` so the stroke renders *outside* the letters (doesn't eat into the fill).
 - **Stroke widths scale with size**: 2px on `.brand-mark` (inline, ~1.4em of surrounding text), 3px on `.nav-brand` (1.8rem), 4px on `.about-app-name` (2.4rem). Hover on `.nav-brand` thickens to 4px.
 - **Letter-spacing**: `0.05em` on nav/about, `0.04em` inline.
-- **No text-shadow glow.** Stroke replaces it - we experimented with both, stroke won.
+- **No text-shadow glow.** The stroke replaces it.
 
 When the brand appears inline in body copy (welcome cards, hints), use `<span class="brand-mark">aloud.</span>` rather than a heading. The class sizes it at `1.4em` relative to surroundings so Knewave reads at proper brand presence without breaking the line.
 
@@ -49,7 +49,7 @@ All at the top of `ui/src/app-base.css` - dark is the `:root` default, light is 
 --bg-secondary:  #fcf7e6   /* one step RAISED from the ground (nav, base buttons) -
                               same direction as dark mode; pre-zine light had
                               secondary below primary, backwards from dark */
---bg-card:       #f9d0ae
+--bg-card:       #f6d8bf
 --bg-input:      #fffaf2
 --bg-surface:    #ffffff
 --bg-tertiary:   #e9dab9
@@ -157,10 +157,7 @@ For body copy that references the page's info buttons (tour hints, welcome cards
 
 ## Things to avoid
 
-- **Don't use Knewave outside the three brand classes.** Settings page headers, welcome `<h1>`s, etc. all use the body font.
+Beyond the don'ts in each section above:
+
 - **Don't use `#f5f600`** (pure yellow) - it's green-leaning. Use `#ffd820` / `#f5d020` / `#e8b820` family.
 - **Don't use the old warm ambers** (`#d4873a`, `#e8a840`, `#c07830`, etc.) **for UI chrome** - they predate the rebrand and don't match it. They remain correct for dark-mode embers, where they sit against a near-black bg (see Embers above).
-- **Don't pink-tint the dark-mode backgrounds.** Keep them warm-neutral browns. (We tried and the relative contrast made the pink accent look bluer.)
-- **Don't add glow rings to `.tour-welcome` cards.** The flat tinted overlay does the separation work.
-- **Don't tint `--accent-glow` yellow.** Yellow at low alpha reads green over dim bgs - stay orange.
-- **Don't use `text-shadow` for brand glow.** Stroke replaced it.

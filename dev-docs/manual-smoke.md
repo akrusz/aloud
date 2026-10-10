@@ -5,12 +5,11 @@ priority order. Nothing here is automated, and that's the point: every walk-back
 in the mic path so far passed typecheck, the full vitest run, and `ui:build`,
 and was caught by a human talking into a laptop.
 
-Automation covers more than it did when this list was filed. `npm run soak`
-drives the engine on a fake clock, and `npm run soak:web` drives real Chrome over
-a virtual audio device (see [soak-harness.md](soak-harness.md)). Run those first
-- they're cheaper than you are. What's left below is what they structurally
-cannot reach: the desktop Tauri shell, permission refusals, real speakers and
-real microphones, and phones.
+`npm run soak` drives the engine on a fake clock, and `npm run soak:web` drives
+real Chrome over a virtual audio device (see [soak-harness.md](soak-harness.md)).
+Run those first - they're cheaper than you are. What's left below is what they
+structurally cannot reach: the desktop Tauri shell, permission refusals, real
+speakers and real microphones, and phones.
 
 Related: [pre-release-checklist.md](pre-release-checklist.md) is docs/copy drift,
 not behaviour. [mobile-device-validation.md](mobile-device-validation.md) is the
