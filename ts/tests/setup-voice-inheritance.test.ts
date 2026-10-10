@@ -38,7 +38,12 @@ describe('loadSetup voice/rate inheritance', () => {
         // A previously-persisted setup carrying a different (now stale) voice/rate.
         store.set(
             'aloud:preview:setup',
-            JSON.stringify({ voice: 'browser:old-voice', ttsRate: 120, intention: 'keep me' })
+            JSON.stringify({
+                voice: 'browser:old-voice',
+                ttsRate: 120,
+                intention: 'keep me',
+                intentionByMode: { exploration: 'keep me' },
+            })
         );
 
         const setup = await settings.loadSetup();
@@ -85,16 +90,6 @@ describe('loadSetup voice/rate inheritance', () => {
 });
 
 describe('loadSetup per-mode intention', () => {
-    it('migrates a legacy single intention to the active mode and keeps it there', async () => {
-        store.set(
-            'aloud:preview:setup',
-            JSON.stringify({ meditationType: 'exploration', intention: 'play with flow' })
-        );
-        const setup = await settings.loadSetup();
-        expect(setup.intention).toBe('play with flow');
-        expect(setup.intentionByMode).toEqual({ exploration: 'play with flow' });
-    });
-
     it('does not leak one mode’s intention into another on load', async () => {
         // Typed under exploration, then switched to felt sense before the
         // per-mode split existed: the stale shared value must not become the

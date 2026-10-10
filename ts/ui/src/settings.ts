@@ -416,14 +416,8 @@ export async function loadSetup(): Promise<SessionSetup> {
     // Language follows the voice/rate rule: the Settings value is canonical and
     // always wins (loadAppSettings already normalized it against LANGUAGES).
     merged.language = s.language;
-    // Migrate a pre-split setup (one shared intention, no per-mode map): credit
-    // the legacy text to the mode it was last used with, then make `intention`
-    // canonical for the active mode so another tab's value can't leak in.
-    if (!merged.intentionByMode || Object.keys(merged.intentionByMode).length === 0) {
-        merged.intentionByMode = merged.intention
-            ? { [merged.meditationType]: merged.intention }
-            : {};
-    }
+    // `intention` is canonical for the active mode, so another tab's value
+    // can't leak in.
     merged.intention = merged.intentionByMode[merged.meditationType] ?? '';
     // A sound renamed or removed since this setup was saved would 404 silently.
     const known = (x: string) => (NOTING_SOUNDS as readonly string[]).includes(x);

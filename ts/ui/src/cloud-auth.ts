@@ -12,12 +12,10 @@
  */
 
 import { createKv } from './adapters/kv.js';
-import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import { cloudUrl } from './cloud-base.js';
 import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
 import { setRetreatCovered, clearRetreatCovered } from './cloud-coverage.js';
 import { isDevBypass } from './app-mode.js';
-import { isCapacitor } from './is-desktop.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
@@ -147,31 +145,7 @@ export class CloudSignInRequiredError extends Error {
 }
 
 export async function getCloudToken(): Promise<string | null> {
-    const token = await kv().get(TOKEN_KEY);
-    if (token !== null) return token;
-    return liftLegacyToken();
-}
-
-/** One-time lift of a token an older mobile build left in the webview's
- *  localStorage (which iOS can evict - meditation-pal-7n22) into native
- *  Preferences, rather than silently ending a tester's session at the upgrade.
- *  Native only, and only when the durable slot is empty. Sign-out sets the flag
- *  too, so a stale localStorage copy can never resurrect a session the user
- *  just ended. */
-let legacyLifted = false;
-async function liftLegacyToken(): Promise<string | null> {
-    if (legacyLifted || backendOverride || !isCapacitor()) return null;
-    legacyLifted = true;
-    try {
-        const legacy = new LocalStorageKv();
-        const token = await legacy.get(TOKEN_KEY);
-        if (!token) return null;
-        await kv().set(TOKEN_KEY, token);
-        await legacy.delete(TOKEN_KEY);
-        return token;
-    } catch {
-        return null;
-    }
+    return kv().get(TOKEN_KEY);
 }
 
 /** Adopt a slid session: the server re-mints a token once the presented one is a
@@ -217,15 +191,6 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
 
 export async function clearCloudToken(): Promise<void> {
     await kv().delete(TOKEN_KEY);
-    // Drop the pre-7n22 copy too, so the lift above can't sign the user back in.
-    legacyLifted = true;
-    if (!backendOverride && isCapacitor()) {
-        try {
-            await new LocalStorageKv().delete(TOKEN_KEY);
-        } catch {
-            /* no webview storage - nothing to drop */
-        }
-    }
 }
 
 /** DELETE /cloud/v1/me (meditation-pal-8jc). Soft-delete server-side: identities

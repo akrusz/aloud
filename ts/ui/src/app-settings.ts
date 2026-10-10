@@ -223,14 +223,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
     // browser locale. An explicit stored choice wins.
     if (!raw) return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
     try {
-        const parsed = JSON.parse(raw) as Partial<AppSettings> & {
-            /** Pre-radio check-in toggle; folded into checkinTiming on load. */
-            silenceCheckinsEnabled?: boolean;
-        };
-        if (parsed.checkinTiming === undefined && parsed.silenceCheckinsEnabled === false) {
-            parsed.checkinTiming = 'none';
-        }
-        delete parsed.silenceCheckinsEnabled;
+        const parsed = JSON.parse(raw) as Partial<AppSettings>;
         // Language must be an offered code: the pre-c3a0 list had ~30, so a
         // stored 'es'/'ja' from that era normalizes back to the browser seed
         // rather than riding invisibly under a select that can't show it.
