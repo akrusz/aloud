@@ -111,9 +111,10 @@ const M = 1_000_000;
  *    session; small/open models mishandle them and a bare completion won't show
  *    it.
  * 6. Housekeeping: pretty name in ui/src/model-picker.ts CLOUD_MODEL_NAMES;
- *    allowlist + rate assertions in server/tests/model-additions.test.ts; decide
- *    curated vs expanded-tier (`expanded: true` hides it behind the picker's
- *    "Show all available models" toggle).
+ *    decide curated vs expanded-tier (`expanded: true` hides it behind the
+ *    picker's "Show all available models" toggle). No per-model rate or flag
+ *    tests: this table is their one home, and
+ *    server/tests/model-allowlist.test.ts checks its shape for every entry.
  */
 
 /** Keyed by `${provider}:${model}`. Order is the picker's order (the client
