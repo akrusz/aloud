@@ -27,6 +27,7 @@ import { fetchMe } from './cloud-auth.js';
 import { creditAmount } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { openExternal } from './external-links.js';
+import { purchaseChannel } from './purchase-channel.js';
 import { t } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
 
@@ -52,6 +53,9 @@ function dollars(cents: number): string {
  * "succeeds" in place; a USDC pack resolves true after settling.
  */
 export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promise<boolean> {
+    // The backstop for a caller that didn't check: a store build must never
+    // reach our own checkout (purchase-channel.ts).
+    if (purchaseChannel() === 'none') return Promise.resolve(false);
     if (document.getElementById(OVERLAY_ID)) return Promise.resolve(false);
 
     return new Promise<boolean>((resolve) => {

@@ -6,9 +6,10 @@
  * server/src/pricing/meter.ts.
  */
 
-import { confirmDialog } from './dialog.js';
+import { alertDialog, confirmDialog } from './dialog.js';
 import { getCloudToken, fetchMe } from './cloud-auth.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
+import { purchaseChannel } from './purchase-channel.js';
 import { showSignInModal } from './sign-in-modal.js';
 import { withTimeout } from './net-timeout.js';
 import { t } from './i18n.js';
@@ -45,6 +46,12 @@ export async function showCloudsExplainer(): Promise<void> {
     const hint = (await needsFreeCloudsHint()) ? `${t(FREE_CLOUDS_LINE)}\n\n` : '';
     // html mode for the copy's own <strong>/<em> (EXPLAINER is our own static
     // copy, safe to inject).
+    // A build that sells nothing has only the sign-in grant to offer, so once
+    // signed in there is no "Get ☁" to press.
+    if (purchaseChannel() === 'none' && (await getCloudToken())) {
+        await alertDialog(ART + t(EXPLAINER) + hint, t('Got it'), { html: true });
+        return;
+    }
     const getClouds = await confirmDialog(ART + t(EXPLAINER) + hint, {
         okLabel: t('Get ☁'),
         cancelLabel: t('Got it'),

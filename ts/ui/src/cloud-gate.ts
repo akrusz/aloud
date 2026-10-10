@@ -19,8 +19,9 @@ import { detectCapabilities } from './capabilities.js';
 import { fetchMe, getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
 import { getKnownBalance } from './cloud-balance.js';
 import { showSignInModal } from './sign-in-modal.js';
-import { choiceDialog } from './dialog.js';
+import { alertDialog, choiceDialog } from './dialog.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
+import { purchaseChannel, topUpHint } from './purchase-channel.js';
 import { t } from './i18n.js';
 
 /** Whether this session will hit a metered cloud service: the 'aloud' LLM
@@ -153,7 +154,8 @@ export function blocksForCredits(
 
 /** Out of credits at Begin: offer a top-up instead of starting a session whose
  *  first line would be the out-of-credits apology. Proceeds only if a purchase
- *  settles in place (USDC); a card pack navigates away to Stripe. */
+ *  settles in place (USDC); a card pack navigates away to Stripe. A build that
+ *  sells nothing just says so. */
 async function ensureCredits(): Promise<boolean> {
     let account: Awaited<ReturnType<typeof fetchMe>>;
     try {
@@ -162,6 +164,10 @@ async function ensureCredits(): Promise<boolean> {
         return true;
     }
     if (!blocksForCredits(account)) return true;
+    if (purchaseChannel() === 'none') {
+        await alertDialog([t("You're out of clouds"), topUpHint()].filter(Boolean).join('\n\n'));
+        return false;
+    }
     return showBuyCreditsModal({
         title: t("You're out of clouds"),
         subtitle: t('Top up to keep going, or switch to a local/BYOK provider in Settings.'),

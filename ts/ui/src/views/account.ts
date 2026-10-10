@@ -22,6 +22,7 @@ import {
 } from '../cloud-billing.js';
 import { creditAmount, RATE_EMOJI } from '../credit-rate.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
+import { purchaseChannel, topUpHint } from '../purchase-channel.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { showSignInModal } from '../sign-in-modal.js';
 import { confirmTypedDialog, alertDialog } from '../dialog.js';
@@ -84,6 +85,8 @@ async function render(root: HTMLElement): Promise<void> {
                ${t('Connect Google or Apple to claim your free credits →')}
            </button>`
         : '';
+    const sells = purchaseChannel() === 'web';
+    const hint = topUpHint();
 
     body.innerHTML = `
         <section class="settings-section">
@@ -100,8 +103,9 @@ async function render(root: HTMLElement): Promise<void> {
                         ? t('Retreat access - usage is on your retreat for now')
                         : t('{amount} remaining', { amount: creditAmount(account.creditsRemaining) })
                 }</span>
-                ${account.retreatCovered ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">${t('Buy {clouds}', { clouds: RATE_EMOJI })}</button>`}
+                ${account.retreatCovered || !sells ? '' : `<button type="button" class="btn btn-primary" id="acct-buy">${t('Buy {clouds}', { clouds: RATE_EMOJI })}</button>`}
             </div>
+            ${!account.retreatCovered && hint ? `<p class="form-hint">${hint}</p>` : ''}
             <p class="form-hint clouds-hint-row">
                 <span>${t('☁ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.')}</span>
                 <button type="button" class="btn btn-secondary" id="acct-clouds-what">${t('What are {clouds}?', { clouds: RATE_EMOJI })}</button>

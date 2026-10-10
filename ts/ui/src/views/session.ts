@@ -154,6 +154,7 @@ import { t } from '../i18n.js';
 import { showErrorToast } from '../toast.js';
 import { alertDialog, confirmDialog } from '../dialog.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
+import { purchaseChannel } from '../purchase-channel.js';
 import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { OUT_OF_CREDITS_MESSAGE, BILLING_PAUSED_FINISH } from '../billing-messages.js';
@@ -1274,6 +1275,7 @@ export async function mountSessionView(
         // A retreat attendee (meditation-pal-414) shouldn't be nudged to buy:
         // their cap reset restores access, not a top-up.
         if (getRetreatCovered()) return;
+        if (purchaseChannel() === 'none') return;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'buy-clouds-inline';

@@ -65,8 +65,10 @@ release goes through the same review as production.
         of `wlp9`.
       - One reply on an Inworld voice (Luna, Wren, Silas, Clive): first phoneme
         intact (`2igi`).
-      - One spoken command, and one tap on buy credits (Stripe opens and
-        returns).
+      - One spoken command.
+      - No buy button anywhere: the Account page shows the balance and "at
+        aloud.rest" as text that does nothing when tapped, and "What are ☁?"
+        offers only "Got it" once signed in.
 - [ ] **Listing pass** (see "Each store update" below for the copy): recheck
       screenshots against the current UI (2+ phone, portrait 9:16; they live
       only in the console), short + full description, feature graphic and 512
@@ -78,22 +80,11 @@ release goes through the same review as production.
       timestamp params, age-restricted videos and videos with ads on.
 - [ ] **Reviewer demo account**: sign in with it once and check it still holds
       credits. The App access text was written in September.
-- [ ] **Decide the purchase path before review.** The app's buy button opens
-      Stripe (`buy-credits-modal.ts` → `openExternal`, no mobile gate). Bead
-      `zp47` called that sanctioned in the US/UK/EEA; Google's pages as read on
-      2026-10-10 say otherwise. Payments policy section 4 bars in-app "buttons,
-      links, messaging ... or other calls to action" toward another payment
-      method **in every country**, and each exception is a program to enroll in
-      first, with its own API integration (information screen, transaction
-      reporting) and service fee: external content links (US, fees since
-      2026-10-01), external offers (EEA), billing choice (UK). Picking
-      countries does not cover it. Internal testing has no review, so this has
-      never been looked at. The choices: no purchase path in the Android app
-      (credits bought on the web still land in the account), enroll, or Play
-      Billing packs.
+- [ ] **App access text**: reread it in the console for any line about buying
+      credits in the app. Nothing is sold there now (see "Buying ☁" below).
 - [ ] **Open testing release**: Testing → Open testing → promote the tested
-      build from internal. Pick countries, give the feedback email, send for
-      review.
+      build from internal. Pick countries (billing no longer limits the
+      choice), give the feedback email, send for review.
 - [ ] **Once approved**: the site's platform line (`docs/index.html`: "iOS and
       Android are in closed beta") becomes an open-beta line with the Play
       link. A `docs/` push goes live at once, so not before.
@@ -179,10 +170,36 @@ the App ID, `PrivacyInfo.xcprivacy`, export-compliance flag).
       keywords, support + privacy URLs, age rating.
 - [ ] Submit for App Store review (a few days).
 
+## Buying ☁ in the store builds
+
+Nothing is sold in the mobile app: `purchaseChannel()` (`purchase-channel.ts`)
+is `'none'` there, and every buy entry point asks it. ☁ bought on the web land
+in the same account. The rules as read on 2026-10-10 (they move, reread them):
+
+- **Play**: Payments policy section 4 bars in-app "buttons, links, messaging ...
+  or other calls to action" toward another payment method, in every country.
+  Each exception is a program to enroll in first, with an API integration and a
+  service fee (external content links in the US, external offers in the EEA,
+  billing choice in the UK). Bead `zp47` called the Stripe link-out sanctioned;
+  it is not. A consumption-only app **may** say where to buy in plain text with
+  no link, which is what `topUpHint` does on Android. Naming the domain is
+  within that: Google's own example reads "any movie you rent through our
+  website.com will be immediately available to view in the app". If a reviewer
+  flags it anyway, the fallback is "on our website", one string.
+- **App Store**: 3.1.1 requires in-app purchase for credits, and 3.1.3(b) lets
+  web-bought credits be spent in the app only if they are also sold there.
+  3.1.3(f) allows no call to action for an outside purchase at all, so iOS says
+  nothing. The US storefront permits links, with the commission in litigation.
+
+- [ ] **Store-billed packs** (Play Billing, StoreKit), priced up to cover the
+      store's cut: the third value of `purchaseChannel()`. The same modal, a
+      native billing plugin, and a server check that credits the ledger the way
+      the Stripe webhook does. On Play a link-out would save only the 5% billing
+      fee (the service fee applies either way), so it is not worth a program.
+      Credits bought in-app may not expire (3.1.1). **iOS needs this before its
+      review**; Android can run the beta without it.
+
 ## Optional, not blocking
 
 - [ ] Trademark the stylized "aloud." mark (bead `lkh`): for clone takedowns
       later, not for approval.
-- [ ] Native StoreKit / Play Billing credit packs. Deferred, but see "Decide
-      the purchase path" above: the Stripe link-out it was deferred in favour of
-      is not cleared on Play.

@@ -625,6 +625,7 @@ export const ZH: Record<string, string> = {
     "Whisper model still loading. Try again in a moment.": "Whisper 模型仍在加载。请稍后重试。",
     "Working…": "处理中……",
     "You": "你",
+    "You can add more at aloud.rest": "你可以在 aloud.rest 添加更多",
     "You can also select multiple, or leave all unchecked to keep things open.": "也可以多选，或者全部不选，让一切保持开放。",
     "You won't get update emails.": "你将不会收到更新邮件。",
     "You're on the latest version ({version}).": "你已是最新版本（{version}）。",
