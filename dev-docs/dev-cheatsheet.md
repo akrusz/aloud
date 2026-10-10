@@ -407,10 +407,11 @@ Signing: [mobile-signing.md](mobile-signing.md). Everything else mobile
   uses the Vite proxy); an env var / CI repo var overrides it.
 - **Vite dev overrides**: `ALOUD_CLOUD_URL` (Hono - both `/app` and `/cloud`
   proxy targets), `OLLAMA_URL`.
-- **BYOK keys** live in the device's localStorage and sessions call the
-  provider directly. Only the model-list lookup (`x-provider-key` to
-  `/app/v1/models`) and the desktop's own-TypeSafe-key judge relay
-  (`/app/v1/judge`, on-device) carry one; nothing is persisted server-side.
+- **BYOK keys** live on the device (localStorage; native Preferences on
+  mobile, `ui/src/api-keys.ts`) and sessions call the provider directly. Only
+  the model-list lookup (`x-provider-key` to `/app/v1/models`) and the
+  desktop's own-TypeSafe-key judge relay (`/app/v1/judge`, on-device) carry
+  one; nothing is persisted server-side.
 
 ## Adding a hosted model
 

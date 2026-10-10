@@ -68,7 +68,7 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 
 - **aloud cloud**: `ts/server/.env` (copy `.env.example`) - provider keys, `ALOUD_SESSION_SECRET`, `GOOGLE_CLIENT_IDS` / `GOOGLE_DESKTOP_CLIENT_ID(+SECRET)`, Stripe keys, etc.
 - **UI build**: `VITE_ALOUD_CLOUD_URL` bakes the hosted origin into a static/desktop/mobile build. The committed default lives in `ts/ui/.env.production` (build-only; dev uses the Vite proxy); repo var `ALOUD_CLOUD_URL` overrides it in CI.
-- **BYOK keys** entered in the UI stay in the device's localStorage, and sessions call the provider directly. Only the model-list lookup relays a key (`x-provider-key` to `/app/v1/models`); nothing is persisted server-side. A desktop sit's own TypeSafe key (voice commands without aloud cloud) rides the same header to the shell's `/app/v1/judge` relay, which is on-device.
+- **BYOK keys** entered in the UI stay on the device (localStorage; native Preferences on mobile), and sessions call the provider directly. Only the model-list lookup relays a key (`x-provider-key` to `/app/v1/models`); nothing is persisted server-side. A desktop sit's own TypeSafe key (voice commands without aloud cloud) rides the same header to the shell's `/app/v1/judge` relay, which is on-device.
 
 ## Workflow notes
 
