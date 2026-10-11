@@ -7,7 +7,7 @@ import { ClaudeProxyProvider } from '../src/llm/claude-proxy.js';
 interface SpawnCall {
     binary: string;
     args: readonly string[];
-    options?: { shell?: boolean };
+    options?: { shell?: boolean; cwd?: string; env?: Record<string, string | undefined> };
 }
 
 let activeSpawnState: {
@@ -45,7 +45,7 @@ vi.mock('node:child_process', async () => {
     const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
     return {
         ...actual,
-        spawn: ((cmd: string, args: readonly string[], options?: { shell?: boolean }) => {
+        spawn: ((cmd: string, args: readonly string[], options?: SpawnCall['options']) => {
             const state = activeSpawnState;
             if (!state) throw new Error('spawn called without active fake state');
             state.calls.push({ binary: cmd, args, ...(options && { options }) });
@@ -89,6 +89,26 @@ describe('ClaudeProxyProvider', () => {
         activeSpawnState = null;
     });
 
+    it('runs where and as the caller says, at the effort it asks for', async () => {
+        const calls = fakeSpawn(JSON.stringify({ result: 'ok' }));
+        const provider = new ClaudeProxyProvider({
+            binaryPath: '/bin/claude',
+            effort: 'low',
+            cwd: '/somewhere/empty',
+            env: { PATH: '/bin' },
+        });
+        await provider.complete([{ role: 'user', content: 'hi' }]);
+        const { args, options } = calls[0]!;
+        expect(args[args.indexOf('--effort') + 1]).toBe('low');
+        expect(options?.cwd).toBe('/somewhere/empty');
+        expect(options?.env).toEqual({ PATH: '/bin' });
+        // Left alone, it inherits both.
+        const plain = fakeSpawn(JSON.stringify({ result: 'ok' }));
+        await new ClaudeProxyProvider({ binaryPath: '/bin/claude' }).complete([{ role: 'user', content: 'hi' }]);
+        expect(plain[0]!.options).not.toHaveProperty('cwd');
+        expect(plain[0]!.options).not.toHaveProperty('env');
+    });
+
     it('shells out to claude with the right flags and a JSON output format', async () => {
         const calls = fakeSpawn(JSON.stringify({ result: 'What do you notice?', stop_reason: 'end_turn' }));
         const provider = new ClaudeProxyProvider({ binaryPath: '/usr/local/bin/claude' });
@@ -105,6 +125,7 @@ describe('ClaudeProxyProvider', () => {
         expect(args).toContain('--disable-slash-commands');
         // Or every MCP tool the user has rides along in every turn.
         expect(args).toContain('--strict-mcp-config');
+        expect(args).not.toContain('--effort');
         expect(args).toContain('--output-format');
         expect(args).toContain('json');
         expect(args).toContain('--system-prompt');

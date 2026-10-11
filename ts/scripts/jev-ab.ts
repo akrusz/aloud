@@ -8,12 +8,15 @@
  *   npm run jev:ab -- resume       (one)
  *   npm run jev:ab -- --runs 3     (repeat each call; shows verdict flips)
  *
- * Needs TYPESAFE_API_KEY and ANTHROPIC_API_KEY, from ts/server/.env or the
- * environment. Latency here is from this machine, not from Fly: for the real
- * number read `judge` lines in `fly logs` after a shadow-mode session.
+ * Needs TYPESAFE_API_KEY, from ts/server/.env or the environment. Haiku runs on
+ * your subscription through the `claude` CLI (soak/providers.ts scriptClaude);
+ * ALOUD_CLAUDE_VIA=api puts it on ANTHROPIC_API_KEY, which is the only way its
+ * latency column means anything. Jev's latency is from this machine, not from
+ * Fly: for the real number read `judge` lines in `fly logs` after a
+ * shadow-mode session.
  */
 
-import { AnthropicProvider } from '../src/llm/index.js';
+import type { LLMProvider } from '../src/llm/index.js';
 import {
     classifyHoldConfirm,
     classifyHoldRequest,
@@ -30,6 +33,7 @@ import {
 } from '../src/facilitation/utterance-judge.js';
 import { askNouls } from '../server/src/providers/typesafe.js';
 import { loadServerEnv } from '../soak/env.js';
+import { claudeVia, scriptClaude } from '../soak/providers.js';
 
 interface Case {
     text: string;
@@ -152,7 +156,7 @@ const CORPUS: Record<ClassifierId, Case[]> = {
     ],
 };
 
-const LLM: Record<ClassifierId, (p: AnthropicProvider, text: string) => Promise<boolean | 'error'>> = {
+const LLM: Record<ClassifierId, (p: LLMProvider, text: string) => Promise<boolean | 'error'>> = {
     resume: async (p, t) => {
         const v = await classifyResumeIntent(p, t);
         return v === 'error' ? 'error' : v === 'resume';
@@ -182,8 +186,8 @@ function quantile(xs: number[], q: number): number {
 
 const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
 
-async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: string; anthropic: string }): Promise<Row[]> {
-    const haiku = new AnthropicProvider({ apiKey: keys.anthropic, model: 'claude-haiku-5-5' });
+async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: string }): Promise<Row[]> {
+    const haiku = scriptClaude('claude-haiku-5-5');
     const rows: Row[] = [];
     for (const c of CORPUS[id]) {
         const row: Row = { ...c, answers: [], judgeMs: [], llm: [], llmMs: [] };
@@ -285,13 +289,17 @@ async function main(): Promise<void> {
     const ids = picked.length ? picked : CLASSIFIER_IDS;
 
     const typesafe = process.env['TYPESAFE_API_KEY'];
-    const anthropic = process.env['ANTHROPIC_API_KEY'];
-    if (!typesafe || !anthropic) {
-        console.error('Need TYPESAFE_API_KEY and ANTHROPIC_API_KEY (ts/server/.env or the environment).');
+    if (!typesafe) {
+        console.error('Need TYPESAFE_API_KEY (ts/server/.env or the environment).');
         process.exit(1);
     }
+    console.log(
+        claudeVia() === 'api'
+            ? 'Haiku: API key'
+            : 'Haiku: your subscription (claude CLI); its latency includes the CLI startup. ALOUD_CLAUDE_VIA=api for the key.'
+    );
 
-    for (const id of ids) report(id, await runClassifier(id, runs, { typesafe, anthropic }));
+    for (const id of ids) report(id, await runClassifier(id, runs, { typesafe }));
 }
 
 void main();

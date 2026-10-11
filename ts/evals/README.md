@@ -27,9 +27,19 @@ npx tsx evals/protocol-eval.ts --fixtures felt-sense/,hold/ # only these fixture
 npx tsx evals/protocol-eval.ts --all --out evals/out/1.json # save transcripts
 ```
 
-Keys from the environment: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-`GOOGLE_API_KEY`, `OPENROUTER_API_KEY`. Models whose key is missing are skipped,
-not failed.
+Keys from the environment: `OPENAI_API_KEY`, `GOOGLE_API_KEY`,
+`OPENROUTER_API_KEY`. Models whose key is missing are skipped, not failed.
+
+**Claude runs on your subscription by default**, through the `claude` CLI
+(`scriptClaude` in `soak/providers.ts`; the soak specs and `npm run jev:ab` go
+through it too). `ALOUD_CLAUDE_VIA=api` switches every one of them to
+`ANTHROPIC_API_KEY`. The subscription path is the desktop app's "Anthropic
+Subscription" request, not aloud cloud's: the conversation goes in as one
+prompt, the CLI adds an identity line and an environment block, and its startup
+lands in every latency. On the check-in probe it matched the API's verdict in 9
+cells of 10. So explore on the subscription, and run with the key before
+trusting a latency, or a verdict that will decide a prompt change or a model's
+place in the allowlist.
 
 **Phase 2 - facilitation quality** (`rubric.md`). The expensive one, and the one
 that actually answers the question. Blind-judge the transcripts Phase 1 wrote

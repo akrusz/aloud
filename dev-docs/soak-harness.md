@@ -28,7 +28,12 @@ npm run soak:web -- --scenarios=silence,mute
 npm run soak:web -- --voice=openai:sage          # realer prosody, costs money
 ```
 
-Keys come from the environment or `ts/server/.env` (`soak/env.ts`). Output lands
+Keys come from the environment or `ts/server/.env` (`soak/env.ts`). The
+`anthropic` spec is the exception: it runs on your own Claude subscription
+through the `claude` CLI (`scriptClaude` in `soak/providers.ts`), close to the
+API's behaviour but not the same request. `ALOUD_CLAUDE_VIA=api`, or the
+`anthropic_api` spec for one role, puts it on `ANTHROPIC_API_KEY`; do that
+for a run whose facilitator verdicts or latencies you will act on. Output lands
 in `ts/soak-runs/<timestamp>/` (gitignored): `report.md` (read this one),
 `run.json`, and one JSON per session with the full transcript + event log. Exit
 code 1 when any deterministic check fails, so a release script can gate on it.

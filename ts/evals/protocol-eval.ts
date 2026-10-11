@@ -15,8 +15,11 @@
  *   npx tsx evals/protocol-eval.ts --all --out evals/out/run-1.json
  *   npx tsx evals/protocol-eval.ts --fixtures felt-sense/,hold/ --runs 5
  *
- * Keys come from the environment: ANTHROPIC_API_KEY, OPENAI_API_KEY,
- * GOOGLE_API_KEY, OPENROUTER_API_KEY.
+ * Keys come from the environment: OPENAI_API_KEY, GOOGLE_API_KEY,
+ * OPENROUTER_API_KEY. Claude runs on your subscription through the `claude`
+ * CLI (soak/providers.ts scriptClaude), which puts the CLI's startup in every
+ * latency: for a p50 that means anything, or a verdict on a model about to
+ * ship, run with ALOUD_CLAUDE_VIA=api and ANTHROPIC_API_KEY.
  */
 
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -29,7 +32,6 @@ import {
     parseTurnSignals,
 } from '@aloud/core/facilitation';
 import {
-    AnthropicProvider,
     OpenAIProvider,
     GoogleProvider,
     OpenRouterProvider,
@@ -38,6 +40,7 @@ import {
     type Message,
 } from '@aloud/core/llm';
 
+import { claudeVia, scriptClaude } from '../soak/providers.js';
 import { ROSTER, type EvalModel } from './models.js';
 import { FIXTURES, type Fixture } from './fixtures.js';
 
@@ -51,7 +54,7 @@ function buildProvider(m: EvalModel): LLMProvider {
     };
     switch (m.provider) {
         case 'anthropic':
-            return new AnthropicProvider({ apiKey: need('ANTHROPIC_API_KEY'), model: m.model });
+            return scriptClaude(m.model);
         case 'openai':
             return new OpenAIProvider({ apiKey: need('OPENAI_API_KEY'), model: m.model });
         case 'google':
@@ -243,8 +246,16 @@ async function main() {
         process.exit(1);
     }
     console.log(
-        `${models.length} models x ${fixtures.length} fixtures x ${runs} runs = ${models.length * fixtures.length * runs} calls\n`
+        `${models.length} models x ${fixtures.length} fixtures x ${runs} runs = ${models.length * fixtures.length * runs} calls`
     );
+    if (models.some((m) => m.provider === 'anthropic')) {
+        console.log(
+            claudeVia() === 'api'
+                ? 'Claude: API key'
+                : 'Claude: your subscription (claude CLI); latencies include its startup. ALOUD_CLAUDE_VIA=api for the key.'
+        );
+    }
+    console.log();
 
     const trials: Trial[] = [];
     for (const m of models) {

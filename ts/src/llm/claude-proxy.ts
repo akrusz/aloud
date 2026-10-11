@@ -9,7 +9,7 @@
  * feature-check before constructing.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { access, constants } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -35,6 +35,17 @@ export interface ClaudeProxyProviderOptions {
     binaryPath?: string;
     /** Accepted for API parity; the `claude` CLI ignores it. */
     maxTokens?: number;
+    /** `--effort` for the run. Unset = the CLI's own default. The API path pins
+     *  always-thinking models to low (anthropic.ts thinkingPolicy); a caller
+     *  that wants the two paths comparable sets the same here. */
+    effort?: 'low' | 'medium' | 'high';
+    /** Working directory for the CLI. It reads CLAUDE.md and .claude from there
+     *  and every parent, so a run started inside a repo hands that repo's agent
+     *  instructions to the facilitator. Unset = inherited. */
+    cwd?: string;
+    /** Environment for the CLI. Unset = inherited, which is the trap: with
+     *  ANTHROPIC_API_KEY in it the CLI bills that key, not the subscription. */
+    env?: NodeJS.ProcessEnv;
 }
 
 interface ClaudeCliResponse {
@@ -55,12 +66,19 @@ export class ClaudeProxyProvider implements LLMProvider {
     readonly maxTokens: number;
     private readonly timeoutMs: number;
     private readonly binaryPathOverride: string | undefined;
+    private readonly effort: string | undefined;
+    private readonly spawnOptions: Pick<SpawnOptions, 'cwd' | 'env'>;
 
     constructor(options: ClaudeProxyProviderOptions = {}) {
         this.model = options.model ?? DEFAULT_MODEL;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         this.binaryPathOverride = options.binaryPath;
+        this.effort = options.effort;
+        this.spawnOptions = {
+            ...(options.cwd !== undefined && { cwd: options.cwd }),
+            ...(options.env !== undefined && { env: options.env }),
+        };
     }
 
     async complete(
@@ -92,6 +110,7 @@ export class ClaudeProxyProvider implements LLMProvider {
             '--model',
             this.model,
         ];
+        if (this.effort) args.push('--effort', this.effort);
         if (options.system) {
             args.push('--system-prompt', options.system);
         }
@@ -101,7 +120,8 @@ export class ClaudeProxyProvider implements LLMProvider {
             binary,
             args,
             this.timeoutMs,
-            options.signal
+            options.signal,
+            this.spawnOptions
         );
 
         if (options.signal?.aborted) {
@@ -239,7 +259,8 @@ function runProcess(
     binary: string,
     args: readonly string[],
     timeoutMs: number,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    where: Pick<SpawnOptions, 'cwd' | 'env'> = {}
 ): Promise<ProcessResult> {
     return new Promise((resolve, reject) => {
         let proc: ChildProcess;
@@ -249,10 +270,11 @@ function runProcess(
         try {
             proc = useShell
                 ? spawn(cmdQuote(binary), args.map(cmdQuote), {
+                      ...where,
                       stdio: ['ignore', 'pipe', 'pipe'],
                       shell: true,
                   })
-                : spawn(binary, args as string[], { stdio: ['ignore', 'pipe', 'pipe'] });
+                : spawn(binary, args as string[], { ...where, stdio: ['ignore', 'pipe', 'pipe'] });
         } catch (err) {
             reject(err);
             return;
