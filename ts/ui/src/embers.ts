@@ -285,6 +285,9 @@ export function getEmberLevel(): number {
 
 export function setRainbow(rainbow: boolean): void {
     state.rainbow = rainbow;
+    document
+        .querySelectorAll<HTMLElement>('.ember-blocks')
+        .forEach((el) => el.classList.toggle('rainbow', rainbow));
     regenerateEmbers();
 }
 
@@ -360,6 +363,7 @@ export function wireEmberControls(root: ParentNode): void {
     });
 
     // Reflect current state on the just-rendered blocks.
+    blocks.classList.toggle('rainbow', state.rainbow);
     blocks
         .querySelectorAll<HTMLElement>('.ember-block')
         .forEach((b, i) => b.classList.toggle('filled', i < state.level));

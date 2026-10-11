@@ -2305,8 +2305,8 @@ body:has(.session-container) {
 }
 
 /* Each level is a flame, a touch bigger than the one before it, lit in the
-   embers' own amber (a mid tone from EMBER_COLORS_DARK / _LIGHT in embers.ts;
-   the light one is the deepest of its palette so it holds against cream). */
+   embers' own amber (a mid tone of EMBER_COLORS_DARK in embers.ts; light
+   theme takes a deeper amber than its particles so it holds against cream). */
 .ember-block {
     --ember-size: 14px;
     --ember-scale: 1;
@@ -2357,8 +2357,21 @@ body:has(.session-container) {
 }
 
 [data-theme="light"] .ember-blocks {
-    --ember-lit: #f0a80e;
+    --ember-lit: #e08a00;
 }
+
+/* Rainbow orb (setRainbow): each lit flame takes the next color of the
+   particles' pastel palette - deepened in light theme so they hold up. */
+.ember-blocks.rainbow .ember-block[data-level="1"] { --ember-lit: #f7a8c4; }
+.ember-blocks.rainbow .ember-block[data-level="2"] { --ember-lit: #f5e6a0; }
+.ember-blocks.rainbow .ember-block[data-level="3"] { --ember-lit: #a8e6cf; }
+.ember-blocks.rainbow .ember-block[data-level="4"] { --ember-lit: #a0e0f0; }
+.ember-blocks.rainbow .ember-block[data-level="5"] { --ember-lit: #c4b4f0; }
+[data-theme="light"] .ember-blocks.rainbow .ember-block[data-level="1"] { --ember-lit: #e0558f; }
+[data-theme="light"] .ember-blocks.rainbow .ember-block[data-level="2"] { --ember-lit: #d9a000; }
+[data-theme="light"] .ember-blocks.rainbow .ember-block[data-level="3"] { --ember-lit: #2fae78; }
+[data-theme="light"] .ember-blocks.rainbow .ember-block[data-level="4"] { --ember-lit: #2a9fd0; }
+[data-theme="light"] .ember-blocks.rainbow .ember-block[data-level="5"] { --ember-lit: #8a6ee0; }
 
 .ember-blocks.shake {
     animation: ember-shake 0.25s ease;
