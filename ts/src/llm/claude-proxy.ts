@@ -82,6 +82,11 @@ export class ClaudeProxyProvider implements LLMProvider {
             '',
             '--no-session-persistence',
             '--disable-slash-commands',
+            // `--tools ""` only drops the built-in tools. Without this the
+            // user's MCP servers and claude.ai connectors still ride along:
+            // every tool definition in every turn (32,604 input tokens against
+            // 579 for a two-word prompt, measured 2026-10-11) and callable.
+            '--strict-mcp-config',
             '--output-format',
             'json',
             '--model',

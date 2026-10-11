@@ -103,6 +103,8 @@ describe('ClaudeProxyProvider', () => {
         expect(args).toContain('-p');
         expect(args).toContain('--no-session-persistence');
         expect(args).toContain('--disable-slash-commands');
+        // Or every MCP tool the user has rides along in every turn.
+        expect(args).toContain('--strict-mcp-config');
         expect(args).toContain('--output-format');
         expect(args).toContain('json');
         expect(args).toContain('--system-prompt');
