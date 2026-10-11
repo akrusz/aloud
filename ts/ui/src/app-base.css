@@ -86,7 +86,8 @@ html { font-size: 16px; }
     --radius-sm: 10px / 7px;
     /* Safe-area insets. Android WebViews don't reliably surface
        env(safe-area-inset-*) to CSS; Capacitor 8 injects the real values as
-       --safe-area-inset-* inline on <html> (Android 15+ edge-to-edge), so
+       --safe-area-inset-* inline on <html> (edge-to-edge on every Android
+       version: forced on 15+, asked for in MainActivity below that), so
        prefer those and fall back to env() (iOS, plain browsers). Use these
        aliases, never env() directly. */
     --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));

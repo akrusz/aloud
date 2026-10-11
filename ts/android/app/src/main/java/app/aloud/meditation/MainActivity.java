@@ -7,6 +7,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
+import androidx.activity.EdgeToEdge;
+
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -16,6 +18,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Android 15+ draws under the system bars whether asked or not; older
+        // versions need the ask, or they keep opaque bars around the webview
+        // and the app has two layouts to get right. Must follow super.onCreate:
+        // this creates the window decor, and BridgeActivity only swaps the
+        // launch theme for the app theme in there.
+        EdgeToEdge.enable(this);
         // The WebView's WebRTC capture (hosted STT / VAD with echo cancellation)
         // puts Android in communication mode for the life of the process, and
         // the facilitator then plays on the CALL stream (measured 2026-09-07:
