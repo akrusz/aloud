@@ -393,7 +393,7 @@ async function consumePullStream(
                 fillEl.style.width = `${pct}%`;
             }
         },
-        t('pull failed')
+        t('Pull failed')
     );
 }
 
@@ -417,7 +417,7 @@ async function consumeStatusStream(
             }
             if (statusEl && msg.status) statusEl.textContent = msg.status;
         },
-        t('operation failed')
+        t('Operation failed')
     );
     return finalMessage;
 }

@@ -27,7 +27,7 @@ import { FELT_SENSE_MODE } from './felt-sense.js';
 export interface ModePhase {
     /** Stable id, persisted on SessionState.modePhase for resume. */
     id: string;
-    /** Short user-visible hint shown in the session header ("sensing"). */
+    /** Short user-visible hint shown in the session header ("Sensing"). */
     label: string;
     /** One-line description used in the arc overview the model sees. */
     summary: string;

@@ -257,7 +257,7 @@ function wireGiftableList(root: HTMLElement, gifts: ReturnedGiftView[]): void {
                 <span class="provider-hint gift-row-from"> ${t('· was for {email}', { email: escapeHtml(gift.toEmail) })}</span>
             </div>
             <div class="gift-row-actions">
-                <input type="email" class="gift-regift-email" placeholder="${t('re-gift to email…')}"
+                <input type="email" class="gift-regift-email" placeholder="${t('Re-gift to email…')}"
                     aria-label="${t('Re-gift to email')}" autocomplete="off" autocapitalize="off" spellcheck="false">
                 <button type="button" class="btn btn-primary gift-regift">${t('Re-gift')}</button>
                 <button type="button" class="btn btn-secondary gift-claim">${t('Claim')}</button>

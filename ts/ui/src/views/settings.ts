@@ -384,7 +384,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             // which key is stored without exposing it.
             if (status)
                 status.textContent = existing
-                    ? t('key saved ({masked})', { masked: maskKey(existing) })
+                    ? t('Key saved ({masked})', { masked: maskKey(existing) })
                     : '';
             const removeBtn = row.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
@@ -396,7 +396,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             const existing = await getApiKey('typesafe');
             const status = jevRow.querySelector<HTMLElement>('.api-key-status');
             if (status)
-                status.textContent = existing ? t('key saved ({masked})', { masked: maskKey(existing) }) : '';
+                status.textContent = existing ? t('Key saved ({masked})', { masked: maskKey(existing) }) : '';
             const removeBtn = jevRow.querySelector<HTMLButtonElement>('.api-key-remove-btn');
             if (removeBtn) removeBtn.hidden = !existing;
             void syncVoiceCommandsRow();
@@ -2185,7 +2185,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                          depend on the provider and on being signed in. -->
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-voice-commands">
-                        <span>${t('Voice commands')} · <a href="#" id="s-voice-commands-examples">${t('what can I say?')}</a></span>
+                        <span>${t('Voice commands')} · <a href="#" id="s-voice-commands-examples">${t('What can I say?')}</a></span>
                     </label>
                     <span class="form-hint" id="s-voice-commands-hint"></span>
                     ${

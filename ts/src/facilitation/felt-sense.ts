@@ -59,7 +59,7 @@ ${REALTIME_VOICE_FRAGMENT}
 export const FELT_SENSE_PHASES: readonly ModePhase[] = [
     {
         id: 'clearing',
-        label: 'settling in',
+        label: 'Settling in',
         summary: 'settle in, and notice what is in the way of feeling fine, without going into any of it',
         prompt: `Current stage: Settling in (clearing a space)
 Help the meditator settle in and take a gentle inventory. The seed question: "What's between you and feeling fine right now?"
@@ -72,7 +72,7 @@ Move on with [NEXT] once one thing has been chosen, or clearly chooses itself. I
     },
     {
         id: 'sensing',
-        label: 'sensing',
+        label: 'Sensing',
         summary: 'sense how the whole of the chosen thing sits in the body, letting a vague felt sense form',
         prompt: `Current stage: Letting a felt sense form
 One thing is chosen. Help the meditator sense how the WHOLE of it sits in their body: not the story, not the familiar emotion word, but the single overall body-sense of all of it.
@@ -87,7 +87,7 @@ Go back with [BACK] if it's all too much at once and things need setting down ag
     },
     {
         id: 'handle',
-        label: 'finding words',
+        label: 'Finding words',
         summary: 'let a word, phrase, or image come that fits the quality of the felt sense',
         prompt: `Current stage: Finding a handle
 Help a word, phrase, or image come up FROM the felt sense that fits its quality: "sticky", "tight fist", "a heavy door", "jumpy".
@@ -101,7 +101,7 @@ Go back with [BACK] if contact with the body-sense has been lost and it needs to
     },
     {
         id: 'resonating',
-        label: 'checking',
+        label: 'Checking',
         summary: 'check the word against the felt sense until something clicks',
         prompt: `Current stage: Resonating
 Help them check the handle against the felt sense itself: say their word back gently and let the body answer. "Sticky... does that fit?"
@@ -114,7 +114,7 @@ Go back with [BACK] if the felt sense itself has gone quiet or changed and needs
     },
     {
         id: 'asking',
-        label: 'asking',
+        label: 'Asking',
         summary: 'ask into the felt sense and wait for the body to answer',
         prompt: `Current stage: Asking
 The felt sense is present and named. Help the meditator ask INTO it, then wait for the body's answer.
@@ -131,7 +131,7 @@ Go back with [BACK] if contact with the felt sense is lost.`,
     },
     {
         id: 'receiving',
-        label: 'receiving',
+        label: 'Receiving',
         summary: 'welcome whatever came, protect it, and close gently',
         prompt: `Current stage: Receiving
 Whatever came, big or small, finished or barely begun, help the meditator receive it.

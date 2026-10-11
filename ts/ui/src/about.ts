@@ -94,7 +94,7 @@ export function initAbout(): void {
         const label = addrBtn.textContent;
         addrBtn.addEventListener('click', () => {
             navigator.clipboard.writeText(DONATE_ADDRESS).then(() => {
-                addrBtn.textContent = t('copied!');
+                addrBtn.textContent = t('Copied!');
                 setTimeout(() => {
                     addrBtn.textContent = label;
                 }, 1500);
