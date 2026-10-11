@@ -67,7 +67,10 @@ Each command speaks a canned acknowledgment (`COMMAND_LINES`).
    just before (`saidJustBefore`: the facilitator's last line, the meditator's
    last turn), one side per request, the higher score counting. Shown together
    the two sides dilute each other, and the first look never gets context at
-   all, because it moves the scores of commands that name themselves.
+   all, because it moves the scores of commands that name themselves. The
+   facilitator's line only goes along on aloud cloud (`judgeContextFor`): an
+   opt-in or own-key session was promised that only what the meditator says
+   reaches the judge, so there it is the meditator's side alone.
 5. **Resolve.** The asks are independent, so one utterance can clear several
    ("talk slower and show me the orb"). `resolveCommands` drops the weaker of
    two opposites and orders the rest (speaker mute, then mic mute, then the end

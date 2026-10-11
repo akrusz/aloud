@@ -89,6 +89,7 @@ import {
     VOICE_COMMANDS_CONSENT,
     VOICE_COMMANDS_SIGN_IN,
     canReachJudge,
+    judgeContextFor,
     privacyPolicyLink,
     showVoiceCommandExamples,
     voiceCommandsAccess,
@@ -544,7 +545,9 @@ export async function mountSessionView(
     const inviteToCommands = cloudJudge !== null && claimIntroSession();
     // Asks the command judge while the recognizer is still waiting out the pause.
     // A request can point back at what was just said ("can you do that?").
-    const saidBefore = (): JudgeBefore => saidJustBefore(session.state?.exchanges ?? []);
+    // Read at call time: judgeAccess can change mid-session.
+    const saidBefore = (): JudgeBefore =>
+        judgeContextFor(judgeAccess, saidJustBefore(session.state?.exchanges ?? []));
     let commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge, undefined, saidBefore) : null;
     builder.config.appControls = cloudJudge ? 'voice' : 'screen';
     // They opted in and the sign-in lapsed: otherwise the only sign is a command

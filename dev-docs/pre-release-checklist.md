@@ -140,6 +140,10 @@ check each of these still reflects reality:
   `store-submission-checklist.md`, and the Play "App access" text.
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
+- **Changed what a judge request carries** (`judgeState`, `JudgeContext`) → the
+  privacy policy's classification-model paragraphs say exactly what the check
+  is shown, separately for aloud cloud and for opt-in / own-key sessions, and
+  so does the in-app consent line (`VOICE_COMMANDS_CONSENT`).
 - **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a
   model's rates, a new metered leg) → the ☁ badges and the setup footer's
   session pill, the "what are ☁?" explainer (`ui/src/clouds-explainer.ts`),

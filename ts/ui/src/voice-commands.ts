@@ -10,6 +10,7 @@
  * the opt-in.
  */
 
+import type { JudgeBefore } from '../../src/facilitation/index.js';
 import { getCloudToken, isGoogleSignInConfigured } from './cloud-auth.js';
 import { isDevBypass } from './app-mode.js';
 import { alertDialog } from './dialog.js';
@@ -28,6 +29,19 @@ export function voiceCommandsAccess(args: {
     if (args.ownKey) return 'own-key';
     if (!args.optedIn) return 'off';
     return args.signedIn ? 'opted-in' : 'signed-out';
+}
+
+/**
+ * What the command check may be shown of the exchange before an utterance
+ * (detectVoiceCommand's second look). The facilitator's line only goes along
+ * on aloud cloud, where every word already passes through our server. An
+ * opt-in or own-key session was told that only what the meditator says reaches
+ * the judge, and that the facilitator's replies go nowhere new (the consent
+ * line below, and the privacy policy's voice-commands paragraph).
+ */
+export function judgeContextFor(access: VoiceCommandsAccess, before: JudgeBefore): JudgeBefore {
+    if (access === 'hosted') return before;
+    return before.meditator ? { meditator: before.meditator } : {};
 }
 
 /** True when a judge call can get a token without a sign-in popup: one is
