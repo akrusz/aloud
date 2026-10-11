@@ -57,7 +57,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: October 7, 2026</p>
+    <p class="updated">Last updated: October 11, 2026</p>
 
     <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains, plainly, what happens to your data in each case.</p>
 
@@ -93,7 +93,7 @@
       <li><strong>Providers you connect yourself</strong> (e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq - with your own API key, or your Claude subscription via the <code>claude</code> CLI): your text goes directly to that provider's API under their privacy policy and terms. aloud neither receives nor stores it.</li>
       <li><strong>Via aloud cloud:</strong> your text is relayed through our service to the language-model provider and is not stored by us.</li>
     </ul>
-    <p>On aloud cloud, short things you say are also checked by a small classification model, so the app can recognize a spoken command (like "set a timer for ten minutes") or tell whether you're calling the facilitator back from a silence. That check includes what you just said and, during a silence, possibly the few things you said just before it. It's relayed the same way and is not stored by us.</p>
+    <p>On aloud cloud, short things you say are also checked by a small classification model, so the app can recognize a spoken command (like "set a timer for ten minutes") or tell whether you're calling the facilitator back from a silence. That check includes what you just said, and in some cases also a few recent lines said by you or the facilitator. It's relayed the same way and is not stored by us.</p>
     <p>In local or bring-your-own use this check is <strong>off by default</strong>. You can turn on <strong>Voice commands</strong> in Settings, which needs a free aloud account. While it's on, what you say in a session is sent through aloud cloud to the same classification model, including with an on-device model like Ollama; your conversation and the facilitator's replies still go only where they went before. We don't store or log it, it costs no credits, and turning the setting off stops it. In the desktop app you can instead add your own TypeSafe API key: then what you say goes straight from your device to TypeSafe under your own account, with no aloud account and nothing passing through aloud cloud.</p>
 
     <h3>Spoken responses</h3>
