@@ -5431,12 +5431,13 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 }
 
 /* The phone layout: floating top chrome, bottom nav, thumb-sized controls,
-   15px type. Two ways in - a narrow viewport, or a touch-only one too short
-   for the desktop bar, which is a phone on its side (the bar ate a quarter of
-   a 412px-tall screen; the type half of this was meditation-pal-yc1u). Touch
-   plus short leaves tablets and desktops alone. Rules that are about WIDTH
-   (stacking, single columns) live in the max-width blocks, not here. */
-@media (max-width: 767px), (pointer: coarse) and (hover: none) and (max-height: 600px) {
+   15px type. Two ways in - a narrow viewport, or one too short for the
+   desktop bar: a phone on its side (the bar ate a quarter of a 412px-tall
+   screen; the type half of this was meditation-pal-yc1u) or a browser window
+   squashed as far. 500px is above any phone on its side and below a small
+   tablet or a laptop's browser. Rules that are about WIDTH (stacking, single
+   columns) live in the max-width blocks, not here. */
+@media (max-width: 767px), (max-height: 500px) {
     /* Phone typography: the 18px desktop base reads oversized next to native
        apps. Keep the user's text-scale multiplier (matching the desktop html
        rule); the OS font-size accessibility setting still multiplies on top. */
@@ -6024,7 +6025,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 
 /* A phone on its side: the phone layout above, re-spent for a viewport with
    width to spare and no height. Disjoint from the max-width: 767px blocks. */
-@media (pointer: coarse) and (hover: none) and (min-width: 768px) and (max-height: 600px) {
+@media (min-width: 768px) and (max-height: 500px) {
     :root {
         /* The band each floating chip owns, edge inward: the nav's side
            padding, the wider chip (the brand, or the orb + hamburger in a
