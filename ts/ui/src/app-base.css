@@ -3182,6 +3182,7 @@ body::before {
 
 .session-item-header {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: 0.75rem;
@@ -3221,6 +3222,9 @@ body::before {
 
 .session-expand {
     color: var(--text-muted);
+    /* The glyph is a "small triangle": at text size it is a speck. */
+    font-size: 2.5rem;
+    line-height: 1;
     transition: transform var(--transition);
 }
 
@@ -3284,11 +3288,13 @@ body::before {
     color: var(--text-secondary);
 }
 
-/* On the row itself, between the summary and the chevron, so a session can be
-   continued or copied without opening it. */
+/* On the row itself, so a session can be continued or copied without opening
+   it, and on a line of their own under the summary at every width: beside the
+   summary they squeeze it into a narrow column. */
 .session-actions {
     display: flex;
-    flex-shrink: 0;
+    order: 1;
+    flex-basis: 100%;
     gap: 0.5rem;
 }
 
@@ -3296,29 +3302,23 @@ body::before {
     white-space: nowrap;
 }
 
+/* Delete sits apart from the two it is easy to mean instead. */
+.session-actions .btn-delete {
+    margin-left: auto;
+}
+
 .session-actions .label-short {
     display: none;
 }
 
-/* Phone width: the buttons drop to their own line under the summary, with the
-   short labels (history.ts actionLabel) so the three of them fit on it. */
+/* Phone width: the short labels (history.ts actionLabel), so the three
+   buttons fit on their line. */
 @media (max-width: 767px) {
-    .session-item-header {
-        flex-wrap: wrap;
-    }
-    .session-actions {
-        order: 1;
-        flex-basis: 100%;
-    }
     .session-actions .label-full {
         display: none;
     }
     .session-actions .label-short {
         display: inline;
-    }
-    /* Delete sits apart from the two it is easy to mean instead. */
-    .session-actions .btn-delete {
-        margin-left: auto;
     }
 }
 
