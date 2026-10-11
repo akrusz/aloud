@@ -287,23 +287,13 @@ const EMBER_COLORS = ['#e8a840', '#d4873a', '#c07830', '#e0a038', '#cc8030'];
 }
 
 /**
- * Experiment: the app's ember burst, once, behind whatever is on screen. It is
- * burstEmbers in ts/ui/src/embers.ts (what four presses of + at full embers
- * set off) with the same timings, sized up from a phone to the stage. BURST
- * names the moment, null for none; `?burst=<moment>` on the film's URL tries
- * another without editing this, `?burst=off` none.
+ * The app's ember burst, once, on his last word: behind whatever is on screen,
+ * and gone before the end card's type arrives. It is burstEmbers in
+ * ts/ui/src/embers.ts (what four presses of + at full embers set off) with the
+ * same timings, sized up from a phone to the stage.
  */
-const BURST = null;
 {
-    const moments = {
-        // On the bowl under c12: "a live conversation".
-        live: L.c12?.start,
-        // On his last word, carrying over the cut to the end card.
-        relief: L.e4?.words.find((w) => /^relief/i.test(w.w))?.t,
-        // As the wordmark lands.
-        end: B.end && B.end.start + 0.25,
-    };
-    const at = moments[new URLSearchParams(location.search).get('burst') ?? BURST] ?? null;
+    const at = L.e4?.words.at(-1)?.t ?? null;
     const layer = h('div', 'layer');
     const rand = seeded(29);
     /** Phone pixels to stage pixels. */

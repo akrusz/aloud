@@ -11,8 +11,7 @@
  * build/ui/ (capture-ui.mjs). Writes build/aloud-play-video.mp4. Flags:
  * --workers <n> (Chrome tabs rendering at once, default 4), --keep (leave the
  * frame PNGs in build/frames/), --out <file>, --range <from>,<to> (only those
- * seconds, with their sound, to build/audition/clip-<from>-<to>.mp4),
- * --query <a=b&c=d> (options film.js reads from its URL, e.g. burst=end).
+ * seconds, with their sound, to build/audition/clip-<from>-<to>.mp4).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -29,7 +28,6 @@ const flag = (name, fallback) => {
 };
 const CHROME = process.env['CHROME_PATH'] ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const WORKERS = Number(flag('workers', 4));
-const QUERY = flag('query', '');
 const RANGE = flag('range', null)?.split(',').map(Number) ?? null;
 const OUT = flag('out', RANGE ? join(BUILD_DIR, 'audition', `clip-${RANGE[0]}-${RANGE[1]}.mp4`) : join(BUILD_DIR, 'aloud-play-video.mp4'));
 const FRAMES_DIR = join(BUILD_DIR, 'frames');
@@ -65,7 +63,7 @@ await new Promise((resolve) => server.listen(Number(flag('port', 0)), '127.0.0.1
 const origin = `http://127.0.0.1:${server.address().port}`;
 
 if (args.includes('--preview')) {
-    console.log(`${origin}${FILM_PATH}?preview${QUERY && `&${QUERY}`}\n  space plays and pauses, arrows step a frame (shift: a second). Ctrl-C to stop.`);
+    console.log(`${origin}${FILM_PATH}?preview\n  space plays and pauses, arrows step a frame (shift: a second). Ctrl-C to stop.`);
     await new Promise(() => {});
 }
 
@@ -80,7 +78,7 @@ async function openFilm() {
         console.error(`film.js: ${err.message}`);
         process.exitCode = 1;
     });
-    await page.goto(`${origin}${FILM_PATH}${QUERY && `?${QUERY}`}`);
+    await page.goto(`${origin}${FILM_PATH}`);
     await page.waitForFunction(() => document.documentElement.dataset.ready === '1', null, { timeout: 30000 });
     return page;
 }

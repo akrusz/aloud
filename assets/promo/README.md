@@ -7,8 +7,10 @@ first when picking the work back up.
 
 - **Play Store video**: first cut built 2026-10-09, waiting on the dev's eyes
   and ears: `play-video/build/aloud-play-video.mp4` (gitignored), 81.7s,
-  1920x1080. "Building the video" below has how, and what in it is the dev's
-  to judge.
+  1920x1080. Re-rendered 2026-10-11 with the ember burst and the UI filmed
+  afresh (the flame ember control); timings and sound are the first cut's,
+  which is beside it as `aloud-play-video-2026-10-09.mp4`. "Building the
+  video" below has how, and what in it is the dev's to judge.
 - **Play Store video script**: `play-video/script.md`, approved as written
   2026-10-08. The file is the source of truth; build from what it says, not
   from these notes.
@@ -73,7 +75,8 @@ node assets/promo/play-video/tools/render-film.mjs --range 50,58   # or render o
    and the setup controls are worked by real clicks. The words in a session
    transcript are written in from the script, as `scripts/site-screenshots.mjs`
    does for the site, and the voice label is set to Harper. The model call is
-   blocked and the recognizer stubbed: nothing is billed, and Ollama isn't woken.
+   blocked, the recognizer stubbed and the session's own voice the browser's:
+   nothing is billed, no account is needed, and Ollama isn't woken.
 3. **`render-film.mjs`** renders `play-video/film/` (one page, every scene a
    function of time) frame by frame and encodes it with the soundtrack.
    `--still 12.5,40` writes single frames to look at.
@@ -94,39 +97,6 @@ refuses UI shots filmed for a different cut.
 - The f3 take, and whether 81.7s is too long.
 - Nothing on screen says whose words e3 and e4 are. A caption for that would
   be new copy, so it isn't there.
-
-## Ember burst (experiment)
-
-Tried 2026-10-11: the app's ember burst (four presses of + at full embers)
-somewhere in the Play video. It is wired into `play-video/film/film.js` and
-**off**, so the cut is unchanged until the dev picks a moment. `BURST` there
-names it; `?burst=<moment>` on the film's URL tries one without editing
-(`render-film.mjs --preview --query burst=live`). The sparks are the app's
-`burstEmbers` at stage size: behind everything on screen, silent, about 2s of
-real motion, no runtime added.
-
-Clips with sound, in `play-video/build/audition/` (gitignored; remake with
-`render-film.mjs --query burst=<moment> --range <from>,<to> --out <file>`):
-
-| moment | goes off | clip | reads as |
-|--------|----------|------|----------|
-| `live` | on the bowl under c12 | `burst-live.mp4` | the picture for "live", straight after c11's row of identical tapes; the last sparks carry over the cut to the orb |
-| `relief` | on his last word in e4 | `burst-relief.mp4` | a release under "relief", cleared before the end card's type arrives |
-| `end` | as the wordmark lands | `burst-end.mp4` | a flourish on the logo; sparks pass behind c14 as it fades in |
-
-Claude's read, for the dev to overrule: `live`. It lands on the pitch (the
-format) and lifts the two text-only cards, the flattest stretch of the cut.
-`relief` is the cleanest picture but turns up the one outcome word in the
-video, and `end` is decoration that costs c14 a little legibility. One burst,
-not two.
-
-Not built: showing it happen in the app (the phone, four taps on +, the fifth
-flame growing, the real burst). That is a new beat of about 3s on a cut already
-over target, a feature rather than the format, and it wants a caption, which is
-the dev's copy to write.
-
-The UI shots in `build/ui/` are from 2026-10-09 and still show the old "Embers"
-squares; the flame control arrives with the next `capture-ui.mjs` run.
 
 ## Audio recipe
 
@@ -168,6 +138,12 @@ How the rough cut was made, and what the build repeats.
 - **Noting gets ~2s.** Felt sense is the facilitator reading its real opener
   (line f3 matches `FELT_SENSE_OPENERS` in `ts/src/facilitation/felt-sense.ts`,
   without its opening "No rush."; keep them in sync).
+- **One ember burst, on his last word** (the dev's pick, 2026-10-11): the
+  app's own burst (four presses of + at full embers) goes up behind "such a
+  relief." and is gone before the end card's type arrives. Also tried on the
+  bowl under c12 and as the wordmark lands (`play-video/build/audition/burst-*.mp4`).
+  Showing it happen in the app was left out: a new beat on a cut already over
+  target, and a feature rather than the format.
 - Copy style: no em-dashes (use " - " or commas), lowercase-leaning captions to
   match the site.
 
