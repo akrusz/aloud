@@ -44,29 +44,29 @@
         "cap:android:run": "npm run cap:require-cloud-url && npm run ui:build && cap sync android && cap run android"
     },
     "devDependencies": {
-        "@capacitor/cli": "^8.4.3",
-        "@tauri-apps/cli": "^2.11.5",
-        "@types/node": "^26.6.2",
+        "@capacitor/cli": "^8.5.2",
+        "@tauri-apps/cli": "^2.12.1",
+        "@types/node": "^26.6.4",
         "playwright-core": "^1.63.0",
         "tsx": "^4.23.15",
         "typescript": "^6.0.3",
-        "vite": "^8.3.0",
-        "vitest": "^5.0.1"
+        "vite": "^8.3.2",
+        "vitest": "^5.0.3"
     },
     "dependencies": {
         "@capacitor-community/keep-awake": "^7.1.0",
         "@capacitor-community/speech-recognition": "^7.0.1",
         "@capacitor/android": "^8.5.2",
-        "@capacitor/app": "^8.1.1",
-        "@capacitor/browser": "^8.0.4",
+        "@capacitor/app": "^8.1.2",
+        "@capacitor/browser": "^8.0.5",
         "@capacitor/core": "^8.5.2",
         "@capacitor/ios": "^8.5.2",
         "@capacitor/preferences": "^8.0.1",
-        "@capgo/capacitor-social-login": "^8.5.11",
-        "@tauri-apps/api": "^2.11.1",
-        "@tauri-apps/plugin-opener": "^2.5.5",
-        "@tauri-apps/plugin-process": "^2.3.1",
-        "@tauri-apps/plugin-updater": "^2.12.0",
+        "@capgo/capacitor-social-login": "^8.5.12",
+        "@tauri-apps/api": "^2.12.1",
+        "@tauri-apps/plugin-opener": "^2.7.0",
+        "@tauri-apps/plugin-process": "^2.4.0",
+        "@tauri-apps/plugin-updater": "^2.13.1",
         "onnxruntime-web": "^1.30.0",
         "patch-package": "^8.0.1"
     }
