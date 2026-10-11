@@ -52,6 +52,10 @@ collides - no need to touch `CURRENT_PROJECT_VERSION`. Keep
 `MARKETING_VERSION` in `project.pbxproj` matched to the app version
 (`ts/package.json`) before archiving.
 
+`error: exportArchive Failed to Use Accounts` means Xcode has no Apple account
+signed in (it can drop one between uploads): Xcode → Settings → Accounts, add
+it back, rerun the export. The archive is still good.
+
 ---
 
 ## Android → Play internal testing
