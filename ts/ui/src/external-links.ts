@@ -4,6 +4,8 @@
  *   - Desktop (Tauri)  → the opener plugin (system browser / mail client).
  *   - Native mobile (Capacitor) → @capacitor/browser (in-app SFSafariViewController
  *     / Chrome Custom Tab), so the user stays in the app and returns when done.
+ *     `mailto:` is the exception: it goes to the webview, which hands it to
+ *     the OS composer.
  *
  * Both webviews otherwise swallow these clicks: `<a href="https://…">` does
  * nothing, `target="_blank"` is blocked, and a plain navigation would strand
@@ -14,6 +16,7 @@
 import { isTauri, isCapacitor } from './is-desktop.js';
 
 const EXTERNAL_SCHEME = /^(?:https?:|mailto:)/i;
+const MAILTO = /^mailto:/i;
 
 // Lazy-load the opener plugin on first use so non-Tauri builds (web preview,
 // tests) don't pull it in and boot stays free of the round trip.
@@ -58,6 +61,13 @@ function ensureCapBrowser(): Promise<void> {
  */
 export async function openExternal(url: string): Promise<boolean> {
     if (isCapacitor()) {
+        // @capacitor/browser is a browser tab and can't take a mailto:. On
+        // Android it raises its transparent controller activity before finding
+        // that out, and that stays over the app swallowing taps until Back.
+        if (MAILTO.test(url)) {
+            window.location.href = url;
+            return true;
+        }
         await ensureCapBrowser();
         if (!capBrowser) return false;
         await capBrowser.open({ url });

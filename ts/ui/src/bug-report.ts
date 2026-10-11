@@ -275,17 +275,10 @@ async function aiContentReport(ctx: AiReportContext): Promise<Report> {
     };
 }
 
-/**
- * Desktop hands the `mailto:` to the opener plugin; web and native mobile let
- * the webview pass it to the OS composer, since `@capacitor/browser` can't open
- * `mailto:`.
- */
+/** The shells route a `mailto:` themselves (external-links.ts); a browser
+ *  tab takes it as a plain navigation. */
 async function openMailto(href: string): Promise<void> {
-    if (isTauri()) {
-        await openExternal(href);
-        return;
-    }
-    window.location.href = href;
+    if (!(await openExternal(href))) window.location.href = href;
 }
 
 /** execCommand path for webviews without an async clipboard (or without a
