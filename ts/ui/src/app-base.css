@@ -5489,6 +5489,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         color: var(--accent);
         padding: 0.3rem 0.7rem;
         border-radius: var(--radius-sm);
+        /* The ring the floating "?" beside it wears. Inset shadow, not a
+           border: the chip's box is what --top-chrome-mid is measured from. */
+        box-shadow: inset 0 0 0 1px var(--border);
     }
 
     .nav-links {
