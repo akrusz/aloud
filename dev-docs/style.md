@@ -153,6 +153,8 @@ Ambient floating particles. Palette per theme, defined in `ui/src/embers.ts`:
 
 Halo derived per-ember via `hexGlow()`. Light mode has an `!important` amber box-shadow override on `.ember` that wins regardless of inline color - leave it (the warmth reads well against peach).
 
+The level control at the bottom of the session view (`.ember-blocks` in `app-base.css`, markup from `emberBlocksHTML`) is a row of flames, each a touch bigger than the last: outlined in `--text-muted` when off, filled with `--ember-lit` when on. `--ember-lit` is a mid tone of `EMBER_COLORS_DARK` (`#e0a038`) in dark, a deeper amber than the light particles (`#e08a00`) in light so it holds against cream, and one color of the rainbow palette per level in rainbow mode (deepened in light). It is the one piece of chrome that takes the ember ambers, because it is the embers' own control.
+
 ## Inline circled `?`
 
 For body copy that references the page's info buttons (tour hints, welcome cards), use `<span class="info-btn-glyph">?</span>`. It's a non-interactive twin of `.info-btn` - same circled-question-mark look, but smaller, with `currentColor` border so it inherits the surrounding text color. Don't use `<strong>?</strong>` (forces line wrap with awkward bolding) or the real `.info-btn` (it's a button with cursor/hover; semantically wrong inline).
@@ -162,4 +164,4 @@ For body copy that references the page's info buttons (tour hints, welcome cards
 Beyond the don'ts in each section above:
 
 - **Don't use `#f5f600`** (pure yellow) - it's green-leaning. Use `#ffd820` / `#f5d020` / `#e8b820` family.
-- **Don't use the old warm ambers** (`#d4873a`, `#e8a840`, `#c07830`, etc.) **for UI chrome** - they predate the rebrand and don't match it. They remain correct for dark-mode embers, where they sit against a near-black bg (see Embers above).
+- **Don't use the old warm ambers** (`#d4873a`, `#e8a840`, `#c07830`, etc.) **for UI chrome** - they predate the rebrand and don't match it. They remain correct for dark-mode embers, where they sit against a near-black bg, and for the lit flames of the ember level control (see Embers above).

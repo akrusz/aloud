@@ -5,7 +5,7 @@
  *
  * Every sit is short and every wait is clamped, because tier 2 runs in wall
  * time. That is a deliberate division of labour, not an oversight: long-silence
- * pacing (the 8-20 minute smart waits) is tier 1's job on the fake clock, and
+ * pacing (the many-minute smart waits) is tier 1's job on the fake clock, and
  * trying to reproduce it here would mean a soak run that takes an afternoon and
  * still samples one session of it. Check-in intervals are pulled in to match, so
  * the check-in machinery still fires inside a six-minute sit.

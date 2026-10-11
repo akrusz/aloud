@@ -246,6 +246,9 @@ cargo test  --manifest-path ts/src-tauri/Cargo.toml     # network round-trips ar
 (cd ts/src-tauri && cargo deny check)                   # supply-chain gate (CI enforces)
 node ts/scripts/audit-gate.mjs                          # its npm twin: high/critical advisories, minus its ACCEPTED list
 
+# Android shell (by hand, NOT in CI - plain JVM unit tests, no device: AudioRoutePolicyTest)
+(cd ts/android && ./gradlew :app:testDebugUnitTest)
+
 # Model evals (by hand, NOT in CI - real API calls; see ts/evals/README.md)
 cd ts && npx tsx evals/protocol-eval.ts
 

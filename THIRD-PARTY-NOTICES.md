@@ -40,6 +40,30 @@ The speech-probability model behind on-device voice activity detection
 Why this particular export, and how to upgrade it, is in
 [`ts/ui/src/assets/README.md`](ts/ui/src/assets/README.md).
 
+### Lucide "flame" icon - `FLAME_PATH` in `ts/ui/src/embers.ts`
+
+The outline of each flame in the session's ember level control, inlined as one
+SVG path.
+
+| | |
+|---|---|
+| Project | [Lucide](https://github.com/lucide-icons/lucide) |
+| Icon | `flame` (not one of the Feather-derived icons, so ISC alone) |
+| License | ISC |
+| Copyright | Copyright (c) 2026 Lucide Icons and Contributors |
+
+> Permission to use, copy, modify, and/or distribute this software for any
+> purpose with or without fee is hereby granted, provided that the above
+> copyright notice and this permission notice appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+> WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+> MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+> ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+> WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+> ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+> OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 ## Dependencies
 
 npm and Cargo packages are declared, not vendored - they arrive at build time and
@@ -57,5 +81,6 @@ Notable runtime components in the client bundle:
 ## Keeping this current
 
 Adding a **vendored** binary or source file from another project means a section
-here, not just a note in a directory README. Declared dependencies do not - the
+here, not just a note in a directory README. So does artwork copied into our
+own source, like an inlined icon path. Declared dependencies do not - the
 manifests cover those.

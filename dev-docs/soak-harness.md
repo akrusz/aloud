@@ -224,7 +224,7 @@ out of a release bundle entirely; it also means tier 2 exercises the **dev** bui
 
 **What tier 2 deliberately doesn't test:** there's no fake clock, so sits are short
 (5-9 real minutes) and each persona's `WAIT` is clamped (`maxWaitSec`). Relative
-pacing survives; absolute scale doesn't. **Long-silence pacing - the 8-20 minute
+pacing survives; absolute scale doesn't. **Long-silence pacing - the many-minute
 smart waits - stays tier 1's job**, where the fake clock makes it honest.
 
 `tests/soak-web.test.ts` covers the loop, WER scoring, the scenario → settings

@@ -289,7 +289,7 @@ export const GUIDANCE_LEVEL_LABELS: readonly string[] = [
 ];
 
 /** Display names for the five felt-sense check-in pace stops (indexed by
- *  feltSensePaceStep). Same wait mapping as the guidance stops (20m -> 30s),
+ *  feltSensePaceStep). Same wait mapping as the guidance stops (12m -> 30s),
  *  framed as presence during silence rather than directiveness. */
 export const CHECKIN_PACE_LABELS: readonly string[] = [
     'Very patient',

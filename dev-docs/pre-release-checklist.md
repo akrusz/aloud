@@ -130,7 +130,10 @@ check each of these still reflects reality:
   `scripts/cloud-glyph-font.py` and rerun it.
 - **Changed a default or config option** → the relevant defaults in `ts/src`
   (or `ts/server/.env.example` for server config), the settings UI, and any doc
-  that quotes the value.
+  that quotes the value. The smart check-in waits (`defaultWaitSeconds`) are
+  also quoted to users, as minutes of silence at the low and high ends: the
+  guidance info panel (`info-guidance` in `ui/src/views/setup.ts`) and its zh
+  twin.
 - **Changed where ☁ are sold** (`purchaseChannel()` in
   `ui/src/purchase-channel.ts`, a new payment method, store billing) → every
   string that tells someone to buy, shown or spoken, on a build that can't
