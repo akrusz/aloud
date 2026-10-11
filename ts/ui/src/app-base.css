@@ -2303,7 +2303,8 @@ body:has(.session-container) {
     gap: 2px;
 }
 
-/* Each level is a flame, a touch bigger than the one before it. */
+/* Each level is a flame, a touch bigger than the one before it. Monochrome
+   on purpose: in the accent color they read as emoji. */
 .ember-block {
     --ember-size: 14px;
     --ember-scale: 1;
@@ -2334,7 +2335,7 @@ body:has(.session-container) {
 }
 
 .ember-block.filled {
-    color: var(--accent);
+    color: var(--text-secondary);
 }
 
 .ember-block.filled svg {
@@ -2342,7 +2343,7 @@ body:has(.session-container) {
 }
 
 .ember-block:hover {
-    color: var(--accent);
+    color: var(--text-primary);
 }
 
 @keyframes ember-shake {
