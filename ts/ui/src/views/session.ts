@@ -1494,9 +1494,11 @@ export async function mountSessionView(
      *  check-ins shouldn't get silence because the model keeps declining, so
      *  past the budget the next one speaks a canned line instead of asking. */
     let smartCheckinPasses = 0;
-    /** Check-ins spoken in this stretch, for the next check-in event's "no
-     *  reply" count (buildSmartCheckinEvent). A pass is not one. */
+    /** What the next check-in event tells the model about this stretch
+     *  (buildSmartCheckinEvent): how many check-ins were spoken, and how far
+     *  into the silence the model last passed (null once anything is said). */
     let smartCheckinSpoken = 0;
+    let smartCheckinPassedAtSec: number | null = null;
     /** Single-flight guard for the timer's approach/completion notices. */
     let timerNoticeInFlight = false;
     const SMART_CHECKIN_MAX_STREAK = 4;
@@ -2090,6 +2092,7 @@ export async function mountSessionView(
             smartCheckinStreak = 0;
             smartCheckinPasses = 0;
             smartCheckinSpoken = 0;
+            smartCheckinPassedAtSec = null;
             if (silenceMode) exitHold();
             // On a resume from silence the buffered utterances are already on
             // screen (and tapped); only the joined text goes into history.
@@ -3190,6 +3193,7 @@ export async function mountSessionView(
             smartCheckinStreak++;
             smartCheckinPasses = 0;
             smartCheckinSpoken++;
+            smartCheckinPassedAtSec = null;
             debugLog('canned check-in (pass budget)');
             tapEvent('checkin', 'canned-pass-budget');
             await respondWithFacilitatorLine(builder.getCheckInPrompt());
@@ -3211,6 +3215,10 @@ export async function mountSessionView(
                 silenceSec,
                 smartCheckinSpoken + 1,
                 {
+                    passedSecAgo:
+                        smartCheckinPassedAtSec === null
+                            ? null
+                            : silenceSec - smartCheckinPassedAtSec,
                     withWaitHint: smartTiming,
                     // Substantive check-ins at the attentive end of either
                     // slider. In pace modes the line is generated under the
@@ -3247,6 +3255,7 @@ export async function mountSessionView(
                     : '';
             if (reply.kind === 'pass') {
                 smartCheckinPasses++;
+                smartCheckinPassedAtSec = silenceSec;
                 debugLog(`→ pass${waitNote}`);
                 tapEvent('checkin', 'pass', { streak: smartCheckinStreak });
                 pacing.onCheckinDeferred();
@@ -3254,6 +3263,7 @@ export async function mountSessionView(
             }
             smartCheckinPasses = 0;
             smartCheckinSpoken++;
+            smartCheckinPassedAtSec = null;
             if (reply.kind === 'speak') {
                 debugLog(`→ speak "${reply.text.slice(0, 40)}"${waitNote}`);
                 tapEvent('checkin', 'speak', { streak: smartCheckinStreak });
@@ -3272,6 +3282,7 @@ export async function mountSessionView(
             // a real turn took over.
             if (!torn && myGen === turnGen && !busy) {
                 smartCheckinSpoken++;
+                smartCheckinPassedAtSec = null;
                 debugLog('→ error (canned)');
                 tapEvent('checkin', 'error-fallback', { streak: smartCheckinStreak });
                 await respondWithFacilitatorLine(builder.getCheckInPrompt());

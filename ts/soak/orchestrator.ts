@@ -141,6 +141,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     let smartCheckinStreak = 0;
     let smartCheckinPasses = 0;
     let smartCheckinSpoken = 0;
+    let smartCheckinPassedAtSec: number | null = null;
     const turnGaps: number[] = [];
     let lastTurnEnd = 0;
 
@@ -225,6 +226,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         smartCheckinStreak = 0;
         smartCheckinPasses = 0;
         smartCheckinSpoken = 0;
+        smartCheckinPassedAtSec = null;
         const wasSilent = silenceMode;
         if (silenceMode) {
             silenceMode = false;
@@ -308,6 +310,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             smartCheckinStreak++;
             smartCheckinPasses = 0;
             smartCheckinSpoken++;
+            smartCheckinPassedAtSec = null;
             event('checkin', 'canned-pass-budget');
             speakCannedLine('checkin-canned', builder.getCheckInPrompt());
             return true;
@@ -316,6 +319,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         const smartTiming = checkinTiming === 'smart';
         const silenceSec = pacing.getSilenceDuration();
         const eventText = buildSmartCheckinEvent(silenceSec, smartCheckinSpoken + 1, {
+            passedSecAgo: smartCheckinPassedAtSec === null ? null : silenceSec - smartCheckinPassedAtSec,
             withWaitHint: smartTiming,
             directive: directiveness >= 7,
         });
@@ -334,6 +338,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             }
             if (reply.kind === 'pass') {
                 smartCheckinPasses++;
+                smartCheckinPassedAtSec = silenceSec;
                 event('checkin', 'pass', { streak: smartCheckinStreak });
                 log(`${mmss()} [check-in: pass]`);
                 pacing.onCheckinDeferred();
@@ -341,6 +346,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             }
             smartCheckinPasses = 0;
             smartCheckinSpoken++;
+            smartCheckinPassedAtSec = null;
             if (reply.kind === 'speak') {
                 event('checkin', 'speak', { streak: smartCheckinStreak });
                 session.addControlMessage('user', eventText, 'event');

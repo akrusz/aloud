@@ -52,6 +52,25 @@ describe('buildSmartCheckinEvent', () => {
         expect(buildSmartCheckinEvent(900, 3)).toContain('2 times already');
     });
 
+    // A pass is not a check-in "with no reply": the model is told what it did,
+    // and that a second pass is for silence the meditator asked for.
+    it('after a pass, says so and raises the bar for passing again', () => {
+        const text = buildSmartCheckinEvent(780, 1, { passedSecAgo: 600 });
+        expect(text).toContain('quiet for about 13 minutes');
+        expect(text).toContain('You stayed quiet at the last check-in, about 10 minutes ago');
+        expect(text).toContain('so nothing has been said since your last reply');
+        expect(text).toContain('Stay quiet again only if they asked for silence or for space.');
+        expect(text).not.toContain('already');
+        expect(buildSmartCheckinEvent(300, 1)).not.toContain('stayed quiet');
+        expect(buildSmartCheckinEvent(300, 1, { passedSecAgo: null })).not.toContain('stayed quiet');
+    });
+
+    it('a pass after an unanswered spoken check-in is stated, with no bar raised', () => {
+        const text = buildSmartCheckinEvent(600, 2, { passedSecAgo: 300 });
+        expect(text).toContain('1 time already with no reply. You stayed quiet at the last check-in, about 5 minutes ago.');
+        expect(text).not.toContain('Stay quiet again only');
+    });
+
     it('mentions [WAIT:Nm] only when the wait hint is on', () => {
         expect(buildSmartCheckinEvent(300, 1)).not.toContain('[WAIT:');
         expect(buildSmartCheckinEvent(300, 1, { withWaitHint: true })).toContain('[WAIT:Nm]');

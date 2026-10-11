@@ -49,27 +49,48 @@ export interface SmartCheckinEventOptions {
     /** High guidance-level session: invite substance (an observation or
      *  suggestion), not just a word of presence. */
     directive?: boolean;
+    /** The model answered the previous check-in with [PASS], this many seconds
+     *  ago. Null or omitted when it spoke, and on the first of a stretch. */
+    passedSecAgo?: number | null;
+}
+
+function aboutMinutes(sec: number): string {
+    const mins = Math.round(sec / 60);
+    return mins < 2 ? 'about a minute' : `about ${mins} minutes`;
 }
 
 /**
  * The synthetic user-role turn for one check-in. `checkinIndex` is 1-based
  * among the check-ins SPOKEN in the current silence stretch; it tells the
- * model how many went unanswered so its tone can shift, or it can pass. A
- * pass is not one of them: counted, it told the model it had "checked in
- * already with no reply", and that sentence alone turned a line into a pass
- * with a long wait (measured on the default model, meditation-pal-v85a).
+ * model how many went unanswered so its tone can shift, or it can pass.
+ *
+ * A pass leaves no trace in the conversation, so this turn is the only place
+ * the model can learn it already passed. Told nothing, it reads the same
+ * transcript and passes again every time; told (as it once was) that a pass
+ * was a check-in "with no reply", it passes and stretches the wait. Hence the
+ * plain account in `passedSecAgo`, and the bar for a second pass: silence the
+ * meditator asked for, not silence the model merely preferred a while ago.
+ * Measured on the default model, 2026-10-11 (meditation-pal-v85a).
  */
 export function buildSmartCheckinEvent(
     silenceSec: number,
     checkinIndex: number,
     opts: SmartCheckinEventOptions = {}
 ): string {
-    const mins = Math.round(silenceSec / 60);
-    const dur = mins < 2 ? 'about a minute' : `about ${mins} minutes`;
+    const dur = aboutMinutes(silenceSec);
     const prior =
         checkinIndex > 1
             ? ` You have checked in ${checkinIndex - 1} time${checkinIndex > 2 ? 's' : ''} already with no reply.`
             : '';
+    let passed = '';
+    if (opts.passedSecAgo !== null && opts.passedSecAgo !== undefined) {
+        passed = ` You stayed quiet at the last check-in, ${aboutMinutes(opts.passedSecAgo)} ago`;
+        // After an unanswered spoken check-in, quiet is a fair reading again.
+        passed +=
+            checkinIndex > 1
+                ? '.'
+                : ', so nothing has been said since your last reply. Stay quiet again only if they asked for silence or for space.';
+    }
     const ask = opts.directive
         ? 'If a word would support their practice right now, offer it: an observation, a suggestion, or a possible next step, in a sentence or two.'
         : 'If a brief word would support their practice right now, reply with one short sentence.';
@@ -78,7 +99,7 @@ export function buildSmartCheckinEvent(
         : '';
     return (
         `${SMART_CHECKIN_EVENT_PREFIX} the meditator has been quiet for ${dur}. ` +
-        `They have not spoken; this message is automatic.${prior} ` +
+        `They have not spoken; this message is automatic.${prior}${passed} ` +
         `${ask} ` +
         `If staying quiet serves them better, reply with exactly ${PASS_PREFIX}.${waitHint}]`
     );

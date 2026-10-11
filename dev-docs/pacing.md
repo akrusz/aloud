@@ -39,6 +39,12 @@ counts spoken check-ins only. Counting a pass there turned a spoken line into a
 pass with a long `[WAIT]` every time (measured on the default model,
 `meditation-pal-v85a`).
 
+The event also says when the model passed at the last one, and then holds a
+second pass to a higher bar: "Stay quiet again only if they asked for silence
+or for space" (`passedSecAgo`). Without it the model reads the same transcript
+and passes again every time, so the choice was two passes or none; with it, a
+meditator who simply trailed off gets one pass and then a short line.
+
 `?debug=checkin` shows all of this live (see the cheatsheet's dev URL params).
 
 ### Modes that own their check-ins
