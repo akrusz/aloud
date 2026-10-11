@@ -5166,6 +5166,32 @@ input[type="range"].preview-range {
 
 .tour-dot.active {
     background: var(--accent);
+    position: relative;
+}
+
+/* The setup guide's card is only this row, floating beside the box it is
+   about. A narrow triangle from the lit dot to that box's outline ties the two
+   together; index-guide.ts (linkDotToSpotlight) sets its direction and length.
+   It starts the dot's width across and stops at the outline's own 2px rather
+   than a point, which would thin out to nothing before it arrived. */
+.tour-tooltip[data-link] .tour-dot.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: var(--tour-link-length);
+    background: var(--accent);
+    pointer-events: none;
+}
+
+.tour-tooltip[data-link="up"] .tour-dot.active::before {
+    bottom: 50%;
+    clip-path: polygon(calc(50% - 1px) 0, calc(50% + 1px) 0, 100% 100%, 0 100%);
+}
+
+.tour-tooltip[data-link="down"] .tour-dot.active::before {
+    top: 50%;
+    clip-path: polygon(0 0, 100% 0, calc(50% + 1px) 100%, calc(50% - 1px) 100%);
 }
 
 .tour-actions {

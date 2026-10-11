@@ -228,6 +228,33 @@ function positionTooltip(el: HTMLElement): void {
     cardEl.style.left = left + 'px';
 }
 
+/**
+ * Run a narrow triangle from the active progress dot to the spotlight's
+ * outline, so the card reads as belonging to the box beside it. The shape is
+ * the dot's ::before (app-base.css); this sets which way it runs and how far.
+ */
+function linkDotToSpotlight(el: HTMLElement): void {
+    const dot = cardEl?.querySelector<HTMLElement>('.tour-dot.active');
+    if (!cardEl || !dot) return;
+    // The card's inline top, not its live rect: it is mid-entrance (translated)
+    // when this first runs. The dot's offset inside it is the same either way.
+    const cardRect = cardEl.getBoundingClientRect();
+    const dotRect = dot.getBoundingClientRect();
+    const dotY = parseFloat(cardEl.style.top) + (dotRect.top - cardRect.top) + dotRect.height / 2;
+    // The spotlight box as positionSpotlight() draws it, from the target for
+    // the same reason: the spotlight itself is still gliding over from the
+    // last step.
+    const rect = el.getBoundingClientRect();
+    const toTop = rect.top - PADDING - dotY;
+    const toBottom = rect.bottom + PADDING - dotY;
+    // Whichever edge is nearer. That is the facing one when the card sits
+    // outside the box, and still an edge when a tall target leaves the card
+    // no room but on top of it.
+    const reach = Math.abs(toTop) < Math.abs(toBottom) ? toTop : toBottom;
+    cardEl.dataset['link'] = reach < 0 ? 'up' : 'down';
+    cardEl.style.setProperty('--tour-link-length', Math.abs(reach) + 'px');
+}
+
 function scrollToSection(el: HTMLElement, cb: () => void): void {
     const rect = el.getBoundingClientRect();
     const scrollTarget = window.scrollY + rect.top - getNavHeight();
@@ -339,6 +366,7 @@ function showSection(index: number): void {
             const html = footerHtml({ back: true, next: true, skip: true }, TOTAL_STEPS, currentStep, 'dismiss');
             showCard(html, 'tour-tooltip');
             positionTooltip(target);
+            linkDotToSpotlight(target);
         });
     });
 }
@@ -388,7 +416,10 @@ function onScroll(): void {
     const idx = currentStep - 1;
     if (idx >= 0 && idx < SECTIONS.length) {
         const target = SECTIONS[idx]?.target();
-        if (target) positionSpotlight(target);
+        if (!target) return;
+        positionSpotlight(target);
+        // The card is fixed and the box scrolls with the page.
+        linkDotToSpotlight(target);
     }
 }
 
