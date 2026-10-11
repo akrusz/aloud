@@ -6054,7 +6054,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        as a bottom bar it took a fifth of the height. Not a bar any more, so
        toast.ts (bottomClearingBars) skips it by its width. */
     .bottom-nav {
-        top: calc(var(--safe-top) + 3.5rem);
+        /* Hung from the nav's own top padding, not the inset, so the gap
+           under the brand holds where there is no status bar (a browser). */
+        top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 3.9rem);
         bottom: auto;
         left: max(0.75rem, var(--safe-left));
         right: auto;
