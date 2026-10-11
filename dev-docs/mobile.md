@@ -38,6 +38,7 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 | STT | `CapacitorSttEngine` (SFSpeechRecognizer / Android SpeechRecognizer) | web-speech / server-whisper / aloud cloud | `adapters/stt-picker.ts`, `adapters/capacitor-stt.ts` |
 | Keep-awake | `@capacitor-community/keep-awake` | web Wake Lock API | `wakelock.ts` |
 | External links | `@capacitor/browser` (in-app SFSafariViewController / Custom Tab); a `mailto:` goes to the webview instead, which the plugin can't open | Tauri opener / full-page redirect | `external-links.ts` |
+| System bar icons | follow `data-theme` (Capacitor's core `SystemBars`), since the app draws edge-to-edge and the theme can differ from the device's | nothing | `system-bars.ts` |
 | Buying ☁ | nothing is sold in the app (`purchaseChannel()` is `'none'`); Android may name aloud.rest/account in plain text, never as a link; iOS says nothing (`topUpHint`) | our own checkout (Stripe, USDC) | `purchase-channel.ts` |
 | Sign-in | native Google/Apple via `@capgo/capacitor-social-login` (+ email) | web GIS / Apple JS, or desktop loopback PKCE | `sign-in-modal.ts`, `native-signin.ts` |
 

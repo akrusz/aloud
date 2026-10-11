@@ -10,6 +10,7 @@ import { initAppMode } from './app-mode.js';
 import { adoptSimulationParams, renderSimBanner } from './dev-sim.js';
 import { adoptCheckinDebugParam } from './dev-mode.js';
 import { initAndroidBack } from './android-back.js';
+import { initSystemBarsTheme } from './system-bars.js';
 import { initSliderTouchGuard } from './slider-touch.js';
 import { installErrorLog } from './error-log.js';
 import { initNativeBugReportMenu } from './bug-report.js';
@@ -78,6 +79,7 @@ if (isTauri()) {
 
 // Apply theme before the app renders so the FOUC is invisible.
 applyTheme(resolveTheme());
+initSystemBarsTheme();
 // Embers are session-only (the session view mounts the container).
 // regenerateEmbers is a no-op with no active session, so the theme toggle
 // handler below is safe to call it.
