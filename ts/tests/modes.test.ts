@@ -313,7 +313,7 @@ describe('PromptBuilder with a mode', () => {
                 mode: FELT_SENSE_MODE,
                 config: { waitSignal: true, directiveness },
             }).buildSystemPrompt();
-        expect(at(3)).toContain('[WAIT:8m]');
+        expect(at(3)).toContain('around [WAIT:5m]');
         expect(at(10)).toContain('[WAIT:30s]');
         expect(at(10)).not.toContain('Actively direct the meditation');
     });

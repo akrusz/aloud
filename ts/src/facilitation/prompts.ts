@@ -138,12 +138,18 @@ If the meditator goes quiet after your reply, the app waits before checking in. 
 
 /**
  * Default smart check-in wait per guidance level: the slider's five stops
- * (directiveness 0/3/5/7/10) map to 20m/8m/5m/90s/30s. Feeds the [WAIT] bias
+ * (directiveness 0/3/5/7/10) map to 12m/5m/3m/90s/30s. Feeds the [WAIT] bias
  * fragment and seeds the pacing interval before the model's first [WAIT].
+ *
+ * These read as short next to how long a silence may run, on purpose: the
+ * model scales its own waits off this number and passes on check-ins with a
+ * longer one, so the quiet a meditator gets is a multiple of it (measured
+ * 2026-10-11: a 5m default gave 8-10m after a first pass and 15-20m after a
+ * second).
  */
 export function defaultWaitSeconds(directiveness: number): number {
-    const byKey: Record<number, number> = { 0: 1200, 3: 480, 5: 300, 7: 90, 10: 30 };
-    return byKey[nearestDirectivenessKey(directiveness)] ?? 300;
+    const byKey: Record<number, number> = { 0: 720, 3: 300, 5: 180, 7: 90, 10: 30 };
+    return byKey[nearestDirectivenessKey(directiveness)] ?? 180;
 }
 
 /** Render a wait as the model should echo it: whole minutes when even ("5m"),
@@ -165,7 +171,7 @@ export function waitBiasFragment(defaultSec: number): string {
     if (defaultSec <= 120) {
         return `This session is set for an actively-present facilitator: default to short waits around [WAIT:${token}] and re-set the timing on most replies, unless they've asked for space (then honor the longer wait).`;
     }
-    if (defaultSec >= 480) {
+    if (defaultSec >= 300) {
         return `This session is set for long, protected silences: default to waits around [WAIT:${token}] and let silences run; shorten only when something clearly needs tending.`;
     }
     return `Default to moderate waits around [WAIT:${token}], adjusting as the moment suggests.`;

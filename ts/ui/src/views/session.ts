@@ -496,7 +496,7 @@ export async function mountSessionView(
     const pacing = new PacingController({ config: pacingConfig });
     pacing.startSession();
     // Smart timing: until the model's first [WAIT], the slider sets the wait
-    // (20m/8m/5m/90s/30s across the stops) - guidance level, or in
+    // (12m/5m/3m/90s/30s across the stops) - guidance level, or in
     // checkinPaceSlider modes the check-in pace (already folded into
     // `directiveness` above). A first sit brings its own, shorter one.
     if (checkinTiming === 'smart') {

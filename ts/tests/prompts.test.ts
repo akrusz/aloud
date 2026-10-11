@@ -96,14 +96,19 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         );
     });
 
-    it('biases the [WAIT] default by guidance level (20m/8m/5m/90s/30s)', () => {
+    it('biases the [WAIT] default by guidance level (12m/5m/3m/90s/30s)', () => {
         const at = (directiveness: number) =>
             new PromptBuilder({ config: { waitSignal: true, directiveness } }).buildSystemPrompt();
-        expect(at(10)).toContain('[WAIT:30s]');
-        expect(at(7)).toContain('[WAIT:90s]');
-        expect(at(5)).toContain('[WAIT:5m]');
-        expect(at(3)).toContain('[WAIT:8m]');
-        expect(at(0)).toContain('[WAIT:20m]');
+        // "around": WAIT_SIGNAL_FRAGMENT cites some of these tokens as examples.
+        expect(at(10)).toContain('around [WAIT:30s]');
+        expect(at(7)).toContain('around [WAIT:90s]');
+        expect(at(5)).toContain('around [WAIT:3m]');
+        expect(at(3)).toContain('around [WAIT:5m]');
+        expect(at(0)).toContain('around [WAIT:12m]');
+        // The two low stops keep the protected-silence wording, Balanced the
+        // moderate one.
+        expect(at(3)).toContain('long, protected silences');
+        expect(at(5)).toContain('moderate waits');
         // Off entirely when the signal is off, regardless of guidance.
         expect(
             new PromptBuilder({ config: { directiveness: 10 } }).buildSystemPrompt()

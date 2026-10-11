@@ -19,8 +19,10 @@ to the canned pool.
 (parsed with the other turn signals) to set how long the next silence stays
 protected, clamped and held by `PacingController.setCheckinInterval`. The
 default wait is biased by the guidance slider (`waitBiasFragment` /
-`defaultWaitSeconds`: 20m / 8m / 5m / 90s / 30s across the five stops), so high
-guidance means short waits and substantive check-ins.
+`defaultWaitSeconds`: 12m / 5m / 3m / 90s / 30s across the five stops), so high
+guidance means short waits and substantive check-ins. The default is a seed and
+a bias, not the silence a meditator gets: the model scales its own `[WAIT]`s
+off it and usually sets a longer one when it passes.
 
 Two guards on the smart path (`views/session.ts`):
 
