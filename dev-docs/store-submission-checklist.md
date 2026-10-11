@@ -23,8 +23,9 @@ The current bundle is **2.14.0, versionCode 39**: the first Play build since
 2.7.0 in August, so the first to carry the recognizer session model (`lbl5`),
 the speaker re-request after a lock (`wxj5`) and voice commands. Everything in
 between was verified on dev installs only. A first test sit on it (2026-10-10)
-ran through, and left two things to chase before testers are recruited:
-Bluetooth headphones (`4xkx`) and a missing check-in (`v85a`).
+ran through, and left two things to settle before testers are recruited:
+Bluetooth headphones (`4xkx`, fixed in the tree, not yet run on a phone) and a
+long gap before a check-in (`v85a`, the design working as written).
 
 **iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
 on the simulator only, some App Store Connect info filled in. Google sign-in is
@@ -50,16 +51,20 @@ count.
 A closed test still gives what the open beta was for: testers **cannot leave
 public ratings or reviews**, their feedback arrives privately in the console.
 
-- [ ] **Bluetooth headphones (`4xkx`).** In the 2026-10-10 sit a lock/unlock
-      took playback off the headphones, and the system picker could not put it
-      back until they were re-paired. The suspect is `MainActivity`'s speaker
-      re-request, which never checks for a headset. Read the phone's audio
-      route log over USB (`adb shell dumpsys audio`, `adb logcat -d -s
-      AloudAudio`) before changing it, then retest with headphones on.
-- [ ] **No check-in in 10 quiet minutes (`v85a`).** Same sit, Smart check-ins
-      at Balanced. The model is allowed two passes there, so this may be the
-      design rather than a fault. Turn on Settings → Developer → "Check-in debug HUD"
-      for the next sit and read what it decided.
+- [ ] **Bluetooth headphones (`4xkx`): retest on a build with the fix.** The
+      phone's route log settled it: `MainActivity`'s speaker re-request
+      outranked the WebView's own request for the headset, and the system
+      picker cannot move a call stream. `MainActivity` now asks for a headset
+      before the speaker (`AudioRoutePolicy`), unit-tested, not yet run on a
+      device. With headphones on and aloud cloud speech recognition: begin,
+      lock for ~30s, unlock - the reply is still in the headphones. Then switch
+      the headphones off and on mid-session - the voice moves to the phone
+      speaker and back.
+- [ ] **Check-in pass budget (`v85a`): decide.** The 15 quiet minutes in the
+      2026-10-10 sit fit two passes and then the stock line (5 + 5 + 5 at
+      Balanced), which is the design; only the request log would prove it. If
+      15 is too long at Balanced, `SMART_CHECKIN_MAX_PASSES` in
+      `views/session.ts` is the knob.
 - [ ] **The test sit, on the Play-installed build.** Uninstall the dev build
       first: same `applicationId`, different signing key, so Play cannot install
       over it (and the wipe gives a true first run). In one sitting:

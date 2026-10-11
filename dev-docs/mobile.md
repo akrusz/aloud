@@ -92,10 +92,16 @@ that moved (`ce07963`).
 Cloud-mic sits have their own Android quirk, outside the plugin: the WebView's
 echo-cancelled capture holds the app in communication mode for the life of the
 process and plays TTS on the voice-call stream (the rocker reads Call - known,
-`meditation-pal-0ecr`). The audio service drops the WebView's speaker request
+`meditation-pal-0ecr`). The audio service drops the WebView's route request
 while the app is backgrounded, so after a lock/unlock playback fell back to the
-earpiece; `MainActivity` re-requests the speaker on resume and on mode change
-(`meditation-pal-wxj5`). Diagnose routing with `dumpsys media.audio_flinger`
+earpiece; `MainActivity` re-requests a route on resume, on mode change and when
+a device comes or goes (`meditation-pal-wxj5`). It asks in the WebView's own
+order, wired then Bluetooth then speaker (`AudioRoutePolicy`): its request and
+the WebView's are separate clients of one uid and the newer wins, so asking for
+the speaker with headphones connected took the session off them
+(`meditation-pal-4xkx`). With Bluetooth headphones a cloud-mic sit runs on the
+call link (headset mic, call-quality voice); communication mode cannot play to
+A2DP. Diagnose routing with `dumpsys media.audio_flinger`
 (track rows carry stream type and usage per pid; `CFG_EVENT_CREATE_AUDIO_PATCH`
 names the device) and the communication-route log in `dumpsys audio`.
 
