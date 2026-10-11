@@ -263,7 +263,7 @@ export const ZH: Record<string, string> = {
     "Holding space, say when you're ready to continue": "静静陪伴中，准备好继续时说一声",
     "How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.": "引导者引领得有多主动。偏低时，更多是映照你说的话、提出开放式的问题；偏高时，会给出更多方向和建议。",
     "How long a pause in your speech ends your turn. Exact values under Advanced.": "说话停顿多久算一轮结束。具体数值见「高级」。",
-    "If <a href=\"#\" data-nav=\"settings\" data-nav-anchor=\"settings-checkins\"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~20 minutes on low, <1 min on high.": "如果设置中的<a href=\"#\" data-nav=\"settings\" data-nav-anchor=\"settings-checkins\"><strong>问候</strong></a>设为智能，这也会影响静默期间引导者开口的频率。偏低约 20 分钟一次，偏高不到 1 分钟。",
+    "If <a href=\"#\" data-nav=\"settings\" data-nav-anchor=\"settings-checkins\"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~12 minutes on low, <1 min on high.": "如果设置中的<a href=\"#\" data-nav=\"settings\" data-nav-anchor=\"settings-checkins\"><strong>问候</strong></a>设为智能，这也会影响静默期间引导者开口的频率。偏低约 12 分钟一次，偏高不到 1 分钟。",
     "If requested, the facilitator goes silent until you ask it back.": "在你提出时，引导者会安静下来，直到你叫它回来。",
     "In the System Voice row, click the <b>ⓘ</b> then click Voice.": "在「系统嗓音」一行点击 <b>ⓘ</b>，再点击「嗓音」。",
     "Increase": "增加",
