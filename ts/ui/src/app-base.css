@@ -2298,13 +2298,15 @@ body:has(.session-container) {
 }
 
 .ember-blocks {
+    --ember-lit: #e0a038;
     display: flex;
     align-items: flex-end;
     gap: 2px;
 }
 
-/* Each level is a flame, a touch bigger than the one before it. Monochrome
-   on purpose: in the accent color they read as emoji. */
+/* Each level is a flame, a touch bigger than the one before it, lit in the
+   embers' own amber (a mid tone from EMBER_COLORS_DARK / _LIGHT in embers.ts;
+   the light one is the deepest of its palette so it holds against cream). */
 .ember-block {
     --ember-size: 14px;
     --ember-scale: 1;
@@ -2335,7 +2337,7 @@ body:has(.session-container) {
 }
 
 .ember-block.filled {
-    color: var(--text-secondary);
+    color: var(--ember-lit);
 }
 
 .ember-block.filled svg {
@@ -2343,7 +2345,7 @@ body:has(.session-container) {
 }
 
 .ember-block:hover {
-    color: var(--text-primary);
+    color: var(--ember-lit);
 }
 
 @keyframes ember-shake {
@@ -2352,6 +2354,10 @@ body:has(.session-container) {
     40% { transform: translateX(1.5px); }
     60% { transform: translateX(-1px); }
     80% { transform: translateX(1px); }
+}
+
+[data-theme="light"] .ember-blocks {
+    --ember-lit: #f0a80e;
 }
 
 .ember-blocks.shake {
