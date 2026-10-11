@@ -1,5 +1,5 @@
 /**
- * Ember particles - ambient background animation. Easter egg: 5 clicks at level
+ * Ember particles - ambient background animation. Easter egg: 4 clicks at level
  * 4 unlocks level 5 with a 100-particle burst.
  *
  * Renders into a single fixed container at body level so particles persist
@@ -346,7 +346,7 @@ export function wireEmberControls(root: ParentNode): void {
             const now = Date.now();
             eggClicks.push(now);
             eggClicks = eggClicks.filter((t) => now - t < 2500);
-            if (eggClicks.length >= 5) {
+            if (eggClicks.length >= 4) {
                 eggClicks = [];
                 unlockFifth();
             }

@@ -2284,7 +2284,7 @@ body:has(.session-container) {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: 1.15rem;
     cursor: pointer;
     padding: 0 0.15rem;
     line-height: 1;
@@ -2308,7 +2308,7 @@ body:has(.session-container) {
    embers' own amber (a mid tone of EMBER_COLORS_DARK in embers.ts; light
    theme takes a deeper amber than its particles so it holds against cream). */
 .ember-block {
-    --ember-size: 14px;
+    --ember-size: 16px;
     --ember-scale: 1;
     display: block;
     width: calc(var(--ember-size) * var(--ember-scale));
@@ -5687,10 +5687,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         height: 10px;
     }
     .ember-block {
-        --ember-size: 18px;
+        --ember-size: 20px;
     }
     .ember-btn {
-        font-size: 1.15rem;
+        font-size: 1.3rem;
         padding: 0.1rem 0.35rem;
     }
     .ember-level {
