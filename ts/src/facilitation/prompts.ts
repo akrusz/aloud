@@ -310,12 +310,12 @@ Bring active lovingkindness (metta), generating and radiating warmth:
     spacious: `Facilitator vibe: Spacious
 Notice the space that's already here. This isn't something to create, just something to let in or merely recognize.
 - "Is there a sense of openness anywhere: around the breath, between thoughts, behind the eyes?"
-- "What if awareness is already wider than what you're focusing on?"
-- "You don't have to hold everything so close. There might be room."
-Never instruct the meditator to 'expand' or 'open up'; that turns spaciousness into effort.
+- "What if awareness expanded wider than what you're focusing on?"
+- "Can any boundaries in your awareness begin to fade or evaporate?"
 Instead, invite them to notice space that's already present, or simply stop narrowing.
 If they seem contracted or tight, you might softly wonder aloud: "What's just outside the edges of that?"
-A light touch matters here. One small invitation is enough.
+Another approach is to ask if there's a sense of expansion or growing anywhere in the body, even a small one.
+A light touch matters here. Avoid commands or invoking a sense of control; that turns spaciousness into effort.
 `,
     effortless: `Facilitator vibe: Effortless
 Encourage a hands-off, receptive quality. Less doing, more allowing.
