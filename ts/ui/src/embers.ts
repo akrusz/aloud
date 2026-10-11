@@ -17,6 +17,26 @@ const EMBER_SHRINK_RATE = 0.3; // px/s
 
 const STORAGE_KEY = 'aloud-embers';
 
+/** Flame outline (Lucide "flame", ISC) for the level control. */
+const FLAME_PATH =
+    'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z';
+
+/** One level of the ember control: a flame that grows a little with its level
+ *  (sized in CSS by data-level), outlined when off and filled when on. */
+export function emberBlockHTML(level: number, extraClass = ''): string {
+    const cls = ['ember-block', level <= 1 ? 'filled' : '', extraClass].filter(Boolean).join(' ');
+    return (
+        `<span class="${cls}" data-level="${level}">` +
+        `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${FLAME_PATH}"></path></svg>` +
+        `</span>`
+    );
+}
+
+/** The four default level flames, for the views' templates. */
+export function emberBlocksHTML(): string {
+    return [1, 2, 3, 4].map((l) => emberBlockHTML(l)).join('');
+}
+
 interface EmberState {
     level: number;
     /** Whether the level-5 easter egg has been unlocked this session. */
@@ -265,6 +285,9 @@ export function getEmberLevel(): number {
 
 export function setRainbow(rainbow: boolean): void {
     state.rainbow = rainbow;
+    document
+        .querySelectorAll<HTMLElement>('.ember-blocks')
+        .forEach((el) => el.classList.toggle('rainbow', rainbow));
     regenerateEmbers();
 }
 
@@ -287,10 +310,7 @@ export function wireEmberControls(root: ParentNode): void {
 
     function addFifthBlock(): void {
         if (blocks!.querySelector('[data-level="5"]')) return;
-        const block = document.createElement('span');
-        block.className = 'ember-block growing';
-        block.dataset['level'] = '5';
-        blocks!.appendChild(block);
+        blocks!.insertAdjacentHTML('beforeend', emberBlockHTML(5, 'growing'));
     }
 
     function persist(level: number): void {
@@ -343,6 +363,7 @@ export function wireEmberControls(root: ParentNode): void {
     });
 
     // Reflect current state on the just-rendered blocks.
+    blocks.classList.toggle('rainbow', state.rainbow);
     blocks
         .querySelectorAll<HTMLElement>('.ember-block')
         .forEach((b, i) => b.classList.toggle('filled', i < state.level));

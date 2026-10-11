@@ -50,6 +50,7 @@ import { markSessionStarted } from '../tour/index-guide.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { initThemeToggle } from '../theme.js';
 import {
+    emberBlocksHTML,
     mountEmberContainer,
     unmountEmberContainer,
     wireEmberControls,
@@ -184,15 +185,9 @@ export async function mountNotingSessionView(
                     </button>
                 </div>
                 <div class="input-controls">
-                    <div class="ember-level" title="${t('Floating ember particles')}">
-                        <span class="toggle-text">${t('Embers')}</span>
+                    <div class="ember-level" role="group" title="${t('Floating ember particles')}" aria-label="${t('Floating ember particles')}">
                         <button class="ember-btn" id="ember-minus" type="button">−</button>
-                        <div class="ember-blocks" id="ember-blocks">
-                            <span class="ember-block filled" data-level="1"></span>
-                            <span class="ember-block" data-level="2"></span>
-                            <span class="ember-block" data-level="3"></span>
-                            <span class="ember-block" data-level="4"></span>
-                        </div>
+                        <div class="ember-blocks" id="ember-blocks">${emberBlocksHTML()}</div>
                         <button class="ember-btn" id="ember-plus" type="button">+</button>
                     </div>
                     <!-- Hidden state holder for kasina gazing (initKasinaMode).

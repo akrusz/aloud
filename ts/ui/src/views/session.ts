@@ -143,6 +143,7 @@ import { FIRST_SIT_CHECKIN_WAIT_SEC, FIRST_SIT_TIMER_MIN } from '../first-sit.js
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { getApiKey, ownJudgeKey } from '../api-keys.js';
 import {
+    emberBlocksHTML,
     mountEmberContainer,
     setEmbersOn,
     unmountEmberContainer,
@@ -3577,15 +3578,9 @@ function renderSessionHTML(): string {
                 </button>
             </div>
             <div class="input-controls">
-                <div class="ember-level" title="${t('Floating ember particles')}">
-                    <span class="toggle-text">${t('Embers')}</span>
+                <div class="ember-level" role="group" title="${t('Floating ember particles')}" aria-label="${t('Floating ember particles')}">
                     <button class="ember-btn" id="ember-minus" type="button">−</button>
-                    <div class="ember-blocks" id="ember-blocks">
-                        <span class="ember-block filled" data-level="1"></span>
-                        <span class="ember-block" data-level="2"></span>
-                        <span class="ember-block" data-level="3"></span>
-                        <span class="ember-block" data-level="4"></span>
-                    </div>
+                    <div class="ember-blocks" id="ember-blocks">${emberBlocksHTML()}</div>
                     <button class="ember-btn" id="ember-plus" type="button">+</button>
                 </div>
                 <!-- Hidden state holder for kasina gazing (initKasinaMode).
