@@ -31,6 +31,14 @@ Two guards on the smart path (`views/session.ts`):
   stay quiet.
 - The streak cap (`SMART_CHECKIN_MAX_STREAK`) remains the walk-away backstop.
 
+A pass leaves no trace in the conversation, so the event turn is all the model
+knows about the stretch, and it has to be true. A pass restarts the wait but not
+the silence clock (`PacingController.onCheckinDeferred`), so the next event
+reports the whole quiet; and its "checked in N times already with no reply"
+counts spoken check-ins only. Counting a pass there turned a spoken line into a
+pass with a long `[WAIT]` every time (measured on the default model,
+`meditation-pal-v85a`).
+
 `?debug=checkin` shows all of this live (see the cheatsheet's dev URL params).
 
 ### Modes that own their check-ins

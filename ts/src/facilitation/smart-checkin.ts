@@ -53,8 +53,11 @@ export interface SmartCheckinEventOptions {
 
 /**
  * The synthetic user-role turn for one check-in. `checkinIndex` is 1-based
- * within the current silence stretch; it tells the model how many went
- * unanswered so its tone can shift, or it can pass.
+ * among the check-ins SPOKEN in the current silence stretch; it tells the
+ * model how many went unanswered so its tone can shift, or it can pass. A
+ * pass is not one of them: counted, it told the model it had "checked in
+ * already with no reply", and that sentence alone turned a line into a pass
+ * with a long wait (measured on the default model, meditation-pal-v85a).
  */
 export function buildSmartCheckinEvent(
     silenceSec: number,

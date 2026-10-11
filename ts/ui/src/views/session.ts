@@ -1494,6 +1494,9 @@ export async function mountSessionView(
      *  check-ins shouldn't get silence because the model keeps declining, so
      *  past the budget the next one speaks a canned line instead of asking. */
     let smartCheckinPasses = 0;
+    /** Check-ins spoken in this stretch, for the next check-in event's "no
+     *  reply" count (buildSmartCheckinEvent). A pass is not one. */
+    let smartCheckinSpoken = 0;
     /** Single-flight guard for the timer's approach/completion notices. */
     let timerNoticeInFlight = false;
     const SMART_CHECKIN_MAX_STREAK = 4;
@@ -2086,6 +2089,7 @@ export async function mountSessionView(
             pacing.onTranscription();
             smartCheckinStreak = 0;
             smartCheckinPasses = 0;
+            smartCheckinSpoken = 0;
             if (silenceMode) exitHold();
             // On a resume from silence the buffered utterances are already on
             // screen (and tapped); only the joined text goes into history.
@@ -3176,7 +3180,7 @@ export async function mountSessionView(
             // poll doesn't refire every tick. Auto-quit takes it from here.
             debugLog('check-in skipped (streak cap)');
             tapEvent('checkin', 'skipped-streak-cap');
-            pacing.onResponseEnd();
+            pacing.onCheckinDeferred();
             return;
         }
         // Spent the pass budget: speak a canned line rather than give the model
@@ -3185,6 +3189,7 @@ export async function mountSessionView(
         if (smartCheckinPasses >= SMART_CHECKIN_MAX_PASSES) {
             smartCheckinStreak++;
             smartCheckinPasses = 0;
+            smartCheckinSpoken++;
             debugLog('canned check-in (pass budget)');
             tapEvent('checkin', 'canned-pass-budget');
             await respondWithFacilitatorLine(builder.getCheckInPrompt());
@@ -3201,9 +3206,10 @@ export async function mountSessionView(
         try {
             smartCheckinStreak++;
             const smartTiming = checkinTiming === 'smart';
+            const silenceSec = pacing.getSilenceDuration();
             const eventText = buildSmartCheckinEvent(
-                pacing.getSilenceDuration(),
-                smartCheckinStreak,
+                silenceSec,
+                smartCheckinSpoken + 1,
                 {
                     withWaitHint: smartTiming,
                     // Substantive check-ins at the attentive end of either
@@ -3212,9 +3218,7 @@ export async function mountSessionView(
                     directive: directiveness >= 7,
                 }
             );
-            debugLog(
-                `event #${smartCheckinStreak} sent (silence ${Math.round(pacing.getSilenceDuration())}s)`
-            );
+            debugLog(`event #${smartCheckinStreak} sent (silence ${Math.round(silenceSec)}s)`);
             const checkinStart = Date.now();
             const { reply, usage } = await runSmartCheckin(
                 provider,
@@ -3245,10 +3249,11 @@ export async function mountSessionView(
                 smartCheckinPasses++;
                 debugLog(`→ pass${waitNote}`);
                 tapEvent('checkin', 'pass', { streak: smartCheckinStreak });
-                pacing.onResponseEnd();
+                pacing.onCheckinDeferred();
                 return;
             }
             smartCheckinPasses = 0;
+            smartCheckinSpoken++;
             if (reply.kind === 'speak') {
                 debugLog(`→ speak "${reply.text.slice(0, 40)}"${waitNote}`);
                 tapEvent('checkin', 'speak', { streak: smartCheckinStreak });
@@ -3266,6 +3271,7 @@ export async function mountSessionView(
             // Provider hiccup, or aborted by a real turn: canned fallback unless
             // a real turn took over.
             if (!torn && myGen === turnGen && !busy) {
+                smartCheckinSpoken++;
                 debugLog('→ error (canned)');
                 tapEvent('checkin', 'error-fallback', { streak: smartCheckinStreak });
                 await respondWithFacilitatorLine(builder.getCheckInPrompt());

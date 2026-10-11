@@ -88,6 +88,9 @@ export class PacingController {
 
     private _lastSpeechEnd = 0;
     private _lastResponseTime = 0;
+    /** When anything was last said. _lastResponseTime is the check-in clock,
+     *  which a deferred check-in restarts with nobody having spoken. */
+    private _quietSince = 0;
     private _silenceModeStart: number | null = null;
     private _hasSpoken = false;
     private _checkinIntervalOverride: number | null = null;
@@ -100,6 +103,7 @@ export class PacingController {
     startSession(): void {
         this._lastSpeechEnd = 0;
         this._lastResponseTime = this.clock();
+        this._quietSince = this._lastResponseTime;
         this._silenceModeStart = null;
         this._hasSpoken = false;
         this._checkinIntervalOverride = null;
@@ -179,6 +183,18 @@ export class PacingController {
 
     onResponseEnd(): void {
         this._lastResponseTime = this.clock();
+        this._quietSince = this._lastResponseTime;
+        this._lastSpeechEnd = 0;
+    }
+
+    /**
+     * A check-in came due and nothing was said (the model passed, or the
+     * streak cap skipped it): start the next wait, but the silence runs on.
+     * onResponseEnd here made the next check-in event report only the time
+     * since the pass, so the model never saw how long the quiet really was.
+     */
+    onCheckinDeferred(): void {
+        this._lastResponseTime = this.clock();
         this._lastSpeechEnd = 0;
     }
 
@@ -200,7 +216,7 @@ export class PacingController {
         if (this._lastSpeechEnd > 0) {
             return now - this._lastSpeechEnd;
         }
-        return now - this._lastResponseTime;
+        return now - this._quietSince;
     }
 
     /** Test hook: set up a check-in scenario without driving a transcript.

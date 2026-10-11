@@ -105,6 +105,29 @@ describe('PacingController — shouldRespond timing', () => {
         expect(controller.getCheckinInterval()).toBe(10);
     });
 
+    // A passed check-in restarts the wait, not the silence: the next check-in
+    // event has to report how long the quiet has really run.
+    it('a deferred check-in restarts the wait but the silence runs on', () => {
+        const { controller, fake } = makeController({
+            config: { silenceCheckinSec: 100, silenceCheckinsEnabled: true },
+        });
+        controller.startSession();
+        controller._setHasSpoken(true);
+        controller.onResponseEnd();
+        fake.tick(100);
+        expect(controller.shouldRespond()).toBe(TurnDecision.CheckIn);
+        controller.onCheckinDeferred();
+        expect(controller.shouldRespond()).toBe(TurnDecision.Wait);
+        expect(controller.getCheckinEtaSec()).toBe(100);
+        fake.tick(100);
+        expect(controller.shouldRespond()).toBe(TurnDecision.CheckIn);
+        expect(controller.getSilenceDuration()).toBe(200);
+        // Something said: both clocks start over.
+        controller.onResponseEnd();
+        fake.tick(30);
+        expect(controller.getSilenceDuration()).toBe(30);
+    });
+
     it('does not check in before the meditator has spoken at all', () => {
         const { controller, fake } = makeController({
             config: { silenceCheckinSec: 10 },
