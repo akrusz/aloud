@@ -9,7 +9,7 @@
 import type { JudgeAnswers, JudgeId } from '../../../src/facilitation/index.js';
 import { jevRequest, judgeSpec, noulAnswers } from '../../../src/facilitation/index.js';
 import { appUrl } from '../app-base.js';
-import { RemoteJudge } from './cloud-judge.js';
+import { RemoteJudge, type SentContext } from './cloud-judge.js';
 
 export class OwnKeyJudge extends RemoteJudge {
     constructor(
@@ -22,13 +22,13 @@ export class OwnKeyJudge extends RemoteJudge {
     protected async request(
         classifier: JudgeId,
         text: string,
-        earlier: string[],
+        { earlier, before }: SentContext,
         signal: AbortSignal
     ): Promise<JudgeAnswers> {
         const res = await this.fetchImpl(appUrl('/judge'), {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-provider-key': this.apiKey },
-            body: JSON.stringify(jevRequest(classifier, text, { earlier })),
+            body: JSON.stringify(jevRequest(classifier, text, { earlier, ...(before ? { before } : {}) })),
             signal,
         });
         if (!res.ok) throw new Error(`judge returned ${res.status}`);

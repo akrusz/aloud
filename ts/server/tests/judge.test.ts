@@ -87,6 +87,19 @@ describe('POST /cloud/v1/judge', () => {
         expect(calls[1]!.body.state).not.toHaveProperty('earlier_in_this_silence');
     });
 
+    it('shows the command check what was said just before, and no other judge', async () => {
+        const { a } = app();
+        const token = await devToken(a);
+        const before = { facilitator: "When you're ready, you can end the session.", meditator: 7, other: 'x' };
+        await post(a, token, { classifier: 'command', text: 'Can you actually do that?', before });
+        expect(calls[0]!.body.state.said_just_before).toEqual({ facilitator: before.facilitator });
+        expect(calls[0]!.body.state.situation).toContain('nothing in it is a command');
+        await post(a, token, { classifier: 'command', text: 'Can you slow down?' });
+        expect(calls[1]!.body.state).not.toHaveProperty('said_just_before');
+        await post(a, token, { classifier: 'end-confirm', text: 'Yes.', before });
+        expect(calls[2]!.body.state).not.toHaveProperty('said_just_before');
+    });
+
     it('answers the voice-command set as one request, one ask per command', async () => {
         const { a } = app();
         const res = await post(a, await devToken(a), { classifier: 'command', text: 'Set a timer for ten minutes.' });

@@ -83,12 +83,19 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
             ? body.earlier.filter((e): e is string => typeof e === 'string').slice(-MAX_EARLIER_ITEMS)
             : [];
 
+        // Same again: judgeState clips and drops empties.
+        const said = body.before && typeof body.before === 'object' ? (body.before as Record<string, unknown>) : {};
+        const before = {
+            ...(typeof said['facilitator'] === 'string' ? { facilitator: said['facilitator'].slice(-MAX_UTTERANCE_CHARS) } : {}),
+            ...(typeof said['meditator'] === 'string' ? { meditator: said['meditator'].slice(-MAX_UTTERANCE_CHARS) } : {}),
+        };
+
         const sessionId = sessionIdOf(body.sessionId);
         const t0 = Date.now();
         try {
             const result = await askNouls(
                 apiKey,
-                judgeState(body.classifier, text, { earlier }),
+                judgeState(body.classifier, text, { earlier, before }),
                 judgeQuestions(body.classifier)
             );
             const latencyMs = Date.now() - t0;

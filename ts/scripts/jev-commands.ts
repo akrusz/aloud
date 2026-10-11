@@ -7,11 +7,18 @@
  *   npm run jev:commands
  *
  * Needs TYPESAFE_API_KEY, from ts/server/.env or the environment. Prints each
- * miss, then the five thinnest margins on each side of the bar.
+ * miss, then the five thinnest margins on each side of the bar, then the
+ * requests that point back at what was just said (POINTING_BACK), which go
+ * through detectVoiceCommand itself.
  */
 
-import { judgeQuestions, judgeState } from '../src/facilitation/utterance-judge.js';
-import { resolveCommands, type VoiceCommandId } from '../src/facilitation/voice-command.js';
+import {
+    judgeQuestions,
+    judgeState,
+    type JudgeBefore,
+    type UtteranceJudge,
+} from '../src/facilitation/utterance-judge.js';
+import { detectVoiceCommand, resolveCommands, type VoiceCommandId } from '../src/facilitation/voice-command.js';
 import { COMMAND_GATE_ASK, COMMAND_GATE_BAR, COMMAND_SPECS } from '../src/facilitation/voice-command-specs.js';
 import { askNouls } from '../server/src/providers/typesafe.js';
 import { loadServerEnv } from '../soak/env.js';
@@ -97,6 +104,83 @@ const CORPUS: Case[] = [
 /** `end_session` on "I want this to be over" (~0.64) is the known, accepted
  *  miss: ending is a question, never an act. Reported, not counted. */
 const KNOWN: Case[] = [['I want this to be over.', []]];
+
+/**
+ * Requests whose object is in what was said just before: the second look of
+ * detectVoiceCommand. The first one is the session this came from, verbatim.
+ * Then the same kinds of exchange with an utterance that is NOT a command;
+ * anything that fires there is a misfire.
+ */
+type BackCase = [before: JudgeBefore, text: string, want: VoiceCommandId[]];
+
+const ENDING: JudgeBefore = {
+    meditator: "I'm going to end the session soon, but first I want to feel this.",
+    facilitator: "Take your time. When you're ready, you can end the session.",
+};
+const TIMER: JudgeBefore = {
+    meditator: 'I keep wondering how long I have been here, and whether I set the timer.',
+    facilitator: 'The timer is yours to set whenever you like. What is here now?',
+};
+
+const POINTING_BACK: BackCase[] = [
+    [
+        {
+            meditator:
+                "Yeah, yeah, I think that's, that's been an amazing session. Wow. All right, well, I'm going to end the session, so I'd just like to appreciate, to, actually, excuse me, to express appreciation for everything here, for this process.",
+            facilitator: "Thank you for letting this unfold the way it did. When you're ready, you can end the session.",
+        },
+        'Yeah. Can you actually do that?',
+        ['end_session'],
+    ],
+    [
+        { meditator: "I think I'm done for today.", facilitator: 'It sounds complete. You can end the session whenever you like.' },
+        'Okay, go ahead and do that.',
+        ['end_session'],
+    ],
+    [
+        { meditator: 'The screen is really bright in this dark room.', facilitator: 'You can ask the app for its dark theme.' },
+        'Oh nice, can you do that?',
+        ['dark_mode'],
+    ],
+    [
+        {
+            meditator: "I set a timer earlier but I don't think I want it anymore.",
+            facilitator: "You can let it go. What's here now?",
+        },
+        'Can you get rid of it?',
+        ['cancel_timer'],
+    ],
+    [
+        { meditator: 'I keep losing track of how long I have been here.', facilitator: 'Would a timer help? You can ask for one.' },
+        'Yes, do that. Ten minutes.',
+        ['set_timer'],
+    ],
+
+    [ENDING, 'Not yet, I want to stay a bit longer.', []],
+    [ENDING, 'Can you wait a second?', []],
+    [ENDING, 'Can you help me with this?', []],
+    [ENDING, 'Do I have to?', []],
+    [ENDING, 'Just give me a moment.', []],
+    [TIMER, 'Hold on.', []],
+    [TIMER, 'Can I ask you something?', []],
+    [TIMER, 'Maybe later.', []],
+    [TIMER, 'Can you stay with me here?', []],
+    [
+        { meditator: 'I was thinking about ending things with my job.', facilitator: 'What comes up when you imagine that ending?' },
+        'Can I actually do that?',
+        [],
+    ],
+    [
+        { meditator: 'I wish I could just turn my thoughts off.', facilitator: 'What would that be like?' },
+        'Can you do that for me?',
+        [],
+    ],
+];
+
+/** "Okay, I'll do that." after "you can end the session" scores ~0.72 on
+ *  end_session though they mean to do it themselves. Ending only ever asks, so
+ *  the cost is one "Would you like to end the session?". Reported, not counted. */
+const KNOWN_BACK: BackCase[] = [[ENDING, "Okay, I'll do that.", []]];
 
 loadServerEnv();
 const key = process.env['TYPESAFE_API_KEY'];
@@ -198,4 +282,33 @@ console.log(
 );
 console.log(`\nweakest real commands (score minus bar):\n${thinnest(hits)}`);
 console.log(`\nstrongest non-commands (bar minus score):\n${thinnest(nearMisses)}`);
-process.exitCode = misses > 0 ? 1 : 0;
+
+// The production path end to end: gate, first look, then one look per side.
+const direct: UtteranceJudge = {
+    async judge(id, utterance, context = {}) {
+        if (id !== 'command' && id !== 'command-gate') throw new Error(`no ${id} here`);
+        const r = await askNouls(key!, judgeState(id, utterance, context), id === 'command' ? questions : gateQuestions);
+        return r.answers;
+    },
+};
+let backMisses = 0;
+console.log('\npointing back at what was just said:');
+for (const [before, text, want] of [...POINTING_BACK, ...KNOWN_BACK]) {
+    const known = KNOWN_BACK.some(([, t]) => t === text);
+    const cmd = await detectVoiceCommand(direct, text, before);
+    const got = cmd?.commands ?? [];
+    const ok = got.length === want.length && want.every((id) => got.includes(id));
+    if (!ok && !known) backMisses++;
+    const top = cmd
+        ? Object.entries(cmd.answers)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 2)
+              .map(([k, v]) => `${k}=${v.toFixed(2)}`)
+              .join(' ')
+        : '';
+    console.log(
+        `  ${ok ? 'ok    ' : known ? 'KNOWN ' : 'MISS  '} "${text}"  want [${want.join(', ')}] got [${got.join(', ')}]${cmd?.fromContext ? ' (second look)' : ''}  ${top}`
+    );
+}
+console.log(`${POINTING_BACK.length - backMisses}/${POINTING_BACK.length} correct`);
+process.exitCode = misses + backMisses > 0 ? 1 : 0;

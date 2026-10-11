@@ -59,7 +59,16 @@ Each command speaks a canned acknowledgment (`COMMAND_LINES`).
    per command. This runs right after the mute check and ahead of
    `routeUtterance`, so commands work inside a hold without ending it
    (`restoreHoldAfterNotice`).
-4. **Resolve.** The asks are independent, so one utterance can clear several
+4. **Second look.** A request can point back at something just said: "Can you
+   actually do that?" right after the facilitator's "when you're ready, you can
+   end the session". That clears the gate and then names no command, so it used
+   to reach the model, which can only say it can't work the app. When step 3
+   finds nothing, `secondLook` asks the same set again beside what was said
+   just before (`saidJustBefore`: the facilitator's last line, the meditator's
+   last turn), one side per request, the higher score counting. Shown together
+   the two sides dilute each other, and the first look never gets context at
+   all, because it moves the scores of commands that name themselves.
+5. **Resolve.** The asks are independent, so one utterance can clear several
    ("talk slower and show me the orb"). `resolveCommands` drops the weaker of
    two opposites and orders the rest (speaker mute, then mic mute, then the end
    question last), and the app speaks one joined acknowledgment.
@@ -97,8 +106,10 @@ info panel's Voice commands row opens the list.
 ## Changing a command
 
 `npm run jev:commands` scores every ask (through the gate) against a labelled
-corpus and prints the thinnest margins. The asks share one request, so rerun it
-after touching any of them, and keep them lean: each costs ~170 tokens a call.
+corpus and prints the thinnest margins, then runs the pointing-back cases
+(`POINTING_BACK`) through `detectVoiceCommand` itself. The asks share one
+request, so rerun it after touching any of them, and keep them lean: each costs
+~170 tokens a call.
 Everything else a command change touches (acknowledgment lines in both
 languages, hints, README / site / store copy) is listed in
 [pre-release-checklist.md](pre-release-checklist.md) Part B.

@@ -27,12 +27,14 @@ import {
     type ClassifyResumeIntentOptions,
     CommandPrefetch,
     detectVoiceCommand,
+    saidJustBefore,
     classifyEndConfirm,
     parseTimerRequest,
     steppedRate,
     steppedPause,
     COMMAND_LINES,
     type DetectedCommand,
+    type JudgeBefore,
     type VoiceCommandId,
     type SessionLanguage,
     defaultPacingConfig,
@@ -541,7 +543,9 @@ export async function mountSessionView(
     // The first few sessions with commands say so right where "Listening…" is.
     const inviteToCommands = cloudJudge !== null && claimIntroSession();
     // Asks the command judge while the recognizer is still waiting out the pause.
-    let commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge) : null;
+    // A request can point back at what was just said ("can you do that?").
+    const saidBefore = (): JudgeBefore => saidJustBefore(session.state?.exchanges ?? []);
+    let commandPrefetch = cloudJudge ? new CommandPrefetch(cloudJudge, undefined, saidBefore) : null;
     builder.config.appControls = cloudJudge ? 'voice' : 'screen';
     // They opted in and the sign-in lapsed: otherwise the only sign is a command
     // that does nothing. Until their first turn, then it's just Listening….
@@ -1649,7 +1653,7 @@ export async function mountSessionView(
         judgeAccess = 'opted-in';
         cloudJudge = new CloudJudge();
         cloudJudge.warm();
-        commandPrefetch = new CommandPrefetch(cloudJudge);
+        commandPrefetch = new CommandPrefetch(cloudJudge, undefined, saidBefore);
         attachJudge(cloudJudge);
         builder.config.appControls = 'voice';
         // The system prompt is frozen once the opener has run; the model hears
@@ -1915,7 +1919,15 @@ export async function mountSessionView(
      *  and say so once: "Okay, slower. Here's the orb." */
     async function runVoiceCommand(cmd: DetectedCommand, userText: string): Promise<void> {
         const lang = sessionLanguageOf(sessionLanguage);
-        diag('[command]', JSON.stringify({ commands: cmd.commands, answers: cmd.answers, latencyMs: cmd.latencyMs }));
+        diag(
+            '[command]',
+            JSON.stringify({
+                commands: cmd.commands,
+                answers: cmd.answers,
+                latencyMs: cmd.latencyMs,
+                fromContext: cmd.fromContext ?? false,
+            })
+        );
         tapEvent('note', `command:${cmd.commands.join('+')}`, { answers: cmd.answers, utterance: userText });
         // A command in reply to "shall I be quiet?" isn't an answer to it.
         if (awaitingHoldConfirm) {
@@ -2523,7 +2535,7 @@ export async function mountSessionView(
                             if (await handleEndConfirm(text)) continue;
                         } else {
                             if (early) tapEvent('note', 'command:prefetched');
-                            const cmd = await (early ?? detectVoiceCommand(cloudJudge, text));
+                            const cmd = await (early ?? detectVoiceCommand(cloudJudge, text, saidBefore()));
                             if (torn || muted) break;
                             if (cmd) {
                                 await runVoiceCommand(cmd, text);

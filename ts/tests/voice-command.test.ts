@@ -4,6 +4,7 @@ import {
     CommandPrefetch,
     detectVoiceCommand,
     resolveCommands,
+    saidJustBefore,
     classifyEndConfirm,
     mightBeCommand,
     parseTimerRequest,
@@ -15,7 +16,15 @@ import {
     TTS_RATE_MAX,
     TTS_RATE_MIN,
 } from '../src/facilitation/voice-command.js';
-import { judgeQuestions, judgeSpec, type JudgeAnswers, type UtteranceJudge } from '../src/facilitation/utterance-judge.js';
+import {
+    JUDGE_MAX_BEFORE_CHARS,
+    judgeQuestions,
+    judgeSpec,
+    judgeState,
+    type JudgeAnswers,
+    type JudgeContext,
+    type UtteranceJudge,
+} from '../src/facilitation/utterance-judge.js';
 
 const none = (): JudgeAnswers => Object.fromEntries(VOICE_COMMAND_IDS.map((id) => [id, 0.03]));
 
@@ -146,8 +155,142 @@ describe('detectVoiceCommand', () => {
     });
 });
 
+// "Can you actually do that?" right after "when you're ready, you can end the
+// session" names no command on its own; the second look shows the judge what
+// came before, one side at a time.
+describe('detectVoiceCommand: a request that points back', () => {
+    const BEFORE = { facilitator: "When you're ready, you can end the session.", meditator: "I'm going to end the session." };
+
+    /** Answers the first look with nothing, and each second look by which side it was shown. */
+    function lookingBack(bySide: { facilitator?: JudgeAnswers | Error; meditator?: JudgeAnswers | Error }) {
+        const asked: Array<{ id: string; context: JudgeContext }> = [];
+        const judge: UtteranceJudge = {
+            async judge(id, _utterance, context = {}) {
+                asked.push({ id, context });
+                if (id === 'command-gate') return { is_command: 0.7 };
+                const side = context.before?.facilitator ? 'facilitator' : context.before?.meditator ? 'meditator' : null;
+                const answers = side ? (bySide[side] ?? none()) : none();
+                if (answers instanceof Error) throw answers;
+                return answers;
+            },
+        };
+        return { judge, asked };
+    }
+
+    it('finds the command beside what the facilitator just said', async () => {
+        const { judge, asked } = lookingBack({ facilitator: { ...none(), end_session: 0.72 } });
+        const cmd = await detectVoiceCommand(judge, 'Yeah. Can you actually do that?', BEFORE);
+        expect(cmd?.commands).toEqual(['end_session']);
+        expect(cmd?.fromContext).toBe(true);
+        // Gate, first look bare, then one look per side, never both sides in one.
+        expect(asked.map((a) => a.context.before ?? null)).toEqual([
+            null,
+            null,
+            { facilitator: BEFORE.facilitator },
+            { meditator: BEFORE.meditator },
+        ]);
+    });
+
+    it('or beside what the meditator said before, and takes the higher score of the two', async () => {
+        const { judge } = lookingBack({
+            facilitator: { ...none(), cancel_timer: 0.05, hide_clock: 0.5 },
+            meditator: { ...none(), cancel_timer: 0.93, hide_clock: 0.1 },
+        });
+        const cmd = await detectVoiceCommand(judge, 'Can you get rid of it?', BEFORE);
+        expect(cmd?.commands).toEqual(['cancel_timer', 'hide_clock']);
+        expect(cmd?.answers['cancel_timer']).toBe(0.93);
+        expect(cmd?.answers['hide_clock']).toBe(0.5);
+    });
+
+    it('one side failing does not lose the other', async () => {
+        const { judge } = lookingBack({ facilitator: new Error('timeout'), meditator: { ...none(), cancel_timer: 0.9 } });
+        expect((await detectVoiceCommand(judge, 'Can you get rid of it?', BEFORE))?.commands).toEqual(['cancel_timer']);
+    });
+
+    it('is still nothing when neither look finds a command, or nothing was said before', async () => {
+        const quiet = lookingBack({});
+        expect(await detectVoiceCommand(quiet.judge, 'Can you help me with this?', BEFORE)).toBeNull();
+        const first = lookingBack({ facilitator: { ...none(), end_session: 0.9 } });
+        expect(await detectVoiceCommand(first.judge, 'Can you actually do that?')).toBeNull();
+        expect(first.asked.map((a) => a.id)).toEqual(['command-gate', 'command']);
+    });
+
+    it('never looks back for a command that names itself, or past the gate', async () => {
+        const asked: JudgeContext[] = [];
+        const judge: UtteranceJudge = {
+            async judge(id, _utterance, context = {}) {
+                asked.push(context);
+                return id === 'command-gate' ? { is_command: 0.9 } : { ...none(), slower: 0.95 };
+            },
+        };
+        const cmd = await detectVoiceCommand(judge, 'Can you slow down?', BEFORE);
+        expect(cmd?.commands).toEqual(['slower']);
+        expect(cmd?.fromContext).toBeUndefined();
+        expect(asked.every((c) => !c.before)).toBe(true);
+        expect(asked).toHaveLength(2);
+    });
+});
+
+describe('saidJustBefore', () => {
+    it('is the last thing each of them said, skipping what nobody said', () => {
+        expect(
+            saidJustBefore([
+                { role: 'assistant', content: "What's here?" },
+                { role: 'user', content: 'A warmth.' },
+                { role: 'user', content: 'I think I am going to end the session.' },
+                { role: 'assistant', content: " When you're ready, you can end the session. " },
+                { role: 'user', content: '[Check-in: the meditator has been quiet]', kind: 'event' },
+                { role: 'system', content: 'Setting change: voice commands are now on.', kind: 'setting' },
+            ])
+        ).toEqual({
+            facilitator: "When you're ready, you can end the session.",
+            meditator: 'I think I am going to end the session.',
+        });
+        expect(saidJustBefore([])).toEqual({});
+    });
+});
+
+describe('judgeState with what was said before', () => {
+    it('is unchanged without it, and for every other judge', () => {
+        const bare = judgeState('command', 'Can you do that?');
+        expect(Object.keys(bare)).toEqual(['situation', 'utterance']);
+        expect(judgeState('command', 'Can you do that?', { before: {} })).toEqual(bare);
+        expect(judgeState('command', 'Can you do that?', { before: { facilitator: '  ' } })).toEqual(bare);
+        const gate = judgeState('command-gate', 'Can you do that?', { before: { facilitator: 'You can end it.' } });
+        expect(gate).not.toHaveProperty('said_just_before');
+        expect(gate.situation).toBe(judgeSpec('command-gate').situation);
+    });
+
+    it('adds the exchange and says what it is for, keeping the end of a long turn', () => {
+        const long = `${'x'.repeat(JUDGE_MAX_BEFORE_CHARS)} and then I set a timer`;
+        const state = judgeState('command', 'Can you get rid of it?', { before: { meditator: long } });
+        expect(state.situation).toContain('nothing in it is a command');
+        expect(state.said_just_before?.meditator?.endsWith('and then I set a timer')).toBe(true);
+        expect(state.said_just_before?.meditator?.length).toBe(JUDGE_MAX_BEFORE_CHARS + 3);
+        expect(state.said_just_before).not.toHaveProperty('facilitator');
+    });
+});
+
 describe('CommandPrefetch', () => {
     afterEach(() => vi.useRealTimers());
+
+    it('looks back with what was said before the partial it judges', async () => {
+        vi.useFakeTimers();
+        const seen: JudgeContext[] = [];
+        const judge: UtteranceJudge = {
+            async judge(id, _utterance, context = {}) {
+                seen.push(context);
+                if (id === 'command-gate') return { is_command: 0.7 };
+                return context.before?.facilitator ? { ...none(), end_session: 0.8 } : none();
+            },
+        };
+        const pre = new CommandPrefetch(judge, 350, () => ({ facilitator: 'You can end the session.' }));
+        pre.note('can you actually do that');
+        vi.advanceTimersByTime(350);
+        const cmd = await pre.take('Can you actually do that?');
+        expect(cmd?.commands).toEqual(['end_session']);
+        expect(seen.at(-1)?.before).toEqual({ facilitator: 'You can end the session.' });
+    });
 
     it('judges a settled partial once and hands the verdict to the matching final', async () => {
         vi.useFakeTimers();

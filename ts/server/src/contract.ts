@@ -80,6 +80,9 @@ export interface JudgeRequest {
     /** `resume` only: earlier utterances from the same hold, oldest first. The
      *  server clamps count and length (core clampEarlier). */
     earlier?: string[];
+    /** `command` only: what was said right before `text`, for a request that
+     *  points back at it. The server clips each side (core clampBefore). */
+    before?: { facilitator?: string; meditator?: string };
     /** See CompleteRequest.sessionId. */
     sessionId?: string;
 }

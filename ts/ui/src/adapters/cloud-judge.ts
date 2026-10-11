@@ -6,8 +6,14 @@
  * adapter does, since the fallback call right behind this one does it anyway.
  */
 
-import type { JudgeAnswers, JudgeContext, JudgeId, UtteranceJudge } from '../../../src/facilitation/index.js';
-import { clampEarlier } from '../../../src/facilitation/index.js';
+import type {
+    JudgeAnswers,
+    JudgeBefore,
+    JudgeContext,
+    JudgeId,
+    UtteranceJudge,
+} from '../../../src/facilitation/index.js';
+import { clampBefore, clampEarlier } from '../../../src/facilitation/index.js';
 import { ensureCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
@@ -51,10 +57,10 @@ export abstract class RemoteJudge implements UtteranceJudge {
         // is not met with a backoff.
         if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('offline');
         const ac = new AbortController();
-        const earlier = clampEarlier(context.earlier);
+        const sent: SentContext = { earlier: clampEarlier(context.earlier), before: clampBefore(context.before) };
         try {
             const answers = await withTimeout(
-                this.request(classifier, text, earlier, ac.signal),
+                this.request(classifier, text, sent, ac.signal),
                 JUDGE_TIMEOUT_MS,
                 'judge timed out'
             );
@@ -77,7 +83,7 @@ export abstract class RemoteJudge implements UtteranceJudge {
      *  backoff. */
     warm(): void {
         const ac = new AbortController();
-        void withTimeout(this.request('command', 'hello', [], ac.signal), JUDGE_TIMEOUT_MS * 2, 'warm timed out')
+        void withTimeout(this.request('command', 'hello', NO_CONTEXT, ac.signal), JUDGE_TIMEOUT_MS * 2, 'warm timed out')
             .catch(() => undefined)
             .finally(() => ac.abort());
     }
@@ -85,16 +91,23 @@ export abstract class RemoteJudge implements UtteranceJudge {
     protected abstract request(
         classifier: JudgeId,
         text: string,
-        earlier: string[],
+        context: SentContext,
         signal: AbortSignal
     ): Promise<JudgeAnswers>;
 }
+
+/** A JudgeContext already clamped for the wire. */
+export interface SentContext {
+    earlier: string[];
+    before: JudgeBefore | null;
+}
+const NO_CONTEXT: SentContext = { earlier: [], before: null };
 
 export class CloudJudge extends RemoteJudge {
     protected async request(
         classifier: JudgeId,
         text: string,
-        earlier: string[],
+        { earlier, before }: SentContext,
         signal: AbortSignal
     ): Promise<JudgeAnswers> {
         const token = await ensureCloudToken();
@@ -106,6 +119,7 @@ export class CloudJudge extends RemoteJudge {
                 classifier,
                 text,
                 ...(earlier.length ? { earlier } : {}),
+                ...(before ? { before } : {}),
                 ...(sessionId ? { sessionId } : {}),
             }),
             signal,

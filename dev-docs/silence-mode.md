@@ -56,7 +56,9 @@ Judge sessions put TypeSafe's Jev in front of the three classifiers, via
   the facilitator?" and "done with the silence?" separately, and alone gets the
   hold's earlier utterances as context (`JudgeContext.earlier`), so "I guess
   I'm ready" can mean the session or the thing they were just talking about.
-  The LLM classifiers stay history-free.
+  The LLM classifiers stay history-free. The command check has its own kind
+  of context, on its second look only: see
+  [voice-commands.md](voice-commands.md#how-an-utterance-is-checked).
 - **Failure.** Any judge failure falls through to the LLM classifiers.
   `RemoteJudge` (`ui/src/adapters/cloud-judge.ts`, the base of `CloudJudge`
   and `OwnKeyJudge`) backs off (30s doubling to 5m) after two failures in a

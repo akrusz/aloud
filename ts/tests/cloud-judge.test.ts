@@ -54,6 +54,14 @@ describe('CloudJudge', () => {
         expect(calls[1]).not.toHaveProperty('earlier');
     });
 
+    it('posts what was said just before, when the caller has it', async () => {
+        const before = { facilitator: "  When you're ready, you can end the session. " };
+        await judge().judge('command', 'Can you actually do that?', { before });
+        expect(calls[0]).toMatchObject({ before: { facilitator: "When you're ready, you can end the session." } });
+        await judge().judge('command', 'Can you slow down?');
+        expect(calls[1]).not.toHaveProperty('before');
+    });
+
     it('backs off after two straight failures, doubling, without calling out', async () => {
         const j = judge();
         up = false;

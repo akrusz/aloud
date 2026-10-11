@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { OwnKeyJudge } from '../ui/src/adapters/own-key-judge.js';
-import { JEV_MODEL, JUDGE_SPECS, judgeVerdict } from '../src/facilitation/index.js';
+import { JEV_MODEL, JUDGE_SPECS, judgeSpec, judgeVerdict } from '../src/facilitation/index.js';
 
 function judgeWith(body: unknown, status = 200) {
     const calls: Array<{ url: string; headers: Record<string, string>; body: Record<string, unknown> }> = [];
@@ -35,6 +35,16 @@ describe('OwnKeyJudge', () => {
         expect(calls[0]!.body['state']).toMatchObject({
             utterance: "Okay, I'm back.",
             earlier_in_this_silence: ['It settled.'],
+        });
+    });
+
+    it('builds the command second look the same way', async () => {
+        const answers = Object.fromEntries(Object.keys(judgeSpec('command').asks).map((k) => [k, { type: 'noul', noul: 0.1 }]));
+        const { judge, calls } = judgeWith({ model: 'jev-1', answers });
+        await judge.judge('command', 'Can you actually do that?', { before: { facilitator: 'You can end the session.' } });
+        expect(calls[0]!.body['state']).toMatchObject({
+            said_just_before: { facilitator: 'You can end the session.' },
+            utterance: 'Can you actually do that?',
         });
     });
 

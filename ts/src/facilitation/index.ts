@@ -48,6 +48,7 @@ export {
     judgeQuestions,
     judgeVerdict,
     clampEarlier,
+    clampBefore,
     JEV_MODEL,
     jevRequest,
     noulAnswers,
@@ -56,6 +57,7 @@ export type {
     ClassifierId,
     JudgeId,
     JudgeAnswers,
+    JudgeBefore,
     JudgeContext,
     JudgeMode,
     JudgeReport,
@@ -69,6 +71,7 @@ export { isMuteCommand } from './mute-command.js';
 export {
     CommandPrefetch,
     detectVoiceCommand,
+    saidJustBefore,
     resolveCommands,
     classifyEndConfirm,
     mightBeCommand,

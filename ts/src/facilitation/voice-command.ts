@@ -18,9 +18,11 @@
  */
 
 import type { SessionLanguage } from './language.js';
+import { spokenExchanges, type Exchange } from './session.js';
 import {
     judgeTop,
     type JudgeAnswers,
+    type JudgeBefore,
     type UtteranceJudge,
 } from './utterance-judge.js';
 import {
@@ -76,6 +78,8 @@ export interface DetectedCommand {
     commands: VoiceCommandId[];
     answers: JudgeAnswers;
     latencyMs: number;
+    /** Found only on the second look, from what was said just before. */
+    fromContext?: true;
 }
 
 /** Asks that can't both be meant. When both clear, the higher score is it. */
@@ -138,7 +142,9 @@ export function resolveCommands(answers: JudgeAnswers): VoiceCommandId[] {
  */
 export async function detectVoiceCommand(
     judge: UtteranceJudge,
-    utterance: string
+    utterance: string,
+    /** What was said right before, for the second look. */
+    before: JudgeBefore = {}
 ): Promise<DetectedCommand | null> {
     if (!mightBeCommand(utterance)) return null;
     const t0 = Date.now();
@@ -150,14 +156,79 @@ export async function detectVoiceCommand(
         const pGate = gate?.[COMMAND_GATE_ASK];
         if (typeof pGate === 'number' && pGate < COMMAND_GATE_BAR) return null;
         const answers = await judge.judge('command', utterance).catch(() => judge.judge('command', utterance));
-        const top = judgeTop('command', answers);
-        if (!top || !(VOICE_COMMAND_IDS as string[]).includes(top)) return null;
-        const commands = resolveCommands(answers);
-        if (commands.length === 0) return null;
-        return { command: moreSpecific(top as VoiceCommandId, answers), commands, answers, latencyMs: Date.now() - t0 };
+        const found = commandsIn(answers);
+        if (found) return { ...found, answers, latencyMs: Date.now() - t0 };
+        const again = await secondLook(judge, utterance, before);
+        const fromBefore = again && commandsIn(again);
+        if (!fromBefore) return null;
+        return { ...fromBefore, answers: again, latencyMs: Date.now() - t0, fromContext: true };
     } catch {
         return null;
     }
+}
+
+/**
+ * What the next utterance can point back at: the facilitator's last line and
+ * the meditator's last turn, from the session log as it stands before that
+ * utterance is added. Event and note entries are not things anyone said.
+ */
+export function saidJustBefore(
+    exchanges: ReadonlyArray<Pick<Exchange, 'role' | 'content' | 'kind'>>
+): JudgeBefore {
+    const before: JudgeBefore = {};
+    for (const ex of spokenExchanges(exchanges)) {
+        const text = ex.content.trim();
+        if (!text) continue;
+        if (ex.role === 'assistant') before.facilitator = text;
+        else if (ex.role === 'user') before.meditator = text;
+    }
+    return before;
+}
+
+function commandsIn(answers: JudgeAnswers): Pick<DetectedCommand, 'command' | 'commands'> | null {
+    const top = judgeTop('command', answers);
+    if (!top || !(VOICE_COMMAND_IDS as string[]).includes(top)) return null;
+    const commands = resolveCommands(answers);
+    if (commands.length === 0) return null;
+    return { command: moreSpecific(top as VoiceCommandId, answers), commands };
+}
+
+/**
+ * A request can point back at something just said. "Can you actually do that?",
+ * right after the facilitator's "when you're ready, you can end the session",
+ * clears the gate and then names no command, so it went to the model, which
+ * can only say it can't work the app. So an utterance that looked like a
+ * request and matched nothing is asked about again, this time shown what came
+ * before it.
+ *
+ * Only then, and never on the first look: context moves the scores of plain
+ * commands too ("Yes, do that. Ten minutes." fell from 0.79 to 0.53 on
+ * set_timer beside an unrelated earlier remark), and a command that names
+ * itself needs none.
+ *
+ * One side per request, the higher score counting. Either side can hold the
+ * antecedent, and shown together they dilute each other: the session this came
+ * from scored 0.72 on end_session beside the facilitator's line alone, 0.50
+ * beside both, and 0.20 beside the meditator's own previous words alone
+ * (npm run jev:commands scores the corpus of these). A server too old to
+ * read `before` answers as it did the first time, which is a no.
+ */
+async function secondLook(
+    judge: UtteranceJudge,
+    utterance: string,
+    before: JudgeBefore
+): Promise<JudgeAnswers | null> {
+    const sides = (['facilitator', 'meditator'] as const).filter((who) => before[who]?.trim());
+    const looks = await Promise.all(
+        sides.map((who) => judge.judge('command', utterance, { before: { [who]: before[who] } }).catch(() => null))
+    );
+    let merged: JudgeAnswers | null = null;
+    for (const answers of looks) {
+        if (!answers) continue;
+        if (!merged) merged = { ...answers };
+        else for (const [id, p] of Object.entries(answers)) merged[id] = Math.max(merged[id] ?? 0, p);
+    }
+    return merged;
 }
 
 /**
@@ -179,7 +250,9 @@ export class CommandPrefetch {
     constructor(
         private readonly judge: UtteranceJudge,
         /** A partial must sit unchanged this long before it's worth judging. */
-        private readonly settleMs = 350
+        private readonly settleMs = 350,
+        /** What was said before the utterance now being spoken (detectVoiceCommand). */
+        private readonly before: () => JudgeBefore = () => ({})
     ) {}
 
     /** Case, edge whitespace and trailing punctuation differ between a partial
@@ -197,7 +270,7 @@ export class CommandPrefetch {
         if (!key || !mightBeCommand(partial)) return;
         this.timer = setTimeout(() => {
             this.timer = null;
-            this.pending = { key, result: detectVoiceCommand(this.judge, partial) };
+            this.pending = { key, result: detectVoiceCommand(this.judge, partial, this.before()) };
         }, this.settleMs);
     }
 

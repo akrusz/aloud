@@ -263,7 +263,38 @@ export function judgeSpec(id: JudgeId): JudgeSpec {
 export interface JudgeContext {
     /** Earlier utterances from this same hold, oldest first. */
     earlier?: readonly string[];
+    /** `command` only, and only on its second look (voice-command.ts
+     *  secondLook): what was said right before the utterance. */
+    before?: JudgeBefore;
 }
+
+/** The exchange a request can point back into: "Can you actually do that?"
+ *  right after "When you're ready, you can end the session." */
+export interface JudgeBefore {
+    facilitator?: string;
+    meditator?: string;
+}
+
+/** Long enough for a sentence or two. The END is kept: the thing a "that"
+ *  points at is the last thing said, and a meditator's turn can run long. */
+export const JUDGE_MAX_BEFORE_CHARS = 400;
+
+/** `before` with each side trimmed and tail-clipped, or null when it is empty. */
+export function clampBefore(before: JudgeBefore | undefined): JudgeBefore | null {
+    const out: JudgeBefore = {};
+    for (const who of ['facilitator', 'meditator'] as const) {
+        const text = before?.[who]?.trim();
+        if (text) out[who] = text.length > JUDGE_MAX_BEFORE_CHARS ? `...${text.slice(-JUDGE_MAX_BEFORE_CHARS)}` : text;
+    }
+    return out.facilitator || out.meditator ? out : null;
+}
+
+/** Rides on `situation` rather than in each of the 24 asks, which would pay
+ *  for it 24 times a call. The last clause is what keeps "you can end the
+ *  session" in a facilitator's line from reading as the meditator's ask. */
+const BEFORE_NOTE =
+    ' `said_just_before` is what was said right before `utterance`. Use it only to tell what words ' +
+    'like "that" or "it" in `utterance` refer to; nothing in it is a command.';
 
 /** Enough to disambiguate the latest utterance without burying it. */
 export const JUDGE_MAX_EARLIER = 6;
@@ -286,15 +317,19 @@ export function clampEarlier(earlier: readonly string[] | undefined): string[] {
 export interface JudgeState {
     situation: string;
     earlier_in_this_silence?: string[];
+    said_just_before?: JudgeBefore;
     utterance: string;
 }
 
-/** The request `state` for one utterance. */
+/** The request `state` for one utterance. With no context it is the same
+ *  bytes as ever, so nothing measured without context moves. */
 export function judgeState(id: JudgeId, utterance: string, context: JudgeContext = {}): JudgeState {
     const earlier = id === 'resume' ? clampEarlier(context.earlier) : [];
+    const before = id === 'command' ? clampBefore(context.before) : null;
     return {
-        situation: judgeSpec(id).situation,
+        situation: judgeSpec(id).situation + (before ? BEFORE_NOTE : ''),
         ...(earlier.length ? { earlier_in_this_silence: earlier } : {}),
+        ...(before ? { said_just_before: before } : {}),
         utterance,
     };
 }
