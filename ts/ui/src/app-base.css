@@ -6168,7 +6168,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         justify-content: space-between;
     }
 
-    /* Staged-mode phase hint ("settling in", "sensing") as a translucent
+    /* Staged-mode phase hint ("Settling in", "Sensing") as a translucent
        chip in the top chrome, centered between the brand (left) and orb
        (right) - in the input row it forced the felt-sense controls onto
        an extra line the other modes don't have. Ellipsized to stay clear

@@ -70,7 +70,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 - you can continue saved exploration or felt sense sessions, or access the saved sessions folder, from the history page.
 - the AI gently checks in if you're quiet for a while. adjust timing or disable in settings.
 - you can change the clock style (session time, clock time, timer with spoken notification) in session setup, or by tapping it in session.
-- found a bug? "report a bug" in the about box, "Report a bug" in the More menu, or Help → Report a Bug… on macOS. the report comes pre-filled with diagnostics.
+- found a bug? "Report a bug" in the about box or the More menu, or Help → Report a Bug… on macOS. the report comes pre-filled with diagnostics.
 - 🥚 there are a few easter eggs 🥚
 
 ## running from source

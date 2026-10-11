@@ -23,7 +23,7 @@ import { recentErrors } from './error-log.js';
 import { choiceDialog } from './dialog.js';
 import { t } from './i18n.js';
 
-/** Same inbox as the About "kind words" / privacy contact. */
+/** Same inbox as the About "Kind words" / privacy contact. */
 const SUPPORT_EMAIL = 'lexkrusz@gmail.com';
 
 function platformLabel(): string {

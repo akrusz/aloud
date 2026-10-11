@@ -17,7 +17,7 @@ const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
 const CLIENT_ID_KEY = 'aloud-client-id';
 /** Set when a first sit starts; the next visit to setup spends it on the
- *  "Shape your next sit" card. */
+ *  "Shape your next session" card. */
 const FOLLOW_UP_KEY = 'aloud-first-sit-follow-up';
 
 const PADDING = 10;

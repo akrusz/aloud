@@ -105,6 +105,11 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
 - [ ] **Sign-in survives a restart.** Sign in, force-stop, reopen - still signed
       in. Then sign out, force-stop, reopen - still signed **out**
       (`meditation-pal-7n22`).
+- [ ] **A mail link leaves the app cleanly.** About → "Kind words" opens the
+      mail composer, and back in the app taps still land. Through the in-app
+      browser tab it left an invisible activity over the app until Back; the
+      fix (`openExternal` in `external-links.ts`) was read from the plugin
+      source, never run on a device.
 
 ## 4. If you changed billing or the cloud
 

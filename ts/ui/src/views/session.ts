@@ -1178,8 +1178,8 @@ export async function mountSessionView(
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
-    // Staged-mode phase hint: a quiet word in the input row ("sensing",
-    // "finding words") so the user can feel where they are in the arc without
+    // Staged-mode phase hint: a quiet word in the input row ("Sensing",
+    // "Finding words") so the user can feel where they are in the arc without
     // it being announced aloud. Hidden for single-phase modes.
     const phaseEl = root.querySelector<HTMLElement>('#session-phase');
     function setPhaseHint(): void {

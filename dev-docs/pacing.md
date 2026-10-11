@@ -87,5 +87,5 @@ It bends three of the rules above for that session only, and saves none of it:
   keeps it out of the saved settings until the meditator picks a mode or
   length of their own.
 
-The sit queues a one-time "Shape your next sit" card for the next visit to
+The sit queues a one-time "Shape your next session" card for the next visit to
 setup (`markSessionStarted`), which is where the tour gets offered again.
