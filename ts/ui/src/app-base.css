@@ -6051,13 +6051,19 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         margin-top: 0;
     }
 
+    /* Stacked over the nav column the wordmark is read against its labels,
+       and at the phone size it looked the smaller of the two. */
+    .nav-brand {
+        font-size: 1.6rem;
+    }
+
     /* The nav stands up in the gutter under the brand, which is empty anyway:
        as a bottom bar it took a fifth of the height. Not a bar any more, so
        toast.ts (bottomClearingBars) skips it by its width. */
     .bottom-nav {
         /* Hung from the nav's own top padding, not the inset, so the gap
            under the brand holds where there is no status bar (a browser). */
-        top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 3.9rem);
+        top: calc(max(0.5rem, var(--safe-top) - 0.4rem) + 4.05rem);
         bottom: auto;
         left: max(0.75rem, var(--safe-left));
         right: auto;
