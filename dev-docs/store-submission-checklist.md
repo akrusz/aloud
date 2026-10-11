@@ -22,7 +22,9 @@ recruited on Twitter, and production follows the application.
 The current bundle is **2.14.0, versionCode 39**: the first Play build since
 2.7.0 in August, so the first to carry the recognizer session model (`lbl5`),
 the speaker re-request after a lock (`wxj5`) and voice commands. Everything in
-between was verified on dev installs only. The test sit on it is still owed.
+between was verified on dev installs only. A first test sit on it (2026-10-10)
+ran through, and left two things to chase before testers are recruited:
+Bluetooth headphones (`4xkx`) and a missing check-in (`v85a`).
 
 **iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
 on the simulator only, some App Store Connect info filled in. Google sign-in is
@@ -48,6 +50,16 @@ count.
 A closed test still gives what the open beta was for: testers **cannot leave
 public ratings or reviews**, their feedback arrives privately in the console.
 
+- [ ] **Bluetooth headphones (`4xkx`).** In the 2026-10-10 sit a lock/unlock
+      took playback off the headphones, and the system picker could not put it
+      back until they were re-paired. The suspect is `MainActivity`'s speaker
+      re-request, which never checks for a headset. Read the phone's audio
+      route log over USB (`adb shell dumpsys audio`, `adb logcat -d -s
+      AloudAudio`) before changing it, then retest with headphones on.
+- [ ] **No check-in in 10 quiet minutes (`v85a`).** Same sit, Smart check-ins
+      at Balanced. The model is allowed two passes there, so this may be the
+      design rather than a fault. Turn on Settings → Developer → "Check-in debug HUD"
+      for the next sit and read what it decided.
 - [ ] **The test sit, on the Play-installed build.** Uninstall the dev build
       first: same `applicationId`, different signing key, so Play cannot install
       over it (and the wipe gives a true first run). In one sitting:
@@ -55,8 +67,10 @@ public ratings or reviews**, their feedback arrives privately in the console.
         reviewer note rests on).
       - Google sign-in on the Play-signed build, and still signed in after a
         force-stop.
-      - **30 minutes, screen off, one round trip through backgrounding.** Listen
-        to the loudness after the unlock (`wxj5`).
+      - **30 minutes, with one lock/unlock in the middle.** The app keeps the
+        screen on and a sit does not run with it off (`31zj`), so the check is
+        that it picks up again after ~30s locked. Listen to the loudness after
+        the unlock (`wxj5`), and do it once with Bluetooth headphones on.
       - Start speaking a few seconds after the facilitator stops: the transcript
         begins where the sentence begins. That closes `0l0w` and the open half
         of `wlp9`.
