@@ -1,9 +1,9 @@
 /**
- * History view - past sessions with per-row Continue / Copy / Delete; rows
- * expand inline to the transcript. Continue stashes the session id in
- * sessionStorage and routes to setup, which picks it up and hydrates the next
- * session with the old exchanges. A noting circle can't resume, so its row has
- * no Continue.
+ * History view - past sessions with per-row Continue / Copy / Delete, always
+ * on the row; rows expand inline to the transcript. Continue stashes the
+ * session id in sessionStorage and routes to setup, which picks it up and
+ * hydrates the next session with the old exchanges. A noting circle can't
+ * resume, so its row has no Continue.
  */
 
 import {
@@ -153,11 +153,19 @@ function revealSessionFile(session: SessionState, btn: HTMLButtonElement): void 
         .catch(() => flashLabel(btn, t("Couldn't open")));
 }
 
-/** Swap a button's label for a moment, then put it back. */
+/** Swap a button's label for a moment, then put it back. The label can be a
+ *  full/short pair of spans (actionLabel), so restore the markup, not the text. */
 function flashLabel(btn: HTMLButtonElement, text: string): void {
-    const original = btn.textContent;
+    const original = btn.innerHTML;
     btn.textContent = text;
-    setTimeout(() => (btn.textContent = original), 1500);
+    setTimeout(() => (btn.innerHTML = original), 1500);
+}
+
+/** A button label in two lengths: the full one where the row has room, the
+ *  short one at phone width, where three full labels wrap to a second line.
+ *  CSS shows one of them (.session-actions in app-base.css). */
+function actionLabel(full: string, short: string): string {
+    return `<span class="label-full">${full}</span><span class="label-short">${short}</span>`;
 }
 
 function speakerLabel(ex: Exchange): string {
@@ -248,17 +256,17 @@ function renderItem(session: SessionState): string {
                 <span class="session-meta">${escapeHtml(meta)}</span>
                 ${summary ? `<span class="session-summary">${escapeHtml(summary)}</span>` : ''}
             </div>
+            <div class="session-actions">
+                ${resumable ? `<button type="button" class="btn btn-secondary btn-small btn-continue">${actionLabel(t('Continue from here'), t('Continue'))}</button>` : ''}
+                <button type="button" class="btn btn-secondary btn-small btn-copy">${actionLabel(t('Copy text'), t('Copy'))}</button>
+                ${isTauri() ? `<button type="button" class="btn btn-secondary btn-small btn-reveal">${t('Open on disk')}</button>` : ''}
+                <button type="button" class="btn btn-danger btn-small btn-delete">${t('Delete')}</button>
+            </div>
             <span class="session-expand">&#9662;</span>
         </div>
         <div class="session-item-body hidden">
             <div class="session-transcript" data-loaded="0">
                 <p class="loading-text">${t('Loading...')}</p>
-            </div>
-            <div class="session-actions">
-                ${resumable ? `<button type="button" class="btn btn-secondary btn-small btn-continue">${t('Continue from here')}</button>` : ''}
-                <button type="button" class="btn btn-secondary btn-small btn-copy">${t('Copy text')}</button>
-                ${isTauri() ? `<button type="button" class="btn btn-secondary btn-small btn-reveal">${t('Open on disk')}</button>` : ''}
-                <button type="button" class="btn btn-danger btn-small btn-delete">${t('Delete')}</button>
             </div>
         </div>
     </div>`;

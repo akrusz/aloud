@@ -134,6 +134,7 @@ export const ZH: Record<string, string> = {
     "Continuing from a previous session": "继续上一次冥想",
     "Continuing from: {summary}": "继续自：{summary}",
     "Copied": "已复制",
+    "Copy": "复制",
     "Copy address": "复制地址",
     "Copy failed": "复制失败",
     "Copy report text": "复制报告文本",

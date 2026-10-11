@@ -3184,6 +3184,7 @@ body::before {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
     padding: 0.875rem 1rem;
     cursor: pointer;
     transition: background var(--transition);
@@ -3198,6 +3199,8 @@ body::before {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
+    flex: 1;
+    min-width: 0;
 }
 
 .session-date {
@@ -3281,13 +3284,42 @@ body::before {
     color: var(--text-secondary);
 }
 
+/* On the row itself, between the summary and the chevron, so a session can be
+   continued or copied without opening it. */
 .session-actions {
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border);
     display: flex;
-    justify-content: flex-end;
+    flex-shrink: 0;
     gap: 0.5rem;
+}
+
+.session-actions .btn {
+    white-space: nowrap;
+}
+
+.session-actions .label-short {
+    display: none;
+}
+
+/* Phone width: the buttons drop to their own line under the summary, with the
+   short labels (history.ts actionLabel) so the three of them fit on it. */
+@media (max-width: 767px) {
+    .session-item-header {
+        flex-wrap: wrap;
+    }
+    .session-actions {
+        order: 1;
+        flex-basis: 100%;
+    }
+    .session-actions .label-full {
+        display: none;
+    }
+    .session-actions .label-short {
+        display: inline;
+    }
+    /* Delete sits apart from the two it is easy to mean instead. */
+    .session-actions .btn-delete {
+        margin-left: auto;
+    }
 }
 
 .loading-text {
