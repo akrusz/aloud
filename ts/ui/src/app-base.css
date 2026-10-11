@@ -2280,10 +2280,6 @@ body:has(.session-container) {
     color: var(--text-muted);
 }
 
-.ember-level .toggle-text {
-    margin-right: 0.1rem;
-}
-
 .ember-btn {
     background: none;
     border: none;
@@ -2303,26 +2299,50 @@ body:has(.session-container) {
 
 .ember-blocks {
     display: flex;
+    align-items: flex-end;
     gap: 2px;
 }
 
+/* Each level is a flame, a touch bigger than the one before it. */
 .ember-block {
-    --ember-size: 12px;
-    width: var(--ember-size);
-    height: var(--ember-size);
-    border: 1px solid var(--text-muted);
-    border-radius: 2px;
+    --ember-size: 14px;
+    --ember-scale: 1;
+    display: block;
+    width: calc(var(--ember-size) * var(--ember-scale));
+    height: calc(var(--ember-size) * var(--ember-scale));
+    color: var(--text-muted);
     cursor: pointer;
-    transition: background var(--transition), border-color var(--transition);
+    transition: color var(--transition);
+}
+
+.ember-block[data-level="1"] { --ember-scale: 0.8; }
+.ember-block[data-level="2"] { --ember-scale: 0.88; }
+.ember-block[data-level="3"] { --ember-scale: 0.96; }
+.ember-block[data-level="4"] { --ember-scale: 1.04; }
+.ember-block[data-level="5"] { --ember-scale: 1.14; }
+
+.ember-block svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: fill var(--transition);
 }
 
 .ember-block.filled {
-    background: var(--accent);
-    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.ember-block.filled svg {
+    fill: currentColor;
 }
 
 .ember-block:hover {
-    border-color: var(--accent);
+    color: var(--accent);
 }
 
 @keyframes ember-shake {
@@ -2338,13 +2358,13 @@ body:has(.session-container) {
 }
 
 @keyframes ember-block-grow {
-    from { width: 0; border-width: 0; opacity: 0; }
-    to { width: var(--ember-size); border-width: 1px; opacity: 1; }
+    from { width: 0; opacity: 0; transform: scale(0); }
+    to { width: calc(var(--ember-size) * var(--ember-scale)); opacity: 1; transform: scale(1); }
 }
 
 .ember-block.growing {
     animation: ember-block-grow 0.4s ease-out forwards;
-    overflow: hidden;
+    transform-origin: bottom center;
 }
 
 .speed-control {
@@ -5629,7 +5649,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .continue-banner:not(.hidden) + .setup-header {
         margin-top: 0;
     }
-    /* Session input controls (Embers / Kasina / Voice) - chunkier so
+    /* Session input controls (ember flames / Voice) - chunkier so
        they're tappable, and allowed to wrap so they don't crash into
        each other on the narrowest widths. */
     .input-controls {
@@ -5647,14 +5667,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         height: 10px;
     }
     .ember-block {
-        --ember-size: 16px;
+        --ember-size: 18px;
     }
     .ember-btn {
         font-size: 1.15rem;
         padding: 0.1rem 0.35rem;
     }
     .ember-level {
-        gap: 0.4rem;
+        gap: 0.3rem;
     }
 
     /* Bigger range thumb so the directiveness slider (and any other

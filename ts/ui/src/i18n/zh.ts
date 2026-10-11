@@ -193,7 +193,6 @@ export const ZH: Record<string, string> = {
     "Email me occasional updates about aloud": "偶尔给我发送 aloud 的更新邮件",
     "Email me occasional updates about aloud (we'll never share or sell your address)": "偶尔给我发送 aloud 的更新邮件（我们绝不会分享或出售你的地址）",
     "Email updates": "邮件更新",
-    "Embers": "余烬",
     "Finding words": "寻找词语",
     "Free, everything stays on your computer.": "免费，一切都留在你的电脑上。",
     "Joy, sadness, or whatever’s alive underneath": "喜悦、悲伤，或内心深处正在涌动的任何感受",
