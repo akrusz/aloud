@@ -37,6 +37,7 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 | Storage | `CapacitorKv` (@capacitor/preferences - durable UserDefaults / SharedPreferences) | `LocalStorageKv` | `adapters/kv.ts`, `adapters/capacitor-kv.ts` |
 | STT | `CapacitorSttEngine` (SFSpeechRecognizer / Android SpeechRecognizer) | web-speech / server-whisper / aloud cloud | `adapters/stt-picker.ts`, `adapters/capacitor-stt.ts` |
 | Keep-awake | `@capacitor-community/keep-awake` | web Wake Lock API | `wakelock.ts` |
+| Screen dim | on battery, black after 3 minutes without a touch (never during kasina gazing), plus the window's brightness down on Android (`ScreenDimPlugin.java`, a plugin local to the app module) | the black cover alone, on touch devices whose browser reports the battery | `screen-dim.ts` |
 | External links | `@capacitor/browser` (in-app SFSafariViewController / Custom Tab); a `mailto:` goes to the webview instead, which the plugin can't open | Tauri opener / full-page redirect | `external-links.ts` |
 | System bar icons | follow `data-theme` (Capacitor's core `SystemBars`), since the app draws edge-to-edge and the theme can differ from the device's | nothing | `system-bars.ts` |
 | Buying ☁ | nothing is sold in the app (`purchaseChannel()` is `'none'`); Android may name aloud.rest/account in plain text, never as a link; iOS says nothing (`topUpHint`) | our own checkout (Stripe, USDC) | `purchase-channel.ts` |

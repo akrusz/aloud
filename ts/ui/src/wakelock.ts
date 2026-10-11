@@ -1,6 +1,7 @@
 /* Keep the screen on during a session; otherwise the phone sleeps mid-session
    and the audio connection breaks. Acquired on session start, released on end,
-   re-acquired on visibility change so a tab-switch doesn't drop it.
+   re-acquired on visibility change so a tab-switch doesn't drop it. On, not
+   lit: on battery the screen goes black between touches (screen-dim.ts).
 
    Two backends:
      - Native mobile (Capacitor) → @capacitor-community/keep-awake, since
@@ -8,6 +9,7 @@
      - Everything else (browser, desktop) → the web Wake Lock API. */
 
 import { isCapacitor } from './is-desktop.js';
+import { startScreenDim, stopScreenDim } from './screen-dim.js';
 
 // The Wake Lock API isn't in TypeScript's default DOM lib yet.
 interface WakeLockSentinelLike {
@@ -41,6 +43,7 @@ async function ensureKeepAwake(): Promise<typeof import('@capacitor-community/ke
 }
 
 export async function acquireWakeLock(): Promise<void> {
+    startScreenDim();
     if (isCapacitor()) {
         const mod = await ensureKeepAwake();
         if (!mod) return;
@@ -67,6 +70,7 @@ export async function acquireWakeLock(): Promise<void> {
 }
 
 export function releaseWakeLock(): void {
+    stopScreenDim();
     if (isCapacitor()) {
         if (!nativeKeptAwake) return;
         nativeKeptAwake = false;

@@ -540,6 +540,7 @@ export const ZH: Record<string, string> = {
     "Takes {min} minutes, nothing to set up.": "大约 {min} 分钟，什么都不用设置。",
     "Tap <span class=\"info-btn-glyph\">?</span> on any section for details": "点击任意部分的 <span class=\"info-btn-glyph\">?</span> 可以查看详情",
     "Tap preview again to play this voice (your browser blocked the first play).": "再点一次试听即可播放（浏览器拦截了第一次播放）。",
+    "Tap to wake": "轻触唤醒",
     "Text Size": "文字大小",
     "Text-to-Speech": "语音合成",
     "That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.": "该浏览器语音无法播放 -「在线」/「自然」语音需要网络且不总是可用。请试试其他语音，或使用 aloud cloud。",

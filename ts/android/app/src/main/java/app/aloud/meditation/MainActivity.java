@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Before super.onCreate, which builds the bridge from this list.
+        registerPlugin(ScreenDimPlugin.class);
         super.onCreate(savedInstanceState);
         // Android 15+ draws under the system bars whether asked or not; older
         // versions need the ask, or they keep opaque bars around the webview

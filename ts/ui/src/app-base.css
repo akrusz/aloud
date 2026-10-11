@@ -6286,6 +6286,45 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
 }
 
+/* screen-dim.ts: a session on battery goes black between touches. True black
+   rather than a theme color, so an OLED panel is off, and above everything so
+   nothing stays lit. touch-action keeps a drag from scrolling the page under it. */
+.screen-dim {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    opacity: 0;
+    transition: opacity 2s ease;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.screen-dim.visible {
+    opacity: 1;
+}
+
+/* Readable while the black comes up, gone before the brightness drops
+   (HINT_MS in screen-dim.ts). */
+.screen-dim-hint {
+    color: #8a8a8a;
+    font-size: 0.9rem;
+    animation: screen-dim-hint 5s ease forwards;
+}
+
+@keyframes screen-dim-hint {
+    0%,
+    70% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
 /* Dev-build-only "a failure is being simulated" banner (dev-sim.ts). Deliberately
    loud and pinned above everything: a toggle left on from an earlier tab reads as
    a real bug otherwise. Never present in a release bundle. */

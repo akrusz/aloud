@@ -76,6 +76,9 @@ public ratings or reviews**, their feedback arrives privately in the console.
         screen on and a sit does not run with it off (`31zj`), so the check is
         that it picks up again after ~30s locked. Listen to the loudness after
         the unlock (`wxj5`), and do it once with Bluetooth headphones on.
+      - Unplugged, three minutes without a touch: the screen goes black, and a
+        tap brings it back with the session still running (`screen-dim.ts`,
+        not yet run on a phone).
       - Start speaking a few seconds after the facilitator stops: the transcript
         begins where the sentence begins. That closes `0l0w` and the open half
         of `wlp9`.
