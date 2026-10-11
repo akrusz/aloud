@@ -14,8 +14,8 @@
  * live UI, and the setup controls are worked by real clicks. The words in a
  * session transcript are written in from script.md (lib/stage.js says why),
  * and the voice label reads Harper, the voice the soundtrack uses. No model,
- * no speech service and no account is touched: the model call is blocked and
- * the recognizer is a stub.
+ * no speech service and no account is touched: the model call is blocked, the
+ * recognizer is a stub and the session's own voice is the browser's.
  */
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
@@ -181,6 +181,10 @@ async function openApp(shot) {
         }
         window.SpeechRecognition = SilentRecognizer;
         window.webkitSpeechRecognition = SilentRecognizer;
+        // With no voice saved, the setup page takes the best one it finds: a
+        // hosted voice, which needs an account, so Begin stops at the sign-in
+        // dialog. Seeded before the app runs, or its own pick can land first.
+        localStorage.setItem('aloud:app:settings', JSON.stringify({ defaultVoice: 'browser:Samantha' }));
     });
     const page = await context.newPage();
     // The dev default provider is local Ollama, and a session's first act is
