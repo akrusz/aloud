@@ -63,7 +63,7 @@ describe('timer event turns', () => {
     });
 
     it('states the length the meditator actually set', () => {
-        expect(buildTimerApproachEvent(180, 45)).toContain('45 minute sit');
+        expect(buildTimerApproachEvent(180, 45)).toContain('45 minute session');
         expect(buildTimerCompletionEvent(45)).toContain('45 minutes');
     });
 

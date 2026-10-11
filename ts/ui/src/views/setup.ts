@@ -1554,7 +1554,7 @@ function renderClockButton(key: string): string {
         <div class="form-group setup-clock-group">
             <label>${t('Session Clock')} <button type="button" class="info-btn" data-info="clock-${key}" aria-label="${t('About the session clock')}">?</button></label>
             <div class="info-panel hidden" id="info-clock-${key}">
-                <p>${t("A clock or a timer for the sit. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.")}</p>
+                <p>${t("A clock or a timer for the session. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.")}</p>
                 <p>${t("Hiding the readout doesn't disarm the timer; you still get the spoken close.")}</p>
             </div>
             <button type="button" class="setup-clock-btn" data-clock-btn>${t('Time in session')}</button>

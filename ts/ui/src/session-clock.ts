@@ -432,7 +432,7 @@ export function showSessionClockModal(
                         <input type="checkbox" id="clock-end-on-complete">
                         <span>${t('End the session when the time is up')}</span>
                     </label>
-                    <p class="clock-end-hint">${t('The facilitator says the time is up either way. Off, the sit stays open.')}</p>
+                    <p class="clock-end-hint">${t('The facilitator says the time is up either way. If checked, it will also end the session.')}</p>
                 </div>
             </div>
             <!-- Outside the scrolling body: on a short window the mode list

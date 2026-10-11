@@ -45,6 +45,7 @@ export function sessionLanguageOf(code: string | undefined | null): SessionLangu
  */
 export const ZH_LANGUAGE_FRAGMENT = `Session language: Chinese
 The meditator speaks Mandarin Chinese. Respond ONLY in Simplified Chinese - natural, warm, spoken 普通话, never a translation register. Do not mix in English words or pinyin.
+Call the practice 冥想, not 静坐 or 打坐: those name a seated posture, and the meditator may be lying down or walking.
 The hidden control tokens are the one exception: [HOLD], [NEXT], [BACK], [PASS], and [WAIT:Nm] must stay EXACTLY as written, in English, in square brackets, at the very start of your reply. Never translate, rename, or explain them.`;
 
 // --- zh twins of the canned pools -------------------------------------------
@@ -118,13 +119,13 @@ export const ZH_TIMER_APPROACH_FALLBACKS: readonly string[] = [
 export const ZH_TIMER_COMPLETION_FALLBACKS: readonly string[] = [
     '时间到了。你准备好了再慢慢回来。',
     '你设的时间结束了。慢慢回来，不着急。',
-    '这一坐到这里就结束了。不用急。',
+    '这次冥想到这里就结束了。不用急。',
 ];
 
 export const ZH_TIMER_CLOSE_FALLBACKS: readonly string[] = [
     '时间到了。我就陪你到这里。',
     '你设的时间到了。就到这里吧。',
-    '这一坐到这里结束。慢慢来。',
+    '这次冥想到这里结束。慢慢来。',
 ];
 
 export const ZH_FELT_SENSE_OPENERS: readonly string[] = [

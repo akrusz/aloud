@@ -101,7 +101,7 @@ export function buildTimerApproachEvent(
         : '';
     return (
         `${SESSION_TIMER_EVENT_PREFIX} ${minutesPhrase(remainingSec)} remain of a ` +
-        `${totalMin} minute sit. The meditator set this length in advance; this ` +
+        `${totalMin} minute session. The meditator set this length in advance; this ` +
         `message is automatic and they have not spoken. If it fits, begin drawing ` +
         `toward a close. Do not announce the time or count it down. ` +
         `If it would interrupt something live, reply with exactly ${PASS_PREFIX}.${staged}]`
@@ -145,7 +145,7 @@ export const TIMER_APPROACH_FALLBACKS: readonly string[] = [
 export const TIMER_COMPLETION_FALLBACKS: readonly string[] = [
     "That's your time. Come back whenever you're ready.",
     'The time you set is complete. Take as long as you like coming back.',
-    "That's the end of your sit. No hurry.",
+    "That's the end of your session. No hurry.",
 ];
 
 /** Spoken instead of TIMER_COMPLETION_FALLBACKS when the sit ends here: the
@@ -153,7 +153,7 @@ export const TIMER_COMPLETION_FALLBACKS: readonly string[] = [
 export const TIMER_CLOSE_FALLBACKS: readonly string[] = [
     "That's your time. I'll leave you here.",
     'The time you set is up. Stopping there.',
-    "That's the end of your sit. Take your time.",
+    "That's the end of your session. Take your time.",
 ];
 
 /** Pick a fallback line, varying by index so a repeat sit isn't identical. */

@@ -279,7 +279,7 @@ function showWelcome(): void {
     const offerQuickStart = welcomeVariant === 'first-run' && quickStart !== null;
     let html =
         welcomeVariant === 'after-first-sit'
-            ? '<h3>' + t('Shape your next sit') + '</h3><p>' + t('Customize your next session. Set the vibe, attention focus, and more.') + '</p>'
+            ? '<h3>' + t('Shape your next session') + '</h3><p>' + t('Set the vibe, attention focus, and more.') + '</p>'
             : '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
     html += '<div class="tour-choices">';
     if (offerQuickStart) {
