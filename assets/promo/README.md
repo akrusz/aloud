@@ -58,6 +58,7 @@ npm run web:dev                                      #    (the app, for stage 2)
 node assets/promo/play-video/tools/capture-ui.mjs    # 2. film the real UI
 node assets/promo/play-video/tools/render-film.mjs   # 3. render + encode (~3 min)
 node assets/promo/play-video/tools/render-film.mjs --preview   # or watch it in a browser
+node assets/promo/play-video/tools/render-film.mjs --range 50,58   # or render only those seconds
 ```
 
 1. **`build-audio.mjs`** reads `script.md`, cuts and levels every spoken line,
@@ -93,6 +94,39 @@ refuses UI shots filmed for a different cut.
 - The f3 take, and whether 81.7s is too long.
 - Nothing on screen says whose words e3 and e4 are. A caption for that would
   be new copy, so it isn't there.
+
+## Ember burst (experiment)
+
+Tried 2026-10-11: the app's ember burst (four presses of + at full embers)
+somewhere in the Play video. It is wired into `play-video/film/film.js` and
+**off**, so the cut is unchanged until the dev picks a moment. `BURST` there
+names it; `?burst=<moment>` on the film's URL tries one without editing
+(`render-film.mjs --preview --query burst=live`). The sparks are the app's
+`burstEmbers` at stage size: behind everything on screen, silent, about 2s of
+real motion, no runtime added.
+
+Clips with sound, in `play-video/build/audition/` (gitignored; remake with
+`render-film.mjs --query burst=<moment> --range <from>,<to> --out <file>`):
+
+| moment | goes off | clip | reads as |
+|--------|----------|------|----------|
+| `live` | on the bowl under c12 | `burst-live.mp4` | the picture for "live", straight after c11's row of identical tapes; the last sparks carry over the cut to the orb |
+| `relief` | on his last word in e4 | `burst-relief.mp4` | a release under "relief", cleared before the end card's type arrives |
+| `end` | as the wordmark lands | `burst-end.mp4` | a flourish on the logo; sparks pass behind c14 as it fades in |
+
+Claude's read, for the dev to overrule: `live`. It lands on the pitch (the
+format) and lifts the two text-only cards, the flattest stretch of the cut.
+`relief` is the cleanest picture but turns up the one outcome word in the
+video, and `end` is decoration that costs c14 a little legibility. One burst,
+not two.
+
+Not built: showing it happen in the app (the phone, four taps on +, the fifth
+flame growing, the real burst). That is a new beat of about 3s on a cut already
+over target, a feature rather than the format, and it wants a caption, which is
+the dev's copy to write.
+
+The UI shots in `build/ui/` are from 2026-10-09 and still show the old "Embers"
+squares; the flame control arrives with the next `capture-ui.mjs` run.
 
 ## Audio recipe
 

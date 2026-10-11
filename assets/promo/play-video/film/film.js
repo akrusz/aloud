@@ -28,6 +28,18 @@ const easeOut = (p) => 1 - (1 - p) ** 3;
 const easeInOut = (p) => (p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2);
 /** Overshoots a little, then settles: the sticker landing. */
 const backOut = (p) => 1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2;
+/** CSS `ease-out`, cubic-bezier(0, 0, 0.58, 1): what the app's burst runs on. */
+function cssEaseOut(p) {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 24; i++) {
+        const u = (lo + hi) / 2;
+        if (1.74 * u * u - 0.74 * u ** 3 < p) lo = u;
+        else hi = u;
+    }
+    const u = (lo + hi) / 2;
+    return 3 * u * u - 2 * u ** 3;
+}
 const during = (t, span) => Boolean(span) && t >= span.start && t < span.end;
 
 /** A voice's loudness at t, 0-1, lightly smoothed. */
@@ -241,11 +253,14 @@ const onPhone = (x, y) => ({ x: PHONE.x + PHONE.inset + x, y: PHONE.y + PHONE.in
 /** Every scene, as a function of time; drawn in this order each frame. */
 const scenes = [];
 
+/** EMBER_COLORS_DARK in ts/ui/src/embers.ts. */
+const EMBER_COLORS = ['#e8a840', '#d4873a', '#c07830', '#e0a038', '#cc8030'];
+
 /** Embers, as in a session: slow sparks rising behind everything. */
 {
     const layer = h('div', 'layer');
     const rand = seeded(11);
-    const colors = ['#e8a840', '#d4873a', '#c07830', '#e0a038', '#cc8030'];
+    const colors = EMBER_COLORS;
     const embers = Array.from({ length: 16 }, () => ({
         el: h('div', 'abs ember', layer),
         x: rand() * 1920,
@@ -267,6 +282,59 @@ const scenes = [];
             const x = e.x + e.sway * Math.sin((2 * Math.PI * (t + e.offset)) / e.swayEvery);
             e.el.style.transform = `translate(${x}px, ${1100 - p * 1180}px)`;
             e.el.style.opacity = 0.62 * Math.sin(Math.PI * p) ** 0.7;
+        }
+    });
+}
+
+/**
+ * Experiment: the app's ember burst, once, behind whatever is on screen. It is
+ * burstEmbers in ts/ui/src/embers.ts (what four presses of + at full embers
+ * set off) with the same timings, sized up from a phone to the stage. BURST
+ * names the moment, null for none; `?burst=<moment>` on the film's URL tries
+ * another without editing this, `?burst=off` none.
+ */
+const BURST = null;
+{
+    const moments = {
+        // On the bowl under c12: "a live conversation".
+        live: L.c12?.start,
+        // On his last word, carrying over the cut to the end card.
+        relief: L.e4?.words.find((w) => /^relief/i.test(w.w))?.t,
+        // As the wordmark lands.
+        end: B.end && B.end.start + 0.25,
+    };
+    const at = moments[new URLSearchParams(location.search).get('burst') ?? BURST] ?? null;
+    const layer = h('div', 'layer');
+    const rand = seeded(29);
+    /** Phone pixels to stage pixels. */
+    const K = 1.7;
+    // The app sends up 100 across a phone's width; the stage is far wider.
+    const sparks = Array.from({ length: 160 }, () => {
+        const el = h('div', 'abs ember', layer);
+        const size = (2 + rand() * 8) * K;
+        const color = EMBER_COLORS[Math.floor(rand() * EMBER_COLORS.length)];
+        el.style.width = el.style.height = `${size}px`;
+        el.style.background = color;
+        el.style.boxShadow = `0 0 ${3 + size}px ${size * 0.4}px ${color}66`;
+        return {
+            el,
+            x: (0.05 + rand() * 0.9) * 1920,
+            dx: (-60 + rand() * 120) * K,
+            rise: (0.4 + rand() * 0.6) * 1080,
+            life: 2 + rand() * 3,
+            delay: rand() * 0.4,
+        };
+    });
+    /** The app's keyframes: a value at 0, at 0.3 and at 1. */
+    const via = (q, a, mid, b) => (q < 0.3 ? lerp(a, mid, q / 0.3) : lerp(mid, b, (q - 0.3) / 0.7));
+    scenes.push((t) => {
+        if (!show(layer, at !== null && t >= at && t < at + 5.4)) return;
+        for (const s of sparks) {
+            const p = (t - at - s.delay) / s.life;
+            if (!show(s.el, p > 0 && p < 1)) continue;
+            const q = cssEaseOut(p);
+            s.el.style.transform = `translate(${s.x + s.dx * q}px, ${1090 - s.rise * q}px) scale(${via(q, 1, 0.8, 0)})`;
+            s.el.style.opacity = via(q, 0.9, 0.7, 0);
         }
     });
 }

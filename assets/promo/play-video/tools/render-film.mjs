@@ -10,13 +10,15 @@
  * Needs build/timeline.json + build/audio/mix.wav (build-audio.mjs) and
  * build/ui/ (capture-ui.mjs). Writes build/aloud-play-video.mp4. Flags:
  * --workers <n> (Chrome tabs rendering at once, default 4), --keep (leave the
- * frame PNGs in build/frames/), --out <file>.
+ * frame PNGs in build/frames/), --out <file>, --range <from>,<to> (only those
+ * seconds, with their sound, to build/audition/clip-<from>-<to>.mp4),
+ * --query <a=b&c=d> (options film.js reads from its URL, e.g. burst=end).
  */
 
 import { execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { extname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { chromium } from '../../../../ts/node_modules/playwright-core/index.mjs';
 import { BUILD_DIR, REPO_ROOT } from './lib/script.mjs';
 
@@ -27,7 +29,9 @@ const flag = (name, fallback) => {
 };
 const CHROME = process.env['CHROME_PATH'] ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const WORKERS = Number(flag('workers', 4));
-const OUT = flag('out', join(BUILD_DIR, 'aloud-play-video.mp4'));
+const QUERY = flag('query', '');
+const RANGE = flag('range', null)?.split(',').map(Number) ?? null;
+const OUT = flag('out', RANGE ? join(BUILD_DIR, 'audition', `clip-${RANGE[0]}-${RANGE[1]}.mp4`) : join(BUILD_DIR, 'aloud-play-video.mp4'));
 const FRAMES_DIR = join(BUILD_DIR, 'frames');
 const STILLS_DIR = join(BUILD_DIR, 'stills');
 const FILM_PATH = '/assets/promo/play-video/film/film.html';
@@ -61,7 +65,7 @@ await new Promise((resolve) => server.listen(Number(flag('port', 0)), '127.0.0.1
 const origin = `http://127.0.0.1:${server.address().port}`;
 
 if (args.includes('--preview')) {
-    console.log(`${origin}${FILM_PATH}?preview\n  space plays and pauses, arrows step a frame (shift: a second). Ctrl-C to stop.`);
+    console.log(`${origin}${FILM_PATH}?preview${QUERY && `&${QUERY}`}\n  space plays and pauses, arrows step a frame (shift: a second). Ctrl-C to stop.`);
     await new Promise(() => {});
 }
 
@@ -76,7 +80,7 @@ async function openFilm() {
         console.error(`film.js: ${err.message}`);
         process.exitCode = 1;
     });
-    await page.goto(`${origin}${FILM_PATH}`);
+    await page.goto(`${origin}${FILM_PATH}${QUERY && `?${QUERY}`}`);
     await page.waitForFunction(() => document.documentElement.dataset.ready === '1', null, { timeout: 30000 });
     return page;
 }
@@ -95,16 +99,19 @@ try {
     } else {
         rmSync(FRAMES_DIR, { recursive: true, force: true });
         mkdirSync(FRAMES_DIR, { recursive: true });
-        let next = 0;
+        mkdirSync(dirname(OUT), { recursive: true });
+        const first = RANGE ? Math.max(0, Math.round(RANGE[0] * timeline.fps)) : 0;
+        const last = RANGE ? Math.min(timeline.frames, Math.round(RANGE[1] * timeline.fps)) : timeline.frames;
+        let next = first;
         let done = 0;
         const started = Date.now();
         await Promise.all(
             Array.from({ length: WORKERS }, async () => {
                 const page = await openFilm();
-                for (let i = next++; i < timeline.frames; i = next++) {
+                for (let i = next++; i < last; i = next++) {
                     await page.evaluate((t) => window.seek(t), i / timeline.fps);
-                    await page.screenshot({ path: join(FRAMES_DIR, `${String(i).padStart(5, '0')}.png`) });
-                    if (++done % 300 === 0) console.log(`  ${done}/${timeline.frames} frames, ${((Date.now() - started) / 1000).toFixed(0)}s`);
+                    await page.screenshot({ path: join(FRAMES_DIR, `${String(i - first).padStart(5, '0')}.png`) });
+                    if (++done % 300 === 0) console.log(`  ${done}/${last - first} frames, ${((Date.now() - started) / 1000).toFixed(0)}s`);
                 }
             })
         );
@@ -115,6 +122,7 @@ try {
             [
                 '-hide_banner', '-loglevel', 'warning', '-y',
                 '-framerate', String(timeline.fps), '-i', join(FRAMES_DIR, '%05d.png'),
+                ...(RANGE ? ['-ss', String(first / timeline.fps), '-t', String((last - first) / timeline.fps)] : []),
                 '-i', join(BUILD_DIR, 'audio', 'mix.wav'),
                 '-vf', 'scale=in_range=pc:out_range=tv:out_color_matrix=bt709,format=yuv420p',
                 '-c:v', 'libx264', '-preset', 'slow', '-crf', '15', '-profile:v', 'high',
@@ -126,7 +134,7 @@ try {
             { stdio: 'inherit' }
         );
         if (!args.includes('--keep')) rmSync(FRAMES_DIR, { recursive: true, force: true });
-        console.log(`${OUT}\n  ${timeline.duration.toFixed(2)}s, ${timeline.frames} frames`);
+        console.log(`${OUT}\n  ${((last - first) / timeline.fps).toFixed(2)}s, ${last - first} frames`);
     }
 } finally {
     await browser.close();
