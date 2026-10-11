@@ -22,6 +22,9 @@ function bottomClearingBars(): string {
     );
     for (const el of bars) {
         const r = el.getBoundingClientRect();
+        // A bar spans the screen. In the short, wide phone layout .bottom-nav
+        // is a column down the left edge (app-base.css), not in a toast's way.
+        if (r.width < window.innerWidth / 2) continue;
         if (r.height > 0 && r.top < window.innerHeight) barTop = Math.min(barTop, r.top);
     }
     if (barTop === Infinity) return '';

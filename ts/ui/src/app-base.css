@@ -5389,18 +5389,54 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     display: none;
 }
 
-/* A phone turned sideways is wider than the phone breakpoint but still a
-   phone: without this the base font jumped 15px -> 18px on rotation
-   (meditation-pal-yc1u). Touch-only plus a short viewport picks out that case
-   and leaves tablets and desktops on the desktop base. Layout stays on the
-   width breakpoints below. */
-@media (pointer: coarse) and (hover: none) and (min-width: 768px) and (max-height: 600px) {
-    html {
-        font-size: calc(15px * var(--text-scale, 1));
+/* ============================================
+   Desktop compaction
+   ============================================
+   The setup page should fit a MacBook-class viewport (~1000px tall) without
+   scrolling, so wide layouts give up some vertical air: tighter block gaps,
+   slimmer option cards, less header/footer breathing room. Control sizes and
+   type are untouched; mobile (max-width: 767px) keeps the roomier spacing.
+   A phone on its side is wide too, and matches both this and the phone block:
+   this one sits first so the phone rules win wherever both speak. */
+@media (min-width: 768px) {
+    .main {
+        padding-top: 1rem; /* 2rem */
+    }
+    .setup-header {
+        margin-bottom: 1.25rem; /* 2.5rem */
+    }
+    /* Bottom reserve = the fixed footer (~4rem on setup, ~4.2rem on
+       settings) plus a small gap, and nothing else: .main's own bottom
+       padding would sit under the bar as invisible scroll height, so a
+       page whose content fits above the bar could still scroll. */
+    .setup-container {
+        gap: 1rem; /* 1.25rem */
+        padding-bottom: 5rem; /* 7rem */
+    }
+    .main:has(.setup-footer, .settings-footer) {
+        padding-bottom: 0;
+    }
+    .tab-panel,
+    .customize-body {
+        gap: 1rem; /* 1.5rem */
+    }
+    .modifier-toggle {
+        padding-top: 0.35rem; /* 0.5rem */
+        padding-bottom: 0.35rem;
+    }
+    .setup-footer {
+        padding-top: 0.35rem; /* 0.5rem */
+        padding-bottom: 0.35rem;
     }
 }
 
-@media (max-width: 767px) {
+/* The phone layout: floating top chrome, bottom nav, thumb-sized controls,
+   15px type. Two ways in - a narrow viewport, or a touch-only one too short
+   for the desktop bar, which is a phone on its side (the bar ate a quarter of
+   a 412px-tall screen; the type half of this was meditation-pal-yc1u). Touch
+   plus short leaves tablets and desktops alone. Rules that are about WIDTH
+   (stacking, single columns) live in the max-width blocks, not here. */
+@media (max-width: 767px), (pointer: coarse) and (hover: none) and (max-height: 600px) {
     /* Phone typography: the 18px desktop base reads oversized next to native
        apps. Keep the user's text-scale multiplier (matching the desktop html
        rule); the OS font-size accessibility setting still multiplies on top. */
@@ -5490,16 +5526,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding: calc(4.5rem + var(--safe-top)) 1rem 0;
     }
 
-    .message-content {
-        max-width: 95%;
-    }
-
-    /* Three-up grids collapse straight to single column on phone - skip
-       the awkward two-up intermediate step. */
-    .modifier-toggles {
-        grid-template-columns: 1fr;
-    }
-
     /* Focus + vibe collapse behind "Customize facilitator" so a session is
        reachable without a long scroll. The tour force-opens the section when
        it spotlights these groups (tour/index-guide.ts). */
@@ -5511,13 +5537,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
     .customize-section.open .customize-body {
         margin-top: 1.25rem;
-    }
-
-    /* The intention placeholder wraps to ~3 lines at phone widths; rows="2"
-       clips it. Give the box room for the full hint. */
-    #intention,
-    #felt-sense-intention {
-        min-height: 5.8em;
     }
 
     /* Tap targets - the form is built around a cursor; on phones we
@@ -5550,22 +5569,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         height: 1.75rem;
         font-size: 0.9rem;
         margin-left: 0.5rem;
-    }
-    /* With three method tabs the tab-bar "?" gets crushed against the right
-       edge on phones. Float it up into the top chrome instead - centered
-       between the "aloud." wordmark (left) and the orb (right), matching the
-       same translucent chip treatment so it reads as part of the header. It
-       still toggles the methods panel / "take the full tour" link as before. */
-    .tab-bar .info-btn {
-        position: fixed;
-        top: var(--top-chrome-mid);
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 95;
-        margin-left: 0;
-        color: var(--accent-text);
-        border-color: var(--border);
-        background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
     }
     .continue-banner-close {
         font-size: 1.5rem;
@@ -5675,13 +5678,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         font-size: 0.95rem;
     }
 
-    /* History header: stack title above the open-folder button instead
-       of letting them collide horizontally. */
-    .history-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
     /* History session items: bigger header tap zone and a transcript
        cap relative to viewport so a long session doesn't dominate the
        phone screen when expanded. */
@@ -5690,13 +5686,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
     .session-transcript {
         max-height: 60vh;
-    }
-
-    /* Modals (voice picker, About, sound picker, info): shrink the
-       outer margin on phones so content has more usable width. */
-    .voice-modal,
-    .about-modal {
-        width: calc(100vw - 1.5rem);
     }
 
     /* Settings: tighten the welcome heading (first-run only) so it
@@ -5812,14 +5801,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding: 0.35rem 1rem;
     }
 
-    /* The label-height spacer that aligns the Advanced button with the
-       selects beside it is dead space once the row stacks. */
-    .form-label-spacer {
-        display: none;
-    }
-
     .setup-container {
-        max-width: 500px;
         margin: 0 auto;
         padding-bottom: calc(7rem + 4rem + var(--safe-bottom-clear));
     }
@@ -5913,7 +5895,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
         border-radius: 1rem 1rem 0 0;
-        padding: 0.75rem 0.75rem calc(0.75rem + var(--safe-bottom));
+        /* Side insets: sideways, the camera cutout is on one of them. */
+        padding: 0.75rem max(0.75rem, var(--safe-right)) calc(0.75rem + var(--safe-bottom))
+            max(0.75rem, var(--safe-left));
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
@@ -5970,6 +5954,143 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         font-family: inherit;
         font-size: 0.95rem;
         cursor: pointer;
+    }
+}
+
+/* Width-only halves of the phone layout: a phone on its side keeps the phone
+   chrome above but has the room for these, so they stay on width alone. */
+@media (max-width: 767px) {
+    .message-content {
+        max-width: 95%;
+    }
+
+    /* Three-up grids collapse straight to single column on phone - skip
+       the awkward two-up intermediate step. */
+    .modifier-toggles {
+        grid-template-columns: 1fr;
+    }
+
+    /* The intention placeholder wraps to ~3 lines at phone widths; rows="2"
+       clips it. Give the box room for the full hint. */
+    #intention,
+    #felt-sense-intention {
+        min-height: 5.8em;
+    }
+
+    /* With three method tabs the tab-bar "?" gets crushed against the right
+       edge on phones. Float it up into the top chrome instead - centered
+       between the "aloud." wordmark (left) and the orb (right), matching the
+       same translucent chip treatment so it reads as part of the header. It
+       still toggles the methods panel / "take the full tour" link as before. */
+    .tab-bar .info-btn {
+        position: fixed;
+        top: var(--top-chrome-mid);
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 95;
+        margin-left: 0;
+        color: var(--accent-text);
+        border-color: var(--border);
+        background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
+    }
+
+    /* History header: stack title above the open-folder button instead
+       of letting them collide horizontally. */
+    .history-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* Modals (voice picker, About, sound picker, info): shrink the
+       outer margin on phones so content has more usable width. */
+    .voice-modal,
+    .about-modal {
+        width: calc(100vw - 1.5rem);
+    }
+
+    /* The label-height spacer that aligns the Advanced button with the
+       selects beside it is dead space once the row stacks. */
+    .form-label-spacer {
+        display: none;
+    }
+
+    .setup-container {
+        max-width: 500px;
+    }
+}
+
+/* A phone on its side: the phone layout above, re-spent for a viewport with
+   width to spare and no height. Disjoint from the max-width: 767px blocks. */
+@media (pointer: coarse) and (hover: none) and (min-width: 768px) and (max-height: 600px) {
+    :root {
+        /* The band each floating chip owns, edge inward: the nav's side
+           padding, the wider chip (the brand, or the orb + hamburger in a
+           session, both under 6.5rem) and a gap. The same on both sides, the
+           larger inset included, so the column between stays centered on the
+           screen like the fixed bars under it. */
+        --chrome-gutter: calc(max(0.75rem, var(--safe-left), var(--safe-right)) + 7.25rem);
+    }
+
+    /* The page runs between the chips, not under them, so the only top
+       reserve left is the status bar. */
+    .main {
+        padding: calc(var(--safe-top) + 0.5rem) var(--chrome-gutter)
+            calc(1rem + var(--safe-bottom-clear));
+    }
+    .session-container {
+        padding: calc(var(--safe-top) + 0.5rem) var(--chrome-gutter) 0;
+    }
+    .nav-session-info {
+        margin: 0;
+    }
+    .setup-header {
+        margin-top: 0;
+    }
+
+    /* The nav stands up in the gutter under the brand, which is empty anyway:
+       as a bottom bar it took a fifth of the height. Not a bar any more, so
+       toast.ts (bottomClearingBars) skips it by its width. */
+    .bottom-nav {
+        top: calc(var(--safe-top) + 3.5rem);
+        bottom: auto;
+        left: max(0.75rem, var(--safe-left));
+        right: auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.15rem;
+        padding: 0;
+        background: none;
+        border-top: none;
+    }
+    .bottom-nav-link {
+        flex: none;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 0.55rem;
+        /* Same inset as the brand chip's wordmark, so icons sit under it. */
+        padding: 0.4rem 0.7rem;
+        min-height: 2.75rem;
+    }
+
+    /* With no bar beneath them the footers sit on the screen edge and take
+       the bottom inset themselves. */
+    .settings-footer,
+    .setup-footer {
+        bottom: 0;
+    }
+    .setup-footer {
+        padding-bottom: calc(0.3rem + var(--safe-bottom-clear));
+    }
+    /* Side padding: its buttons sit at the row's ends, so line them up with
+       the column above. */
+    .settings-footer {
+        padding: 0.25rem var(--chrome-gutter) calc(0.25rem + var(--safe-bottom-clear));
+    }
+    .setup-container {
+        padding-bottom: calc(5rem + var(--safe-bottom-clear));
+    }
+    .main:has(.session-container) {
+        padding-bottom: var(--safe-bottom-clear);
     }
 }
 
@@ -6083,45 +6204,6 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .settings-footer-secondary {
         flex-direction: column;
         align-items: stretch;
-    }
-}
-
-/* ============================================
-   Desktop compaction
-   ============================================
-   The setup page should fit a MacBook-class viewport (~1000px tall) without
-   scrolling, so wide layouts give up some vertical air: tighter block gaps,
-   slimmer option cards, less header/footer breathing room. Control sizes and
-   type are untouched; mobile (max-width: 767px) keeps the roomier spacing. */
-@media (min-width: 768px) {
-    .main {
-        padding-top: 1rem; /* 2rem */
-    }
-    .setup-header {
-        margin-bottom: 1.25rem; /* 2.5rem */
-    }
-    /* Bottom reserve = the fixed footer (~4rem on setup, ~4.2rem on
-       settings) plus a small gap, and nothing else: .main's own bottom
-       padding would sit under the bar as invisible scroll height, so a
-       page whose content fits above the bar could still scroll. */
-    .setup-container {
-        gap: 1rem; /* 1.25rem */
-        padding-bottom: 5rem; /* 7rem */
-    }
-    .main:has(.setup-footer, .settings-footer) {
-        padding-bottom: 0;
-    }
-    .tab-panel,
-    .customize-body {
-        gap: 1rem; /* 1.5rem */
-    }
-    .modifier-toggle {
-        padding-top: 0.35rem; /* 0.5rem */
-        padding-bottom: 0.35rem;
-    }
-    .setup-footer {
-        padding-top: 0.35rem; /* 0.5rem */
-        padding-bottom: 0.35rem;
     }
 }
 

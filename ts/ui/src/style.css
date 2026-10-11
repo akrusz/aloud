@@ -247,6 +247,9 @@
     color: var(--text-muted);
 }
 
+/* Width only, though the phone layout in app-base.css has a second way in: a
+   phone on its side runs the conversation between the chips, under this
+   strip, where a strip taking pointer events would swallow its touches. */
 @media (max-width: 767px) {
     /* The mobile top bar is a transparent floating header with
        pointer-events:none so it doesn't block content scrolling beneath it - which also means only the brand/orb (pointer-events:auto) can drag the
