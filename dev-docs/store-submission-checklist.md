@@ -25,7 +25,8 @@ the speaker re-request after a lock (`wxj5`) and voice commands. Everything in
 between was verified on dev installs only. A first test sit on it (2026-10-10)
 ran through, and left two things to settle before testers are recruited:
 Bluetooth headphones (`4xkx`, fixed in the tree, not yet run on a phone) and a
-long gap before a check-in (`v85a`, the design working as written).
+long gap before a check-in (`v85a`, shorter default waits and a truthful second
+ask are in, not yet heard in a session).
 
 **iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
 on the simulator only, some App Store Connect info filled in. Google sign-in is
@@ -60,11 +61,11 @@ public ratings or reviews**, their feedback arrives privately in the console.
       lock for ~30s, unlock - the reply is still in the headphones. Then switch
       the headphones off and on mid-session - the voice moves to the phone
       speaker and back.
-- [ ] **Check-in pass budget (`v85a`): decide.** The 15 quiet minutes in the
-      2026-10-10 sit fit two passes and then the stock line (5 + 5 + 5 at
-      Balanced), which is the design; only the request log would prove it. If
-      15 is too long at Balanced, `SMART_CHECKIN_MAX_PASSES` in
-      `views/session.ts` is the knob.
+- [ ] **Check-ins after a quiet stretch (`v85a`): hear it in a session.** Two
+      passes stay. The default waits at the lower three stops are 12m / 5m / 3m
+      now, and the second ask no longer tells the model its pass was an
+      unanswered check-in. With Settings → Developer → "Check-in debug HUD" on,
+      go quiet at Balanced and read what each ask decided.
 - [ ] **The test sit, on the Play-installed build.** Uninstall the dev build
       first: same `applicationId`, different signing key, so Play cannot install
       over it (and the wipe gives a true first run). In one sitting:
