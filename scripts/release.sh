@@ -32,8 +32,9 @@ audit + cargo check + cargo deny must pass.
 
 Prompts (new versions): Claude drafts a name and notes from the commits since
 the last tag. Name: Enter takes the suggestion, - for none. Notes: Y use,
-e edit in $EDITOR, n write in gh. Then the pre-release doc check: Y run,
-n skip, q abort; if it leaves items, f fixes them in a claude session here.
+e edit in $EDITOR, s write your own there from an empty file, n write in gh
+(at the end, after the push). Then the pre-release doc check: Y run, n skip,
+q abort; if it leaves items, f fixes them in a claude session here.
 
 Env:
   ALOUD_RELEASE_MODEL  model for the claude CLI calls (default: opus)
@@ -69,6 +70,14 @@ fi
 NOTES_FILE=""
 cleanup_notes() { [ -n "$NOTES_FILE" ] && rm -f "$NOTES_FILE"; return 0; }
 trap cleanup_notes EXIT
+
+# Open the notes file in $EDITOR. Saving it empty means no notes, which leaves
+# them to gh's editor at the end. EDITOR runs as a command line, the way git
+# runs it, so a value with flags ("code --wait") works.
+edit_notes() {
+    sh -c "${EDITOR:-vi} \"\$1\"" sh "$NOTES_FILE"
+    [ -s "$NOTES_FILE" ] || { rm -f "$NOTES_FILE"; NOTES_FILE=""; }
+}
 
 # Load the SSH key once so the fetch and the branch + tag pushes don't each
 # re-prompt for the passphrase. Reuse the session agent if it already holds a
@@ -333,14 +342,15 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
     fi
 
     # The drafted bullets become the release body unless you'd rather write
-    # them yourself. "e" opens them in $EDITOR first.
+    # them yourself. "e" opens them in $EDITOR first, "s" opens an empty file
+    # there instead, and "n" waits for gh's editor, after the push.
     if [ -n "$NOTES_FILE" ]; then
-        printf "  Use these notes? [Y/e=edit/n=write in gh] "
+        printf "  Use these notes? [Y/e=edit/s=from scratch/n=write in gh] "
         read -r USE_NOTES
         case "$USE_NOTES" in
             n|N) rm -f "$NOTES_FILE"; NOTES_FILE="" ;;
-            e|E) "${EDITOR:-vi}" "$NOTES_FILE"
-                 [ -s "$NOTES_FILE" ] || { rm -f "$NOTES_FILE"; NOTES_FILE=""; } ;;
+            e|E) edit_notes ;;
+            s|S) : > "$NOTES_FILE"; edit_notes ;;
         esac
     fi
     save_pending

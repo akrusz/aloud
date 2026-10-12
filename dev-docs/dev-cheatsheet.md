@@ -352,7 +352,9 @@ tree, `gh` authenticated.
 Before the name prompt it drafts release notes from the commits since the last
 tag (Claude reads the log + diffstat, not the whole tree). The suggested name is
 the default at the prompt (`-` for no name), and the bullets become the release
-body unless you pick `e` to edit them or `n` to write your own in gh's editor.
+body unless you pick `e` to edit them, `s` to write your own from an empty file
+(both in `$EDITOR`, before anything is pushed), or `n` to write them in gh's
+editor once the tag is up.
 `same`/`replace` carry the published notes forward instead, since deleting and
 re-creating the release would otherwise drop them.
 
