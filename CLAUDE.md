@@ -73,7 +73,7 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 ## Workflow notes
 
 - **Working dir**: all work runs from `ts/` via `npm` (core/UI) plus `cargo` for the Rust shell.
-- **No git push access**: Claude Code is not configured to push. End sessions with `git commit` only; the user pushes.
+- **Pushing depends on where you run**: on the dev's machine, end sessions with `git commit` only; the user pushes. In a cloud session (`$CLAUDE_CODE_REMOTE` is set; the container is wiped afterwards, so unpushed work is lost) pushing is fine, to a branch other than `main` unless told otherwise - the session's assigned branch if it has one.
 - **Pre-release check**: when asked, or before a release, work through `dev-docs/pre-release-checklist.md`: verify docs/copy still match the code and flag downstream consequences.
 - **Docs reference code by file + symbol, not line numbers**: line numbers rot; a `file.ts` path plus a function/constant name stays greppable.
 - **Friction log**: `dev-docs/friction.md` collects repo/tooling friction worth fixing. Append when something slows you down and the fix isn't yours to make in passing; promote real items to beads and delete them from the file.
