@@ -16,7 +16,7 @@ android {
         applicationId "app.aloud.meditation"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 42
+        versionCode 43
         versionName "2.15.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
