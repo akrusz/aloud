@@ -31,8 +31,8 @@ With no devices on the team, Xcode can't mint a *development* profile, so a
 normal signed archive fails ("Your team has no devices"). The workaround:
 archive **unsigned**, then let the export step do App Store distribution
 signing, which needs no device. `-allowProvisioningUpdates` (with Xcode signed
-in to the Apple ID) auto-creates the distribution cert + profile and even
-enables the Sign in with Apple capability on the App ID from App.entitlements.
+in to the Apple ID) auto-creates the distribution cert + profile, and the
+profile carries the App ID's Sign in with Apple capability.
 
 ```bash
 cd ts && npm run cap:sync
@@ -40,9 +40,35 @@ cd ios/App
 xcodebuild archive -workspace App.xcworkspace -scheme App \
   -destination "generic/platform=iOS" -archivePath /tmp/App.xcarchive \
   CODE_SIGNING_ALLOWED=NO
+APP=/tmp/App.xcarchive/Products/Applications/App.app
+codesign -f -s - "$APP"/Frameworks/*.framework
+codesign -f -s - --entitlements App/App.entitlements "$APP"
 xcodebuild -exportArchive -archivePath /tmp/App.xcarchive \
   -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates
 ```
+
+**The two `codesign` lines are not optional.** An unsigned archive carries no
+entitlements, and the export signs with what the archive carries plus the four
+it always adds (`application-identifier`, the team id, `get-task-allow`,
+`beta-reports-active`). What the profile *allows* does not get claimed for you.
+2.15.0 went up without them, so without `com.apple.developer.applesignin`, and
+Sign in with Apple failed in the app with `AuthorizationError error 1000`
+before any request reached the server. The export reported success throughout.
+An ad-hoc signature is enough to carry `App.entitlements` through; the export
+replaces it with the distribution one (frameworks first, since `codesign`
+refuses an app whose nested code is unsigned).
+
+Check before the export, and on a build already out:
+
+```bash
+codesign -d --entitlements - "$APP" | grep applesignin          # the archive
+codesign -d --entitlements - "/Applications/aloud 2.app/Wrapper/App.app"
+```
+
+The second is a TestFlight build installed on an Apple Silicon Mac (the name
+gets a number when the desktop app holds `aloud.app`). For an .ipa, set
+`destination` to `export`, unzip it and point the same command at
+`Payload/App.app`.
 
 ExportOptions.plist: `method` = `app-store-connect`, `signingStyle` =
 `automatic`, `teamID` = the team id, `destination` = `upload` (or `export`

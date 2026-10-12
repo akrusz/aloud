@@ -4,7 +4,8 @@ A one-day push, planned for just before Android goes to production (see
 [store-submission-checklist.md](store-submission-checklist.md)), to be worked
 together: Claude proposes and builds, the dev decides anything that's taste. It
 came out of extracting aloud's design system from the code (2026-10-12, at
-`3fe0a15`), which left a short list of fixes and five ideas.
+`3fe0a15`), which left a short list of fixes and five ideas. Idea 1 has
+landed since; 2 to 5 are open.
 
 The design system lives as a Claude artifact, private to the dev:
 https://claude.ai/artifact/27SpopimjEKrgy4ANwjiXc. It holds the brand book, all
@@ -15,26 +16,16 @@ consumable copy, and needs a re-sync when the tokens or components move.
 
 ## The one idea underneath
 
-aloud is sound and silence, and everything a potential user sees of it is
-visual. The site sells a voice app with screenshots of a transcript, and the
-design system came out all eye too. Ideas 1 and 2 are that gap; 3 and 4 are the
-threshold of a sit; 5 is copy.
+aloud is sound and silence, and nearly everything a potential user sees of it
+is visual. The site sold a voice app with screenshots of a transcript until the
+video went in, and the design system came out all eye too. Ideas 1 and 2 are
+that gap; 3 and 4 are the threshold of a sit; 5 is copy.
 
-## 1. Let people hear it first
+## 1. Let people hear it first (done)
 
-A 20-30 second clip at the top of aloud.rest: one real exchange, then the app
-waiting through a silence without filling it. The waiting is the selling point
-and no screenshot can show it; most voice AI talks too much.
-
-- Most of it exists: the promo video's rough audio cut and bowl sounds
-  (`assets/promo/README.md`; the cut is gitignored, rebuildable from the
-  "Real excerpts" table in `assets/promo/play-video/script.md`). An audio-only
-  version can ship before the video does.
-- Same rules as the video: only the excerpts the script approves, and no
-  caption calling it an unedited session (the facilitator's lines are
-  handcrafted).
-- Site work only: `docs/index.html` hero plus a small player. A `docs/` push
-  goes live at once.
+Landed as the whole promo video under the hero, not a 20-30 second clip:
+`#film` in `docs/index.html`, loaded from YouTube on click. It is staying, so
+nothing is left here for the day.
 
 ## 2. Give the ear a brand
 
@@ -124,10 +115,10 @@ bd create "CSS sweep: rules for markup the app no longer renders" --type task --
   hear, a screenshot of a setup variant, two Begin buttons side by side) and let
   him call taste. Ideas 3 and 4 are the ones with real uncertainty; don't build
   either fully before he's seen a sketch.
-- **A sensible order:** 1 and 5 are site-only and can land together; 2 is a
-  small code change and a sound to choose; 3 and 4 change the setup screen and
-  want a phone in hand, which fits a mobile release day. Clear the fixes above
-  first if they're still open; they're each small.
+- **A sensible order:** 5 is site-only; 2 is a small code change and a sound
+  to choose; 3 and 4 change the setup screen and want a phone in hand, which
+  fits a mobile release day. Clear the fixes above first if they're still
+  open; they're each small.
 - **What was a guess:** that returning users repeat their setup (idea 3), and
   that the price on Begin costs more calm than it buys trust (idea 4). Ask.
 - **How the design system was built,** if it needs a re-sync after the push:

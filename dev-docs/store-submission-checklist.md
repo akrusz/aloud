@@ -7,31 +7,35 @@ projects), [mobile-signing.md](mobile-signing.md) (sign + upload) and
 `meditation-pal-7rh`. Finished steps are deleted, not ticked: if it isn't here,
 it's done.
 
-## Where we are (2026-10-10)
+## Where we are (2026-10-11)
 
-**Android** is on Play **internal testing**, installed by a few hand-added
-testers. Signing, Play App Signing, the App-signing-key OAuth client (sign-in
-works in Play-delivered builds), the reviewer demo account + App access
-instructions, the content rating and the Data Safety form are all in.
+**Android** is on Play **internal testing** at **2.15.0, versionCode 43**,
+installed by a few hand-added testers. Signing, Play App Signing, the
+App-signing-key OAuth client (sign-in works in Play-delivered builds), the
+reviewer demo account + App access instructions, the content rating, the Data
+Safety form, the current descriptions and the promo video are all in.
 
 **Production is gated.** The console requires a closed test with 12 opted-in
 testers for 14 days before production access can even be applied for, and open
 testing stays locked until then. So the public beta is a **closed test**,
 recruited on Twitter, and production follows the application.
 
-The current bundle is **2.14.0, versionCode 39**: the first Play build since
-2.7.0 in August, so the first to carry the recognizer session model (`lbl5`),
-the speaker re-request after a lock (`wxj5`) and voice commands. Everything in
-between was verified on dev installs only. A first test sit on it (2026-10-10)
-ran through, and left two things to settle before testers are recruited:
-Bluetooth headphones (`4xkx`, fixed in the tree, not yet run on a phone) and a
-long gap before a check-in (`v85a`, shorter default waits and a truthful second
-ask are in, not yet heard in a session).
+2.14.0 (versionCode 39) was the first Play build since 2.7.0 in August, so the
+first to carry the recognizer session model (`lbl5`), the speaker re-request
+after a lock (`wxj5`) and voice commands. Everything in between was verified on
+dev installs only. A first test sit on it (2026-10-10) ran through, and left
+two things to settle before testers are recruited: Bluetooth headphones
+(`4xkx`, fixed in the tree, not yet run on a phone) and a long gap before a
+check-in (`v85a`, shorter default waits and a truthful second ask are in, not
+yet heard in a session).
 
-**iOS** is parked behind Android: the TestFlight build is 2.15.0 (2026-10-11;
-the one before was 2.6.1 in August), no testers on it yet, run on the simulator
-only, some App Store Connect info filled in. Google sign-in is **not** wired (no
-URL scheme in `Info.plist` yet).
+**iOS** has a TestFlight build, 2.15.0 (2026-10-11; the one before was 2.6.1 in
+August), with testers added, and **Sign in with Apple cannot work on it**: it
+was signed without the entitlement, and email sign-up carries no credits. It
+needs a new upload before anyone is sent to it (first item under "iOS").
+Still run on the simulator and a Mac only, never an iPhone. Test Information
+is not entered. Google sign-in is **not** wired (no URL scheme in
+`Info.plist`), and is being skipped for testing builds.
 
 What the mobile build does: the LLM is **aloud cloud** (sign-in + credits).
 **Noting defaults to a circle of one sound participant**, which calls no model
@@ -90,21 +94,10 @@ public ratings or reviews**, their feedback arrives privately in the console.
       - No buy button anywhere: the Account page shows the balance and "at
         aloud.rest/account" as text that does nothing when tapped, and "What are ☁?"
         offers only "Got it" once signed in.
-- [ ] **Listing pass** (see "Each store update" below for the copy): recheck
-      screenshots against the current UI (2+ phone, portrait 9:16; they live
-      only in the console), short + full description, feature graphic and 512
-      icon (`assets/store/`), support + privacy URLs.
-- [ ] **Promo video**: built (`assets/promo/play-video/build/aloud-play-video.mp4`,
-      81.7s, 1920x1080; rebuild per `assets/promo/README.md` → "Building the
-      video") and uploaded to YouTube: the site plays it, and `#film` in
-      `docs/index.html` has the id. Play takes the URL, not a file. Paste the
-      full `watch?v=` one into the listing: Play rejects `youtu.be` links,
-      playlist or timestamp params, age-restricted videos and videos with ads
-      on.
-- [ ] **Reviewer demo account**: sign in with it once and check it still holds
-      credits. The App access text was written in September.
-- [ ] **App access text**: reread it in the console for any line about buying
-      credits in the app. Nothing is sold there now (see "Buying ☁" below).
+- [ ] **Listing pass**: recheck screenshots against the current UI (2+ phone,
+      portrait 9:16; they live only in the console), feature graphic and 512
+      icon (`assets/store/`), support + privacy URLs. The descriptions and the
+      promo video are in.
 - [ ] **A tester list people can join by link.** Closed testing takes email
       lists or Google Groups. A Google Group anyone can join turns "invite by
       email" into something to tweet; add its address under Closed testing →
@@ -130,8 +123,7 @@ public ratings or reviews**, their feedback arrives privately in the console.
 - [ ] **Apply for production access** on the Dashboard, once 12 or more testers
       have been opted in for the last 14 days without a gap.
 - [ ] **The design push** ([design-push.md](design-push.md)): a day with Claude
-      on the site clip, session sounds and setup, before the wider audience
-      arrives.
+      on session sounds and setup, before the wider audience arrives.
 - [ ] **Promote to production** once it is granted, roll out. Another review, a
       few days. Public reviews open here. Open testing unlocks too, if a wider
       beta is still wanted then.
@@ -146,17 +138,20 @@ public ratings or reviews**, their feedback arrives privately in the console.
 - [ ] Release notes ("What's new") for the track.
 - [ ] **Store copy**: `dev-docs/store-descriptions.md` is the source, the
       consoles are the deploy. Paste any changed paragraph into Play Console
-      (and App Store Connect once iOS is live).
+      and into TestFlight's Test Information (What to Test is per build).
 - [ ] **Data handling changed?** Then the Data Safety form (and Apple's App
       Privacy labels) change with the privacy policy, in the same pass. The
       answers on file are below.
 - [ ] Screenshots, if the setup or session screen changed.
+- [ ] **Promo video**, if it was rebuilt: a fresh YouTube upload is a new id.
+      Play takes the full `watch?v=` URL, not a file, and rejects `youtu.be`
+      links, playlist or timestamp params, age-restricted videos and videos
+      with ads on. The site carries the same id (`#film` in `docs/index.html`).
 
-For the release after 2.9.0 specifically: the new voice-commands paragraph in
-the store description, and a look at Data Safety. Voice commands send what is
-said through aloud cloud to a classifier, which is the same "in-app messages,
-ephemeral, not shared" row hosted sessions already declare, so no change is
-expected. Confirm it reads true rather than assume.
+Still owed from the 2.9.0 voice-commands release: a look at Data Safety. Voice
+commands send what is said through aloud cloud to a classifier, which is the
+same "in-app messages, ephemeral, not shared" row hosted sessions already
+declare, so no change is expected. Confirm it reads true rather than assume.
 
 ## Privacy answers on file
 
@@ -185,22 +180,48 @@ because Apple's labels are still to be filled from the same facts.
 
 ## iOS
 
-Guideline 4.8: shipping Google sign-in on iOS makes Sign in with Apple
-mandatory. The Apple side exists already (automatic signing, the capability on
-the App ID, `PrivacyInfo.xcprivacy`, export-compliance flag).
+The iOS build signs in with **Apple or email**: the Apple button always shows,
+Google only once an iOS client id is built in (`isNativeGoogleConfigured`).
+Free credits come with Apple, not with email (`decideConnectGrant`), and the
+build sells nothing, so Apple is the only way a tester reaches Exploration or
+Felt Sense. The App ID has the capability, and `PrivacyInfo.xcprivacy` and the
+export-compliance flag are in.
 
-- [ ] **Google iOS sign-in** (bead `tpj4`): create the Google iOS OAuth client,
-      put its **reversed client id** in `Info.plist` as the URL scheme (App
-      Store Connect rejects a placeholder, ITMS-90158, so the file carries only
-      a comment today), and add both audiences to the server's
-      `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`. Steps in
-      [mobile-signin-setup.md](mobile-signin-setup.md).
+- [ ] **A TestFlight build that can sign in.** 2.15.0 was signed without
+      `com.apple.developer.applesignin`, so Apple fails on it with
+      `AuthorizationError error 1000` on every device. The cause and the fixed
+      recipe are in [mobile-signing.md](mobile-signing.md) → "CLI path" (two
+      `codesign` lines between the archive and the export, and a check). The
+      upload itself is the dev's to run.
+- [ ] **`app.aloud.meditation` in the server's `APPLE_CLIENT_IDS`** (Fly; the
+      web Services ID stays first). Unconfirmed. Error 1000 happens on the
+      device before the server is asked, so the 2.15.0 failure says nothing
+      about it either way. Sign in once on the new build to settle it.
+- [ ] **TestFlight Test Information**, from `store-descriptions.md` →
+      "TestFlight": the beta description, the feedback email, What to Test and
+      the Beta App Review notes with the demo account. Testers see the first
+      three. The review notes and the demo account go to Apple only, which is
+      why What to Test sends testers through Sign in with Apple.
 - [ ] **Run it on a real iPhone**: Developer Mode → automatic signing → Run, then
       section 3 of [manual-smoke.md](manual-smoke.md). Nothing on iOS has been
       proven on hardware. TestFlight for Mac on Apple Silicon can stand in for a
-      first look, not for the audio path.
-- [ ] New TestFlight build with sign-in working → add **internal** testers (up to
-      100, no review). External testers need a one-time light Beta App Review.
+      first look, not for the audio path: 2.15.0 showed a mic notice on the
+      setup page there, cause not yet known, so look for one on the phone.
+- [ ] **External testers**, for the people who asked on Twitter. Internal
+      testers (up to 100, no review) have to be users on the App Store Connect
+      team, so everyone else goes in an external group, by email or by a public
+      link that can cap the count. The first build of a version sent to an
+      external group goes through Beta App Review, about a day; later builds of
+      that version usually skip it. They install through the TestFlight app,
+      a build lasts 90 days, and TestFlight builds cannot be rated or reviewed
+      on the App Store. There is no store-listed beta like Play's.
+- [ ] **Google iOS sign-in** (bead `tpj4`), optional and skipped for testing
+      builds: create the Google iOS OAuth client, put its **reversed client
+      id** in `Info.plist` as the URL scheme (App Store Connect rejects a
+      placeholder, ITMS-90158, so the file carries only a comment today), and
+      add its audience to the server's `GOOGLE_CLIENT_IDS`. Steps in
+      [mobile-signin-setup.md](mobile-signin-setup.md). Guideline 4.8 only
+      asks that Apple be offered wherever Google is, which it already is.
 - [ ] **App Privacy labels**, from "Privacy answers on file" above.
 - [ ] **Reviewer note**: Noting works free with no account. It **defaults** to a
       circle of one sound participant and a static opener, so a reviewer who
@@ -209,7 +230,11 @@ the App ID, `PrivacyInfo.xcprivacy`, export-compliance flag).
       account for the credit flow (heads off a Guideline 5.1.1 "why must I sign
       in" rejection). The Play App access text is the template.
 - [ ] Listing assets: screenshots in Apple's required sizes, description,
-      keywords, support + privacy URLs, age rating.
+      keywords, support + privacy URLs, age rating. **App previews** are
+      optional and are not the Play video: Apple takes an uploaded file of 15
+      to 30 seconds at its own device sizes, made of footage of the app itself
+      (Guideline 2.3.4), not a YouTube link. The 81.7s cut would need a recut.
+      TestFlight has no video slot at all.
 - [ ] Submit for App Store review (a few days).
 
 ## Buying ☁ in the store builds

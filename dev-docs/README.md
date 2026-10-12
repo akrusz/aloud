@@ -55,7 +55,7 @@ params, gotchas. It's the one to keep open.
 | Doc | |
 |---|---|
 | [friction.md](friction.md) | Inbox for repo/tooling friction. Append when something slows you down; promote real items to beads and delete them here. |
-| [design-push.md](design-push.md) | A one-day design push planned with Claude before the Android production release: five ideas, small fixes, and where the design system artifact lives. |
+| [design-push.md](design-push.md) | A one-day design push planned with Claude before the Android production release: four open ideas, small fixes, and where the design system artifact lives. |
 
 Issue tracking is Beads (`bd list`, `bd show <id>`). For a readable backlog:
 `python3 scripts/bd-board.py`.
