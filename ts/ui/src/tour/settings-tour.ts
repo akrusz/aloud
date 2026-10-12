@@ -215,7 +215,7 @@ function showLLMStep(): void {
         if (hasProvider('ollama')) {
             html += '<button class="tour-choice" data-action="provider" data-value="ollama">';
             html += '<strong>Ollama</strong>';
-            html += '<small>' + t('Free, everything stays on your computer.') + '</small>';
+            html += '<small>' + t('AI runs on your computer.') + '</small>';
             html += '</button>';
         }
 
@@ -343,6 +343,13 @@ function showVoiceStep(): void {
         html += '<p>' + t('This is how aloud speaks to you. A natural-sounding voice makes a big difference.') + '</p>';
         html += '<div class="tour-choices">';
 
+        // Hosted voices speak for any provider: an `aloud:` voice bills to
+        // aloud cloud on its own (cloud-gate.ts sessionUsesCloud).
+        html += '<button class="tour-choice" data-action="voice" data-value="cloud">';
+        html += '<strong>aloud cloud</strong>';
+        html += '<small>' + t('Natural hosted voices, metered from your credit balance. No setup.') + '</small>';
+        html += '</button>';
+
         if (tourOptions.piperAvailable) {
             html += '<button class="tour-choice" data-action="voice" data-value="piper">';
             html += '<strong>' + t('Piper: free, natural sounding') + '</strong>';
@@ -382,7 +389,17 @@ function chooseVoice(value: string): void {
         return;
     }
 
-    if (value === 'piper') {
+    if (value === 'cloud') {
+        // The engine select only labels the manage-voices UI, the voice picked
+        // is what speaks (views/settings.ts wireTtsSection). Keep it in step.
+        const engine = document.getElementById('s-tts-engine') as HTMLSelectElement | null;
+        if (engine && engine.value !== 'cloud') {
+            engine.value = 'cloud';
+            engine.dispatchEvent(new Event('change'));
+        }
+    }
+
+    if (value === 'piper' || value === 'cloud') {
         // Hide the tour so the voice picker modal is fully usable.
         hideTour();
 
