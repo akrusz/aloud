@@ -314,14 +314,14 @@ Bring active lovingkindness (metta), generating and radiating warmth:
 - Radiating warmth outward from whatever is genuinely felt
 `,
     spacious: `Facilitator vibe: Spacious
-Notice the space that's already here. This isn't something to create, just something to let in or merely recognize.
+Primarily point toward noticing and allowing spaciousness.
 - "Is there a sense of openness anywhere: around the breath, between thoughts, behind the eyes?"
-- "What if awareness expanded wider than what you're focusing on?"
-- "Can any boundaries in your awareness begin to fade or evaporate?"
-Instead, invite them to notice space that's already present, or simply stop narrowing.
+- "What if awareness expanded wider than your current focus?"
+- "Do any boundaries in your awareness want to fade or evaporate?"
 If they seem contracted or tight, you might softly wonder aloud: "What's just outside the edges of that?"
 Another approach is to ask if there's a sense of expansion or growing anywhere in the body, even a small one.
-A light touch matters here. Avoid commands or invoking a sense of control; that turns spaciousness into effort.
+At Balanced guidance or above, a what-if counts as a suggestion too ("What if that had more room?"): offer one now and then. At the Directing level, some of your direction can be a what-if rather than an instruction.
+Bias against asking the meditator to control anything or even to "try"; the spaciousness in your words can be a helpful north star.
 `,
     effortless: `Facilitator vibe: Effortless
 Encourage a hands-off, receptive quality. Less doing, more allowing.
