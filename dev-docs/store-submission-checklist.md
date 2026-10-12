@@ -98,12 +98,13 @@ public ratings or reviews**, their feedback arrives privately in the console.
       portrait 9:16; they live only in the console), feature graphic and 512
       icon (`assets/store/`), support + privacy URLs. The descriptions and the
       promo video are in.
-- [ ] **Data Safety: three rows to add** (Play Console → App content → Data
-      safety). The form declares messages, audio, email and purchase history;
-      the server also keeps account ids, usage rows and error records, which
-      the privacy policy has described since September. A form that says less
-      than the policy is what Play flags. The rows and their answers are
-      under "Privacy answers on file" → "To add".
+- [ ] **Data Safety: three rows to add, two to change** (Play Console → App
+      content → Data safety). The form declares messages, audio, email and
+      purchase history; the server also keeps account ids, usage rows and
+      error records, which the privacy policy has described since September. A
+      form that says less than the policy is what Play flags. And messages and
+      audio go from ephemeral to not. All of it is under "Privacy answers on
+      file".
 - [ ] **A tester list people can join by link.** Closed testing takes email
       lists or Google Groups. A Google Group anyone can join turns "invite by
       email" into something to tweet; add its address under Closed testing →
@@ -156,10 +157,13 @@ public ratings or reviews**, their feedback arrives privately in the console.
 
 ## Privacy answers on file
 
-Both consoles are the deploy; editing this file changes nothing live. Kept here
-because Apple's labels are still to be filled from the same facts.
+Both consoles are the deploy; editing this file changes nothing live. Google's
+form is **Data safety** (Play Console → App content); Apple's is **App
+Privacy** (App Store Connect), needed to submit to the App Store, with its own
+answers at the end of this section.
 
-- **Messages → other in-app messages**: collected, **ephemeral**, optional, app
+- **Messages → other in-app messages**: collected, **not ephemeral** (see
+  below; the console says ephemeral until edited), optional, app
   functionality, not shared (LLM / STT / TTS / classifier vendors fall under the
   service-provider exemption). Voice commands sit in this row: `routes/judge.ts`
   relays the utterance to TypeSafe and keeps a classifier id, a latency and
@@ -204,12 +208,30 @@ it), names (the sign-in tokens carry one, the server reads only `sub` and
 email) and passwords (stored as a hash; not a Data Safety type). The app ships
 no analytics or ads SDK and sends no device or install id.
 
-**"Ephemeral" describes our server.** The vendors keep what their own terms
-allow, and Inworld has no zero-retention yet (bead `2igi`; the policy says
-so). If Play reads the word to cover processors, the fallback is "not
-ephemeral" on messages and audio with nothing else changed. Apple's test does
-cover them (kept past the request by us *or a partner*), so its label declares
-User Content → Audio Data and Other User Content.
+**Ephemeral: answer "no" on messages and audio** (recommended 2026-10-11).
+Play's test is "only stored in memory and retained for no longer than
+necessary to service the specific request in real-time". Our server passes
+it. The vendors act on our behalf and are not ours to vouch for: Inworld keeps
+text until zero-retention is on (bead `2igi`), and the others' retention terms
+are theirs to change. An ephemeral row is also left off the store listing
+altogether, so a voice app that sends speech to cloud vendors was showing no
+audio or messages row at all. "No" stays true whatever a vendor does, costs
+two visible rows marked not shared, and matches Apple's test.
+
+**Apple's App Privacy labels**, from the same facts. Apple counts data as
+collected when we *or a partner* can reach it past the request, so the relayed
+content goes on the label. Tracking: none.
+
+- **Contact Info → Email Address**: App Functionality, Developer's
+  Advertising or Marketing (the update emails). Linked.
+- **User Content → Audio Data** and **Other User Content**: App
+  Functionality. **Not linked**: the server stores none of it, and nothing in
+  `ts/server/src/providers/` hands a vendor an account id.
+- **Identifiers → User ID**: App Functionality. Linked.
+- **Purchases → Purchase History**: App Functionality. Linked.
+- **Usage Data → Other Usage Data**: App Functionality, Analytics. Linked.
+- **Diagnostics → Other Diagnostic Data**: App Functionality, Analytics.
+  Linked.
 - **Account deletion URL**: `https://aloud.rest/delete-account/`.
 - **GenAI policy**: in-session ⓘ → "Report AI content", on both session views.
 
@@ -264,7 +286,8 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
       add its audience to the server's `GOOGLE_CLIENT_IDS`. Steps in
       [mobile-signin-setup.md](mobile-signin-setup.md). Guideline 4.8 only
       asks that Apple be offered wherever Google is, which it already is.
-- [ ] **App Privacy labels**, from "Privacy answers on file" above.
+- [ ] **App Privacy labels**, from "Privacy answers on file" → "Apple's App
+      Privacy labels". Needed for the App Store submission, not for TestFlight.
 - [ ] **Reviewer note**: Noting works free with no account. It **defaults** to a
       circle of one sound participant and a static opener, so a reviewer who
       taps straight through never meets the sign-in modal. Say so, say that an
