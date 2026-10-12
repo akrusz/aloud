@@ -17,7 +17,9 @@ check each of these still reflects reality:
   meta description carries its own tagline, so it drifts from the hero), and the
   mobile-status platform line ("iOS and Android are in closed beta").
 - **`docs/privacy/index.html`** - data-flow descriptions, provider examples,
-  on-device claims, "last updated" date.
+  on-device claims, "last updated" date. It also names what the **site** itself
+  loads from a third party (today the YouTube video, on play only), so a new
+  embed on a `docs/` page lands here.
 - **`docs/terms/index.html`** - anything the product now does with money or
   accounts: refunds, credit expiry, what deletion forfeits, "last updated" date.
 - **`docs/delete-account/index.html`** - the account-deletion instructions Play
@@ -47,7 +49,9 @@ check each of these still reflects reality:
   the provider/feature claims and the mobile-provider caveat. The **draft copy is
   tracked** in `dev-docs/store-descriptions.md`; the live listings are in the
   consoles (App Store Connect / Play Console), so a change here means editing
-  both - the file is the source, the console is the deploy.
+  both - the file is the source, the console is the deploy. The same file holds
+  the **TestFlight** texts (What to Test, Beta App Review notes), which name
+  the sign-in methods, the modes and the Begin button.
 - **Promo video** - `assets/store/video-title-card.*` / `video-end-card.*`
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must
   match current branding and claims. The Play Store video's script lives in
@@ -56,7 +60,11 @@ check each of these still reflects reality:
   **built** from that script and films the real UI at phone size
   (`assets/promo/play-video/tools/`, steps in `assets/promo/README.md` →
   "Building the video"), so a script edit, a reworded opener it quotes, or a
-  setup/session UI change means a rebuild and a fresh upload.
+  setup/session UI change means a rebuild and a fresh upload. The **site plays
+  the same upload** (`#film` in `docs/index.html`), and a fresh upload is a new
+  YouTube id: it is written there twice, beside the running time (the play
+  link's `aria-label` and the caption), over a poster cut from the video
+  (`docs/assets/aloud-film-poster.webp`).
 - **`dev-docs/style.md`** - visual identity (orb gradient, color tokens, fonts) if
   branding changed.
 - **`dev-docs/`** - dev/build/feature docs (index: `dev-docs/README.md`).

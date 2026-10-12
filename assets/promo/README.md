@@ -5,12 +5,13 @@ first when picking the work back up.
 
 ## Where it stands
 
-- **Play Store video**: first cut built 2026-10-09, waiting on the dev's eyes
-  and ears: `play-video/build/aloud-play-video.mp4` (gitignored), 81.7s,
-  1920x1080. Re-rendered 2026-10-11 with the ember burst and the UI filmed
-  afresh (the flame ember control); timings and sound are the first cut's,
-  which is beside it as `aloud-play-video-2026-10-09.mp4`. "Building the
-  video" below has how, and what in it is the dev's to judge.
+- **Play Store video**: uploaded to YouTube, and on the site under the hero
+  since 2026-10-11 (`#film` in `docs/index.html` has the id). The build is
+  `play-video/build/aloud-play-video.mp4` (gitignored), 81.7s, 1920x1080:
+  first cut 2026-10-09, re-rendered 2026-10-11 with the ember burst and the UI
+  filmed afresh (the flame ember control); timings and sound are the first
+  cut's, which is beside it as `aloud-play-video-2026-10-09.mp4`. "Building
+  the video" below has how, and what in it is the dev's to judge.
 - **Play Store video script**: `play-video/script.md`, approved as written
   2026-10-08. The file is the source of truth; build from what it says, not
   from these notes.
@@ -175,6 +176,8 @@ dev before anything reaching dollars. Generate TTS only after the dev finalizes
 the lines, to avoid paying twice. `say` is fine for placeholders.
 
 ## Next steps
+
+A cut is up ("Where it stands"), so this is the loop for a re-cut.
 
 1. The dev watches `play-video/build/aloud-play-video.mp4` and marks up
    `script.md` (wording, order, `> note:` lines) or names what to change in

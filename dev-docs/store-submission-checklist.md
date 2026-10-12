@@ -94,11 +94,13 @@ public ratings or reviews**, their feedback arrives privately in the console.
       screenshots against the current UI (2+ phone, portrait 9:16; they live
       only in the console), short + full description, feature graphic and 512
       icon (`assets/store/`), support + privacy URLs.
-- [ ] **Promo video**: built, `assets/promo/play-video/build/aloud-play-video.mp4`
-      (81.7s, 1920x1080; rebuild per `assets/promo/README.md` → "Building the
-      video"). Play takes a YouTube URL, not a file. Upload **unlisted** and
-      paste the full `watch?v=` URL: Play rejects `youtu.be` links, playlist or
-      timestamp params, age-restricted videos and videos with ads on.
+- [ ] **Promo video**: built (`assets/promo/play-video/build/aloud-play-video.mp4`,
+      81.7s, 1920x1080; rebuild per `assets/promo/README.md` → "Building the
+      video") and uploaded to YouTube: the site plays it, and `#film` in
+      `docs/index.html` has the id. Play takes the URL, not a file. Paste the
+      full `watch?v=` one into the listing: Play rejects `youtu.be` links,
+      playlist or timestamp params, age-restricted videos and videos with ads
+      on.
 - [ ] **Reviewer demo account**: sign in with it once and check it still holds
       credits. The App access text was written in September.
 - [ ] **App access text**: reread it in the console for any line about buying
