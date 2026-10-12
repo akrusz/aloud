@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+    bestFreeVoice,
     buildScoredVoiceList,
     downloadPercent,
     downloadVoiceModel,
@@ -346,5 +347,54 @@ describe('buildScoredVoiceList session language (c3a0.6)', () => {
             [{ name: 'Leda', gender: 'female', tier: 'premium' }]
         );
         expect(scored.every((v) => !v.langMismatch)).toBe(true);
+    });
+});
+
+describe('bestFreeVoice (the start gate\'s way past a hosted voice)', () => {
+    const hosted = [{ name: 'Ada (GB)', gender: 'female' as const }];
+
+    it('skips hosted, ElevenLabs and not-yet-downloaded Piper voices', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [
+                { name: 'Rachel', lang: 'en-US', engine: 'elevenlabs' },
+                { name: 'Libritts p3922 (F)', lang: 'en-US', engine: 'piper', needs_download: true },
+                { name: 'Samantha', lang: 'en-US', engine: 'macos' },
+            ],
+            false,
+            hosted
+        );
+        expect(scored[0]!.engine).toBe('aloud'); // what a fresh install lands on
+        expect(bestFreeVoice(scored)?.name).toBe('Samantha');
+    });
+
+    it('takes a downloaded Piper voice', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [{ name: 'Libritts p3922 (F)', lang: 'en-US', engine: 'piper', needs_download: true, downloaded: true }],
+            false,
+            hosted
+        );
+        expect(bestFreeVoice(scored)?.engine).toBe('piper');
+    });
+
+    it('prefers a voice that speaks the session language over a better-ranked one that does not', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [
+                { name: 'Ava (Premium)', lang: 'en-US', engine: 'macos' },
+                { name: 'Tingting', lang: 'zh-CN', engine: 'macos' },
+            ],
+            false,
+            [],
+            'zh'
+        );
+        expect(scored[0]!.name).toBe('Ava (Premium)');
+        expect(bestFreeVoice(scored)?.name).toBe('Tingting');
+    });
+
+    it('is null when every voice is hosted (the Android WebView has no others)', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        expect(bestFreeVoice(buildScoredVoiceList(null, false, hosted))).toBeNull();
     });
 });

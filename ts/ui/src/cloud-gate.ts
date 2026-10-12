@@ -18,7 +18,8 @@ import { isWebMode, isDevBypass } from './app-mode.js';
 import { detectCapabilities } from './capabilities.js';
 import { fetchMe, getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
 import { getKnownBalance } from './cloud-balance.js';
-import { showSignInModal } from './sign-in-modal.js';
+import { showSignInModal, type ModalAlternative } from './sign-in-modal.js';
+import { bestFreeVoice, loadScoredVoices, prefixedVoiceId } from './voice-picker.js';
 import { alertDialog, choiceDialog } from './dialog.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
 import { purchaseChannel, topUpHint } from './purchase-channel.js';
@@ -72,9 +73,22 @@ function sessionUsesCloudBeyondNarrator(
     return isHostedSttChoice(resolveSttChoice(settings.sttEngine, webMode));
 }
 
-/** True when the cloud narrator voice is the ONLY metered leg: an AI-free
- *  noting circle whose participants and STT are all free. Such a session can
- *  run without an account or credits by simply not reading the opener aloud
+/** True when the hosted voice (setup.voice) is the session's ONLY metered leg:
+ *  a local or own-key model with free STT. Swap the voice and the session
+ *  needs no account at all, which is what the start gate offers
+ *  (meditation-pal-ntht). */
+export function voiceIsOnlyCloudLeg(
+    setup: SessionSetup,
+    settings: AppSettings,
+    webMode: boolean,
+    mode: MeditationType
+): boolean {
+    return narratorIsCloud(setup) && !sessionUsesCloudBeyondNarrator(setup, settings, webMode, mode);
+}
+
+/** The same in an AI-free noting circle, whose participants and STT are all
+ *  free. There the voice only reads the opener, so the session can run
+ *  without an account or credits by simply not reading it aloud
  *  (meditation-pal-vr3w). */
 export function narratorIsOnlyCloudLeg(
     setup: SessionSetup,
@@ -82,11 +96,7 @@ export function narratorIsOnlyCloudLeg(
     webMode: boolean,
     mode: MeditationType
 ): boolean {
-    return (
-        mode === 'noting' &&
-        narratorIsCloud(setup) &&
-        !sessionUsesCloudBeyondNarrator(setup, settings, webMode, mode)
-    );
+    return mode === 'noting' && voiceIsOnlyCloudLeg(setup, settings, webMode, mode);
 }
 
 /** Whether the narrator can bill right now: signed in, and not known to be out
@@ -156,7 +166,7 @@ export function blocksForCredits(
  *  first line would be the out-of-credits apology. Proceeds only if a purchase
  *  settles in place (USDC); a card pack navigates away to Stripe. A build that
  *  sells nothing just says so. */
-async function ensureCredits(): Promise<boolean> {
+async function ensureCredits(wayOn: WayOn): Promise<boolean> {
     let account: Awaited<ReturnType<typeof fetchMe>>;
     try {
         account = await fetchMe();
@@ -164,15 +174,28 @@ async function ensureCredits(): Promise<boolean> {
         return true;
     }
     if (!blocksForCredits(account)) return true;
+    // No way on to offer here: a build that sells nothing is a phone build,
+    // whose model is always hosted, so the voice is never the only leg.
     if (purchaseChannel() === 'none') {
         await alertDialog([t("You're out of clouds"), topUpHint()].filter(Boolean).join('\n\n'));
         return false;
     }
+    const alternative = await wayOn();
     return showBuyCreditsModal({
         title: t("You're out of clouds"),
-        subtitle: t('Top up to keep going, or switch to a local/BYOK provider in Settings.'),
+        // With a local model already picked, "switch to a local provider" is
+        // no advice: the voice is what asks.
+        subtitle: alternative
+            ? t('Top up to keep going, or use a free voice.')
+            : t('Top up to keep going, or switch to a local/BYOK provider in Settings.'),
+        ...(alternative ? { alternative } : {}),
     });
 }
+
+/** The way past a prompt that needs no account or credits, when there is one.
+ *  Asked for only as a prompt is about to show: finding it loads the voice
+ *  catalog. */
+type WayOn = () => Promise<ModalAlternative | null>;
 
 /**
  * Returns true to proceed, false if the user dismissed sign-in or the top-up
@@ -192,7 +215,30 @@ export async function ensureCloudAccess(
         if (!(await narratorCanBill())) await showNarratorSilencedNotice();
         return true;
     }
-    if (await getCloudToken()) return ensureCredits();
+    // A hosted voice on an otherwise free session is the one thing asking, and
+    // a fresh install lands on one unasked (views/setup.ts loadVoiceCatalog):
+    // whichever prompt stops the start offers the way past it.
+    const free: { voice: string | null } = { voice: null };
+    const wayOn: WayOn = async () => {
+        if (!voiceIsOnlyCloudLeg(setup, settings, isWebMode(), mode)) return null;
+        const best = bestFreeVoice(await loadScoredVoices(setup.language));
+        if (!best) return null;
+        return {
+            label: t('Use a free voice'),
+            onPick: () => (free.voice = prefixedVoiceId(best.engine, best.name)),
+        };
+    };
+    const cleared = await clearForCloud(setup, wayOn);
+    if (free.voice) {
+        await switchVoice(setup, free.voice);
+        return true;
+    }
+    return cleared;
+}
+
+/** Signed in and able to pay, prompting for whichever is missing. */
+async function clearForCloud(setup: SessionSetup, wayOn: WayOn): Promise<boolean> {
+    if (await getCloudToken()) return ensureCredits(wayOn);
     // DEV cloud-bypass (?dev): let the session start and lean on the lazy
     // /auth/dev sign-in (ensureCloudToken) instead of the modal.
     if (isDevBypass()) return true;
@@ -202,6 +248,7 @@ export async function ensureCloudAccess(
     await detectCapabilities();
     if (!isInteractiveSignInConfigured()) return true;
     // "Try right now" promised no setup, so say why there is this one step.
+    // Anyone else pressed Begin on a choice of their own: name what asked.
     const signIn = setup.firstSit
         ? {
               title: t('One quick step'),
@@ -209,6 +256,19 @@ export async function ensureCloudAccess(
                   'Voice and facilitator intelligence run on aloud cloud. Connect Google or Apple to start for free.'
               ),
           }
-        : {};
-    return (await showSignInModal(signIn)) && ensureCredits();
+        : { title: t('Options with ☁ require an account') };
+    const alternative = await wayOn();
+    const signedIn = await showSignInModal({ ...signIn, ...(alternative ? { alternative } : {}) });
+    return signedIn && ensureCredits(wayOn);
+}
+
+/** Speak this session with `voice`, and keep it: the voice is an app-level
+ *  default (views/setup.ts persistDefaultVoice), so the next Begin doesn't ask
+ *  again. */
+async function switchVoice(setup: SessionSetup, voice: string): Promise<void> {
+    setup.voice = voice;
+    // Lazy for the reason state.js is, above: app-settings builds a storage
+    // backend at import.
+    const { loadAppSettings, saveAppSettings } = await import('./app-settings.js');
+    await saveAppSettings({ ...(await loadAppSettings()), defaultVoice: voice });
 }

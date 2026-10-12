@@ -15,7 +15,12 @@ vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
     return { ...actual, isTauri: vi.fn(() => false) };
 });
 
-import { sessionUsesCloud, narratorIsOnlyCloudLeg, blocksForCredits } from '../ui/src/cloud-gate.js';
+import {
+    sessionUsesCloud,
+    narratorIsOnlyCloudLeg,
+    voiceIsOnlyCloudLeg,
+    blocksForCredits,
+} from '../ui/src/cloud-gate.js';
 import { isTauri } from '../ui/src/is-desktop.js';
 import type { SessionSetup } from '../ui/src/settings.js';
 import type { AppSettings } from '../ui/src/app-settings.js';
@@ -150,6 +155,35 @@ describe('sessionUsesCloud', () => {
             const deviceVoice = { ...soundCircleWithCloudNarrator, voice: 'browser:Samantha' } as unknown as SessionSetup;
             expect(narratorIsOnlyCloudLeg(deviceVoice, settingsWith('whisper'), false, 'noting')).toBe(false);
         });
+    });
+});
+
+/**
+ * A local or own-key model with a hosted voice: the voice alone is what asks
+ * for an account, so the start gate can offer a free one instead
+ * (meditation-pal-ntht).
+ */
+describe('voiceIsOnlyCloudLeg', () => {
+    const localWithCloudVoice = { provider: 'ollama', voice: 'aloud:Ada (GB)' } as unknown as SessionSetup;
+
+    it('is true for a local model with free STT and a hosted voice', () => {
+        isTauriMock.mockReturnValue(true);
+        expect(voiceIsOnlyCloudLeg(localWithCloudVoice, settingsWith('whisper'), false, 'exploration')).toBe(true);
+    });
+
+    it('is false once the model or the STT is hosted too', () => {
+        isTauriMock.mockReturnValue(true);
+        const hostedModel = { ...localWithCloudVoice, provider: 'aloud' } as unknown as SessionSetup;
+        expect(voiceIsOnlyCloudLeg(hostedModel, settingsWith('whisper'), false, 'exploration')).toBe(false);
+        expect(
+            voiceIsOnlyCloudLeg(localWithCloudVoice, settingsWith('aloud-gpt-transcribe'), true, 'exploration')
+        ).toBe(false);
+    });
+
+    it('is false for a device voice: nothing is metered', () => {
+        isTauriMock.mockReturnValue(true);
+        const deviceVoice = { ...localWithCloudVoice, voice: 'browser:Samantha' } as unknown as SessionSetup;
+        expect(voiceIsOnlyCloudLeg(deviceVoice, settingsWith('whisper'), false, 'exploration')).toBe(false);
     });
 });
 

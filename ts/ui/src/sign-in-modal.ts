@@ -28,6 +28,14 @@ import { escapeHtml } from './escape-html.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
+/** A way on that needs no account or credits, offered by a prompt that would
+ *  otherwise stop a start (the gate's "Use a free voice"). Picking it calls
+ *  `onPick`, then the prompt resolves false like any other dismissal. */
+export interface ModalAlternative {
+    label: string;
+    onPick: () => void;
+}
+
 export interface SignInModalOptions {
     /** Headline. Defaults to the session-gating prompt. */
     title?: string;
@@ -36,6 +44,8 @@ export interface SignInModalOptions {
     /** Notified with the account after a successful sign-in (e.g. so a Settings
      *  balance can refresh). The modal also resolves true. */
     onSignedIn?: (auth: AuthResponse) => void;
+    /** Offered under the form, after a second "or". */
+    alternative?: ModalAlternative;
 }
 
 const DEFAULT_TITLE = 'Sign in to aloud cloud';
@@ -84,6 +94,14 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                 </form>
                 <div class="provider-hint signin-modal-error hidden" id="signin-modal-error"></div>
                 <p class="provider-hint signin-oauth-hint hidden" id="signin-oauth-hint"></p>
+                ${
+                    options.alternative
+                        ? `<div class="signin-divider" id="signin-alternative-divider"><span>${t('or')}</span></div>
+                <div class="signin-alternative">
+                    <button type="button" class="btn btn-secondary" id="signin-alternative">${escapeHtml(options.alternative.label)}</button>
+                </div>`
+                        : ''
+                }
             </div>`;
         document.body.appendChild(overlay);
         // Focus into the dialog now, restore on close; Tab cycles inside.
@@ -119,6 +137,10 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         };
 
         overlay.querySelector('#signin-modal-close')?.addEventListener('click', () => close(false));
+        overlay.querySelector('#signin-alternative')?.addEventListener('click', () => {
+            options.alternative?.onPick();
+            close(false);
+        });
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) close(false);
         });
@@ -180,7 +202,9 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                 note.textContent = t(
                     'Sign in with Apple is coming soon on desktop. For now, use Google above, or set a password on the web app and sign in with email.'
                 );
-                overlay.querySelector('.signin-modal')?.appendChild(note);
+                // With the form, above any way on that follows it.
+                const modal = overlay.querySelector('.signin-modal');
+                modal?.insertBefore(note, modal.querySelector('#signin-alternative-divider'));
             }
         } else {
             void renderGoogleSignInButton(googleHost, {

@@ -339,6 +339,21 @@ export function buildScoredVoiceList(
     return scored;
 }
 
+/**
+ * The best voice in a buildScoredVoiceList result (best-first) that costs
+ * nothing to speak with and is ready now: not hosted, not ElevenLabs (the
+ * user's own metered key), not a Piper model still to download. One that speaks
+ * the session language cleanly wins over a better-ranked one that doesn't.
+ */
+export function bestFreeVoice(voices: readonly ScoredVoice[]): ScoredVoice | null {
+    const free = voices.filter(
+        (v) => v.engine !== 'aloud' && v.engine !== 'elevenlabs' && (!v.needsDownload || v.downloaded)
+    );
+    return (
+        free.find((v) => !v.langMismatch && !v.glitchy) ?? free.find((v) => !v.langMismatch) ?? free[0] ?? null
+    );
+}
+
 export interface RenderListOptions {
     /** Show an engine badge (e.g. "macOS") after the voice name. */
     showEngine?: boolean;

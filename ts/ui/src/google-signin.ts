@@ -126,7 +126,9 @@ export async function renderGoogleSignInButton(
         size: 'large',
         shape: 'pill',
         text: 'continue_with',
-        width: 240,
+        // Keep in step with .apple-signin-button: two of these share a row of
+        // the sign-in modal.
+        width: 220,
     }
 ): Promise<boolean> {
     const clientId = googleClientId();

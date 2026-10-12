@@ -3807,11 +3807,21 @@ html[lang='zh-CN'] .nav-word-new {
     align-items: center;
     padding: calc(var(--nav-h) + 10px) 1rem 1.5rem;
 }
+/* All of the room the overlay's padding leaves, so the phone layout can keep
+   the foot clear of the bottom nav by padding alone (see #signin-modal-overlay
+   there). */
 #buy-credits-modal-overlay .buy-credits-modal {
-    max-height: calc(100dvh - var(--nav-h) - 10px - 1.5rem);
+    max-height: 100%;
 }
 .buy-credits-subtitle {
     margin: 1rem 1.25rem 1rem;
+}
+/* The way on without topping up (buy-credits-modal.ts `alternative`). */
+.buy-credits-alternative {
+    margin-bottom: 1rem;
+}
+.buy-credits-alternative .btn {
+    width: 100%;
 }
 /* A hint with its "What are ☁?" button right-aligned beside the text (account
    Cloud Balance, buy-credits subtitle) - the text wraps in its own column
@@ -4024,6 +4034,26 @@ p.clouds-hint-row {
 }
 .signin-modal {
     padding-bottom: 1.25rem;
+    /* Two sign-in buttons, the email form and (at the start gate) a way on
+       without an account outgrow the shared 70vh cap on a phone, which clips
+       rather than scrolls. Same treatment as the buy modal: scroll under a
+       pinned header, as tall as the screen under the top bar allows. */
+    overflow-y: auto;
+}
+.signin-modal > .voice-modal-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card);
+    z-index: 1;
+}
+/* The overlay's padding is the room the modal may take: clear of the top bar
+   here, and of the bottom nav in the phone layout (both sit above the
+   overlay). */
+#signin-modal-overlay {
+    padding: calc(var(--nav-h) + 10px) 1rem 1.5rem;
+}
+#signin-modal-overlay .signin-modal {
+    max-height: 100%;
 }
 .signin-modal-subtitle {
     margin-top: 1rem;
@@ -4032,9 +4062,12 @@ p.clouds-hint-row {
     margin-bottom: 1rem;
 }
 
+/* Side by side where the modal has the width for two, stacked where it
+   doesn't (a phone). */
 .signin-oauth {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
     gap: 0.5rem;
 }
@@ -4045,7 +4078,8 @@ p.clouds-hint-row {
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    width: 240px;
+    /* Google's is rendered at this width too (google-signin.ts). */
+    width: 220px;
     max-width: 100%;
     height: 40px;
     border-radius: 20px;
@@ -4085,6 +4119,11 @@ p.clouds-hint-row {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
+}
+/* The way on without an account (sign-in-modal.ts `alternative`), under a
+   second "or". */
+.signin-alternative .btn {
+    width: 100%;
 }
 .signin-input {
     padding: 0.6rem 0.75rem;
@@ -5919,6 +5958,13 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         padding: 0.35rem 1rem;
     }
 
+    /* The bottom nav (a hair under 4rem + inset, see above) sits over the
+       overlay: keep these modals' feet out from under it. */
+    #signin-modal-overlay,
+    #buy-credits-modal-overlay {
+        padding-bottom: calc(4rem + var(--safe-bottom-clear) + 0.75rem);
+    }
+
     /* While the setup guide spotlights a section, the Begin bar steps aside:
        most sections are taller than a phone, so the guide's card docks at the
        foot of the screen (tour-common.ts placeCard), and stacked on this
@@ -6206,6 +6252,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         min-height: 2.75rem;
     }
 
+    #signin-modal-overlay,
+    #buy-credits-modal-overlay {
+        padding-bottom: calc(1rem + var(--safe-bottom-clear));
+    }
     /* With no bar beneath them the footers sit on the screen edge and take
        the bottom inset themselves. */
     .settings-footer,

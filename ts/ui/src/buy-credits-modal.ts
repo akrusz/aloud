@@ -30,6 +30,7 @@ import { openExternal } from './external-links.js';
 import { purchaseChannel } from './purchase-channel.js';
 import { t } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
+import type { ModalAlternative } from './sign-in-modal.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -38,6 +39,8 @@ export interface BuyCreditsModalOptions {
     title?: string;
     /** Sub-line under the headline (e.g. an out-of-credits explanation). */
     subtitle?: string;
+    /** Offered right under the sub-line: the packs below run past the fold. */
+    alternative?: ModalAlternative;
 }
 
 const DEFAULT_TITLE = 'Buy ☁';
@@ -72,6 +75,13 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
                     <span>${escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE))}</span>
                     <button type="button" class="btn btn-secondary" id="buy-credits-whatare">${t('What are {clouds}?', { clouds: '☁' })}</button>
                 </p>
+                ${
+                    options.alternative
+                        ? `<div class="buy-credits-alternative">
+                    <button type="button" class="btn btn-secondary" id="buy-credits-alternative">${escapeHtml(options.alternative.label)}</button>
+                </div>`
+                        : ''
+                }
                 <p class="buy-credits-balance hidden" id="buy-credits-balance"></p>
                 <div class="buy-credits-target buy-credits-method hidden" id="buy-credits-method" role="tablist">
                     <button type="button" class="buy-credits-target-btn active" data-method="card" role="tab" aria-selected="true">${t('Card')}</button>
@@ -138,6 +148,10 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         };
 
         overlay.querySelector('#buy-credits-close')?.addEventListener('click', () => close(false));
+        overlay.querySelector('#buy-credits-alternative')?.addEventListener('click', () => {
+            options.alternative?.onPick();
+            close(false);
+        });
         // Dynamic import: clouds-explainer imports this module for its Get ☁
         // action, so a static import here would be a cycle. The dialog stacks
         // above this modal (z-index 200 vs 80); its own Get ☁ no-ops while
