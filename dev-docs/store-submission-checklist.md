@@ -28,9 +28,10 @@ Bluetooth headphones (`4xkx`, fixed in the tree, not yet run on a phone) and a
 long gap before a check-in (`v85a`, shorter default waits and a truthful second
 ask are in, not yet heard in a session).
 
-**iOS** is parked behind Android: one TestFlight build (2.6.1, 2026-08-03), run
-on the simulator only, some App Store Connect info filled in. Google sign-in is
-**not** wired (no URL scheme in `Info.plist` yet).
+**iOS** is parked behind Android: the TestFlight build is 2.15.0 (2026-10-11;
+the one before was 2.6.1 in August), no testers on it yet, run on the simulator
+only, some App Store Connect info filled in. Google sign-in is **not** wired (no
+URL scheme in `Info.plist` yet).
 
 What the mobile build does: the LLM is **aloud cloud** (sign-in + credits).
 **Noting defaults to a circle of one sound participant**, which calls no model

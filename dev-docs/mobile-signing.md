@@ -56,6 +56,18 @@ collides - no need to touch `CURRENT_PROJECT_VERSION`. Keep
 signed in (it can drop one between uploads): Xcode → Settings → Accounts, add
 it back, rerun the export. The archive is still good.
 
+An upload that sits at `Preparing to upload 'App.ipa'…` for more than a minute
+or two is stuck, not slow (a good one took 16 seconds there, 2026-10-11). Xcode
+27's upload helper (`swinfo`) asks `xcrun` for `dwarfdump-classic`, which Xcode
+no longer ships, so the lookup falls through to
+`/Library/Developer/CommandLineTools`. If that is an old Intel-only install on a
+Mac without Rosetta, the tool cannot start and the helper waits on it forever,
+with no error and no child process. Check with
+`file "$(xcrun -sdk iphoneos -f dwarfdump-classic)"`: a path under
+CommandLineTools that reports only `x86_64` is the problem. Fix: kill the
+export, `sudo mv /Library/Developer/CommandLineTools{,-old} && xcrun --kill-cache`,
+rerun. With no such tool to find, the helper uses Xcode's own `dwarfdump`.
+
 ---
 
 ## Android → Play internal testing
