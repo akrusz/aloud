@@ -25,6 +25,7 @@ import {
 import { manageModalFocus } from './modal-focus.js';
 import { t } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'signin-modal-overlay';
 
@@ -141,9 +142,7 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
             options.alternative?.onPick();
             close(false);
         });
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) close(false);
-        });
+        onBackdropClick(overlay, () => close(false));
         document.addEventListener('keydown', onKey);
 
         // The GIS / Apple JS popups can't run in the Tauri webview: its

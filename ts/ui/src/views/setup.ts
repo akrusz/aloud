@@ -91,6 +91,7 @@ import {
     type QuickStart,
 } from '../tour/index-guide.js';
 import { firstSitSetup } from '../first-sit.js';
+import { onBackdropClick } from '../modal-backdrop.js';
 
 const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }> = [
     {
@@ -600,17 +601,13 @@ export async function mountSetupView(
             listEl.removeEventListener('click', onListClick);
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', closeModal);
-            modal.removeEventListener('click', onBackdrop);
-        };
-        const onBackdrop = (e: MouseEvent) => {
-            // Click on the overlay (but not the inner panel) closes.
-            if (e.target === modal) closeModal();
+            offBackdrop();
         };
 
         listEl.addEventListener('click', onListClick);
         speedSlider.addEventListener('input', onSpeedInput);
         closeBtn.addEventListener('click', closeModal);
-        modal.addEventListener('click', onBackdrop);
+        const offBackdrop = onBackdropClick(modal, closeModal);
     }
 
     function render(): void {
@@ -1379,14 +1376,11 @@ export async function mountSetupView(
             modal.classList.add('hidden');
             listEl.removeEventListener('click', onListClick);
             closeBtn.removeEventListener('click', close);
-            modal.removeEventListener('click', onBackdrop);
-        };
-        const onBackdrop = (e: MouseEvent) => {
-            if (e.target === modal) close();
+            offBackdrop();
         };
         listEl.addEventListener('click', onListClick);
         closeBtn.addEventListener('click', close);
-        modal.addEventListener('click', onBackdrop);
+        const offBackdrop = onBackdropClick(modal, close);
     }
 
     function previewSoundOrChime(name: string): void {

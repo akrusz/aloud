@@ -20,6 +20,7 @@ import {
 import type { AppSettings, SessionClockMode } from './app-settings.js';
 import { t } from './i18n.js';
 import { manageModalFocus } from './modal-focus.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'session-clock-modal-overlay';
 
@@ -495,9 +496,7 @@ export function showSessionClockModal(
             if (e.key === 'Escape') close(null);
         };
         document.addEventListener('keydown', onKey);
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) close(null);
-        });
+        onBackdropClick(overlay, () => close(null));
         overlay.querySelector('#clock-modal-close')?.addEventListener('click', () => close(null));
 
         for (const btn of overlay.querySelectorAll<HTMLElement>('.clock-mode')) {

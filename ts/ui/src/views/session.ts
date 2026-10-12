@@ -192,6 +192,7 @@ import {
     type ScoredVoice,
     stripVoicePrefix,
 } from '../voice-picker.js';
+import { onBackdropClick } from '../modal-backdrop.js';
 
 const OLLAMA_PROXY_URL = '/ollama';
 const HAIKU_MODEL = 'claude-haiku-5-5';
@@ -2844,15 +2845,12 @@ export async function mountSessionView(
             listEl.removeEventListener('click', onListClick);
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', closeModal);
-            modal.removeEventListener('click', onBackdrop);
-        };
-        const onBackdrop = (e: MouseEvent) => {
-            if (e.target === modal) closeModal();
+            offBackdrop();
         };
         listEl.addEventListener('click', onListClick);
         speedSlider.addEventListener('input', onSpeedInput);
         closeBtn.addEventListener('click', closeModal);
-        modal.addEventListener('click', onBackdrop);
+        const offBackdrop = onBackdropClick(modal, closeModal);
     }
 
     // A hosted voice can ask the LLM for a text rule (CloudVoice.promptNote,

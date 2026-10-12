@@ -9,6 +9,7 @@
  */
 
 import { t } from './i18n.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 interface ButtonSpec<T> {
     label: string;
@@ -114,9 +115,7 @@ function showDialog<T>(
         box.appendChild(btnRow);
         if (footer) box.appendChild(footer);
         backdrop.appendChild(box);
-        backdrop.addEventListener('click', (e) => {
-            if (e.target === backdrop) finish(dismissValue);
-        });
+        onBackdropClick(backdrop, () => finish(dismissValue));
         document.addEventListener('keydown', onKey, true);
         document.body.appendChild(backdrop);
         // preventScroll: on a screen too short even for the box's fixed parts
@@ -311,9 +310,7 @@ export function confirmTypedDialog(message: string, opts: ConfirmTypedOptions): 
         btnRow.appendChild(okBtn);
         box.appendChild(btnRow);
         backdrop.appendChild(box);
-        backdrop.addEventListener('click', (e) => {
-            if (e.target === backdrop) finish(false);
-        });
+        onBackdropClick(backdrop, () => finish(false));
         document.addEventListener('keydown', onKey, true);
         document.body.appendChild(backdrop);
         input.focus();

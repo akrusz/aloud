@@ -104,6 +104,7 @@ import {
     showVoiceCommandExamples,
 } from '../voice-commands.js';
 import { showSavedTick } from '../toast.js';
+import { onBackdropClick } from '../modal-backdrop.js';
 
 export interface SettingsViewHandle {
     show(): Promise<void>;
@@ -1085,15 +1086,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             listEl.removeEventListener('click', onListClick);
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', close);
-            modal.removeEventListener('click', backdrop);
-        };
-        const backdrop = (e: MouseEvent) => {
-            if (e.target === modal) close();
+            offBackdrop();
         };
         listEl.addEventListener('click', onListClick);
         speedSlider.addEventListener('input', onSpeedInput);
         closeBtn.addEventListener('click', close);
-        modal.addEventListener('click', backdrop);
+        const offBackdrop = onBackdropClick(modal, close);
     }
 
     // ---- Display -------------------------------------------------------

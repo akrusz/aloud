@@ -31,6 +31,7 @@ import { purchaseChannel } from './purchase-channel.js';
 import { t } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
 import type { ModalAlternative } from './sign-in-modal.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'buy-credits-modal-overlay';
 
@@ -159,9 +160,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
         overlay.querySelector('#buy-credits-whatare')?.addEventListener('click', () => {
             void import('./clouds-explainer.js').then((m) => m.showCloudsExplainer());
         });
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) close(false);
-        });
+        onBackdropClick(overlay, () => close(false));
         document.addEventListener('keydown', onKey);
 
         // Live balance readout: show the last-known value instantly, then let

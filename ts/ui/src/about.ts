@@ -21,6 +21,7 @@ import { checkDesktopUpdate, type DesktopUpdate } from './desktop-updater.js';
 import { checkForUpdate, RELEASES_PAGE } from './update-check.js';
 import { openBugReport } from './bug-report.js';
 import { t } from './i18n.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 // krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this same
 // bare address, so a scan and a copy land in the same place.
@@ -76,9 +77,7 @@ export function initAbout(): void {
         if (opened) runUpdateCheck(updateEl);
     });
     close.addEventListener('click', hide);
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) hide();
-    });
+    onBackdropClick(modal, hide);
     document.getElementById('aboutReportBug')?.addEventListener('click', (e) => {
         // preventDefault keeps the '#' href from routing; the composer opens
         // over whatever page the user was on.

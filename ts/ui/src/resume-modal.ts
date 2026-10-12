@@ -7,6 +7,7 @@
 
 import { manageModalFocus } from './modal-focus.js';
 import { t } from './i18n.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'resume-modal-overlay';
 
@@ -52,9 +53,7 @@ export function showResumeModal(config: ResumeModalConfig): void {
         if (e.key === 'Escape') close();
     };
     overlay.querySelector('#resume-modal-close')?.addEventListener('click', close);
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) close();
-    });
+    onBackdropClick(overlay, close);
     document.addEventListener('keydown', onKey);
     overlay.querySelector('#resume-modal-resume')?.addEventListener('click', () => {
         close();

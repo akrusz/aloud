@@ -12,6 +12,7 @@ import { manageModalFocus } from './modal-focus.js';
 import { showSuccessToast, showErrorToast } from './toast.js';
 import { t } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
+import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'gift-modal-overlay';
 
@@ -50,9 +51,7 @@ function showGiftModal(gifts: GiftView[]): void {
         if (e.key === 'Escape') close();
     };
     overlay.querySelector('#gift-modal-close')?.addEventListener('click', close);
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) close();
-    });
+    onBackdropClick(overlay, close);
     document.addEventListener('keydown', onKey);
 
     const list = overlay.querySelector<HTMLElement>('#gift-list')!;
