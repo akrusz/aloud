@@ -73,17 +73,36 @@
     <div class="hero-cta">
       <a class="btn btn-primary" href="app/">open web app</a>
       <a class="btn btn-orb-orange" href="#get">download</a>
-      <a class="btn btn-orb-yellow" href="#what">how it works</a>
+      <a class="btn btn-orb-yellow" href="#hear">how it works</a>
     </div>
     <p class="hero-platforms">browser · macOS · Windows · Linux · free &amp; open source</p>
     <p class="hero-platforms hero-soon">iOS and Android are in closed beta.<br> <a href="https://alexkrusz.substack.com/">subscribe to my substack</a> or <a href="https://x.com/AlexKrusz">follow me on Twitter</a> for news and access.</p>
-    <a class="scroll-cue" href="#what" aria-label="how it works">
+    <a class="scroll-cue" href="#hear" aria-label="how it works">
       <svg viewBox="0 0 24 14" width="26" height="15" aria-hidden="true" focusable="false">
         <path d="M2 2 L12 12 L22 2" fill="none" stroke="currentColor"
               stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </a>
   </header>
+
+  <!-- The promo film, click-to-load: the page ships a poster and asks YouTube
+       for nothing until someone presses play (js/film.js). YouTube can't swap
+       a video's file, so a re-cut is a new upload and a new id: it changes
+       here (twice) and in the Play listing. -->
+  <section class="section section-shot" id="hear">
+    <div class="screenshot-frame">
+      <div class="film" id="film" data-video="Tg4iOgEbaQg">
+        <a class="film-play" href="https://www.youtube.com/watch?v=Tg4iOgEbaQg" target="_blank" rel="noopener"
+           aria-label="play the video: 1:22, with sound, from YouTube">
+          <img src="assets/aloud-film-poster.webp" width="1280" height="720" alt="" loading="lazy">
+          <span class="film-play-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M8.5 5v14l11-7z" fill="currentColor"/></svg>
+          </span>
+        </a>
+      </div>
+      <p class="shot-caption">1:22, sound on. plays from YouTube.</p>
+    </div>
+  </section>
 
   <section class="section" id="what">
     <h2 class="section-title"><span class="hl">three ways to practice</span></h2>
@@ -267,6 +286,7 @@
 
   <script src="js/download.js" defer></script>
   <script src="js/theme.js" defer></script>
+  <script src="js/film.js" defer></script>
   <script src="js/shots.js" defer></script>
   <script src="js/faq.js" defer></script>
   <script src="js/settle.js" defer></script>

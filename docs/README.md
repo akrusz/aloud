@@ -25,11 +25,13 @@ docs/
   js/shots.js     ← screenshot carousel: owns the `#app-screenshot` src (shot × theme)
   js/faq.js       ← FAQ expand/collapse-all control
   js/hero.js, js/settle.js ← hero ripple replay, card settle-in entrance
+  js/film.js      ← the promo video, click-to-load: nothing comes from YouTube until play
   assets/
     aloud.png               ← icon
     aloud-share.png         ← 1200×630 social card (og:image)
     aloud-screen-{light,dark}.webp  ← setup screenshot
     aloud-session-{light,dark}.webp ← session screenshot
+    aloud-film-poster.webp  ← the video's poster, a frame of the cut (7.9s in)
 ```
 
 What has to stay in sync with the product when it changes (copy, FAQ,

@@ -183,3 +183,6 @@ the lines, to avoid paying twice. `say` is fine for placeholders.
    needs new Harper takes first: `tools/render-line.mts`, then `HARPER_TAKES`
    in `build-audio.mjs`.
 3. Upload unlisted to YouTube and give Play the full `watch?v=` link.
+   The site plays the same upload (`#film` in `docs/index.html`), and a new
+   upload is a new id: change it there too, and re-cut the poster
+   (`docs/assets/aloud-film-poster.webp`) if the opening frame moved.
