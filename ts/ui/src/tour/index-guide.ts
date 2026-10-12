@@ -11,7 +11,7 @@
 import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
 import { FIRST_SIT_TIMER_MIN } from '../first-sit.js';
-import { footerHtml, getNavHeight } from './tour-common.js';
+import { footerHtml, getNavHeight, placeCard } from './tour-common.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
@@ -21,7 +21,6 @@ const CLIENT_ID_KEY = 'aloud-client-id';
 const FOLLOW_UP_KEY = 'aloud-first-sit-follow-up';
 
 const PADDING = 10;
-const FOOTER_HEIGHT = 60;
 
 function hideInfoPanels(): void {
     document.querySelectorAll('.info-panel').forEach(function (p) {
@@ -162,7 +161,7 @@ function cleanup(): void {
     cardEl?.remove();
     overlayEl = spotlightEl = cardEl = null;
     guideActive = false;
-    document.body.classList.remove('guide-running');
+    document.body.classList.remove('guide-running', 'guide-spotlit');
     resetTarget();
     window.removeEventListener('resize', onResizeDebounced);
     window.removeEventListener('scroll', onScroll);
@@ -176,7 +175,11 @@ function showCard(html: string, className?: string): void {
     cardEl.className = className || 'tour-tooltip';
     cardEl.innerHTML = html;
     document.body.appendChild(cardEl);
-    if (overlayEl) overlayEl.classList.toggle('tour-overlay-flat', className === 'tour-welcome');
+    const centered = className === 'tour-welcome';
+    if (overlayEl) overlayEl.classList.toggle('tour-overlay-flat', centered);
+    // A section step. On phones the Begin bar steps aside for these
+    // (app-base.css), leaving its slot to the docked card.
+    document.body.classList.toggle('guide-spotlit', !centered);
     wireActions();
 }
 
@@ -211,23 +214,6 @@ function positionSpotlight(el: HTMLElement): void {
     spotlightEl.style.display = '';
 }
 
-function positionTooltip(el: HTMLElement): void {
-    if (!cardEl) return;
-    const rect = el.getBoundingClientRect();
-    const tipRect = cardEl.getBoundingClientRect();
-    const maxBottom = window.innerHeight - FOOTER_HEIGHT - 8;
-
-    if (maxBottom - rect.bottom > tipRect.height + 16) {
-        cardEl.style.top = rect.bottom + 12 + 'px';
-    } else {
-        cardEl.style.top = Math.max(getNavHeight() + 4, rect.top - tipRect.height - 12) + 'px';
-    }
-
-    let left = rect.left + (rect.width - tipRect.width) / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
-    cardEl.style.left = left + 'px';
-}
-
 /**
  * Run a narrow triangle from the active progress dot to the spotlight's
  * outline, so the card reads as belonging to the box beside it. The shape is
@@ -236,21 +222,27 @@ function positionTooltip(el: HTMLElement): void {
 function linkDotToSpotlight(el: HTMLElement): void {
     const dot = cardEl?.querySelector<HTMLElement>('.tour-dot.active');
     if (!cardEl || !dot) return;
-    // The card's inline top, not its live rect: it is mid-entrance (translated)
-    // when this first runs. The dot's offset inside it is the same either way.
+    // Where the card comes to rest, not where it is: it is mid-entrance
+    // (translated) when this first runs.
+    const entering = new DOMMatrixReadOnly(getComputedStyle(cardEl).transform).m42;
     const cardRect = cardEl.getBoundingClientRect();
+    const cardTop = cardRect.top - entering;
     const dotRect = dot.getBoundingClientRect();
-    const dotY = parseFloat(cardEl.style.top) + (dotRect.top - cardRect.top) + dotRect.height / 2;
+    const dotY = dotRect.top - entering + dotRect.height / 2;
     // The spotlight box as positionSpotlight() draws it, from the target for
     // the same reason: the spotlight itself is still gliding over from the
     // last step.
     const rect = el.getBoundingClientRect();
-    const toTop = rect.top - PADDING - dotY;
-    const toBottom = rect.bottom + PADDING - dotY;
-    // Whichever edge is nearer. That is the facing one when the card sits
-    // outside the box, and still an edge when a tall target leaves the card
-    // no room but on top of it.
-    const reach = Math.abs(toTop) < Math.abs(toBottom) ? toTop : toBottom;
+    const boxTop = rect.top - PADDING;
+    const boxBottom = rect.bottom + PADDING;
+    // A docked card sits over the box until its tail is scrolled clear. It
+    // needs no pointer to a box it is on, and the edge to aim at is behind it.
+    if (boxTop < cardTop + cardRect.height && boxBottom > cardTop) {
+        delete cardEl.dataset['link'];
+        return;
+    }
+    // Clear of the box, the nearer edge is the one facing the card.
+    const reach = Math.abs(boxTop - dotY) < Math.abs(boxBottom - dotY) ? boxTop - dotY : boxBottom - dotY;
     cardEl.dataset['link'] = reach < 0 ? 'up' : 'down';
     cardEl.style.setProperty('--tour-link-length', Math.abs(reach) + 'px');
 }
@@ -365,7 +357,7 @@ function showSection(index: number): void {
             // dark (settings-tour.ts closes the same way).
             const html = footerHtml({ back: true, next: true, skip: true }, TOTAL_STEPS, currentStep, 'dismiss');
             showCard(html, 'tour-tooltip');
-            positionTooltip(target);
+            if (cardEl) placeCard(cardEl, target.getBoundingClientRect());
             linkDotToSpotlight(target);
         });
     });

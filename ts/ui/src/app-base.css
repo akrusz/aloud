@@ -5192,6 +5192,12 @@ input[type="range"].preview-range {
     gap: 0.5rem;
 }
 
+/* The setup guide's card is this row and nothing else: no copy to space it
+   from. */
+.tour-footer:first-child {
+    margin-top: 0;
+}
+
 .tour-dots {
     display: flex;
     gap: 6px;
@@ -5304,6 +5310,42 @@ input[type="range"].preview-range {
     margin: 0.75rem 0;
 }
 
+/* A card that does not fit under the box it is about (tour-common.ts
+   placeCard) pairs its choices up, where there is the width for two columns of
+   them: half the height, at the settings column's own width. An odd one out
+   keeps the full row. */
+@media (min-width: 601px) {
+    .tour-tooltip:has(> .tour-choices-paired) {
+        max-width: 640px;
+    }
+    .tour-choices-paired {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+    /* A button centers its content; side by side, titles should line up. */
+    .tour-choices-paired > .tour-choice {
+        display: flex;
+        flex-direction: column;
+    }
+    .tour-choices-paired > .tour-choice:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+}
+
+/* One still too tall for the screen scrolls them, keeping the heading and the
+   Skip / Back row in place. Only then: a scroll container would clip the hover
+   glow off every other card's choices. The fade says there is more under the
+   last one showing. */
+.tour-choices-capped {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.tour-choices-more {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+}
+
 .tour-choice {
     display: block;
     width: 100%;
@@ -5414,6 +5456,11 @@ body.guide-running .info-panel-link {
     .tour-tooltip {
         max-width: calc(100vw - 1.5rem);
         padding: 1rem;
+    }
+    /* The setup guide's row-only card: every px it gives up is reading room
+       for the section it docks under. */
+    .tour-tooltip:has(> .tour-footer:first-child) {
+        padding: 0.6rem 1rem;
     }
     .tour-welcome {
         max-width: calc(100vw - 1.5rem);
@@ -5870,6 +5917,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
     .settings-footer .btn {
         padding: 0.35rem 1rem;
+    }
+
+    /* While the setup guide spotlights a section, the Begin bar steps aside:
+       most sections are taller than a phone, so the guide's card docks at the
+       foot of the screen (tour-common.ts placeCard), and stacked on this
+       bar and the nav it would leave too little room to read in. */
+    body.guide-spotlit .setup-footer {
+        display: none;
     }
 
     .setup-container {

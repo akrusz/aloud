@@ -9,13 +9,11 @@ const TOAST_DURATION_MS = 5000;
 const FADE_MS = 300;
 
 /**
- * Inline `bottom` that clears any visible fixed bottom bar (settings/setup
- * footer, mobile bottom nav) - the CSS default (2rem) straddles them halfway.
- * Empty string when no bar is up, letting the stylesheet default apply.
- * Measured per show: bars differ per view and layout size, and a toast is too
- * short-lived to need resize tracking.
+ * Top edge of the visible fixed bottom bars (settings/setup footer, mobile
+ * bottom nav), in viewport px, or null when none is up. Measured, not assumed:
+ * bars differ per view and layout size.
  */
-function bottomClearingBars(): string {
+export function bottomBarsTop(): number | null {
     let barTop = Infinity;
     const bars = document.querySelectorAll<HTMLElement>(
         '.settings-footer, .setup-footer, .bottom-nav'
@@ -27,7 +25,17 @@ function bottomClearingBars(): string {
         if (r.width < window.innerWidth / 2) continue;
         if (r.height > 0 && r.top < window.innerHeight) barTop = Math.min(barTop, r.top);
     }
-    if (barTop === Infinity) return '';
+    return barTop === Infinity ? null : barTop;
+}
+
+/**
+ * Inline `bottom` that clears those bars - the CSS default (2rem) straddles
+ * them halfway. Empty string when no bar is up, letting the stylesheet default
+ * apply. Measured per show: a toast is too short-lived to need resize tracking.
+ */
+function bottomClearingBars(): string {
+    const barTop = bottomBarsTop();
+    if (barTop === null) return '';
     return `${Math.round(window.innerHeight - barTop) + 12}px`;
 }
 

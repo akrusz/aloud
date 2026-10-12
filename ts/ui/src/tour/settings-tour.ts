@@ -7,13 +7,12 @@
 
 import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
-import { footerHtml as sharedFooterHtml, getNavHeight, type FooterOpts } from './tour-common.js';
+import { footerHtml as sharedFooterHtml, getNavHeight, placeCard, type FooterOpts } from './tour-common.js';
 
 const TOUR_DISMISSED_KEY = 'aloud-tour-dismissed';
 const TOUR_REMIND_KEY = 'aloud-tour-remind-later';
 
 const PADDING = 10;
-const FOOTER_HEIGHT = 60; // approximate footer height
 const TOTAL_STEPS = 4; // welcome, llm, voice, done
 
 let overlayEl: HTMLDivElement | null = null;
@@ -24,6 +23,7 @@ let currentStep = 0;
 // both directions, or Back from the closing card would land on it.
 let skipVoiceStep = false;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+let lastViewportWidth = 0;
 
 interface TourOptions {
     piperAvailable?: boolean;
@@ -132,28 +132,7 @@ function positionSpotlight(el: HTMLElement, fixed: boolean): void {
 }
 
 function positionTooltip(el: HTMLElement): void {
-    if (!cardEl) return;
-    const rect = el.getBoundingClientRect();
-    const tipRect = cardEl.getBoundingClientRect();
-    const maxBottom = window.innerHeight - FOOTER_HEIGHT - 8;
-    const spaceBelow = maxBottom - rect.bottom;
-
-    if (spaceBelow > tipRect.height + 16) {
-        cardEl.style.top = rect.bottom + 12 + 'px';
-    } else {
-        // Above, clamped below the nav.
-        cardEl.style.top = Math.max(getNavHeight() + 4, rect.top - tipRect.height - 12) + 'px';
-    }
-
-    let left = rect.left + (rect.width - tipRect.width) / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
-    cardEl.style.left = left + 'px';
-
-    // Keep the tooltip clear of the footer.
-    const finalRect = cardEl.getBoundingClientRect();
-    if (finalRect.bottom > maxBottom) {
-        cardEl.style.top = maxBottom - finalRect.height + 'px';
-    }
+    if (cardEl) placeCard(cardEl, el.getBoundingClientRect());
 }
 
 function hideSpotlight(): void {
@@ -516,9 +495,16 @@ function onScroll(): void {
 }
 
 function onResizeDebounced(): void {
+    // Width only, as in index-guide.ts: a phone's soft keyboard and a mobile
+    // browser's URL bar resize the HEIGHT, and re-rendering then would drop
+    // the "Which provider?" card back to the step's first one mid-scroll.
+    if (window.innerWidth === lastViewportWidth) return;
+    lastViewportWidth = window.innerWidth;
     if (resizeTimer !== null) clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
-        if (!cardEl) return;
+        // Stepped aside (hideTour) while a key is pasted or a voice picked:
+        // the card stays away until that is done.
+        if (!cardEl?.isConnected) return;
         goToStep(currentStep);
     }, 150);
 }
@@ -537,6 +523,7 @@ export async function resetAndStart(options: TourOptions): Promise<void> {
     tourOptions = { ...options };
     currentStep = 0;
     skipVoiceStep = false;
+    lastViewportWidth = window.innerWidth;
     createOverlay();
     window.addEventListener('resize', onResizeDebounced);
     window.addEventListener('scroll', onScroll);

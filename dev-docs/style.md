@@ -143,6 +143,8 @@ Two visual modes:
 
 Don't add a glow halo to `.tour-welcome` - the flat overlay handles separation. Glow rings imply "look here, click this" which the welcome step doesn't offer.
 
+**Where a tour card sits** (`tour/tour-common.ts`, `placeCard`, used by both the setup guide and the settings tour): under the box it is about, or, when it does not fit there (most sections on a phone), docked at the foot of the screen over the box's tail, which scrolls out from under it. It only reaches the box's top on a screen too short for both. A card with choices gives ground first: they pair up into two columns where the card is wide enough (`.tour-choices-paired`), and on a screen shorter than the card they scroll (`.tour-choices-capped`), so the card never runs under the nav or the bottom bars. On phone layouts the Begin bar is hidden while the setup guide spotlights a section (`body.guide-spotlit`), so the docked card takes its slot instead of stacking on it. Both tours re-render on a width change only: a soft keyboard or a mobile browser's URL bar resizes the height mid-step.
+
 ## Embers
 
 Ambient floating particles. Palette per theme, defined in `ui/src/embers.ts`:
