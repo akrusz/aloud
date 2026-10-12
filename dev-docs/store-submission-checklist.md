@@ -126,6 +126,9 @@ public ratings or reviews**, their feedback arrives privately in the console.
 
 - [ ] **Apply for production access** on the Dashboard, once 12 or more testers
       have been opted in for the last 14 days without a gap.
+- [ ] **The design push** ([design-push.md](design-push.md)): a day with Claude
+      on the site clip, session sounds and setup, before the wider audience
+      arrives.
 - [ ] **Promote to production** once it is granted, roll out. Another review, a
       few days. Public reviews open here. Open testing unlocks too, if a wider
       beta is still wanted then.

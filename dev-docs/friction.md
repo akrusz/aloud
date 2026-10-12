@@ -19,4 +19,5 @@ dev-docs/manual-smoke.md (`meditation-pal-nx1d`, closed). Earlier triage
 2026-08-05: session.ts size (`meditation-pal-e89d`), phone-dev cheatsheet section
 (`meditation-pal-75p1`), recognizer event fixtures (`meditation-pal-x11x`).*
 
+- **No `bd` in Claude's cloud sessions** (2026-10-12): the container has no bd binary and no Dolt database, so a cloud session can read `.beads/issues.jsonl` but can't create or close beads; findings end up as pasted `bd create` commands (design-push.md). Fix: install bd in the cloud environment's setup script (and pull `refs/dolt/data`), or say in CLAUDE.md that cloud sessions write commands for the dev to run.
 - **bd git hook does not stage `.beads/interactions.jsonl`** (bd 1.2.2): the shim's own pre-commit stages nothing at all, so every bd close/update leaves interactions.jsonl dirty. Fixed for this repo on 2026-09-07 by a staging block appended below the managed markers in the tracked `.beads/hooks/pre-commit` - `bd hooks install` preserves it. (The 2026-09-06 patch to `.git/hooks/pre-commit` went dead the moment bd set `core.hooksPath=.beads/hooks`; those orphans are gone.) Upstream beads should stage it.
