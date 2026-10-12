@@ -22,21 +22,24 @@ Any mode can be used with a set length. The optional meditation timer lets the f
 
 You can keep your eyes closed the whole time. Just say "set a timer for ten minutes", "talk slower", "hide the clock" or "end the session", in your own words, even two at once.
 
-Text-to-speech, speech-to-text, and AI/LLM brains power some modes; you have full choice of providers. The "aloud cloud" connects you to curated providers without any additional setup. This costs us money to run, so it uses credits; you get some credits free just for signing in. Or, if you have keys for OpenRouter or other providers, you can use those instead.
+Text-to-speech, speech-to-text, and AI/LLM brains power some modes; you have full choice of providers. The "aloud cloud" connects you to curated providers without any additional setup. This costs us money to run, so it uses credits; you get some credits free just for signing in with Google. Or, if you have keys for OpenRouter or other providers, you can use those instead.
+
+**Per store:** that sentence names the store's own account. Play says "signing in with Google"; the App Store and TestFlight say "signing in with Apple". It is the one sign-in each build offers besides email, and email sign-up comes with no free credits.
 
 ## TestFlight (App Store Connect → TestFlight → Test Information)
 
-The beta description is the full description above.
+The beta description is the full description above, with the Apple sentence.
 
 ### What to Test
 
 This is the first iPhone beta of aloud, which already runs on the web and desktop. What I most want to hear about is the audio on a real phone: whether it hears you, and how its voice sounds.
 
 - Start a Noting session (no account needed). Does it hear you? Is its voice at a sensible volume?
-- Sign in with Apple or email, then try Exploration for a few minutes.
+- Sign in with Apple (it comes with free credits), then try Exploration for a few minutes.
 - Lock the phone for 30 seconds mid-session, then unlock. Does the session pick up again, at the same volume?
 - Try it once with headphones, Bluetooth if you have them.
 - Say "set a timer for five minutes" or "end the session".
+- On an iPad? All of the above, and how the layout sits when you turn it or resize the window.
 
 Anything odd is useful: send a screenshot from TestFlight or email harfatum@gmail.com
 

@@ -98,6 +98,12 @@ public ratings or reviews**, their feedback arrives privately in the console.
       portrait 9:16; they live only in the console), feature graphic and 512
       icon (`assets/store/`), support + privacy URLs. The descriptions and the
       promo video are in.
+- [ ] **Data Safety: three rows to add** (Play Console → App content → Data
+      safety). The form declares messages, audio, email and purchase history;
+      the server also keeps account ids, usage rows and error records, which
+      the privacy policy has described since September. A form that says less
+      than the policy is what Play flags. The rows and their answers are
+      under "Privacy answers on file" → "To add".
 - [ ] **A tester list people can join by link.** Closed testing takes email
       lists or Google Groups. A Google Group anyone can join turns "invite by
       email" into something to tweet; add its address under Closed testing →
@@ -148,11 +154,6 @@ public ratings or reviews**, their feedback arrives privately in the console.
       links, playlist or timestamp params, age-restricted videos and videos
       with ads on. The site carries the same id (`#film` in `docs/index.html`).
 
-Still owed from the 2.9.0 voice-commands release: a look at Data Safety. Voice
-commands send what is said through aloud cloud to a classifier, which is the
-same "in-app messages, ephemeral, not shared" row hosted sessions already
-declare, so no change is expected. Confirm it reads true rather than assume.
-
 ## Privacy answers on file
 
 Both consoles are the deploy; editing this file changes nothing live. Kept here
@@ -160,7 +161,9 @@ because Apple's labels are still to be filled from the same facts.
 
 - **Messages → other in-app messages**: collected, **ephemeral**, optional, app
   functionality, not shared (LLM / STT / TTS / classifier vendors fall under the
-  service-provider exemption).
+  service-provider exemption). Voice commands sit in this row: `routes/judge.ts`
+  relays the utterance to TypeSafe and keeps a classifier id, a latency and
+  token counts, with failures cut down to a status code (`failureLabel`).
 - **Audio → voice recordings**: the same. It is a **three-path** answer, matching
   `docs/privacy/index.html` → "Your voice": on-device (Whisper, desktop), the
   **platform recognizer** the mobile apps default to (Android's may route audio
@@ -175,6 +178,38 @@ because Apple's labels are still to be filled from the same facts.
   cover exactly this, so on Apple that one is ticked. The labels differ because
   the taxonomies do.
 - **Purchase history**: collected, not ephemeral, optional, deletable.
+
+**To add** (found 2026-10-11 by reading what the server stores per account;
+not in the console yet). All collected, not ephemeral, optional (no account,
+no rows), not shared:
+
+- **Personal info → User IDs**: the account id and the Google/Apple `sub`
+  (`Identity` in `credits/store.ts`). App functionality, account management,
+  fraud prevention (one free grant per identity). Removed on deletion. Apple:
+  Identifiers → User ID.
+- **App activity → App interactions**: the usage rows (`UsageEvent` in
+  `credits/usage.ts`), one per metered call: session id, provider, model or
+  voice, token and byte counts, never content. App functionality (billing),
+  analytics, fraud prevention. Anonymized on deletion, not removed. Apple:
+  Usage Data → Other Usage Data.
+- **App info and performance → Diagnostics**: the error records (`Incident` in
+  `credits/incidents.ts`), some reported by the app itself
+  (`POST /cloud/v1/incidents`): a kind, provider, model, counts, an error's
+  first line. App functionality, analytics. Anonymized on deletion. Apple:
+  Diagnostics → Other Diagnostic Data.
+
+Looked at and left out: the **signup IP** (no Play type fits an IP that is
+only checked for abuse and never turned into a location; the policy discloses
+it), names (the sign-in tokens carry one, the server reads only `sub` and
+email) and passwords (stored as a hash; not a Data Safety type). The app ships
+no analytics or ads SDK and sends no device or install id.
+
+**"Ephemeral" describes our server.** The vendors keep what their own terms
+allow, and Inworld has no zero-retention yet (bead `2igi`; the policy says
+so). If Play reads the word to cover processors, the fallback is "not
+ephemeral" on messages and audio with nothing else changed. Apple's test does
+cover them (kept past the request by us *or a partner*), so its label declares
+User Content → Audio Data and Other User Content.
 - **Account deletion URL**: `https://aloud.rest/delete-account/`.
 - **GenAI policy**: in-session ⓘ → "Report AI content", on both session views.
 
@@ -194,13 +229,18 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
       recipe are in [mobile-signing.md](mobile-signing.md) → "CLI path" (two
       `codesign` lines between the archive and the export, and a check). The
       upload itself is the dev's to run.
-- [ ] **Take the iPhone build off the Mac.** App Store Connect → Pricing and
-      Availability → "iPhone and iPad Apps on Apple Silicon Macs" → untick
-      "Make this app available"; the same switch covers TestFlight groups. On
-      a Mac the build cannot start a session (the web view has no
-      `getUserMedia` there, so setup reads "aloud can't reach a microphone on
-      this device") and it wears a system title bar that only a Catalyst app
-      can hide. The desktop app is the Mac version.
+- [ ] **The Mac: on for the dev, off for everyone else.** Two separate
+      switches. *TestFlight*: each tester group has "Test iPhone and iPad apps
+      on Apple silicon Macs" in its settings. Leave it on for the dev's own
+      group (with no iPhone, it is the only place he can run the signed
+      build) and off for the external group. *App Store*: Pricing and
+      Availability → "iPhone and iPad Apps on Apple Silicon Macs" → "Make this
+      app available" unticked before the first store release; it does not
+      touch TestFlight. On a Mac the build is good for sign-in, credits and
+      layout only: the web view has no `getUserMedia` there, so setup reads
+      "aloud can't reach a microphone on this device" and no session starts,
+      and it wears a system title bar that only a Catalyst app can hide. The
+      desktop app is the Mac version.
 - [ ] **TestFlight Test Information**, from `store-descriptions.md` →
       "TestFlight": the beta description, the feedback email, What to Test and
       the Beta App Review notes with the demo account. Testers see the first
@@ -231,12 +271,15 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
       AI companion is what switches it to the paid cloud path, and give the demo
       account for the credit flow (heads off a Guideline 5.1.1 "why must I sign
       in" rejection). The Play App access text is the template.
-- [ ] **iPhone only, or iPad too?** The target is universal today
+- [ ] **iPad**: wanted, and the build already declares it
       (`TARGETED_DEVICE_FAMILY = "1,2"`), so an iPad installs it as an iPad
-      app, which nobody has looked at, and the listing has to carry iPad
-      screenshots. A device family cannot be dropped after the first App Store
-      release, so decide before it. iPhone-only still runs on an iPad, in a
-      phone-sized frame.
+      app. In the simulator (iPad Air 11", portrait, 2026-10-11) it takes the
+      desktop layout, top nav and three columns, with nothing out of place at
+      rest. Not looked at: landscape, a resized window, audio. Ask for an iPad
+      or two among the external testers; the 13" screenshots the listing needs
+      can come from the simulator. A device family cannot be dropped after the
+      first App Store release, so if no iPad has run a session by then, ship
+      iPhone-only and add iPad in an update.
 - [ ] Listing assets: screenshots in Apple's required sizes, description,
       keywords, support + privacy URLs, age rating. **App previews** are
       optional and are not the Play video: Apple takes an uploaded file of 15
