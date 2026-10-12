@@ -10,7 +10,7 @@ aloud works in your browser and on macOS, Linux, and Windows. choose your LLM - 
 
 ### try it in your browser
 
-no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the hosted web app runs on **aloud cloud**, a managed service that handles the AI for you, so there's nothing to set up. sign in with google or apple to get free starter credits, then top up if you'd like to keep going (email sign-in works too, without the starter credits). prefer your own keys? switch on bring-your-own-key in settings. the downloadable app below stays fully local and free.
+no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the hosted web app runs on **aloud cloud**, a managed service that handles the AI for you, so there's nothing to set up. sign in with google or apple to get free starter credits, then top up if you'd like to keep going (email sign-in works too, without the starter credits). prefer your own keys? switch on bring-your-own-key in settings. the downloadable app has more local and free options.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/aloud-screen-dark.webp">
