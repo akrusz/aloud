@@ -68,6 +68,11 @@ const CHROME =
 
 const THEMES = ['light', 'dark'];
 
+/** The narrator voice for the session shot: any voice that isn't hosted (see
+ *  bootApp). Never heard - Chrome runs muted - but its name is in the picture,
+ *  bottom right of the session view. */
+const LOCAL_VOICE = 'browser:Ava (Premium)';
+
 /**
  * The exchange shown in the in-session shot. Sample copy, not a recording: a
  * real session needs a mic, an LLM and a person, none of which a screenshot
@@ -224,29 +229,39 @@ function frame(pngPath, outPath) {
 }
 
 /** Load the app with a known theme and a not-a-first-run profile. */
-async function bootApp(cdp, theme) {
-    await cdp.send('Page.navigate', { url: URL_BASE });
-    await cdp.once('Page.loadEventFired');
-    // Theme is a localStorage key (theme.ts owns it), so it only takes effect
-    // on the next load. The profile is fresh every run, which also means
-    // first-run state: mark the setup tour done, or it pops its welcome card
-    // over the shot. Provider stays on the 'ollama' default - the hosted
-    // provider would gate Begin behind sign-in, and no turn is ever sent.
-    await cdp.eval(`(() => {
-        localStorage.setItem('themeMode', ${JSON.stringify(theme)});
-        localStorage.setItem('aloud:aloud-index-guide-done', '1');
-        localStorage.setItem('aloud:aloud-client-id', '1');
+async function bootApp(cdp, theme, shot) {
+    const settings = {
         // A 20 minute timer, so the clock in the input row reads as a timer
         // rather than a two-second elapsed count. Partial settings are merged
         // over the defaults on load.
-        localStorage.setItem('aloud:app:settings', JSON.stringify({
-            sessionClockMode: 'timer',
-            sessionTimerMin: 20,
-            showSessionClock: true,
-        }));
-    })()`);
-    await cdp.send('Page.reload');
+        sessionClockMode: 'timer',
+        sessionTimerMin: 20,
+        showSessionClock: true,
+    };
+    // Begin gates behind sign-in when ANY leg of the session is hosted (LLM,
+    // STT or narrator voice), and no turn is ever sent. The provider stays on
+    // the local 'ollama' default, but with aloud cloud reachable the setup
+    // page fills a blank voice with a hosted one - so the session shot pins a
+    // local voice. The setup shot keeps the hosted pick, which is what a
+    // visitor's first screen shows.
+    if (shot.prepare === 'session') settings.defaultVoice = LOCAL_VOICE;
+    // Seeded ahead of the app's own scripts rather than written into a loaded
+    // page: theme.ts reads themeMode at boot, and the setup view saves its
+    // voice pick into app settings when its catalog lands, which can overwrite
+    // a write made after load. The profile is fresh every run, which also
+    // means first-run state: mark the setup tour done, or it pops its welcome
+    // card over the shot.
+    const { identifier } = await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+        source: `try {
+            localStorage.setItem('themeMode', ${JSON.stringify(theme)});
+            localStorage.setItem('aloud:aloud-index-guide-done', '1');
+            localStorage.setItem('aloud:aloud-client-id', '1');
+            localStorage.setItem('aloud:app:settings', ${JSON.stringify(JSON.stringify(settings))});
+        } catch { /* a document with no storage (about:blank) */ }`,
+    });
+    await cdp.send('Page.navigate', { url: URL_BASE });
     await cdp.once('Page.loadEventFired');
+    await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
 }
 
 /** Poll until a selector exists - the setup catalogs arrive over fetch, and a
@@ -390,7 +405,7 @@ async function main() {
         for (const theme of THEMES) {
             for (const shot of SHOTS) {
                 if (ONLY && ONLY !== shot.id) continue;
-                await bootApp(cdp, theme);
+                await bootApp(cdp, theme, shot);
                 // The setup view is the landing view either way, and Begin
                 // lives on it.
                 await waitFor(cdp, '#begin-btn');
