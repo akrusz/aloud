@@ -184,8 +184,9 @@ The iOS build signs in with **Apple or email**: the Apple button always shows,
 Google only once an iOS client id is built in (`isNativeGoogleConfigured`).
 Free credits come with Apple, not with email (`decideConnectGrant`), and the
 build sells nothing, so Apple is the only way a tester reaches Exploration or
-Felt Sense. The App ID has the capability, and `PrivacyInfo.xcprivacy` and the
-export-compliance flag are in.
+Felt Sense. The App ID has the capability, the server takes the bundle id as
+an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
+`PrivacyInfo.xcprivacy` and the export-compliance flag are in.
 
 - [ ] **A TestFlight build that can sign in.** 2.15.0 was signed without
       `com.apple.developer.applesignin`, so Apple fails on it with
@@ -193,10 +194,13 @@ export-compliance flag are in.
       recipe are in [mobile-signing.md](mobile-signing.md) → "CLI path" (two
       `codesign` lines between the archive and the export, and a check). The
       upload itself is the dev's to run.
-- [ ] **`app.aloud.meditation` in the server's `APPLE_CLIENT_IDS`** (Fly; the
-      web Services ID stays first). Unconfirmed. Error 1000 happens on the
-      device before the server is asked, so the 2.15.0 failure says nothing
-      about it either way. Sign in once on the new build to settle it.
+- [ ] **Take the iPhone build off the Mac.** App Store Connect → Pricing and
+      Availability → "iPhone and iPad Apps on Apple Silicon Macs" → untick
+      "Make this app available"; the same switch covers TestFlight groups. On
+      a Mac the build cannot start a session (the web view has no
+      `getUserMedia` there, so setup reads "aloud can't reach a microphone on
+      this device") and it wears a system title bar that only a Catalyst app
+      can hide. The desktop app is the Mac version.
 - [ ] **TestFlight Test Information**, from `store-descriptions.md` →
       "TestFlight": the beta description, the feedback email, What to Test and
       the Beta App Review notes with the demo account. Testers see the first
@@ -204,9 +208,7 @@ export-compliance flag are in.
       why What to Test sends testers through Sign in with Apple.
 - [ ] **Run it on a real iPhone**: Developer Mode → automatic signing → Run, then
       section 3 of [manual-smoke.md](manual-smoke.md). Nothing on iOS has been
-      proven on hardware. TestFlight for Mac on Apple Silicon can stand in for a
-      first look, not for the audio path: 2.15.0 showed a mic notice on the
-      setup page there, cause not yet known, so look for one on the phone.
+      proven on hardware, and the Mac is no stand-in (see the item above).
 - [ ] **External testers**, for the people who asked on Twitter. Internal
       testers (up to 100, no review) have to be users on the App Store Connect
       team, so everyone else goes in an external group, by email or by a public
@@ -229,6 +231,12 @@ export-compliance flag are in.
       AI companion is what switches it to the paid cloud path, and give the demo
       account for the credit flow (heads off a Guideline 5.1.1 "why must I sign
       in" rejection). The Play App access text is the template.
+- [ ] **iPhone only, or iPad too?** The target is universal today
+      (`TARGETED_DEVICE_FAMILY = "1,2"`), so an iPad installs it as an iPad
+      app, which nobody has looked at, and the listing has to carry iPad
+      screenshots. A device family cannot be dropped after the first App Store
+      release, so decide before it. iPhone-only still runs on an iPad, in a
+      phone-sized frame.
 - [ ] Listing assets: screenshots in Apple's required sizes, description,
       keywords, support + privacy URLs, age rating. **App previews** are
       optional and are not the Play video: Apple takes an uploaded file of 15
