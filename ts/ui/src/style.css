@@ -742,8 +742,11 @@
    ============================================ */
 
 /* App-like feel: don't let the UI chrome be drag-selected like a web page.
-   Real content (conversation, history, form fields) stays selectable. */
-[data-shell="tauri"] {
+   Real content (conversation, history, form fields) stays selectable. The
+   mobile apps take the same rule (html[data-platform], stamped by main.ts):
+   there a long-press on a label raises the selection handles. */
+[data-shell="tauri"],
+html[data-platform] {
     -webkit-user-select: none;
     user-select: none;
     /* Belt-and-suspenders: WKWebView shows a callout/magnifier on long-press
@@ -759,12 +762,12 @@
 [data-shell="tauri"] img {
     -webkit-user-drag: none;
 }
-[data-shell="tauri"] .message-content,
-[data-shell="tauri"] .transcript,
-[data-shell="tauri"] .history-container,
-[data-shell="tauri"] input,
-[data-shell="tauri"] textarea,
-[data-shell="tauri"] [contenteditable="true"] {
+:is([data-shell="tauri"], html[data-platform]) .message-content,
+:is([data-shell="tauri"], html[data-platform]) .transcript,
+:is([data-shell="tauri"], html[data-platform]) .history-container,
+:is([data-shell="tauri"], html[data-platform]) input,
+:is([data-shell="tauri"], html[data-platform]) textarea,
+:is([data-shell="tauri"], html[data-platform]) [contenteditable="true"] {
     -webkit-user-select: text;
     user-select: text;
     cursor: auto;
