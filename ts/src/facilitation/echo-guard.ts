@@ -51,14 +51,32 @@ export function looksLikeTtsEcho(utterance: string, recentlySpoken: string): boo
     const u = normalizedWords(utterance);
     if (u.length < MIN_ECHO_WORDS) return false;
     const s = normalizedWords(recentlySpoken);
-    if (u.length > s.length) return false;
+    return isContiguousRun(u, s) || fuzzyEcho(u, s);
+}
+
+/**
+ * The live preview's version of the test: true when a partial transcript,
+ * however short, is so far nothing but a run of the spoken words. A partial
+ * starts at a word or two, below MIN_ECHO_WORDS, so the strict test let the
+ * facilitator's first words flash up as the meditator's before the rest of
+ * the utterance proved them echo. Hiding a preview costs nothing if it was
+ * the meditator after all: their turn is still judged by looksLikeTtsEcho.
+ * Same timing gate on the caller.
+ */
+export function previewLooksLikeTtsEcho(partial: string, recentlySpoken: string): boolean {
+    const u = normalizedWords(partial);
+    if (u.length >= MIN_ECHO_WORDS) return looksLikeTtsEcho(partial, recentlySpoken);
+    return u.length > 0 && isContiguousRun(u, normalizedWords(recentlySpoken));
+}
+
+function isContiguousRun(u: string[], s: string[]): boolean {
     outer: for (let i = 0; i <= s.length - u.length; i++) {
         for (let j = 0; j < u.length; j++) {
             if (s[i + j] !== u[j]) continue outer;
         }
         return true;
     }
-    return fuzzyEcho(u, s);
+    return false;
 }
 
 /**

@@ -116,6 +116,12 @@ speaker audio, so exact runs miss most real phone echo
 (meditation-pal-oxmt). Short utterances and paraphrases are never dropped:
 meditators do legitimately repeat the facilitator back.
 
+The live preview bubble takes less convincing (`previewLooksLikeTtsEcho`): a
+partial that is so far only a run of the spoken words is hidden at any length,
+since a partial starts at a word or two and would otherwise show the
+facilitator's words as the meditator's until the rest arrived. Hiding a
+preview costs a real speaker nothing; their turn is still judged strictly.
+
 ## What happens on trigger
 
 1. The detector calls `tts.cancel()`, which stops the underlying playback

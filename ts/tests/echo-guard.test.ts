@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { looksLikeTtsEcho } from '../src/facilitation/echo-guard.js';
+import { looksLikeTtsEcho, previewLooksLikeTtsEcho } from '../src/facilitation/echo-guard.js';
 
 describe('looksLikeTtsEcho', () => {
     // Both real captures from the beta echo report (meditation-pal-p8lx):
@@ -78,5 +78,28 @@ describe('looksLikeTtsEcho', () => {
     it('handles empty inputs', () => {
         expect(looksLikeTtsEcho('', 'whatever was spoken here today')).toBe(false);
         expect(looksLikeTtsEcho('some words were said here', '')).toBe(false);
+    });
+});
+
+describe('previewLooksLikeTtsEcho', () => {
+    const spoken = 'You might start by just noticing what is present for you right now.';
+
+    it('hides a partial of a word or two that is a run of the spoken text', () => {
+        // Too short for the turn-level guard, which is why it used to flash up.
+        expect(looksLikeTtsEcho('just noticing', spoken)).toBe(false);
+        expect(previewLooksLikeTtsEcho('just noticing', spoken)).toBe(true);
+        expect(previewLooksLikeTtsEcho('You', spoken)).toBe(true);
+        expect(previewLooksLikeTtsEcho('Just noticing what...', spoken)).toBe(true);
+    });
+
+    it('shows a short partial that is not what was spoken', () => {
+        expect(previewLooksLikeTtsEcho('wait', spoken)).toBe(false);
+        expect(previewLooksLikeTtsEcho('noticing just', spoken)).toBe(false);
+        expect(previewLooksLikeTtsEcho('', spoken)).toBe(false);
+    });
+
+    it('judges a longer partial as the turn would be judged', () => {
+        expect(previewLooksLikeTtsEcho('just noticing what is present', spoken)).toBe(true);
+        expect(previewLooksLikeTtsEcho('I notice a warmth in my chest', spoken)).toBe(false);
     });
 });

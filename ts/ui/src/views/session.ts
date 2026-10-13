@@ -13,6 +13,7 @@ import {
     TurnDecision,
     parseTurnSignals,
     looksLikeTtsEcho,
+    previewLooksLikeTtsEcho,
     getMode,
     StagedModeController,
     EXPLORATION_MODE,
@@ -2478,6 +2479,10 @@ export async function mountSessionView(
                 // of the recently synthesized text?
                 const isEcho = (text: string, startedDuringTts: boolean | undefined): boolean =>
                     (startedDuringTts ?? inEchoWindow()) && looksLikeTtsEcho(text, spokenTail);
+                // The preview takes less convincing than the turn does.
+                const previewIsEcho = (text: string, startedDuringTts: boolean | undefined): boolean =>
+                    (startedDuringTts ?? inEchoWindow()) &&
+                    previewLooksLikeTtsEcho(text, spokenTail);
                 try {
                     for await (const event of stt.start()) {
                         if (event.type === 'partial') {
@@ -2487,7 +2492,7 @@ export async function mountSessionView(
                             // Same for non-speech markers ("[NOISES]"): the
                             // final would be dropped, so don't flash the bubble.
                             if (
-                                isEcho(event.text, event.startedDuringTts) ||
+                                previewIsEcho(event.text, event.startedDuringTts) ||
                                 isNonSpeechOnly(event.text)
                             ) {
                                 currentPartial?.remove();
