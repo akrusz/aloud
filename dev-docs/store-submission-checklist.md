@@ -153,9 +153,12 @@ public ratings or reviews**, their feedback arrives privately in the console.
 
 ## Each store update (do it in one pass)
 
-- [ ] `scripts/android-aab.sh` (it bumps `versionCode` and syncs `versionName`
-      in `ts/android/app/build.gradle` itself; Play refuses a reused
-      `versionCode`), then upload the `.aab` to the track.
+- [ ] **The builds.** `scripts/release.sh` offers both at the end of a
+      release. On their own: `scripts/android-aab.sh` (it bumps `versionCode`
+      and syncs `versionName` in `ts/android/app/build.gradle` itself; Play
+      refuses a reused `versionCode`) and `scripts/ios-archive.sh`.
+- [ ] **The uploads**, by hand: the `.aab` to the Play track, and
+      `scripts/ios-archive.sh --upload` for TestFlight.
 - [ ] Release notes ("What's new") for the track.
 - [ ] **Store copy**: `dev-docs/store-descriptions.md` is the source, the
       consoles are the deploy. Paste any changed paragraph into Play Console
@@ -261,10 +264,10 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
 
 - [ ] **A TestFlight build that can sign in.** 2.15.0 was signed without
       `com.apple.developer.applesignin`, so Apple fails on it with
-      `AuthorizationError error 1000` on every device. The cause and the fixed
-      recipe are in [mobile-signing.md](mobile-signing.md) → "CLI path" (two
-      `codesign` lines between the archive and the export, and a check). The
-      upload itself is the dev's to run.
+      `AuthorizationError error 1000` on every device. `scripts/ios-archive.sh`
+      runs the fixed recipe and refuses an archive without the entitlement
+      (the cause: [mobile-signing.md](mobile-signing.md) → "CLI path"). The
+      upload, `scripts/ios-archive.sh --upload`, is the dev's to run.
 - [ ] **The Mac: on for the dev, off for everyone else.** Two separate
       switches. *TestFlight*: each tester group has "Test iPhone and iPad apps
       on Apple silicon Macs" in its settings. Leave it on for the dev's own

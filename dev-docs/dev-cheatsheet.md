@@ -342,8 +342,9 @@ updater endpoint - and never auto-update existing installs. Promote to a real
 release (the non-prerelease that becomes `latest`) only once an RC checks out.
 
 It bumps `ts/src-tauri/tauri.conf.json` (the version source of truth),
-`ts/package.json` (and its lockfile), the Android `versionName`/`versionCode`
-and, for a stable release, the README download links, lints TS (`typecheck`) + Rust
+`ts/package.json` (and its lockfile), the Android `versionName`/`versionCode`,
+the iOS `MARKETING_VERSION` and, for a stable release, the README download
+links, lints TS (`typecheck`) + Rust
 (`cargo check`), runs both advisory gates (`audit-gate.mjs`, `cargo deny`), and
 offers the pre-release doc check
 ([pre-release-checklist.md](pre-release-checklist.md)). **Prerequisites:** clean
@@ -371,6 +372,11 @@ three platforms, signed updater artifacts) and `deploy-release.yml` (server,
 then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:
 [deploy.md](deploy.md).
 
+**Mobile** is not built by CI. Once the release is out, the script offers to
+build both bundles here (`scripts/android-aab.sh --no-bump`, then
+`scripts/ios-archive.sh`, below). A failed build leaves the release as it is,
+and each script reruns on its own. The uploads stay manual.
+
 ### Mobile (Capacitor - iOS / Android)
 
 ```bash
@@ -395,10 +401,24 @@ scripts/android-aab.sh   # bump versionCode + sync versionName from package.json
 # → ts/android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-Pass `--no-bump` to rebuild the current version. The script commits the
+Pass `--no-bump` to rebuild the current version (`release.sh` does, having
+taken a `versionCode` in its own bump). The script commits the
 `build.gradle` version bump itself once the bundle builds, and prints the latest
-stable release's notes for Play's "What's new" box. Keystore and Play App
-Signing: [mobile-signing.md](mobile-signing.md). Everything else mobile
+stable release's notes for Play's "What's new" box.
+
+**TestFlight archive**:
+
+```bash
+scripts/ios-archive.sh            # sync MARKETING_VERSION from package.json,
+                                  # ui:build + cap sync ios + archive, signed
+                                  # with App.entitlements and checked
+# → ts/ios/App/build/App.xcarchive
+scripts/ios-archive.sh --upload   # distribution signing + upload to App Store
+                                  # Connect, from the archive that's there
+```
+
+Keystore, Play App Signing and why the iOS archive is built unsigned:
+[mobile-signing.md](mobile-signing.md). Everything else mobile
 (adapters, native config, the patched speech plugin): **[mobile.md](mobile.md)**.
 
 ## Config & environment

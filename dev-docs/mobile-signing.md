@@ -26,25 +26,40 @@ In App Store Connect → **TestFlight**, add **Internal Testers** once the build
 finishes processing (up to 100, no review). **External testers** (up to 10,000)
 need a one-time lightweight **Beta App Review**.
 
-**CLI path** (proven 2026-08-03; works with ZERO registered iOS devices).
+**CLI path** (proven 2026-08-03; works with ZERO registered iOS devices):
+
+```bash
+scripts/ios-archive.sh            # sync MARKETING_VERSION from ts/package.json,
+                                  # ui:build + cap sync ios, archive, sign with
+                                  # App.entitlements, check, commit the version
+# → ts/ios/App/build/App.xcarchive
+scripts/ios-archive.sh --upload   # sign that archive for distribution and send
+                                  # it to App Store Connect
+```
+
+`scripts/release.sh` offers the build at the end of a release, with the Android
+bundle. The upload is its own step, run by hand.
+
 With no devices on the team, Xcode can't mint a *development* profile, so a
 normal signed archive fails ("Your team has no devices"). The workaround:
 archive **unsigned**, then let the export step do App Store distribution
 signing, which needs no device. `-allowProvisioningUpdates` (with Xcode signed
 in to the Apple ID) auto-creates the distribution cert + profile, and the
-profile carries the App ID's Sign in with Apple capability.
+profile carries the App ID's Sign in with Apple capability. What the script
+runs, the last command being `--upload`:
 
 ```bash
-cd ts && npm run cap:sync
+cd ts && npm run ui:build && npx cap sync ios
 cd ios/App
 xcodebuild archive -workspace App.xcworkspace -scheme App \
-  -destination "generic/platform=iOS" -archivePath /tmp/App.xcarchive \
+  -destination "generic/platform=iOS" -archivePath build/App.xcarchive \
   CODE_SIGNING_ALLOWED=NO
-APP=/tmp/App.xcarchive/Products/Applications/App.app
+APP=build/App.xcarchive/Products/Applications/App.app
 codesign -f -s - "$APP"/Frameworks/*.framework
 codesign -f -s - --entitlements App/App.entitlements "$APP"
-xcodebuild -exportArchive -archivePath /tmp/App.xcarchive \
-  -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates
+xcodebuild -exportArchive -archivePath build/App.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -exportPath build/export \
+  -allowProvisioningUpdates
 ```
 
 **The two `codesign` lines are not optional.** An unsigned archive carries no
@@ -56,9 +71,11 @@ Sign in with Apple failed in the app with `AuthorizationError error 1000`
 before any request reached the server. The export reported success throughout.
 An ad-hoc signature is enough to carry `App.entitlements` through; the export
 replaces it with the distribution one (frameworks first, since `codesign`
-refuses an app whose nested code is unsigned).
+refuses an app whose nested code is unsigned). The script stops, after the
+archive and again before the upload, if the archive lacks any entitlement
+`App.entitlements` declares.
 
-Check before the export, and on a build already out:
+The same check by hand, on the archive and on a build already out:
 
 ```bash
 codesign -d --entitlements - "$APP" | grep applesignin          # the archive
@@ -70,13 +87,14 @@ gets a number when the desktop app holds `aloud.app`). For an .ipa, set
 `destination` to `export`, unzip it and point the same command at
 `Payload/App.app`.
 
-ExportOptions.plist: `method` = `app-store-connect`, `signingStyle` =
-`automatic`, `teamID` = the team id, `destination` = `upload` (or `export`
-for a local .ipa dry-run first). Build numbers are auto-assigned at export
-(`manageAppVersionAndBuildNumber` defaults to true), so re-uploading never
-collides - no need to touch `CURRENT_PROJECT_VERSION`. Keep
-`MARKETING_VERSION` in `project.pbxproj` matched to the app version
-(`ts/package.json`) before archiving.
+`ts/ios/App/ExportOptions.plist`: `method` = `app-store-connect`,
+`signingStyle` = `automatic`, `teamID` = the team id, `destination` = `upload`
+(or `export` for a local .ipa dry-run first). Build numbers are auto-assigned
+at export (`manageAppVersionAndBuildNumber` defaults to true), so re-uploading
+never collides - no need to touch `CURRENT_PROJECT_VERSION`.
+`MARKETING_VERSION` in `project.pbxproj` follows the app version
+(`ts/package.json`): `release.sh` sets it in the version-bump commit, and the
+script syncs it again before archiving.
 
 `error: exportArchive Failed to Use Accounts` means Xcode has no Apple account
 signed in (it can drop one between uploads): Xcode → Settings → Accounts, add

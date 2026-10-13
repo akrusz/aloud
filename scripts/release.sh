@@ -1,6 +1,7 @@
 #!/bin/bash
 # Create a release: bump version, update README links, commit, tag, push,
-# and create the GitHub release (which triggers the build workflow).
+# and create the GitHub release (which triggers the build workflow). Then offer
+# the mobile builds, which CI doesn't do.
 # Modes and prompts: scripts/release.sh --help
 
 set -e
@@ -35,6 +36,9 @@ the last tag. Name: Enter takes the suggestion, - for none. Notes: Y use,
 e edit in $EDITOR, s write your own there from an empty file, n write in gh
 (at the end, after the push). Then the pre-release doc check: Y run, n skip,
 q abort; if it leaves items, f fixes them in a claude session here.
+
+Last, once the release is out: build the mobile bundles (Android .aab, iOS
+archive), Y run, n skip. Uploading them stays a step of your own.
 
 Env:
   ALOUD_RELEASE_MODEL  model for the claude CLI calls (default: opus)
@@ -458,6 +462,12 @@ bump_version() {
         rm -f ts/android/app/build.gradle.bak
         echo "  Android: versionName ${VERSION}, versionCode $((ANDROID_CODE + 1))"
     fi
+    # iOS carries only the marketing version: build numbers are assigned at
+    # export. See dev-docs/mobile-signing.md.
+    if [ -f ts/ios/App/App.xcodeproj/project.pbxproj ]; then
+        sed -i.bak -E "s/MARKETING_VERSION = [0-9][0-9.]*;/MARKETING_VERSION = ${VERSION};/" ts/ios/App/App.xcodeproj/project.pbxproj
+        rm -f ts/ios/App/App.xcodeproj/project.pbxproj.bak
+    fi
     # Update README download links — STABLE releases only, mirroring the updater:
     # a prerelease stays off /releases/latest and never force-updates installs, so
     # the README likewise keeps pointing at the last stable build (an RC's links
@@ -474,6 +484,7 @@ bump_version() {
     [ -f ts/package.json ] && git add ts/package.json
     [ -f ts/package-lock.json ] && git add ts/package-lock.json
     [ -f ts/android/app/build.gradle ] && git add ts/android/app/build.gradle
+    [ -f ts/ios/App/App.xcodeproj/project.pbxproj ] && git add ts/ios/App/App.xcodeproj/project.pbxproj
     git diff --cached --quiet || git commit -m "v${VERSION}"
 }
 
@@ -527,3 +538,31 @@ else
     echo "  Pushed v${VERSION} ✓"
     echo "  Create the release at: https://github.com/akrusz/aloud/releases/new?tag=v${VERSION}"
 fi
+
+# The mobile bundles build here, not in CI, and their uploads are by hand.
+# Offered once the release is out, so a failed build can't hold it up; each
+# script reruns on its own.
+echo ""
+printf "  Build the mobile bundles (Android .aab, iOS archive)? [Y/n] "
+read -r MOBILE
+case "$MOBILE" in
+    n|N) ;;
+    *)
+        ANDROID_OK=true
+        IOS_OK=true
+        # --no-bump: the version bump above already took this release's versionCode.
+        scripts/android-aab.sh --no-bump || ANDROID_OK=false
+        scripts/ios-archive.sh || IOS_OK=false
+        echo ""
+        if [ "$ANDROID_OK" = true ]; then
+            echo "  Android: the .aab (revealed in Finder) goes into the Play Console"
+        else
+            echo "  Android build FAILED - rerun: scripts/android-aab.sh --no-bump"
+        fi
+        if [ "$IOS_OK" = true ]; then
+            echo "  iOS: scripts/ios-archive.sh --upload sends the archive to TestFlight"
+        else
+            echo "  iOS archive FAILED - rerun: scripts/ios-archive.sh"
+        fi
+        ;;
+esac
