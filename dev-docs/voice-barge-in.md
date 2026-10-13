@@ -37,6 +37,32 @@ The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
    reopening it, so the speaker's decay isn't transcribed as the user; desktop
    skips the wait, which would cost the start of a real barge-in.
 
+## The opening and closing sounds
+
+A session's opening and closing sounds (`ts/ui/src/signature-sound.ts`) play
+through the speakers with the mic open, and on macOS the mic's echo-cancelled
+capture is voice processing, which rebuilds the audio output when it starts
+and again a couple of seconds after it stops. Three rules keep the two apart
+(heard and fixed on the desktop app, MacBook speakers, 2026-10-12):
+
+- **The opening waits for the mic.** `playOpening` takes the engine's `prime()`
+  and starts the sound once the mic is up plus `MIC_SETTLE_MS`. Started first,
+  it dropped out for a fraction of a second as the mic arrived.
+- **The mic doesn't listen to the opening.** The listen loop and the barge-in
+  handler in `session.ts` wait out `openingSounding`. The echo canceller is
+  cold at session start, so the sound reaches the mic near full strength, and
+  the default pair's voices are vowels: it started turns and hushed the
+  greeting.
+- **The mic outlives the close.** `stop({ keepMicUntil })` (`SttStopOptions`)
+  stops listening at once but holds the capture stream until the closing sound
+  is over. Released at End, the output was rebuilt mid-sound.
+
+Until `ensureCaptureGraph` became single-flight (2026-10-12) every session
+start leaked a capture stream, which kept voice processing running between
+sessions and hid all three. If session-start echo (meditation-pal-8h1x) looks
+worse than it used to, that is a place to look: the canceller now starts cold
+every session.
+
 ## Detection
 
 A frame counts as a barge-in attempt when its **mic RMS energy exceeds the

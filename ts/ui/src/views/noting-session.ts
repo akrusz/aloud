@@ -830,8 +830,9 @@ export async function mountNotingSessionView(
         paused = true;
         clearWait();
         sessionClock.destroy();
-        void stt?.stop();
-        playClosing(signatureSound);
+        // The mic is let go once the closing sound is over (SttStopOptions).
+        const closeOver = playClosing(signatureSound);
+        void stt?.stop({ keepMicUntil: closeOver });
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();
         // Embers are session-only.
         unmountEmberContainer();

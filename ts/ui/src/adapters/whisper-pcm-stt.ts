@@ -16,7 +16,7 @@
  * emitted as a `partial`; the full adaptive silence window submits the `final`.
  */
 
-import type { SttEngine, SttEvent } from '../../../src/platform/stt.js';
+import type { SttEngine, SttEvent, SttStopOptions } from '../../../src/platform/stt.js';
 import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitation/pacing.js';
 import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn.js';
 import { getCloudSessionId } from '../cloud-session.js';
@@ -68,6 +68,9 @@ const PRE_BUFFER_MS = 2000;
 // voice. Echo here measures ~0.005 RMS, real speech ~0.04+, so 0.03 separates
 // them cleanly. (d35)
 const BARGE_IN_THRESHOLD = 0.03;
+// The longest stop() keeps the mic for a caller's sound (keepMicUntil), should
+// its promise never settle.
+const KEEP_MIC_CAP_MS = 15_000;
 const BARGE_IN_REQUIRED_CHUNKS = 3;
 
 // Per-device echo calibration. Continuous capture leaves the mic armed while
@@ -1177,10 +1180,22 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.opts.silenceMaxMs = Math.max(baseMs, maxMs);
     }
 
-    async stop(): Promise<void> {
+    async stop(options?: SttStopOptions): Promise<void> {
         this.stopRequested = true;
         this.capturing = false;
+        // Taken out of releaseAll's reach: everything else is torn down now,
+        // and nothing reads this stream again.
+        const kept = options?.keepMicUntil ? this.stream : null;
+        if (kept) this.stream = null;
         this.releaseAll();
+        if (kept) {
+            const release = (): void => {
+                clearTimeout(cap);
+                for (const track of kept.getTracks()) track.stop();
+            };
+            const cap = setTimeout(release, KEEP_MIC_CAP_MS);
+            void options!.keepMicUntil!.then(release, release);
+        }
     }
 
     /** Tear down the audio graph nodes; leaves the stream + context. */

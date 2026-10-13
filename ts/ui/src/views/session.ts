@@ -971,7 +971,7 @@ export async function mountSessionView(
             // finishes silently into the transcript. In a silence hold there's
             // nothing to interrupt (busy is false) and the resume classifier
             // owns leaving the hold, so don't clear it here.
-            if (!busy) return;
+            if (!busy || openingSounding) return;
             void tts.cancel();
             activeTtsAbort?.abort();
             onBargeIn();
@@ -2441,10 +2441,13 @@ export async function mountSessionView(
         let lastMicErrorToast: string | null = null;
         try {
             while (!torn && !muted) {
-                // Always pause for the voice-picker modal; pause for `busy` only
-                // on backends that can't capture during playback.
+                // Always pause for the voice-picker modal and for the opening
+                // sound, which a mic with a cold echo canceller hears at full
+                // strength (and its voices are vowels: it starts a turn). Pause
+                // for `busy` only on backends that can't capture during
+                // playback.
                 while (
-                    (voiceModalOpen || (!continuousCapture && busy)) &&
+                    (voiceModalOpen || openingSounding || (!continuousCapture && busy)) &&
                     !torn &&
                     !muted
                 ) {
@@ -3401,10 +3404,12 @@ export async function mountSessionView(
         sessionClock.destroy();
         const finalState = session.endSession();
         document.removeEventListener('visibilitychange', onVisibilityChange);
-        void stt?.stop();
         stopMeter();
         void tts.cancel();
-        playClosing(signatureSound);
+        // Listening stops now; the mic itself is let go once the closing sound
+        // is over, or macOS cuts a hole in the sound (SttStopOptions).
+        const closeOver = playClosing(signatureSound);
+        void stt?.stop({ keepMicUntil: closeOver });
         // Relax Ollama's keep_alive to the short default: the model idles out
         // soon (not the full 30m) but stays warm for an immediate restart.
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();

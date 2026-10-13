@@ -34,6 +34,17 @@ export type SttEvent =
       }
     | { type: 'error'; error: unknown };
 
+export interface SttStopOptions {
+    /**
+     * Stop listening now, but keep the engine's own mic stream open until this
+     * settles. For sound that plays as a session ends: on macOS, closing an
+     * echo-cancelled mic makes the OS rebuild its audio output a couple of
+     * seconds later, and whatever is playing then drops out. Only engines that
+     * hold a stream of their own honor it.
+     */
+    keepMicUntil?: Promise<unknown>;
+}
+
 export interface SttEngine {
     /**
      * Begin a recognition session. Yields events until end-of-speech, an error,
@@ -43,7 +54,7 @@ export interface SttEngine {
     start(): AsyncIterable<SttEvent>;
 
     /** Request early termination of an in-progress recognition. */
-    stop(): Promise<void>;
+    stop(options?: SttStopOptions): Promise<void>;
 
     /**
      * Optional: open the mic stream and audio graph WITHOUT beginning an

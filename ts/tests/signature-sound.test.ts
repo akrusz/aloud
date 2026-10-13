@@ -231,10 +231,15 @@ describe('the close', () => {
         await settle();
         ctx().sources[0]!.onended!();
         await settle();
-        sound.playClosing('marimba');
+        // Its promise is what the mic is held open for: over when the sound is.
+        const close = track(sound.playClosing('marimba'));
         await settle();
         expect(ctx().sources).toHaveLength(2);
         expect(fetched).toContain('/audio/signature/marimba-close.mp3');
+        expect(close.over).toBe(false);
+        ctx().sources[1]!.onended!();
+        await settle();
+        expect(close.over).toBe(true);
         // The session's orb for the opening, the home screen's for the close.
         expect(rippled).toEqual(['#navCenter #orb', '#navCenter #home-orb']);
     });
@@ -242,9 +247,10 @@ describe('the close', () => {
     it('is dropped, with the opening faded, when the session ends inside its opening', async () => {
         const opening = track(sound.playOpening('marimba'));
         await settle();
-        sound.playClosing('marimba');
+        const close = track(sound.playClosing('marimba'));
         await settle();
         expect(opening.over).toBe(true);
+        expect(close.over).toBe(true);
         expect(ctx().sources).toHaveLength(1);
         expect(ctx().sources[0]!.stopAt).not.toBeNull();
     });

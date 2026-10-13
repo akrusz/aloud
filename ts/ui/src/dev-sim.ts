@@ -185,7 +185,7 @@ export function simulateSttFault(engine: SttEngine | null): SttEngine | null {
         start: async function* (): AsyncIterable<SttEvent> {
             yield { type: 'error', error };
         },
-        stop: () => engine.stop(),
+        stop: (options) => engine.stop(options),
         prime: () => Promise.resolve(),
     };
 }

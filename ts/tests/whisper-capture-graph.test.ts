@@ -66,4 +66,18 @@ describe('the capture graph', () => {
         await firstEvent.catch(() => {});
         expect(opened.every((s) => s.stopped)).toBe(true);
     });
+
+    it('keeps the mic open for a sound the session ends on, and lets go when it is over', async () => {
+        const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+        const engine = new WhisperPcmSttEngine();
+        await engine.prime();
+        let soundOver = (): void => {};
+        await engine.stop({ keepMicUntil: new Promise<void>((r) => (soundOver = r)) });
+        await new Promise((r) => setTimeout(r, 30));
+        expect(opened).toHaveLength(1);
+        expect(opened[0]!.stopped).toBe(false);
+        soundOver();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(opened[0]!.stopped).toBe(true);
+    });
 });

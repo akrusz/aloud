@@ -219,19 +219,21 @@ export async function playOpening(sound: SignatureSound, micOpening?: Promise<un
 }
 
 /** A session ends. One that ends inside its own opening, or before it began,
- *  only loses the opening: it was too short to have a close. */
-export function playClosing(sound: SignatureSound): void {
+ *  only loses the opening: it was too short to have a close. Resolves when the
+ *  close is over (at once when none plays): the mic is held open until then
+ *  (SttStopOptions.keepMicUntil). */
+export function playClosing(sound: SignatureSound): Promise<void> {
     ++sessionTicket;
     if (openingWaiting) {
         openingWaiting = 0;
-        return;
+        return Promise.resolve();
     }
     if (sounding?.half === 'open') {
         sounding.stop();
-        return;
+        return Promise.resolve();
     }
     if (sound !== 'none') pulseNavOrb('home');
-    void play(sound, 'close');
+    return play(sound, 'close');
 }
 
 /** Settings: hear one half of a preset. */
