@@ -70,6 +70,18 @@ contribution, please indicate so clearly in your submission, and the
 maintainer will decide whether to accept the contribution under those
 terms.
 
+## Trademarks
+
+The AGPL-3.0 licenses the software. It does not license aloud's identity.
+As section 7(e) of the AGPL-3.0 allows, the copyright holder declines to
+grant any rights under trademark law: the name "aloud", its wordmark, the
+orb, the app icons and aloud's signature sounds may not be used to name,
+brand or promote a modified version or another product. The files
+themselves stay under the AGPL like everything else in this repository;
+what is withheld is their use as a brand.
+
+You are free to say, truthfully, that your work is based on aloud.
+
 ---
 
 Copyright © Alex Krusz. All rights reserved under the AGPL-3.0 with the
