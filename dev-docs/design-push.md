@@ -93,25 +93,6 @@ good, which is what aloud is for. If anything, make that deliberate: let the
 screen's chrome fade as a sit goes deeper (`kasina.ts` and `screen-dim.ts` are
 the pieces that exist).
 
-## Fixes found along the way
-
-Low priority, measured or traced in the code. File them as beads if they
-aren't yet, then delete this section:
-
-```sh
-bd create "History: facilitator role label never gets its pink" --type bug --priority 3 --labels ui --description "views/history.ts renderTranscript() writes class=\"transcript-role \${ex.role}\", and a facilitator turn's role is 'assistant'. app-base.css only styles .transcript-role.facilitator (accent-text) and .transcript-role.user (warm-text), so in History 'You' is gold but 'Facilitator' falls back to plain text. Fix either side: map assistant -> facilitator in the template, or rename the selector to .transcript-role.assistant."
-
-bd create "Settings Look and Feel preview never shows the theme you pick" --type bug --priority 3 --labels ui --description "views/settings.ts paintPreviewTheme() sets data-preview-theme on #text-scale-preview, but no CSS reads that attribute, so choosing 'Always light' from dark (or the reverse) leaves the style preview in the current theme. Setting data-theme instead should fix it with no new CSS: the token blocks are [data-theme=\"light\"] / [data-theme=\"dark\"] attribute selectors, so they re-declare every --bg/--text token for the preview's subtree. Check the .text-scale-preview background (--bg-primary) follows."
-
-bd create "Contrast: four token pairs under WCAG AA" --type task --priority 3 --labels ui --description "Measured from the token values (WCAG 2 ratios): light --warm-text #b88114 is 2.5-3.4:1 on the grounds (it's used for the small 'You' label in History); dark --danger #c0503e is 3.2-4.1:1 as .btn-danger text (e.g. 'Delete' on --bg-secondary 3.9:1); light --success #4a8e5f is 2.9-3.9:1 ('Saved', update status); light --text-muted #756058 on --bg-card/--bg-dialog is 4.3:1 (hints inside peach modals). Everything else that carries text clears 4.5:1 in both themes. Smallest lightness-only moves (same HLS hue and saturation) that clear 4.5:1 on every ground including the peach card: light warm-text #815a0e (min 4.55), dark danger #cd7364 (4.51, reads a bit salmon - a more saturated red may suit better), light success #396c49 (4.54), light text-muted #715c55 (4.61, barely visible change)."
-
-bd create "app-base.css: accent-ink contrast comment says 8.6:1, it's 6.4:1" --type task --priority 4 --labels ui --description "The comment on --accent-ink claims 8.6:1 on the dark fill (#a81050). Measured #ffeaf4 on #a81050 = 6.42:1 (and 5.21:1 on #c01560, which the comment has right). Still AA; just fix the number so nobody leans on the wrong margin."
-
-bd create "style.css: .session-info-panel reads an undefined --bg-elevated" --type task --priority 4 --labels ui --description "style.css .session-info-panel background is var(--bg-elevated, var(--bg-secondary, #fff)); --bg-elevated is never defined, so it always lands on --bg-secondary. Either define the token (if a distinct raised surface was intended) or write var(--bg-secondary) directly."
-
-bd create "CSS sweep: rules for markup the app no longer renders" --type task --priority 4 --labels ui --description "Selectors with no matching markup in the TS UI: .settings-welcome (+ h1), .setup-header h1, .setup-subtitle, .message.historical, .continuation-separator, .kasina-active .typing-indicator, .toggle-label, the fixed (non-.inline) .no-voices-banner with .toast-close; in style.css .transcript, #mic.listening, #text-form, .btn-end, .session-footer. Also JS toggles classes nothing styles: .modifier-toggle.selected (visual comes from :has(input:checked)), #begin-btn.btn-disabled, #voice-btn.disabled. Worth a grep-and-delete pass; confirm each against index.html and the views first."
-```
-
 ## For Claude, picking this up
 
 - **This is a together day.** The dev asked to work these through with you, not
@@ -121,8 +102,9 @@ bd create "CSS sweep: rules for markup the app no longer renders" --type task --
   either fully before he's seen a sketch.
 - **A sensible order:** 5 is site-only; what is left of 2 is the video's
   sound; 3 and 4 change the setup screen and want a phone in hand, which
-  fits a mobile release day. Clear the fixes above first if they're still
-  open; they're each small.
+  fits a mobile release day. The small fixes found along the way are beads
+  now (label `ui`: ceuv, roq6, 2khw, x81q, 53uq, g5qb); clear them first if
+  they're still open.
 - **What was a guess:** that returning users repeat their setup (idea 3), and
   that the price on Begin costs more calm than it buys trust (idea 4). Ask.
 - **How the design system was built,** if it needs a re-sync after the push:
@@ -136,6 +118,3 @@ bd create "CSS sweep: rules for markup the app no longer renders" --type task --
   instructions (`artifact-type/reference/from-code.md` on the artifact) cover
   a re-sync: read what's there first, since the dev may have edited it on the
   page.
-- **bd wasn't available in the cloud session** that wrote this (see
-  [friction.md](friction.md)), which is why the fixes are commands here
-  rather than beads.
