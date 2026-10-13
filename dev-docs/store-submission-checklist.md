@@ -157,8 +157,9 @@ public ratings or reviews**, their feedback arrives privately in the console.
       release. On their own: `scripts/android-aab.sh` (it bumps `versionCode`
       and syncs `versionName` in `ts/android/app/build.gradle` itself; Play
       refuses a reused `versionCode`) and `scripts/ios-archive.sh`.
-- [ ] **The uploads**, by hand: the `.aab` to the Play track, and
-      `scripts/ios-archive.sh --upload` for TestFlight.
+- [ ] **The uploads**: the `.aab` to the Play track, by hand, and
+      `scripts/ios-archive.sh --upload` for TestFlight (`release.sh` offers it
+      once the archive has built).
 - [ ] Release notes ("What's new") for the track.
 - [ ] **Store copy**: `dev-docs/store-descriptions.md` is the source, the
       consoles are the deploy. Paste any changed paragraph into Play Console

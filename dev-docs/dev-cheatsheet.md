@@ -375,7 +375,9 @@ then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:
 **Mobile** is not built by CI. Once the release is out, the script offers to
 build both bundles here (`scripts/android-aab.sh --no-bump`, then
 `scripts/ios-archive.sh`, below). A failed build leaves the release as it is,
-and each script reruns on its own. The uploads stay manual.
+and each script reruns on its own. With an iOS archive built it then offers
+the TestFlight upload (default no), and it closes on a reminder that the
+`.aab` still has to go into the Play Console by hand.
 
 ### Mobile (Capacitor - iOS / Android)
 

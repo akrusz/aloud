@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create a release: bump version, update README links, commit, tag, push,
 # and create the GitHub release (which triggers the build workflow). Then offer
-# the mobile builds, which CI doesn't do.
+# the mobile builds, which CI doesn't do, and the TestFlight upload.
 # Modes and prompts: scripts/release.sh --help
 
 set -e
@@ -38,7 +38,8 @@ e edit in $EDITOR, s write your own there from an empty file, n write in gh
 q abort; if it leaves items, f fixes them in a claude session here.
 
 Last, once the release is out: build the mobile bundles (Android .aab, iOS
-archive), Y run, n skip. Uploading them stays a step of your own.
+archive), Y run, n skip. If the iOS archive built: upload it to TestFlight,
+y run, Enter skips. The .aab goes into the Play Console by hand.
 
 Env:
   ALOUD_RELEASE_MODEL  model for the claude CLI calls (default: opus)
@@ -539,9 +540,8 @@ else
     echo "  Create the release at: https://github.com/akrusz/aloud/releases/new?tag=v${VERSION}"
 fi
 
-# The mobile bundles build here, not in CI, and their uploads are by hand.
-# Offered once the release is out, so a failed build can't hold it up; each
-# script reruns on its own.
+# The mobile bundles build here, not in CI. Offered once the release is out,
+# so a failed build can't hold it up; each script reruns on its own.
 echo ""
 printf "  Build the mobile bundles (Android .aab, iOS archive)? [Y/n] "
 read -r MOBILE
@@ -553,16 +553,31 @@ case "$MOBILE" in
         # --no-bump: the version bump above already took this release's versionCode.
         scripts/android-aab.sh --no-bump || ANDROID_OK=false
         scripts/ios-archive.sh || IOS_OK=false
+        # The one upload that is a command (Play takes the .aab by hand).
+        # Default no: an Enter typed ahead during the builds must not ship one.
+        IOS_LINE="iOS archive FAILED - rerun: scripts/ios-archive.sh"
+        if [ "$IOS_OK" = true ]; then
+            IOS_LINE="iOS: not uploaded - scripts/ios-archive.sh --upload when ready"
+            echo ""
+            printf "  Upload the iOS archive to TestFlight? [y/N] "
+            read -r UPLOAD
+            case "$UPLOAD" in
+                y|Y)
+                    if scripts/ios-archive.sh --upload; then
+                        IOS_LINE="iOS: uploaded to TestFlight"
+                    else
+                        IOS_LINE="iOS upload FAILED - rerun: scripts/ios-archive.sh --upload"
+                    fi
+                    ;;
+            esac
+        fi
         echo ""
+        echo "  $IOS_LINE"
         if [ "$ANDROID_OK" = true ]; then
-            echo "  Android: the .aab (revealed in Finder) goes into the Play Console"
+            echo "  Android: still to do - upload the .aab to the Play Console"
+            echo "    ts/android/app/build/outputs/bundle/release/app-release.aab"
         else
             echo "  Android build FAILED - rerun: scripts/android-aab.sh --no-bump"
-        fi
-        if [ "$IOS_OK" = true ]; then
-            echo "  iOS: scripts/ios-archive.sh --upload sends the archive to TestFlight"
-        else
-            echo "  iOS archive FAILED - rerun: scripts/ios-archive.sh"
         fi
         ;;
 esac

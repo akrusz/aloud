@@ -38,7 +38,7 @@ scripts/ios-archive.sh --upload   # sign that archive for distribution and send
 ```
 
 `scripts/release.sh` offers the build at the end of a release, with the Android
-bundle. The upload is its own step, run by hand.
+bundle, and then the upload (default no).
 
 With no devices on the team, Xcode can't mint a *development* profile, so a
 normal signed archive fails ("Your team has no devices"). The workaround:
