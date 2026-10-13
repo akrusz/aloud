@@ -284,7 +284,7 @@ function renderTranscript(exchanges: readonly Exchange[]): string {
             return `
             <div class="transcript-message">
                 <div class="transcript-head">
-                    <span class="transcript-role ${ex.role}">${escapeHtml(speakerLabel(ex))}</span>
+                    <span class="transcript-role ${ex.role === 'user' ? 'user' : 'facilitator'}">${escapeHtml(speakerLabel(ex))}</span>
                     ${time ? `<span class="transcript-time">${escapeHtml(time)}</span>` : ''}
                 </div>
                 <div class="transcript-text">${escapeHtml(ex.content)}</div>

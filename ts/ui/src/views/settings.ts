@@ -1155,7 +1155,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const themeSel = root.querySelector<HTMLSelectElement>('#s-theme-mode')!;
         themeSel.value = pendingChrome.themeMode;
         const paintPreviewTheme = (): void =>
-            previewBox?.setAttribute('data-preview-theme', resolvePreviewTheme(pendingChrome.themeMode));
+            previewBox?.setAttribute('data-theme', resolvePreviewTheme(pendingChrome.themeMode));
         paintPreviewTheme();
         themeSel.addEventListener('change', () => {
             pendingChrome.themeMode = themeSel.value as ThemeMode;

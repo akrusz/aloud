@@ -3362,8 +3362,12 @@ body::before {
     white-space: nowrap;
 }
 
+/* The facilitator's pink at half strength, mixed toward the muted text colour:
+   a tag beside the transcript, not a highlight in it. About 6:1 on the view
+   grounds in both themes, the same as the full pink; it is the saturation
+   that comes down. */
 .transcript-role.facilitator {
-    color: var(--accent-text);
+    color: color-mix(in srgb, var(--accent-text) 50%, var(--text-muted));
 }
 
 .transcript-role.user {
@@ -4625,6 +4629,9 @@ p.clouds-hint-row {
     border-radius: 8px;
     padding: var(--space-sm) var(--space-md);
     background: var(--bg-primary);
+    /* Stated here, not inherited: the box can wear the other theme (below),
+       and inherited text would arrive in the page's colour. */
+    color: var(--text-primary);
 }
 
 .text-scale-preview .preview-heading {
@@ -4694,10 +4701,10 @@ input[type="range"].preview-range {
     padding: 0.6em 1.2em;
 }
 
-/* The preview box carries its own data-theme (set by settings.js), so the
-   plain [data-theme="light"] / [data-theme="dark"] palette blocks above apply
-   to it directly and cascade to its children - no preview-local literals to
-   drift out of sync with the real theme. */
+/* The preview box carries its own data-theme (paintPreviewTheme in
+   views/settings.ts), so the plain [data-theme="light"] / [data-theme="dark"]
+   palette blocks above apply to it directly and cascade to its children - no
+   preview-local literals to drift out of sync with the real theme. */
 
 .settings-section .form-group > label {
     display: block;
