@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aloud signature sounds</title>
+<style>
+    :root {
+        --bg: #fff6ea; --card: #ffffff; --text: #2b1d1a; --muted: #6f5a53; --border: #ecd9c6;
+        --accent: #c01560; --accent-ink: #ffffff; --stroke: #f5c542;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+            --bg: #1c1413; --card: #271c1a; --text: #f6e9df; --muted: #bda79c; --border: #3f2e2a;
+            --accent: #e71f75; --accent-ink: #ffffff; --stroke: #b8860b; color-scheme: dark;
+        }
+    }
+    :root[data-theme="dark"] {
+        --bg: #1c1413; --card: #271c1a; --text: #f6e9df; --muted: #bda79c; --border: #3f2e2a;
+        --accent: #e71f75; --accent-ink: #ffffff; --stroke: #b8860b; color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0 auto; padding-block: 24px 64px; padding-inline: 16px; max-width: 880px;
+        background: var(--bg); color: var(--text);
+        font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    h2 { font-size: 1.15rem; margin: 0 0 2px; }
+    h3 { font-size: 1rem; margin: 40px 0 8px; }
+    p { margin: 6px 0; }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+    #controls {
+        position: sticky; top: env(safe-area-inset-top, 0px); z-index: 1; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+        margin: 18px 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--border);
+        border-radius: 12px;
+    }
+    #controls label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+    @media (max-width: 600px) { #controls { position: static; } }  /* too tall to pin on a phone */
+    #controls output { min-width: 4.2em; font-variant-numeric: tabular-nums; }
+    #mix .row { align-items: center; gap: 10px 16px; }
+    #mix label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+    [hidden] { display: none; }
+    select, button { font: inherit; }
+    select { padding: 4px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+    .card { margin: 14px 0; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 8px; }
+    .row.was { align-items: center; color: var(--muted); font-size: 0.9rem; }
+    .row.was button { padding: 5px 12px; font-size: 0.9rem; }
+    button {
+        padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg);
+        color: var(--text); cursor: pointer;
+    }
+    button.main { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 2px 2px 0 var(--stroke); }
+    button.playing { outline: 3px solid var(--stroke); }
+    button:disabled { cursor: not-allowed; color: var(--muted); }
+    .wide { overflow-x: auto; }
+    table { border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    th, td { padding: 2px 14px 2px 0; text-align: left; font-weight: normal; }
+    th { color: var(--muted); }
+    details { margin-top: 8px; font-size: 0.9rem; }
+    details img, video { display: block; width: 100%; margin: 8px 0; border-radius: 8px; }
+    .scopes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+</style>
+</head>
+<body>
+<h1>Signature sound: candidates</h1>
+<p>An opening and a closing per direction. Solo first, then each opening with the facilitator's first line
+coming in over its tail, which is how it will be heard.</p>
+<p class="muted">Try them on laptop speakers and on good headphones, then switch "Play as" to call quality:
+that is roughly what a Bluetooth headset gets from the Android app. The real test is a phone.</p>
+<p class="muted">"Speed" slows any sound here to try an idea. At the same pitch it is the browser's own stretch,
+which is rougher than a re-render; with "lower with it" it is a clean slowed tape. The voice stays as it is.</p>
+
+<div id="controls">
+    <label>Play as
+        <select id="mode">
+            <option value="full">Full range</option>
+            <option value="16k">Call quality, 16 kHz mono</option>
+            <option value="8k">Call quality, 8 kHz mono</option>
+        </select>
+    </label>
+    <label>Voice comes in at <input type="range" id="at" min="0.5" max="4" step="0.1"> <output id="at-out"></output></label>
+    <label>Opening under the voice <input type="range" id="under" min="-18" max="0" step="1"> <output id="under-out"></output></label>
+    <label>Speed
+        <select id="rate">
+            <option value="1">1</option>
+            <option value="0.85">0.85</option>
+            <option value="0.7">0.7</option>
+            <option value="0.5">0.5</option>
+        </select>
+    </label>
+    <label><input type="checkbox" id="tape"> and lower with it, like a tape</label>
+    <button id="stop">Stop</button>
+</div>
+
+<section class="card" id="mix">
+    <h2>Mix a pair</h2>
+    <p class="muted">Any opening with any close, a pause between them.</p>
+    <div class="row">
+        <label>Open with <select id="mix-open"></select></label>
+        <label>close with <select id="mix-close"></select></label>
+        <button class="main" id="mix-play">Play the pair</button>
+    </div>
+</section>
+
+<main id="revised"></main>
+
+<h3 id="first-round">Round 1</h3>
+<main id="list"></main>
+
+<h3>Not these</h3>
+<p class="muted">What it must not be confused with: the bowl the video opens on now, and noting's sounds.
+These always play full range.</p>
+<div class="row" id="refs"></div>
+
+<script src="audition-data.js"></script>
+<script>
+const S = window.SIGNATURE || { candidates: [], revisions: [] };
+const known = new Set([...S.revisions, ...S.candidates].map((c) => c.name));  // a published copy may hold fewer
+const $ = (id) => document.getElementById(id);
+let sound = new Audio();
+let voice = new Audio();
+let timers = [];
+let lit = null;
+let awake = null;
+
+// A player cut off mid-sound clicks, and the click lands on the start of whatever plays next:
+// fade it out over a twentieth of a second and leave it behind.
+function retire(player) {
+    player.onended = null;
+    if (player.paused) return;
+    const from = player.volume;
+    const began = performance.now();
+    const fade = setInterval(() => {
+        const left = 1 - (performance.now() - began) / 50;
+        if (left <= 0) {
+            clearInterval(fade);
+            player.pause();
+        } else {
+            player.volume = from * left;
+        }
+    }, 5);
+}
+
+// An output that has gone idle (a Bluetooth headset, a USB DAC) can clip or pop the start of the
+// next sound. A silent stream keeps it running while the page is open.
+function stayAwake() {
+    if (awake || !window.AudioContext) return;
+    awake = new AudioContext();
+    const hush = awake.createGain();
+    hush.gain.value = 0;
+    const tone = awake.createOscillator();
+    tone.connect(hush).connect(awake.destination);
+    tone.start();
+}
+
+function stop() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    retire(sound);
+    retire(voice);
+    sound = new Audio();
+    voice = new Audio();
+    if (lit) lit.classList.remove('playing');
+    lit = null;
+}
+
+function rate() {
+    return Number($('rate').value);
+}
+
+function file(name) {
+    const mode = $('mode').value;
+    return mode === 'full' ? `${name}.mp3` : `phone/${name}.${mode}.wav`;
+}
+
+function voiceFile() {
+    const mode = $('mode').value;
+    return mode === 'full' ? 'audition/voice.mp3' : `audition/voice.${mode}.wav`;
+}
+
+function start(player, url, volume = 1) {
+    player.src = url;
+    player.volume = volume;
+    if (player !== voice) {
+        player.preservesPitch = !$('tape').checked;
+        player.playbackRate = rate();
+    }
+    player.play().catch(() => stop());
+}
+
+function begin(button) {
+    stop();
+    stayAwake();
+    lit = button;
+    button.classList.add('playing');
+}
+
+function done(player, button) {
+    player.onended = () => { if (lit === button) stop(); };
+}
+
+function button(label, onclick, main = false) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (main) b.className = 'main';
+    b.onclick = () => onclick(b);
+    return b;
+}
+
+function fmt(x, unit) {
+    return x == null ? '' : `${x > 0 ? '+' : ''}${x} ${unit}`;
+}
+
+function measured(c) {
+    const row = (label, m) => `<tr><th>${label}</th><td>${m.seconds} s</td><td>${m.riseMs} ms</td>`
+        + `<td>${fmt(m.phone16kDb, 'dB')}</td><td>${fmt(m.phone8kDb, 'dB')}</td><td>${fmt(m.monoDb, 'dB')}</td>`
+        + `<td>${m.clearDb == null ? '' : `${fmt(m.clearDb, 'dB')}, worst ${fmt(m.clearWorstDb, 'dB')}`}</td></tr>`;
+    return '<div class="wide"><table><tr><th></th><th>Length</th><th>Rise</th><th>At 16 kHz</th><th>At 8 kHz</th>'
+        + '<th>In mono</th><th>Voice over its tail, 1-4 kHz</th></tr>' + row('Open', c.open) + row('Close', c.close)
+        + '</table></div>';
+}
+
+function playButtons(c) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.append(
+        button('Open', (b) => { begin(b); start(sound, file(c.name + '-open')); done(sound, b); }, true),
+        button('Close', (b) => { begin(b); start(sound, file(c.name + '-close')); done(sound, b); }, true),
+        button('Open, then the voice', (b) => {
+            begin(b);
+            start(sound, file(c.name + '-open'), 10 ** ($('under').value / 20));
+            timers.push(setTimeout(() => { start(voice, voiceFile()); done(voice, b); }, $('at').value * 1000));
+        }),
+        button('Open, a pause, close', (b) => {
+            begin(b);
+            start(sound, file(c.name + '-open'));
+            sound.onended = null;
+            timers.push(setTimeout(() => { start(sound, file(c.name + '-close')); done(sound, b); },
+                (c.open.seconds / rate() + 1.5) * 1000));
+        }),
+    );
+    if (!S.voice) row.children[2].disabled = true;
+    return row;
+}
+
+function card(c, intro) {
+    const el = document.createElement('section');
+    el.className = 'card';
+    el.innerHTML = intro;
+    el.append(playButtons(c));
+    if (c.was && known.has(c.was)) {
+        const row = document.createElement('div');
+        row.className = 'row was';
+        row.append('As it was:',
+            button(`${c.was} open`, (b) => { begin(b); start(sound, file(c.was + '-open')); done(sound, b); }),
+            button(`${c.was} close`, (b) => { begin(b); start(sound, file(c.was + '-close')); done(sound, b); }));
+        el.append(row);
+    }
+    if (c.drawn) {
+        // #t picks a frame with the word in it as the still.
+        el.insertAdjacentHTML('beforeend', '<p class="muted">Its left channel plotted against its right, '
+            + 'which is what an XY oscilloscope would show:</p><div class="scopes">'
+            + [['open', 1.3], ['close', 1.0]].map(([k, at]) =>
+                `<video controls preload="metadata" src="audition/${c.name}-${k}-scope.mp4#t=${at}"></video>`).join('')
+            + '</div>');
+    }
+    el.insertAdjacentHTML('beforeend', measured(c)
+        + `<details><summary>Spectrograms</summary><img loading="lazy" src="spectrograms/${c.name}-open.png" alt="${c.name} open">`
+        + `<img loading="lazy" src="spectrograms/${c.name}-close.png" alt="${c.name} close"></details>`);
+    return el;
+}
+
+$('first-round').hidden = !S.candidates.length;
+const live = S.live || [];
+const revision = (c) => card(c, `<h2>${c.name}</h2><p>${c.changed}</p>`);
+const fresh = (S.revisions || []).filter((c) => c.round === S.fresh && !live.includes(c.name));
+if (fresh.length) {
+    $('revised').insertAdjacentHTML('beforeend', `<h3>New: round ${S.fresh}</h3>`);
+    for (const c of fresh) $('revised').append(revision(c));
+}
+if (live.length) {
+    $('revised').insertAdjacentHTML('beforeend', '<h3>In the running</h3><p class="muted">'
+        + 'Each has the version it revises beside it to compare.</p>');
+    for (const name of live) $('revised').append(revision(S.revisions.find((r) => r.name === name)));
+}
+const rest = (S.revisions || []).filter((c) => !live.includes(c.name) && !fresh.includes(c));
+for (const round of [...new Set(rest.map((c) => c.round))].sort((a, b) => b - a)) {
+    $('revised').insertAdjacentHTML('beforeend', `<h3>Round ${round}</h3>`);
+    for (const c of rest.filter((r) => r.round === round)) $('revised').append(revision(c));
+}
+for (const c of S.candidates) {
+    $('list').append(card(c, `<h2>${c.name}</h2><p>${c.what}</p><p class="muted">Not a bowl or bell: ${c.why}</p>`));
+}
+
+// Any opening with any close, listed in the page's order.
+const byName = new Map([...S.revisions, ...S.candidates].map((c) => [c.name, c]));
+const order = [...new Set([...fresh.map((c) => c.name), ...live, ...byName.keys()])].filter((name) => byName.has(name));
+for (const [id, first] of [['mix-open', 'bloom7'], ['mix-close', 'bloom8']]) {
+    for (const name of order) $(id).add(new Option(name, name));
+    if (byName.has(first)) $(id).value = first;
+}
+$('mix').hidden = order.length < 2;
+$('mix-play').onclick = () => {
+    const b = $('mix-play');
+    begin(b);
+    start(sound, file($('mix-open').value + '-open'));
+    sound.onended = null;
+    timers.push(setTimeout(() => { start(sound, file($('mix-close').value + '-close')); done(sound, b); },
+        (byName.get($('mix-open').value).open.seconds / rate() + 1.5) * 1000));
+};
+
+const REFS = [
+    ['Video bowl (bowl-deep-long)', '../bowl-candidates/bowl-deep-long.mp3'],
+    ['Noting chime', 'audition/chime.wav'],
+    ...['bowl', 'rin', 'bike-bell', 'bottle', 'card', 'crow', 'plop', 'poof', 'rattle']
+        .map((n) => [`Noting ${n}`, `../../../ts/ui/public/audio/${n}.mp3`]),
+];
+for (const [label, url] of REFS) {
+    $('refs').append(button(label, (b) => { begin(b); start(sound, url); done(sound, b); }));
+}
+
+function show() {
+    $('at-out').textContent = `${Number($('at').value).toFixed(1)} s`;
+    $('under-out').textContent = `${$('under').value} dB`;
+}
+$('at').value = S.voiceAt ?? 2.5;
+$('under').value = S.underVoiceDb ?? -6;
+$('at').oninput = $('under').oninput = show;
+$('mode').onchange = $('rate').onchange = $('tape').onchange = stop;
+$('stop').onclick = stop;
+show();
+</script>
+</body>
+</html>
