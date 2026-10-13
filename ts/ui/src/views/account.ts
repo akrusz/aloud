@@ -25,6 +25,7 @@ import { showBuyCreditsModal } from '../buy-credits-modal.js';
 import { purchaseChannel, topUpHint } from '../purchase-channel.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { showSignInModal } from '../sign-in-modal.js';
+import { signInNames } from '../sign-in-providers.js';
 import { confirmTypedDialog, alertDialog } from '../dialog.js';
 import { showSuccessToast, showErrorToast } from '../toast.js';
 import { t } from '../i18n.js';
@@ -58,7 +59,7 @@ async function render(root: HTMLElement): Promise<void> {
     const account = await fetchMe();
     if (!account) {
         body.innerHTML = `<section class="settings-section">
-            <p class="provider-hint">${t('Sign in to use aloud cloud for hosted speech-to-text, text-to-speech, and LLMs with no setup. Connect Google or Apple for free credits.')}</p>
+            <p class="provider-hint">${t('Sign in to use aloud cloud for hosted speech-to-text, text-to-speech, and LLMs with no setup. Connect {providers} for free credits.', { providers: signInNames() })}</p>
             <button type="button" class="btn btn-primary account-signin-cta" id="acct-signin">${t('Sign in or create account')}</button>
             </section>`;
         body.querySelector('#acct-signin')?.addEventListener('click', () => {
@@ -82,7 +83,7 @@ async function render(root: HTMLElement): Promise<void> {
         providers.length > 0 && !providers.some((p) => p === 'google' || p === 'apple');
     const connectPrompt = needsConnect
         ? `<button type="button" class="account-connect-prompt provider-hint" id="acct-connect">
-               ${t('Connect Google or Apple to claim your free credits →')}
+               ${t('Connect {providers} to claim your free credits →', { providers: signInNames() })}
            </button>`
         : '';
     const sells = purchaseChannel() === 'web';
@@ -240,7 +241,9 @@ function wireAccountSection(root: HTMLElement): void {
     root.querySelector('#acct-connect')?.addEventListener('click', () => {
         void showSignInModal({
             title: t('Claim your free credits'),
-            subtitle: t('Connect Google or Apple to unlock free credits on this account.'),
+            subtitle: t('Connect {providers} to unlock free credits on this account.', {
+                providers: signInNames(),
+            }),
         }).then(() => render(root));
     });
 }

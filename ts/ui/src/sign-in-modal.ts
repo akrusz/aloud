@@ -15,6 +15,7 @@ import {
     renderNativeAppleSignInButton,
 } from './native-signin.js';
 import { isDesktopSync, isCapacitor } from './is-desktop.js';
+import { signInNames } from './sign-in-providers.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import {
     emailLogin,
@@ -51,7 +52,7 @@ export interface SignInModalOptions {
 
 const DEFAULT_TITLE = 'Sign in to aloud cloud';
 const DEFAULT_SUBTITLE =
-    'Sign up for free. Connect Google or Apple and we\'ll give you free credits to try aloud cloud!';
+    'Sign up for free. Connect {providers} and we\'ll give you free credits to try aloud cloud!';
 
 /**
  * Resolves true after a successful sign-in, by which point the session token is
@@ -71,7 +72,7 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
                     <span class="voice-modal-title">${escapeHtml(options.title ?? t(DEFAULT_TITLE))}</span>
                     <button type="button" class="voice-modal-close" id="signin-modal-close" aria-label="${t('Close')}">&times;</button>
                 </div>
-                <p class="provider-hint signin-modal-subtitle">${escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE))}</p>
+                <p class="provider-hint signin-modal-subtitle">${escapeHtml(options.subtitle ?? t(DEFAULT_SUBTITLE, { providers: signInNames() }))}</p>
                 <div class="signin-oauth" id="signin-oauth">
                     <div class="signin-modal-button" id="signin-google-button"></div>
                     <div class="signin-modal-button" id="signin-apple-button"></div>

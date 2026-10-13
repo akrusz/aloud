@@ -19,6 +19,7 @@ import { detectCapabilities } from './capabilities.js';
 import { fetchMe, getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
 import { getKnownBalance } from './cloud-balance.js';
 import { showSignInModal, type ModalAlternative } from './sign-in-modal.js';
+import { signInNames } from './sign-in-providers.js';
 import { bestFreeVoice, loadScoredVoices, prefixedVoiceId } from './voice-picker.js';
 import { alertDialog, choiceDialog } from './dialog.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
@@ -253,7 +254,8 @@ async function clearForCloud(setup: SessionSetup, wayOn: WayOn): Promise<boolean
         ? {
               title: t('One quick step'),
               subtitle: t(
-                  'Voice and facilitator intelligence run on aloud cloud. Connect Google or Apple to start for free.'
+                  'Voice and facilitator intelligence run on aloud cloud. Connect {providers} to start for free.',
+                  { providers: signInNames() }
               ),
           }
         : { title: t('Options with ☁ require an account') };

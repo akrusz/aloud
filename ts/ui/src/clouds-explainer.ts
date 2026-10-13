@@ -11,6 +11,7 @@ import { getCloudToken, fetchMe } from './cloud-auth.js';
 import { showBuyCreditsModal } from './buy-credits-modal.js';
 import { purchaseChannel } from './purchase-channel.js';
 import { showSignInModal } from './sign-in-modal.js';
+import { signInAccount } from './sign-in-providers.js';
 import { withTimeout } from './net-timeout.js';
 import { t } from './i18n.js';
 import cloudArtUrl from './assets/aloud-cloud.svg?url';
@@ -26,7 +27,7 @@ const EXPLAINER =
     '☁ are deducted only as you use them. You may use other providers for these functions, such as your device\'s speech recognition or your own API keys; these do not use any ☁.\n\n';
 
 const FREE_CLOUDS_LINE =
-    '<strong>Connecting a Google or Apple account gets you free ☁ to start.</strong>';
+    '<strong>Connecting {account} gets you free ☁ to start.</strong>';
 
 /** Whether to pitch the free-clouds grant: signed out, or signed in without a
  *  Google/Apple connection. False when already connected - or when we can't
@@ -43,7 +44,7 @@ async function needsFreeCloudsHint(): Promise<boolean> {
 }
 
 export async function showCloudsExplainer(): Promise<void> {
-    const hint = (await needsFreeCloudsHint()) ? `${t(FREE_CLOUDS_LINE)}\n\n` : '';
+    const hint = (await needsFreeCloudsHint()) ? `${t(FREE_CLOUDS_LINE, { account: signInAccount() })}\n\n` : '';
     // html mode for the copy's own <strong>/<em> (EXPLAINER is our own static
     // copy, safe to inject).
     // A build that sells nothing has only the sign-in grant to offer, so once
