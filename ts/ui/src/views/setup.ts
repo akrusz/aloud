@@ -467,9 +467,8 @@ export async function mountSetupView(
     function updateSessionEstimate(): void {
         const el = root.querySelector<HTMLElement>('#session-estimate');
         if (!el) return;
-        // The footer's "what are ☁?" help button rides the estimate's
-        // visibility: it only explains badges/spend that exist when something
-        // on the page costs credits.
+        // The estimate sits inside the footer's "what are ☁?" pill, which
+        // only shows when something on the page costs credits.
         const help = root.querySelector<HTMLElement>('#clouds-help');
         const setCloudUi = (visible: boolean): void => {
             help?.classList.toggle('hidden', !visible);
@@ -1805,17 +1804,17 @@ function renderSetupHTML(
          screens. -->
     <div class="setup-footer">
         <div class="setup-footer-inner">
-            <button id="begin-btn" type="button" class="btn btn-primary btn-begin">
-                <span class="btn-begin-label">${t('Begin Session')}</span>
-                <!-- Cloud-rate estimate, hidden when the session spends
-                     nothing (updateSessionEstimate). -->
-                <span class="btn-begin-rate" id="session-estimate"></span>
-            </button>
+            <button id="begin-btn" type="button" class="btn btn-primary btn-begin">${t('Begin Session')}</button>
         </div>
-        <!-- "What are ☁?" explainer. Absolutely positioned so Begin keeps its
-             centered column; rides the estimate pill's visibility (only shown
-             when beginning would spend clouds). -->
-        <button type="button" class="clouds-help hidden" id="clouds-help"
-            aria-label="${escapeHtml(t('What are clouds?'))}" title="${escapeHtml(t('What are ☁?'))}">☁?</button>
+        <!-- The session's cloud-rate estimate, and the way into the "what are
+             ☁?" explainer. Absolutely positioned so Begin keeps its centered
+             column; hidden when beginning would spend nothing
+             (updateSessionEstimate). The "?" carries the button's name: an
+             aria-label on the button itself would hide the rate from a
+             screen reader. -->
+        <button type="button" class="clouds-help hidden" id="clouds-help" title="${escapeHtml(t('What are ☁?'))}">
+            <span id="session-estimate"></span>
+            <span class="info-btn-glyph" role="img" aria-label="${escapeHtml(t('What are clouds?'))}">?</span>
+        </button>
     </div>`;
 }

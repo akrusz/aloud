@@ -616,46 +616,25 @@
     flex-wrap: wrap;
 }
 
-/* Combined estimated cloud rate for the configured session (meditation-pal-14s),
-   rendered as a small second line INSIDE the Begin button rather than a separate
-   floating pill. Hidden entirely when the session spends nothing (local/BYOK
-   across every leg - see updateSessionEstimate), so a free session shows a plain
-   single-line CTA. The "≈" carries the estimate/per-hour caveat. */
 .setup-footer-inner {
     display: flex;
     justify-content: center;
     align-items: center;
 }
-/* One line - "Begin Session (≈ N☁/hr)" - to keep the CTA a single row tall.
-   Natural width at every viewport, centered by the flex parent (a full-width
+/* Natural width at every viewport, centered by the flex parent (a full-width
    phone override used to live here; it made the button WIDER under 489px). */
 .setup-footer-inner .btn-begin {
     width: auto;
-    /* Enough to keep the CTA roomy on desktop, trimmed from 2.2rem so the
-       one-line "Begin Session (≈ N☁/hr)" has more room before it wraps on a
-       narrow phone (the button is full-width there, so side padding eats text
-       space). */
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+    padding-left: 2.2rem;
+    padding-right: 2.2rem;
 }
-/* A parenthetical aside after the label, SAME size as it. The parens (not
-   opacity - house style avoids opacity de-emphasis) mark it as secondary; it
-   inherits the label's color/weight so it stays legible on the accent CTA. */
-.btn-begin-rate {
-    font-size: inherit;
-    font-weight: inherit;
-    margin-left: 0.4em;
-    /* Taps fall through to the button (begin the session) - a label, not a control. */
-    pointer-events: none;
-}
-.btn-begin-rate::before {
-    content: '(';
-}
-.btn-begin-rate::after {
-    content: ')';
-}
-.btn-begin-rate.hidden {
-    display: none;
+@media (max-width: 767px), (max-height: 500px) {
+    /* Trimmed in the phone layout: the gap beside Begin is all the rate pill
+       has (.clouds-help). */
+    .setup-footer-inner .btn-begin {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
 }
 /* Cloud-balance chip in the Display style-preview - mirrors the setup pill
    (.session-estimate) but inline, and in em so it scales with the preview. */

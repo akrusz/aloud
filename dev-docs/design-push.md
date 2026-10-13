@@ -4,8 +4,8 @@ A one-day push, planned for just before Android goes to production (see
 [store-submission-checklist.md](store-submission-checklist.md)), to be worked
 together: Claude proposes and builds, the dev decides anything that's taste. It
 came out of extracting aloud's design system from the code (2026-10-12, at
-`3fe0a15`), which left a short list of fixes and five ideas. Ideas 1 and 2
-have landed since; 3 to 5 are open.
+`3fe0a15`), which left a short list of fixes and five ideas. Ideas 1, 2 and 4
+have landed since; 3 and 5 are open.
 
 The design system lives as a Claude artifact, private to the dev:
 https://claude.ai/artifact/27SpopimjEKrgy4ANwjiXc. It holds the brand book, all
@@ -62,17 +62,22 @@ see the whole screen every time.
   and vibe behind a summary (`updateCustomizeSummary` in `views/setup.ts`).
 - Assumption to check with the dev: most people sit the same way most days.
 
-## 4. The price on the Begin button
+## 4. The price on the Begin button (done)
 
-"Begin Session (≈8☁/hr)" puts a running meter at the start of a meditation
-(`updateSessionEstimate` in `views/setup.ts`). It's there for a good reason:
-people should know the cost before they spend.
+"Begin Session (≈8☁/hr)" put a running meter on the button that starts a
+meditation. Landed (2026-10-12) as a move, not a removal, since people should
+know the cost before they spend: Begin is plain, and the estimate sits in the
+footer's "what are ☁?" pill beside it, "≈8☁/hr (?)" (`.clouds-help`, filled by
+`updateSessionEstimate` in `views/setup.ts`). In the phone layout the pill has
+only the gap beside Begin, so Begin gives way a few px when a two-digit rate
+fills it.
 
-- Alternative: show the balance as time ("about 4 hours of sitting left",
-  balance over the session's estimated rate), keep rates in the pickers where a
-  choice changes the cost, and leave Begin plain unless the balance is low.
-- Unresolved: a surprise bill is worse than a number on a button. Decide
-  together; maybe try both on a phone.
+- Not taken: showing the balance as time ("about 4 hours left", balance over
+  the session's estimated rate) and a Begin that only speaks up when the
+  balance is low. Still open if the pill reads as too much.
+- Still open: the design system artifact predates this. Its Button and
+  CloudCredits cards (previews and READMEs) show the rate inside Begin, and
+  its `components/bundle.css` still carries `.btn-begin-rate`.
 
 ## 5. Say the philosophy on the landing page
 
@@ -97,16 +102,14 @@ the pieces that exist).
 
 - **This is a together day.** The dev asked to work these through with you, not
   to come back to them done. Bring each idea as something to look at (a clip to
-  hear, a screenshot of a setup variant, two Begin buttons side by side) and let
-  him call taste. Ideas 3 and 4 are the ones with real uncertainty; don't build
-  either fully before he's seen a sketch.
+  hear, a screenshot of a setup variant) and let him call taste. Idea 3 is the
+  one with real uncertainty; don't build it fully before he's seen a sketch.
 - **A sensible order:** 5 is site-only; what is left of 2 is the video's
-  sound; 3 and 4 change the setup screen and want a phone in hand, which
+  sound; 3 changes the setup screen and wants a phone in hand, which
   fits a mobile release day. The small fixes found along the way are beads
   now (label `ui`: ceuv, roq6, 2khw, x81q, 53uq, g5qb); clear them first if
   they're still open.
-- **What was a guess:** that returning users repeat their setup (idea 3), and
-  that the price on Begin costs more calm than it buys trust (idea 4). Ask.
+- **What was a guess:** that returning users repeat their setup (idea 3). Ask.
 - **How the design system was built,** if it needs a re-sync after the push:
   tokens from the two token blocks at the top of `ts/ui/src/app-base.css` (dark
   is `:root` and goes first); `components/bundle.css` is `app-base.css` below
