@@ -367,15 +367,6 @@ export async function mountSessionView(
     // Loaded before the prompt builder because smart check-in timing rides on
     // the system prompt (the [WAIT:Nm] fragment). Also feeds the pacing config.
     const appSettings = await loadAppSettings();
-    // The opening sound starts with the session. The facilitator's first words
-    // wait for it to end (tts.speak below), and come as soon after as they are
-    // ready.
-    const signatureSound = resolveSignatureSound(appSettings.signatureSound);
-    const openingOver = playOpening(signatureSound);
-    let openingSounding = true;
-    void openingOver.then(() => {
-        openingSounding = false;
-    });
     // In checkinPaceSlider modes (felt sense) the guidance slider is hidden and
     // directiveness doesn't compose; "Check-in pace" stands in for it, driving
     // only timing (the [WAIT] bias, the pacing seed, and whether check-ins may
@@ -784,6 +775,16 @@ export async function mountSessionView(
     function continuousWhisper(engine: SttEngine | null): WhisperPcmSttEngine | null {
         return continuousCapture && engine instanceof WhisperPcmSttEngine ? engine : null;
     }
+    // The opening sound, as soon as the mic is open (a recognizer that opens
+    // one now primes it here; playOpening says why the sound waits). The
+    // facilitator's first words wait for the sound to end (tts.speak below),
+    // and come as soon after as they are ready.
+    const signatureSound = resolveSignatureSound(appSettings.signatureSound);
+    const openingOver = playOpening(signatureSound, stt?.prime?.());
+    let openingSounding = true;
+    void openingOver.then(() => {
+        openingSounding = false;
+    });
     /** Swap in a new live engine; returns the old one for the caller to stop. */
     function adoptStt(next: SttEngine): SttEngine | null {
         const prev = stt;

@@ -94,9 +94,6 @@ export async function mountNotingSessionView(
 ): Promise<NotingSessionViewHandle> {
     const participants = setup.notingParticipants ?? [];
     const appSettings = await loadAppSettings();
-    // The opening sound starts with the session; the opener waits for it.
-    const signatureSound = resolveSignatureSound(appSettings.signatureSound);
-    const openingOver = playOpening(signatureSound);
     // zh circles: zh opener, labels, and timer lines (meditation-pal-c3a0.3).
     const notingLanguage = sessionLanguageOf(setup.language);
     const session = new SessionManager({ contextStrategy: 'full' });
@@ -388,6 +385,10 @@ export async function mountNotingSessionView(
             minSpeechDurationMs: 150,
         }
     );
+    // The opening sound, once the mic is open (playOpening says why it waits);
+    // the opener waits for the sound.
+    const signatureSound = resolveSignatureSound(appSettings.signatureSound);
+    const openingOver = playOpening(signatureSound, stt?.prime?.());
 
     // One TTS engine per distinct voice id (participants + narrator).
     const ttsCache = new Map<string, TtsEngine>();

@@ -13,7 +13,7 @@
  */
 
 import { playbackAudioContext } from './audio-unlock.js';
-import { pulseNextNavOrb } from './orb-pulse.js';
+import { pulseNavOrb } from './orb-pulse.js';
 import { assetPath } from './route-base.js';
 
 /** [id, label], in menu order. An id names its two files, so renaming one
@@ -52,6 +52,16 @@ const LOAD_DEADLINE_MS = 1500;
 /** How long a context that isn't running gets to start (a Bluetooth route can
  *  take a beat) before the sound is given up as inaudible. */
 const RESUME_GRACE_MS = 400;
+/** How long the audio output gets to settle once the mic has opened, before
+ *  the opening plays (see playOpening). By ear, not measured: the drop-out it
+ *  avoids was "some fraction of a second". */
+const MIC_SETTLE_MS = 600;
+/** A mic that hasn't opened by now doesn't hold the opening any longer. */
+const MIC_OPEN_CAP_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const bytes = new Map<string, Promise<ArrayBuffer>>();
 
@@ -97,6 +107,11 @@ interface Sounding {
 let sounding: Sounding | null = null;
 /** Context time at which the last sound cut short has faded out. */
 let clearAt = 0;
+/** Bumped by every opening and close, so an opening still waiting for its mic
+ *  knows when the session it belonged to has ended or been replaced. */
+let sessionTicket = 0;
+/** The ticket of an opening that is waiting for its mic, or 0. */
+let openingWaiting = 0;
 
 /**
  * Play one half, replacing whatever is sounding. The promise resolves when the
@@ -175,24 +190,47 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
     });
 }
 
-/** A session starts. Resolves when the opening is over, which is when the
- *  facilitator may speak. The orb ripples with it. */
-export function playOpening(sound: SignatureSound): Promise<void> {
-    if (sound !== 'none') {
-        void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
-        pulseNextNavOrb();
+/**
+ * A session starts. Resolves when the opening is over, which is when the
+ * facilitator may speak. The orb ripples with it.
+ *
+ * `micOpening` is the recognizer's capture stream being opened, where it opens
+ * one now (SttEngine.prime). The sound waits for it and a beat more: opening
+ * an echo-cancelled mic makes the OS rebuild its audio output (voice
+ * processing on macOS), and a sound already playing drops out for a fraction
+ * of a second when that lands in it (heard on MacBook speakers, 2026-10-12).
+ * A recognizer that opens the mic only when it listens passes nothing, and
+ * the sound starts at once.
+ */
+export async function playOpening(sound: SignatureSound, micOpening?: Promise<unknown>): Promise<void> {
+    const mine = ++sessionTicket;
+    if (sound === 'none') return;
+    void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
+    if (micOpening) {
+        openingWaiting = mine;
+        await Promise.race([micOpening.catch(() => {}), sleep(MIC_OPEN_CAP_MS)]);
+        await sleep(MIC_SETTLE_MS);
+        if (openingWaiting === mine) openingWaiting = 0;
+        // Ended (or restarted) while it waited.
+        if (sessionTicket !== mine) return;
     }
-    return play(sound, 'open');
+    pulseNavOrb('session');
+    await play(sound, 'open');
 }
 
-/** A session ends. One that ends inside its own opening only loses the
- *  opening: it was too short to have a close. */
+/** A session ends. One that ends inside its own opening, or before it began,
+ *  only loses the opening: it was too short to have a close. */
 export function playClosing(sound: SignatureSound): void {
+    ++sessionTicket;
+    if (openingWaiting) {
+        openingWaiting = 0;
+        return;
+    }
     if (sounding?.half === 'open') {
         sounding.stop();
         return;
     }
-    if (sound !== 'none') pulseNextNavOrb();
+    if (sound !== 'none') pulseNavOrb('home');
     void play(sound, 'close');
 }
 

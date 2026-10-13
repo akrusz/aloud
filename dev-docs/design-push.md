@@ -32,7 +32,9 @@ nothing is left here for the day.
 Landed (2026-10-12, meditation-pal-lwkb) as five pairs to choose from rather
 than one signature: an opening and a close for every session, picked in
 Settings under Look and Feel (`AppSettings.signatureSound`, presets in
-`ui/src/signature-sound.ts`). The opening starts as the session view mounts and
+`ui/src/signature-sound.ts`). The opening starts once the session's mic is open (an
+echo-cancelled mic opening mid-sound makes macOS drop the audio out for a
+moment; `playOpening`) and
 the facilitator's first words wait for it to end (`tts.speak` in
 `views/session.ts`, the opener in `views/noting-session.ts`); the close plays
 from each view's `endSession`. The nav orb gives the website orb's three pink

@@ -4576,6 +4576,14 @@ p.clouds-hint-row {
     column-gap: 1rem;
 }
 
+/* The names are one short word each. Fixed rather than fitted, so the box
+   doesn't change width with the pick; two classes deep to get past the
+   settings dropdowns' own sizing (.settings-section select in style.css). */
+.settings-section .signature-sound-control select {
+    width: 10rem;
+    min-width: 0;
+}
+
 .signature-sound-preview-label {
     color: var(--text-muted);
     font-size: 0.875rem;

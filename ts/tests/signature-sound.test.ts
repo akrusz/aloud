@@ -63,6 +63,8 @@ class FakeContext {
 
 type Sound = typeof import('../ui/src/signature-sound.js');
 let sound: Sound;
+/** Selectors of the nav orbs given the ripple class, in order. */
+let rippled: string[];
 let fetched: string[];
 /** Set to hold every fetch open until released. */
 let gate: Promise<void> | null;
@@ -75,8 +77,16 @@ beforeEach(async () => {
     gate = null;
     failing = false;
     FakeContext.last = null;
-    const g = globalThis as unknown as { AudioContext: unknown; fetch: unknown };
+    rippled = [];
+    const g = globalThis as unknown as { AudioContext: unknown; fetch: unknown; document: unknown };
     g.AudioContext = FakeContext;
+    // Both nav orbs at once, which the app never has: enough to see which one
+    // a pulse went to.
+    g.document = {
+        querySelector: (selector: string) => ({
+            classList: { add: () => rippled.push(selector), remove: () => {} },
+        }),
+    };
     g.fetch = async (url: string) => {
         fetched.push(url);
         if (gate) await gate;
@@ -183,6 +193,38 @@ describe('the opening', () => {
     });
 });
 
+describe('the opening, with a mic being opened', () => {
+    it('waits for the mic and a beat more, so the output has settled', async () => {
+        let micUp = (): void => {};
+        const opening = track(sound.playOpening('bloom', new Promise<void>((r) => (micUp = r))));
+        await vi.advanceTimersByTimeAsync(400);
+        expect(ctx()).toBeNull();
+        micUp();
+        await vi.advanceTimersByTimeAsync(590);
+        expect(ctx()).toBeNull();
+        await vi.advanceTimersByTimeAsync(20);
+        expect(ctx().sources).toHaveLength(1);
+        expect(rippled).toEqual(['#navCenter #orb']);
+        expect(opening.over).toBe(false);
+    });
+
+    it('stops waiting for a mic that does not open', async () => {
+        void sound.playOpening('bloom', new Promise(() => {}));
+        await vi.advanceTimersByTimeAsync(1500 + 600 + 20);
+        expect(ctx().sources).toHaveLength(1);
+    });
+
+    it('plays neither sound for a session that ends while it waits', async () => {
+        const opening = track(sound.playOpening('bloom', new Promise(() => {})));
+        await vi.advanceTimersByTimeAsync(300);
+        sound.playClosing('bloom');
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(opening.over).toBe(true);
+        expect(ctx()).toBeNull();
+        expect(rippled).toEqual([]);
+    });
+});
+
 describe('the close', () => {
     it('plays once the opening is over', async () => {
         void sound.playOpening('marimba');
@@ -193,6 +235,8 @@ describe('the close', () => {
         await settle();
         expect(ctx().sources).toHaveLength(2);
         expect(fetched).toContain('/audio/signature/marimba-close.mp3');
+        // The session's orb for the opening, the home screen's for the close.
+        expect(rippled).toEqual(['#navCenter #orb', '#navCenter #home-orb']);
     });
 
     it('is dropped, with the opening faded, when the session ends inside its opening', async () => {

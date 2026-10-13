@@ -59,9 +59,9 @@ On the default, the dev: "my heart loves harmonica-bloom8". It was close with
 blooms less and preferred `ripples2` or `ripples4`, so the default may move
 to `ripples`.
 
-In the app the opening starts with the session, 6 dB down (the audition
-page's "under the voice" default), and the facilitator's first words wait
-for it to end; the close plays as the session ends. A new render reaches the
+In the app the opening starts as soon as the session's mic is open, 6 dB
+down (the audition page's "under the voice" default), and the facilitator's
+first words wait for it to end; the close plays as the session ends. A new render reaches the
 app only when its file is copied over.
 
 Everything in the running stays to come back to. Git ignores the renders
