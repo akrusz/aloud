@@ -559,6 +559,8 @@ export const ZH: Record<string, string> = {
     "Text-to-Speech": "语音合成",
     "That browser voice wouldn't play - the “Online” / “Natural” voices need a connection and aren't always available. Try another voice, or aloud cloud.": "该浏览器语音无法播放 -「在线」/「自然」语音需要网络且不总是可用。请试试其他语音，或使用 aloud cloud。",
     "That voice couldn't be previewed (error {status}). Try another voice.": "该语音无法试听（错误 {status}）。请试试其他语音。",
+    "Thanks for connecting an account! {amount} added to your balance.": "感谢关联账户！{amount} 已添加到你的余额。",
+    "Thanks for joining the beta! {amount} added to your balance.": "感谢参与测试！{amount} 已添加到你的余额。",
     "Thanks to": "感谢",
     "The clock on the wall, no seconds ticking.": "墙上的时钟，没有秒针滴答。",
     "The downloadable desktop app can also help you install your own AI and speech software, enabling completely free and private sessions.": "桌面应用还能帮你安装自己的 AI 和语音软件，实现完全免费、完全私密的冥想。",

@@ -359,13 +359,14 @@ export function adminRoutes(deps: Deps): Hono {
         const body = await jsonBody<{
             freeSignupCredits?: unknown;
             freeGrantBudgetPerHour?: unknown;
+            betaBonusCredits?: unknown;
             meteredPaused?: unknown;
             testerEmails?: unknown;
         }>(c);
         if (!body) return errorJson(c, 'bad_request', 'invalid JSON body');
 
         const patch: ConfigPatch = {};
-        for (const key of ['freeSignupCredits', 'freeGrantBudgetPerHour'] as const) {
+        for (const key of ['freeSignupCredits', 'freeGrantBudgetPerHour', 'betaBonusCredits'] as const) {
             if (body[key] === undefined) continue;
             const n = Number(body[key]);
             // Non-negative integers only: these are whole-credit knobs, and a

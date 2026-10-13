@@ -265,7 +265,7 @@ ${ADMIN_STYLE}</style>
 
     <h2 id="sec-free">Free credits</h2>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 14px">Tune the free tier live - no redeploy. Set either to <strong>0</strong> to stop handing out free credits while you test. Persisted across restarts.</p>
+      <p class="sub help-text" style="margin:0 0 14px">Tune the free tier live - no redeploy. Set signup credits or the budget to <strong>0</strong> to stop handing out free credits while you test; the beta bonus at <strong>0</strong> ends that programme alone. Persisted across restarts.</p>
       <div class="row">
         <div>
           <label for="cSignup">Free credits per new signup</label>
@@ -274,6 +274,10 @@ ${ADMIN_STYLE}</style>
         <div>
           <label for="cBudget">Global free-grant budget / hour</label>
           <input id="cBudget" type="number" min="0" step="1" autocomplete="off">
+        </div>
+        <div>
+          <label for="cBeta">Beta bonus per store-beta sign-in</label>
+          <input id="cBeta" type="number" min="0" step="1" autocomplete="off">
         </div>
         <button id="saveConfig">Save</button>
       </div>
@@ -851,6 +855,7 @@ ${ADMIN_STYLE}</style>
     return api('/config').then(function (cfg) {
       $('cSignup').value = cfg.freeSignupCredits;
       $('cBudget').value = cfg.freeGrantBudgetPerHour;
+      $('cBeta').value = cfg.betaBonusCredits;
       $('cPaused').checked = !!cfg.meteredPaused;
       $('cTesters').value = (cfg.testerEmails || []).join('\n');
     });
@@ -870,13 +875,15 @@ ${ADMIN_STYLE}</style>
   function saveConfig() {
     var signup = parseInt($('cSignup').value, 10);
     var budget = parseInt($('cBudget').value, 10);
-    if (!(signup >= 0) || !(budget >= 0)) { setMsg($('configMsg'), 'Both values must be 0 or more.', 'err'); return; }
+    var beta = parseInt($('cBeta').value, 10);
+    if (!(signup >= 0) || !(budget >= 0) || !(beta >= 0)) { setMsg($('configMsg'), 'Every value must be 0 or more.', 'err'); return; }
     $('saveConfig').disabled = true;
-    send('PUT', '/config', { freeSignupCredits: signup, freeGrantBudgetPerHour: budget }).then(function (cfg) {
+    send('PUT', '/config', { freeSignupCredits: signup, freeGrantBudgetPerHour: budget, betaBonusCredits: beta }).then(function (cfg) {
       $('cSignup').value = cfg.freeSignupCredits;
       $('cBudget').value = cfg.freeGrantBudgetPerHour;
+      $('cBeta').value = cfg.betaBonusCredits;
       var off = cfg.freeSignupCredits === 0 || cfg.freeGrantBudgetPerHour === 0;
-      setMsg($('configMsg'), 'Saved.' + (off ? ' Free credits are OFF.' : ''), 'ok');
+      setMsg($('configMsg'), 'Saved.' + (off ? ' Free credits are OFF.' : '') + (cfg.betaBonusCredits === 0 ? ' Beta bonus is OFF.' : ''), 'ok');
     }).catch(function (e) {
       setMsg($('configMsg'), e.message, 'err');
     }).then(function () { $('saveConfig').disabled = false; });

@@ -275,6 +275,13 @@ describe.each(implementations)('CreditsStore parity: %s', (_name, make) => {
         expect((await store.getGiftById('gift-1'))?.status).toBe('accepted');
     });
 
+    it('records a grant key once; only the first record claims it', async () => {
+        expect(await store.hasGrantKey('k-1')).toBe(false);
+        expect(await store.recordGrantKey('k-1', 100)).toBe(true);
+        expect(await store.recordGrantKey('k-1', 200)).toBe(false);
+        expect(await store.hasGrantKey('k-1')).toBe(true);
+    });
+
     it('round-trips and upserts operator settings', async () => {
         expect(await store.getSetting('free_signup_credits')).toBeUndefined();
         await store.setSetting('free_signup_credits', '0');

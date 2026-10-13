@@ -29,6 +29,8 @@ import { bearer, forwardedIp, ipRateLimit } from '../auth/middleware.js';
 import { RateGuard } from '../quota/freetier.js';
 import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
+import type { VerifiedIdentity } from '../auth/identity.js';
+import { grantBetaBonus } from '../quota/beta-bonus.js';
 import { EMAIL_RE, normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 import { errorJson } from '../http.js';
@@ -51,24 +53,30 @@ async function finishFederatedSignIn(
     c: Context,
     deps: Deps,
     provider: 'google' | 'apple',
-    identity: { sub: string; email: string; emailVerified: boolean }
+    identity: { sub: string; email: string; emailVerified: boolean; clients: string[] }
 ): Promise<Response> {
     // Client IP for velocity-based abuse detection (mass-account creation
     // clusters by IP/subnet).
     const signupIp = forwardedIp(c);
     const linkToAccountId = await callerAccountId(c, deps);
+    const verified: VerifiedIdentity = {
+        provider,
+        sub: identity.sub,
+        email: identity.email,
+        emailVerified: identity.emailVerified,
+    };
     try {
-        const result = await connectIdentity(
-            deps,
-            {
-                provider,
-                sub: identity.sub,
-                email: identity.email,
-                emailVerified: identity.emailVerified,
-            },
-            { ...(signupIp ? { signupIp } : {}), ...(linkToAccountId ? { linkToAccountId } : {}) }
+        const result = await connectIdentity(deps, verified, {
+            ...(signupIp ? { signupIp } : {}),
+            ...(linkToAccountId ? { linkToAccountId } : {}),
+        });
+        const beta = await grantBetaBonus(deps, result.account, verified, identity.clients);
+        return c.json(
+            await issueAuthResponse(deps, result.account, result.isNewAccount, {
+                connect: result.granted,
+                beta,
+            })
         );
-        return c.json(await issueAuthResponse(deps, result.account, result.isNewAccount));
     } catch (err) {
         if (err instanceof IdentityConflictError || err instanceof EmailInUseError) {
             return errorJson(c, 'bad_request', err.message);

@@ -20,7 +20,12 @@ describe('verifyAppleIdToken', () => {
             ['app.aloud.web'],
             fakeVerifier({ sub: 'apple-sub-1', email: 'a@privaterelay.appleid.com', email_verified: 'true' })
         );
-        expect(out).toEqual({ sub: 'apple-sub-1', email: 'a@privaterelay.appleid.com', emailVerified: true });
+        expect(out).toEqual({
+            sub: 'apple-sub-1',
+            email: 'a@privaterelay.appleid.com',
+            emailVerified: true,
+            clients: [],
+        });
     });
 
     it('tolerates a missing email (Apple omits it on later sign-ins)', async () => {
@@ -29,7 +34,16 @@ describe('verifyAppleIdToken', () => {
             ['app.aloud.web'],
             fakeVerifier({ sub: 'apple-sub-2', email_verified: true })
         );
-        expect(out).toEqual({ sub: 'apple-sub-2', email: '', emailVerified: true });
+        expect(out).toEqual({ sub: 'apple-sub-2', email: '', emailVerified: true, clients: [] });
+    });
+
+    it('carries the audience out as the client (bundle id for the native iOS flow)', async () => {
+        const out = await verifyAppleIdToken(
+            'tok',
+            ['app.aloud.web', 'app.aloud.meditation'],
+            fakeVerifier({ sub: 'apple-sub-3', aud: 'app.aloud.meditation' })
+        );
+        expect(out.clients).toEqual(['app.aloud.meditation']);
     });
 
     it('throws when no Apple client ids are configured (sign-in disabled)', async () => {

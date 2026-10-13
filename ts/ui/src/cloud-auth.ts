@@ -44,6 +44,9 @@ export interface AuthResponse {
     token: string;
     isNewAccount: boolean;
     account: AccountView;
+    /** Free ☁ this sign-in added: `connect` for connecting Google/Apple, `beta`
+     *  for the store-beta bonus. Present only when it added some. */
+    granted?: { connect: number; beta: number };
 }
 
 // Lazy so importing this module doesn't construct a backend (LocalStorageKv

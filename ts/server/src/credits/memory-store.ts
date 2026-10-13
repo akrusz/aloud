@@ -123,8 +123,10 @@ export class MemoryCreditsStore implements CreditsStore {
         return this.grantKeys.has(keyHash);
     }
 
-    async recordGrantKey(keyHash: string): Promise<void> {
+    async recordGrantKey(keyHash: string): Promise<boolean> {
+        if (this.grantKeys.has(keyHash)) return false;
         this.grantKeys.add(keyHash);
+        return true;
     }
 
     async createGift(gift: Gift): Promise<void> {

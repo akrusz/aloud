@@ -202,13 +202,15 @@ export interface CreditsStore {
     clearSignupIpsBefore(cutoff: number): Promise<number>;
 
     // ---- Grant-eligibility keys (anti-farming, meditation-pal-8jc) ----------
-    // Append-only log of email-derived keys (auth/email-key.ts) that have ever
-    // received the free grant. Survives account deletion, so delete-then-recreate
-    // can't claim the freebie twice. Never carries the address.
+    // Append-only log of hashed keys (auth/email-key.ts) that have ever received
+    // a free grant: the mailbox for the connect grant, plus the beta bonus's own
+    // keys. Survives account deletion, so delete-then-recreate can't claim a
+    // freebie twice. Never carries the address.
 
     hasGrantKey(keyHash: string): Promise<boolean>;
-    /** Record that this grant key received a free grant. Idempotent. */
-    recordGrantKey(keyHash: string, createdAt: number): Promise<void>;
+    /** Record that this grant key received a free grant. Idempotent; true only
+     *  for the call that recorded it, so it doubles as an atomic claim. */
+    recordGrantKey(keyHash: string, createdAt: number): Promise<boolean>;
 
     // ---- Gifts (gift-clouds, meditation-pal-bd5) ---------------------------
     /** Record a purchased gift (status 'pending'). Idempotent on stripeSessionId:

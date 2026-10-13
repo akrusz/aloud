@@ -15,7 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Deps } from '../deps.js';
 import type { Account, IdentityProvider } from '../credits/store.js';
-import type { AccountView, AuthResponse } from '../contract.js';
+import type { AccountView, AuthResponse, SignInGrants } from '../contract.js';
 import { decideConnectGrant } from '../quota/freetier.js';
 import { issueSessionToken } from './session.js';
 import { emailGrantKey, normalizeEmail } from './email-key.js';
@@ -312,11 +312,17 @@ async function bindRetreatInvites(deps: Deps, account: Account): Promise<void> {
 export async function issueAuthResponse(
     deps: Deps,
     account: Account,
-    isNewAccount: boolean
+    isNewAccount: boolean,
+    granted?: SignInGrants
 ): Promise<AuthResponse> {
     const token = await issueSessionToken(account.id, deps.config.sessionSecret);
     // Claim invites before building the view, so a freshly-bound pass shows up as
     // covered in the same response.
     await bindRetreatInvites(deps, account);
-    return { token, isNewAccount, account: await buildAccountView(deps, account) };
+    return {
+        token,
+        isNewAccount,
+        account: await buildAccountView(deps, account),
+        ...(granted && granted.connect + granted.beta > 0 ? { granted } : {}),
+    };
 }

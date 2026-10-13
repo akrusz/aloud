@@ -81,6 +81,12 @@ nothing to rebuild or redeploy when you add a row.
 | Upload keystore (`~/keys/aloud-upload.jks`, created 2026-07-30) | `F2:43:63:2C:6C:B5:FC:4A:81:82:3D:62:D4:9D:EF:D8:61:56:2B:90` | not yet |
 | Play app-signing (Google-held) | `3A:F3:38:6B:08:16:83:80:28:6B:E5:8F:E3:37:8E:6C:4E:D1:D3:04` | 2026-08-25 |
 
+One exception while the beta bonus runs (`meditation-pal-bb4k`): the server
+tells a store-beta sign-in by the token's `azp`, which is the Android client's
+id. So the **Play app-signing** client's id goes in the server's
+`ALOUD_BETA_BONUS_CLIENT_IDS` (see `ts-server.md`); leave the debug client out
+unless dev installs should earn the bonus too.
+
 To check what's actually running on a device rather than what you assume is - the
 signature that matters is the installed APK's, not the keystore you meant to use:
 

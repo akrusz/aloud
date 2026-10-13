@@ -7,6 +7,8 @@
  *                          reads it per sign-in, so a mutation applies
  *                          immediately)
  *   - freeGrantBudget/hr → deps.grantBreaker (the live circuit-breaker budget)
+ *   - betaBonusCredits   → deps.config.betaBonusCredits (quota/beta-bonus.ts
+ *                          reads it per sign-in; 0 ends the programme)
  *
  * Overrides persist in the store's settings KV so a redeploy won't snap the knob
  * back to the env default. ALOUD_FREE_SIGNUP_CREDITS and
@@ -19,6 +21,7 @@ import { USD_PER_CREDIT, PACK_MARKUP } from '../pricing/meter.js';
 
 const KEY_SIGNUP = 'free_signup_credits';
 const KEY_BUDGET = 'free_grant_budget_per_hour';
+const KEY_BETA_BONUS = 'beta_bonus_credits';
 const KEY_PAUSED = 'metered_paused';
 const KEY_TESTERS = 'tester_emails';
 
@@ -26,6 +29,7 @@ const KEY_TESTERS = 'tester_emails';
 export interface EffectiveConfig {
     freeSignupCredits: number;
     freeGrantBudgetPerHour: number;
+    betaBonusCredits: number;
     /** Soft-launch spend pause + the emails exempt from it. */
     meteredPaused: boolean;
     testerEmails: string[];
@@ -38,6 +42,7 @@ export interface EffectiveConfig {
 export interface ConfigPatch {
     freeSignupCredits?: number;
     freeGrantBudgetPerHour?: number;
+    betaBonusCredits?: number;
     meteredPaused?: boolean;
     testerEmails?: string[];
 }
@@ -48,6 +53,7 @@ export function effectiveConfig(deps: Deps): EffectiveConfig {
     return {
         freeSignupCredits: deps.config.freeSignupCredits,
         freeGrantBudgetPerHour: deps.grantBreaker.budget,
+        betaBonusCredits: deps.config.betaBonusCredits,
         meteredPaused: deps.config.meteredPaused,
         testerEmails: deps.config.testerEmails,
         usdPerCredit: USD_PER_CREDIT,
@@ -114,6 +120,10 @@ export async function applyRuntimeConfig(deps: Deps, patch: ConfigPatch): Promis
         deps.config.freeGrantBudgetPerHour = patch.freeGrantBudgetPerHour;
         await deps.store.setSetting(KEY_BUDGET, String(patch.freeGrantBudgetPerHour));
     }
+    if (patch.betaBonusCredits !== undefined) {
+        deps.config.betaBonusCredits = patch.betaBonusCredits;
+        await deps.store.setSetting(KEY_BETA_BONUS, String(patch.betaBonusCredits));
+    }
     if (patch.meteredPaused !== undefined) {
         deps.config.meteredPaused = patch.meteredPaused;
         await deps.store.setSetting(KEY_PAUSED, patch.meteredPaused ? '1' : '0');
@@ -141,6 +151,11 @@ export async function loadRuntimeOverrides(deps: Deps): Promise<void> {
             deps.grantBreaker.setBudget(n);
             deps.config.freeGrantBudgetPerHour = n;
         }
+    }
+    const betaBonus = await deps.store.getSetting(KEY_BETA_BONUS);
+    if (betaBonus !== undefined) {
+        const n = Number(betaBonus);
+        if (Number.isFinite(n) && n >= 0) deps.config.betaBonusCredits = n;
     }
     const paused = await deps.store.getSetting(KEY_PAUSED);
     if (paused !== undefined) deps.config.meteredPaused = paused === '1';

@@ -10,6 +10,7 @@
  */
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { audiences } from './google.js';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_JWKS_URL = new URL('https://appleid.apple.com/auth/keys');
@@ -24,6 +25,9 @@ export interface AppleIdentity {
      *  row already holds the account. */
     email: string;
     emailVerified: boolean;
+    /** The token's audience: the bundle id from the native iOS flow, the
+     *  Services ID from the web one (which Android also uses). */
+    clients: string[];
 }
 
 /** Verify signature, issuer, audience, and expiry. Throws on any failure. */
@@ -47,5 +51,5 @@ export async function verifyAppleIdToken(
     const emailVerified = ev === true || ev === 'true';
 
     if (!sub) throw new Error('Apple ID token missing sub');
-    return { sub, email, emailVerified };
+    return { sub, email, emailVerified, clients: audiences(payload.aud) };
 }

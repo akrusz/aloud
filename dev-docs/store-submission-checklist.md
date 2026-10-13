@@ -116,6 +116,15 @@ public ratings or reviews**, their feedback arrives privately in the console.
       the tested bundle (promote only goes up the ladder, the library works in
       any direction). Pick countries (billing no longer limits the choice), send
       for review. The first closed release is reviewed.
+- [ ] **Turn on the beta bonus** (`bb4k`): 40 ☁ once for a Google/Apple
+      sign-in from the store build, the thing to offer in the recruiting post.
+      Set `ALOUD_BETA_BONUS_CLIENT_IDS` on Fly to the Play app-signing Android
+      client id (Google Cloud → Credentials) plus `app.aloud.meditation`, the
+      audience of an iOS Apple sign-in, for TestFlight, and deploy the server.
+      iOS has no Google sign-in, so there is no iOS Google id to list. The first
+      Android sign-in logs `beta bonus check` with the token's clients: if
+      `eligible` is false there, the id in the list is not the one the build
+      presents. Testers already signed in get it on their next sign-in.
 - [ ] **Recruit, well past 12.** Two links, in this order: join the group, then
       the opt-in link the console shows under Testers
       (`https://play.google.com/apps/testing/app.aloud.meditation`), then
@@ -134,6 +143,8 @@ public ratings or reviews**, their feedback arrives privately in the console.
       have been opted in for the last 14 days without a gap.
 - [ ] **The design push** ([design-push.md](design-push.md)): a day with Claude
       on session sounds and setup, before the wider audience arrives.
+- [ ] **End the beta bonus** (`b73h`): admin panel → Free credits → Beta bonus
+      → 0, then the code comes out. ☁ already granted stay.
 - [ ] **Promote to production** once it is granted, roll out. Another review, a
       few days. Public reviews open here. Open testing unlocks too, if a wider
       beta is still wanted then.

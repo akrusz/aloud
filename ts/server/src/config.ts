@@ -123,6 +123,15 @@ export interface Config {
      *  still buy) and it's logged. Default is generous (~100 signups/hr). */
     freeGrantBudgetPerHour: number;
 
+    /** Beta bonus (meditation-pal-bb4k): one-time extra credits for a Google/Apple
+     *  sign-in from a store beta build. 0 ends the programme. */
+    betaBonusCredits: number;
+    /** The native clients whose sign-ins earn it: the Android OAuth client id(s)
+     *  (one per signing cert), the iOS Google client id, the iOS bundle id. Never
+     *  the web client id or the Services ID, which every web sign-in carries.
+     *  Empty means no sign-in qualifies. */
+    betaBonusClientIds: string[];
+
     /** Soft-launch switch (operator-tunable via admin panel): when true, the
      *  LLM route answers with a canned turn instead of a billed one
      *  (isMeteredBlocked), so signed-up users keep their granted credits but
@@ -248,6 +257,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         providerKeys,
         freeSignupCredits: Number(env['ALOUD_FREE_SIGNUP_CREDITS'] ?? 20),
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),
+        betaBonusCredits: Number(env['ALOUD_BETA_BONUS_CREDITS'] ?? 40),
+        betaBonusClientIds: list(env['ALOUD_BETA_BONUS_CLIENT_IDS']),
         meteredPaused: env['ALOUD_METERED_PAUSED'] === '1',
         testerEmails: list(env['ALOUD_TESTER_EMAILS']).map((e) => e.toLowerCase()),
         adminEmails: list(env['ALOUD_ADMIN_EMAILS']).map((e) => e.toLowerCase()),

@@ -354,6 +354,7 @@ describe('admin routes — runtime config', () => {
         expect(status).toBe(200);
         expect(body['freeSignupCredits']).toBe(20); // env/default seeded in loadConfig
         expect(typeof body['freeGrantBudgetPerHour']).toBe('number');
+        expect(body['betaBonusCredits']).toBe(40);
         expect(body['usdPerCredit']).toBeGreaterThan(0);
     });
 
@@ -369,7 +370,7 @@ describe('admin routes — runtime config', () => {
     });
 
     it('persists the override to the store (survives a rebuild from the same store)', async () => {
-        await putConfig({ freeSignupCredits: 7, freeGrantBudgetPerHour: 0 });
+        await putConfig({ freeSignupCredits: 7, freeGrantBudgetPerHour: 0, betaBonusCredits: 0 });
         // Rebuild the app against the SAME store (simulates a restart): the boot
         // loader should re-apply the persisted overrides.
         const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ANTHROPIC_API_KEY: 'sk-test', ALOUD_ADMIN_TOKEN: TOKEN });
@@ -377,12 +378,14 @@ describe('admin routes — runtime config', () => {
         await loadRuntimeOverrides(deps);
         expect(deps.config.freeSignupCredits).toBe(7);
         expect(deps.grantBreaker.budget).toBe(0);
+        expect(deps.config.betaBonusCredits).toBe(0);
     });
 
     it('rejects negative or non-integer values, and a wrong token', async () => {
         expect((await putConfig({ freeSignupCredits: -1 })).status).toBe(400);
         expect((await putConfig({ freeSignupCredits: 1.5 })).status).toBe(400);
         expect((await putConfig({ freeGrantBudgetPerHour: -5 })).status).toBe(400);
+        expect((await putConfig({ betaBonusCredits: -1 })).status).toBe(400);
         expect((await putConfig({ freeSignupCredits: 10 }, 'wrong')).status).toBe(401);
     });
 

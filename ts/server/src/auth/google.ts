@@ -22,6 +22,17 @@ export interface GoogleIdentity {
     sub: string;
     email: string;
     emailVerified: boolean;
+    /** The OAuth clients the token names: its audience and, when another client
+     *  asked for it, that presenter (`azp`). An Android sign-in is audience = the
+     *  web client, presenter = the Android client, which Play services issues
+     *  only to the package + signing cert registered for it. */
+    clients: string[];
+}
+
+/** A token's `aud` claim as a list (the spec allows one string or several). */
+export function audiences(aud: string | string[] | undefined): string[] {
+    if (aud === undefined) return [];
+    return Array.isArray(aud) ? aud : [aud];
 }
 
 /** Verify signature, issuer, audience, and expiry. Throws on any failure. */
@@ -44,8 +55,11 @@ export async function verifyGoogleIdToken(
     const ev = payload['email_verified'];
     const emailVerified = ev === true || ev === 'true';
 
+    const azp = typeof payload['azp'] === 'string' ? (payload['azp'] as string) : '';
+    const clients = [...new Set([...audiences(payload.aud), ...(azp ? [azp] : [])])];
+
     if (!sub || !email) throw new Error('Google ID token missing sub/email');
-    return { sub, email, emailVerified };
+    return { sub, email, emailVerified, clients };
 }
 
 /**

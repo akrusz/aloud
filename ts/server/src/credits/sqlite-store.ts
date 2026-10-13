@@ -650,10 +650,11 @@ export class SqliteCreditsStore implements CreditsStore {
         return row != null;
     }
 
-    async recordGrantKey(keyHash: string, createdAt: number): Promise<void> {
-        this.db
+    async recordGrantKey(keyHash: string, createdAt: number): Promise<boolean> {
+        const result = this.db
             .prepare('INSERT OR IGNORE INTO grant_keys (key_hash, created_at) VALUES (?, ?)')
             .run(keyHash, createdAt);
+        return Number(result.changes) > 0;
     }
 
     async createGift(gift: Gift): Promise<void> {

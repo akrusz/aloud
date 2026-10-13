@@ -221,6 +221,16 @@ export interface AuthResponse {
     /** True only on the request that created the account, so the client can show
      *  a "here are your free credits" welcome. */
     isNewAccount: boolean;
+    /** Free credits this sign-in added, so the client can say thanks for them.
+     *  Present only when it added some. */
+    granted?: SignInGrants;
+}
+
+/** What a sign-in granted, by cause: `connect` for connecting Google/Apple
+ *  (meditation-pal-116), `beta` for the store-beta bonus (meditation-pal-bb4k). */
+export interface SignInGrants {
+    connect: number;
+    beta: number;
 }
 
 /** GET /cloud/v1/me: current account + balance. */

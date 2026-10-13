@@ -71,6 +71,7 @@ load logic is `loadConfig` in `config.ts`.
 | `TYPESAFE_API_KEY` | server judge | TypeSafe (Jev) key for `/cloud/v1/judge`, the typed-judgment path for the silence classifiers and the spoken commands. Unset → the route reports not-configured, clients keep the Haiku classifier, and there are no spoken commands (they have no LLM twin). Also read by `npm run jev:ab` (classifiers) and `npm run jev:commands` (every command ask, through the gate) |
 | `ALOUD_FREE_SIGNUP_CREDITS` | free tier | default 20 (≈ $1 provider cost). Granted on CONNECTING a trusted, verified identity (Google/Apple), not on signup - once per account, once per identity (meditation-pal-116, `quota/freetier.ts` `decideConnectGrant`) |
 | `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` | abuse brake | default 2000 (≈ 100 signups/hr) |
+| `ALOUD_BETA_BONUS_CLIENT_IDS` / `ALOUD_BETA_BONUS_CREDITS` | beta bonus | temporary (meditation-pal-bb4k, ends with `b73h`). A Google/Apple sign-in whose verified token names one of these native clients gets a one-time bonus (default 40) in the ordinary balance: the Android OAuth client id (the token's `azp`), the iOS Google client id, the iOS bundle id (Apple's `aud`). Never the web client id or the Services ID. Empty list = off. Once per account, identity and mailbox, through the same hourly breaker (`quota/beta-bonus.ts` `grantBetaBonus`) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
 | `ALOUD_ADMIN_TOKEN` | `/cloud/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
 | `ALOUD_ADMIN_EMAILS` | `/cloud/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access - the panel's Google sign-in path, so a phone never holds the static token |
@@ -120,7 +121,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 |---|---|---|
 | `GET /health` | public | liveness + what's configured |
 | `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: the Google/Apple client ids (first of `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`). Lets any install render OAuth sign-in without baking ids in at build |
-| `POST /cloud/v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow) |
+| `POST /cloud/v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow). The response's `granted: {connect, beta}` (present only when non-zero) is what the client's thank-you toast reads (`ui/src/sign-in-thanks.ts`) |
 | `POST /cloud/v1/auth/google/desktop` | public (optional bearer) | the desktop loopback-PKCE variant (exchanges an auth code server-side) |
 | `POST /cloud/v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
 | `POST /cloud/v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116). Optional `emailUpdates` body flag carries the signup opt-in |
@@ -161,7 +162,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/admin/retreats/:id/members` | admin | add an attendee by email; no account yet → pending invite that binds on first sign-in |
 | `POST /cloud/v1/admin/retreats/:id/revoke` | admin | revoke a pass; coverage stops for every member |
 | `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
-| `PUT /cloud/v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, meteredPaused?, testerEmails?}` → retune live + persist |
+| `PUT /cloud/v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, betaBonusCredits?, meteredPaused?, testerEmails?}` → retune live + persist |
 
 "admin" auth = the `ALOUD_ADMIN_TOKEN` bearer, or a normal session token whose
 verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
@@ -196,7 +197,8 @@ free credits while testing. Overrides persist in the store's `settings` KV
 env defaults at boot (`loadRuntimeOverrides`), so they survive a restart - a
 persisted panel override wins over `ALOUD_FREE_SIGNUP_CREDITS` /
 `ALOUD_FREE_GRANT_BUDGET_PER_HOUR` on subsequent boots. See
-`src/admin/runtime-config.ts`.
+`src/admin/runtime-config.ts`. The same section carries `betaBonusCredits`
+(`beta_bonus_credits`); 0 ends the beta bonus without touching the free tier.
 
 **Soft-launch spend pause.** The panel's *Soft launch* section sets
 `meteredPaused` + a `testerEmails` allowlist (also persisted; env seeds

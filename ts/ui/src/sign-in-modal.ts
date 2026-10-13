@@ -17,6 +17,8 @@ import {
 import { isDesktopSync, isCapacitor } from './is-desktop.js';
 import { signInNames } from './sign-in-providers.js';
 import { checkAndShowGifts } from './gift-modal.js';
+import { signInThanks } from './sign-in-thanks.js';
+import { showSuccessToast } from './toast.js';
 import {
     emailLogin,
     emailSignup,
@@ -134,6 +136,8 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         const onSignedIn = (auth: AuthResponse): void => {
             options.onSignedIn?.(auth);
             close(true);
+            const thanks = signInThanks(auth);
+            if (thanks) showSuccessToast(thanks);
             // They may have clouds waiting to be accepted.
             void checkAndShowGifts();
         };
