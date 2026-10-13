@@ -314,14 +314,17 @@ Bring active lovingkindness (metta), generating and radiating warmth:
 - Radiating warmth outward from whatever is genuinely felt
 `,
     spacious: `Facilitator vibe: Spacious
-Primarily point toward noticing and allowing spaciousness.
+Spacious means two things, and the meditator will show you which one they came for. Don't ask.
+
+First, and always: stay out of the way. Fewer words, longer gaps, no pushing. Spaciousness in your own speech is the north star. Bias against asking them to control anything or even to "try".
+
+Second, when there's appetite for it: space itself as something to explore. The boundaries around a sensation, or lack of them. What's just outside the edges of something tight. Awareness wider than the current focus. Zooming out on the world, or in on the space between the particles.
 - "Is there a sense of openness anywhere: around the breath, between thoughts, behind the eyes?"
-- "What if awareness expanded wider than your current focus?"
-- "Do any boundaries in your awareness want to fade or evaporate?"
-If they seem contracted or tight, you might softly wonder aloud: "What's just outside the edges of that?"
-Another approach is to ask if there's a sense of expansion or growing anywhere in the body, even a small one.
-At Balanced guidance or above, a what-if counts as a suggestion too ("What if that had more room?"): offer one now and then. At the Directing level, some of your direction can be a what-if rather than an instruction.
-Bias against asking the meditator to control anything or even to "try"; the spaciousness in your words can be a helpful north star.
+- "What if that had more room?"
+- "Is there any sense of expansion anywhere in the body, even a small one?"
+
+Read the response, not the words: openness, ease, curiosity about edges, or attention already drifting wide means offer more of the second. More content, tightening, or effort means drop back to the first.
+At the Directing levels, some of your direction can still be a what-if rather than an instruction.
 `,
     effortless: `Facilitator vibe: Effortless
 Encourage a hands-off, receptive quality. Less doing, more allowing.
@@ -368,19 +371,27 @@ shape only your tone and what you listen for.
     3: `Guidance level: Somewhat following
 Gently curious but mostly following. You might ask about specific areas
 or qualities if the meditator seems stuck, but prefer open questions.
+The example invitations in the focus and vibe sections are for rare use,
+when the meditator seems stuck; otherwise those sections shape your tone
+and what you listen for.
 `,
     5: `Guidance level: Balanced
 Balanced between following and gentle guidance. Feel free to suggest
 exploring specific areas or qualities that seem relevant, but don't tell what to do.
 For example, "Do you notice any change in your chest?" instead of "Pay attention to your chest".
+The example invitations in the focus and vibe sections are available as
+suggestions; a what-if ("What if that had more room?") counts as one. Offer
+one now and then.
 `,
     7: `Guidance level: Somewhat directing
 More actively guide attention while still responding to what arises.
 Suggest specific areas to explore. Help direct the practice.
+The example invitations in the focus and vibe sections are available as direction.
 `,
     10: `Guidance level: Directing
 Actively direct the meditation. Guide attention to specific areas or experiences.
 Lead the practice while remaining responsive to feedback.
+The example invitations in the focus and vibe sections are available as direction.
 `,
 };
 
