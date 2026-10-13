@@ -310,14 +310,18 @@ describe('GET /cloud/v1/tts/preview', () => {
         const a = app();
         const rateSent = () =>
             (googleCalls.at(-1)!.body as { audioConfig: { speakingRate: number } }).audioConfig.speakingRate;
-        // The client sends WPM on the GET path: 128 wpm = 0.8x, snapped to 0.75.
+        // The client sends WPM on the GET path. The default, 140 wpm, auditions
+        // at the 0.875 a session sends, not rounded to neutral.
+        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=140');
+        expect(rateSent()).toBe(0.875);
+        // Off a slider stop it snaps to the nearest: 128 wpm to 130.
         await a.request('/cloud/v1/tts/preview?voice=Leda&rate=128');
-        expect(rateSent()).toBe(0.75);
+        expect(rateSent()).toBe(130 / 160);
         // A multiplier is taken as-is, then snapped; a nearby value shares the clip.
         await a.request('/cloud/v1/tts/preview?voice=Leda&rate=1.3');
-        expect(rateSent()).toBe(1.25);
+        expect(rateSent()).toBe(210 / 160);
         const before = googleCalls.length;
-        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=1.2');
+        await a.request('/cloud/v1/tts/preview?voice=Leda&rate=1.29');
         expect(googleCalls).toHaveLength(before);
         // Out of range clamps rather than 400s: a bad number is still a preview.
         await a.request('/cloud/v1/tts/preview?voice=Leda&rate=400');
@@ -425,11 +429,11 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', INWORLD_API_KEY: 'iw-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
         const a = createApp(buildDeps(config));
         const token = await devToken(a);
-        const speak = (voice: string, text: string) =>
+        const speak = (voice: string, text: string, rate?: number) =>
             a.request('/cloud/v1/tts', {
                 method: 'POST',
                 headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-                body: JSON.stringify({ text, voice }),
+                body: JSON.stringify({ text, voice, ...(rate !== undefined ? { rate } : {}) }),
             });
 
         const luna = await speak('Luna', 'Notice [softly] the breath.');
@@ -453,6 +457,13 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
             modelId: 'inworld-tts-2-flash',
         });
         expect(Number(wren.headers.get('X-Credits-Charged'))).toBeCloseTo((22 * 15) / 1_000_000 / 0.05, 9);
+
+        // The speed is speakingRate and nothing else: an instruction that also
+        // asked for a slower voice compounded with it (26% on Luna at the
+        // default session speed).
+        await speak('Luna', 'And let it go.', 0.875);
+        expect(inworldCalls[2]!.body.audioConfig.speakingRate).toBe(0.875);
+        expect(inworldCalls[2]!.body.instruction).toBe(inworldCalls[0]!.body.instruction);
         expect(googleCalls).toHaveLength(0);
     });
 

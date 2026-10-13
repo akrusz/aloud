@@ -113,9 +113,11 @@ export interface RosterOpts {
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/** Calm facilitation register, mirroring providers/tts.ts meditationInstruction.
- *  Sources that accept a style prompt get this verbatim so the audition hears
- *  the register we would actually ship, not a neutral read. */
+/** Calm facilitation register, mirroring providers/tts.ts
+ *  MEDITATION_INSTRUCTION. Sources that accept a style prompt get this verbatim
+ *  so the audition hears the register we would actually ship, not a neutral
+ *  read. The pace words are for the engines whose only pace lever is this
+ *  prompt; one with a numeric rate asks for rate 1. */
 export function meditationInstruction(rate: number): string {
     const pace =
         rate < 0.95 ? ' Speak slowly, leaving generous space between phrases.'
@@ -739,7 +741,10 @@ const inworldSource = (id: string, label: string, modelId: string, rateNote: str
     },
     treatments: INSTRUCTION_TREATMENTS,
     async synth(text, voiceId, rate, key, t) {
-        const instruction = instructionFor(t, rate);
+        // Rate 1, so the instruction carries no pace words: here the pace is
+        // speakingRate below, and the two compound (providers/tts.ts
+        // MEDITATION_INSTRUCTION).
+        const instruction = instructionFor(t, 1);
         const res = await postJson(
             'https://api.inworld.ai/tts/v1/voice',
             {

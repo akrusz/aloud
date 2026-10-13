@@ -161,9 +161,14 @@ function synthFailure(c: Context<any>, err: unknown) {
  *  differently, it doesn't stretch it) without letting a caller mint unbounded
  *  distinct free syntheses. Takes the client's WPM (>5, ≈160 neutral, the same
  *  convention as the app backend's GET preview) or a multiplier, clamps to the
- *  providers' shared range and snaps to PREVIEW_RATE_STEP: at most 7 clips per
- *  voice. Absent or unparseable means neutral. */
-const PREVIEW_RATE_STEP = 0.25;
+ *  providers' shared range and snaps to PREVIEW_RATE_STEP: at most 25 clips
+ *  per voice. Absent or unparseable means neutral.
+ *
+ *  The step is the speed slider's own (10 wpm), so every stop auditions at
+ *  the speed a session will use. A quarter was too coarse: it rounded the
+ *  default 140 wpm (0.875) up to 1, and the picker played every voice an
+ *  eighth faster than the session that followed. */
+const PREVIEW_RATE_STEP = 10 / 160;
 export function previewRate(raw: string | undefined): number {
     const n = Number(raw);
     if (!raw || !Number.isFinite(n) || n <= 0) return 1;

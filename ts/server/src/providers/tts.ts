@@ -103,18 +103,17 @@ export async function synthesizeWithGoogle(
 
 /** Calm facilitation register for the instruction-steered Inworld voices, the
  *  one they were auditioned with. On TTS-2 it slows delivery by about a fifth
- *  at rate 1; on TTS-2 Flash it barely moves the pace (2026-10-07). The pace
- *  words ride ON TOP of the numeric speakingRate, so the two compound. */
-function meditationInstruction(rate: number): string {
-    const pace =
-        rate < 0.95 ? ' Speak slowly, leaving generous space between phrases.'
-        : rate > 1.1 ? ' Keep a gentle but slightly brisker pace.'
-        : '';
-    return (
-        'Speak in a warm, calm, unhurried voice, soft and grounded, as a meditation ' +
-        'facilitator gently guiding a listener.' + pace
-    );
-}
+ *  at rate 1; on TTS-2 Flash it barely moves the pace (2026-10-07).
+ *
+ *  It says nothing about speed ON PURPOSE: speakingRate is the pace. This
+ *  once added "Speak slowly, leaving generous space between phrases" below
+ *  rate 0.95, a lever meant for engines with no numeric rate. The default
+ *  session speed is 0.875, so every session got both, and the words alone
+ *  stretched Luna by 26% and Clive by 18% while leaving Silas and Wren where
+ *  they were (measured 2026-10-12): one slider position, four paces. */
+const MEDITATION_INSTRUCTION =
+    'Speak in a warm, calm, unhurried voice, soft and grounded, as a meditation ' +
+    'facilitator gently guiding a listener.';
 
 const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
 
@@ -146,7 +145,7 @@ export async function synthesizeWithInworld(
             text: text.replace(/\[/g, '(').replace(/\]/g, ')'),
             voiceId,
             modelId,
-            instruction: meditationInstruction(rate),
+            instruction: MEDITATION_INSTRUCTION,
             audioConfig: {
                 audioEncoding: 'MP3',
                 sampleRateHertz: 24000,

@@ -28,7 +28,7 @@ const TTS_REQUEST_TIMEOUT_MS = 45_000;
 
 /** Preview-URL version - see buildRequest's GET branch. Bump when a curated
  *  voice's server-side sound changes (style/pace treatment, not new voices). */
-const PREVIEW_CACHE_REV = '2';
+const PREVIEW_CACHE_REV = '3';
 
 /**
  * The UI carries TTS rate as WPM (≈160 neutral; see SessionSetup.ttsRate); the
