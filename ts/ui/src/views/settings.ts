@@ -3,8 +3,8 @@
  * text-to-speech, display, pacing, session history, a collapsed Advanced shelf
  * for expert toggles, updates, and a dev-mode-only Developer section.
  *
- * Every control auto-applies and persists (Display is the exception - see
- * wireDisplaySection). Keys persist into the same api-keys store the setup
+ * Every control auto-applies and persists (the display controls under Look and
+ * Feel are the exception - see wireDisplaySection). Keys persist into the same api-keys store the setup
  * view reads.
  */
 
@@ -104,6 +104,11 @@ import {
     showVoiceCommandExamples,
 } from '../voice-commands.js';
 import { showSavedTick } from '../toast.js';
+import {
+    SIGNATURE_SOUNDS,
+    previewSignatureSound,
+    resolveSignatureSound,
+} from '../signature-sound.js';
 import { onBackdropClick } from '../modal-backdrop.js';
 
 export interface SettingsViewHandle {
@@ -118,8 +123,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     await detectCapabilities();
     let scoredVoices: ScoredVoice[] = [];
 
-    // Display is the one section that doesn't auto-apply: its changes sit here
-    // (and in the preview pane) until "Apply" - see wireDisplaySection.
+    // The display controls are the one group that doesn't auto-apply: their
+    // changes sit here (and in the preview pane) until "Apply" - see
+    // wireDisplaySection.
     const pendingChrome = pickChrome(settings);
 
     // Backs the ⚙/✱ markers and the status hint, from /app/v1/providers plus
@@ -1097,6 +1103,25 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // ---- Display -------------------------------------------------------
 
     function wireDisplaySection(): void {
+        // The sound auto-applies like the rest of Settings (nothing on screen
+        // moves). It plays only from its preview buttons.
+        const soundSel = root.querySelector<HTMLSelectElement>('#s-signature-sound')!;
+        const soundBtns = (['open', 'close'] as const).map(
+            (half) => [half, root.querySelector<HTMLButtonElement>(`#s-signature-${half}`)!] as const
+        );
+        const paintSoundBtns = (): void => {
+            for (const [, btn] of soundBtns) btn.disabled = soundSel.value === 'none';
+        };
+        paintSoundBtns();
+        soundSel.addEventListener('change', () => {
+            settings.signatureSound = resolveSignatureSound(soundSel.value);
+            persist();
+            paintSoundBtns();
+        });
+        for (const [half, btn] of soundBtns) {
+            btn.addEventListener('click', () => previewSignatureSound(settings.signatureSound, half));
+        }
+
         // Preview-only: the slider and theme select update the preview pane and
         // pendingChrome, and only #s-apply-display touches the live page.
         // Applying a size change mid-drag would yank the whole UI around, so
@@ -1911,9 +1936,25 @@ function renderDisplaySection(s: AppSettings): string {
         themes.map(([v, label]) => [v, t(label)] as const),
         s.themeMode
     );
+    const soundOpts = optionsHTML(
+        SIGNATURE_SOUNDS.map(([v, label]) => [v, t(label)] as const),
+        resolveSignatureSound(s.signatureSound)
+    );
     return `
     <section class="settings-section">
-        <h2>${t('Display')}</h2>
+        <h2>${t('Look and Feel')}</h2>
+        <div class="form-group">
+            <label for="s-signature-sound">${t('Opening and Closing Sound')}</label>
+            <div class="signature-sound-control">
+                <select id="s-signature-sound">${soundOpts}</select>
+                <span class="signature-sound-preview">
+                    <span class="signature-sound-preview-label">${t('Preview')}</span>
+                    <button type="button" class="btn btn-small btn-secondary" id="s-signature-open">${t('Opening')}</button>
+                    <button type="button" class="btn btn-small btn-secondary" id="s-signature-close">${t('Closing')}</button>
+                </span>
+            </div>
+            <span class="form-hint">${t('Plays as a session begins and ends.')}</span>
+        </div>
         <div class="display-layout" id="text-scale-group">
             <div class="display-controls">
                 <div class="form-group">

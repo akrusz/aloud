@@ -27,6 +27,8 @@ import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
 import { acquireMicOnce, describeMicRequirement } from './mic-check.js';
 import { primeAudioPlayback } from './audio-unlock.js';
+import { preloadOpening, resolveSignatureSound } from './signature-sound.js';
+import { navOrbPainted } from './orb-pulse.js';
 import { alertDialog } from './dialog.js';
 import { consumePurchaseReturn } from './cloud-billing.js';
 import { checkAndShowGifts } from './gift-modal.js';
@@ -396,7 +398,10 @@ function setActiveNav(view: View): void {
         // here while that's pending would briefly show two.
         const orb = bootOrbPending ? '' : NAV_ORB_HTML;
         navCenter.innerHTML = `<div class="nav-session-info">${orb}</div>`;
-        if (!bootOrbPending) wireHomeOrbBounce();
+        if (!bootOrbPending) {
+            wireHomeOrbBounce();
+            navOrbPainted();
+        }
     }
 }
 
@@ -426,6 +431,7 @@ async function goSetup(root: HTMLElement): Promise<void> {
             void goSession(root, setup, continueFrom);
         }
     });
+    void loadAppSettings().then((s) => preloadOpening(resolveSignatureSound(s.signatureSound)));
 }
 
 async function goSession(

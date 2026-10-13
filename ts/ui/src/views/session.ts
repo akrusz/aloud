@@ -165,6 +165,8 @@ import { outOfCreditsNotice, BILLING_PAUSED_FINISH } from '../billing-messages.j
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
 import { isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
+import { playClosing, playOpening, resolveSignatureSound } from '../signature-sound.js';
+import { navOrbPainted } from '../orb-pulse.js';
 import { diag } from '../diag.js';
 import {
     armSoakTap,
@@ -365,6 +367,15 @@ export async function mountSessionView(
     // Loaded before the prompt builder because smart check-in timing rides on
     // the system prompt (the [WAIT:Nm] fragment). Also feeds the pacing config.
     const appSettings = await loadAppSettings();
+    // The opening sound starts with the session. The facilitator's first words
+    // wait for it to end (tts.speak below), and come as soon after as they are
+    // ready.
+    const signatureSound = resolveSignatureSound(appSettings.signatureSound);
+    const openingOver = playOpening(signatureSound);
+    let openingSounding = true;
+    void openingOver.then(() => {
+        openingSounding = false;
+    });
     // In checkinPaceSlider modes (felt sense) the guidance slider is hidden and
     // directiveness doesn't compose; "Check-in pace" stands in for it, driving
     // only timing (the [WAIT] bias, the pacing seed, and whether check-ins may
@@ -883,6 +894,9 @@ export async function mountSessionView(
     function ttsPlaybackEnded(): void {
         tapFlags({ speaking: false });
         tapEvent('tts', 'end');
+        releaseEchoGate();
+    }
+    function releaseEchoGate(): void {
         lastTtsEndedAt = Date.now();
         // whisperEngine is reassignable (in-session STT switch), so pin the one
         // this playback belongs to.
@@ -909,6 +923,10 @@ export async function mountSessionView(
             // can resolve minutes after the user quit and would play into
             // whatever session is on screen now. This is the one chokepoint.
             if (!ttsEnabled || torn) return;
+            if (openingSounding) {
+                await openingOver;
+                if (!ttsEnabled || torn) return;
+            }
             ++ttsSpeakingDepth;
             ttsPlaybackStarted(text);
             try {
@@ -930,6 +948,16 @@ export async function mountSessionView(
             return activeTts.listVoices();
         },
     } satisfies TtsEngine;
+    // To the mic, the opening sound is the facilitator's audio like any spoken
+    // line: hold the capture engine's echo gate up while it plays, or the live
+    // mic can take it for the meditator.
+    if (openingSounding) {
+        ++ttsSpeakingDepth;
+        whisperEngine?.setTtsActive(true);
+        void openingOver.then(() => {
+            if (--ttsSpeakingDepth === 0) releaseEchoGate();
+        });
+    }
     // On the server-Whisper path, barge-in comes from its continuous
     // (echo-cancelled) capture stream. Re-wired on every engine swap.
     function wireWhisperBargeIn(): void {
@@ -964,6 +992,7 @@ export async function mountSessionView(
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
                 </button>
             </div>`;
+        navOrbPainted();
     }
     if (navLinks) {
         navLinks.innerHTML = `
@@ -3374,6 +3403,7 @@ export async function mountSessionView(
         void stt?.stop();
         stopMeter();
         void tts.cancel();
+        playClosing(signatureSound);
         // Relax Ollama's keep_alive to the short default: the model idles out
         // soon (not the full 30m) but stays warm for an immediate restart.
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();

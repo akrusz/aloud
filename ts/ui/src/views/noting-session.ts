@@ -48,6 +48,8 @@ import { sessionStore } from '../state.js';
 import { downloadSttClips } from '../stt-clip-recorder.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
+import { playClosing, playOpening, resolveSignatureSound } from '../signature-sound.js';
+import { navOrbPainted } from '../orb-pulse.js';
 import { initThemeToggle } from '../theme.js';
 import {
     emberBlocksHTML,
@@ -92,6 +94,9 @@ export async function mountNotingSessionView(
 ): Promise<NotingSessionViewHandle> {
     const participants = setup.notingParticipants ?? [];
     const appSettings = await loadAppSettings();
+    // The opening sound starts with the session; the opener waits for it.
+    const signatureSound = resolveSignatureSound(appSettings.signatureSound);
+    const openingOver = playOpening(signatureSound);
     // zh circles: zh opener, labels, and timer lines (meditation-pal-c3a0.3).
     const notingLanguage = sessionLanguageOf(setup.language);
     const session = new SessionManager({ contextStrategy: 'full' });
@@ -141,6 +146,7 @@ export async function mountNotingSessionView(
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
                 </button>
             </div>`;
+        navOrbPainted();
     }
     // Flags the session chrome as exploration does: hides the mobile bottom-nav,
     // reveals the session-only More-sheet items (End/History), keeps the
@@ -824,6 +830,7 @@ export async function mountNotingSessionView(
         clearWait();
         sessionClock.destroy();
         void stt?.stop();
+        playClosing(signatureSound);
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();
         // Embers are session-only.
         unmountEmberContainer();
@@ -882,7 +889,7 @@ export async function mountNotingSessionView(
             // Prime the STT capture graph before the opener so its onset
             // pre-buffer fills during the opening line; otherwise a barge-in on
             // the first turn has an empty buffer and clips the opening word (d35).
-            await stt.prime?.();
+            await Promise.all([stt.prime?.(), openingOver]);
             await speakOpener();
             if (!torn) void advanceTurn();
         })();

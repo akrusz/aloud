@@ -1547,6 +1547,51 @@ body:has(.session-container) {
     animation: orbBounce 0.62s;
 }
 
+/* Three ripples as the signature sound plays (orb-pulse.ts): the website orb's
+   hello (docs/css/style.css, orbRipple), at the nav orb's size. Two rings
+   covering three emissions: ::before goes twice, ::after once in the gap. Both
+   rest at opacity 0, so nothing lingers after the last one. The rings take
+   the orb's own opacity and filter with them, which is what keeps them quiet
+   on the idle orb. */
+.orb-ripple:not(.orb-kasina) {
+    position: relative;
+}
+.orb-ripple::before,
+.orb-ripple::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    box-shadow: 0 0 10px 2px color-mix(in srgb, var(--accent) 30%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    animation: orbRipple 1.8s ease-out 2;
+}
+.orb-ripple::after {
+    animation-delay: 0.9s;
+    animation-iteration-count: 1;
+}
+@keyframes orbRipple {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    70% {
+        opacity: 0.15;
+    }
+    100% {
+        transform: scale(2.4);
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .orb-ripple::before,
+    .orb-ripple::after {
+        animation: none;
+    }
+}
+
 /* Falls to the bottom of the nav bar, squashes on impact, and springs back to
    rest. Per-keyframe timing functions carry the physics: ease-in accelerates
    the fall, ease-out decelerates the rise. The squash frames add ~2px to
@@ -4519,9 +4564,27 @@ p.clouds-hint-row {
     min-width: 3em;
 }
 
+.signature-sound-control,
+.signature-sound-preview {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.signature-sound-control {
+    column-gap: 1rem;
+}
+
+.signature-sound-preview-label {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
 .display-layout {
     display: flex;
     gap: var(--space-lg);
+    margin-top: var(--space-sm);
 }
 
 .display-controls {

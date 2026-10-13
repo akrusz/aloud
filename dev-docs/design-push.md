@@ -29,18 +29,20 @@ nothing is left here for the day.
 
 ## 2. Give the ear a brand
 
-The orb is the visual identity; nothing plays that role for the ear. Sounds
-exist only in noting (`views/noting-session.ts`, `ts/ui/public/audio/`).
-Exploration and felt sense start and end without one.
+Landed (2026-10-12, meditation-pal-lwkb) as five pairs to choose from rather
+than one signature: an opening and a close for every session, picked in
+Settings under Look and Feel (`AppSettings.signatureSound`, presets in
+`ui/src/signature-sound.ts`). The opening starts as the session view mounts and
+the facilitator's first words wait for it to end (`tts.speak` in
+`views/session.ts`, the opener in `views/noting-session.ts`); the close plays
+from each view's `endSession`. The nav orb gives the website orb's three pink
+ripples with each (`ui/src/orb-pulse.ts`). None of them reads as a bowl or bell, so the
+session frame and noting's turn cues don't blur. The default is `bloom`; two
+friends preferred the ripples, so it may change. The candidates, the generator
+and how each preset was arrived at are in `assets/promo/signature-candidates/`
+(open `audition.html` there).
 
-- One bowl strike to open a sit and one to close it, from
-  `assets/promo/bowl-candidates/synth_bowls.py`. Probably a new pair rather
-  than noting's `bowl.mp3`/`rin.mp3`, so the turn cue and the session frame
-  don't blur.
-- Hook points to check: session start after the mic pre-flight and before the
-  opener's TTS; session end and the timer's completion notice
-  ([pacing.md](pacing.md)). `audio-unlock.ts` primes the AudioContext on the
-  Begin click, which a start sound needs.
+- Still open: the promo video opens and closes on `bowl-deep-long`.
 - Bigger and optional: treat pacing as design tokens. The response delay, the
   silence before a check-in, the hold: documented and tuned with the care the
   colors get, maybe as a "Timing" family in the design system.

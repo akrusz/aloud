@@ -10,6 +10,7 @@
 import { createKv } from './adapters/kv.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 import type { Provider } from './settings.js';
+import type { SignatureSound } from './signature-sound.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
 export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenlabs';
@@ -49,7 +50,10 @@ export interface AppSettings {
      *  instead of moving to the default (model-picker.ts). */
     keepModelOffShortlist: boolean;
 
-    // Display
+    // Look and feel
+    /** The sound that opens and closes a session ('none' for neither). Read
+     *  through resolveSignatureSound, so a retired preset falls to the default. */
+    signatureSound: SignatureSound;
     textScale: number;
     themeMode: ThemeMode;
     /** Show the live cloud credit balance during a session. Off by default: a
@@ -145,6 +149,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     enableByok: false,
     showAllModels: false,
     keepModelOffShortlist: false,
+    signatureSound: 'bloom',
     textScale: 1.0,
     themeMode: 'auto',
     showSessionBalance: false,
