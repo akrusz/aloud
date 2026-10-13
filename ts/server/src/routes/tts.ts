@@ -2,7 +2,7 @@
  * POST /cloud/v1/tts, metered text-to-speech. Takes JSON
  * { text, voice?, rate? }, synthesizes via the resolved voice's provider
  * (Google, Azure, or Inworld), debits fractional credits by billed character
- * count, returns MP3 bytes (audio/mpeg). Cost rides in X-Credits-Charged /
+ * count, returns MP3 bytes (audio/mpeg). Cost is reported in X-Credits-Charged /
  * X-Credits-Remaining so the body stays a clean audio stream the client hands
  * straight to an <audio> element.
  *

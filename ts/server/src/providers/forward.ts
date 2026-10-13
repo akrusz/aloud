@@ -6,7 +6,7 @@
  *
  * Runtime reuse of @aloud/core: we construct the SAME provider classes the
  * client uses rather than re-implementing request building and, critically,
- * usage parsing. Token accounting is what billing rides on
+ * usage parsing. Token accounting is what billing depends on
  * (meditation-pal-8sj), so client and server must share one implementation.
  * (Runs via tsx, which resolves the @aloud/core path alias; see tsconfig.json.)
  */

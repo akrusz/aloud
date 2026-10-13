@@ -6,7 +6,7 @@
  * The app handles cloud failures quietly on purpose - a blank turn gets a
  * retry and a canned line, a 402 gets a spoken apology - because aloud cloud
  * is the convenience path and a meditator should never be shown a stack of
- * toasts. Quiet handling must not mean invisible, so every such event lands
+ * toasts. Quiet handling must not mean invisible, so every such event is recorded
  * here: server-observed ones straight from the routes, client-observed ones
  * via POST /cloud/v1/incidents. The admin panel's Incidents section reads
  * them back, grouped by kind.

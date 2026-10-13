@@ -75,7 +75,7 @@ export function resolveSttConfig(env: NodeJS.ProcessEnv): SttBackend | undefined
             model: env['STT_MODEL'] ?? fallback.model,
         };
     }
-    // OpenAI STT can ride the LLM key or split onto its own.
+    // OpenAI STT can share the LLM key or use its own.
     const openaiSttKey = env['OPENAI_STT_API_KEY'] || env['OPENAI_API_KEY'];
     if (openaiSttKey) {
         return { provider: 'openai', apiKey: openaiSttKey, ...STT_DEFAULTS['openai']! };

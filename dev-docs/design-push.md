@@ -5,7 +5,7 @@ A one-day push, planned for just before Android goes to production (see
 together: Claude proposes and builds, the dev decides anything that's taste. It
 came out of extracting aloud's design system from the code (2026-10-12, at
 `3fe0a15`), which left a short list of fixes and five ideas. Ideas 1, 2 and 4
-have landed since; 3 and 5 are open.
+have shipped since; 3 and 5 are open.
 
 The design system lives as a Claude artifact, private to the dev:
 https://claude.ai/artifact/27SpopimjEKrgy4ANwjiXc. It holds the brand book, all
@@ -14,22 +14,22 @@ icons and screenshots, and 18 components previewed with the app's own CSS.
 [style.md](style.md) is still the source of truth; the artifact is the
 consumable copy, and needs a re-sync when the tokens or components move.
 
-## The one idea underneath
+## What the ideas have in common
 
-aloud is sound and silence, and nearly everything a potential user sees of it
-is visual. The site sold a voice app with screenshots of a transcript until the
-video went in, and the design system came out all eye too. Ideas 1 and 2 are
-that gap; 3 and 4 are the threshold of a sit; 5 is copy.
+The product is audio, but everything a potential user saw of it was visual:
+the site sold a voice app with screenshots of a transcript until the video went
+in, and the design system that came out of the code was visual too. Ideas 1
+and 2 address that. Ideas 3 and 4 are about starting a session; 5 is copy.
 
 ## 1. Let people hear it first (done)
 
-Landed as the whole promo video under the hero, not a 20-30 second clip:
+Shipped as the whole promo video under the hero, not a 20-30 second clip:
 `#film` in `docs/index.html`, loaded from YouTube on click. It is staying, so
 nothing is left here for the day.
 
-## 2. Give the ear a brand
+## 2. A signature sound
 
-Landed (2026-10-12, meditation-pal-lwkb) as five pairs to choose from rather
+Shipped (2026-10-12, meditation-pal-lwkb) as five pairs to choose from rather
 than one signature: an opening and a close for every session, picked in
 Settings under Look and Feel (`AppSettings.signatureSound`, presets in
 `ui/src/signature-sound.ts`). The opening starts once the session's mic is open (an
@@ -65,7 +65,7 @@ see the whole screen every time.
 ## 4. The price on the Begin button (done)
 
 "Begin Session (≈8☁/hr)" put a running meter on the button that starts a
-meditation. Landed (2026-10-12) as a move, not a removal, since people should
+meditation. Changed (2026-10-12) so the rate is moved rather than removed, since people should
 know the cost before they spend: Begin is plain, and the estimate sits in the
 footer's "what are ☁?" pill beside it, "≈8☁/hr (?)" (`.clouds-help`, filled by
 `updateSessionEstimate` in `views/setup.ts`). In the phone layout the pill has
@@ -85,7 +85,7 @@ The most distinctive idea in the repo is in `src/facilitation/prompts.ts`
 ("Less effort, not more"): never tell anyone to focus harder or come back to
 the breath; get curious about the wandering. Most guided meditation does the
 opposite. The site's pitch ("a meditation facilitator that listens and
-responds") says how it works, not what it believes. A line near the top that
+responds") describes the mechanics, not the stance. A line near the top that
 says the stance. Copy changes run through the
 [pre-release-checklist.md](pre-release-checklist.md) Part A.
 
@@ -100,7 +100,7 @@ the pieces that exist).
 
 ## For Claude, picking this up
 
-- **This is a together day.** The dev asked to work these through with you, not
+- **Work this with the dev, not ahead of him.** He asked to work these through with you, not
   to come back to them done. Bring each idea as something to look at (a clip to
   hear, a screenshot of a setup variant) and let him call taste. Idea 3 is the
   one with real uncertainty; don't build it fully before he's seen a sketch.

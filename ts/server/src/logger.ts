@@ -8,7 +8,7 @@
  * The proxy's `messages[]` and completion `text` are NEVER passed to the
  * logger. To make that auditable, `log()` runs `assertNoContent()` over its
  * metadata and throws in dev if a field looks like a message body. Better to
- * crash a request in testing than leak a sutra into stdout in production.
+ * crash a request in testing than leak session content into stdout in production.
  */
 
 const SECRET_KEYS = /(_key|_secret|token|authorization|password|cookie)$/i;

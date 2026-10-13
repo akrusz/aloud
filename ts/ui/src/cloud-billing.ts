@@ -147,7 +147,7 @@ export async function fetchGifts(): Promise<GiftView[]> {
     }
 }
 
-/** Accept a gift; its clouds land in the signed-in account. */
+/** Accept a gift; its clouds are credited to the signed-in account. */
 export async function acceptGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/accept`, { method: 'POST' });
     if (!res.ok) throw new Error('This gift is no longer available.');

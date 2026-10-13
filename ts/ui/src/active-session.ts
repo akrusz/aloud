@@ -3,7 +3,7 @@
  * cold-boot (Android killing a backgrounded activity - meditation-pal-v73p) can
  * offer to resume it on relaunch.
  *
- * The pointer rides on the shared KV (Capacitor Preferences on native mobile,
+ * The pointer is stored in the shared KV (Capacitor Preferences on native mobile,
  * localStorage elsewhere); the transcript itself is already autosaved by the
  * session view (autosaveSession). We only need the pointer because autosave
  * stamps a provisional endTime, so an interrupted session is indistinguishable

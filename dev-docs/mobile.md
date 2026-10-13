@@ -47,7 +47,7 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 
 `@capacitor-community/speech-recognition` is patched in `ts/patches/`, applied by
 `postinstall` via patch-package (the Android build compiles plugin source
-straight from `node_modules`, so the patch is load-bearing at build time).
+straight from `node_modules`, so the patch is required at build time).
 Stock v7 leaves `onReadyForSpeech` empty and, in partial-results mode, rejects an
 already-resolved call on `onError` - so JS saw neither "recognizer is live" nor
 any error (NO_MATCH, SPEECH_TIMEOUT, BUSY). The patch emits `listeningState:
@@ -62,7 +62,7 @@ patch. Stock destroyed and recreated the `SpeechRecognizer` on every `start()`
 (a fresh service bind per segment, 1-3s deaf, ERROR_CLIENT when the bind raced
 the old teardown). Patched: one recognizer for the life of the plugin, created
 with `createOnDeviceSpeechRecognizer` where available; nothing in the loop
-cancels or destroys it, and a `start()` that lands on a live session is queued
+cancels or destroys it, and a `start()` issued while a session is live is queued
 until that session closes. The close is reported as a `partialResults` event
 with `final: true` (usually with no matches - in dictation mode the last partial
 was the transcript), so the adapter folds the segment and relaunches in ~50ms.

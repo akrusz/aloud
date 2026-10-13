@@ -1,16 +1,15 @@
 /**
  * Session timer: "I have twenty minutes" without a harsh alarm.
  *
- * The countdown itself is UI. What makes it a meditation timer rather than an
- * egg timer is that the facilitator lands it in voice: a gentle notice as the
- * time approaches, and a closing line when it completes. Both ride the smart
- * check-in machinery (a synthetic bracketed event turn, one short reply, canned
+ * The countdown itself is UI. The facilitator speaks the notices: one as the
+ * time approaches, and a closing line when it completes. Both go through the
+ * smart check-in machinery (a synthetic bracketed event turn, one short reply, canned
  * fallback when the reply is unusable), so a weak model degrades to a stock
  * line instead of saying nothing.
  *
- * Two rules the callers must honor, because they are what make a timer a timer:
+ * Two rules for callers:
  *   - the completion event fires even in [HOLD] silence mode. Silence mode
- *     suppresses everything else; a timer that can be suppressed is not one.
+ *     suppresses everything else, but must not be able to suppress the timer.
  *   - the model may [PASS] on the approach notice (it can read the room), but
  *     never on completion - a pass there falls back to a canned line.
  */
@@ -55,7 +54,7 @@ export function isSyntheticEventTurn(text: string): boolean {
  *
  * A fixed lead misses: if the meditator is taking 90 seconds a turn, a one
  * minute notice can fall entirely inside a silence and never be spoken before
- * the completion line lands on top of it. So the duration-based base is raised
+ * the completion line is spoken on top of it. So the duration-based base is raised
  * to at least one full turn plus a margin, and capped at a third of the sit so
  * a short timer's notice can't arrive before the session has settled.
  *
@@ -138,7 +137,7 @@ export function buildTimerCompletionEvent(
 export const TIMER_APPROACH_FALLBACKS: readonly string[] = [
     'We have a little time left. Let it settle where it is.',
     "There's a few minutes left. No need to do anything with them.",
-    'Coming toward the end now. Stay with whatever is here.',
+    'Coming toward the end now. Nothing to change.',
 ];
 
 /** Spoken when the model's completion reply is unusable, or it tries to pass. */

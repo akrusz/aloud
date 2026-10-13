@@ -1,7 +1,7 @@
 /**
  * Where a finished utterance goes during and around silence mode.
  *
- * Four handlers share one dispatch, and the order between them is load-bearing:
+ * Four handlers share one dispatch, and the order between them matters:
  * held silence outranks a pending hold-confirm, which outranks the re-entry
  * window. Kept pure and out of the listen loop so that precedence is testable
  * without a mic, a provider, or a DOM.

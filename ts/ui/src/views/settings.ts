@@ -883,7 +883,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             browser:
                 t("Uses your browser's built-in speech synthesis. On Windows, Edge and the desktop app include high-quality natural voices."),
             elevenlabs:
-                t('Cloud neural TTS with natural, expressive voices. Requires an API key and internet.'),
+                t('Cloud neural TTS. Requires an API key and internet.'),
             piper:
                 t('Fast local neural TTS. Download voice models (~60–100 MB each) from the voice picker.') +
                 ` <a href="https://rhasspy.github.io/piper-samples/" target="_blank" rel="noopener">${t('Listen to samples')}</a>`,
@@ -1734,7 +1734,7 @@ function renderProviderSection(s: AppSettings): string {
     <section class="settings-section">
         <h2>${t('LLM Provider')} <button type="button" class="info-btn" id="llm-info-btn" aria-label="${t('LLM provider info')}">?</button></h2>
         <div class="info-panel hidden" id="llm-info-panel">
-            <p><strong>${t('What is an LLM?')}</strong> - ${t('A large language model is the AI that listens to what you say and generates thoughtful responses to guide your meditation.')}</p>
+            <p><strong>${t('What is an LLM?')}</strong> - ${t("A large language model is the AI that reads what you say and writes the facilitator's replies.")}</p>
             <p><strong>${t('Anthropic (Subscription)')}</strong> - ${t('Uses your existing Claude Pro/Max subscription via the locally-installed <code>claude</code> command-line tool (install with <code>npm install -g @anthropic-ai/claude-code</code> - the CLI, not the Claude desktop app). Desktop only.')}</p>
             <p><strong>${t('Ollama (Local)')}</strong> - ${t('Free and private. Runs the AI entirely on your computer.')}</p>
             <p><strong>${t('API Key providers')}</strong> - ${t('Pay-per-use cloud AI. Sign up with the provider, paste the key here.')}</p>
@@ -1775,7 +1775,7 @@ function renderByokOptIn(s: AppSettings): string {
                 <span class="form-hint">${t('Enter your own keys for providers such as Anthropic, OpenAI, and OpenRouter. Keys are stored only on this device and never saved on our servers. Sessions call each provider directly; only the model list is fetched through our servers, key included.')}${
                     isCapacitor()
                         ? ''
-                        : ` ${t('The downloadable desktop app can also help you install your own AI and speech software, enabling completely free and private sessions.')}`
+                        : ` ${t('The desktop app can also install local AI and speech software, so sessions cost nothing and stay on your machine.')}`
                 }</span>
             </div>`;
 }
@@ -1915,7 +1915,7 @@ function renderTtsSection(s: AppSettings): string {
                     : ''
             }
             <p><strong>${t('Browser')}</strong> - ${t("Uses your browser's speechSynthesis. No install needed.")}</p>
-            <p><strong>ElevenLabs</strong> - ${t('Cloud TTS with the most natural voices. Requires an API key.')}</p>
+            <p><strong>ElevenLabs</strong> - ${t('Cloud TTS, very good voices. Requires an API key.')}</p>
         </div>
         <div class="form-row form-row-tts">
             ${renderTtsEngineControls(s)}
@@ -2123,7 +2123,7 @@ function renderPacingSection(s: AppSettings): string {
                         <span>${t('Smart')}</span>
                     </label>
                 </div>
-                <span class="form-hint">${t('Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the AI pick the timing and the words, as per the session\'s guidance level.')}</span>
+                <span class="form-hint">${t('Whether the facilitator speaks up during silence. "Every" says a stock phrase on a fixed interval; Smart lets the AI pick the timing and the words, following the session\'s guidance level.')}</span>
             </div>
         </div>
         <div class="form-row">
@@ -2207,7 +2207,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                 <div class="form-group form-group-half">
                     <label class="checkbox-label">
                         <input type="checkbox" id="s-silence-mode-enabled"${s.silenceModeEnabled ? ' checked' : ''}>
-                        <span>${t('Enable holding-space mode')}</span>
+                        <span>${t('Enable just-listen mode')}</span>
                     </label>
                     <span class="form-hint">${t('If requested, the facilitator goes silent until you ask it back.')}</span>
                 </div>

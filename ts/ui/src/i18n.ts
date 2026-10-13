@@ -5,8 +5,8 @@
  * string degrades to readable English, never to a bare key.
  *
  * The UI language is the app's one language setting (AppSettings.language,
- * seeded from detectLocale() on first run): the language you meditate in is
- * the language the app speaks to you in. Views read `t()` at render time and
+ * seeded from detectLocale() on first run): one setting covers both the
+ * facilitation and the UI. Views read `t()` at render time and
  * are remounted on a language change (app.ts listens for LANGUAGE_CHANGED_EVENT);
  * the static index.html chrome is re-translated in place by localizeChrome().
  */

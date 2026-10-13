@@ -225,7 +225,7 @@ export class CloudTtsEngine implements TtsEngine {
 
     /**
      * Start synthesizing `text` without playing it. The sentence-chunked bridge
-     * calls this the moment a sentence lands from the LLM, so its round-trip
+     * calls this the moment a sentence arrives from the LLM, so its round-trip
      * overlaps earlier sentences' playback instead of starting at its turn.
      * Errors are swallowed: the eventual speak() joins the in-flight request
      * (or retries) and surfaces them.

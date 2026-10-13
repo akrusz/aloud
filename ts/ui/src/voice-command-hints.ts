@@ -82,4 +82,4 @@ export function endExampleFor(savesByDefault: boolean): string {
 
 /** Under the list: the examples are not a syntax. */
 export const VOICE_COMMANDS_NOTE =
-  'These understand natural language, so phrasing is flexible. You can ask for two at once.';
+  'Say it however you like. Two at once works too.';

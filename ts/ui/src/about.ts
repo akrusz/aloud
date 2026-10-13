@@ -24,7 +24,7 @@ import { t } from './i18n.js';
 import { onBackdropClick } from './modal-backdrop.js';
 
 // krusz.eth, resolved. The QR (ts/ui/public/krusz-eth-qr.svg) encodes this same
-// bare address, so a scan and a copy land in the same place.
+// bare address, so a scan and a copy give the same address.
 const DONATE_ADDRESS = '0x7895267268918407d14a7F37f2C4035BA985E2Ca';
 
 export function initAbout(): void {

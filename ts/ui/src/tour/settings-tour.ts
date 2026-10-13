@@ -152,7 +152,7 @@ function showWelcome(): void {
     currentStep = 0;
     hideSpotlight();
 
-    let html = '<p>' + t('Welcome to') + ' <span class="brand-mark">aloud.</span> &mdash; ' + t('let’s get your meditation facilitator set up. It only takes a minute.') + '</p>';
+    let html = '<p>' + t('Welcome to') + ' <span class="brand-mark">aloud.</span> ' + t('Let’s get your meditation facilitator set up. It only takes a minute.') + '</p>';
     html += '<div class="tour-choices">';
     html += '<button class="tour-choice" data-action="help">';
     html += '<strong>' + t('Help me set up') + '</strong>';
@@ -202,7 +202,7 @@ function showLLMStep(): void {
         positionSpotlight(section, false);
 
         let html = '<h3>' + t('Choose Your AI Provider') + '</h3>';
-        html += '<p>' + t('This powers facilitator intelligence and session flow.') + '</p>';
+        html += '<p>' + t('This is the AI behind the facilitator.') + '</p>';
         html += '<div class="tour-choices">';
 
         if (hasProvider('aloud')) {

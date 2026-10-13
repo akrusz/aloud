@@ -7,7 +7,7 @@
  *
  * Email accounts are an UNTRUSTED identity (no free credits until they connect
  * Google/Apple, see quota/freetier.ts), so this protects the password at rest;
- * it isn't load-bearing for abuse economics.
+ * it does not matter for abuse economics.
  */
 
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';

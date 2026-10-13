@@ -26,9 +26,9 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>aloud listens while you speak so it can respond in your practice.</string>
+	<string>aloud uses the microphone to hear what you say during a session.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>aloud transcribes your speech to understand what you share.</string>
+	<string>aloud turns your speech into text so the facilitator can reply.</string>
 	<!-- Google Sign-In redirect (native mobile sign-in, meditation-pal-tpj4).
 	     When the Google iOS OAuth client exists, add a CFBundleURLTypes entry
 	     here with the REVERSED client id as its scheme (Google Cloud shows it

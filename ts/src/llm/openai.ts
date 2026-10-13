@@ -353,7 +353,7 @@ const OPENROUTER_MANDATORY_REASONING = new Set(['moonshotai/kimi-k3']);
  *  the endpoint into a thinking-style template (~10% of measured openers): the
  *  model narrates its planning, which either blanks the turn (all tokens billed
  *  as reasoning_tokens, finish "length") or gets SPOKEN when a "[WAIT:Nm]"
- *  prefix lands before the think block. 0/40 anomalies omitted vs 4/42 with. */
+ *  prefix comes before the think block. 0/40 anomalies omitted vs 4/42 with. */
 const OPENROUTER_REASONING_UNSUPPORTED = new Set(['moonshotai/kimi-k2']);
 
 /** OpenRouter models that reason UNINVITED some of the time: their only host

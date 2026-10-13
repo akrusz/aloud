@@ -268,7 +268,7 @@ export class SessionManager {
 
     /**
      * Queue a system note (a staged-mode phase, a mid-sit setting change). It
-     * lands right after the next user entry, not now: a phase moves on the
+     * is appended right after the next user entry, not now: a phase moves on the
      * facilitator's reply, and a system message the API accepts
      * mid-conversation must follow a user message. A newer note of the same
      * kind replaces one still pending.

@@ -27,7 +27,7 @@ import type { ProviderId } from '../contract.js';
 export type UsageKind = 'llm' | 'stt' | 'tts';
 
 /** What an LLM call was for: a facilitator turn, or the background calls
- *  riding alongside it (classifiers, the Jev judge, noting labels, recaps). */
+ *  made alongside it (classifiers, the Jev judge, noting labels, recaps). */
 export type LlmPurpose = 'facilitation' | 'utility';
 
 export interface UsageEvent {
@@ -634,7 +634,7 @@ export function buildUsageReport(
         return den > 0 ? num / den : 0;
     };
     const phModels = new Map<string, { kind: UsageKind; provider: string; model: string; utility: boolean; credits: number; cost: number; hours: number; units: number }>();
-    // Token volume rides the same per-account accumulators as everything else,
+    // Token volume goes through the same per-account accumulators as everything else,
     // so it shares one population and one weighting. The window-wide llmCache
     // aggregate can't stand in: it counts every event, including the sessions
     // the real-sit bar excluded, and never sums output tokens.

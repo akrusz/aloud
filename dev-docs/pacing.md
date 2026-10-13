@@ -4,7 +4,7 @@
 timestamps (last speech, last response, hold start): respond once the response
 delay has passed, check in after a silence interval, stay quiet in a hold.
 This doc covers what a check-in says, when it fires, and the meditation timer
-that rides the same path. Silence holds themselves: [silence-mode.md](silence-mode.md).
+that uses the same path. Silence holds themselves: [silence-mode.md](silence-mode.md).
 
 ## Check-ins
 
@@ -20,9 +20,9 @@ to the canned pool.
 protected, clamped and held by `PacingController.setCheckinInterval`. The
 default wait is biased by the guidance slider (`waitBiasFragment` /
 `defaultWaitSeconds`: 12m / 5m / 3m / 90s / 30s across the five stops), so high
-guidance means short waits and substantive check-ins. The default is a seed and
-a bias, not the silence a meditator gets: the model scales its own `[WAIT]`s
-off it and usually sets a longer one when it passes.
+guidance means short waits and substantive check-ins. The default only seeds
+the model's `[WAIT]`s: the model scales its own off it and usually sets a
+longer one when it passes.
 
 Two guards on the smart path (`views/session.ts`):
 
@@ -59,9 +59,9 @@ stands in for directiveness in those modes, since the guidance slider is hidden.
 
 `session-timer.ts`, with the UI clock in `ui/src/session-clock.ts`. The
 countdown is UI; what makes it a *meditation* timer is that the facilitator
-lands it in voice.
+speaks it naturally.
 
-Two synthetic `[Timer: …]` event turns ride the smart-check-in path (event turn
+Two synthetic `[Timer: …]` event turns go through the smart-check-in path (event turn
 → one short reply → canned fallback):
 
 - **Approach notice.** Its lead (`timerApproachLeadSec`) scales with the sit
@@ -69,7 +69,7 @@ Two synthetic `[Timer: …]` event turns ride the smart-check-in path (event tur
   The model may `[PASS]` here.
 - **Completion notice.** Never `[PASS]`. The one thing that fires **inside
   `[HOLD]`**, and it puts the hold back afterwards (`restoreHoldAfterNotice`),
-  since a timer that silence mode can suppress isn't one.
+  since silence mode must not be able to suppress the timer.
 
 Both wait for a turn boundary rather than barging in. A notice takes an LLM call
 to compose, so `SessionClock.armGeneration` lets the view drop one whose timer

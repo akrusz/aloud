@@ -112,7 +112,7 @@ function setupGlobalChrome(): void {
     // refresh. The watcher respects Settings/sticky and recent manual toggles.
     watchSystemTheme(() => regenerateEmbers());
     syncTopChromeMid();
-    // Re-measure once the brand webfont lands (its metrics move the midline)
+    // Re-measure once the brand webfont has loaded (its metrics move the midline)
     // and on viewport changes (rotation, browser chrome show/hide).
     document.fonts?.ready.then(syncTopChromeMid).catch(() => {});
     window.addEventListener('resize', syncTopChromeMid);

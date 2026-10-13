@@ -131,7 +131,7 @@ export interface SpeakRequest {
     sessionId?: string;
 }
 
-/** Audio is returned as the raw response body (audio/mpeg); cost rides in
+/** Audio is returned as the raw response body (audio/mpeg); cost is reported in
  *  headers (X-Credits-Charged / X-Credits-Remaining) so the body stays a clean
  *  audio stream the client can hand straight to an <audio> element. */
 

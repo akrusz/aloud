@@ -41,7 +41,7 @@ export type VoiceCommandId =
     | 'help';
 
 /**
- * Lean on purpose. Every ask rides in every request, so a sentence here is paid
+ * Lean on purpose. Every ask is included in every request, so a sentence here is paid
  * for once per command, per utterance: the first version carried six shared
  * counter-examples and a long focus line in each ask and cost ~290 tokens an
  * ask (7k a call with 24 commands). Cutting to a question, two examples and a
@@ -87,13 +87,13 @@ const COMMAND_THRESHOLD = 0.6;
  *
  * The speaker shares the bar for a different reason: "can you be quiet for a
  * while" scores ~0.4 on it, where other asks' near misses sit under 0.15. That
- * request belongs to [HOLD]. Real speaker requests land at 0.84 and up.
+ * request belongs to [HOLD]. Real speaker requests score 0.84 and up.
  */
 const MUTE_THRESHOLD = 0.75;
 
 /**
  * The on-screen extras (clock readout, orb, embers, theme). Jev has never heard of "embers",
- * so real requests land at 0.5-0.7 rather than 0.9, while meditation talk about
+ * so real requests score 0.5-0.7 rather than 0.9, while meditation talk about
  * light, dark, sparks and orbs stays under 0.1. A misfire is a visual flicker
  * that a word undoes, so the bar sits lower than for the rest.
  */

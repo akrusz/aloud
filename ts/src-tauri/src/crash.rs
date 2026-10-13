@@ -22,7 +22,7 @@ use serde_json::{json, Map, Value};
 
 const FILE: &str = "last-crash.txt";
 
-/// Native work a crash is most likely to land in, recorded as `during=`.
+/// Native work a crash is most likely to happen in, recorded as `during=`.
 #[derive(Clone, Copy)]
 pub enum Phase {
     Whisper,

@@ -47,7 +47,7 @@ Credentials → **Create credentials → OAuth client ID → Android**:
   keytool -list -v -keystore ~/.android/debug.keystore \
     -alias androiddebugkey -storepass android | grep SHA1
   ```
-- No client id lands in the app or server config - registration alone is what
+- No client id goes into the app or server config - registration alone is what
   authorizes the signature. Nothing to bake or deploy.
 
 Repeat with the **upload keystore's** SHA-1 when it exists, and - after
@@ -167,7 +167,7 @@ flags it, it means step 2 (App ID capability) isn't done yet.
 
 Build to a device/simulator, open the sign-in modal: you should see **Continue
 with Google**, **Continue with Apple**, then the email form. Tapping either runs
-the native picker and lands you signed in (the token flows into the same
+the native picker and leaves you signed in (the token flows into the same
 `googleSignIn`/`appleSignIn` the web app uses). If a button is missing, its
 config (steps 1/3/4 for Google, step 2/6 for Apple) is incomplete.
 

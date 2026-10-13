@@ -78,7 +78,7 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // Credits debit at provider COST; margin is added at purchase.
             usdPerCredit: USD_PER_CREDIT,
             packMarkup: PACK_MARKUP,
-            // The hosted STT leg rides along: it has no catalog of its own (the
+            // The hosted STT leg is included here: it has no catalog of its own (the
             // choices are static client-side), but the setup footer composes
             // model + stt + voice, and a client-side copy of this number drifts
             // the moment STT pricing moves. Unrounded, like the model rates.

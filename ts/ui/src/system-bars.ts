@@ -19,7 +19,7 @@ export function initSystemBarsTheme(): void {
     const sync = (): void => {
         void (async () => {
             const { SystemBars, SystemBarsStyle } = await import('@capacitor/core');
-            // Read after the import lands, so a flip during it isn't lost.
+            // Read after the import resolves, so a flip during it isn't lost.
             // The plugin names the style for the background: Dark = light icons.
             const dark = root.getAttribute('data-theme') === 'dark';
             await SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light });

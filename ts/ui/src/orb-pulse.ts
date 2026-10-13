@@ -3,11 +3,11 @@
  * (docs/css/style.css, orbRipple), here the visual half of the signature sound.
  * The rings are the orb's pseudo-elements (.orb-ripple in app-base.css).
  *
- * The orb that should wear them isn't always there yet: an opening can start
- * while the setup view's orb is still in the nav, and a close starts as the
- * session's orb is about to leave with it. So a pulse names its orb, and one
- * that finds another in the nav is owed to the next orb painted there, which
- * each place that paints one reports.
+ * A pulse is bound to a specific orb, and that orb isn't always in the nav yet:
+ * an opening can start while the setup view's orb is still there, and a close
+ * starts as the session's orb is about to leave with it. When the named orb is
+ * missing the pulse is deferred until that orb is next painted into the nav
+ * (each place that paints one calls navOrbPainted).
  */
 
 /** The session views' breathing orb, or the idle one everywhere else. */
@@ -17,7 +17,7 @@ const ORB_ID: Record<NavOrb, string> = { session: 'orb', home: 'home-orb' };
 /** Two rings, three emissions (::before twice, ::after once between them). */
 const RIPPLE_MS = 3600;
 /** How long a pulse stays owed. A session that takes longer than this to save
- *  lands on its next screen after the close has mostly rung out. */
+ *  reaches its next screen after the close has mostly rung out. */
 const OWED_MS = 6000;
 
 let owed: { orb: NavOrb; until: number } | null = null;

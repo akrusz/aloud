@@ -448,7 +448,7 @@ fn file_matches_manifest(file: &str, path: &Path) -> Result<bool, String> {
 /// Stream a URL to a file via a `.part` sibling, renamed on success so a
 /// half-finished download can't be mistaken for a complete model, and checked
 /// against the published sha256 before the rename so a corrupt transfer never
-/// becomes a model file at all. Progress lands in `whisper_progress` for the
+/// becomes a model file at all. Progress is reported in `whisper_progress` for the
 /// 503 body / system-info, and in `on_progress` for the Settings download
 /// button's ndjson stream.
 fn download(
@@ -1243,7 +1243,7 @@ fn session_path(state: &AppState, id: &str) -> ApiResult<PathBuf> {
 /// speech-clip capture (ui stt-clip-recorder.ts) to
 /// `<data>/stt-clips/<dir>/<name>.<kind>`. The webview can't download a blob,
 /// so the desktop saves each clip as it is transcribed. `kind` is `wav` or
-/// `json`; the other two segments are plain ids, so nothing lands elsewhere.
+/// `json`; the other two segments are plain ids, so nothing can be written elsewhere.
 async fn stt_clip_put(
     State(state): State<Shared>,
     axum::extract::Path((dir, name, kind)): axum::extract::Path<(String, String, String)>,

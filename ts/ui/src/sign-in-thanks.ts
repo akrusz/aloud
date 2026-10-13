@@ -2,7 +2,7 @@
  * The thank-you for free ☁ a sign-in just added: the grant for connecting
  * Google/Apple, and the bonus for signing in from a store beta build
  * (meditation-pal-bb4k). One line for the total; the bonus names the occasion
- * when both land at once.
+ * when both arrive at once.
  */
 
 import type { AuthResponse } from './cloud-auth.js';

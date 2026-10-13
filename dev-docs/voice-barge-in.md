@@ -45,17 +45,17 @@ capture is voice processing, which rebuilds the audio output when it starts
 and again a couple of seconds after it stops. Three rules keep the two apart
 (heard and fixed on the desktop app, MacBook speakers, 2026-10-12):
 
-- **The opening waits for the mic.** `playOpening` takes the engine's `prime()`
-  and starts the sound once the mic is up plus `MIC_SETTLE_MS`. Started first,
-  it dropped out for a fraction of a second as the mic arrived.
-- **The mic doesn't listen to the opening.** The listen loop and the barge-in
-  handler in `session.ts` wait out `openingSounding`. The echo canceller is
-  cold at session start, so the sound reaches the mic near full strength, and
-  the default pair's voices are vowels: it started turns and hushed the
-  greeting.
-- **The mic outlives the close.** `stop({ keepMicUntil })` (`SttStopOptions`)
-  stops listening at once but holds the capture stream until the closing sound
-  is over. Released at End, the output was rebuilt mid-sound.
+- **Opening starts after the mic is up.** `playOpening` takes the engine's
+  `prime()` and starts the sound once the mic is up plus `MIC_SETTLE_MS`.
+  Started first, it dropped out for a fraction of a second as the mic arrived.
+- **The listen loop and barge-in ignore the opening.** Both wait out
+  `openingSounding` in `session.ts`. The echo canceller is cold at session
+  start, so the sound reaches the mic near full strength, and the default pair
+  is tonal enough that the recognizer hears vowels: it started turns and hushed
+  the greeting.
+- **The capture stream is held until the close finishes.** `stop({ keepMicUntil })`
+  (`SttStopOptions`) stops listening at once but holds the capture stream until
+  the closing sound is over. Released at End, the output was rebuilt mid-sound.
 
 Until `ensureCaptureGraph` became single-flight (2026-10-12) every session
 start leaked a capture stream, which kept voice processing running between
@@ -75,7 +75,7 @@ into the mic, doesn't trip a false barge-in.
 On the engine-driven path two things sit on top of that energy test
 (`whisper-pcm-stt.ts`, `isSpeechLike`):
 
-- **Silero's verdict.** The frame must also land while `silero.speaking` - a
+- **Silero's verdict.** The frame must also fall while `silero.speaking` - a
   cough, a thump, or a knocked mic is loud without being speech, and shouldn't
   hush the facilitator. Energy alone is the **degraded fallback**: if the model
   fails to load, `isSpeechLike` is `true` by definition and detection is exactly
@@ -107,7 +107,7 @@ platform.
 
 What the acoustic gates miss still must not take a turn, wake a silence hold, or
 answer a hold-confirm question, so `session.ts` funnels every finished utterance
-through `looksLikeTtsEcho` (`ts/src/facilitation/echo-guard.ts`) when it landed
+through `looksLikeTtsEcho` (`ts/src/facilitation/echo-guard.ts`) when it finished
 during playback or within `ECHO_TEXT_WINDOW_MS` (4s) of it. Two matchers against
 the text just spoken: an exact contiguous run of 4+ normalized words, and a
 fuzzy pass for 6+ words that recovers 80% of the utterance as an in-order

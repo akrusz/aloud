@@ -245,7 +245,7 @@ export async function devSignIn(): Promise<AuthResponse> {
 
 /**
  * POST an auth request and cache the returned session token. A cached token
- * rides along as a bearer so the server LINKS the new identity to the signed-in
+ * is sent as a bearer so the server LINKS the new identity to the signed-in
  * account (the "connect to claim credits" flow, meditation-pal-116) instead of
  * making a separate one. Prefers the server's error message over the per-call
  * generic. Shared by every sign-in method below.

@@ -217,7 +217,7 @@ export async function ensureCloudAccess(
         return true;
     }
     // A hosted voice on an otherwise free session is the one thing asking, and
-    // a fresh install lands on one unasked (views/setup.ts loadVoiceCatalog):
+    // a fresh install gets one by default (views/setup.ts loadVoiceCatalog):
     // whichever prompt stops the start offers the way past it.
     const free: { voice: string | null } = { voice: null };
     const wayOn: WayOn = async () => {
@@ -252,9 +252,9 @@ async function clearForCloud(setup: SessionSetup, wayOn: WayOn): Promise<boolean
     // Anyone else pressed Begin on a choice of their own: name what asked.
     const signIn = setup.firstSit
         ? {
-              title: t('One quick step'),
+              title: t('Sign in first'),
               subtitle: t(
-                  'Voice and facilitator intelligence run on aloud cloud. Connect {providers} to start for free.',
+                  "Voice and the facilitator's AI run on aloud cloud. Connect {providers} to start for free.",
                   { providers: signInNames() }
               ),
           }

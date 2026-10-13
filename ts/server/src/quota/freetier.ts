@@ -1,6 +1,6 @@
 /**
  * Free-tier gating + abuse controls (meditation-pal-2yb). The web demo has a
- * wide-open abuse surface (no app-store gating), so this is load-bearing.
+ * wide-open abuse surface (no app-store gating), so this gating is required.
  *
  * Two cheap levers here; heavier ones (device fingerprinting, disposable-domain
  * blocklists, velocity scoring) attach at the same seams:

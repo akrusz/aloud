@@ -175,7 +175,7 @@ public ratings or reviews**, their feedback arrives privately in the console.
 
 ## Privacy answers on file
 
-Both consoles are the deploy; editing this file changes nothing live. Google's
+Editing this file changes nothing live; the answers have to be entered in both consoles. Google's
 form is **Data safety** (Play Console → App content); Apple's is **App
 Privacy** (App Store Connect), needed to submit to the App Store, with its own
 answers at the end of this section.
@@ -332,8 +332,8 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
 ## Buying ☁ in the store builds
 
 Nothing is sold in the mobile app: `purchaseChannel()` (`purchase-channel.ts`)
-is `'none'` there, and every buy entry point asks it. ☁ bought on the web land
-in the same account. The words follow it too: the out-of-credits line a store
+is `'none'` there, and every buy entry point asks it. ☁ bought on the web are
+credited to the same account. The words follow it too: the out-of-credits line a store
 build shows and speaks (`outOfCreditsNotice`, the server's
 `OUT_OF_CREDITS_PLAIN_MESSAGE`) and the cloud error (`describeCloudError`) carry
 no "add more" or "purchase". The rules as read on 2026-10-10 (they move, reread them):

@@ -161,7 +161,7 @@ export interface CheckoutParams {
 }
 
 /**
- * Create a Stripe Checkout Session and return its URL. The accountId rides in
+ * Create a Stripe Checkout Session and return its URL. The accountId is passed in
  * client_reference_id so the webhook can credit the right ledger on payment.
  */
 export async function createCheckoutSession(

@@ -14,7 +14,7 @@
  *     tier and eases for larger buys - ~2.5x / 12.5¢ per credit at the $5 tier,
  *     ~2.1x / 10.5¢ at $20+. PACK_MARKUP below is only that ENTRY-tier rate (the
  *     curve's max, and the solvency reference), NOT a flat per-pack multiplier.
- *     Markup is visible at checkout; sales tax/VAT rides on top via Stripe Tax.
+ *     Markup is visible at checkout; sales tax/VAT is added on top via Stripe Tax.
  *   - Margin out of the debit means the per-session credit counts a user watches
  *     tick down map 1:1 to real compute cost: easy to verify, on-brand for the
  *     published-margin stance.
@@ -44,7 +44,7 @@ import type { TtsProvider } from '../providers/voice-catalog.js';
 /** Provider COST one credit represents, in USD. Margin is NOT here; it's added
  *  at purchase via the sell curve (billing/stripe.ts). Tentative $0.05: at the
  *  entry rate the user pays ~$0.125/credit (less on larger buys), and a ~50-min
- *  Opus session lands at a single-digit credit count. Calibrate against real
+ *  Opus session comes to a single-digit credit count. Calibrate against real
  *  testing (meditation-pal-7xl). */
 export const USD_PER_CREDIT = 0.05;
 
@@ -175,7 +175,7 @@ export function priceSession(
 export const SESSION_HOLD_CREDITS = 10;
 
 /** Tokenizer-free upper bound on the tokens in `text`: ASCII at ~3 chars/token
- *  (English runs ~4), every other character at a token apiece (CJK lands near
+ *  (English runs ~4), every other character at a token apiece (CJK is near
  *  1:1, and a prompt's non-ASCII share is small enough that over-counting it
  *  costs nothing). */
 export function estimateTokens(text: string): number {

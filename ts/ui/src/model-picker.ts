@@ -155,7 +155,7 @@ interface ModelOption {
      *  all available models". Older and niche models with distinct voices. */
     expanded?: boolean;
     /** Flagged server-side as the background-utility model (recap refreshes).
-     *  Not a picker concern - it rides this payload so the choice stays in the
+     *  Not a picker concern - it is carried in this payload so the choice stays in the
      *  pricing table. See cloudUtilityModel below. */
     utility?: boolean;
     /** zh shortlist overrides (pricing/providers.ts zh flags): in a Chinese
@@ -265,7 +265,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 }>;
             };
             if (!data.models?.length) return null;
-            // The hosted STT leg rides on this payload (it has no catalog of
+            // The hosted STT leg is included in this payload (it has no catalog of
             // its own) so the setup footer's model + stt + voice sum uses the
             // server's rate, not a client-side copy that drifts.
             setCloudSttCreditsPerHour(data.sttCreditsPerHour);

@@ -1,7 +1,7 @@
 /**
  * Transcript-level TTS echo guard - the acoustics-independent backstop for
  * meditation-pal-p8lx, where TTS leaking past the acoustic gates came back as
- * phantom user turns. An utterance that landed during/just after playback AND
+ * phantom user turns. An utterance that finished during/just after playback AND
  * reads as a run of the spoken text is echo.
  *
  * Two matchers, both gated on timing by the caller:

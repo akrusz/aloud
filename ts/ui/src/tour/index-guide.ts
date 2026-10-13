@@ -369,7 +369,7 @@ function showDone(): void {
     resetTarget();
 
     let html = '<h3>' + t('You’re ready') + '</h3>';
-    html += '<p>' + t('Pick what resonates and begin. Tap <span class="info-btn-glyph">?</span> on any section to revisit these notes.') + '</p>';
+    html += '<p>' + t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to revisit these notes.') + '</p>';
     html += footerHtml({ back: true, done: true, skip: false }, TOTAL_STEPS, currentStep, 'dismiss');
 
     showCard(html, 'tour-welcome');

@@ -108,7 +108,7 @@ async function render(root: HTMLElement): Promise<void> {
             </div>
             ${!account.retreatCovered && hint ? `<p class="form-hint">${hint}</p>` : ''}
             <p class="form-hint clouds-hint-row">
-                <span>${t('☁ are used by aloud cloud to power facilitator intelligence, high-quality voices, and speech recognition.')}</span>
+                <span>${t("☁ are used by aloud cloud to power the facilitator's AI, high-quality voices, and speech recognition.")}</span>
                 <button type="button" class="btn btn-secondary" id="acct-clouds-what">${t('What are {clouds}?', { clouds: RATE_EMOJI })}</button>
             </p>
             ${connectPrompt}
@@ -241,7 +241,7 @@ function wireAccountSection(root: HTMLElement): void {
     root.querySelector('#acct-connect')?.addEventListener('click', () => {
         void showSignInModal({
             title: t('Claim your free credits'),
-            subtitle: t('Connect {providers} to unlock free credits on this account.', {
+            subtitle: t('Connect {providers} to get free credits on this account.', {
                 providers: signInNames(),
             }),
         }).then(() => render(root));

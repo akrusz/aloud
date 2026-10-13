@@ -8,7 +8,7 @@
  * `?purchase=` (cloud-billing.consumePurchaseReturn). In the desktop webview a
  * redirect would take over the whole window and strand the user on the hosted
  * site, so goToCheckout opens the system browser and the modal waits, polling
- * /me until the webhook-fulfilled credits land (self-purchases auto-close).
+ * /me until the webhook-fulfilled credits arrive (self-purchases auto-close).
  *
  * USDC: the wallet signs and the server settles in-place (no redirect), so the
  * modal shows a success line, updates the live balance, and closes itself.
@@ -272,7 +272,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             }
             overlay.querySelector('#buy-credits-waiting')?.classList.remove('hidden');
             overlay.querySelector('#buy-credits-done')?.addEventListener('click', () => close(true));
-            // Auto-detect a self-purchase landing: poll /me (which feeds the
+            // Auto-detect a completed self-purchase: poll /me (which feeds the
             // shared balance store) and close once the balance climbs past its
             // start. A null start, or a gift (buyer balance unchanged), won't
             // trip it; the Done button covers those.

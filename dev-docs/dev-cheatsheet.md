@@ -479,7 +479,7 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
   Firefox needs the Hono server running + a signed-in cloud session. Not iOS
   either: WebKit exposes `webkitSpeechRecognition` but can't drive the listen
   loop with it, so `isWebSpeechSupported` reports false there
-  (`isIosWeb`, `is-desktop.ts`) and every iOS browser lands on aloud cloud.
+  (`isIosWeb`, `is-desktop.ts`) and every iOS browser falls through to aloud cloud.
 
 ## Licensing & third-party code
 

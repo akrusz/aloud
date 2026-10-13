@@ -137,7 +137,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`; the store apps ask for `insufficient_credits_plain`, the wording with no purchase in it) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
-| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?,before?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only, `before` (`{facilitator?,meditator?}`, what was said just before) for `command` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), and not charged (~$0.00007/call; usage recorded as `typesafe`), so it has its own rate budget (`deps.judgeGuard`, 90/min/account, separate from the 60/min every other metered route shares) plus a 5,000-a-day cap that only binds accounts with no credits. A command is two calls: the one-ask `command-gate`, then `command` if that says maybe; a maybe that names no command costs up to two more, `command` again with one side of `before` each (the second look, [voice-commands.md](voice-commands.md#how-an-utterance-is-checked)). Failures are invisible to users (clients fall back), so they land in the incidents table as `judge_error`, one row a minute with a count, never with content |
+| `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?,before?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only, `before` (`{facilitator?,meditator?}`, what was said just before) for `command` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), and not charged (~$0.00007/call; usage recorded as `typesafe`), so it has its own rate budget (`deps.judgeGuard`, 90/min/account, separate from the 60/min every other metered route shares) plus a 5,000-a-day cap that only binds accounts with no credits. A command is two calls: the one-ask `command-gate`, then `command` if that says maybe; a maybe that names no command costs up to two more, `command` again with one side of `before` each (the second look, [voice-commands.md](voice-commands.md#how-an-utterance-is-checked)). Failures are invisible to users (clients fall back), so they are recorded in the incidents table as `judge_error`, one row a minute with a count, never with content |
 | `POST /cloud/v1/billing/checkout` | session | start Stripe Checkout for a pack |
 | `POST /cloud/v1/billing/webhook` | Stripe sig | credit the ledger after signature verify |
 | `POST /cloud/v1/billing/x402/buy/:packId` | session + payment | USDC-on-Base pack purchase (402 → sign → settle). Config-gated; see [x402.md](x402.md) |
@@ -288,7 +288,7 @@ Two things the page exists to make visible:
   speaks slowly, so a duration-priced engine costs materially more than its
   sticker. The page prices every clip from its real measured length (`ffprobe`,
   `afinfo` fallback) per *spoken* character, which is the only cross-source
-  comparison worth making. Measured at our own instruction: OpenAI lands at
+  comparison worth making. Measured at our own instruction: OpenAI comes to
   $16-20/1M (bracketing the reconciled $19 it billed at while it shipped), and Gemini
   TTS at $25-43/1M - i.e. **at or above** the $30/1M Chirp3-HD it is widely
   claimed to undercut.
@@ -297,7 +297,7 @@ Two things the page exists to make visible:
   listing SSML as WaveNet/Neural2-only (verified: a 15.0s line goes to 22.8s
   under rate 80% + 1400ms breaks). That is the strongest pacing lever available
   and it is on the engine we already ship. But Google bills the tags, so marked-up
-  speech costs roughly double per spoken word - which is why Neural2 + SSML lands
+  speech costs roughly double per spoken word - which is why Neural2 + SSML comes out
   at the same $30/1M as flat Chirp3-HD, and why that A/B is the interesting
   listen. OpenAI/Gemini/Inworld take a natural-language style instruction only
   (weakly honored - see meditation-pal-5yi1); Deepgram Aura-2 exposes no prosody

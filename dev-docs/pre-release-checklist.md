@@ -19,7 +19,7 @@ check each of these still reflects reality:
 - **`docs/privacy/index.html`** - data-flow descriptions, provider examples,
   on-device claims, "last updated" date. It also names what the **site** itself
   loads from a third party (today the YouTube video, on play only), so a new
-  embed on a `docs/` page lands here.
+  embed on a `docs/` page needs an entry here.
 - **`docs/terms/index.html`** - anything the product now does with money or
   accounts: refunds, credit expiry, what deletion forfeits, "last updated" date.
 - **`docs/delete-account/index.html`** - the account-deletion instructions Play
@@ -30,7 +30,7 @@ check each of these still reflects reality:
   `ts/ui/src/purchase-channel.ts`), so the page and that string move together.
 - **`docs/js/shots.js`** - the landing carousel's captions and image `alt` text.
   It describes the app screen by screen ("the session setup screen", "an
-  exploration session"), so a renamed or restructured screen lands here too.
+  exploration session"), so a renamed or restructured screen means updating this too.
 - **`docs/assets/aloud-screen-{light,dark}.webp`** + `aloud-session-{light,dark}.webp` -
   the four landing screenshots. **Generated**, not hand-made: re-run
   `node scripts/site-screenshots.mjs` (with `cd ts && npm run web:dev` up)
@@ -56,7 +56,7 @@ check each of these still reflects reality:
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must
   match current branding and claims. The Play Store video's script lives in
   `assets/promo/play-video/script.md` (its lines are app voice and features on
-  screen, so a renamed mode or changed flow lands there too). The video is
+  screen, so a renamed mode or changed flow means a script edit as well). The video is
   **built** from that script and films the real UI at phone size
   (`assets/promo/play-video/tools/`, steps in `assets/promo/README.md` →
   "Building the video"), so a script edit, a reworded opener it quotes, or a
@@ -91,7 +91,7 @@ check each of these still reflects reality:
   panel - keep the two honest about what actually exists.
 - **`ts/ui/src/voice-command-hints.ts`** - the one-time status-line nudges that
   teach the commands ("You can just say …"). A command that loses its by-hand
-  control, or a reworded command, lands here.
+  control, or a reworded command, goes here too.
 - **`ts/server/.env.example`** - comments describing config keys and defaults.
 - **`THIRD-PARTY-NOTICES.md`** - if a vendored asset or bundled third-party
   component was added, removed, or upgraded.
@@ -113,7 +113,7 @@ check each of these still reflects reality:
 - **`LICENSE-EXCEPTION.md`** → "Trademarks" - names what is withheld as a
   brand (the name, the wordmark, the orb, the app icons, the signature sounds).
   The terms page's "License and open source" section says the same in a
-  sentence, so a new brand asset lands in both.
+  sentence, so a new brand asset belongs in both.
 
 ## Part B - change → consequence matrix
 
@@ -129,7 +129,7 @@ check each of these still reflects reality:
 - **Added/removed/renamed a hosted voice** (`voice-catalog.ts`) → the privacy
   policy names the voices spoken by a provider it singles out (today the four
   Inworld ones, because of data retention); a voice joining or leaving that
-  provider lands there.
+  provider means updating the policy.
 - **Added/removed/renamed an opening and closing sound** (`SIGNATURE_SOUNDS` in
   `ui/src/signature-sound.ts`) → its two files (the id names them), the label's
   zh entry, the "Chosen" table in `assets/promo/signature-candidates/README.md`,

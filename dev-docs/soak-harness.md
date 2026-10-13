@@ -1,7 +1,7 @@
 # Soak harness
 
 An LLM plays the meditator against the real engine, whole sits run unattended,
-and every run leaves a scorecard. Kick it off, take a walk, read `report.md`.
+and every run leaves a scorecard. Start it, then read `report.md` when it finishes.
 
 **Two tiers.** Tier 1 (`npm run soak`) is text-level on a fake clock: fast,
 parallel, cheap enough to run often. Tier 2 (`npm run soak:web`) speaks out loud
@@ -33,8 +33,8 @@ Keys come from the environment or `ts/server/.env` (`soak/env.ts`). The
 through the `claude` CLI (`scriptClaude` in `soak/providers.ts`), close to the
 API's behaviour but not the same request. `ALOUD_CLAUDE_VIA=api`, or the
 `anthropic_api` spec for one role, puts it on `ANTHROPIC_API_KEY`; do that
-for a run whose facilitator verdicts or latencies you will act on. Output lands
-in `ts/soak-runs/<timestamp>/` (gitignored): `report.md` (read this one),
+for a run whose facilitator verdicts or latencies you will act on. Output is written
+to `ts/soak-runs/<timestamp>/` (gitignored): `report.md` (read this one),
 `run.json`, and one JSON per session with the full transcript + event log. Exit
 code 1 when any deterministic check fails, so a release script can gate on it.
 
@@ -120,7 +120,7 @@ user), **classifiers** (the cheap utility model), **judge**. Two pairings
 invalidate the result:
 
 - **Judge = facilitator.** LLM judges prefer their own generations. In a
-  `--facilitator=a,b,c` comparison the bias lands on ONE contestant, which is worse
+  `--facilitator=a,b,c` comparison the bias favors ONE contestant, which is worse
   than applying to all of them: the ranking becomes partly an artifact of who the
   judge is.
 - **Meditator = facilitator.** Both halves of the conversation stop being
@@ -134,8 +134,8 @@ Defaults and every battery are held to "no collisions" by `tests/soak-roles.test
 - a preset is what gets run without thinking, so a preset must never be the thing
 that contaminates a scoreboard. An explicit override may still collide: the run
 proceeds, warns on the way in, and the report stamps the caveat above the scores.
-Every report names all four models, because a scoreboard without its judge named
-can't be read.
+Every report names all four models, because a scoreboard is only comparable when
+it names its judge.
 
 Defaults: facilitator + judge on different families (Anthropic / OpenAI), sim user
 + classifiers on Haiku.
@@ -150,7 +150,7 @@ Defaults: facilitator + judge on different families (Anthropic / OpenAI), sim us
 | `sim-user.ts` | The meditator: persona-prompted LLM answering `WAIT: <seconds>` + an optional spoken line (or `END`). Stateless per call with a stable transcript prefix, so prompt caching applies. |
 | `scenarios.ts` | The matrix. Each scenario aims a persona at one slice of the engine: `baseline`, `silence`, `quiet`, `felt-sense`, `timer-hold` (a timer completing *inside* a hold), `overwhelmed` (trailing off must not trigger `[HOLD]`). |
 | `checks.ts` | Deterministic post-run checks. `fail` = engine bug or broken invariant; `warn` = worth a look; `info` = context. |
-| `judge.ts` | LLM judge for what only a reader can see: responsiveness, tone, brevity, silence respect, meta leaks, timer landing, plus verbatim wince moments. Strict JSON out, parsed leniently. |
+| `judge.ts` | LLM judge for what only a reader can see: responsiveness, tone, brevity, silence respect, meta leaks, timer delivery, plus verbatim wince moments. Strict JSON out, parsed leniently. |
 | `batteries.ts`, `roles.ts`, `baseline.ts` | Presets, collision rules, run-to-run diffing. |
 | `report.ts`, `run.ts` | Report writer and CLI (concurrency pool, provider specs, exit code). |
 
@@ -170,7 +170,7 @@ the real web UI has selected as its microphone.
 |---|---|
 | `driver.ts` | Playwright over real Chrome. Seeds `preview:setup` / `app:settings` / `apikey:*` into localStorage before boot, resolves the loopback device's per-origin `deviceId` in-page, clicks Begin (a real gesture, for the mic permission), then reads the tap. |
 | `orchestrator.ts` | The session loop: wait for a turn boundary, play one sim utterance, watch for the recognizer's final. All engine state comes back from the page. |
-| `voice.ts` | The meditator's mouth. `say` by default (free, offline, transcribes well); `openai:<voice>` runs gpt-4o-mini-tts (paid; no hosted voice uses it any more). |
+| `voice.ts` | Synthesizes the meditator's lines. `say` by default (free, offline, transcribes well); `openai:<voice>` runs gpt-4o-mini-tts (paid; no hosted voice uses it any more). |
 | `audio.ts` | Points both default devices at BlackHole and restores them afterwards. |
 | `scenarios.ts` | The tier-2 matrix (`baseline`, `silence`, `barge-in`, `mute`, `timer`, `felt-sense`) plus the scenario → localStorage mapping. Also the opt-in endpointing experiments `pauses` / `pauses-nospec`: scripted lines with `say` `[[slnc]]` pauses after dangling words, speculation on vs off, the facilitator's voice muted (`silentFacilitator`) so the loopback can't feed it back. Run with `--stt=aloud-gpt-transcribe`; the report carries finals per line and the client's billed STT seconds by pass kind. |
 | `checks.ts`, `wer.ts` | Audio-path checks (miss rate, WER, echo-guard false positives, barge-in, mute command) and word-error scoring normalized for case, punctuation, contractions. |
@@ -207,15 +207,15 @@ changes.
 Google Chrome must be installed. The harness drives **real Chrome**, not
 Playwright's bundled Chromium, because the Web Speech API only works in a build
 carrying Google's speech keys - `channel: 'chrome'` is load-bearing. Headed for the
-same reason; `--headless` exists but headless Chrome's media stack is a different
-animal, and a run that transcribes nothing looks exactly like a facilitator that
-never answers.
+same reason; `--headless` exists but headless Chrome's media stack behaves
+differently, and a run that transcribes nothing looks exactly like a facilitator
+that never answers.
 
 **Why it's a loopback.** Chrome's `--use-file-for-fake-audio-capture` replays one
 fixed WAV, so a virtual device is the only workable route. That means the app also
 hears **its own TTS**, since that plays out of the same default output. Deliberate:
-it's the real acoustic situation a speaker-and-mic user is in, and it puts the echo
-guard and barge-in under test rather than around them. When the echo guard drops a
+it's the real acoustic situation a speaker-and-mic user is in, and it means the echo
+guard and barge-in are tested, not bypassed. When the echo guard drops a
 *meditator* utterance, that's `echo-guard-false-positive`, a `fail` - the topology
 exists to make that visible.
 
@@ -230,7 +230,7 @@ out of a release bundle entirely; it also means tier 2 exercises the **dev** bui
 **What tier 2 deliberately doesn't test:** there's no fake clock, so sits are short
 (5-9 real minutes) and each persona's `WAIT` is clamped (`maxWaitSec`). Relative
 pacing survives; absolute scale doesn't. **Long-silence pacing - the many-minute
-smart waits - stays tier 1's job**, where the fake clock makes it honest.
+smart waits - stays tier 1's job**, where the fake clock can run real-length silences.
 
 `tests/soak-web.test.ts` covers the loop, WER scoring, the scenario → settings
 mapping, and the audio checks offline against a fake driver and a silent voice.
@@ -256,7 +256,7 @@ or prompts. `--facilitator=<a,b,c>` bridges them: the same scenarios under each
 model, scored by one judge that never sees the model's name. Use `--sessions=3`+
 for a decision. The judge rubric here and `evals/rubric.md` should converge.
 
-## Tier 3: hostile lifecycle, not "tier 2 on a phone"
+## Tier 3: lifecycle on a phone
 
 `meditation-pal-eldj.3`, open. The naive version - point BlackHole at a simulator
 and re-run the tier-2 matrix - would mostly re-confirm things tier 2 already
@@ -264,10 +264,10 @@ proves. The valuable version tests what only a phone can break: **backgrounding
 mid-utterance, an incoming call, screen lock during a `[HOLD]`, network death
 mid-turn.**
 
-That's not a preference, it's where the bugs are: `wudm` (mic dead after
-backgrounding), `oxmt` (TTS self-interrupt), `j8k1` (Safari's Web Speech lie) are
-lifecycle and platform-lies bugs, not transcription bugs - and all three currently
-sit with their **code landed and unverified**, waiting on a device session. A
+The bugs so far have been lifecycle bugs: `wudm` (mic dead after
+backgrounding), `oxmt` (TTS self-interrupt), `j8k1` (Safari's unusable Web Speech) are
+lifecycle and platform bugs, not transcription bugs - and all three currently
+have their **code merged but unverified**, waiting on a device session. A
 lifecycle harness is the thing that unblocks them.
 
 **Android emulator first**: `adb` gives real lifecycle control (`am broadcast`,

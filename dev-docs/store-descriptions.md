@@ -10,19 +10,19 @@ A voice-powered guide for meditation, inner work, and parts work
 
 ## Full description
 
-With aloud, you use your voice to explore your inner world and experience deeper meditation. It has three modes: Exploration, Noting, and Felt Sense.
+With aloud, you meditate by talking. It listens and talks back. There are three modes: Exploration, Noting, and Felt Sense.
 
-Exploration is a dyadic format where you speak in real time about what you're noticing in your body and emotions, and the facilitator asks gentle questions to help you go deeper. You can also choose to focus on your internal parts; people who find IFS or other parts work useful will like this too. This mode can be useful for learning meditative states like jhana.
+Exploration is a conversation: you say what you're noticing in your body and emotions, and the facilitator asks short questions back. You can also focus on your internal parts; people who find IFS or other parts work useful will like this too. It can also help with learning meditative states like jhana.
 
-Noting is a simpler mode where you speak just one or two words that describe one thing you feel in that moment - such as warmth, tingling, or belly tension. You can set up sound effects, spoken phrases, or simulated participants to help you keep your ideal rhythm between quiet rest and active spoken noticing.
+Noting is simpler: you say one or two words for one thing you feel in the moment, such as warmth, tingling, or belly tension. Sound effects, spoken phrases, or simulated participants can help you keep a rhythm between quiet rest and spoken noticing.
 
-Felt Sense mode is inspired by Gendlin's Focusing. This is a six-step method that walks you through the process of settling in, finding something that's bubbling up from inside you, allowing it to resonate, and receiving what comes up from your unconscious.
+Felt Sense mode is inspired by Gendlin's Focusing: six steps that walk you through settling in, picking something that's on your mind, sensing how it sits in your body, finding words for it, and taking in whatever comes.
 
-Any mode can be used with a set length. The optional meditation timer lets the facilitator draw smoothly toward a close near the end and tells you vocally when your time is up.
+Any mode can have a set length. With the optional timer, the facilitator winds down near the end and says when time is up.
 
 You can keep your eyes closed the whole time. Just say "set a timer for ten minutes", "talk slower", "hide the clock" or "end the session", in your own words, even two at once.
 
-Text-to-speech, speech-to-text, and AI/LLM brains power some modes; you have full choice of providers. The "aloud cloud" connects you to curated providers without any additional setup. This costs us money to run, so it uses credits; you get some credits free just for signing in with Google. Or, if you have keys for OpenRouter or other providers, you can use those instead.
+Text-to-speech, speech-to-text, and an AI/LLM power some modes; you have full choice of providers. aloud cloud connects you to the providers we picked, with no extra setup. It costs us money to run, so it uses credits; you get some free just for signing in with Google. Or, if you have keys for OpenRouter or other providers, you can use those instead.
 
 **Per store:** that sentence names the store's own account. Play says "signing in with Google"; the App Store and TestFlight say "signing in with Apple". It is the one sign-in each build offers besides email, and email sign-up comes with no free credits.
 

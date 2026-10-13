@@ -59,7 +59,7 @@ function viewFromPath(path: string): Exclude<View, 'session'> {
 
 let currentSession: SessionViewHandle | null = null;
 let currentNoting: NotingSessionViewHandle | null = null;
-// null until the first routeTo lands, so the initial-load deep-link isn't
+// null until the first routeTo completes, so the initial-load deep-link isn't
 // treated as "already on setup" and skipped.
 let currentView: View | null = null;
 // True until the #boot-orb has been retired. While set, setActiveNav leaves the
@@ -130,7 +130,7 @@ export async function bootApp(): Promise<void> {
     bootOrbPending = false;
 
     // Fulfilment is the server's webhook, so credits are usually already added
-    // by the time the user lands back; copy avoids promising timing.
+    // by the time the user returns; copy avoids promising timing.
     if (purchase === 'success') {
         showSuccessToast(t('Payment received. Your credits have been added.'));
     } else if (purchase === 'cancel') {

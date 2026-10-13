@@ -101,7 +101,7 @@ export class ClaudeProxyProvider implements LLMProvider {
             '--no-session-persistence',
             '--disable-slash-commands',
             // `--tools ""` only drops the built-in tools. Without this the
-            // user's MCP servers and claude.ai connectors still ride along:
+            // user's MCP servers and claude.ai connectors are still included:
             // every tool definition in every turn (32,604 input tokens against
             // 579 for a two-word prompt, measured 2026-10-11) and callable.
             '--strict-mcp-config',
@@ -198,7 +198,7 @@ function formatHistory(messages: readonly Message[]): string {
 /**
  * Find the `claude` binary on PATH or in common install locations. The macOS
  * app bundle's limited PATH often misses ~/.local/bin, so that is checked
- * explicitly; on Windows the npm install lands as a `.cmd` shim, so both
+ * explicitly; on Windows the npm install produces a `.cmd` shim, so both
  * `.exe` and `.cmd` are probed.
  */
 async function findClaudeCli(): Promise<string | null> {

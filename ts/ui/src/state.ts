@@ -2,7 +2,7 @@
  * Shared services - one SessionStore + KvStorage for all views, so they see the
  * same persisted data. Desktop (Tauri) persists sessions to disk via the
  * embedded shell (BackendSessionStore -> <app-data>/sessions/*.json); elsewhere
- * they ride on the shared KV, which picks its backend per platform (createKv:
+ * they are stored in the shared KV, which picks its backend per platform (createKv:
  * Capacitor Preferences on native mobile, localStorage on web).
  */
 

@@ -85,7 +85,7 @@ export function isWebSpeechSupported(): boolean {
     if (isBrave()) return false;
     // iOS/iPadOS exposes the API and cannot use it the way this app needs to
     // (see the header). Same shape as the Brave gate: report unsupported so the
-    // picker lands on aloud cloud instead of a mic that only errors.
+    // picker falls back to aloud cloud instead of a mic that only errors.
     if (isIosWeb()) return false;
     return getSpeechRecognitionCtor() !== null;
 }

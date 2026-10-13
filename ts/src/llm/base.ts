@@ -134,7 +134,7 @@ export function systemNoteAsUserText(content: string): string {
 
 /** Chat-format messages with `system` (when set) as a leading system message,
  *  for the APIs that take it inline (OpenAI-compatible, Ollama). A system
- *  entry inside the conversation rides as user text: OpenAI-compatible
+ *  entry inside the conversation is sent as user text: OpenAI-compatible
  *  backends differ on where they accept a system message. */
 export function withSystemMessage(messages: readonly Message[], system: string | undefined): Message[] {
     const out: Message[] = system ? [{ role: 'system', content: system }] : [];

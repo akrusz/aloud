@@ -44,7 +44,7 @@ const SUMMARY_SYSTEM_PROMPT =
 const SUMMARY_USER_PROMPT =
     'This message is from the app, not the meditator: the session above has ' +
     "ended. Write the facilitator's private note on it for the meditator's " +
-    'history log - what was explored, where it landed, and any thread left ' +
+    'history log - what was explored, where it ended up, and any thread left ' +
     'open to pick up later. 2-3 sentences (about 40-60 words), neutral, in the ' +
     'third person. Output only the note: no preamble, no questions, no ' +
     'facilitation.';
@@ -60,7 +60,7 @@ const MIN_USER_TURNS_FOR_SUMMARY = 2;
 /**
  * A leading meta-label the model sometimes writes despite "output only the
  * recap" (measured on gpt-5-nano: "Brief recap: The meditator explored..."). It
- * lands verbatim in the history label, so strip it.
+ * goes verbatim into the history label, so strip it.
  *
  * Deliberately a CLOSED vocabulary rather than "any short prefix before a
  * colon": a recap legitimately opens "Today: heaviness in the chest", and a

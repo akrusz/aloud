@@ -244,7 +244,7 @@ export class SessionClock {
         this.endsAt = Math.max(this.endsAt, Date.now()) + added * 60_000;
         this.runMin += added;
         this.armGen++;
-        // "One more minute" lands inside the approach lead: the acknowledgment
+        // "One more minute" falls inside the approach lead: the acknowledgment
         // just told them the time, so a "few minutes left" right behind it is
         // noise. Only a longer extension earns a fresh approach notice.
         this.approachFired = (this.remainingSec() ?? 0) <= approachLeadSec;

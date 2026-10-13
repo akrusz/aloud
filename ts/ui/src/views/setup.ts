@@ -1547,7 +1547,7 @@ function renderClockButton(key: string): string {
         <div class="form-group setup-clock-group">
             <label>${t('Session Clock')} <button type="button" class="info-btn" data-info="clock-${key}" aria-label="${t('About the session clock')}">?</button></label>
             <div class="info-panel hidden" id="info-clock-${key}">
-                <p>${t("A clock or a timer for the session. In Timer mode the facilitator lands it in voice - a quiet notice as the time approaches, and a closing word when it's up.")}</p>
+                <p>${t("A clock or a timer for the session. In Timer mode the facilitator says so out loud: once when time is nearly up, and again when it's up.")}</p>
                 <p>${t("Hiding the readout doesn't disarm the timer; you still get the spoken close.")}</p>
             </div>
             <button type="button" class="setup-clock-btn" data-clock-btn>${t('Time in session')}</button>
@@ -1597,7 +1597,7 @@ function renderSetupHTML(
                 <p>${t('Thanks to')} <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> ${t('and again to')} <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> ${t('for inspiration.')}</p>
             </div>
             <div data-method="felt_sense" class="hidden">
-                <p><strong>${t('Felt Sense')}</strong>: ${t('A gentle six-step process. Settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. The facilitator holds the arc quietly in the background; you just talk, sense, and take your time.')}</p>
+                <p><strong>${t('Felt Sense')}</strong>: ${t('Six steps: settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. The facilitator keeps track of the steps; you talk and take your time.')}</p>
                 <p>${t('Adapted from')} <a href="https://focusing.org/" target="_blank" rel="noopener">${t("Eugene Gendlin's Focusing")}</a>${t(', which deserves the credit for the method.')}</p>
             </div>
             <p class="info-panel-link"><a href="#" id="start-guide-link">${t('Take the full tour')} &rarr;</a></p>
@@ -1623,7 +1623,7 @@ function renderSetupHTML(
                         <label>${t('Attention Focus')} <button type="button" class="info-btn" data-info="focus" aria-label="${t('About attention focus')}">?</button></label>
                         <div class="info-panel hidden" id="info-focus">
                             <p>${t('These let the facilitator know where you intend to place your attention.')}</p>
-                            <p><strong>${t('Body &amp; sensations:')}</strong> ${t('Physical experience: texture, warmth, movement, pressure. Often the most direct doorway into the present moment.')}</p>
+                            <p><strong>${t('Body &amp; sensations:')}</strong> ${t('Physical experience: texture, warmth, movement, pressure. Usually the easiest place to start.')}</p>
                             <p><strong>${t('Emotions &amp; feeling tone:')}</strong> ${t('More complex collections of sensations and labels - joy, anger, something unnamed.')}</p>
                             <p><strong>${t('Parts &amp; inner world:')}</strong> ${t('Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.')}</p>
                             <p>${t('You can also select multiple, or leave all unchecked to keep things open.')}</p>
@@ -1635,8 +1635,8 @@ function renderSetupHTML(
                     <div class="form-group">
                         <label>${t('Vibe')} <button type="button" class="info-btn" data-info="vibe" aria-label="${t('About vibes')}">?</button></label>
                         <div class="info-panel hidden" id="info-vibe">
-                            <p>${t('Vibes color the tone of facilitation. Select any combination; they blend naturally.')}</p>
-                            <p>${t("<strong>Playful</strong> brings lightness and spontaneity. <strong>Spacious</strong> points towards noticing what's already here. <strong>Effortless</strong> invites letting go rather than trying.")}</p>
+                            <p>${t('Vibes color the tone of facilitation. Select any combination.')}</p>
+                            <p>${t("<strong>Playful</strong> keeps it light. <strong>Spacious</strong> leans toward noticing what's already going on. <strong>Effortless</strong> is about letting go rather than trying.")}</p>
                             <p>${t('Pick whatever matches where you are today, or leave them all unchecked for a neutral tone.')}</p>
                         </div>
                         <div class="modifier-toggles">${qualityToggles}</div>

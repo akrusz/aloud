@@ -1,13 +1,13 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "aloud — voice-based meditation facilitator (desktop shell)"
+description = "aloud - voice-based meditation facilitator (desktop shell)"
 authors = ["Alex Krusz"]
 license = "AGPL-3.0"
 repository = "https://github.com/akrusz/aloud"
 edition = "2021"
 rust-version = "1.77.2"
-# Not a crates.io crate — this is the Tauri shell binary. Also lets cargo-deny
+# Not a crates.io crate - this is the Tauri shell binary. Also lets cargo-deny
 # treat us as a "private" workspace crate so our AGPL doesn't fail the
 # license check (see deny.toml [licenses].private).
 publish = false

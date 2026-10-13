@@ -93,7 +93,7 @@ const M = 1_000_000;
  *    pin all cache fields at the input rate: estimates then match real billing,
  *    and if tokens ever do appear we over-charge, never under-bill.
  * 2. Run the math through estimate.ts before calling a model "cheap": a no-cache
- *    $0.57 model and a 50%-cached $1 model land within a cent/hr.
+ *    $0.57 model and a 50%-cached $1 model come within a cent/hr.
  * 3. OpenRouter slugs: list the real endpoints
  *    (GET /api/v1/models/<slug>/endpoints) for host, jurisdiction, quantization.
  *    Pin routing (extraBody provider.only) if the host matters, and update the

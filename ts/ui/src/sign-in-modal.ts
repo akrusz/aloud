@@ -54,7 +54,7 @@ export interface SignInModalOptions {
 
 const DEFAULT_TITLE = 'Sign in to aloud cloud';
 const DEFAULT_SUBTITLE =
-    'Sign up for free. Connect {providers} and we\'ll give you free credits to try aloud cloud!';
+    'Sign up for free. Connecting {providers} adds free credits to try aloud cloud.';
 
 /**
  * Resolves true after a successful sign-in, by which point the session token is

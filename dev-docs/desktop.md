@@ -146,7 +146,7 @@ Endpoints:
   `Info.plist` as build inputs so `tauri:dev` rebuilds when either changes -
   without that, a dev run keeps yesterday's icon set and yesterday's usage
   strings (the merged plist is embedded in the binary, which is what macOS reads
-  when dev runs it unbundled) with nothing to say the edit hadn't landed.
+  when dev runs it unbundled) with nothing to say the edit hadn't taken effect.
   The DMG uses Tauri's default window layout. A custom wordmark background is
   parked in `assets/dmg-background.svg` (regen command in its header) but **not
   wired**: a dark background made the Finder icon labels unreadable.
@@ -170,7 +170,7 @@ below).
   download-only). Needs the WebKitGTK 4.1 / GTK / appindicator / rsvg stack +
   CMake/build-essential (whisper-rs, espeak-rs) + libfuse2. The workflow
   pre-seeds tauri's AppRun cache with a world-executable copy (the bundler's
-  own lands at 0770, so `AppRun.wrapped` fails for anyone but the file's owner)
+  own is written at 0770, so `AppRun.wrapped` fails for anyone but the file's owner)
   and checks the built AppImage's permissions afterwards. That check runs after
   the upload: if it fails (most likely tauri moved to a new AppRun and the seed
   went unused), fix the seed and re-run the job.

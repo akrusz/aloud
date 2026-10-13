@@ -29,7 +29,7 @@
  *     track user style.
  *
  * The utility LLM (Haiku via buildUtilityProvider, plus the recap model)
- * is carried as its own flat leg, UTILITY_CREDITS_PER_HOUR below - it rides
+ * is carried as its own flat leg, UTILITY_CREDITS_PER_HOUR below - it applies to
  * every HOSTED session regardless of which model the badge names
  * (meditation-pal-nrj6), so it belongs in the composed session estimate, not
  * in any one badge.
@@ -189,7 +189,7 @@ export function estimateModels(): ModelEstimate[] {
  *  put the whole leg at ~0.3 cr/hr on Haiku 4.5 with the recap still on it.
  *  Haiku 5.5 runs the same text at about an eighth of that (a tenth the rate,
  *  ~30% more tokens) and the recap is on a cheaper model again, so the leg
- *  should land near 0.05; 0.1 leaves headroom. Reseed from the admin per-hour
+ *  should come out near 0.05; 0.1 leaves headroom. Reseed from the admin per-hour
  *  report once 5.5 has some hours behind it. Not per-badge: the same flat leg
  *  whichever facilitation model is picked (nrj6). */
 export const UTILITY_CREDITS_PER_HOUR = 0.1;

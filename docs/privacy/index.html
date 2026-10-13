@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>privacy — aloud.</title>
-  <meta name="description" content="aloud's privacy policy. Run it locally so nothing touches us, or use aloud cloud, a transparent relay to the AI providers that doesn't retain your sessions.">
+  <title>privacy · aloud.</title>
+  <meta name="description" content="aloud's privacy policy. Run it locally so nothing touches us, or use aloud cloud, a relay to the AI providers that doesn't keep your sessions.">
 
   <link rel="canonical" href="https://aloud.rest/privacy/">
   <meta name="theme-color" content="#fffdf2" media="(prefers-color-scheme: light)">
@@ -59,7 +59,7 @@
     <h1>Privacy Policy</h1>
     <p class="updated">Last updated: October 11, 2026</p>
 
-    <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains, plainly, what happens to your data in each case.</p>
+    <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains what happens to your data in each case.</p>
 
     <h2>The short version</h2>
     <ul>
@@ -114,9 +114,9 @@
       <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our payment processor, <strong>Stripe</strong>, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
       <li><strong>Abuse prevention.</strong> When you create an account, we record the IP address you signed up from, used only to catch abusive signup patterns (like farming free credits). It's deleted automatically after 90 days, and right away if you delete your account.</li>
       <li><strong>Operational logs.</strong> We may keep minimal, short-lived technical logs (for diagnostics, security, and abuse prevention) that do not contain your session content.</li>
-      <li><strong>Error records.</strong> When a call we relay fails or is refused, or a credit purchase can't be started, we keep a short record of it - what went wrong (an error code or reason, the provider and model involved, token or byte counts), never anything you said or the AI replied. It's how we notice problems the app handles quietly. These records sit with your account record and are anonymized when you delete your account, like the credit ledger.</li>
+      <li><strong>Error records.</strong> When a call we relay fails or is refused, or a credit purchase can't be started, we keep a short record of it - what went wrong (an error code or reason, the provider and model involved, token or byte counts), never anything you said or the AI replied. It's how we notice problems the app recovers from without showing you. These records sit with your account record and are anonymized when you delete your account, like the credit ledger.</li>
     </ul>
-    <p><strong>We don't retain the content of your sessions on aloud cloud. None of it.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
+    <p><strong>We don't retain the content of your sessions on aloud cloud.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
 
     <h2>Your own API keys</h2>
     <p>On some platforms you can supply your own provider API keys instead of using credits. Those keys are stored only on your device, and never on our servers. On the <strong>web app</strong> this is <strong>off by default</strong>; it applies only if you manually turn on bring-your-own-key. Your sessions then call each provider <strong>directly</strong> from the app, so your key and your words don't pass through aloud cloud at all. There are two exceptions. If you turn on Voice commands (see "Your words and the AI facilitator" above), what you say is checked through aloud cloud; your key is never part of that. The other is looking up a provider's list of available models, which is relayed through our server with your key; it's used transiently, in memory, and we neither store nor log it.</p>
@@ -132,7 +132,7 @@
 
     <h2>Third-party services</h2>
     <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
-    <p>When you use aloud cloud, we aim to be transparent about which providers we rely on. We currently use <strong>Anthropic, Google, OpenAI, and Novita (via OpenRouter)</strong> for language models. The Kimi model is an open model from Moonshot AI, but it runs on Novita's US infrastructure (with Groq, also US, as a fallback host); your sessions are not sent to Moonshot. We also use <strong>OpenAI</strong> for speech-to-text and <strong>Microsoft Azure AI Speech, Google Cloud Text-to-Speech, and Inworld</strong> for voice. We use <strong>TypeSafe</strong> (US-hosted) for the classification model that recognizes spoken commands and reads silence cues. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
+    <p>When you use aloud cloud, we say which providers we rely on. We currently use <strong>Anthropic, Google, OpenAI, and Novita (via OpenRouter)</strong> for language models. The Kimi model is an open model from Moonshot AI, but it runs on Novita's US infrastructure (with Groq, also US, as a fallback host); your sessions are not sent to Moonshot. We also use <strong>OpenAI</strong> for speech-to-text and <strong>Microsoft Azure AI Speech, Google Cloud Text-to-Speech, and Inworld</strong> for voice. We use <strong>TypeSafe</strong> (US-hosted) for the classification model that recognizes spoken commands and reads silence cues. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
     <p>Each aloud cloud voice is spoken by one of those voice providers. The <strong>Luna, Wren, Silas, and Clive</strong> voices are spoken by <strong>Inworld</strong>. Inworld's zero-data-retention setting is not yet turned on for our account (we have asked for it), so until it is, Inworld may keep the response text it receives for those four voices, as its own policy allows. If you'd rather avoid that, pick any other voice.</p>
     <p>Behind the service itself: aloud cloud runs on <strong>Fly.io</strong> in the United States, and our account database (sign-in details, credits, and usage metering, never your session content) is backed up to <strong>Cloudflare R2</strong>. Both handle data for us as infrastructure providers under data processing agreements.</p>
     <p>On this website, the video on the home page is hosted by <strong>YouTube</strong>. The page asks YouTube for nothing until you press play; from then on, YouTube (Google) serves the video under its own privacy policy.</p>

@@ -3,8 +3,8 @@
  *
  * 'web': our own checkout (card via Stripe, USDC) - the browser and the
  * desktop app.
- * 'none': nothing is sold in the app; ☁ bought on the web still land in the
- * account. The store builds, until they sell packs through store billing. Both
+ * 'none': nothing is sold in the app; ☁ bought on the web are still credited to
+ * the account. The store builds, until they sell packs through store billing. Both
  * stores bar an in-app button or link to another payment method (Play Payments
  * policy section 4, App Store guideline 3.1.1), and the regional exceptions
  * each need a program enrollment we don't hold.

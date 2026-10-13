@@ -22,7 +22,7 @@ const ART = `<img class="clouds-explainer-art" src="${cloudArtUrl}" alt="">`;
 
 const EXPLAINER =
     '<strong>☁ are aloud cloud credits.</strong>\n\n' +
-    'aloud cloud uses selected providers for facilitator intelligence, high-quality voices, speech recognition, summaries, and in-session decisions. \n\n' +
+    "aloud cloud uses selected providers for the facilitator's AI, high-quality voices, speech recognition, summaries, and in-session decisions. \n\n" +
     'The ☁ badge on an option shows roughly how many credits it uses per hour. This will vary depending on factors such as talking speed, response length, and session length. The estimate next to Begin is our best guess at the <em>all-in</em> usage.\n\n' +
     '☁ are deducted only as you use them. You may use other sources, such as your device\'s speech recognition or your own API keys; these do not use any ☁.\n\n';
 

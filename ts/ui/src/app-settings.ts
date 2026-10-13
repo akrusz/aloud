@@ -231,7 +231,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const parsed = JSON.parse(raw) as Partial<AppSettings>;
         // Language must be an offered code: the pre-c3a0 list had ~30, so a
         // stored 'es'/'ja' from that era normalizes back to the browser seed
-        // rather than riding invisibly under a select that can't show it.
+        // rather than persisting invisibly under a select that can't show it.
         const language =
             parsed.language && SUPPORTED_LANGUAGE_CODES.has(parsed.language)
                 ? parsed.language

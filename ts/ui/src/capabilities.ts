@@ -119,7 +119,7 @@ export async function detectCapabilities(): Promise<Capabilities> {
         }
         // First detect: retry the cloud probe to ride out cold-start/restart.
         //
-        // The ollama axis rides the Vite dev proxy (/ollama → :11434), the ONLY
+        // The ollama axis goes through the Vite dev proxy (/ollama → :11434), the ONLY
         // place that raw path resolves. No production build (hosted web,
         // desktop, self-host) has that route, so the probe could only 404 (the
         // console noise on aloud.rest); skip it there. Desktop Ollama
@@ -165,7 +165,7 @@ function runCloudWatch(): void {
     const tick = async (): Promise<void> => {
         cloudWatchTimer = null;
         if (cloudUpListeners.size === 0) return; // nobody waiting → stop polling
-        // detectCapabilities re-probes cloud whenever it's down, so this rides
+        // detectCapabilities re-probes cloud whenever it's down, so this reuses
         // its inflight de-dup rather than running a parallel probe.
         const caps = await detectCapabilities();
         if (caps.cloud) {

@@ -27,15 +27,15 @@ self-signed LAN cert won't do here).
 
 **Publishing a GitHub release is the deploy.** `.github/workflows/deploy-release.yml`
 runs the Fly server deploy and then, only if it succeeded, publishes the hosted
-web app built from the same tag. The desktop build rides the same release
+web app built from the same tag. The desktop build is built from the same release
 (`tauri-release.yml`). So the browser app and the API it calls always ship
 together, and `main` is somewhere you can merge without shipping.
 
 The order is deliberate: **server first, web second.** New UI against an old
 server is the skew that breaks (it calls fields that don't exist yet); an old
-client against a new server is the permanent state of the world anyway, since
-desktop and mobile update on their own schedule - which is also why the server
-contract has to stay backward-compatible regardless.
+client against a new server is fine, since there are always old clients in
+the field anyway (desktop and mobile update on their own schedule) - which is
+also why the server contract has to stay backward-compatible regardless.
 
 What does *not* wait for a release:
 
@@ -45,7 +45,7 @@ What does *not* wait for a release:
   published release**, never from `main`. Vite's asset hashes are
   content-derived, so an unchanged app rebuilds to the same bytes.
 - **Mobile** (Play / App Store) is out of band; a store build is its own trip.
-- **`npm audit fix` commits** from `audit-autofix.yml` land on `main` and ship
+- **`npm audit fix` commits** from `audit-autofix.yml` go to `main` and ship
   with the next release. If an advisory is urgent, cut one.
 
 Re-running after a failure: the **Release deploy (server → web)** button takes a
@@ -135,7 +135,7 @@ Things that have bitten us. This is the money server (the credit ledger).
    context is whatever's in `ts/` *right now*: uncommitted edits, and every
    commit on the current branch that isn't live yet. Run `git status` first and
    deploy from `main` or a branch you've deliberately readied. (A half-finished
-   schema change once rode along with an unrelated deploy and crashed the boot.)
+   schema change once went out with an unrelated deploy and crashed the boot.)
 
 2. **A release marked `complete` does NOT mean the server booted.** It means
    the *config* rolled out; a broken image can still crash-loop. Hit it and
@@ -323,7 +323,7 @@ Repo settings it depends on (set once):
   `GET /cloud/v1/config` (`setRuntimeGoogleClientId`), so baking it only lets
   the button paint before that probe resolves.
 
-The custom domain (`aloud.rest`) rides along in the artifact as `docs/CNAME`.
+The custom domain (`aloud.rest`) is included in the artifact as `docs/CNAME`.
 
 ### Building it by hand
 

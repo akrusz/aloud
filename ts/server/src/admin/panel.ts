@@ -8,7 +8,7 @@
  * with Google when ALOUD_ADMIN_EMAILS is set (the on-the-go path: the device
  * then holds a session JWT the admin gate honours for 7 days, not the root
  * token). Either way the credential lives in localStorage for this origin and
- * rides every call as a Bearer header. Same-origin with the API, so no CORS.
+ * is sent on every call as a Bearer header. Same-origin with the API, so no CORS.
  *
  * Everything the page can do maps to a gated endpoint in routes/admin.ts;
  * unauthorized, those return 401/404 and the page is an inert form.
@@ -440,7 +440,7 @@ ${ADMIN_STYLE}</style>
 
   // ---- metrics dashboard -------------------------------------------------
   // A stat grid. card = [label, valueHtml, valueClass?, detail?]; detail cards
-  // sit behind the Full view toggle. The label rides the title too, since it
+  // sit behind the Full view toggle. The label is repeated in the title too, since it
   // clips to one line.
   function statCards(cards) {
     return cards.map(function (c) {
@@ -469,7 +469,7 @@ ${ADMIN_STYLE}</style>
 
   // ---- incidents ---------------------------------------------------------
   // One pill per kind stands in for a stat grid: the count is what matters,
-  // the accounts/sessions behind it ride the hover. The table pages newest
+  // the accounts/sessions behind it are in the hover. The table pages newest
   // first, like history: page size follows the view (8 compact / 20 full).
   var INCIDENTS = [];
   var incidentPage = 0;

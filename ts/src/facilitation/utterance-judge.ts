@@ -64,7 +64,7 @@ export interface JudgeAsk {
 }
 
 export interface JudgeSpec {
-    /** What the app knows and the model doesn't; rides in `state.situation`. */
+    /** What the app knows and the model doesn't; sent in `state.situation`. */
     situation: string;
     /** Sent together in one request and answered in parallel; the verdict is yes
      *  when ANY of them clears its own threshold (judgeVerdict). */
@@ -163,7 +163,7 @@ export const JUDGE_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
                         },
                     },
                 },
-                // Lower than `addressed`: hedged call-backs land around 0.45-0.6 here
+                // Lower than `addressed`: hedged call-backs score around 0.45-0.6 here
                 // and think-out-loud under 0.3, while a stray "Hello?" can reach
                 // 0.48 on `addressed`.
                 threshold: 0.4,

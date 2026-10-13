@@ -197,7 +197,7 @@ export class CapacitorSttEngine implements SttEngine {
         //   - Interim AND final transcripts all arrive as 'partialResults'
         //     events (native onResults is forwarded to the same event).
         //   - listeningState 'stopped' fires at END OF SPEECH, before the
-        //     final transcript lands.
+        //     final transcript arrives.
         //   - listeningState 'error' (patched in, onError) carries the native
         //     error message; without the patch NO_MATCH / SPEECH_TIMEOUT /
         //     BUSY reject the already-resolved start() call and JS never sees
@@ -213,7 +213,7 @@ export class CapacitorSttEngine implements SttEngine {
         const stitching = submitDelayMs > 0;
         // Android (patched plugin): a recognition session ends only at its
         // final transcript or an error, and the plugin serialises a start()
-        // that lands during a live session. In dictation mode the session
+        // issued during a live session. In dictation mode the session
         // outlives end-of-speech - a second 'started' can follow 'stopped' -
         // so tearing it down at 'stopped' both loses the words that follow
         // and draws ERROR_CLIENT from the restart (meditation-pal-lbl5). Here
@@ -253,7 +253,7 @@ export class CapacitorSttEngine implements SttEngine {
         // window belong to the dying segment and must not trigger another one.
         let relaunching = false;
         // `relaunching` covers only the teardown window; a stale error can also
-        // land just after the new segment is up.
+        // arrive just after the new segment is up.
         let segmentLaunchedAt = 0;
         let endTimer: ReturnType<typeof setTimeout> | null = null;
         let settleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -352,7 +352,7 @@ export class CapacitorSttEngine implements SttEngine {
         // submit() and flips `submitted`, so this can't loop forever.
         const restartSegment = async (): Promise<void> => {
             if (submitted || events.done || this.stopRequested || relaunching) return;
-            // Latched until the relaunch lands: the native stop() below can
+            // Latched until the relaunch completes: the native stop() below can
             // itself fire onError (a visible 'error' event, see the state
             // listener), which must not trigger a second, racing restart.
             relaunching = true;

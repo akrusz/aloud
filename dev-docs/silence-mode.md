@@ -1,7 +1,7 @@
 # Silence mode (`[HOLD]`) and the utterance judge
 
 How the facilitator goes quiet on request and how the app decides when it comes
-back. The spoken commands ride the same judge: [voice-commands.md](voice-commands.md).
+back. The spoken commands use the same judge: [voice-commands.md](voice-commands.md).
 
 ## The signal
 
@@ -14,7 +14,7 @@ reaches the transcript.
 With silence mode off in settings, `HOLD_SIGNAL_FRAGMENT` leaves the system
 prompt, so the facilitator can't promise a silence the app won't deliver.
 
-## A bid, not the entry
+## The token is a bid
 
 Small models emit `[HOLD]` far too eagerly, so the token only makes the
 facilitator ask "shall I be quiet?", and the app judges the reply. Three

@@ -13,7 +13,7 @@
  * its token can be minted off the device by someone who tries, for one bonus
  * per Google account.
  *
- * The credits land in the ordinary balance and spend anywhere. Once per account,
+ * The credits go into the ordinary balance and spend anywhere. Once per account,
  * per identity and per mailbox, ever, the connect grant's gates
  * (decideConnectGrant): a second login on the same account, the same person on
  * both stores, or a delete-and-recreate collects nothing more.

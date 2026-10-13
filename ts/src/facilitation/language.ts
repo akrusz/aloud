@@ -21,8 +21,8 @@
 
 /**
  * The languages the FACILITATION layer distinguishes. STT accepts thirty
- * recognizer languages (ui app-settings.LANGUAGES) and any of them can ride a
- * session's STT; this type is narrower on purpose - it names the languages the
+ * recognizer languages (ui app-settings.LANGUAGES) and any of them can be a
+ * session's STT language; this type is narrower on purpose - it names the languages the
  * prompts and canned pools actually speak. Everything not Chinese behaves as
  * 'en' today (the model just mirrors the transcript's language, as before).
  */
@@ -40,7 +40,7 @@ export function sessionLanguageOf(code: string | undefined | null): SessionLangu
 /**
  * Appended to the system prompt for a zh session. English instructions steer
  * better than translated ones on every model we ship, so the frame stays
- * English and only the OUTPUT language moves. The token rule is load-bearing:
+ * English and only the OUTPUT language moves. The token rule is required:
  * a model that translates [HOLD] breaks the whole silence machinery.
  */
 export const ZH_LANGUAGE_FRAGMENT = `Session language: Chinese
@@ -75,7 +75,6 @@ export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '还陪着你。',
     '现在感觉怎么样？',
     '不急。',
-    '我哪儿也不去。',
     '慢慢来。',
     '你注意到了什么？',
     '还在这里。',
@@ -100,7 +99,7 @@ export const ZH_COMMON_OPENERS: readonly string[] = [
     '慢慢安顿下来。此刻心里有什么？',
     '就从你现在的状态开始。此刻正在发生什么？',
     '什么时候准备好都可以……有什么浮现出来吗？',
-    '花点时间让自己落定。现在有什么浮现？',
+    '花点时间安顿一下。现在有什么？',
 ];
 
 export const ZH_MINIMAL_OPENERS: readonly string[] = [
@@ -113,7 +112,7 @@ export const ZH_MINIMAL_OPENERS: readonly string[] = [
 export const ZH_TIMER_APPROACH_FALLBACKS: readonly string[] = [
     '还剩一点时间。一切保持原样就好。',
     '还有几分钟。什么都不需要做。',
-    '快到尾声了。继续和此刻的一切待在一起。',
+    '快到尾声了。一切照旧就好。',
 ];
 
 export const ZH_TIMER_COMPLETION_FALLBACKS: readonly string[] = [
@@ -132,8 +131,7 @@ export const ZH_FELT_SENSE_OPENERS: readonly string[] = [
     '花一点时间让自己舒服下来……当你准备好了，可以在心里问问自己：此刻，是什么隔在我和「感觉还好」之间？',
     '不着急。当你准备好了，只需留意一下，身体或心里有什么在牵引你的注意。',
     '先来几个轻松的呼吸……然后向内听一听：此刻什么需要我的注意？',
-    '什么时候开始都可以。你可以让注意力慢慢落到身体的中间，看看有什么想被留意到。',
-    '不急着开始。先让自己落定……看看你今天带着什么来了。',
+    '什么时候开始都可以。你可以让注意力慢慢落到身体的中间，看看那里有什么。',
 ];
 
 export const ZH_FELT_SENSE_CHECK_INS: readonly string[] = [
@@ -166,12 +164,12 @@ export const ZH_FOCUS_OPENERS: Record<string, readonly string[]> = {
     ],
     emotions: [
         '你现在感觉怎么样？',
-        '花一点时间向内感受……你心里还好吗？',
+        '花一点时间向内感受。那里有什么？',
         '慢慢安顿下来。此刻心里是什么样的基调？',
     ],
     inner_parts: [
         '先和自己打个招呼……此刻内在有什么？',
-        '花一点时间向内倾听……你心里还好吗？',
+        '花一点时间向内倾听。你听到了什么？',
         '慢慢安顿下来。内在有什么浮现出来？',
     ],
     open_awareness: [

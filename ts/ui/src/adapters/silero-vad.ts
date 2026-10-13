@@ -173,7 +173,7 @@ export class SileroFrameVad {
         ort.env.wasm.wasmPaths = { wasm: new URL(wasmUrl, location.href).href };
         // The graph optimizer warns (via console.error, ANSI-coloured) about
         // every unused initializer in the Silero model on each load. Harmless,
-        // but it lands in the bug-report error log and crowds out real lines.
+        // but it ends up in the bug-report error log and crowds out real lines.
         // Errors still get through; create failures throw regardless.
         ort.env.logLevel = 'error';
         const res = await fetch(modelUrl);
@@ -193,7 +193,7 @@ export class SileroFrameVad {
     /**
      * Feed one native-rate capture frame: resamples to 16 kHz, slices into
      * model-sized chunks, queues inference; `speaking`/`lastProb` update as
-     * results land. Call for EVERY frame while the mic is open - the model's
+     * results come in. Call for EVERY frame while the mic is open - the model's
      * recurrent state assumes a continuous stream.
      */
     feed(frame: Float32Array, nativeRate: number): void {
@@ -242,7 +242,7 @@ export class SileroFrameVad {
                 // A single failed inference shouldn't kill the chain; the next
                 // chunk proceeds with slightly stale state. An unbroken run of
                 // them trips `broken` (BROKEN_AFTER_FAILURES); console.error
-                // lands in the bug-report error log.
+                // is captured in the bug-report error log.
                 this.runFailures++;
                 this.lastRunError = errText(err);
                 if (++this.consecutiveFailures >= BROKEN_AFTER_FAILURES && !this.broken) {
@@ -307,7 +307,7 @@ function errText(err: unknown): string {
 // share one load; cleared on failure so a later session retries.
 let pendingLoad: Promise<SileroFrameVad> | null = null;
 // Last load failure, kept for the bug-report diagnostics: its VAD probe can
-// time out before the real error lands, and this is the machine-specific
+// time out before the real error arrives, and this is the machine-specific
 // string an ort-web bug report needs.
 let lastLoadError: string | null = null;
 

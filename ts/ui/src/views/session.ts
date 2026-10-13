@@ -1057,7 +1057,7 @@ export async function mountSessionView(
     }
 
     function holdingStatus(): string {
-        return t("Holding space, say when you're ready to continue");
+        return t("Just listening, say when you're ready to continue");
     }
 
     // Slow-response indicator: if nothing has been spoken this long after a
@@ -2013,7 +2013,7 @@ export async function mountSessionView(
         if (isNonSpeechOnly(userText)) return;
         showUserTurn(userText);
         silenceBuffer.push(userText);
-        setStatus(t('Holding space, one moment…'));
+        setStatus(t('Going quiet, one moment…'));
         const classifyStart = Date.now();
         const verdict = await classifyResumeIntent(utilityProvider, userText, {
             ...classifierOptions,
@@ -2935,7 +2935,7 @@ export async function mountSessionView(
         session.addControlMessage('user', instruction, 'opener');
         const reveal = createAssistantReveal();
         try {
-            setStatus(resuming ? t('Welcoming you back…') : t('Thinking…'));
+            setStatus(resuming ? t('Resuming…') : t('Thinking…'));
             showTyping();
             armSlowResponseStatus();
             // First LLM call, so this is where Ollama pays the cold-load cost;

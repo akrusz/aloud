@@ -122,7 +122,7 @@ fn claude_command(binary: &Path, cwd: &Path, model: &str) -> Command {
     cmd.current_dir(cwd)
         .args(["-p", "--tools", "", "--no-session-persistence", "--disable-slash-commands"])
         // `--tools ""` only drops the built-in tools: without this the user's
-        // MCP servers and claude.ai connectors still ride along, every tool
+        // MCP servers and claude.ai connectors are still included, every tool
         // definition in every turn (32,604 input tokens against 579 for a
         // two-word prompt, measured 2026-10-11) and callable mid-session.
         .arg("--strict-mcp-config")

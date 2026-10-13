@@ -1,7 +1,7 @@
 /**
  * Map raw STT / hosted-service errors to clear, actionable user-facing lines.
  * Standalone (no DOM/view imports) so node-env tests can cover the matching
- * order - which is load-bearing: a mis-ordered match here once hid the "model
+ * order - which matters: a mis-ordered match here once hid the "model
  * still loading" 503 behind a misleading "check your connection".
  */
 

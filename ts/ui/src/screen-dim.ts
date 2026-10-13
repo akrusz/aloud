@@ -50,7 +50,7 @@ async function setNativeDim(dimmed: boolean): Promise<void> {
             plugin: core.registerPlugin<ScreenDimPlugin>('ScreenDim'),
         }));
         const { plugin } = await pluginLoad;
-        // The latest ask, not this call's: a wake can land during the import.
+        // The latest ask, not this call's: a wake can arrive during the import.
         await plugin.setDimmed({ dimmed: nativeWanted });
     } catch {
         // No such plugin (iOS): the cover is the whole feature there.
@@ -80,7 +80,7 @@ function dim(): void {
     hint.textContent = t('Tap to wake');
     el.appendChild(hint);
     // click, not pointerdown: the cover has to outlive the whole tap, or its
-    // second half lands on whatever button was underneath.
+    // second half hits whatever button was underneath.
     el.addEventListener('click', wake);
     document.body.appendChild(el);
     cover = el;

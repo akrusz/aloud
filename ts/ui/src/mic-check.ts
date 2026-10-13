@@ -1,7 +1,7 @@
 /**
  * Mic availability, independent of which STT engine is selected.
  *
- * aloud is voice-only and always will be: there is no text-input mode, so a
+ * aloud is voice-only: there is no text input, so a
  * session with no microphone is a session that can't happen. Rather than let
  * one start and stall on a dead mic (or, in noting, silently roll past the
  * user's turns), both start paths pre-flight through here.

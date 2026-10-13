@@ -446,7 +446,7 @@ export function steppedPause(currentBaseMs: number, direction: 'sooner' | 'longe
 
 // ---- what the app says back -------------------------------------------------
 // Canned, like HOLD_REENTRY_LINES: the app knows what it just did and the model
-// doesn't. Short enough to land and get out of the way. Functions of the
+// doesn't. Short enough to say and get out of the way. Functions of the
 // language rather than registerZhPool pools because some carry a number.
 
 const zhOr = (language: SessionLanguage, en: string, zh: string): string => (language === 'zh-CN' ? zh : en);
@@ -493,7 +493,7 @@ export const COMMAND_LINES = {
     // kind (voice, timer, screen, sound, ending); the rest are in the session
     // info panel, which this points at.
     help: fixed(
-        'You can ask me to talk slower or faster, set a timer, hide the clock, mute the speaker or mic, end the session, and more. The full list is under the info button. You can even ask for two things at once.',
+        'You can ask me to talk slower or faster, set a timer, hide the clock, mute the speaker or mic, end the session, and more. The full list is under the info button. You can ask for two things at once.',
         '你可以让我说慢一点或快一点、设置计时、隐藏时钟、关掉语音或麦克风、结束冥想,等等。完整的指令在信息按钮里。你还可以一次说两件事。'
     ),
     muted: fixed('Muted.', '已静音。'),

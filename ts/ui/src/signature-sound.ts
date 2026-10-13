@@ -46,7 +46,7 @@ const GAIN = 10 ** (-6 / 20);
  *  Whatever replaces it starts once the fade is done: two of these overlapping,
  *  the same sound twice above all, beat against each other. */
 const FADE_S = 0.25;
-/** An opening that hasn't loaded by now is skipped: it would land on the
+/** An opening that hasn't loaded by now is skipped: it would overlap the
  *  facilitator's first words instead of ahead of them. */
 const LOAD_DEADLINE_MS = 1500;
 /** How long a context that isn't running gets to start (a Bluetooth route can
@@ -198,7 +198,7 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
  * one now (SttEngine.prime). The sound waits for it and a beat more: opening
  * an echo-cancelled mic makes the OS rebuild its audio output (voice
  * processing on macOS), and a sound already playing drops out for a fraction
- * of a second when that lands in it (heard on MacBook speakers, 2026-10-12).
+ * of a second when that happens during it (heard on MacBook speakers, 2026-10-12).
  * A recognizer that opens the mic only when it listens passes nothing, and
  * the sound starts at once.
  */

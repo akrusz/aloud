@@ -50,14 +50,14 @@ export interface StreamCompletionOptions extends CompletionOptions {
     /** Forwarded to tts.speak() for each sentence. */
     ttsOptions?: TtsOptions;
     /** Called once with the FIRST TTS failure of this completion. Speak errors
-     *  stay non-fatal (the text lands, the session continues text-only); this
+     *  stay non-fatal (the text still arrives, the session continues text-only); this
      *  is how a mid-session out-of-credits on the TTS leg reaches the user. The
      *  caller routes it through its billing/auth error UI. */
     onTtsError?: (err: unknown) => void;
     /** Abort the whole completion - stop consuming the stream AND speaking. For
      *  when a newer turn supersedes this one and the reply is discarded. */
     signal?: AbortSignal;
-    /** Hush TTS but keep generating, so the full reply still lands in the
+    /** Hush TTS but keep generating, so the full reply still reaches the
      *  transcript. Barge-in: stop talking over the user without losing the
      *  in-progress response. */
     ttsSignal?: AbortSignal;
@@ -155,7 +155,7 @@ export async function streamCompletionWithChunkedTts(
         // prefetch() just fetch inside speak().
         tts.prefetch?.(text, ttsOptions);
         // Report audible start. Engines that can't observe it never fire
-        // onStart, so report at resolve (playback end) - the reveal still lands,
+        // onStart, so report at resolve (playback end) - the reveal still happens,
         // just late.
         let started = false;
         const reportStart = (): void => {
@@ -223,7 +223,7 @@ export async function streamCompletionWithChunkedTts(
                 continue;
             }
             // A token may still be arriving split across chunks - hold until
-            // more text lands or the stream ends.
+            // more text arrives or the stream ends.
             if (!force && isPartialControlPrefix(upper)) return;
             break;
         }
@@ -239,7 +239,7 @@ export async function streamCompletionWithChunkedTts(
             if (onTextDelta) onTextDelta(fullText);
 
             checkControlPrefix();
-            // Hold speech until the prefix decision lands, so a partial "[HOL"
+            // Hold speech until the prefix decision is made, so a partial "[HOL"
             // or "[NE" is never voiced.
             if (!prefixChecked) continue;
 
@@ -275,7 +275,7 @@ export async function streamCompletionWithChunkedTts(
 }
 
 /**
- * A completed sentence shorter than this rides along with the next one instead
+ * A completed sentence shorter than this is merged into the next one instead
  * of going to TTS on its own. Azure's Harper (softvoice) voices a one- or
  * two-word input TWICE about a third of the time - "Nice." comes back as two
  * bursts with a 1.5s gap (meditation-pal-1c9h, measured 2026-09-07: 4/10 for

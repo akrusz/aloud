@@ -24,7 +24,7 @@ npm run typecheck && npm test && npm run ui:build && npm run test:server
 npm run soak:web          # needs the BlackHole device; see soak-harness.md
 ```
 
-If any of those fail, stop - nothing below is worth your breath yet.
+If any of those fail, stop and fix those first.
 
 ## 1. Desktop app (Tauri) - the path no test touches
 
@@ -33,19 +33,19 @@ the WebAudio playback path exist only here.
 
 - [ ] **First Begin asks for the mic**, and granting it starts a session. (Revoke
       in System Settings → Privacy → Microphone beforehand to get a real prompt.)
-- [ ] **Whisper transcribes.** Say a full sentence, pause, and watch it land as
+- [ ] **Whisper transcribes.** Say a full sentence, pause, and watch it come through as
       one turn - not two, not truncated mid-clause.
 - [ ] **The facilitator speaks, audibly.** Not "a bubble appeared" - listen. A
       played-but-silent turn is a real failure mode (`meditation-pal-ypjj`) and
       nothing automated catches it.
 - [ ] **The opening and closing sounds play whole.** At Begin the sound has no
       drop-out in it, the facilitator's first words come after it, and it never
-      lands as a user turn or flashes in the live preview. At End the close
+      shows up as a user turn or flashes in the live preview. At End the close
       rings out with no hole in it. Each of those failed on MacBook speakers
       before it was fixed ([voice-barge-in.md](voice-barge-in.md) → "The
       opening and closing sounds"), and no test hears them.
 - [ ] **Barge-in**: talk over the facilitator mid-sentence. It should stop and
-      take your turn, and its own voice must not land as a user turn.
+      take your turn, and its own voice must not be transcribed as a user turn.
 - [ ] **Voice preview on the setup page, then again in-session** from the voice
       panel. Both must be audible. (Setup-only was working when all in-session
       playback had gone dead, so check both.)
@@ -95,7 +95,7 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       (`meditation-pal-oxmt`).
 - [ ] **The opening and closing sounds, on the phone's speaker.** Both play
       whole, at a level that sits with the voice, and the opening is not
-      transcribed as a turn. They landed after 2.15.0, so no store build has
+      transcribed as a turn. They shipped after 2.15.0, so no store build has
       carried them yet.
 - [ ] **Backgrounding doesn't kill the mic.** Mid-session, switch apps or lock
       the screen ~30s, come back, and speak - it must transcribe. Debug log:
@@ -116,7 +116,7 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       in. Then sign out, force-stop, reopen - still signed **out**
       (`meditation-pal-7n22`).
 - [ ] **A mail link leaves the app cleanly.** About → "Kind words" opens the
-      mail composer, and back in the app taps still land. Through the in-app
+      mail composer, and back in the app taps still work. Through the in-app
       browser tab it left an invisible activity over the app until Back; the
       fix (`openExternal` in `external-links.ts`) was read from the plugin
       source, never run on a device.

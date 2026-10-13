@@ -70,7 +70,7 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
         const origin = deps.config.corsOrigins[0] ?? '';
         // Where Stripe returns the user. The client passes its own app path (e.g.
-        // '/app/' on the Pages subpath build) so the redirect lands IN the app,
+        // '/app/' on the Pages subpath build) so the redirect returns to the app,
         // not the marketing root. We honour only a clean relative path (leading
         // '/', no scheme-relative '//') and always prefix our own origin, so this
         // can't become an open redirect.

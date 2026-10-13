@@ -3,9 +3,9 @@
  *
  * Where a simple check-in speaks a stock phrase unconditionally, this sends the
  * session so far plus a synthetic bracketed "event" turn describing the silence,
- * and the model either offers one short line or replies [PASS]. The pass is the
- * point: a model with context can honor "I'm going to sit with my breath for ten
- * minutes now" where a canned phrase would barge in.
+ * and the model either offers one short line or replies [PASS]. The [PASS] option
+ * is why this exists: a model with context can respect "I'm going to sit with my
+ * breath for ten minutes now" where a canned phrase would barge in.
  *
  * A reply that is empty, unparseable, or too long falls back to the canned pool,
  * so weak models degrade to the simple behavior.

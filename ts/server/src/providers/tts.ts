@@ -119,7 +119,7 @@ const INWORLD_TTS_URL = 'https://api.inworld.ai/tts/v1/voice';
 
 /**
  * Synthesize `text` to MP3 bytes via Inworld TTS. `voice` is the catalog's
- * `<voiceId>:<modelId>` (Luna:inworld-tts-2); the model rides in the id because
+ * `<voiceId>:<modelId>` (Luna:inworld-tts-2); the model is part of the id because
  * it sets the rate (pricing/providers.inworldTtsRateFor). The voice is steered
  * by a style instruction, which Inworld does not bill. Audio comes back base64
  * in JSON. Throws on an upstream error.

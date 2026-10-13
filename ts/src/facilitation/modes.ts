@@ -371,7 +371,7 @@ function buildStageFrame(spec: ModeSpec): string {
     const arc = phases.map((p, i) => `${i + 1}. ${p.label}: ${p.summary}`).join('\n');
     return (
         [
-            'Session arc: this practice moves through stages. The meditator does not see this list; you hold it for them:',
+            'Session arc: this practice moves through stages. The meditator does not see this list; you keep track of it:',
             arc,
             '',
             'Which stage you are in arrives as a stage note in the conversation, carrying that stage\'s guidance. The latest stage note is the one in force.',
@@ -381,7 +381,7 @@ function buildStageFrame(spec: ModeSpec): string {
             `- Start with ${NEXT_PREFIX} when the stage guidance says this stage's work is complete, shown by the meditator's own words, not by your hopes for them. The rest of that same reply should already be facilitating the next stage, naturally. The last stage has no ${NEXT_PREFIX}.`,
             `- Start with ${BACK_PREFIX} when the meditator needs the previous stage again (contact lost, too much too fast, or the stage guidance says so). The first stage has no ${BACK_PREFIX}.`,
             '- When unsure, stay: no token. Moving too early is worse than staying a little long.',
-            '- Never mention stages, steps, or these tokens out loud. The arc is invisible; you simply speak naturally.',
+            '- Never mention stages, steps, or these tokens out loud. Just speak naturally.',
             `- A stage token can combine with [HOLD] when silence is also right, e.g. "${NEXT_PREFIX} [HOLD] Take all the time you need."`,
         ].join('\n') + '\n'
     );

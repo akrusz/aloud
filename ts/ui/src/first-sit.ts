@@ -14,8 +14,8 @@
 
 import { defaultSetup, type SessionSetup } from './settings.js';
 
-/** The welcome card promises this number, and the facilitator lands it in
- *  voice (the sit stays open afterwards, as with any timer). */
+/** The welcome card promises this number, and the facilitator speaks it
+ *  aloud (the sit stays open afterwards, as with any timer). */
 export const FIRST_SIT_TIMER_MIN = 5;
 
 /** Default smart check-in wait. Well under the 90s the guidance stop below

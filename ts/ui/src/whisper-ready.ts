@@ -2,7 +2,7 @@
  * Is the local Whisper model ready to transcribe?
  *
  * The desktop shell downloads and loads the model in the background (first
- * launch, or after a size/language change), and until that lands every
+ * launch, or after a size/language change), and until that finishes every
  * utterance 503s. Setup holds Begin on this rather than let a session start
  * deaf. The warm probe doubles as the kick: naming the model makes the shell
  * start loading it now.

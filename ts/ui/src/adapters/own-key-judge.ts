@@ -2,7 +2,7 @@
  * TypeSafe's Jev under the user's OWN key, for a desktop sit that keeps its
  * words off aloud cloud (voice-commands.ts). TypeSafe answers no browser origin
  * (CORS), so the request goes through the shell's fixed relay (/app/v1/judge,
- * src-tauri server.rs): desktop only. The key rides in x-provider-key and the
+ * src-tauri server.rs): desktop only. The key goes in x-provider-key and the
  * shell stores nothing.
  */
 

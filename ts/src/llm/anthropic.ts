@@ -7,7 +7,7 @@
  * input-heavy (~45:1) workload. Long sessions add a second, 1h-TTL "anchor"
  * breakpoint (ANCHOR_STEP) so a >5min [HOLD] silence doesn't drop the prefix.
  *
- * The system prompt gets NO breakpoint of its own: it already rides the
+ * The system prompt gets NO breakpoint of its own: it is already covered by the
  * message-prefix caches, and a 5m system block is processed before the messages
  * (order: tools, system, messages), so it would precede the 1h anchor, which
  * Anthropic 400s ("a 1h cache_control block must not come after a 5m block").
@@ -451,7 +451,7 @@ export class AnthropicProvider implements LLMProvider {
  * A `system` entry (a phase note) stays a system message only where the API
  * takes it: `systemRole` on, after a user message, and last or followed by an
  * assistant turn. Anywhere else, and on every model without the feature, it
- * rides as user text. Placement is re-judged each request, so an entry whose
+ * is sent as user text. Placement is re-judged each request, so an entry whose
  * reply was discarded switches to user text once a later user turn follows
  * it: one cache miss from that point, in a rare path.
  *
@@ -500,7 +500,7 @@ function cacheableAtOrBefore(convo: Message[], index: number): number {
  * fields appear only when prompt caching is active. `tokensUsed` is the
  * input+output sum for back-compat, excluding cache reads/creation.
  *
- * On a refusal the category lands in diagnostics. When a fallback model
+ * On a refusal the category is recorded in diagnostics. When a fallback model
  * answered (a `fallback_message` iteration), `attempts` lists every model that
  * ran so billing can price each at its own rates, and `servedBy` names the one
  * that answered; the top-level usage is that answering attempt's alone.

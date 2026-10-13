@@ -27,7 +27,7 @@ export type SttEvent =
            * True when this utterance's speech STARTED while TTS was audibly
            * playing (continuous-capture engines only). The echo guard keys off
            * this rather than arrival time: VAD trailing silence plus
-           * transcription latency can land an echo many seconds after playback
+           * transcription latency can deliver an echo many seconds after playback
            * ended, past any arrival-time window.
            */
           startedDuringTts?: boolean;

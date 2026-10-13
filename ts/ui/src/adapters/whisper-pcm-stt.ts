@@ -46,7 +46,7 @@ const SPECULATIVE_SILENCE_MS = 750;
 // Every pass re-sends the whole buffer, so early passes on a long rambly turn
 // re-billed its opening once per phrase-pause (measured: 76% of a session's
 // STT spend). Mid-thought pauses rarely outlast the late trigger, so the pass
-// lands on the terminal pause, where the final reuses it for free.
+// runs on the terminal pause, where the final reuses it for free.
 const SPEC_EARLY_MAX_BUFFER_MS = 12_000;
 // The same cutoff for hosted STT, where every pass bills (stt-picker
 // createServerAloudStt). The buffer still holds the 2s pre-roll at this point,
@@ -55,7 +55,7 @@ const SPEC_EARLY_MAX_BUFFER_MS = 12_000;
 // (meditation-pal-m56t): at 12s, 35% of the audio sent was a re-send of a
 // turn's opening; at this, 10%.
 export const CLOUD_SPEC_EARLY_MAX_BUFFER_MS = 6_000;
-// Lead before the submit decision, enough for the round-trip to land first.
+// Lead before the submit decision, enough for the round-trip to finish first.
 const SPEC_TERMINAL_LEAD_MS = 1500;
 // ⭐ TWEAK ME if a barge-in clips the first word(s): pre-speech audio (ms) kept
 // so a word's onset survives, covering the gap between speaking over the
@@ -251,7 +251,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     // window (INCOMPLETE_CLAUSE_EXTRA_MS).
     private partialIncomplete = false;
     // A speculative transcription is mid-flight. The audio callback won't
-    // finalize while true, so the dangling-clause verdict always lands before
+    // finalize while true, so the dangling-clause verdict always arrives before
     // submit - otherwise a slow network pass lets the adaptive window cut the
     // turn first, which is the cloud-STT mid-sentence cutoff (kkiz). The
     // maxUtterance runaway valve is deliberately NOT gated on this.
@@ -736,7 +736,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                         // hard-zero soft speech MID-UTTERANCE - observed as RMS
                         // exactly 0.000 for seconds while the user was still
                         // talking, Whisper returning [BLANK_AUDIO] for spans that
-                        // had words. The gate rides with noise suppression, not echo
+                        // had words. The gate is tied to noise suppression, not echo
                         // cancellation, so NS off while keeping EC (which continuous
                         // capture requires).
                         noiseSuppression: false,
@@ -876,7 +876,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // The decisive measurement for meditation-pal-oxmt: how loud this
             // device's echo actually was against the gates that are supposed to
             // reject it. On a working AEC peak sits near echoFloor and overGate
-            // is 0; on a phone loudspeaker with no usable AEC, peak lands in
+            // is 0; on a phone loudspeaker with no usable AEC, peak falls in
             // real-speech territory and overGate counts the frames that leaked.
             const w = this.echoWatch;
             this.echoWatch = null;
@@ -1110,7 +1110,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 }
 
                 // Reuse the last speculative transcript when no new speech has
-                // landed since (the common single-pause turn) - re-running would
+                // arrived since (the common single-pause turn) - re-running would
                 // bill an identical call. Speech since then invalidates it, and
                 // so does speech-LIKE activity in the untranscribed tail (see
                 // TAIL_RETRANSCRIBE_*, meditation-pal-rcdz).
@@ -1245,7 +1245,7 @@ export class WhisperPcmSttEngine implements SttEngine {
 /**
  * Index ranges to keep from a chunk sequence once every run of quiet chunks
  * longer than `gap` is collapsed to `keep` chunks (half from each edge, so the
- * cut lands inside the silence, never on a word). Runs of `gap` or fewer are
+ * cut falls inside the silence, never on a word). Runs of `gap` or fewer are
  * untouched. Pure, for tests; submitPayload feeds it the per-chunk verdicts.
  */
 export function compactQuietRuns(

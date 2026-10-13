@@ -24,7 +24,7 @@ const ENDPOINT = appUrl('/llm/claude_proxy/complete');
 
 /**
  * Per-attempt stall deadline. The local `claude` CLI cold-starts every turn (no
- * daemon, --no-session-persistence); the smaller models land well under 20s,
+ * daemon, --no-session-persistence); the smaller models finish well under 20s,
  * so exceeding it means a hung attempt. Aborting drops the connection, which
  * lets the Rust handler's kill_on_drop reap the child, and we retry on a fresh
  * process rather than wait out the server's 90s cap with no feedback.

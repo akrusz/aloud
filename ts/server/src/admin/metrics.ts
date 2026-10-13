@@ -58,7 +58,7 @@ export interface MetricsReport {
 
 const CLUSTER_THRESHOLD = 3;
 
-/** Gift accepts/claims land as `purchase` entries (`gift_accepted:` /
+/** Gift accepts/claims are recorded as `purchase` entries (`gift_accepted:` /
  *  `gift_claimed:` reasons, credits/gifts.ts) so the recipient's balance and
  *  converter status are right — but the money was the BUYER's, paid at gift
  *  checkout with no ledger entry of its own. Excluded from revenue so an

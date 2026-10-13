@@ -11,7 +11,7 @@
  * Chrome doesn't gate this way.
  *
  * So: prime this element with a silent clip inside the Begin handler, then
- * reuse it for every utterance. The permission rides on the element. The shared
+ * reuse it for every utterance. The permission is attached to the element. The shared
  * AudioContext (the noting chime) is primed on the same click, for the same
  * reason - it is born suspended and only a gesture may resume it.
  */
