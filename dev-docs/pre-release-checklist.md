@@ -104,6 +104,16 @@ check each of these still reflects reality:
   `ts/ui/public/aloud.png` + `ts/ui/public/favicon.ico` (the app's favicon /
   apple-touch icon) and `docs/assets/aloud.png` + `docs/favicon.ico` (the
   site's). Check their dates against `assets/aloud.png` after any icon change.
+- **Opening and closing sounds** - `ts/ui/public/audio/signature/`, one
+  `<preset>-open.mp3` and `<preset>-close.mp3` per pair in Settings → Look and
+  Feel. **Copies**, not sources: each is a render out of
+  `assets/promo/signature-candidates/` (`synth_signature.py`), and that
+  directory's README → "Chosen" says which candidate each preset is. A
+  re-render reaches the app only when its file is copied over.
+- **`LICENSE-EXCEPTION.md`** → "Trademarks" - names what is withheld as a
+  brand (the name, the wordmark, the orb, the app icons, the signature sounds).
+  The terms page's "License and open source" section says the same in a
+  sentence, so a new brand asset lands in both.
 
 ## Part B - change → consequence matrix
 
@@ -120,6 +130,11 @@ check each of these still reflects reality:
   policy names the voices spoken by a provider it singles out (today the four
   Inworld ones, because of data retention); a voice joining or leaving that
   provider lands there.
+- **Added/removed/renamed an opening and closing sound** (`SIGNATURE_SOUNDS` in
+  `ui/src/signature-sound.ts`) → its two files (the id names them), the label's
+  zh entry, the "Chosen" table in `assets/promo/signature-candidates/README.md`,
+  and `design-push.md` where it names the default. A retired id needs no
+  migration: `resolveSignatureSound` falls to the default.
 - **Added/removed/reworded a spoken command** → its ask in
   `voice-command-specs.ts` and a rerun of `npm run jev:commands` (the asks share
   one request, so any edit rescores all of them), `COMMAND_LINES` (English *and*

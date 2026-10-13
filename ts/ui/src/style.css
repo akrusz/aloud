@@ -363,9 +363,10 @@
     }
 }
 
-/* Display section's own commit button. Text scale + theme are preview-only
-   until applied (live-resizing mid-drag is disorienting), unlike the rest of
-   settings which auto-apply. Sits below the controls + preview. (odw) */
+/* The display controls' own commit button (Settings → Look and Feel). Text
+   scale + theme are preview-only until applied (live-resizing mid-drag is
+   disorienting), unlike the rest of settings which auto-apply. Sits below the
+   controls + preview. (odw) */
 .display-apply-row {
     display: flex;
     align-items: center;

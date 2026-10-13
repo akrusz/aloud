@@ -462,11 +462,15 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
 ## Licensing & third-party code
 
 aloud is AGPL-3.0 (`LICENSE`) with an App Store distribution exception
-(`LICENSE-EXCEPTION.md`). Anything **vendored** into the repo and shipped in the
-bundles - currently the Silero VAD model at
-`ts/ui/src/assets/silero_vad_op18_ifless.onnx` (MIT; provenance + upgrade notes
-in `ts/ui/src/assets/README.md`) - needs an entry in `THIRD-PARTY-NOTICES.md`.
-Declared npm/Cargo dependencies don't; the manifests cover those.
+(`LICENSE-EXCEPTION.md`). The same file withholds the brand (AGPL §7(e)): the
+name, the wordmark, the orb, the app icons and the signature sounds stay under
+the AGPL as files, but a fork may not be named or promoted with them.
+Anything **vendored** into the repo and shipped in the bundles - currently the
+Silero VAD model at `ts/ui/src/assets/silero_vad_op18_ifless.onnx` (MIT;
+provenance + upgrade notes in `ts/ui/src/assets/README.md`) and the Lucide
+flame path inlined in `ts/ui/src/embers.ts` (ISC) - needs an entry in
+`THIRD-PARTY-NOTICES.md`. Declared npm/Cargo dependencies don't; the manifests
+cover those.
 
 ## Landing site
 

@@ -91,6 +91,9 @@ public ratings or reviews**, their feedback arrives privately in the console.
       - One reply on an Inworld voice (Luna, Wren, Silas, Clive): first phoneme
         intact (`2igi`).
       - One spoken command.
+      - From the first build after 2.15.0: the opening and closing sounds play
+        whole at a sensible level, and the opening is not taken as a turn
+        (`signature-sound.ts`; no store build has carried them).
       - No buy button anywhere: the Account page shows the balance and "at
         aloud.rest/account" as text that does nothing when tapped, and "What are ☁?"
         offers only "Got it" once signed in.

@@ -6365,7 +6365,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         justify-content: flex-end;
     }
 
-    /* Display section: move the style preview below the controls so
+    /* Look and Feel's display controls: move the style preview below them so
        neither the controls nor the preview gets squeezed at this width. */
     .display-layout {
         flex-direction: column;

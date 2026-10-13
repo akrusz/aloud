@@ -42,6 +42,10 @@ first when picking the work back up.
   are for the video only: too long for noting, since the next turn waits for
   the sound to end. The wavs are gitignored; regenerate with the script (needs
   a venv with numpy + scipy).
+- **Opening and closing sounds**: `signature-candidates/` has the generator
+  (`synth_signature.py`), the audition page and the renders in the running.
+  Five pairs ship in the app as presets (its README → "Chosen"). The video
+  still opens and closes on `bowl-deep-long`.
 - **Auditions** (all in `play-video/build/audition/`, gitignored): the
   excerpt cuts, Harper takes of f0, f1 and f3 in `harper/`, and the rough cut.
   The video uses the rough cut's f1 takes, `f0-settle-take2` and

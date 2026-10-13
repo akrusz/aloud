@@ -1,11 +1,12 @@
 /**
  * Settings view: LLM provider + BYOK keys, language & speech recognition,
- * text-to-speech, display, pacing, session history, a collapsed Advanced shelf
- * for expert toggles, updates, and a dev-mode-only Developer section.
+ * text-to-speech, look and feel (the session's opening and closing sound,
+ * display), pacing, session history, a collapsed Advanced shelf for expert
+ * toggles, updates, and a dev-mode-only Developer section.
  *
  * Every control auto-applies and persists (the display controls under Look and
- * Feel are the exception - see wireDisplaySection). Keys persist into the same api-keys store the setup
- * view reads.
+ * Feel are the exception - see wireDisplaySection). Keys persist into the same
+ * api-keys store the setup view reads.
  */
 
 import {

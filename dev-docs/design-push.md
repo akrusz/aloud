@@ -4,8 +4,8 @@ A one-day push, planned for just before Android goes to production (see
 [store-submission-checklist.md](store-submission-checklist.md)), to be worked
 together: Claude proposes and builds, the dev decides anything that's taste. It
 came out of extracting aloud's design system from the code (2026-10-12, at
-`3fe0a15`), which left a short list of fixes and five ideas. Idea 1 has
-landed since; 2 to 5 are open.
+`3fe0a15`), which left a short list of fixes and five ideas. Ideas 1 and 2
+have landed since; 3 to 5 are open.
 
 The design system lives as a Claude artifact, private to the dev:
 https://claude.ai/artifact/27SpopimjEKrgy4ANwjiXc. It holds the brand book, all
@@ -101,7 +101,7 @@ aren't yet, then delete this section:
 ```sh
 bd create "History: facilitator role label never gets its pink" --type bug --priority 3 --labels ui --description "views/history.ts renderTranscript() writes class=\"transcript-role \${ex.role}\", and a facilitator turn's role is 'assistant'. app-base.css only styles .transcript-role.facilitator (accent-text) and .transcript-role.user (warm-text), so in History 'You' is gold but 'Facilitator' falls back to plain text. Fix either side: map assistant -> facilitator in the template, or rename the selector to .transcript-role.assistant."
 
-bd create "Settings Display preview never shows the theme you pick" --type bug --priority 3 --labels ui --description "views/settings.ts paintPreviewTheme() sets data-preview-theme on #text-scale-preview, but no CSS reads that attribute, so choosing 'Always light' from dark (or the reverse) leaves the style preview in the current theme. Setting data-theme instead should fix it with no new CSS: the token blocks are [data-theme=\"light\"] / [data-theme=\"dark\"] attribute selectors, so they re-declare every --bg/--text token for the preview's subtree. Check the .text-scale-preview background (--bg-primary) follows."
+bd create "Settings Look and Feel preview never shows the theme you pick" --type bug --priority 3 --labels ui --description "views/settings.ts paintPreviewTheme() sets data-preview-theme on #text-scale-preview, but no CSS reads that attribute, so choosing 'Always light' from dark (or the reverse) leaves the style preview in the current theme. Setting data-theme instead should fix it with no new CSS: the token blocks are [data-theme=\"light\"] / [data-theme=\"dark\"] attribute selectors, so they re-declare every --bg/--text token for the preview's subtree. Check the .text-scale-preview background (--bg-primary) follows."
 
 bd create "Contrast: four token pairs under WCAG AA" --type task --priority 3 --labels ui --description "Measured from the token values (WCAG 2 ratios): light --warm-text #b88114 is 2.5-3.4:1 on the grounds (it's used for the small 'You' label in History); dark --danger #c0503e is 3.2-4.1:1 as .btn-danger text (e.g. 'Delete' on --bg-secondary 3.9:1); light --success #4a8e5f is 2.9-3.9:1 ('Saved', update status); light --text-muted #756058 on --bg-card/--bg-dialog is 4.3:1 (hints inside peach modals). Everything else that carries text clears 4.5:1 in both themes. Smallest lightness-only moves (same HLS hue and saturation) that clear 4.5:1 on every ground including the peach card: light warm-text #815a0e (min 4.55), dark danger #cd7364 (4.51, reads a bit salmon - a more saturated red may suit better), light success #396c49 (4.54), light text-muted #715c55 (4.61, barely visible change)."
 
@@ -119,8 +119,8 @@ bd create "CSS sweep: rules for markup the app no longer renders" --type task --
   hear, a screenshot of a setup variant, two Begin buttons side by side) and let
   him call taste. Ideas 3 and 4 are the ones with real uncertainty; don't build
   either fully before he's seen a sketch.
-- **A sensible order:** 5 is site-only; 2 is a small code change and a sound
-  to choose; 3 and 4 change the setup screen and want a phone in hand, which
+- **A sensible order:** 5 is site-only; what is left of 2 is the video's
+  sound; 3 and 4 change the setup screen and want a phone in hand, which
   fits a mobile release day. Clear the fixes above first if they're still
   open; they're each small.
 - **What was a guess:** that returning users repeat their setup (idea 3), and
