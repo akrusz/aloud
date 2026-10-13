@@ -41,7 +41,7 @@ export function resolveSignatureSound(stored: unknown): SignatureSound {
 
 /** How far the files are turned down to sit with the facilitator's voice: the
  *  audition page's "under the voice" default, where the pairs were chosen. */
-const GAIN = 10 ** (-4 / 20);
+const GAIN = 10 ** (-6 / 20);
 /** Fade when a sound is cut short (a session ended early, another preview).
  *  Whatever replaces it starts once the fade is done: two of these overlapping,
  *  the same sound twice above all, beat against each other. */
