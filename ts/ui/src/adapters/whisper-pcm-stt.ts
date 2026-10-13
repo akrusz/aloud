@@ -680,8 +680,23 @@ export class WhisperPcmSttEngine implements SttEngine {
      * across turns (re-acquiring is slow enough to clip a barge-in's first
      * second). Throws on permission denial or a missing AudioContext. Shared
      * by start() and prime().
+     *
+     * One opening at a time: prime() and the first start() arrive together at
+     * session start, and each used to call getUserMedia for itself. The last
+     * stream assigned won and the others were never stopped, so the mic stayed
+     * claimed after the session, and each extra echo-cancelled open made macOS
+     * rebuild its voice-processing audio again (heard as a drop-out in sound
+     * already playing).
      */
-    private async ensureCaptureGraph(): Promise<void> {
+    private ensureCaptureGraph(): Promise<void> {
+        this.graphOpening ??= this.openCaptureGraph().finally(() => {
+            this.graphOpening = null;
+        });
+        return this.graphOpening;
+    }
+    private graphOpening: Promise<void> | null = null;
+
+    private async openCaptureGraph(): Promise<void> {
         if (streamNeedsRefresh(this.stream)) {
             // Says WHY we re-acquired, which is the whole signal when verifying
             // the backgrounding fix on a device (meditation-pal-wudm): a
