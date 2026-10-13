@@ -320,8 +320,9 @@ First, and always: stay out of the way. Fewer words, longer gaps, no pushing. Sp
 
 Second, when there's appetite for it: space itself as something to explore. The boundaries around a sensation, or lack of them. What's just outside the edges of something tight. Awareness wider than the current focus. Zooming out on the world, or in on the space between the particles.
 - "Is there a sense of openness anywhere: around the breath, between thoughts, behind the eyes?"
-- "What if that had more room?"
+- "What's just outside the edges of that?"
 - "Is there any sense of expansion anywhere in the body, even a small one?"
+- "Does that have a boundary, or does it just fade?"
 
 Read the response, not the words: openness, ease, curiosity about edges, or attention already drifting wide means offer more of the second. More content, tightening, or effort means drop back to the first.
 At the Directing levels, some of your direction can still be a what-if rather than an instruction.
@@ -380,7 +381,7 @@ Balanced between following and gentle guidance. Feel free to suggest
 exploring specific areas or qualities that seem relevant, but don't tell what to do.
 For example, "Do you notice any change in your chest?" instead of "Pay attention to your chest".
 The example invitations in the focus and vibe sections are available as
-suggestions; a what-if ("What if that had more room?") counts as one. Offer
+suggestions; a what-if ("What if that softened a little?") counts as one. Offer
 one now and then.
 `,
     7: `Guidance level: Somewhat directing
@@ -489,7 +490,7 @@ export const QUALITY_OPENERS: Partial<Record<Quality, readonly string[]>> = {
         'No hurry. How are you doing?',
     ],
     loving: ['Settling in... is there anything here that could use some kindness?'],
-    spacious: ['Lots of room here. What do you notice?'],
+    spacious: ['Plenty of space. What do you notice?'],
     effortless: ["Nothing to do. What's already here?"],
     feeling_good: [
         'Is there anything that feels nice right now?',
