@@ -1757,7 +1757,7 @@ function renderSetupHTML(
                      default, so say what it costs in accuracy before the sit
                      rather than after. -->
                 <p id="setup-stt-quality-note" class="credit-rate-legend hidden">
-                    ${t('Quality varies by device. aloud cloud is more accurate.')}
+                    ${t("Quality varies by device, and speaking won't interrupt the facilitator. aloud cloud is recommended.")}
                 </p>
             </div>
         </div>
