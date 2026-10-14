@@ -6,13 +6,13 @@ the App Store. The how-to lives in [mobile.md](mobile.md) (native projects),
 [mobile-signin-setup.md](mobile-signin-setup.md) (OAuth consoles). Bead
 `meditation-pal-7rh`. Finished steps are deleted, not ticked.
 
-## Where we are (2026-10-13)
+## Where we are (2026-10-14)
 
-- **Android**: Play internal testing, last upload on record 2.15.0
-  (versionCode 43), a few hand-added testers. Signing, the app-signing OAuth
-  client, demo account + App access text, content rating, Data Safety,
-  descriptions and promo video are all in. The tree is at 2.17.0
-  (versionCode 46).
+- **Android**: Play internal testing at 2.17.0 (versionCode 46), a few
+  hand-added testers. Signing, the app-signing OAuth client, demo account +
+  App access text, content rating, Data Safety, descriptions and promo video
+  are all in.
+- **Beta bonus is on** (`ALOUD_BETA_BONUS_CLIENT_IDS` set on Fly, `bb4k`).
 - **Play production is gated**: a closed test with 12+ testers opted in for 14
   days running, then an application. Open testing stays locked until then,
   internal testers don't count. So the public beta is a closed test, recruited
@@ -33,10 +33,11 @@ in section 2.
 
 **Android**
 
-- [ ] **Smoke the Play-installed build**: the newest `.aab` on internal
-      testing (upload it if 2.17.0 isn't there yet), uninstall the dev build
-      (same `applicationId`, different key), install from Play, sign in with
-      Google, run one Exploration session end to end.
+- [ ] **Smoke the Play-installed build**: uninstall the dev build (same
+      `applicationId`, different key), install 2.17.0 from Play, sign in with
+      Google (the beta bonus should land; if not, the server logs `beta bonus
+      check`, and `eligible: false` means the listed client id isn't the one
+      the build presents), run one Exploration session end to end.
 - [ ] **Joinable tester list**: a Google Group anyone can join, added under
       Closed testing → Testers with the feedback email.
 - [ ] **Closed testing release**: Create new release → Add from library → the
@@ -59,12 +60,6 @@ in section 2.
 
 ## 2. Nice to have this round
 
-- [ ] [Android] **Beta bonus on** (code done, `bb4k`), before the recruiting
-      post if it offers ☁: set `ALOUD_BETA_BONUS_CLIENT_IDS` on Fly to the
-      Play app-signing Android client id plus `app.aloud.meditation` (Apple's
-      audience, for TestFlight), deploy. The first Android sign-in logs `beta
-      bonus check`; `eligible: false` there means the listed id isn't the one
-      the build presents.
 - [ ] [iOS] **Mac off for testers**: in the external group's settings, untick
       "Test iPhone and iPad apps on Apple silicon Macs" (no mic on a Mac, so no
       session starts). Leave it on for the dev's own group.
