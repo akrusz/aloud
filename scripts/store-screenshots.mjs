@@ -24,8 +24,9 @@
  *   node scripts/store-screenshots.mjs [--device iphone] [--only session]
  *                                      [--theme dark] [--out <dir>]
  *
- * Writes <out>/<device>/<nn>-<shot>-<theme>.png, RGB with no alpha channel
- * (both stores reject transparency). The default <out> is
+ * Writes <out>/<device>/<nn>-<shot>-<theme>.png, and the same name under
+ * <device>/captioned/ with the shot's headline over it (renderCaption). RGB
+ * with no alpha channel: both stores reject transparency. The default <out> is
  * assets/store/screenshots/, which is gitignored: the consoles hold the
  * uploaded copies.
  *
@@ -36,7 +37,7 @@
 import { spawnSync } from 'node:child_process';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
     bootApp,
     clearTransients,
@@ -111,13 +112,24 @@ const DEVICES = {
 
 /** What gets shot, in listing order (the number prefixes the file name).
  *  Each starts on the setup view; `session` stages the sample transcript
- *  first, and `prepare` runs last. `themes` narrows THEMES for one shot. */
+ *  first, and `prepare` runs last. `themes` narrows THEMES for one shot.
+ *  `caption` is the headline and line under it on the captioned copy, in the
+ *  landing page's voice (lowercase, like its section titles). */
 const SHOTS = [
-    { id: 'setup', session: false },
-    { id: 'session', session: true },
+    {
+        id: 'session',
+        session: true,
+        caption: ['meditate by talking', "say what you're noticing. it listens, and asks short questions back."],
+    },
+    {
+        id: 'setup',
+        session: false,
+        caption: ['three ways to practice', 'exploration, noting, and felt sense. choose what it focuses on and how much it leads.'],
+    },
     {
         id: 'kasina',
         session: true,
+        caption: ['eyes open, if you like', 'tap the orb and it becomes a light to rest your gaze on.'],
         // Gazing mode: the orb leaves the nav for the middle of the screen,
         // and the theme goes dark whatever the run's theme is - so a light
         // one would be a copy.
@@ -280,6 +292,69 @@ function finish(rawPath, outPath, [w, h]) {
     if (r.status !== 0) throw new Error('ImageMagick failed');
 }
 
+/** The landing page's tokens (docs/css/style.css), per theme. */
+const SITE = {
+    light: { ground: '#fffdf2', card: '#f6d8bf', text: '#1f1a18', secondary: '#5c4a44', border: '#e2d0b8', mark: 'rgba(255, 216, 32, 0.55)' },
+    dark: { ground: '#110d08', card: '#221a13', text: '#f5efe6', secondary: '#c4b49e', border: '#302618', mark: 'rgba(232, 184, 32, 0.30)' },
+};
+
+const escapeHtml = (text) =>
+    text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+/**
+ * The captioned copy of a finished shot: a headline and a line under it,
+ * over the shot in the landing page's screenshot frame - a section title with
+ * its marker underline, the peach mat, the neutral sticker shadow. Rendered
+ * at the device's own metrics, so it comes out at the store size like the
+ * plain one. Sizes are the site's at a 956px-tall phone, scaled to the device.
+ */
+async function renderCaption(cdp, { shotPath, rawPath, theme, device, caption: [title, lead] }) {
+    const c = SITE[theme];
+    const s = device.css[1] / 956;
+    const px = (n) => `${(n * s).toFixed(2)}px`;
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1"><style>
+        html, body { margin: 0; height: 100%; }
+        body {
+            background: ${c.ground}; color: ${c.text};
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            display: flex; flex-direction: column; align-items: center;
+            padding: ${px(64)} ${px(24)} ${px(44)}; box-sizing: border-box;
+        }
+        /* One height for every caption (a line of title, two of lead), so
+           the frames line up across the set. */
+        header { min-height: ${px(112)}; display: flex; flex-direction: column; align-items: center; }
+        h1 { font-size: ${px(34)}; font-weight: 700; line-height: 1.2; margin: 0; text-align: center; }
+        .hl {
+            background-image: linear-gradient(100deg, transparent 0.5%, ${c.mark} 4%, ${c.mark} 96%, transparent 99.5%);
+            background-size: 100% 0.3em; background-position: 0 92%; background-repeat: no-repeat;
+            padding: 0.05em 0.35em;
+        }
+        p { font-size: ${px(19)}; line-height: 1.4; color: ${c.secondary}; margin: ${px(12)} 0 0; text-align: center; max-width: ${px(380)}; }
+        .frame {
+            flex: 1; min-height: 0; margin-top: ${px(30)};
+            padding: ${px(10)}; background: ${c.card};
+            border: 2px solid ${c.border}; border-radius: ${px(28)} / ${px(17)};
+            box-shadow: ${px(8)} ${px(8)} 0 ${c.border};
+            display: flex;
+        }
+        .frame img { height: 100%; width: auto; display: block; border-radius: ${px(14)} / ${px(9)}; }
+    </style></head><body>
+        <header>
+            <h1><span class="hl">${escapeHtml(title)}</span></h1>
+            <p>${escapeHtml(lead)}</p>
+        </header>
+        <div class="frame"><img src="${pathToFileURL(shotPath)}"></div>
+    </body></html>`;
+    const page = rawPath.replace(/\.png$/, '.html');
+    await writeFile(page, html);
+    await cdp.send('Page.navigate', { url: pathToFileURL(page).href });
+    await cdp.once('Page.loadEventFired');
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    await writeFile(rawPath, Buffer.from(data, 'base64'));
+}
+
 async function main() {
     const devices = Object.entries(DEVICES).filter(([id]) => !ONLY_DEVICE || id === ONLY_DEVICE);
     if (devices.length === 0) {
@@ -304,7 +379,7 @@ async function main() {
             });
             await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
             const dir = join(OUT_DIR, deviceId);
-            await mkdir(dir, { recursive: true });
+            await mkdir(join(dir, 'captioned'), { recursive: true });
             console.log(`${device.label} (${device.out.join('x')})`);
 
             for (const theme of THEMES) {
@@ -330,6 +405,12 @@ async function main() {
                     const out = join(dir, `${name}.png`);
                     finish(raw, out, device.out);
                     console.log(`  ${out}`);
+
+                    const captionedRaw = join(profile, `${deviceId}-${name}-captioned.png`);
+                    await renderCaption(cdp, { shotPath: out, rawPath: captionedRaw, theme, device, caption: shot.caption });
+                    const captioned = join(dir, 'captioned', `${name}.png`);
+                    finish(captionedRaw, captioned, device.out);
+                    console.log(`  ${captioned}`);
                 }
             }
         }

@@ -319,8 +319,10 @@ live view. Change `--width` and update the `width`/`height` attributes on the
 
 Store screenshots come from the same machinery (`scripts/lib/app-shots.mjs`),
 at each console's exact pixel size: App Store iPhone 6.9" and iPad 13", Play
-phone 9:16 and 10" tablet. Setup, session and kasina, both themes (kasina is
-dark-only), into the gitignored `assets/store/screenshots/<device>/`.
+phone 9:16 and 10" tablet. Session, setup and kasina, both themes (kasina is
+dark-only), into the gitignored `assets/store/screenshots/<device>/`, plus a
+captioned copy of each in `<device>/captioned/`: the headline and line in
+`SHOTS[].caption` over the shot, framed like the landing page's screenshot.
 
 ```bash
 npm run web:dev                                   # must be up, as above
