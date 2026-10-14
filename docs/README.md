@@ -13,6 +13,7 @@ docs/
   terms/          ← terms of service (hand-written)
   delete-account/ ← how to delete an account + what it forfeits. Play requires a
                     public URL for this, reachable without installing the app.
+  support/        ← contact + mic permissions; the stores' support URL.
   account/        ← redirect to the web app's Account page (/app/account). The
                     Android app names aloud.rest/account in plain text, so it
                     must keep resolving.
@@ -46,6 +47,10 @@ Any static server. From the repo root:
 python3 -m http.server -d docs 8000
 # then open http://localhost:8000
 ```
+
+The hand-written pages use relative paths (`../css/style.css`), so they also
+render opened straight from disk. `404.html` is the exception: Pages serves it
+at whatever path missed, so its paths must stay root-absolute.
 
 ## download wiring
 

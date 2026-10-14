@@ -10,12 +10,12 @@
   <meta name="theme-color" content="#fffdf2" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#110d08" media="(prefers-color-scheme: dark)">
 
-  <link rel="icon" type="image/png" href="/assets/aloud.png">
-  <link rel="apple-touch-icon" href="/assets/aloud.png">
+  <link rel="icon" type="image/png" href="../assets/aloud.png">
+  <link rel="apple-touch-icon" href="../assets/aloud.png">
 
-  <link rel="preload" href="/assets/fonts/knewave-v15.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../assets/fonts/knewave-v15.woff2" as="font" type="font/woff2" crossorigin>
 
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="../css/style.css">
 
   <!-- Theme bootstrap — see index.html. -->
   <script>
@@ -49,7 +49,7 @@
 <body>
 
   <nav class="nav">
-    <a class="nav-brand" href="/">aloud.</a>
+    <a class="nav-brand" href="../">aloud.</a>
     <a class="nav-link" href="https://krusz.net" target="_blank" rel="noopener">krusz.net</a>
     <a class="nav-link" href="https://github.com/akrusz/aloud" target="_blank" rel="noopener">github</a>
     <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
@@ -76,7 +76,7 @@
     <h2>Two ways to use aloud</h2>
     <p>aloud is designed to give you a choice about where your data goes:</p>
     <ul>
-      <li><strong>Your own way (local / bring-your-own).</strong> On platforms that allow it (such as the desktop app), aloud runs on your device and connects directly to the providers you configure with your own credentials, or runs fully on-device. aloud has no server in the middle and receives nothing. See our <a href="/privacy/">privacy policy</a> for the details.</li>
+      <li><strong>Your own way (local / bring-your-own).</strong> On platforms that allow it (such as the desktop app), aloud runs on your device and connects directly to the providers you configure with your own credentials, or runs fully on-device. aloud has no server in the middle and receives nothing. See our <a href="../privacy/">privacy policy</a> for the details.</li>
       <li><strong>aloud cloud.</strong> Our optional hosted service for situations where running your own isn't practical, such as the web app and the in-beta mobile apps. You sign in, optionally buy credits, and aloud cloud relays your audio and text to third-party AI and voice providers on your behalf. We don't keep your session content.</li>
     </ul>
     <p>Wherever your platform physically allows it, you keep the ability to run your own models and bring your own keys; using aloud cloud is always a convenience, never a requirement.</p>
@@ -98,11 +98,11 @@
       <li>have <strong>no cash value</strong>, are not money, and are not transferable between accounts;</li>
       <li>are consumed in proportion to usage, at rates that may change over time (we'll reflect current rates in the app);</li>
       <li>may include <strong>complimentary credits</strong> we choose to grant (for example, a starting balance for new accounts). Complimentary credits are a discretionary courtesy; they may expire, may be changed or withdrawn at any time, and are never refundable;</li>
-      <li>are <strong>forfeited if you delete your account</strong>, purchased and complimentary alike. Deleting an account zeroes the balance, and it can't be restored afterwards, so use up what you can first. See <a href="/delete-account/">deleting your account</a>.</li>
+      <li>are <strong>forfeited if you delete your account</strong>, purchased and complimentary alike. Deleting an account zeroes the balance, and it can't be restored afterwards, so use up what you can first. See <a href="../delete-account/">deleting your account</a>.</li>
     </ul>
     <p>You can buy credits using the payment methods we offer at the time, for example card payments (processed by Stripe) or supported on-chain stablecoin payments. Purchases of credits are final and non-refundable except where a refund is required by applicable law. We may change pricing and the features of aloud cloud, and we may discontinue the service; if we discontinue it, we'll make a reasonable effort to give notice.</p>
     <h3>What we keep</h3>
-    <p>We don't retain the content of your sessions on aloud cloud. Your audio, transcripts, and the AI's responses pass through only to reach the providers that fulfill them. We do process the limited account, credit-usage, and payment information needed to run the service, as described in the <a href="/privacy/">privacy policy</a>.</p>
+    <p>We don't retain the content of your sessions on aloud cloud. Your audio, transcripts, and the AI's responses pass through only to reach the providers that fulfill them. We do process the limited account, credit-usage, and payment information needed to run the service, as described in the <a href="../privacy/">privacy policy</a>.</p>
 
     <h2>Using your own provider keys</h2>
     <p>On some platforms you may choose to supply your own provider API keys instead of using credits. You are responsible for keeping those keys valid and for any usage and charges your providers bill to them. Your keys are stored only on your device, never on our servers. On the web app, bring-your-own-key is off by default and applies only if you manually turn it on. Your sessions then call each provider directly from the app. The one time a key passes through aloud cloud is when the app looks up a provider's list of available models: it's used transiently for that request and never stored. You remain bound by your provider's terms regarding key use.</p>
@@ -118,7 +118,7 @@
     <ul>
       <li>Your use of each provider's service is governed by <strong>that provider's own terms and privacy policy</strong>, not ours.</li>
       <li>When you connect a provider yourself, you use your <strong>own account and credentials</strong> and are responsible for any usage, fees, or content limits it applies.</li>
-      <li>When aloud cloud relays to a provider, we <strong>say which providers we use</strong> (the current list is in our <a href="/privacy/">privacy policy</a>).</li>
+      <li>When aloud cloud relays to a provider, we <strong>say which providers we use</strong> (the current list is in our <a href="../privacy/">privacy policy</a>).</li>
     </ul>
     <p>aloud does not control these providers and is not responsible for their availability, output, pricing, or how they handle data sent to them.</p>
 
@@ -139,6 +139,6 @@
     <p>Questions about these terms? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20terms">lexkrusz@gmail.com</a>.</p>
   </main>
 
-  <script src="/js/theme.js" defer></script>
+  <script src="../js/theme.js" defer></script>
 </body>
 </html>

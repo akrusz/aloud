@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>support · aloud.</title>
+  <meta name="description" content="Get help with aloud: contact, microphone permissions, and your account.">
+
+  <link rel="canonical" href="https://aloud.rest/support/">
+  <meta name="theme-color" content="#fffdf2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#110d08" media="(prefers-color-scheme: dark)">
+
+  <link rel="icon" type="image/png" href="../assets/aloud.png">
+  <link rel="apple-touch-icon" href="../assets/aloud.png">
+
+  <link rel="preload" href="../assets/fonts/knewave-v15.woff2" as="font" type="font/woff2" crossorigin>
+
+  <link rel="stylesheet" href="../css/style.css">
+
+  <!-- Theme bootstrap — see index.html. -->
+  <script>
+    (function() {
+      var TTL = 4 * 60 * 60 * 1000;
+      try {
+        var raw = localStorage.getItem('aloud-site-theme');
+        if (raw) {
+          var saved = JSON.parse(raw);
+          if (saved && saved.value && saved.ts && (Date.now() - saved.ts < TTL)) {
+            document.documentElement.setAttribute('data-theme', saved.value);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <style>
+    .legal { max-width: 720px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+    .legal h1 { font-size: 2.25rem; margin: 0 0 1.5rem; color: var(--text-primary); }
+    .legal h2 { font-size: 1.35rem; margin: 2.25rem 0 0.6rem; color: var(--text-primary); }
+    .legal p, .legal li { color: var(--text-secondary); line-height: 1.6; }
+    .legal ul { padding-left: 1.25rem; margin: 0.4rem 0 1rem; }
+    .legal li { margin-bottom: 0.4rem; }
+    .legal strong { color: var(--text-primary); }
+    .legal .lead { font-size: 1.1rem; color: var(--text-primary); }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="nav-brand" href="../">aloud.</a>
+    <a class="nav-link" href="https://krusz.net" target="_blank" rel="noopener">krusz.net</a>
+    <a class="nav-link" href="https://github.com/akrusz/aloud" target="_blank" rel="noopener">github</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
+  </nav>
+
+  <main class="legal">
+    <h1>Support</h1>
+
+    <p class="lead">Questions, bugs, or feedback? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20support">lexkrusz@gmail.com</a>. A screenshot helps if something looks wrong.</p>
+
+    <h2>It can't hear me</h2>
+    <p>aloud is voice only, so it needs the microphone.</p>
+    <ul>
+      <li><strong>iPhone and iPad</strong>: Settings → aloud, allow Microphone and Speech Recognition.</li>
+      <li><strong>Android</strong>: Settings → Apps → aloud → Permissions → Microphone.</li>
+      <li><strong>Browser</strong>: allow the microphone for aloud.rest when asked, or from the site settings next to the address bar.</li>
+    </ul>
+
+    <h2>Your account</h2>
+    <ul>
+      <li><a href="../delete-account/">Delete your account</a></li>
+      <li><a href="../privacy/">Privacy policy</a></li>
+      <li><a href="../terms/">Terms</a></li>
+    </ul>
+  </main>
+
+  <script src="../js/theme.js" defer></script>
+</body>
+</html>
