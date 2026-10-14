@@ -70,6 +70,11 @@ check each of these still reflects reality:
 - **`dev-docs/`** - dev/build/feature docs (index: `dev-docs/README.md`).
   The cheatsheet's **dev URL params** table and **Developer mode** section drift
   fastest: a new `?param` or Settings → Developer switch belongs in both.
+  The build status in `store-submission-checklist.md` → "Where we are" (the
+  Play versionCode, the TestFlight build) is **expected to trail** the release
+  being cut: the mobile builds come after it (`release.sh` offers them at the
+  end) and the dev uploads them, then updates the status. Leave it alone and
+  don't report it.
 - **`CLAUDE.md`** - the architecture section (commands, modules, data flow,
   pacing/check-in behavior) and any conventions. It's the only agent-instruction
   file; if `bd` regenerates an `AGENTS.md`, that's tool scaffolding, not a
