@@ -13,7 +13,7 @@ the App Store. The how-to lives in [mobile.md](mobile.md) (native projects),
   managers). Signing, the app-signing OAuth client, demo account +
   App access text, content rating, Data Safety, descriptions and promo video
   are all in.
-- **Beta bonus is on** (`ALOUD_BETA_BONUS_CLIENT_IDS` set on Fly, `bb4k`).
+- **Beta bonus is on** (`ALOUD_BETA_BONUS_CLIENT_IDS` set on Fly, `bb4k`), seen landing on both the Play and the TestFlight build.
 - **Play production is gated**: a closed test with 12+ testers opted in for 14
   days running, then an application. Open testing stays locked until then,
   internal testers don't count. So the public beta is a closed test, recruited
@@ -107,7 +107,8 @@ in section 2.
       they said, what changed. The production application asks exactly that
       (Production page → "Preview questions").
 - [ ] [Android] **Site platform line** (`docs/index.html`, "iOS and Android are
-      in closed beta") can carry the group link: the release is approved.
+      in closed beta") can link `aloud.rest/mobile-beta/` (made 2026-10-14, unlinked
+      so far), which has the group, opt-in and TestFlight links.
 
 ## 3. Do later (production and App Store launch)
 
@@ -153,7 +154,8 @@ in section 2.
       "not a trader": that tells EU users their consumer rights don't apply.
 - [ ] Mac App Store: Pricing and Availability → "iPhone and iPad Apps on Apple
       Silicon Macs" → untick "Make this app available" (separate from the
-      TestFlight switch).
+      TestFlight switch). Same page, Apple Vision Pro: on by default for an
+      iPad app; untick unless someone has run a session on one.
 - [ ] Google iOS sign-in (`tpj4`), optional: Google iOS OAuth client, its
       reversed client id as a URL scheme in `Info.plist` (a placeholder fails
       upload, ITMS-90158), audience into `GOOGLE_CLIENT_IDS`. Steps in

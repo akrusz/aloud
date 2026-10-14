@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mobile beta · aloud.</title>
+  <meta name="description" content="Join the aloud beta on Android or iPhone: meditate by talking.">
+
+  <link rel="canonical" href="https://aloud.rest/mobile-beta/">
+  <meta name="theme-color" content="#fffdf2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#110d08" media="(prefers-color-scheme: dark)">
+
+  <link rel="icon" type="image/png" href="../assets/aloud.png">
+  <link rel="apple-touch-icon" href="../assets/aloud.png">
+
+  <link rel="preload" href="../assets/fonts/knewave-v15.woff2" as="font" type="font/woff2" crossorigin>
+
+  <link rel="stylesheet" href="../css/style.css">
+
+  <!-- Theme bootstrap — see index.html. -->
+  <script>
+    (function() {
+      var TTL = 4 * 60 * 60 * 1000;
+      try {
+        var raw = localStorage.getItem('aloud-site-theme');
+        if (raw) {
+          var saved = JSON.parse(raw);
+          if (saved && saved.value && saved.ts && (Date.now() - saved.ts < TTL)) {
+            document.documentElement.setAttribute('data-theme', saved.value);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <style>
+    .legal { max-width: 720px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+    .legal h1 { font-size: 2.25rem; margin: 0 0 1.5rem; color: var(--text-primary); }
+    .legal h2 { font-size: 1.35rem; margin: 2.25rem 0 0.6rem; color: var(--text-primary); }
+    .legal p, .legal li { color: var(--text-secondary); line-height: 1.6; }
+    .legal ul, .legal ol { padding-left: 1.25rem; margin: 0.4rem 0 1rem; }
+    .legal li { margin-bottom: 0.9rem; }
+    .legal strong { color: var(--text-primary); }
+    .legal .lead { font-size: 1.1rem; color: var(--text-primary); }
+    .legal .step-cta { margin-top: 0.6rem; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="nav-brand" href="../">aloud.</a>
+    <a class="nav-link" href="https://krusz.net" target="_blank" rel="noopener">krusz.net</a>
+    <a class="nav-link" href="https://github.com/akrusz/aloud" target="_blank" rel="noopener">github</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light / dark"></button>
+  </nav>
+
+  <main class="legal">
+    <h1>Mobile beta</h1>
+
+    <p class="lead">aloud is in beta on Android and iPhone. You meditate by talking: say what you're noticing, and it asks short questions back.</p>
+
+    <h2>Android</h2>
+    <ol>
+      <li>Join the tester group with the Google account on your phone.
+        <div class="step-cta"><a class="btn btn-primary" href="https://groups.google.com/g/aloud-testers" target="_blank" rel="noopener">join the group</a></div>
+      </li>
+      <li>Opt in, then install from Google Play. While it's in testing, a Play search won't find it.
+        <div class="step-cta"><a class="btn btn-primary" href="https://play.google.com/apps/testing/app.aloud.meditation" target="_blank" rel="noopener">opt in</a></div>
+      </li>
+    </ol>
+    <p>Please keep it installed until at least November 13: this will help me satisfy the Play Store requirements so aloud can go public.</p>
+
+    <h2>iPhone and iPad</h2>
+    <ol>
+      <li>Install <a href="https://apps.apple.com/app/testflight/id899247664" target="_blank" rel="noopener">TestFlight</a> from the App Store.</li>
+      <li>Open the invite on your iPhone or iPad.
+        <div class="step-cta"><a class="btn btn-primary" href="https://testflight.apple.com/join/qYwFhwt8" target="_blank" rel="noopener">join on TestFlight</a></div>
+      </li>
+    </ol>
+    <p>Spots are limited for now. If it says the beta is full, check back soon.</p>
+
+    <h2>Once it's installed</h2>
+    <ul>
+      <li><strong>Noting</strong> works right away, no account needed.</li>
+      <li>For <strong>Exploration</strong> and <strong>Felt Sense</strong>, sign in with Google (Android) or Apple (iPhone). You get free credits, plus <strong>bonus credits as thanks for testing early</strong>. Email sign-up doesn't come with either.</li>
+      <li>It's voice only, so allow the microphone, and Speech Recognition on iPhone.</li>
+      <li>One known gap: you can't interrupt it by talking while it's speaking.</li>
+    </ul>
+
+    <h2>Feedback</h2>
+    <p>Anything odd is useful, and so is what you liked. Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20beta">lexkrusz@gmail.com</a>, or on iPhone take a screenshot and send it from TestFlight.</p>
+  </main>
+
+  <script src="../js/theme.js" defer></script>
+</body>
+</html>

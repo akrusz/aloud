@@ -13,6 +13,8 @@ docs/
   terms/          ← terms of service (hand-written)
   delete-account/ ← how to delete an account + what it forfeits. Play requires a
                     public URL for this, reachable without installing the app.
+  mobile-beta/    ← how to join the Android + iPhone betas. Not linked from
+                    the site yet; shared directly.
   support/        ← contact + mic permissions; the stores' support URL.
   account/        ← redirect to the web app's Account page (/app/account). The
                     Android app names aloud.rest/account in plain text, so it
