@@ -29,13 +29,11 @@ two things to settle before testers are recruited: Bluetooth headphones
 check-in (`v85a`, shorter default waits and a truthful second ask are in, not
 yet heard in a session).
 
-**iOS** has a TestFlight build, 2.15.0 (2026-10-11; the one before was 2.6.1 in
-August), with testers added, and **Sign in with Apple cannot work on it**: it
-was signed without the entitlement, and email sign-up carries no credits. It
-needs a new upload before anyone is sent to it (first item under "iOS").
-Still run on the simulator and a Mac only, never an iPhone. Test Information
-is not entered. Google sign-in is **not** wired (no URL scheme in
-`Info.plist`), and is being skipped for testing builds.
+**iOS** has a TestFlight build, 2.17.0 (2026-10-13), with testers added, and
+**Sign in with Apple works on it** (tried on the dev's Mac; 2.15.0 had gone up
+without the entitlement). Still run on the simulator and a Mac only, never an
+iPhone. Test Information is not entered. Google sign-in is **not** wired (no
+URL scheme in `Info.plist`), and is being skipped for testing builds.
 
 What the mobile build does: the LLM is **aloud cloud** (sign-in + credits).
 **Noting defaults to a circle of one sound participant**, which calls no model
@@ -267,7 +265,7 @@ Felt Sense. The App ID has the capability, the server takes the bundle id as
 an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
 `PrivacyInfo.xcprivacy` and the export-compliance flag are in.
 
-- [ ] **A TestFlight build that can sign in.** 2.15.0 was signed without
+- [x] **A TestFlight build that can sign in**: 2.17.0. 2.15.0 was signed without
       `com.apple.developer.applesignin`, so Apple fails on it with
       `AuthorizationError error 1000` on every device. `scripts/ios-archive.sh`
       runs the fixed recipe and refuses an archive without the entitlement
