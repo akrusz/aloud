@@ -121,6 +121,9 @@
 .app-dialog.has-close {
     position: relative;
 }
+.app-dialog.is-tap-dismiss {
+    cursor: pointer;
+}
 .app-dialog-close {
     position: absolute;
     top: 0.5rem;

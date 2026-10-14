@@ -33,13 +33,23 @@ interface DialogExtras {
     /** Center the button row instead of the right-aligned default, which reads
      *  better when there's a single action rather than a choice pair. */
     centerButtons?: boolean;
+    /** A tap or click anywhere, on the box or off it, dismisses. For a notice
+     *  with nothing to choose. */
+    dismissOnTap?: boolean;
 }
 
 function showDialog<T>(
     message: string,
     buttons: ButtonSpec<T>[],
     dismissValue: T,
-    { asHtml = false, extra, footer, closeX = false, centerButtons = false }: DialogExtras = {}
+    {
+        asHtml = false,
+        extra,
+        footer,
+        closeX = false,
+        centerButtons = false,
+        dismissOnTap = false,
+    }: DialogExtras = {}
 ): Promise<T> {
     return new Promise((resolve) => {
         if (typeof document === 'undefined') {
@@ -115,7 +125,12 @@ function showDialog<T>(
         box.appendChild(btnRow);
         if (footer) box.appendChild(footer);
         backdrop.appendChild(box);
-        onBackdropClick(backdrop, () => finish(dismissValue));
+        if (dismissOnTap) {
+            box.classList.add('is-tap-dismiss');
+            backdrop.addEventListener('click', () => finish(dismissValue));
+        } else {
+            onBackdropClick(backdrop, () => finish(dismissValue));
+        }
         document.addEventListener('keydown', onKey, true);
         document.body.appendChild(backdrop);
         // preventScroll: on a screen too short even for the box's fixed parts
@@ -159,17 +174,23 @@ export function confirmDialog(message: string, opts: ConfirmOptions = {}): Promi
 }
 
 /** A one-button acknowledgement. Resolves once dismissed. `html: true`
- *  renders the message as markup - static app copy only, nothing untrusted. */
+ *  renders the message as markup - static app copy only, nothing untrusted.
+ *  `dismissOnTap: true` closes it on a tap anywhere, with the button
+ *  centered. */
 export function alertDialog(
     message: string,
     okLabel?: string,
-    opts: { html?: boolean } = {}
+    opts: { html?: boolean; dismissOnTap?: boolean } = {}
 ): Promise<void> {
     return showDialog(
         message,
         [{ label: okLabel ?? t('OK'), value: true, action: true }],
         true,
-        { asHtml: opts.html ?? false }
+        {
+            asHtml: opts.html ?? false,
+            dismissOnTap: opts.dismissOnTap ?? false,
+            centerButtons: opts.dismissOnTap ?? false,
+        }
     ).then(() => undefined);
 }
 

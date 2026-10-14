@@ -18,7 +18,7 @@ import { isDesktopSync, isCapacitor } from './is-desktop.js';
 import { signInNames } from './sign-in-providers.js';
 import { checkAndShowGifts } from './gift-modal.js';
 import { signInThanks } from './sign-in-thanks.js';
-import { showSuccessToast } from './toast.js';
+import { alertDialog } from './dialog.js';
 import {
     emailLogin,
     emailSignup,
@@ -58,7 +58,7 @@ const DEFAULT_SUBTITLE =
 
 /**
  * Resolves true after a successful sign-in, by which point the session token is
- * cached. Resolves false on dismiss (close, overlay click, Escape) and when a
+ * cached, and after any thank-you for free ☁ has been closed. Resolves false on dismiss (close, overlay click, Escape) and when a
  * second call finds one already open.
  */
 export function showSignInModal(options: SignInModalOptions = {}): Promise<boolean> {
@@ -112,13 +112,17 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         const releaseFocus = manageModalFocus(overlay);
 
         let settled = false;
-        const close = (result: boolean): void => {
-            if (settled) return;
+        /** False when the modal was already gone. */
+        const takeDown = (): boolean => {
+            if (settled) return false;
             settled = true;
             document.removeEventListener('keydown', onKey);
             releaseFocus();
             overlay.remove();
-            resolve(result);
+            return true;
+        };
+        const close = (result: boolean): void => {
+            if (takeDown()) resolve(result);
         };
         const onKey = (e: KeyboardEvent): void => {
             if (e.key === 'Escape') close(false);
@@ -135,11 +139,15 @@ export function showSignInModal(options: SignInModalOptions = {}): Promise<boole
         };
         const onSignedIn = (auth: AuthResponse): void => {
             options.onSignedIn?.(auth);
-            close(true);
+            if (!takeDown()) return;
+            // Resolving lets the caller go on (Begin starts the session, the
+            // explainer opens the buy modal), so the thanks is closed first.
             const thanks = signInThanks(auth);
-            if (thanks) showSuccessToast(thanks);
-            // They may have clouds waiting to be accepted.
-            void checkAndShowGifts();
+            void (thanks ? alertDialog(thanks, undefined, { dismissOnTap: true }) : Promise.resolve()).then(() => {
+                resolve(true);
+                // They may have clouds waiting to be accepted.
+                void checkAndShowGifts();
+            });
         };
 
         overlay.querySelector('#signin-modal-close')?.addEventListener('click', () => close(false));

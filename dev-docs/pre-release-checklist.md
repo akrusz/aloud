@@ -172,7 +172,7 @@ check each of these still reflects reality:
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
 - **Added/changed a free grant** (the connect grant, the beta bonus) → the
-  thank-you toast (`ui/src/sign-in-thanks.ts`) and its zh, the store
+  thank-you dialog (`ui/src/sign-in-thanks.ts`) and its zh, the store
   description's free-credit sentence, and, if it records new grant keys
   (`grant_keys`, kept after deletion), the privacy policy's "Abuse prevention"
   and retention lines and `docs/delete-account/`.
