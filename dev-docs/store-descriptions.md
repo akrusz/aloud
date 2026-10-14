@@ -16,7 +16,7 @@ Exploration is a conversation: you say what you're noticing in your body and emo
 
 Noting is simpler: you say one or two words for one thing you feel in the moment, such as warmth, tingling, or belly tension. Sound effects, spoken phrases, or simulated participants can help you keep a rhythm between quiet rest and spoken noticing.
 
-Felt Sense mode is inspired by Gendlin's Focusing: six steps that walk you through settling in, picking something that's on your mind, sensing how it sits in your body, finding words for it, and taking in whatever comes.
+Felt Sense mode is inspired by Gendlin's Focusing: six steps that walk you through settling in, sensing how something on your mind feels in your body, finding words for it, checking that they fit, asking it questions, and receiving whatever comes up.
 
 Any mode can have a set length. With the optional timer, the facilitator winds down near the end and says when time is up.
 
