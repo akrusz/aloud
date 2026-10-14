@@ -546,7 +546,11 @@ echo ""
 printf "  Build the mobile bundles (Android .aab, iOS archive)? [Y/n] "
 read -r MOBILE
 case "$MOBILE" in
-    n|N) ;;
+    n|N)
+        echo "  Skipped. To build them later:"
+        echo "    scripts/android-aab.sh --no-bump"
+        echo "    scripts/ios-archive.sh"
+        ;;
     *)
         ANDROID_OK=true
         IOS_OK=true
@@ -557,7 +561,8 @@ case "$MOBILE" in
         # Default no: an Enter typed ahead during the builds must not ship one.
         IOS_LINE="iOS archive FAILED - rerun: scripts/ios-archive.sh"
         if [ "$IOS_OK" = true ]; then
-            IOS_LINE="iOS: not uploaded - scripts/ios-archive.sh --upload when ready"
+            IOS_LINE="iOS: not uploaded. When ready:
+    scripts/ios-archive.sh --upload"
             echo ""
             printf "  Upload the iOS archive to TestFlight? [y/N] "
             read -r UPLOAD
