@@ -18,8 +18,9 @@ the App Store. The how-to lives in [mobile.md](mobile.md) (native projects),
   internal testers don't count. So the public beta is a closed test, recruited
   on Twitter.
 - **iOS**: TestFlight 2.17.0, testers added, Sign in with Apple works (tried on
-  the dev's Mac). Never run on an iPhone. Test Information not entered. No
-  Google sign-in (skipped for testing builds).
+  the dev's Mac). Never run on an iPhone. No Google sign-in (skipped for
+  testing builds). The App Store listing is filled in but not submitted
+  (section 3 holds what blocks it).
 - **Both**: the model is aloud cloud (sign-in + ☁). Noting defaults to a circle
   of one sound participant: no model, no account.
 - **Known and accepted**: no barge-in on native STT (`x4h4`), no anonymous
@@ -33,17 +34,17 @@ in section 2.
 
 **Android**
 
-- [ ] **Smoke the Play-installed build**: uninstall the dev build (same
+- [X] **Smoke the Play-installed build**: uninstall the dev build (same
       `applicationId`, different key), install 2.17.0 from Play, sign in with
       Google (the beta bonus should land; if not, the server logs `beta bonus
       check`, and `eligible: false` means the listed client id isn't the one
       the build presents), run one Exploration session end to end.
-- [ ] **Tester list**: add `aloud-testers@googlegroups.com`
+- [X] **Tester list**: add `aloud-testers@googlegroups.com`
       (https://groups.google.com/g/aloud-testers, made 2026-10-14) under Closed
       testing → Testers, with the feedback email. Group settings: anyone can
       join without approval, and only managers see the member list (testers'
       emails stay private from each other).
-- [ ] **Closed testing release**: Create new release → Add from library → the
+- [X] **Closed testing release**: Create new release → Add from library → the
       tested bundle. Pick countries, send for review (the first one is
       reviewed).
 - [ ] **Recruit, well past 12** (people drop out, and the 12 must hold for the
@@ -58,11 +59,13 @@ in section 2.
 
 **iOS**
 
-- [ ] **TestFlight Test Information** from `store-descriptions.md` →
+- [X] **TestFlight Test Information** from `store-descriptions.md` →
       "TestFlight": beta description, feedback email, What to Test, Beta App
       Review notes + demo account (those two go to Apple only).
-- [ ] **External group** (internal testers must be on the App Store Connect
-      team): by email or a public link with a cap. The first build of a version
+- [ ] **External group**: by email or a public link with a cap. Testers need
+      only an Apple ID and the TestFlight app, no paid membership (internal
+      testers are App Store Connect users on the team, free but with console
+      access). The first build of a version
       goes through Beta App Review, about a day. No iPhone smoke is possible
       here (the Mac can't run a session), so the first testers are it.
 
@@ -95,9 +98,10 @@ in section 2.
 - [ ] [iOS] **An iPad or two among the testers.** The build declares iPad
       (`TARGETED_DEVICE_FAMILY = "1,2"`); the simulator showed the desktop
       layout fine at rest. Landscape, resizing and audio are unchecked.
-- [ ] [Both] **Listing refresh**: screenshots, plain and captioned, from
-      `node scripts/store-screenshots.mjs` (`<device>/` and
-      `<device>/captioned/`); feature graphic and 512 icon in `assets/store/`.
+- [ ] [Both] **Listing refresh**: the captioned screenshots from
+      `node scripts/store-screenshots.mjs` (`<device>/cap-*.png`); feature
+      graphic and 512 icon in `assets/store/`. The captions (`SHOTS` there)
+      want a copy pass, not before launch.
 - [ ] [Android] **Keep notes as it runs**: how testers were recruited, what
       they said, what changed. The production application asks exactly that
       (Production page → "Preview questions").
@@ -126,8 +130,6 @@ in section 2.
 
 - [ ] **Store-billed packs** (StoreKit; Play Billing too, but Android's beta
       doesn't need it). **Required before iOS review**, see "Buying ☁".
-- [ ] App Privacy labels (from "Privacy answers on file"). Not needed for
-      TestFlight.
 - [ ] Reviewer note: noting works free with no account and by default never
       shows the sign-in modal; an AI companion switches it to the paid cloud
       path; give the demo account (heads off a 5.1.1 "why must I sign in").
@@ -135,10 +137,12 @@ in section 2.
 - [ ] iPad decision: a device family can't be dropped after the first release,
       so if no iPad has run a session by then, ship iPhone-only and add iPad
       later.
-- [ ] Listing assets: screenshots (iPhone 6.9" + iPad 13" from
-      `scripts/store-screenshots.mjs`), description, keywords, support +
-      privacy URLs, age rating. App previews are optional, 15-30s of footage of
-      the app at Apple's device sizes (2.3.4), not the Play YouTube video.
+- [ ] Listing: entered 2026-10-14 (captioned screenshots, promotional text,
+      support URL, App Privacy, category, copyright, content rights, free),
+      so only a recheck if the screens or copy change. The support URL is
+      `docs/support/`, live once `docs/` is pushed. App previews are optional,
+      15-30s of footage of the app at Apple's device sizes (2.3.4), not the
+      Play YouTube video.
 - [ ] EU trader status (DSA): **trader** (decided 2026-10-13). Account level
       (Account Holder or Admin), then per app: App Information → App Store
       Regulations and Permits → Digital Services Act. The EU page shows a
@@ -155,7 +159,8 @@ in section 2.
       upload, ITMS-90158), audience into `GOOGLE_CLIENT_IDS`. Steps in
       [mobile-signin-setup.md](mobile-signin-setup.md). Apple is already
       offered, so 4.8 is met either way.
-- [ ] Submit for App Store review (a few days).
+- [ ] Submit for App Store review (a few days). First rename the version
+      record from "1.0" to the build's version (2.17.0 or later).
 
 **Optional**: trademark the stylized "aloud." mark (`lkh`), for takedowns
 later, not for approval.

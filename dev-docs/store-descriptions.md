@@ -8,6 +8,20 @@ aloud.
 
 A voice-powered guide for meditation, inner work, and parts work
 
+## Category
+
+Health & Fitness, both stores. Not Medical: it invites medical-claim scrutiny.
+
+## URLs
+
+Support `https://aloud.rest/support/`, privacy `https://aloud.rest/privacy/`.
+
+## Promotional text (App Store, max 170 chars)
+
+Shown above the description; editable any time without a new version or review, so it can carry news later.
+
+Meditate by talking. Say what you're noticing in your body and emotions, and it asks short questions back. Noting is free, with no account needed.
+
 ## Full description
 
 With aloud, you meditate by talking. It listens and talks back. There are three modes: Exploration, Noting, and Felt Sense.
