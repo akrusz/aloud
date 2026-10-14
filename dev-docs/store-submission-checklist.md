@@ -38,13 +38,17 @@ in section 2.
       Google (the beta bonus should land; if not, the server logs `beta bonus
       check`, and `eligible: false` means the listed client id isn't the one
       the build presents), run one Exploration session end to end.
-- [ ] **Joinable tester list**: a Google Group anyone can join, added under
-      Closed testing → Testers with the feedback email.
+- [ ] **Tester list**: add `aloud-testers@googlegroups.com`
+      (https://groups.google.com/g/aloud-testers, made 2026-10-14) under Closed
+      testing → Testers, with the feedback email. Group settings: anyone can
+      join without approval, and only managers see the member list (testers'
+      emails stay private from each other).
 - [ ] **Closed testing release**: Create new release → Add from library → the
       tested bundle. Pick countries, send for review (the first one is
       reviewed).
 - [ ] **Recruit, well past 12** (people drop out, and the 12 must hold for the
-      whole 14 days). Order: join the group → opt in at
+      whole 14 days). Order: join the group
+      (https://groups.google.com/g/aloud-testers) → opt in at
       `https://play.google.com/apps/testing/app.aloud.meditation` → install
       from Play with the same Google account.
 
