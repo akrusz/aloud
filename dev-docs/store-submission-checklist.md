@@ -50,7 +50,11 @@ in section 2.
       whole 14 days). Order: join the group
       (https://groups.google.com/g/aloud-testers) → opt in at
       `https://play.google.com/apps/testing/app.aloud.meditation` → install
-      from Play with the same Google account.
+      from Play with the same Google account. Group membership alone doesn't
+      count: Google counts testers opted in for 14 days running (one who opts
+      out and back in starts over). The production application then asks how
+      testers used the app and what feedback came in, so ask them to run
+      sessions, and keep the feedback.
 
 **iOS**
 
