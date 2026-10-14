@@ -2,8 +2,11 @@
  * Transient toast: a fixed banner at the bottom that fades in, auto-dismisses,
  * and can be clicked to dismiss early. Styles are `.error-toast` in the base
  * stylesheet. Works anywhere in the app, so errors raised outside a live
- * session still get a surface.
+ * session still get a surface. An error toast's text also goes to the
+ * bug report's recent errors (error-log.ts).
  */
+
+import { recordToastError } from './error-log.js';
 
 const TOAST_DURATION_MS = 5000;
 const FADE_MS = 300;
@@ -40,6 +43,7 @@ function bottomClearingBars(): string {
 }
 
 export function showErrorToast(message: string): void {
+    recordToastError(message);
     showToast(message, 'error');
 }
 

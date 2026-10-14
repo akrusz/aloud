@@ -62,6 +62,12 @@ export function installErrorLog(): void {
     }
 }
 
+/** An error toast, in the words the user saw: it fades in seconds, and the
+ *  code that raised it doesn't always log. */
+export function recordToastError(message: string): void {
+    push(`toast: ${message}`);
+}
+
 /** The most recent captured lines, oldest first; empty when the page is clean. */
 export function recentErrors(limit = 8): string[] {
     return entries.slice(-limit);

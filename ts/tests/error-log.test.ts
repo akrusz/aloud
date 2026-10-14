@@ -7,7 +7,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
-import { installErrorLog, recentErrors } from '../ui/src/error-log.js';
+import { installErrorLog, recentErrors, recordToastError } from '../ui/src/error-log.js';
 
 type Listener = (e: never) => void;
 const listeners = new Map<string, Listener>();
@@ -63,6 +63,11 @@ describe('error-log', () => {
         expect(recentErrors().at(-1)).toBe(
             'unhandledrejection: [stt-native] recognizer error: Client side error'
         );
+    });
+
+    it('records error toasts in the words shown', () => {
+        recordToastError("This voice isn't available right now.");
+        expect(recentErrors().at(-1)).toBe("toast: This voice isn't available right now.");
     });
 
     it('drops the oldest entries past the cap', () => {
