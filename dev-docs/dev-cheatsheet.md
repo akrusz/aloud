@@ -414,7 +414,7 @@ stable release's notes for Play's "What's new" box.
 scripts/ios-archive.sh            # sync MARKETING_VERSION from package.json,
                                   # ui:build + cap sync ios + archive, signed
                                   # with App.entitlements and checked
-# → ts/ios/App/build/App.xcarchive
+# → ts/ios/App/archive/App.xcarchive
 scripts/ios-archive.sh --upload   # distribution signing + upload to App Store
                                   # Connect, from the archive that's there
 ```

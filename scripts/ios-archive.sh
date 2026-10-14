@@ -19,7 +19,7 @@
 #                                          distribution and send it to App
 #                                          Store Connect (needs Xcode signed in)
 #
-# Output: ts/ios/App/build/App.xcarchive
+# Output: ts/ios/App/archive/App.xcarchive
 
 set -e
 
@@ -29,9 +29,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 IOS_DIR=ts/ios/App
 PBXPROJ=$IOS_DIR/App.xcodeproj/project.pbxproj
 ENTITLEMENTS=$IOS_DIR/App/App.entitlements
-ARCHIVE=$IOS_DIR/build/App.xcarchive
+# Not $IOS_DIR/build: cap sync runs `xcodebuild clean`, which fails on a build/
+# the build system didn't create ("Could not delete ... not created by the build
+# system"), so every archive after the first broke the next sync.
+ARCHIVE=$IOS_DIR/archive/App.xcarchive
 APP=$ARCHIVE/Products/Applications/App.app
-LOG=$IOS_DIR/build/archive.log
+LOG=$IOS_DIR/archive/archive.log
 
 if ! command -v xcodebuild >/dev/null 2>&1; then
     echo "xcodebuild not found - the iOS archive needs Xcode." >&2
@@ -71,8 +74,8 @@ if [ "${1:-}" = "--upload" ]; then
     echo
     # -allowProvisioningUpdates mints the distribution cert + profile from the
     # Apple account Xcode is signed in to.
-    (cd "$IOS_DIR" && xcodebuild -exportArchive -archivePath build/App.xcarchive \
-        -exportOptionsPlist ExportOptions.plist -exportPath build/export \
+    (cd "$IOS_DIR" && xcodebuild -exportArchive -archivePath archive/App.xcarchive \
+        -exportOptionsPlist ExportOptions.plist -exportPath archive/export \
         -allowProvisioningUpdates)
     echo
     echo "uploaded $ARCHIVED - it shows in App Store Connect -> TestFlight once processed"
@@ -106,10 +109,10 @@ echo "building $VERSION"
 (cd ts && npm run cap:require-cloud-url && npm run ui:build && npx cap sync ios)
 
 rm -rf "$ARCHIVE"
-mkdir -p "$IOS_DIR/build"
+mkdir -p "$IOS_DIR/archive"
 echo "archiving (a few minutes) - log: $LOG"
 if ! (cd "$IOS_DIR" && xcodebuild archive -workspace App.xcworkspace -scheme App \
-        -destination "generic/platform=iOS" -archivePath build/App.xcarchive \
+        -destination "generic/platform=iOS" -archivePath archive/App.xcarchive \
         CODE_SIGNING_ALLOWED=NO) > "$LOG" 2>&1; then
     tail -40 "$LOG" >&2
     echo "archive failed - full log: $LOG" >&2

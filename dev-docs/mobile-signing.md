@@ -32,7 +32,7 @@ need a one-time lightweight **Beta App Review**.
 scripts/ios-archive.sh            # sync MARKETING_VERSION from ts/package.json,
                                   # ui:build + cap sync ios, archive, sign with
                                   # App.entitlements, check, commit the version
-# → ts/ios/App/build/App.xcarchive
+# → ts/ios/App/archive/App.xcarchive
 scripts/ios-archive.sh --upload   # sign that archive for distribution and send
                                   # it to App Store Connect
 ```
@@ -52,13 +52,13 @@ runs, the last command being `--upload`:
 cd ts && npm run cap:require-cloud-url && npm run ui:build && npx cap sync ios
 cd ios/App
 xcodebuild archive -workspace App.xcworkspace -scheme App \
-  -destination "generic/platform=iOS" -archivePath build/App.xcarchive \
+  -destination "generic/platform=iOS" -archivePath archive/App.xcarchive \
   CODE_SIGNING_ALLOWED=NO
-APP=build/App.xcarchive/Products/Applications/App.app
+APP=archive/App.xcarchive/Products/Applications/App.app
 codesign -f -s - "$APP"/Frameworks/*.framework
 codesign -f -s - --entitlements App/App.entitlements "$APP"
-xcodebuild -exportArchive -archivePath build/App.xcarchive \
-  -exportOptionsPlist ExportOptions.plist -exportPath build/export \
+xcodebuild -exportArchive -archivePath archive/App.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -exportPath archive/export \
   -allowProvisioningUpdates
 ```
 
