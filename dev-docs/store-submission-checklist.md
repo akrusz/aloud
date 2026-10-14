@@ -145,6 +145,10 @@ public ratings or reviews**, their feedback arrives privately in the console.
       on session sounds and setup, before the wider audience arrives.
 - [ ] **End the beta bonus** (`b73h`): admin panel → Free credits → Beta bonus
       → 0, then the code comes out. ☁ already granted stay.
+- [ ] **EU trader status (DSA)**: **trader**, the same answer and contact
+      details as Apple's (iOS → "EU trader status"). Play shows them on EU
+      listings too. Check what the account has on file first; not looked up
+      yet where Play Console keeps it.
 - [ ] **Promote to production** once it is granted, roll out. Another review, a
       few days. Public reviews open here. Open testing unlocks too, if a wider
       beta is still wanted then.
@@ -280,7 +284,11 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
       layout only: the web view has no `getUserMedia` there, so setup reads
       "aloud can't reach a microphone on this device" and no session starts,
       and it wears a system title bar that only a Catalyst app can hide. The
-      desktop app is the Mac version.
+      desktop app is the Mac version. It also shares the bundle id
+      `app.aloud.meditation`, so TestFlight won't install on a Mac until
+      `/Applications/aloud.app` is gone. Removing it keeps desktop history
+      (`~/Library/Application Support/app.aloud.meditation/sessions`); the
+      iOS build runs in its own `~/Library/Containers/app.aloud.meditation`.
 - [ ] **TestFlight Test Information**, from `store-descriptions.md` →
       "TestFlight": the beta description, the feedback email, What to Test and
       the Beta App Review notes with the demo account. Testers see the first
@@ -327,6 +335,19 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
       to 30 seconds at its own device sizes, made of footage of the app itself
       (Guideline 2.3.4), not a YouTube link. The 81.7s cut would need a recut.
       TestFlight has no video slot at all.
+- [ ] **EU trader status (DSA)**: declare **trader** (decided 2026-10-13: ☁
+      are sold and the app is promoted, and the test has no size threshold).
+      Account level (Account Holder or Admin), then per app under App
+      Information → App Store Regulations and Permits → Digital Services Act.
+      An individual's EU product page shows an address, a phone number and an
+      email, each verified: a P.O. box or mailbox service is accepted with a
+      bill or receipt tying you to it, plus a current document for the name
+      and address. A mailbox address and a separate number keep the home
+      address and personal phone off the page. TestFlight doesn't need it
+      (Apple: TestFlight-only is "not acting as a trader on the App Store");
+      launching with the EU storefronts off would defer it. "Not a trader"
+      would tell EU users their consumer rights don't apply, so not that.
+      Play asks the same; see "Android: production".
 - [ ] Submit for App Store review (a few days).
 
 ## Buying ☁ in the store builds
