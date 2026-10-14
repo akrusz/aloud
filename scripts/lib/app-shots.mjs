@@ -24,17 +24,19 @@ export function die(msg) {
 }
 
 /**
- * The exchange shown in the in-session shots. Sample copy, not a recording: a
- * real session needs a mic, an LLM and a person, none of which a screenshot
- * script has. Keep it the way the facilitator actually talks - short questions,
- * no platitudes - so the picture doesn't promise a different app.
+ * The exchange shown in the in-session shots, written into the DOM: a real
+ * session needs a mic, an LLM and a person, none of which a screenshot script
+ * has. It's the opening of a real Exploration session (2026-10-07), filler cut
+ * and the facilitator's lines shortened. Keep any replacement the way the
+ * facilitator actually talks - short questions, no platitudes - so the picture
+ * doesn't promise a different app.
  */
 export const SAMPLE_TURNS = [
-    ['assistant', 'Welcome. What has your attention right now?'],
-    ['user', "I've been thinking about the need to control. I'm going to internally ask myself a question. What do I need to control?"],
-    ['assistant', 'Take all the time you need with it, and just notice what answers back - words, sensations, images, whatever.'],
-    ['user', "The answer that came back right away is not joy."],
-    ['assistant', '"Not joy"... So joy gets to move freely. What happens in your body as you hear that answer?']
+    ['assistant', "What's the most noticeable sensation right now?"],
+    ['user', 'Expansion, like many, many point masses coming outwards from the front of my body.'],
+    ['assistant', "What's it like, that sense of point masses moving outward? Any texture or temperature?"],
+    ['user', "It reminds me of vapors coming off of a humidifier. And there's a joyfulness to it."],
+    ['assistant', 'Vapor drifting off the front of the body, with that joyfulness running through it. Where does the joy seem to sit, in the body or in the vapor itself?'],
 ];
 
 /** Overlays the app parks in the DOM hidden; any laid-out one is noise in a

@@ -24,8 +24,8 @@
  *   node scripts/store-screenshots.mjs [--device iphone] [--only session]
  *                                      [--theme dark] [--out <dir>]
  *
- * Writes <out>/<device>/<nn>-<shot>-<theme>.png, and the same name under
- * <device>/captioned/ with the shot's headline over it (renderCaption). RGB
+ * Writes <out>/<device>/raw-<nn>-<shot>-<theme>.png, and cap-<same> with the
+ * shot's headline over it (renderCaption). RGB
  * with no alpha channel: both stores reject transparency. The default <out> is
  * assets/store/screenshots/, which is gitignored: the consoles hold the
  * uploaded copies.
@@ -71,21 +71,30 @@ const ONLY_THEME = flag('theme', null);
  * text is rasterized at the final size rather than resampled. `safe` is the
  * system bars' inset in CSS px, `bar` which status bar to draw into it.
  *
- * App Store: one iPhone set at 6.9" and one iPad set at 13" covers every
- * device size (the console scales them down). Play: phone 9:16 at 1080x1920 is
- * what promotion eligibility asks for; the tablet set is optional.
+ * App Store: the console requires the iPhone "Dynamic Island (medium display)"
+ * slot, which takes no other size, plus a large-display set; the iPad 13" set
+ * covers every iPad. Smaller slots scale from these. Play: phone 9:16 at
+ * 1080x1920 is what promotion eligibility asks for; the tablet set is optional.
  */
 const DEVICES = {
-    iphone: {
-        label: 'App Store, iPhone 6.9"',
+    'iphone-large': {
+        label: 'App Store, iPhone with Dynamic Island (large display)',
         css: [440, 956],
         out: [1320, 2868],
         platform: 'ios',
         safe: { top: 62, bottom: 34 },
         bar: 'iphone',
     },
+    'iphone-medium': {
+        label: 'App Store, iPhone with Dynamic Island (medium display)',
+        css: [402, 874],
+        out: [1206, 2622],
+        platform: 'ios',
+        safe: { top: 62, bottom: 34 },
+        bar: 'iphone',
+    },
     ipad: {
-        label: 'App Store, iPad 13"',
+        label: 'App Store, iPad 13" display',
         css: [1032, 1376],
         out: [2064, 2752],
         platform: 'ios',
@@ -379,7 +388,7 @@ async function main() {
             });
             await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
             const dir = join(OUT_DIR, deviceId);
-            await mkdir(join(dir, 'captioned'), { recursive: true });
+            await mkdir(dir, { recursive: true });
             console.log(`${device.label} (${device.out.join('x')})`);
 
             for (const theme of THEMES) {
@@ -402,13 +411,13 @@ async function main() {
                     const name = `${String(i + 1).padStart(2, '0')}-${shot.id}-${theme}`;
                     const raw = join(profile, `${deviceId}-${name}.png`);
                     await writeFile(raw, Buffer.from(data, 'base64'));
-                    const out = join(dir, `${name}.png`);
+                    const out = join(dir, `raw-${name}.png`);
                     finish(raw, out, device.out);
                     console.log(`  ${out}`);
 
                     const captionedRaw = join(profile, `${deviceId}-${name}-captioned.png`);
                     await renderCaption(cdp, { shotPath: out, rawPath: captionedRaw, theme, device, caption: shot.caption });
-                    const captioned = join(dir, 'captioned', `${name}.png`);
+                    const captioned = join(dir, `cap-${name}.png`);
                     finish(captionedRaw, captioned, device.out);
                     console.log(`  ${captioned}`);
                 }

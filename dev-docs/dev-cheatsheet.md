@@ -318,16 +318,17 @@ live view. Change `--width` and update the `width`/`height` attributes on the
 `<img>` in `docs/index.html` to match what it prints.
 
 Store screenshots come from the same machinery (`scripts/lib/app-shots.mjs`),
-at each console's exact pixel size: App Store iPhone 6.9" and iPad 13", Play
-phone 9:16 and 10" tablet. Session, setup and kasina, both themes (kasina is
-dark-only), into the gitignored `assets/store/screenshots/<device>/`, plus a
-captioned copy of each in `<device>/captioned/`: the headline and line in
+at each console's exact pixel size: App Store iPhone large and medium display
+(medium is the required slot) and iPad 13", Play phone 9:16 and 10" tablet.
+Session, setup and kasina, both themes (kasina is dark-only), into the
+gitignored `assets/store/screenshots/<device>/` as `raw-*.png`, plus a
+captioned copy of each as `cap-*.png`: the headline and line in
 `SHOTS[].caption` over the shot, framed like the landing page's screenshot.
 
 ```bash
 npm run web:dev                                   # must be up, as above
 node scripts/store-screenshots.mjs                # every device (~1 min)
-node scripts/store-screenshots.mjs --device iphone --only session --theme dark
+node scripts/store-screenshots.mjs --device iphone-medium --only session --theme dark
 ```
 
 It's the web UI dressed as the native shell (`?mode=web`, `data-platform`,
