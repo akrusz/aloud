@@ -8,8 +8,9 @@ the App Store. The how-to lives in [mobile.md](mobile.md) (native projects),
 
 ## Where we are (2026-10-14)
 
-- **Android**: Play internal testing at 2.17.0 (versionCode 46), a few
-  hand-added testers. Signing, the app-signing OAuth client, demo account +
+- **Android**: closed testing release 2.17.0 (versionCode 46) approved
+  2026-10-14; testers join through the Google Group (posting locked to
+  managers). Signing, the app-signing OAuth client, demo account +
   App access text, content rating, Data Safety, descriptions and promo video
   are all in.
 - **Beta bonus is on** (`ALOUD_BETA_BONUS_CLIENT_IDS` set on Fly, `bb4k`).
@@ -106,8 +107,7 @@ in section 2.
       they said, what changed. The production application asks exactly that
       (Production page → "Preview questions").
 - [ ] [Android] **Site platform line** (`docs/index.html`, "iOS and Android are
-      in closed beta") can carry the group link once the release is approved.
-      A `docs/` push is live at once, so not before.
+      in closed beta") can carry the group link: the release is approved.
 
 ## 3. Do later (production and App Store launch)
 
