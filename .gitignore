@@ -9,6 +9,10 @@ sessions/
 # Generated icon set (scripts/generate-icon.sh)
 *.iconset
 
+# Store screenshots (scripts/store-screenshots.mjs): regenerated on demand,
+# and the consoles hold the uploaded copies.
+assets/store/screenshots/
+
 # Hosted UI build output — published to Pages by deploy-web.yml as an
 # ephemeral artifact, no longer committed (avoids stale build drift).
 docs/app/

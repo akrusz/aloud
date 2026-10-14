@@ -25,15 +25,23 @@
  *        --keep (leave the intermediate PNGs).
  *
  * The session shot's transcript is sample copy written into the DOM, not a
- * recorded session - see SAMPLE_TURNS. Everything else in it is the live view.
+ * recorded session - see SAMPLE_TURNS in lib/app-shots.mjs. Everything else
+ * in it is the live view.
  */
 
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+    bootApp,
+    clearTransients,
+    enterSession,
+    launchChrome,
+    preflight,
+    sleep,
+    waitFor,
+} from './lib/app-shots.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -62,30 +70,12 @@ const RADIUS = 11;
 const WIN_W = WIDTH - MARGIN * 2;
 const WIN_H = HEIGHT - MARGIN * 2;
 
-const CHROME =
-    process.env['CHROME_PATH'] ??
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-
 const THEMES = ['light', 'dark'];
 
 /** The narrator voice for the session shot: any voice that isn't hosted (see
  *  bootApp). Never heard - Chrome runs muted - but its name is in the picture,
  *  bottom right of the session view. */
 const LOCAL_VOICE = 'browser:Ava (Premium)';
-
-/**
- * The exchange shown in the in-session shot. Sample copy, not a recording: a
- * real session needs a mic, an LLM and a person, none of which a screenshot
- * script has. Keep it the way the facilitator actually talks - short questions,
- * no platitudes - so the picture doesn't promise a different app.
- */
-const SAMPLE_TURNS = [
-    ['assistant', 'Welcome. What has your attention right now?'],
-    ['user', "I've been thinking about the need to control. I'm going to internally ask myself a question. What do I need to control?"],
-    ['assistant', 'Take all the time you need with it, and just notice what answers back - words, sensations, images, whatever.'],
-    ['user', "The answer that came back right away is not joy."],
-    ['assistant', '"Not joy"... So joy gets to move freely. What happens in your body as you hear that answer?']
-];
 
 /** What gets shot, in order. Each entry writes <id>-light.webp / <id>-dark.webp
  *  (the setup shot keeps its historic aloud-screen-* name - the README and the
@@ -102,101 +92,6 @@ const SHOTS = [
         prepare: 'session',
     },
 ];
-
-function die(msg) {
-    console.error(msg);
-    process.exit(1);
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** Minimal CDP client: one WebSocket, id-matched replies, awaited events. */
-class Cdp {
-    #ws;
-    #id = 0;
-    #pending = new Map();
-    #waiters = [];
-
-    static async attach(wsUrl) {
-        const ws = new WebSocket(wsUrl);
-        await new Promise((resolve, reject) => {
-            ws.addEventListener('open', resolve, { once: true });
-            ws.addEventListener('error', reject, { once: true });
-        });
-        return new Cdp(ws);
-    }
-
-    constructor(ws) {
-        this.#ws = ws;
-        ws.addEventListener('message', (e) => {
-            const msg = JSON.parse(e.data);
-            if (msg.id !== undefined) {
-                const p = this.#pending.get(msg.id);
-                this.#pending.delete(msg.id);
-                if (!p) return;
-                if (msg.error) p.reject(new Error(msg.error.message));
-                else p.resolve(msg.result);
-                return;
-            }
-            for (const w of this.#waiters.splice(0)) {
-                if (w.method === msg.method) w.resolve(msg.params);
-                else this.#waiters.push(w);
-            }
-        });
-    }
-
-    send(method, params = {}) {
-        const id = ++this.#id;
-        this.#ws.send(JSON.stringify({ id, method, params }));
-        return new Promise((resolve, reject) => this.#pending.set(id, { resolve, reject }));
-    }
-
-    once(method, timeoutMs = 15000) {
-        return new Promise((resolve, reject) => {
-            const w = { method, resolve };
-            this.#waiters.push(w);
-            setTimeout(() => {
-                this.#waiters = this.#waiters.filter((x) => x !== w);
-                reject(new Error(`timed out waiting for ${method}`));
-            }, timeoutMs);
-        });
-    }
-
-    /** Evaluate in the page and return the JSON value. */
-    async eval(expression) {
-        const r = await this.send('Runtime.evaluate', {
-            expression,
-            returnByValue: true,
-            awaitPromise: true,
-        });
-        if (r.exceptionDetails) throw new Error(r.exceptionDetails.text);
-        return r.result.value;
-    }
-
-    close() {
-        this.#ws.close();
-    }
-}
-
-/** Wait for Chrome to write its debugging port, then find the page target. */
-async function chromeEndpoint(profileDir) {
-    const portFile = join(profileDir, 'DevToolsActivePort');
-    for (let i = 0; i < 100; i++) {
-        if (existsSync(portFile)) {
-            const [port] = (await readFile(portFile, 'utf8')).split('\n');
-            try {
-                const res = await fetch(`http://127.0.0.1:${port}/json/list`);
-                const targets = await res.json();
-                const page = targets.find((t) => t.type === 'page');
-                if (page) return page.webSocketDebuggerUrl;
-            } catch {
-                /* not listening yet */
-            }
-        }
-        await sleep(100);
-    }
-    throw new Error('Chrome never came up on a debugging port');
-}
 
 /** Post-process one raw capture into the framed webp the site loads. */
 function frame(pngPath, outPath) {
@@ -229,7 +124,7 @@ function frame(pngPath, outPath) {
 }
 
 /** Load the app with a known theme and a not-a-first-run profile. */
-async function bootApp(cdp, theme, shot) {
+async function loadApp(cdp, theme, shot) {
     const settings = {
         // A 20 minute timer, so the clock in the input row reads as a timer
         // rather than a two-second elapsed count. Partial settings are merged
@@ -245,102 +140,14 @@ async function bootApp(cdp, theme, shot) {
     // local voice. The setup shot keeps the hosted pick, which is what a
     // visitor's first screen shows.
     if (shot.prepare === 'session') settings.defaultVoice = LOCAL_VOICE;
-    // Seeded ahead of the app's own scripts rather than written into a loaded
-    // page: theme.ts reads themeMode at boot, and the setup view saves its
-    // voice pick into app settings when its catalog lands, which can overwrite
-    // a write made after load. The profile is fresh every run, which also
-    // means first-run state: mark the setup tour done, or it pops its welcome
-    // card over the shot.
-    const { identifier } = await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-        source: `try {
-            localStorage.setItem('themeMode', ${JSON.stringify(theme)});
-            localStorage.setItem('aloud:aloud-index-guide-done', '1');
-            localStorage.setItem('aloud:aloud-client-id', '1');
-            localStorage.setItem('aloud:app:settings', ${JSON.stringify(JSON.stringify(settings))});
-        } catch { /* a document with no storage (about:blank) */ }`,
+    // The profile is fresh every run, which also means first-run state: mark
+    // the setup tour done, or it pops its welcome card over the shot.
+    await bootApp(cdp, URL_BASE, {
+        themeMode: theme,
+        'aloud:aloud-index-guide-done': '1',
+        'aloud:aloud-client-id': '1',
+        'aloud:app:settings': JSON.stringify(settings),
     });
-    await cdp.send('Page.navigate', { url: URL_BASE });
-    await cdp.once('Page.loadEventFired');
-    await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
-}
-
-/** Poll until a selector exists - the setup catalogs arrive over fetch, and a
- *  shot taken before them is half-empty. */
-async function waitFor(cdp, selector, tries = 100) {
-    for (let i = 0; i < tries; i++) {
-        if (await cdp.eval(`!!document.querySelector(${JSON.stringify(selector)})`)) return;
-        await sleep(100);
-    }
-    throw new Error(`never saw ${selector}`);
-}
-
-/**
- * Begin a session and stage the transcript: SAMPLE_TURNS written straight
- * into the DOM, since a real exchange needs a mic, an LLM and a person.
- * Whatever the session view put there on mount (an opener, or a provider
- * error, since nothing is configured here) is cleared first.
- */
-async function enterSession(cdp) {
-    await cdp.eval(`document.querySelector('#begin-btn').click()`);
-    try {
-        await waitFor(cdp, '#conversation');
-    } catch {
-        // Begin has gates (provider, mic, sign-in, credits); say which one
-        // stopped us. Overlays sit in the DOM hidden, so only a laid-out one counts.
-        const why = await cdp.eval(`(() => {
-            if (document.querySelector('#begin-btn')?.disabled) return 'the Begin button is disabled';
-            const open = [...document.querySelectorAll(
-                '.voice-modal-overlay, .app-dialog-overlay, .modal-overlay'
-            )].find((el) => el.getClientRects().length > 0);
-            return open ? 'on screen: ' + open.innerText.replace(/\\s+/g, ' ').slice(0, 200) : '';
-        })()`);
-        throw new Error(`Begin never reached the session view${why ? ` (${why})` : ''}`);
-    }
-    await sleep(1500);
-    await cdp.eval(`(() => {
-        const conv = document.querySelector('#conversation');
-        const typing = conv.querySelector('.typing-indicator, #typing-indicator');
-        // Everything but the typing indicator: bubbles from the opener, and
-        // any provider notice ("Loading <model> into memory...").
-        for (const child of [...conv.children]) if (child !== typing) child.remove();
-        for (const [role, text] of ${JSON.stringify(SAMPLE_TURNS)}) {
-            const el = document.createElement('div');
-            el.className = 'message ' + (role === 'assistant' ? 'facilitator' : 'user');
-            const content = document.createElement('div');
-            content.className = 'message-content';
-            content.textContent = text;
-            el.appendChild(content);
-            if (typing) conv.insertBefore(el, typing);
-            else conv.appendChild(el);
-        }
-        if (typing) typing.classList.add('hidden');
-        conv.scrollTop = conv.scrollHeight;
-        // Nothing is generating - the app is between turns, waiting on a voice.
-        const status = document.querySelector('#voice-status');
-        if (status) status.textContent = 'Listening…';
-        // Any dialog the mountless session put up (mic, provider, credits) is
-        // noise in a screenshot.
-        for (const o of document.querySelectorAll('.voice-modal-overlay, .app-dialog-overlay, .modal-overlay')) {
-            o.remove();
-        }
-    })()`);
-}
-
-/** Last pass before the shutter: anything transient that drifted in while we
- *  waited (toasts, dialogs) is noise in a screenshot, and the status line
- *  should read as a session between turns rather than mid-error. */
-async function clearChrome(cdp, shot) {
-    await cdp.eval(`(() => {
-        for (const el of document.querySelectorAll(
-            '.error-toast, .voice-modal-overlay, .app-dialog-overlay, .modal-overlay'
-        )) el.remove();
-        ${
-            shot.prepare === 'session'
-                ? `const status = document.querySelector('#voice-status');
-                   if (status) status.textContent = 'Listening…';`
-                : ''
-        }
-    })()`);
 }
 
 /** Wear the desktop shell's clothes: this is what pads the brand clear of the
@@ -357,43 +164,10 @@ async function dressAsDesktop(cdp, theme) {
 }
 
 async function main() {
-    if (!existsSync(CHROME)) die(`No Chrome at ${CHROME} (set CHROME_PATH).`);
-    if (spawnSync('magick', ['-version'], { stdio: 'ignore' }).status !== 0) {
-        die('ImageMagick (magick) not found - brew install imagemagick');
-    }
-    try {
-        await fetch(URL_BASE, { signal: AbortSignal.timeout(2000) });
-    } catch {
-        die(`Nothing serving ${URL_BASE} - run \`cd ts && npm run web:dev\` first.`);
-    }
+    await preflight(URL_BASE);
 
-    const profile = await mkdtemp(join(tmpdir(), 'aloud-shot-'));
-    const chrome = spawn(
-        CHROME,
-        [
-            '--headless=new',
-            '--remote-debugging-port=0',
-            `--user-data-dir=${profile}`,
-            `--window-size=${WIN_W},${WIN_H}`,
-            '--hide-scrollbars',
-            '--force-color-profile=srgb',
-            '--disable-extensions',
-            '--no-first-run',
-            '--mute-audio',
-            // Grant the mic to a fake device: without it the session view puts
-            // up a "microphone access is blocked" toast over the shot.
-            '--use-fake-ui-for-media-stream',
-            '--use-fake-device-for-media-stream',
-            'about:blank',
-        ],
-        { stdio: 'ignore' }
-    );
-
-    let cdp;
+    const { cdp, profile, close } = await launchChrome({ width: WIN_W, height: WIN_H });
     try {
-        cdp = await Cdp.attach(await chromeEndpoint(profile));
-        await cdp.send('Page.enable');
-        await cdp.send('Runtime.enable');
         await cdp.send('Emulation.setDeviceMetricsOverride', {
             width: WIN_W,
             height: WIN_H,
@@ -405,7 +179,7 @@ async function main() {
         for (const theme of THEMES) {
             for (const shot of SHOTS) {
                 if (ONLY && ONLY !== shot.id) continue;
-                await bootApp(cdp, theme, shot);
+                await loadApp(cdp, theme, shot);
                 // The setup view is the landing view either way, and Begin
                 // lives on it.
                 await waitFor(cdp, '#begin-btn');
@@ -414,7 +188,7 @@ async function main() {
                 // Let the orb's entrance animation and the theme transition
                 // finish before the shutter.
                 await sleep(1200);
-                await clearChrome(cdp, shot);
+                await clearTransients(cdp, { session: shot.prepare === 'session' });
 
                 const { data } = await cdp.send('Page.captureScreenshot', {
                     format: 'png',
@@ -429,11 +203,7 @@ async function main() {
             }
         }
     } finally {
-        cdp?.close();
-        chrome.kill();
-        // Chrome is still flushing its profile as it dies; without the retries
-        // this throws ENOTEMPTY and hides whatever error brought us here.
-        if (!KEEP) await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+        await close({ keep: KEEP });
     }
 
     console.log(

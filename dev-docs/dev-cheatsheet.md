@@ -317,6 +317,22 @@ a real exchange needs a mic, an LLM and a person; everything around it is the
 live view. Change `--width` and update the `width`/`height` attributes on the
 `<img>` in `docs/index.html` to match what it prints.
 
+Store screenshots come from the same machinery (`scripts/lib/app-shots.mjs`),
+at each console's exact pixel size: App Store iPhone 6.9" and iPad 13", Play
+phone 9:16 and 10" tablet. Setup, session and kasina, both themes (kasina is
+dark-only), into the gitignored `assets/store/screenshots/<device>/`.
+
+```bash
+npm run web:dev                                   # must be up, as above
+node scripts/store-screenshots.mjs                # every device (~1 min)
+node scripts/store-screenshots.mjs --device iphone --only session --theme dark
+```
+
+It's the web UI dressed as the native shell (`?mode=web`, `data-platform`,
+the safe-area insets, a drawn 9:41 status bar), not a simulator capture. It
+fakes a signed-in account by answering `GET /cloud/v1/me` in the browser and
+holding every metered call, so nothing is billed. New screens go in `SHOTS`.
+
 Release (bumps version, lints both stacks, tags, pushes, creates the GitHub
 release that triggers CI):
 

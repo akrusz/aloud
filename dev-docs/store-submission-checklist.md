@@ -96,7 +96,8 @@ public ratings or reviews**, their feedback arrives privately in the console.
         aloud.rest/account" as text that does nothing when tapped, and "What are ☁?"
         offers only "Got it" once signed in.
 - [ ] **Listing pass**: recheck screenshots against the current UI (2+ phone,
-      portrait 9:16; they live only in the console), feature graphic and 512
+      portrait 9:16; they live only in the console; regenerate with
+      `node scripts/store-screenshots.mjs`), feature graphic and 512
       icon (`assets/store/`), support + privacy URLs. The descriptions and the
       promo video are in.
 - [ ] **Data Safety: three rows to add, two to change** (Play Console → App
@@ -169,7 +170,8 @@ public ratings or reviews**, their feedback arrives privately in the console.
 - [ ] **Data handling changed?** Then the Data Safety form (and Apple's App
       Privacy labels) change with the privacy policy, in the same pass. The
       answers on file are below.
-- [ ] Screenshots, if the setup or session screen changed.
+- [ ] Screenshots, if the setup or session screen changed:
+      `node scripts/store-screenshots.mjs` (dev-cheatsheet).
 - [ ] **Promo video**, if it was rebuilt: a fresh YouTube upload is a new id.
       Play takes the full `watch?v=` URL, not a file, and rejects `youtu.be`
       links, playlist or timestamp params, age-restricted videos and videos
@@ -324,10 +326,11 @@ an audience (`APPLE_CLIENT_IDS` on Fly, confirmed 2026-10-11), and
       desktop layout, top nav and three columns, with nothing out of place at
       rest. Not looked at: landscape, a resized window, audio. Ask for an iPad
       or two among the external testers; the 13" screenshots the listing needs
-      can come from the simulator. A device family cannot be dropped after the
+      come from `scripts/store-screenshots.mjs --device ipad`. A device family cannot be dropped after the
       first App Store release, so if no iPad has run a session by then, ship
       iPhone-only and add iPad in an update.
-- [ ] Listing assets: screenshots in Apple's required sizes, description,
+- [ ] Listing assets: screenshots in Apple's required sizes
+      (`scripts/store-screenshots.mjs`: iPhone 6.9" + iPad 13"), description,
       keywords, support + privacy URLs, age rating. **App previews** are
       optional and are not the Play video: Apple takes an uploaded file of 15
       to 30 seconds at its own device sizes, made of footage of the app itself
