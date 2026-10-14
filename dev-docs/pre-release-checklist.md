@@ -166,6 +166,11 @@ check each of these still reflects reality:
   `store-submission-checklist.md`, and the Play "App access" text.
 - **Changed data handling** (new network call, new stored data, new third-party
   service) → privacy policy + the App Store / Play data-safety answers.
+- **Added/changed a free grant** (the connect grant, the beta bonus) → the
+  thank-you toast (`ui/src/sign-in-thanks.ts`) and its zh, the store
+  description's free-credit sentence, and, if it records new grant keys
+  (`grant_keys`, kept after deletion), the privacy policy's "Abuse prevention"
+  and retention lines and `docs/delete-account/`.
 - **Changed what a judge request carries** (`judgeState`, `JudgeContext`) → the
   privacy policy's classification-model paragraphs say exactly what the check
   is shown, separately for aloud cloud and for opt-in / own-key sessions, and

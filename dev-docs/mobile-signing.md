@@ -49,7 +49,7 @@ profile carries the App ID's Sign in with Apple capability. What the script
 runs, the last command being `--upload`:
 
 ```bash
-cd ts && npm run ui:build && npx cap sync ios
+cd ts && npm run cap:require-cloud-url && npm run ui:build && npx cap sync ios
 cd ios/App
 xcodebuild archive -workspace App.xcworkspace -scheme App \
   -destination "generic/platform=iOS" -archivePath build/App.xcarchive \

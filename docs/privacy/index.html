@@ -57,7 +57,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: October 11, 2026</p>
+    <p class="updated">Last updated: October 13, 2026</p>
 
     <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains what happens to your data in each case.</p>
 
@@ -112,7 +112,7 @@
       <li><strong>Email updates (optional).</strong> When you create an account you can tick a box to get occasional emails about aloud. It's <strong>off unless you turn it on</strong>, and you can turn it off any time on the account page. If you opt in, we hold your address for that purpose as well as for your account. We never share or sell it, and opting out or deleting your account removes it from the list.</li>
       <li><strong>Credits and usage.</strong> Your credit balance and a metered record of usage (for example, the amount of audio or text processed, and aggregate per-session totals such as how many turns a session ran) so we can charge credits accurately, understand our costs, and prevent abuse. This is operational metering for billing and reliability, <em>not</em> behavioral profiling, and it does not include the content of your sessions.</li>
       <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our payment processor, <strong>Stripe</strong>, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
-      <li><strong>Abuse prevention.</strong> When you create an account, we record the IP address you signed up from, used only to catch abusive signup patterns (like farming free credits). It's deleted automatically after 90 days, and right away if you delete your account.</li>
+      <li><strong>Abuse prevention.</strong> When you create an account, we record the IP address you signed up from, used only to catch abusive signup patterns (like farming free credits). It's deleted automatically after 90 days, and right away if you delete your account. Free credits are given once per person, so when an account receives them we also keep a one-way hash of the email address, and for some grants the sign-in ID, that got them (never the address itself). Those hashes stay after you delete your account, so the same person can't claim the free credits again.</li>
       <li><strong>Operational logs.</strong> We may keep minimal, short-lived technical logs (for diagnostics, security, and abuse prevention) that do not contain your session content.</li>
       <li><strong>Error records.</strong> When a call we relay fails or is refused, or a credit purchase can't be started, we keep a short record of it - what went wrong (an error code or reason, the provider and model involved, token or byte counts), never anything you said or the AI replied. It's how we notice problems the app recovers from without showing you. These records sit with your account record and are anonymized when you delete your account, like the credit ledger.</li>
     </ul>
@@ -150,7 +150,7 @@
     <p>aloud cloud is operated from the <strong>United States</strong>, so if you use it from somewhere else (including the EU or UK), your account information, and the session content we relay, are processed in the US. The providers we relay to may process data in other regions under their own terms.</p>
     <ul>
       <li><strong>Session content:</strong> never stored, so there is nothing to retain.</li>
-      <li><strong>Account and credit records:</strong> kept while your account exists. When you delete your account, we remove your sign-in identities and scrub the record of your email address and IP; what remains is an anonymous credit ledger we keep for accounting.</li>
+      <li><strong>Account and credit records:</strong> kept while your account exists. When you delete your account, we remove your sign-in identities and scrub the record of your email address and IP; what remains is an anonymous credit ledger we keep for accounting, and the one-way hashes that stop free credits being claimed twice (see "Abuse prevention" above).</li>
       <li><strong>Signup IP address:</strong> deleted after 90 days at most.</li>
       <li><strong>Backups:</strong> the account database backup is continuously replaced; data scrubbed from the live database ages out of it within about a day.</li>
     </ul>

@@ -108,9 +108,11 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 -- Grant-eligibility keys (anti-farming, meditation-pal-8jc). Append-only log of
--- email-derived hashes (auth/email-key.ts) that have ever received the free
--- grant. Outlives the accounts/identities it came from, so deleting and
--- recreating an account can't re-claim the freebie. Never stores the address.
+-- hashed keys that have ever received a free grant: the mailbox for the connect
+-- grant (auth/email-key.ts), plus the beta bonus's account/identity/mailbox keys
+-- (quota/beta-bonus.ts). Outlives the accounts/identities it came from, so
+-- deleting and recreating an account can't re-claim the freebie. Never stores
+-- the address.
 CREATE TABLE IF NOT EXISTS grant_keys (
     key_hash   TEXT PRIMARY KEY,
     created_at REAL NOT NULL

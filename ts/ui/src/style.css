@@ -636,8 +636,8 @@
         padding-right: 1.5rem;
     }
 }
-/* Cloud-balance chip in the Display style-preview - mirrors the setup pill
-   (.session-estimate) but inline, and in em so it scales with the preview. */
+/* Cloud-balance chip in the Display style-preview - mirrors the setup footer's
+   rate pill (.clouds-help) but inline, and in em so it scales with the preview. */
 .preview-pill {
     display: inline-block;
     padding: 0.3em 0.6em;
