@@ -15,7 +15,9 @@
 #      so a failed run leaves nothing durable; only that file, so other
 #      in-flight work stays out of it)
 #
-# Usage: scripts/android-aab.sh [--no-bump]
+# Usage: scripts/android-aab.sh [--no-bump] [--no-notes]
+#   --no-notes  skip the closing "what's new" block (release.sh prints it last,
+#               after the iOS steps)
 #
 # Output: ts/android/app/build/outputs/bundle/release/app-release.aab
 
@@ -23,6 +25,17 @@ set -e
 
 # Run from project root regardless of caller cwd.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+. scripts/lib/whats-new.sh
+
+NO_BUMP=false
+NOTES=true
+for arg in "$@"; do
+    case "$arg" in
+        --no-bump) NO_BUMP=true ;;
+        --no-notes) NOTES=false ;;
+        *) echo "unknown option: $arg" >&2; exit 1 ;;
+    esac
+done
 
 GRADLE_FILE=ts/android/app/build.gradle
 AAB=ts/android/app/build/outputs/bundle/release/app-release.aab
@@ -63,7 +76,7 @@ if [ -z "$CODE" ]; then
     echo "couldn't parse versionCode from $GRADLE_FILE" >&2
     exit 1
 fi
-if [ "${1:-}" = "--no-bump" ]; then
+if [ "$NO_BUMP" = true ]; then
     echo "keeping versionCode $CODE (--no-bump)"
 else
     CODE=$((CODE + 1))
@@ -95,21 +108,9 @@ fi
 echo
 echo "upload to Play Console -> $AAB"
 
-# Play's upload flow asks for "What's new" - surface the latest release's
-# notes here for copy-paste instead of a scroll back through GitHub. Latest
-# STABLE release (gh's default view skips prereleases), which is what this
-# bundle ships.
-if command -v gh >/dev/null 2>&1; then
-    NOTES=$(gh release view --json tagName,body -q '.tagName + "\n" + .body' 2>/dev/null || true)
-    if [ -n "$NOTES" ]; then
-        echo
-        echo "what's new ($(printf '%s\n' "$NOTES" | head -1)):"
-        echo
-        printf '%s\n' "$NOTES" | tail -n +2 | sed 's/^/  /'
-    fi
-fi
-
 # Reveal the .aab in Finder, selected, ready to drag into the Play Console.
 if command -v open >/dev/null 2>&1 && [ -f "$AAB" ]; then
     open -R "$AAB"
 fi
+
+if [ "$NOTES" = true ]; then print_whats_new; fi

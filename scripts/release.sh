@@ -555,7 +555,7 @@ case "$MOBILE" in
         ANDROID_OK=true
         IOS_OK=true
         # --no-bump: the version bump above already took this release's versionCode.
-        scripts/android-aab.sh --no-bump || ANDROID_OK=false
+        scripts/android-aab.sh --no-bump --no-notes || ANDROID_OK=false
         scripts/ios-archive.sh || IOS_OK=false
         # The one upload that is a command (Play takes the .aab by hand).
         # Default no: an Enter typed ahead during the builds must not ship one.
@@ -581,6 +581,9 @@ case "$MOBILE" in
         if [ "$ANDROID_OK" = true ]; then
             echo "  Android: still to do - upload the .aab to the Play Console"
             echo "    ts/android/app/build/outputs/bundle/release/app-release.aab"
+            # Last, so it's on screen when the Play Console asks for it.
+            . scripts/lib/whats-new.sh
+            print_whats_new
         else
             echo "  Android build FAILED - rerun: scripts/android-aab.sh --no-bump"
         fi
