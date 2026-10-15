@@ -59,8 +59,9 @@ On the default, the dev: "my heart loves harmonica-bloom8". It was close with
 blooms less and preferred `ripples2` or `ripples4`, so the default may move
 to `ripples`.
 
-In the app the opening starts as soon as the session's mic is open, 6 dB
-down (the audition page's "under the voice" default), and the facilitator's
+In the app the opening starts as soon as the session's mic is open, 4 dB
+down (the audition page's "under the voice" default of 6 dB, raised 2 dB by
+ear in the app), and the facilitator's
 first words wait for it to end; the close plays as the session ends. A new render reaches the
 app only when its file is copied over.
 

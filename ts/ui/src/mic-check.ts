@@ -17,8 +17,9 @@
  *   - probeMic()      silent, never prompts, safe to run while the user is
  *                     still on setup. Reports only what it can know for sure.
  *   - acquireMicOnce() definitive: actually opens a stream (so it may prompt)
- *                     and releases it immediately. Run from the Begin handler,
- *                     where the prompt has a user gesture behind it.
+ *                     and releases it immediately; in the Android app the
+ *                     RECORD_AUDIO grant answers instead. Run from the Begin
+ *                     handler, where the prompt has a user gesture behind it.
  */
 
 import { ensureMicPermission } from './mic-permission.js';
@@ -139,7 +140,8 @@ export async function probeMic(): Promise<MicStatus> {
 }
 
 /**
- * Open a capture stream and release it. The only reliable answer, at the cost
+ * Open a capture stream and release it (in the Android app, ask for the grant
+ * instead: see below). The only reliable answer, at the cost
  * of a permission prompt on first run - which is why callers run it from the
  * Begin click, where a prompt is expected and (on WebKit) allowed.
  *

@@ -62,7 +62,7 @@ queries) tend to fail - from bead `0ao`:
 3. **Brief 1–2 word noting**: "warmth", "tightness", "sound", "heat" - short utterances misfire often.
 4. **Trailing half-sentence** into silence.
 5. **Silence-cutoff timing** - how many seconds before it auto-stops? Acceptable for meditation pacing?
-6. **Offline** - works with the network off (true on-device), or requires connectivity? (This decides whether the "private, stays on your phone" claim is honest for that device.)
+6. **Offline** - works with the network off (true on-device), or requires connectivity? (The app no longer claims speech stays on the phone, but this still decides the default, below.)
 7. **Latency** of the final transcript for a ~15-word utterance.
 
 **Record per bucket:** pass/fail on 1–5, offline yes/no (6), latency (7), + a

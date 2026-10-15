@@ -28,6 +28,12 @@ check each of these still reflects reality:
 - **`docs/account/index.html`** - a redirect to the web app's Account page. The
   Android app names its address in plain text (`topUpHint` in
   `ts/ui/src/purchase-channel.ts`), so the page and that string move together.
+- **`docs/support/index.html`** - the App Store support URL: contact, the mic
+  (and iOS Speech Recognition) permission paths per platform, account links.
+- **`docs/mobile-beta/index.html`** - how to join the Play closed test and
+  TestFlight, the early-tester bonus, which modes need an account, the
+  permissions, and the known gaps (a gap fixed, or narrowed to some setups,
+  means an edit).
 - **`docs/js/shots.js`** - the landing carousel's captions and image `alt` text.
   It describes the app screen by screen ("the session setup screen", "an
   exploration session"), so a renamed or restructured screen means updating this too.
@@ -52,6 +58,11 @@ check each of these still reflects reality:
   both - the file is the source, the console is the deploy. The same file holds
   the **TestFlight** texts (What to Test, Beta App Review notes), which name
   the sign-in methods, the modes and the Begin button.
+- **Store screenshots** - **generated** by `node scripts/store-screenshots.mjs`
+  (with `web:dev` up) into the gitignored `assets/store/screenshots/`, each
+  with a captioned copy whose headline and line are `SHOTS[].caption` in that
+  script. A setup or session UI change, or a caption that no longer holds,
+  means a re-run and a fresh upload to both consoles.
 - **Promo video** - `assets/store/video-title-card.*` / `video-end-card.*`
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must
   match current branding and claims. The Play Store video's script lives in

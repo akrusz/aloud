@@ -85,6 +85,13 @@ On the engine-driven path two things sit on top of that energy test
   `max(BARGE_IN_THRESHOLD, min(echoFloor × ECHO_GATE_MARGIN, ECHO_GATE_MAX))`,
   where `echoFloor` is an EMA of this device's measured echo level. Between
   turns the gate is 0, so a silent gap keeps the sensitive thresholds.
+- **A warm-up gate on the first voice.** The canceller meets the facilitator's
+  voice cold: during the first voice playback a new capture stream plays over
+  (the greeting; the opening sound doesn't train it), bursts leak at 0.07-0.08
+  RMS on MacBook speakers and landed as garbled turns (meditation-pal-7ah4).
+  So for that one playback the gate is at least `ECHO_WARMUP_GATE` (0.1),
+  armed per stream and opened by `noteVoicePlayback()` from
+  `ttsPlaybackStarted`. Deliberate speech measured 0.17-0.28.
 
 The generic wrapper (`barge-in.ts`) has neither: it is the plain
 energy-over-threshold test described above.
@@ -133,6 +140,12 @@ preview costs a real speaker nothing; their turn is still judged strictly.
    onset pre-buffer on the engine-driven path, or from the user's next words on
    the generic path.
 
+The greeting is a turn like any reply (`speakOpener` in `session.ts` takes its
+own `turnGen` and AbortControllers): a barge-in hushes the whole greeting, not
+one sentence, an utterance supersedes it with no static fallback, and only the
+live turn releases `busy`, so the reply that took over still hears barge-ins
+(meditation-pal-x060).
+
 The generic wrapper ties the listener's lifecycle to the `speak()` promise
 (`try/finally`), so there's no separate "TTS is playing" flag to get stuck on,
 and no watchdog/cooldown machinery is needed.
@@ -147,6 +160,7 @@ and no watchdog/cooldown machinery is needed.
 | `BARGE_IN_THRESHOLD` | 0.03 | `whisper-pcm-stt.ts` | Detection floor on the continuous idle stream |
 | `ECHO_GATE_MARGIN` | 2.0 | `whisper-pcm-stt.ts` | Multiplier on the measured echo floor while TTS is audible |
 | `ECHO_GATE_MAX` | 0.035 | `whisper-pcm-stt.ts` | Cap on that gate, kept below real-speech level |
+| `ECHO_WARMUP_GATE` | 0.1 | `whisper-pcm-stt.ts` | Gate floor during a new capture stream's first voice playback |
 | `PRE_BUFFER_MS` | 2000 | `whisper-pcm-stt.ts` | Onset retained so a barge-in's first word survives |
 | `LEAD_KEEP_MS` | 500 | `whisper-pcm-stt.ts` | How much of that onset survives the pre-POST quiet trim (`submitPayload`), so the retained ramp isn't billed as room tone. Raise if a first word ever clips |
 
