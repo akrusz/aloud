@@ -72,9 +72,6 @@ in section 2.
 
 ## 2. Nice to have this round
 
-- [ ] [iOS] **Mac off for testers**: in the external group's settings, untick
-      "Test iPhone and iPad apps on Apple silicon Macs" (no mic on a Mac, so no
-      session starts). Leave it on for the dev's own group.
 - [ ] [Android] **Bluetooth (`4xkx`)**, on a build with the fix (2.16.0+):
       headphones on, aloud cloud speech recognition, lock ~30s, unlock: the
       reply is still in the headphones. Then headphones off and on
