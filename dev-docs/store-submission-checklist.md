@@ -214,7 +214,7 @@ not shared (LLM / STT / TTS / classifier vendors are service providers).
 | Row | Ephemeral | Purposes | Notes |
 |---|---|---|---|
 | Messages → other in-app messages | **No** | App functionality | Includes voice commands: `routes/judge.ts` relays the utterance to TypeSafe and keeps a classifier id, latency and token counts; failures cut to a status code (`failureLabel`). |
-| Audio → voice recordings | **No** | App functionality | Three paths, as `docs/privacy/index.html` → "Your voice": on-device Whisper (desktop), the platform recognizer mobile defaults to (Android's may route to Google: disclosed in the policy, never claimed as on-device), aloud cloud (relayed, not retained). Nothing may imply mobile speech never leaves the device. |
+| Audio → voice recordings | **No** | App functionality | Three paths, as `docs/privacy/index.html` → "Your voice": on-device Whisper (desktop), the platform recognizer mobile offers (Android's may route to Google: disclosed in the policy, never claimed as on-device), aloud cloud (relayed, not retained). Nothing may imply mobile speech never leaves the device. |
 | Email address | No | Account management, **Developer communications** (update emails, `Account.emailUpdates`); "Advertising or marketing" unticked (Play means ads) | Deletable. |
 | Purchase history | No | App functionality | Deletable. |
 | Personal info → User IDs | No | App functionality, account management, fraud prevention (one free grant per identity) | Account id + Google/Apple `sub` (`Identity`, `credits/store.ts`). Removed on deletion. |

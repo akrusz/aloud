@@ -235,18 +235,11 @@ export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
  * Which STT choices to offer for the current mode, in flow-default order:
  * Whisper (local-only - no on-device backend on the web), then browser speech
  * (only when the browser exposes the API), then the hosted option (always, and
- * the only one that costs credits). The first entry is the mode's default.
+ * the only one that costs credits), then the phone's own recognizer. The first
+ * entry is the mode's default.
  */
 export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
-    // The native mobile recognizer: free, no sign-in, no credits. Labelled for
-    // what it IS, not where the audio goes - Android's routes to Google, so
-    // don't reintroduce a privacy claim ("private", "On-device"; sn1w tracks
-    // earning one back). Capacitor-only (web/desktop builds never have it), and
-    // first so it defaults there. Vocabulary per the plan (meditation-pal-7ej);
-    // meditation-speech quality still device-validated (meditation-pal-0ao),
-    // with aloud cloud one tap below if it disappoints.
-    if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in transcription' });
     // Local Whisper exists only in the desktop (Tauri) Rust shell: Hono doesn't
     // serve the /app whisper route, and the desktop's loopback backend isn't
     // reachable from a separate browser, so offering it on the web gives a dead
@@ -263,12 +256,20 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
         out.push({ value: 'web-speech', label: 'Browser' });
     }
     // OpenAI's gpt-transcribe: cheaper upstream and (per benchmarks) more
-    // accurate than gpt-4o-transcribe (meditation-pal-vazw). Always offered,
-    // and last, so it's the fallback every mode can reach.
+    // accurate than gpt-4o-transcribe (meditation-pal-vazw). Always offered, so
+    // it's the fallback every mode can reach.
     out.push({
         value: 'aloud-gpt-transcribe',
         label: `aloud cloud${rateSuffix(sttCreditsPerHour)}`,
     });
+    // The native mobile recognizer: free, no credits. Labelled for what it IS,
+    // not where the audio goes - Android's routes to Google, so don't
+    // reintroduce a privacy claim ("private", "On-device"; sn1w tracks earning
+    // one back). Capacitor-only (web/desktop builds never have it). After aloud
+    // cloud, which the app's sessions already sign in for: the recognizer can't
+    // barge in or reject the facilitator's voice from the speaker, and hosted
+    // STT's echo-cancelled capture does both.
+    if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in transcription' });
     return out;
 }
 

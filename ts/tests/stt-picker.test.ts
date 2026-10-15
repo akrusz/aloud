@@ -139,12 +139,13 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
 });
 
 describe('sttEngineOptions — native mobile (Capacitor)', () => {
-    // The native app always runs in web mode. The platform recognizer leads and
-    // becomes the default; the flaky WebView web-speech is not offered.
+    // The native app always runs in web mode. aloud cloud leads and is the
+    // default, the platform recognizer follows; the flaky WebView web-speech is
+    // not offered.
     beforeEach(() => isCapacitorMock.mockReturnValue(true));
 
-    it('offers the built-in recognizer first, then aloud cloud', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe']);
+    it('offers aloud cloud first, then the built-in recognizer', () => {
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'capacitor']);
     });
 
     // No privacy promise: it's the PLATFORM's recognizer and Android's routes to
@@ -155,14 +156,14 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         expect(label).toBe('Built-in transcription');
         expect(label.toLowerCase()).not.toMatch(/private|on-device|local/);
     });
-    it('defaults to the native on-device recognizer', () => {
-        expect(defaultSttChoice(true)).toBe('capacitor');
+    it('defaults to aloud cloud', () => {
+        expect(defaultSttChoice(true)).toBe('aloud-gpt-transcribe');
     });
     it('does not offer web-speech even if the WebView exposes it', () => {
         (globalThis as unknown as { window: unknown }).window = {
             webkitSpeechRecognition: class {},
         };
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['capacitor', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'capacitor']);
         delete (globalThis as unknown as { window?: unknown }).window;
     });
     it('resolveSttChoice honors a stored on-device pick', () => {

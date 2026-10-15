@@ -23,9 +23,9 @@ specific manufacturer's stack.
 ## What the app offers on mobile (the options under test)
 
 - **STT**
-  - `capacitor` - native on-device (SFSpeechRecognizer / Android SpeechRecognizer). **Free.** Current mobile default.
   - `aloud-gpt-transcribe` - hosted STT (OpenAI `gpt-transcribe`), shown as "aloud cloud".
-    **Costs credits.** The fallback.
+    **Costs credits.** Current mobile default (since 2026-10-15, see below).
+  - `capacitor` - native on-device (SFSpeechRecognizer / Android SpeechRecognizer). **Free.**
   - (browser web-speech is *not* offered on native - the native plugin is better.)
 - **TTS**
   - `browser` - the WebView's `speechSynthesis`, i.e. the **native system voices**. **Free.** Current mobile default.
@@ -123,8 +123,17 @@ switch.
 
 ### Beta interim (before validation data exists)
 
-Ship **native default everywhere + all options in the selector** (the current
-state). It's free, has no surprise paywall, and meets the "mediocre-for-a-bit,
+**STT now defaults to aloud cloud everywhere (2026-10-15).** A tester's
+Android session on native STT transcribed the facilitator's check-ins and timer
+notices from the speaker as the meditator's turns; the native recognizers have
+no echo cancellation or barge-in, and the app's sessions sign in for the
+cloud LLM anyway, so the paywall catch above no longer applies to STT. The
+session now closes the recognizer while any line plays, but cloud stays the
+default. The rest of this section is the original plan, which still holds for
+TTS.
+
+Ship **native default everywhere + all options in the selector** (the
+original beta state). It's free, has no surprise paywall, and meets the "mediocre-for-a-bit,
 user can switch" bar. The selector already lists `capacitor` (default) and
 `aloud` on mobile today, so nobody is stuck. After the buckets above are scored,
 flip the **validated-weak** buckets to cloud-default - a change in one place
