@@ -132,6 +132,9 @@ export class CapacitorSttEngine implements SttEngine {
     // of it. Measured 11s after a lock/unlock on 2026-09-04: the first words
     // after coming back were never heard (meditation-pal-jvnu).
     private wakeForStop: (() => void) | null = null;
+    // The current turn has heard speech and not yet submitted (see
+    // userSpeechActive).
+    private midTurn = false;
 
     constructor(options: CapacitorSttEngineOptions = {}) {
         const submitDelayMs = options.submitDelayMs ?? 0;
@@ -157,8 +160,15 @@ export class CapacitorSttEngine implements SttEngine {
         }
     }
 
+    /** True from the first sign of speech until the turn submits, pauses
+     *  between sentences included. */
+    get userSpeechActive(): boolean {
+        return this.midTurn;
+    }
+
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
+        this.midTurn = false;
 
         try {
             const perm = await SpeechRecognition.checkPermissions();
@@ -273,6 +283,7 @@ export class CapacitorSttEngine implements SttEngine {
         const submit = (): void => {
             if (submitted || events.done) return;
             submitted = true;
+            this.midTurn = false;
             clearTimers();
             const text = combined();
             if (text) {
@@ -407,6 +418,7 @@ export class CapacitorSttEngine implements SttEngine {
                 sawSpeech = true;
                 diag('[stt-native] first partial received');
             }
+            this.midTurn = true;
             if (!segmentHasSpeech) {
                 segmentHasSpeech = true;
                 segments++;
@@ -458,6 +470,7 @@ export class CapacitorSttEngine implements SttEngine {
                 // (meditation-pal-cddo: a turn submitted 1.3s after the user
                 // said its last words, mid-thought).
                 segmentText = text;
+                if (text.trim()) this.midTurn = true;
                 if (nativeSessionEvents && stitching && text.trim()) {
                     lastSpeechAt = Date.now();
                     armEnd();
@@ -480,6 +493,9 @@ export class CapacitorSttEngine implements SttEngine {
                 // speech began - also proof of life, and the only signal on
                 // builds without the patch (or iOS).
                 markStarted();
+                // Android's 'started' is onBeginningOfSpeech, often seconds
+                // before the text. iOS sends it at launch, before anyone speaks.
+                if (status === 'started' && nativeSessionEvents && !submitted) this.midTurn = true;
                 if (status === 'started' && segmentStopped && stitching) {
                     // Android dictation: a new utterance in the same session.
                     // Its partials replace, not extend, the last one's text,
@@ -637,6 +653,7 @@ export class CapacitorSttEngine implements SttEngine {
             yield* events.drain(() => this.stopRequested);
         } finally {
             this.wakeForStop = null;
+            this.midTurn = false;
             clearTimers();
             await this.partialListener?.remove().catch(() => {});
             await this.stateListener?.remove().catch(() => {});

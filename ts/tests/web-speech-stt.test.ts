@@ -5,7 +5,7 @@
  * bubble on the last word or two - keep that case covered.
  * Node has no window, so the engine picks up a fake recognizer off the global.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 interface FakeResult {
     isFinal: boolean;
@@ -108,5 +108,29 @@ describe('WebSpeechSttEngine transcript assembly', () => {
             { text: 'it feels like a knot.', final: true },
         ]);
         expect(text).toBe('I notice some tightness. It feels like a knot.');
+    });
+});
+
+describe('WebSpeechSttEngine userSpeechActive', () => {
+    it('is true from the first transcript until the turn submits', async () => {
+        vi.useFakeTimers();
+        try {
+            const { WebSpeechSttEngine } = await import('../ui/src/adapters/web-speech-stt.js');
+            const engine = new WebSpeechSttEngine({ submitDelayMs: 1000 });
+            const iterator = engine.start()[Symbol.asyncIterator]();
+            const next = iterator.next();
+            await Promise.resolve();
+            expect(engine.userSpeechActive).toBe(false);
+            FakeRecognition.last?.emit([{ text: 'I notice', final: false }]);
+            expect(engine.userSpeechActive).toBe(true);
+            await next; // the partial
+            const final = iterator.next();
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(((await final).value as { type: string }).type).toBe('final');
+            expect(engine.userSpeechActive).toBe(false);
+            await iterator.return?.(undefined);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

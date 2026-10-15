@@ -119,6 +119,8 @@ export class WebSpeechSttEngine implements SttEngine {
     private readonly Ctor: SpeechRecognitionCtor;
     private readonly options: Required<WebSpeechSttEngineOptions>;
     private recognition: SpeechRecognitionLike | null = null;
+    // The current turn has text and has not yet submitted (see userSpeechActive).
+    private midTurn = false;
 
     constructor(options: WebSpeechSttEngineOptions = {}) {
         const Ctor = getSpeechRecognitionCtor();
@@ -139,6 +141,11 @@ export class WebSpeechSttEngine implements SttEngine {
             submitMaxDelayMs: options.submitMaxDelayMs ?? submitDelayMs,
             submitRampRate: options.submitRampRate ?? 0,
         };
+    }
+
+    /** True from the first transcript until the turn submits. */
+    get userSpeechActive(): boolean {
+        return this.midTurn;
     }
 
     async *start(): AsyncIterable<SttEvent> {
@@ -172,6 +179,7 @@ export class WebSpeechSttEngine implements SttEngine {
         const submit = (): void => {
             if (submitted) return;
             submitted = true;
+            this.midTurn = false;
             clearSilenceTimer();
             if (latestTranscript) push({ type: 'final', text: latestTranscript });
             try {
@@ -207,6 +215,7 @@ export class WebSpeechSttEngine implements SttEngine {
             }
             const transcript = tidyTranscript(parts.join(' '));
             latestTranscript = transcript;
+            if (!submitted) this.midTurn = transcript !== '';
 
             if (submitDelayMs > 0) {
                 // We own end-of-turn: show interim text live and (re)arm the
@@ -253,6 +262,7 @@ export class WebSpeechSttEngine implements SttEngine {
         try {
             yield* events.drain();
         } finally {
+            this.midTurn = false;
             clearSilenceTimer();
             recognition.onresult = null;
             recognition.onerror = null;

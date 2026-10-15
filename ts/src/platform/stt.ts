@@ -72,6 +72,14 @@ export interface SttEngine {
      * for themselves.
      */
     setPauseWindow?(baseMs: number, maxMs: number): void;
+
+    /**
+     * Optional: true while the user is mid-turn - speech heard, turn not yet
+     * submitted. The pacing controller only sees completed turns, so this is
+     * what keeps a check-in or timer notice from talking over someone still
+     * speaking (or pausing between sentences).
+     */
+    readonly userSpeechActive?: boolean;
 }
 
 /**

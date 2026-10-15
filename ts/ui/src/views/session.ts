@@ -930,6 +930,11 @@ export async function mountSessionView(
                 await openingOver;
                 if (!ttsEnabled || torn) return;
             }
+            // A recognizer that can't tell our voice from the meditator's must
+            // be closed while we speak. A reply finds it closed already (the
+            // listen loop awaits it); a check-in or timer notice starts on its
+            // own and would otherwise be transcribed as the meditator's turn.
+            if (!continuousCapture && sttCapturing) void stt?.stop();
             ++ttsSpeakingDepth;
             ttsPlaybackStarted(text);
             try {
@@ -1524,6 +1529,8 @@ export async function mountSessionView(
     let busy = false;
     let muted = false;
     let listenLoopRunning = false;
+    // Inside stt.start(): the recognizer is open and hearing the room.
+    let sttCapturing = false;
     let torn = false;
     // Capacitor App 'appStateChange' handle (mobile background-save); removed in
     // endSession. Held as the addListener promise so teardown can await + remove.
@@ -2452,7 +2459,9 @@ export async function mountSessionView(
                 // for `busy` only on backends that can't capture during
                 // playback.
                 while (
-                    (voiceModalOpen || openingSounding || (!continuousCapture && busy)) &&
+                    (voiceModalOpen ||
+                        openingSounding ||
+                        (!continuousCapture && (busy || ttsSpeakingDepth > 0))) &&
                     !torn &&
                     !muted
                 ) {
@@ -2488,6 +2497,7 @@ export async function mountSessionView(
                     (startedDuringTts ?? inEchoWindow()) &&
                     previewLooksLikeTtsEcho(text, spokenTail);
                 try {
+                    sttCapturing = true;
                     for await (const event of stt.start()) {
                         if (event.type === 'partial') {
                             // Don't preview our own echo as the user's words: a
@@ -2535,6 +2545,8 @@ export async function mountSessionView(
                     }
                 } catch (err) {
                     micError = describeSttError(err);
+                } finally {
+                    sttCapturing = false;
                 }
                 // Transcript-level echo guard (meditation-pal-p8lx): our own TTS
                 // leaking back through the mic must not take a turn, wake a
@@ -3050,11 +3062,10 @@ export async function mountSessionView(
     const checkInTimer: ReturnType<typeof setInterval> | null = pacingConfig.silenceCheckinsEnabled
         ? setInterval(() => {
               if (torn || busy || muted) return;
-              // The pacing controller only sees COMPLETED turns, so on the
-              // continuous-capture path it can't tell the user is mid-ramble.
-              // Without this guard a long utterance gets a check-in spoken over
-              // it, which the user's voice then barge-in cancels: noise for all.
-              if (whisperEngine?.userSpeechActive) return;
+              // The pacing controller only sees COMPLETED turns, so it can't
+              // tell the user is mid-ramble. Without this guard a long
+              // utterance gets a check-in spoken over it.
+              if (stt?.userSpeechActive) return;
               const decision = pacing.shouldRespond();
               if (decision !== TurnDecision.CheckIn) return;
               if (checkinContent === 'smart') {
@@ -3075,7 +3086,7 @@ export async function mountSessionView(
     const TIMER_POLL_MS = 2000;
     const timerPoll = setInterval(() => {
         if (torn || busy || timerNoticeInFlight) return;
-        if (whisperEngine?.userSpeechActive) return;
+        if (stt?.userSpeechActive) return;
         const due = sessionClock.timerDue(
             timerApproachLeadSec(sessionClock.timerTotalSec(), avgTurnSec())
         );
@@ -3143,7 +3154,7 @@ export async function mountSessionView(
                 tapEvent('timer', `${kind}-stale`);
                 return;
             }
-            if (myGen !== turnGen || busy) {
+            if (myGen !== turnGen || busy || stt?.userSpeechActive) {
                 // The meditator took the floor first. timerDue already marked
                 // this fired; hand it back so the next turn boundary says it.
                 tapEvent('timer', `${kind}-deferred`);
@@ -3168,7 +3179,7 @@ export async function mountSessionView(
             await speakNotice(line);
         } catch {
             if (torn || myArm !== sessionClock.armGeneration()) return;
-            if (myGen !== turnGen || busy) {
+            if (myGen !== turnGen || busy || stt?.userSpeechActive) {
                 sessionClock.requeue(kind, myArm);
                 return;
             }
@@ -3326,7 +3337,7 @@ export async function mountSessionView(
                 }
             );
             tapCall('checkin', Date.now() - checkinStart);
-            if (torn || myGen !== turnGen || busy) return;
+            if (torn || myGen !== turnGen || busy || stt?.userSpeechActive) return;
             // The call happened whether or not anything gets spoken; tally it.
             session.recordLlmUsage(usage);
             // A check-in reply can also carry [WAIT:Nm] ("not now, ask again in
@@ -3369,7 +3380,7 @@ export async function mountSessionView(
         } catch {
             // Provider hiccup, or aborted by a real turn: canned fallback unless
             // a real turn took over.
-            if (!torn && myGen === turnGen && !busy) {
+            if (!torn && myGen === turnGen && !busy && !stt?.userSpeechActive) {
                 smartCheckinSpoken++;
                 smartCheckinPassedAtSec = null;
                 debugLog('→ error (canned)');

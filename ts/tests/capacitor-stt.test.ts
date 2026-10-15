@@ -309,6 +309,30 @@ describe('stop() ends the turn immediately (meditation-pal-jvnu)', () => {
         expect(settled).toBe(true);
         expect(finals(events)).toHaveLength(0);
     });
+
+    it('stop() mid-utterance clears userSpeechActive', async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        const { finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        partial('I notice');
+        expect(engine.userSpeechActive).toBe(true);
+        await engine.stop();
+        await finished;
+        expect(engine.userSpeechActive).toBe(false);
+    });
+});
+
+describe('userSpeechActive on iOS', () => {
+    it("ignores 'started', which iOS sends at launch, before anyone speaks", async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        H.listeners.get('listeningState')?.({ status: 'started' });
+        expect(engine.userSpeechActive).toBe(false);
+        partial('I notice');
+        expect(engine.userSpeechActive).toBe(true);
+        await engine.stop();
+    });
 });
 
 describe('stale silence errors (meditation-pal-wlp9)', () => {
@@ -474,6 +498,25 @@ describe('Android native session events', () => {
         codedError(11, "Didn't understand, please try again.");
         await vi.advanceTimersByTimeAsync(100);
         expect(events2.filter((e) => e.type === 'error')).toHaveLength(1);
+    });
+
+    it("reports the user mid-turn from 'started', through a pause, until the turn submits", async () => {
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        expect(engine.userSpeechActive).toBe(false);
+
+        started(); // speech began; the recognizer has no text yet
+        expect(engine.userSpeechActive).toBe(true);
+        partial('I notice');
+        stopped();
+        finalClose();
+        await vi.advanceTimersByTimeAsync(3000); // a think-pause inside the window
+        expect(engine.userSpeechActive).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(4000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'I notice' }]);
+        expect(engine.userSpeechActive).toBe(false);
     });
 });
 
