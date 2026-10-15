@@ -86,6 +86,15 @@ const BARGE_IN_REQUIRED_CHUNKS = 3;
 const ECHO_EMA_ALPHA = 0.05;
 const ECHO_GATE_MARGIN = 2.0;
 const ECHO_GATE_MAX = 0.035;
+// The echo canceller meets the facilitator's VOICE cold: during the first
+// reply a fresh capture stream plays over (the greeting; the opening sound
+// before it doesn't train it), short bursts leak through at 0.07-0.08 RMS on
+// MacBook speakers, anywhere in the reply. That clears every gate above and
+// lands as a garbled user turn ("Nothing to worry.", meditation-pal-7ah4), so
+// for that whole playback window the bar sits at ECHO_WARMUP_GATE instead.
+// Deliberate speech peaks well above it (0.17-0.19 desktop, 0.17-0.28 phone),
+// and the pre-buffer keeps the onset of a barge-in that clears it late.
+const ECHO_WARMUP_GATE = 0.1;
 
 // Energy-only speech decision, active ONLY while the Silero session is
 // unavailable (create failed - 6z11): a frame is speech when it clears the max
@@ -282,6 +291,12 @@ export class WhisperPcmSttEngine implements SttEngine {
     // typical echo-cancelled level so the gate is sane from the first frame.
     private ttsActive = false;
     private echoFloor = 0.005;
+    // ECHO_WARMUP_GATE: armed by each new capture stream, live from the first
+    // noteVoicePlayback() after it until that playback ends. warmupPeak is
+    // diagnostic only.
+    private voiceWarmupArmed = false;
+    private voiceWarmup = false;
+    private warmupPeak = 0;
     // Per-playback echo stats, logged when playback ends (setTtsActive). Null
     // between replies. Diagnostic only - nothing reads it.
     private echoWatch: { frames: number; overGate: number; peak: number; sum: number } | null =
@@ -508,8 +523,13 @@ export class WhisperPcmSttEngine implements SttEngine {
 
         // While TTS is audible, lift the gates above this device's measured echo
         // floor. Zero otherwise (no echo to reject), so a silent gap keeps the
-        // normal sensitive thresholds. Capped below real-speech level.
-        const echoGate = this.ttsActive ? this.echoGateLevel() : 0;
+        // normal sensitive thresholds. Capped below real-speech level, except
+        // while the canceller warms up to the voice (ECHO_WARMUP_GATE).
+        let echoGate = this.ttsActive ? this.echoGateLevel() : 0;
+        if (this.voiceWarmup && this.ttsActive) {
+            echoGate = Math.max(echoGate, ECHO_WARMUP_GATE);
+            this.warmupPeak = Math.max(this.warmupPeak, energy);
+        }
 
         if (this.echoWatch) {
             const w = this.echoWatch;
@@ -756,6 +776,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                     throw err;
                 });
             this.teardownGraph(); // any prior nodes belong to a dead stream
+            this.voiceWarmupArmed = true;
 
             // Diagnose + self-heal capture-track death: a dead track keeps the
             // graph "running" but feeds digital zeros, so the session goes deaf
@@ -861,6 +882,16 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.bargeInHandler = handler;
     }
 
+    /** The facilitator's voice (not a sound) starts playing. The first one
+     *  after a new capture stream opens the echo warm-up (ECHO_WARMUP_GATE),
+     *  which lasts until that playback ends (setTtsActive). */
+    noteVoicePlayback(): void {
+        if (!this.voiceWarmupArmed) return;
+        this.voiceWarmupArmed = false;
+        this.voiceWarmup = true;
+        this.warmupPeak = 0;
+    }
+
     /**
      * Tell the engine whether the facilitator's audio is playing. While active,
      * capture energy is sampled into this device's echo floor (see ECHO_*) and
@@ -886,6 +917,13 @@ export class WhisperPcmSttEngine implements SttEngine {
                     `peak=${w.peak.toFixed(4)} mean=${(w.frames ? w.sum / w.frames : 0).toFixed(4)} ` +
                     `overGate=${w.overGate} gate=${gate.toFixed(4)} ` +
                     `echoFloor=${this.echoFloor.toFixed(4)} bargeIn=${BARGE_IN_THRESHOLD}`
+            );
+        }
+        if (!active && this.voiceWarmup) {
+            this.voiceWarmup = false;
+            diag(
+                `[vad] voice warm-up over: peak=${this.warmupPeak.toFixed(4)} ` +
+                    `gate=${ECHO_WARMUP_GATE}`
             );
         }
         this.ttsActive = active;

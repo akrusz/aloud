@@ -892,6 +892,7 @@ export async function mountSessionView(
             ttsActiveOffTimer = null;
         }
         whisperEngine?.setTtsActive(true);
+        whisperEngine?.noteVoicePlayback();
     }
     function ttsPlaybackEnded(): void {
         tapFlags({ speaking: false });
@@ -972,7 +973,10 @@ export async function mountSessionView(
             // finishes silently into the transcript. In a silence hold there's
             // nothing to interrupt (busy is false) and the resume classifier
             // owns leaving the hold, so don't clear it here.
-            if (!busy || openingSounding) return;
+            if (!busy || openingSounding) {
+                diag(`[vad] barge-in ignored: busy=${busy} opening=${openingSounding}`);
+                return;
+            }
             void tts.cancel();
             activeTtsAbort?.abort();
             onBargeIn();
@@ -2902,8 +2906,18 @@ export async function mountSessionView(
 
     // Greet first. busy holds check-ins, and the mic on pause-while-busy
     // backends, until the opener finishes. Resuming gets a welcome-back.
+    // The greeting is a turn like a reply: a barge-in hushes it, an utterance
+    // supersedes it (respondTo), and only the live turn releases the shared
+    // flags. Without that, a barge-in cut one sentence and the next one
+    // played, and the superseded greeting's finally cleared busy under the
+    // reply that took over, so that reply ignored barge-ins.
     {
         busy = true;
+        const myGen = ++turnGen;
+        const myFullAbort = new AbortController();
+        const myTtsAbort = new AbortController();
+        activeFullAbort = myFullAbort;
+        activeTtsAbort = myTtsAbort;
         void (async () => {
             try {
                 // Prime the STT capture graph BEFORE the greeting so its onset
@@ -2911,9 +2925,17 @@ export async function mountSessionView(
                 // graph is built lazily on first start(), and a barge-in during
                 // the greeting has an empty buffer and clips the first word (d35).
                 await Promise.all([stt?.prime?.(), voiceNoteReady]);
-                await speakOpener(!!continueFrom && continueFrom.exchanges.length > 0);
+                await speakOpener(!!continueFrom && continueFrom.exchanges.length > 0, {
+                    superseded: () => torn || myGen !== turnGen,
+                    signal: myFullAbort.signal,
+                    ttsSignal: myTtsAbort.signal,
+                });
             } finally {
-                busy = false;
+                if (myGen === turnGen) {
+                    busy = false;
+                    activeFullAbort = null;
+                    activeTtsAbort = null;
+                }
             }
         })();
     }
@@ -2924,7 +2946,11 @@ export async function mountSessionView(
      * error. The instruction goes into the log as an 'opener' control entry,
      * so turn 2's request extends this one and reads it from cache.
      */
-    async function speakOpener(resuming: boolean): Promise<void> {
+    async function speakOpener(
+        resuming: boolean,
+        turn: { superseded: () => boolean; signal: AbortSignal; ttsSignal: AbortSignal }
+    ): Promise<void> {
+        if (turn.superseded()) return;
         const instruction = resuming
             ? 'The meditator is returning to continue from a previous session. ' +
               "Offer a brief, warm welcome back and gently acknowledge they're " +
@@ -2951,13 +2977,20 @@ export async function mountSessionView(
                     system: systemPrompt(),
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
+                    signal: turn.signal,
+                    ttsSignal: turn.ttsSignal,
                     onSpeakStart: (sentence) => {
+                        if (turn.superseded()) return;
                         clearSlowResponseStatus();
                         setStatus(t('Speaking…'));
                         reveal.reveal(sentence);
                     },
                 }
             );
+            if (turn.superseded()) {
+                reveal.discard();
+                return;
+            }
             clearSlowResponseStatus();
             // Strip control tokens an eager model put on the greeting: an opener
             // can neither hold nor move the arc.
@@ -2980,6 +3013,11 @@ export async function mountSessionView(
             }
             reveal.finalize(cleanText);
         } catch (err) {
+            // Aborted by the turn that took over: no fallback greeting.
+            if (turn.superseded()) {
+                reveal.discard();
+                return;
+            }
             console.warn('LLM opener failed, using static fallback', err);
             clearSlowResponseStatus();
             reveal.discard();
