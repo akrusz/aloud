@@ -792,9 +792,9 @@ code {
 }
 
 /* ===== aloud cloud ===== */
-/* Warm card, same family as the tip card (bg-card + halftone corner). Sits
-   under "bring your own model" with half the usual gap, so the two read as a
-   pair: bring your own, or let us host. */
+/* Warm card, same family as the tip card (bg-card, a picture in a corner).
+   Sits under "bring your own model" with half the usual gap, so the two read
+   as a pair: bring your own, or let us host. */
 .section-models { padding-bottom: 2rem; }
 .section-cloud { padding: 0 1.5rem 1.5rem; }
 .cloud-card {
@@ -816,7 +816,6 @@ code {
    in (one orange that reads on both themes' cards) so it can be a plain
    background: a CSS mask is fetched with CORS, and Chrome refuses that for a
    page opened from disk, so the dots vanished in a local preview. */
-.cloud-card::before,
 .tip-card::before {
   content: '';
   position: absolute;
@@ -825,10 +824,25 @@ code {
   background: url('../assets/halftone.svg') no-repeat 0 0 / 100% 100%;
   pointer-events: none;
 }
+/* The cloud card's corner is the ☁ credit itself, a few of them drifting
+   off the bottom-right edge, beside the centered button and clear of the
+   text. A plain background for the same reason as the halftone above. Dark
+   gets more opacity: there the faded white reads as grey. Keep the puffs in
+   any variant; an outline alone reads as something else entirely. */
 .cloud-card::before {
-  left: 0;
-  bottom: 0;
-  transform: scaleX(-1);
+  content: '';
+  position: absolute;
+  right: -12px;
+  bottom: -8px;
+  width: 200px;
+  height: 130px;
+  background: url('../assets/cloud-cluster.svg') no-repeat 0 0 / 100% 100%;
+  opacity: 0.4;
+  pointer-events: none;
+}
+:root[data-theme="dark"] .cloud-card::before { opacity: 0.6; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cloud-card::before { opacity: 0.6; }
 }
 .cloud-title {
   position: relative;
@@ -880,6 +894,7 @@ code {
 @media (max-width: 720px) {
   .section-cloud { padding: 0 1rem 1.5rem; }
   .cloud-card { padding: 1.25rem 1.25rem; }
+  .cloud-card::before { right: -8px; bottom: 6px; width: 100px; height: 65px; }
   .cloud-title { font-size: 1.2rem; }
 }
 
