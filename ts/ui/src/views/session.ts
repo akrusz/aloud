@@ -934,7 +934,10 @@ export async function mountSessionView(
             // be closed while we speak. A reply finds it closed already (the
             // listen loop awaits it); a check-in or timer notice starts on its
             // own and would otherwise be transcribed as the meditator's turn.
-            if (!continuousCapture && sttCapturing) void stt?.stop();
+            if (!continuousCapture && sttCapturing) {
+                diag('[echo-guard] recognizer closed for an unprompted line');
+                void stt?.stop();
+            }
             ++ttsSpeakingDepth;
             ttsPlaybackStarted(text);
             try {
