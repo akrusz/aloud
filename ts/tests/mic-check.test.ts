@@ -7,8 +7,9 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+const micPermission = vi.hoisted(() => ({ granted: null as boolean | null }));
 vi.mock('../ui/src/mic-permission.js', () => ({
-    ensureMicPermission: vi.fn(async () => {}),
+    ensureMicPermission: vi.fn(async () => micPermission.granted),
 }));
 
 import {
@@ -49,7 +50,10 @@ function failingGetUserMedia(name: string) {
     };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    micPermission.granted = null;
+});
 
 describe('probeMic - silent, and only certain of what it can prove', () => {
     it('reports no-api when the browser has no getUserMedia', async () => {
@@ -143,6 +147,19 @@ describe('acquireMicOnce - definitive, and releases what it opens', () => {
     it('maps anything else to a generic error rather than swallowing it', async () => {
         stubNavigator({ mediaDevices: { getUserMedia: failingGetUserMedia('NotReadableError') } });
         expect(await acquireMicOnce()).toBe('error');
+    });
+
+    it('takes the RECORD_AUDIO grant as the answer in the Android app, opening no stream', async () => {
+        const getUserMedia = vi.fn(async () => ({ getTracks: () => [] }));
+        stubNavigator({ mediaDevices: { getUserMedia } });
+        vi.stubGlobal('window', {
+            Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' },
+        });
+        micPermission.granted = true;
+        expect(await acquireMicOnce()).toBe('ok');
+        micPermission.granted = false;
+        expect(await acquireMicOnce()).toBe('denied');
+        expect(getUserMedia).not.toHaveBeenCalled();
     });
 });
 

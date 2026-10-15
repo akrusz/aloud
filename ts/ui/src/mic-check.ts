@@ -22,7 +22,7 @@
  */
 
 import { ensureMicPermission } from './mic-permission.js';
-import { isTauri, isCapacitor } from './is-desktop.js';
+import { capacitorPlatform, isTauri, isCapacitor } from './is-desktop.js';
 import { t } from './i18n.js';
 
 export type MicStatus =
@@ -153,7 +153,12 @@ export async function acquireMicOnce(): Promise<MicStatus> {
     if (!hasGetUserMedia()) return 'no-api';
     // Native Android: the WebView only grants capture when the app already
     // holds RECORD_AUDIO, so ask through the plugin first (no-op elsewhere).
-    await ensureMicPermission();
+    const granted = await ensureMicPermission();
+    // ...and there that grant is the answer, so open no probe stream. One puts
+    // the app in call mode, and leaving it a moment later makes Android drop
+    // the WebView's audio outputs for ~0.5s, under the opening sound
+    // (meditation-pal-6fjb).
+    if (granted !== null && capacitorPlatform() === 'android') return granted ? 'ok' : 'denied';
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         for (const track of stream.getTracks()) track.stop();

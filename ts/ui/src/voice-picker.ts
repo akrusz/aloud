@@ -920,19 +920,22 @@ export function downloadPercent(p: DownloadProgress): number {
 let cloudVoicesCache: CloudVoice[] | null = null;
 
 /**
- * Fetch the curated hosted voices. Caches [] when the server is unreachable or
- * has no TTS key, so the picker only surfaces hosted voices that can actually
- * speak (availability-driven menus).
+ * Fetch the curated hosted voices: [] when the server is unreachable or has no
+ * TTS key, so the picker only surfaces hosted voices that can actually speak
+ * (availability-driven menus). Only an answer is cached: a failed fetch (an
+ * app opened before the phone had a network) would otherwise leave every
+ * picker empty until restart.
  */
 export async function fetchCloudVoices(force = false): Promise<CloudVoice[]> {
     if (!force && cloudVoicesCache !== null) return cloudVoicesCache;
     try {
         const response = await fetch(cloudUrl('/voices'));
-        cloudVoicesCache = response.ok ? ((await response.json()) as CloudVoice[]) : [];
+        if (!response.ok) return [];
+        cloudVoicesCache = (await response.json()) as CloudVoice[];
+        return cloudVoicesCache;
     } catch {
-        cloudVoicesCache = [];
+        return [];
     }
-    return cloudVoicesCache;
 }
 
 export function invalidateCloudVoicesCache(): void {

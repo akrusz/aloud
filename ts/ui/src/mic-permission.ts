@@ -13,19 +13,21 @@
  * grant getUserMedia needs. Dynamic import so web/desktop bundles don't pull the
  * plugin (mirrors android-back.ts / wakelock.ts). No-op off Capacitor and
  * best-effort: getUserMedia surfaces the real error if this couldn't help.
+ * Returns whether the grant is held, or null when there was nothing to ask.
  */
 
 import { isCapacitor } from './is-desktop.js';
 
-export async function ensureMicPermission(): Promise<void> {
-    if (!isCapacitor()) return;
+export async function ensureMicPermission(): Promise<boolean | null> {
+    if (!isCapacitor()) return null;
     try {
         const { SpeechRecognition } = await import('@capacitor-community/speech-recognition');
         const perm = await SpeechRecognition.checkPermissions();
-        if (perm.speechRecognition !== 'granted') {
-            await SpeechRecognition.requestPermissions();
-        }
+        if (perm.speechRecognition === 'granted') return true;
+        const asked = await SpeechRecognition.requestPermissions();
+        return asked.speechRecognition === 'granted';
     } catch {
         /* best-effort; the getUserMedia caller reports the real failure */
+        return null;
     }
 }

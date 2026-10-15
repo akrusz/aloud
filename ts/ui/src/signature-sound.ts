@@ -13,6 +13,7 @@
  */
 
 import { playbackAudioContext } from './audio-unlock.js';
+import { diag } from './diag.js';
 import { pulseNavOrb } from './orb-pulse.js';
 import { assetPath } from './route-base.js';
 
@@ -40,8 +41,9 @@ export function resolveSignatureSound(stored: unknown): SignatureSound {
 }
 
 /** How far the files are turned down to sit with the facilitator's voice: the
- *  audition page's "under the voice" default, where the pairs were chosen. */
-const GAIN = 10 ** (-6 / 20);
+ *  audition page's "under the voice" default (-6 dB), where the pairs were
+ *  chosen, then raised 2 dB by ear in the app (2026-10-14). */
+const GAIN = 10 ** (-4 / 20);
 /** Fade when a sound is cut short (a session ended early, another preview).
  *  Whatever replaces it starts once the fade is done: two of these overlapping,
  *  the same sound twice above all, beat against each other. */
@@ -127,6 +129,7 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
         let source: AudioBufferSourceNode | null = null;
         let gain: GainNode | null = null;
         let over = false;
+        const t0 = performance.now();
         const finish = (): void => {
             if (over) return;
             over = true;
@@ -149,7 +152,10 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
             },
         };
         sounding = me;
-        let giveUp = setTimeout(finish, LOAD_DEADLINE_MS);
+        let giveUp = setTimeout(() => {
+            diag(`[signature] ${half}: not loaded in ${LOAD_DEADLINE_MS}ms, skipped`);
+            finish();
+        }, LOAD_DEADLINE_MS);
         void (async () => {
             const buffer = await load(ctx, fileUrl(sound, half));
             if (over) return;
@@ -165,6 +171,7 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
                 // No gesture behind this context. Started anyway, the sound
                 // would play whenever the context next woke, mid-session.
                 if (!running()) {
+                    diag(`[signature] ${half}: context ${ctx.state}, skipped`);
                     finish();
                     return;
                 }
@@ -176,12 +183,18 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
             source.connect(gain);
             gain.connect(ctx.destination);
             source.onended = () => {
+                diag(`[signature] ${half}: ended at +${Math.round(performance.now() - t0)}ms`);
                 source?.disconnect();
                 gain?.disconnect();
                 finish();
             };
             const wait = Math.max(0, clearAt - ctx.currentTime);
             source.start(ctx.currentTime + wait);
+            diag(
+                `[signature] ${half}: start at +${Math.round(performance.now() - t0)}ms ` +
+                    `dur=${buffer.duration.toFixed(2)}s wait=${wait.toFixed(2)}s ` +
+                    `outputLatency=${ctx.outputLatency ?? '?'}`
+            );
             // onended never fires on a context that stalls (an interruption on
             // iOS), so the clock ends the wait and the sound with it.
             clearTimeout(giveUp);
@@ -208,7 +221,9 @@ export async function playOpening(sound: SignatureSound, micOpening?: Promise<un
     void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
     if (micOpening) {
         openingWaiting = mine;
+        const t0 = performance.now();
         await Promise.race([micOpening.catch(() => {}), sleep(MIC_OPEN_CAP_MS)]);
+        diag(`[signature] open: mic ready after ${Math.round(performance.now() - t0)}ms`);
         await sleep(MIC_SETTLE_MS);
         if (openingWaiting === mine) openingWaiting = 0;
         // Ended (or restarted) while it waited.
