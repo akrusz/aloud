@@ -18,6 +18,7 @@ import { confirmDialog } from '../dialog.js';
 import { isTauri } from '../is-desktop.js';
 import { t, uiLocale } from '../i18n.js';
 import { escapeHtml } from '../escape-html.js';
+import { saveTextFile } from '../file-export.js';
 
 export interface HistoryViewHandle {
     show(): Promise<void>;
@@ -39,8 +40,8 @@ export async function mountHistoryView(
         root.innerHTML = renderShellHTML(sessions);
         wireEvents(sessions);
 
-        // Desktop persists sessions as files (reveal the folder); web offers a
-        // JSON download instead.
+        // Desktop persists sessions as files (reveal the folder); web and
+        // mobile offer a JSON file instead.
         const folderBtn = root.querySelector<HTMLButtonElement>('#btn-open-sessions-folder');
         folderBtn?.addEventListener('click', () => {
             void fetch(appUrl('/open-sessions-folder'), { method: 'POST' }).catch(() => {});
@@ -172,22 +173,14 @@ function speakerLabel(ex: Exchange): string {
     return ex.name ?? (ex.role === 'assistant' ? t('Facilitator') : t('You'));
 }
 
-/** Download all saved sessions as one JSON file (web only; desktop reveals the
+/** Save all sessions as one JSON file (web and mobile; desktop reveals the
  *  on-disk sessions folder instead). */
 function exportSessions(sessions: readonly SessionState[]): void {
-    try {
-        const blob = new Blob([JSON.stringify(sessions, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `aloud-sessions-${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-    } catch (err) {
-        console.warn('Session export failed', err);
-    }
+    saveTextFile(
+        `aloud-sessions-${new Date().toISOString().slice(0, 10)}.json`,
+        JSON.stringify(sessions, null, 2),
+        'application/json'
+    ).catch((err: unknown) => console.warn('Session export failed', err));
 }
 
 // ---- rendering ----
