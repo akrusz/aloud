@@ -127,8 +127,8 @@ export function buildTimerCompletionEvent(
           `also don't ask a question that needs an answer.`;
     return (
         `${SESSION_TIMER_EVENT_PREFIX} the ${totalMin} minutes the meditator set ` +
-        `are complete. This message is automatic; they have not spoken. Offer a ` +
-        `short closing word and let them come back in their own time. ` +
+        `are complete. This message is automatic; they have not spoken. Say ` +
+        `plainly that the time is up, in a sentence or two, without rushing them out. ` +
         `${ending}${staged}]`
     );
 }
