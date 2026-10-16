@@ -600,7 +600,7 @@ export const ZH: Record<string, string> = {
     "Top up to keep going, or switch to a local/BYOK provider in Settings.": "充值以继续，或在设置中切换到本地或自备密钥的服务商。",
     "Top up to keep going, or use a free voice.": "充值以继续，或使用免费语音。",
     "Transcribed on this device. Free and private.": "在本设备上转写。免费且私密。",
-    "Transcribed on your device. Free, but quality varies and speaking won't interrupt the facilitator.": "在你的设备上转写。免费，但质量因设备而异，说话也无法打断引导者。",
+    "Uses your device's built-in speech recognition. Free, but quality varies and speaking won't interrupt the facilitator.": "使用设备内置的语音识别。免费，但质量因设备而异，说话也无法打断引导者。",
     "Trouble hearing you - your browser may be blocking its speech recognition.": "听不清你说话 - 浏览器可能禁用了语音识别。",
     "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings.": "语音转文字出了问题。目前收不到你的声音 - 请检查网络，或在设置中更换语音识别方式。",
     "Try right now": "现在就试试",
