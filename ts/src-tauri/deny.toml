@@ -33,6 +33,15 @@ ignore = [
     # moment plist ships a quick-xml 0.41 bump (re-check on every Tauri bump).
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+    # zip 4.6.1, yanked: zip yanked every release before 9.0.3 after its
+    # extract() symlink/permission advisories (GHSA-4684-h2q9-2vcp,
+    # GHSA-4v9h-p7m9-rh26, GHSA-vv5m-jxxh-4627; October 2026). Our only path is
+    # tauri-plugin-updater, Windows-only, and even its latest (2.14.0) pins zip
+    # ^4. It extracts only an update whose signature it has already checked
+    # against our key, so a crafted archive needs our signing key. Drop this
+    # (and expect RUSTSEC IDs for those GHSAs meanwhile) once the updater moves
+    # to zip >=9.0.1.
+    { crate = "zip@4.6.1", reason = "yanked; only via tauri-plugin-updater, which pins zip ^4 and extracts signature-verified updates" },
 ]
 
 [bans]
