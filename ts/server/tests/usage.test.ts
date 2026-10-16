@@ -65,6 +65,20 @@ describe('buildUsageReport', () => {
         expect(r.llmCacheHitRatio).toBeCloseTo(900 / 1000, 9);
     });
 
+    it('leaves the judge (typesafe) out of the cache aggregates but not the LLM cost split', () => {
+        const events = [
+            ev({ kind: 'llm', provider: 'anthropic', tokensIn: 100, cacheRead: 900, providerCostUsd: 0.01 }),
+            ev({ kind: 'llm', provider: 'typesafe', model: 'jev', tokensIn: 500, providerCostUsd: 0.001, purpose: 'utility' }),
+        ];
+        const r = buildUsageReport(events, 2000, 0);
+        expect(r.llmCacheHitRatio).toBeCloseTo(900 / 1000, 9);
+        expect(r.llmCache.freshInputTokens).toBe(100);
+        expect(r.llmCacheByProvider.map((p) => p.provider)).toEqual(['anthropic']);
+        const llm = r.byService.find((s) => s.kind === 'llm')!;
+        expect(llm.events).toBe(2);
+        expect(llm.providerCostUsd).toBeCloseTo(0.011, 9);
+    });
+
     it('computes cache economics — token split, $ saved vs no-cache, per provider', () => {
         const M = 1_000_000;
         // Opus 5 rates: in 5/M, out 25/M, read 0.5/M, write 6.25/M.

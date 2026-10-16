@@ -336,7 +336,7 @@ export interface UsageReport {
     totals: { providerCostUsd: number; credits: number };
     /** Cost split by service: the "what drove the bill" answer. */
     byService: ServiceAgg[];
-    /** cacheRead / (input + cacheRead + cacheCreation) across all LLM events in
+    /** cacheRead / (input + cacheRead + cacheCreation) across the LLM events in
      *  the window. The most useful single number for predicting real session
      *  cost (a warm cache is ~10x cheaper than cold). */
     llmCacheHitRatio: number;
@@ -527,7 +527,9 @@ export function buildUsageReport(
         m.credits += e.credits;
         models.set(key, m);
 
-        if (e.kind === 'llm') {
+        // Jev (the judge) is an LLM row for the cost split but has no prompt
+        // cache; counting it would read as a cold facilitator.
+        if (e.kind === 'llm' && e.provider !== 'typesafe') {
             cacheReadTokens += e.cacheRead;
             cacheableTokens += e.tokensIn + e.cacheRead + e.cacheCreation;
 
