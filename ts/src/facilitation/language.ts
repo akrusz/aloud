@@ -70,7 +70,6 @@ export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '你准备好了就说，我在。',
     '慢慢来，不着急。',
     '不用急。',
-    '我就在这里。',
     '我在。',
     '还陪着你。',
     '现在感觉怎么样？',
@@ -78,8 +77,6 @@ export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '慢慢来。',
     '你注意到了什么？',
     '还在这里。',
-    '就在这里。',
-    '在这里陪着你。',
     '时间很充裕。',
 ];
 
@@ -96,10 +93,9 @@ export const ZH_COMMON_OPENERS: readonly string[] = [
     '我们开始吧。此刻有什么正在发生？',
     '花一点时间安顿下来……你注意到了什么？',
     '当你准备好了，看看此刻能觉察到什么？',
-    '慢慢安顿下来。此刻心里有什么？',
     '就从你现在的状态开始。此刻正在发生什么？',
     '什么时候准备好都可以……有什么浮现出来吗？',
-    '花点时间安顿一下。现在有什么？',
+    '花点时间到这里来。现在有什么？',
 ];
 
 export const ZH_MINIMAL_OPENERS: readonly string[] = [
@@ -158,19 +154,19 @@ export const ZH_NOTING_STATIC_OPENERS: readonly string[] = [
 
 export const ZH_FOCUS_OPENERS: Record<string, readonly string[]> = {
     body_sensations: [
-        '让自己慢慢回到身体里……你注意到了什么？',
+        '看看身体……你注意到了什么？',
         '花一点时间感受你的身体。那里有什么？',
         '此刻你在身体里注意到了什么？',
     ],
     emotions: [
         '你现在感觉怎么样？',
         '花一点时间向内感受。那里有什么？',
-        '慢慢安顿下来。此刻心里是什么样的基调？',
+        '此刻心里是什么样的基调？',
     ],
     inner_parts: [
         '先和自己打个招呼……此刻内在有什么？',
         '花一点时间向内倾听。你听到了什么？',
-        '慢慢安顿下来。内在有什么浮现出来？',
+        '此刻内在正在发生什么？',
     ],
     open_awareness: [
         '此刻什么占据着你的注意力？',
@@ -181,7 +177,7 @@ export const ZH_FOCUS_OPENERS: Record<string, readonly string[]> = {
 export const ZH_QUALITY_OPENERS: Record<string, readonly string[]> = {
     playful: ['嘿，里面在发生什么呢？', '那么……你注意到了什么？'],
     compassionate: ['你好。从你现在所在的地方开始就好。你怎么样？', '不着急。你还好吗？'],
-    loving: ['慢慢安顿下来……此刻有什么需要一点温柔和善意吗？'],
+    loving: ['此刻有什么需要一点善意吗？'],
     spacious: ['这里有很多空间。你注意到了什么？'],
     effortless: ['什么都不用做。本来就在这里的，是什么？'],
     feeling_good: [
