@@ -24,6 +24,12 @@ import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'session-clock-modal-overlay';
 
+/** How far past a second's turn the readout re-renders, so timer jitter can't
+ *  land the render just before it. On a fixed 1s interval, whose phase was set
+ *  at session start and not when the countdown was armed, a render near the
+ *  turn skipped or repeated a second (0:16, 0:15, 0:13). */
+const TICK_PAST_MS = 20;
+
 /** How long an armed-but-hidden clock stays on screen: 2s at full strength,
  *  then a 6s fade (the split lives in the session-clock-reveal keyframes). */
 export const SESSION_CLOCK_REVEAL_MS = 8000;
@@ -108,7 +114,8 @@ export class SessionClock {
      *  timerMin: that is the saved preference, and "five more minutes" is about
      *  this sit only. */
     private runMin = 0;
-    private readonly tick: ReturnType<typeof setInterval>;
+    private tick: ReturnType<typeof setTimeout> | null = null;
+    private destroyed = false;
     /** Mid-reveal: the readout shows even though `visible` is false. */
     private revealing = false;
     private revealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -131,7 +138,6 @@ export class SessionClock {
 
         this.el.addEventListener('click', () => void this.openPicker());
         this.render();
-        this.tick = setInterval(() => this.render(), 1000);
     }
 
     /** Start (or restart) the countdown, measured from now. */
@@ -322,7 +328,26 @@ export class SessionClock {
         this.render();
     }
 
+    /** Re-render just after the shown second next turns over. */
+    private scheduleTick(): void {
+        if (this.tick !== null) clearTimeout(this.tick);
+        if (this.destroyed) return;
+        const now = Date.now();
+        // How far the readout is into the second it shows.
+        let into: number;
+        if (this.mode === 'timer' && this.endsAt !== null) {
+            const left = this.endsAt - now;
+            into = left > 0 ? 1000 - (left % 1000) : -left % 1000;
+        } else if (this.mode === 'wall') {
+            into = now % 1000;
+        } else {
+            into = (now - this.startMs) % 1000;
+        }
+        this.tick = setTimeout(() => this.render(), 1000 - into + TICK_PAST_MS);
+    }
+
     private render(): void {
+        this.scheduleTick();
         // Hidden by preference, but a running timer keeps counting: the notices
         // are the point, the readout is optional.
         const showing = this.visible || this.revealing;
@@ -352,7 +377,8 @@ export class SessionClock {
     }
 
     destroy(): void {
-        clearInterval(this.tick);
+        this.destroyed = true;
+        if (this.tick !== null) clearTimeout(this.tick);
         if (this.revealTimer) clearTimeout(this.revealTimer);
     }
 }

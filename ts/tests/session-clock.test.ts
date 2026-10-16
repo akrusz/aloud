@@ -91,8 +91,35 @@ describe('SessionClock', () => {
         expect(el.text).toBe('1:00');
         // Past the end the session stays open, so the clock counts back up
         // rather than freezing at 0:00.
-        vi.advanceTimersByTime(90_000);
+        vi.advanceTimersByTime(90_500);
         expect(el.text).toBe('+0:30');
+        clock.destroy();
+    });
+
+    it("turns over with the countdown's seconds, not the session's", () => {
+        // A fixed 1s tick kept the phase of the session start, so a timer set
+        // partway through a second was rendered up to a second late, and near
+        // the turn timer jitter skipped or repeated a second.
+        const el = fakeEl();
+        const clock = new SessionClock(
+            el,
+            Date.now(),
+            { ...TIMER_SETTINGS, sessionClockMode: 'elapsed' },
+            () => undefined
+        );
+        vi.advanceTimersByTime(4_400);
+        clock.applyChoice({ mode: 'timer', timerMin: 5, showClock: true, endOnComplete: false });
+        expect(el.text).toBe('5:00');
+        // Either side of each turn of the countdown's second.
+        const shown: string[] = [];
+        vi.advanceTimersByTime(950);
+        for (let i = 0; i < 3; i++) {
+            shown.push(el.text);
+            vi.advanceTimersByTime(100);
+            shown.push(el.text);
+            vi.advanceTimersByTime(900);
+        }
+        expect(shown).toEqual(['4:59', '4:58', '4:58', '4:57', '4:57', '4:56']);
         clock.destroy();
     });
 
