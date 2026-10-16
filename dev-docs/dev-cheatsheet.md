@@ -346,6 +346,7 @@ scripts/release.sh rc                 # patch bump, marked --prerelease (RC / te
 scripts/release.sh same               # re-release current version (moves tag)
 scripts/release.sh replace            # re-release, same title + notes (quick fix cycle)
 scripts/release.sh retry              # finish a release that failed after approval
+scripts/release.sh ios                # iOS-only fix: HEAD to TestFlight, same version, no tag
 scripts/release.sh --help             # every mode and prompt
 ```
 

@@ -24,7 +24,8 @@ build number, choose **Any iOS Device (arm64)**, **Product → Archive**, then
 
 In App Store Connect → **TestFlight**, add **Internal Testers** once the build
 finishes processing (up to 100, no review). **External testers** (up to 10,000)
-need a one-time lightweight **Beta App Review**.
+need a lightweight **Beta App Review** for each new version, usually hours. A
+new build of a version that has passed it usually skips it.
 
 **CLI path** (proven 2026-08-03; works with ZERO registered iOS devices):
 
@@ -39,6 +40,9 @@ scripts/ios-archive.sh --upload   # sign that archive for distribution and send
 
 `scripts/release.sh` asks at the end of a release which stores to build for
 (default both); App Store runs both steps, the archive and the upload.
+`scripts/release.sh ios` is the iOS-only fix: both steps from HEAD under the
+current version, no tag, so web, desktop and Play get the fixes at the next
+release. It closes on TestFlight reminders and a drafted What to Test.
 
 With no devices on the team, Xcode can't mint a *development* profile, so a
 normal signed archive fails ("Your team has no devices"). The workaround:

@@ -25,6 +25,11 @@ Modes:
              rejected, gh error, dirty tree after the check): fix the cause
              (pull, commit), then retry. Reuses the approved version, title and
              notes; skips the drafting, prompts and pre-release check
+  ios        iOS-only fix: archive HEAD under the current version and upload
+             it to TestFlight. A new build of an already-reviewed version
+             usually skips beta review. No bump, tag or GitHub release, so
+             web, desktop and Play get the fixes at the next release. Ends on
+             reminders and a drafted What to Test
   -h, --help show this help
 
 Before anything else: the tree must be clean and not behind its upstream
@@ -49,6 +54,9 @@ EOF
 case "${1:-}" in
     -h|--help|help) usage; exit 0 ;;
 esac
+
+IOS_ONLY=false
+[ "${1:-}" = ios ] && IOS_ONLY=true
 
 # Run from project root so relative paths (ts/, README.md) resolve
 # regardless of the caller's cwd.
@@ -122,7 +130,7 @@ if [ -f ts/package.json ]; then
             exit 1
         fi
         # tauri build rejects npm/crate plugin version drift - after the tag is out.
-        if ! node ts/scripts/check-tauri-versions.mjs; then
+        if [ "$IOS_ONLY" = false ] && ! node ts/scripts/check-tauri-versions.mjs; then
             exit 1
         fi
         # The npm half of the supply-chain gate (cargo deny, below, is the Rust
@@ -134,7 +142,9 @@ if [ -f ts/package.json ]; then
     else
         echo "  Warning: npm not found, skipping TS typecheck."
     fi
-    if command -v cargo >/dev/null 2>&1; then
+    if [ "$IOS_ONLY" = true ]; then
+        : # an iOS build carries none of the Rust
+    elif command -v cargo >/dev/null 2>&1; then
         if ! cargo check --manifest-path ts/src-tauri/Cargo.toml --quiet; then
             echo "Error: cargo check failed — fix before releasing" >&2
             exit 1
@@ -156,6 +166,69 @@ fi
 # Read current version from tauri.conf.json (the source of truth)
 CURRENT=$(grep -m1 '"version"' ts/src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([0-9][0-9.]*)".*/\1/')
 IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
+
+# iOS-only fix. Same CFBundleShortVersionString, and export assigns the next
+# build number. Everything else stays on the tag, so this never touches it.
+if [ "$IOS_ONLY" = true ]; then
+    TAG="v${CURRENT}"
+    if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+        echo "Error: $TAG isn't tagged - an iOS-only fix rebuilds a released version" >&2
+        exit 1
+    fi
+    # By message, not path: a real iOS fix can touch project.pbxproj too.
+    SKIP_VERSION_COMMITS=(--invert-grep --grep='^ios: version ' --grep='^android: versionCode ')
+    AHEAD=$(git log --format='    %h %s' "${SKIP_VERSION_COMMITS[@]}" "$TAG..HEAD")
+    echo ""
+    if [ -z "$AHEAD" ]; then
+        printf "  Nothing new since %s. Upload the same code again? [y/N] " "$TAG"
+        read -r CONT
+        case "$CONT" in y|Y) ;; *) echo "  Aborted."; exit 0 ;; esac
+    else
+        echo "  iOS-only fix: $CURRENT from HEAD, adding what's past $TAG:"
+        printf '%s\n' "$AHEAD"
+        echo ""
+        printf "  Archive and upload to TestFlight? [Y/n] "
+        read -r CONT
+        case "$CONT" in n|N) echo "  Aborted."; exit 0 ;; esac
+    fi
+
+    # Drafted now, so the archive and upload run unattended and it's on screen
+    # at the end, when App Store Connect asks for it.
+    WHAT_TO_TEST=""
+    if [ -n "$AHEAD" ] && command -v claude >/dev/null 2>&1; then
+        echo "  Drafting What to Test…"
+        LOG=$(git log --format='- %s%n%b' "${SKIP_VERSION_COMMITS[@]}" "$TAG..HEAD" | head -200)
+        WHAT_TO_TEST=$(claude --model "$RELEASE_MODEL" -p "Draft TestFlight 'What to Test' text for a new build of aloud v${CURRENT}, a voice meditation app. Testers already have an earlier build of this version; this one adds only these commits:
+
+${LOG}
+
+Write for testers, not developers: what changed and what to try. 1-3 lines, each one short bullet starting with '- '. Nothing else: no heading, no preamble. No em-dashes (use ' - ' or a comma). Call it a session, never a sit." </dev/null 2>/dev/null | grep '^- ' || true)
+    fi
+
+    if ! scripts/ios-archive.sh; then
+        echo "  iOS archive FAILED - rerun: scripts/release.sh ios" >&2
+        exit 1
+    fi
+    if ! scripts/ios-archive.sh --upload; then
+        echo "  iOS upload FAILED - rerun: scripts/ios-archive.sh --upload" >&2
+        exit 1
+    fi
+
+    echo ""
+    echo "  iOS $CURRENT uploaded from $(git rev-parse --short HEAD). Once it's processed, in TestFlight:"
+    echo "    - add it to the external group (it won't pick it up on its own)"
+    echo "    - expire the earlier $CURRENT build, or testers can still pick it under Previous Builds"
+    echo "  For later:"
+    echo "    - web, desktop and Play stay on $TAG; the next release brings them these fixes"
+    echo "    - in-app bug reports say v$CURRENT for every build; the tester's TestFlight app shows which"
+    echo "    - this build expires $(date -v+90d '+%b %-d, %Y')"
+    if [ -n "$WHAT_TO_TEST" ]; then
+        echo ""
+        echo "  What to Test:"
+        printf '%s\n' "$WHAT_TO_TEST" | sed 's/^/    /'
+    fi
+    exit 0
+fi
 
 ARG="${1:-patch}"
 
