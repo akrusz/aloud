@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create a release: bump version, update README links, commit, tag, push,
-# and create the GitHub release (which triggers the build workflow). Then offer
-# the mobile builds, which CI doesn't do, and the TestFlight upload.
+# and create the GitHub release (which triggers the build workflow). Then the
+# mobile builds, which CI doesn't do, and the TestFlight upload.
 # Modes and prompts: scripts/release.sh --help
 
 set -e
@@ -37,9 +37,9 @@ e edit in $EDITOR, s write your own there from an empty file, n write in gh
 (at the end, after the push). Then the pre-release doc check: Y run, n skip,
 q abort; if it leaves items, f fixes them in a claude session here.
 
-Last, once the release is out: build the mobile bundles (Android .aab, iOS
-archive), Y run, n skip. If the iOS archive built: upload it to TestFlight,
-y run, Enter skips. The .aab goes into the Play Console by hand.
+Last, once the release is out, the mobile builds: Enter both, a App Store
+only (iOS archive + TestFlight upload), p Play only (Android .aab), n neither.
+The .aab goes into the Play Console by hand.
 
 Env:
   ALOUD_RELEASE_MODEL  model for the claude CLI calls (default: opus)
@@ -541,51 +541,46 @@ else
 fi
 
 # The mobile bundles build here, not in CI. Offered once the release is out,
-# so a failed build can't hold it up; each script reruns on its own.
+# so a failed build can't hold it up; each script reruns on its own. One
+# question up front, so the builds and the TestFlight upload run unattended.
 echo ""
-printf "  Build the mobile bundles (Android .aab, iOS archive)? [Y/n] "
+printf "  Mobile builds: B both, a App Store (+ TestFlight upload), p Play, n neither [B/a/p/n] "
 read -r MOBILE
 case "$MOBILE" in
-    n|N)
-        echo "  Skipped. To build them later:"
-        echo "    scripts/android-aab.sh --no-bump"
-        echo "    scripts/ios-archive.sh"
-        ;;
-    *)
-        ANDROID_OK=true
-        IOS_OK=true
-        # --no-bump: the version bump above already took this release's versionCode.
-        scripts/android-aab.sh --no-bump --no-notes || ANDROID_OK=false
-        scripts/ios-archive.sh || IOS_OK=false
-        # The one upload that is a command (Play takes the .aab by hand).
-        # Default no: an Enter typed ahead during the builds must not ship one.
-        IOS_LINE="iOS archive FAILED - rerun: scripts/ios-archive.sh"
-        if [ "$IOS_OK" = true ]; then
-            IOS_LINE="iOS: not uploaded. When ready:
-    scripts/ios-archive.sh --upload"
-            echo ""
-            printf "  Upload the iOS archive to TestFlight? [y/N] "
-            read -r UPLOAD
-            case "$UPLOAD" in
-                y|Y)
-                    if scripts/ios-archive.sh --upload; then
-                        IOS_LINE="iOS: uploaded to TestFlight"
-                    else
-                        IOS_LINE="iOS upload FAILED - rerun: scripts/ios-archive.sh --upload"
-                    fi
-                    ;;
-            esac
-        fi
-        echo ""
-        echo "  $IOS_LINE"
-        if [ "$ANDROID_OK" = true ]; then
-            echo "  Android: still to do - upload the .aab to the Play Console"
-            echo "    ts/android/app/build/outputs/bundle/release/app-release.aab"
-            # Last, so it's on screen when the Play Console asks for it.
-            . scripts/lib/whats-new.sh
-            print_whats_new
-        else
-            echo "  Android build FAILED - rerun: scripts/android-aab.sh --no-bump"
-        fi
-        ;;
+    n|N) ANDROID=false; IOS=false ;;
+    a|A) ANDROID=false; IOS=true ;;
+    p|P) ANDROID=true; IOS=false ;;
+    *) ANDROID=true; IOS=true ;;
 esac
+
+ANDROID_LINE="Android: skipped - scripts/android-aab.sh --no-bump"
+if [ "$ANDROID" = true ]; then
+    # --no-bump: the version bump above already took this release's versionCode.
+    if scripts/android-aab.sh --no-bump --no-notes; then
+        ANDROID_LINE="Android: still to do - upload the .aab to the Play Console
+    ts/android/app/build/outputs/bundle/release/app-release.aab"
+    else
+        ANDROID_LINE="Android build FAILED - rerun: scripts/android-aab.sh --no-bump"
+    fi
+fi
+
+IOS_LINE="iOS: skipped - scripts/ios-archive.sh, then scripts/ios-archive.sh --upload"
+if [ "$IOS" = true ]; then
+    if ! scripts/ios-archive.sh; then
+        IOS_LINE="iOS archive FAILED - rerun: scripts/ios-archive.sh"
+    elif ! scripts/ios-archive.sh --upload; then
+        IOS_LINE="iOS upload FAILED - rerun: scripts/ios-archive.sh --upload"
+    else
+        # External groups don't pick up new builds on their own.
+        IOS_LINE="iOS: uploaded - once it's processed, add it to the external group in TestFlight"
+    fi
+fi
+
+echo ""
+echo "  $IOS_LINE"
+echo "  $ANDROID_LINE"
+if [ "$ANDROID" = true ] || [ "$IOS" = true ]; then
+    # Last, so it's on screen for Play's "What's new" and TestFlight's What to Test.
+    . scripts/lib/whats-new.sh
+    print_whats_new
+fi

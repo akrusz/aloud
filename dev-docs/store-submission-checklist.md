@@ -170,8 +170,9 @@ later, not for approval.
       `scripts/android-aab.sh` (bumps `versionCode`, syncs `versionName`) and
       `scripts/ios-archive.sh` (refuses an archive without the Apple sign-in
       entitlement).
-- [ ] Uploads: the `.aab` to the Play track by hand; `scripts/ios-archive.sh
-      --upload` for TestFlight.
+- [ ] Uploads: the `.aab` to the Play track by hand; TestFlight gets the
+      archive from `release.sh` (or `scripts/ios-archive.sh --upload`), then
+      add the build to the external group once it's processed.
 - [ ] Release notes ("What's new"), and What to Test per TestFlight build.
 - [ ] Store copy changed? `store-descriptions.md` is the source; paste into
       both consoles.

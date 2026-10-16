@@ -1,7 +1,8 @@
-# Play's upload flow asks for "What's new": print the latest release's notes
-# for copy-paste instead of a scroll back through GitHub. Latest STABLE release
-# (gh's default view skips prereleases), which is what a store bundle ships.
-# Callers print it last, so it's still on screen at the Play Console.
+# Play's upload flow asks for "What's new" and TestFlight's for What to Test:
+# print the latest release's notes for copy-paste instead of a scroll back
+# through GitHub. Latest STABLE release (gh's default view skips prereleases),
+# which is what a store bundle ships. Callers print it last, so it's still on
+# screen at the store console.
 print_whats_new() {
     command -v gh >/dev/null 2>&1 || return 0
     local notes
