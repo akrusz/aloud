@@ -50,7 +50,7 @@ async function setNativeDim(dimmed: boolean): Promise<void> {
             plugin: core.registerPlugin<ScreenDimPlugin>('ScreenDim'),
         }));
         const { plugin } = await pluginLoad;
-        // The latest ask, not this call's: a wake can arrive during the import.
+        // The latest ask, not this call's: a tap can brighten during the import.
         await plugin.setDimmed({ dimmed: nativeWanted });
     } catch {
         // No such plugin (iOS): the cover is the whole feature there.
@@ -81,7 +81,7 @@ function dim(): void {
     el.appendChild(hint);
     // click, not pointerdown: the cover has to outlive the whole tap, or its
     // second half hits whatever button was underneath.
-    el.addEventListener('click', wake);
+    el.addEventListener('click', brighten);
     document.body.appendChild(el);
     cover = el;
     // Lay it out transparent first, or there is nothing to fade from.
@@ -93,7 +93,7 @@ function dim(): void {
     }, HINT_MS);
 }
 
-function wake(): void {
+function brighten(): void {
     if (hintTimer) clearTimeout(hintTimer);
     hintTimer = null;
     if (cover) {
@@ -108,10 +108,10 @@ function install(): void {
     if (installed) return;
     installed = true;
     window.addEventListener('pointerdown', () => arm(), { capture: true, passive: true });
-    window.addEventListener('keydown', () => (cover ? wake() : arm()), { capture: true });
+    window.addEventListener('keydown', () => (cover ? brighten() : arm()), { capture: true });
     // Back from a lock or another app: someone is looking at it.
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') wake();
+        if (document.visibilityState === 'visible') brighten();
     });
     const nav = navigator as unknown as { getBattery?: () => Promise<BatteryLike> };
     if (!nav.getBattery) return;
@@ -120,7 +120,7 @@ function install(): void {
         .then((battery) => {
             const sync = (): void => {
                 onBattery = !battery.charging;
-                wake();
+                brighten();
             };
             battery.addEventListener('chargingchange', sync);
             sync();
@@ -142,5 +142,5 @@ export function startScreenDim(): void {
 export function stopScreenDim(): void {
     if (!active) return;
     active = false;
-    wake();
+    brighten();
 }
