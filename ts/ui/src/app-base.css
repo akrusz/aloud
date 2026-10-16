@@ -6492,22 +6492,14 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     opacity: 1;
 }
 
-/* Readable while the black comes up, gone before the brightness drops
-   (HINT_MS in screen-dim.ts). */
+/* Stays up the whole time the cover does, so a glance at a black phone says
+   why. Dim grey, a few lit pixels on an OLED; under the Android app's dropped
+   brightness it gets dimmer still. */
 .screen-dim-hint {
-    color: #8a8a8a;
+    color: #707070;
     font-size: 0.9rem;
-    animation: screen-dim-hint 5s ease forwards;
-}
-
-@keyframes screen-dim-hint {
-    0%,
-    70% {
-        opacity: 1;
-    }
-    100% {
-        opacity: 0;
-    }
+    padding: 0 16px;
+    text-align: center;
 }
 
 /* Dev-build-only "a failure is being simulated" banner (dev-sim.ts). Deliberately

@@ -196,7 +196,7 @@ describe('screen dim', () => {
         expect(world.covers()).toBe(1);
     });
 
-    it('native: brightness drops once the hint has gone, and returns on the tap', async () => {
+    it('native: brightness drops once the hint has been up a moment, and returns on the tap', async () => {
         const world = plant({ native: true });
         const { startScreenDim, DIM_AFTER_MS, HINT_MS } = await load();
         startScreenDim();

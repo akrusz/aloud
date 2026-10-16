@@ -82,7 +82,8 @@ in section 2.
       "What are ☁?" offers only "Got it" once signed in).
 - [ ] [Android] **Device checks**: a lock/unlock mid-session picks up again at
       full loudness (`wxj5`); 30 minutes; unplugged, three minutes untouched →
-      screen goes black, a tap brings it back (`screen-dim.ts`); speak a few
+      screen goes black with "Screen dimmed, tap to brighten" still faintly
+      readable, a tap brings it back (`screen-dim.ts`); speak a few
       seconds after the facilitator stops → the transcript starts where the
       sentence does (`0l0w`, `wlp9`); one Inworld reply with its first phoneme
       intact (`2igi`); one spoken command; the opening and closing sounds play

@@ -16,8 +16,8 @@ import { isCapacitor } from './is-desktop.js';
 import { t } from './i18n.js';
 
 export const DIM_AFTER_MS = 3 * 60_000;
-/** How long "Tap to wake" stays readable before the brightness drops under it.
- *  Matches the hint's fade in app-base.css (.screen-dim-hint). */
+/** How long the hint shows at full brightness, for whoever is looking as the
+ *  black comes up, before the brightness drops under it. */
 export const HINT_MS = 5000;
 
 interface BatteryLike {
@@ -77,7 +77,7 @@ function dim(): void {
     el.setAttribute('role', 'button');
     const hint = document.createElement('span');
     hint.className = 'screen-dim-hint';
-    hint.textContent = t('Tap to wake');
+    hint.textContent = t('Screen dimmed, tap to brighten');
     el.appendChild(hint);
     // click, not pointerdown: the cover has to outlive the whole tap, or its
     // second half hits whatever button was underneath.
