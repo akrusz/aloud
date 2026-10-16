@@ -776,12 +776,12 @@ export async function mountSessionView(
     function continuousWhisper(engine: SttEngine | null): WhisperPcmSttEngine | null {
         return continuousCapture && engine instanceof WhisperPcmSttEngine ? engine : null;
     }
-    // The opening sound, as soon as the mic is open (a recognizer that opens
-    // one now primes it here; playOpening says why the sound waits). The
-    // facilitator's first words wait for the sound to end (tts.speak below),
-    // and come as soon after as they are ready.
+    // The opening sound, and the mic opened (primed) by a recognizer that opens
+    // one now, one after the other (playOpening says in which order). The
+    // facilitator's first words wait for both (tts.speak below), and come as
+    // soon after as they are ready.
     const signatureSound = resolveSignatureSound(appSettings.signatureSound);
-    const openingOver = playOpening(signatureSound, stt?.prime?.());
+    const openingOver = playOpening(signatureSound, () => stt?.prime?.());
     let openingSounding = true;
     void openingOver.then(() => {
         openingSounding = false;
@@ -2935,11 +2935,11 @@ export async function mountSessionView(
         activeTtsAbort = myTtsAbort;
         void (async () => {
             try {
-                // Prime the STT capture graph BEFORE the greeting so its onset
-                // pre-buffer fills while the facilitator talks. Otherwise the
-                // graph is built lazily on first start(), and a barge-in during
-                // the greeting has an empty buffer and clips the first word (d35).
-                await Promise.all([stt?.prime?.(), voiceNoteReady]);
+                // No stt.prime() here: playOpening opens the mic, in the order
+                // the platform needs, and every line waits for it (tts.speak).
+                // That also fills the onset pre-buffer before the greeting, so a
+                // barge-in on it doesn't clip the first word (d35).
+                await voiceNoteReady;
                 await speakOpener(!!continueFrom && continueFrom.exchanges.length > 0, {
                     superseded: () => torn || myGen !== turnGen,
                     signal: myFullAbort.signal,

@@ -196,7 +196,7 @@ describe('the opening', () => {
 describe('the opening, with a mic being opened', () => {
     it('waits for the mic and a beat more, so the output has settled', async () => {
         let micUp = (): void => {};
-        const opening = track(sound.playOpening('bloom', new Promise<void>((r) => (micUp = r))));
+        const opening = track(sound.playOpening('bloom', () => new Promise<void>((r) => (micUp = r))));
         await vi.advanceTimersByTimeAsync(400);
         expect(ctx()).toBeNull();
         micUp();
@@ -209,19 +209,102 @@ describe('the opening, with a mic being opened', () => {
     });
 
     it('stops waiting for a mic that does not open', async () => {
-        void sound.playOpening('bloom', new Promise(() => {}));
+        void sound.playOpening('bloom', () => new Promise(() => {}));
         await vi.advanceTimersByTimeAsync(1500 + 600 + 20);
         expect(ctx().sources).toHaveLength(1);
     });
 
     it('plays neither sound for a session that ends while it waits', async () => {
-        const opening = track(sound.playOpening('bloom', new Promise(() => {})));
+        const opening = track(sound.playOpening('bloom', () => new Promise(() => {})));
         await vi.advanceTimersByTimeAsync(300);
         sound.playClosing('bloom');
         await vi.advanceTimersByTimeAsync(5000);
         expect(opening.over).toBe(true);
         expect(ctx()).toBeNull();
         expect(rippled).toEqual([]);
+    });
+    it('with no sound picked, is over once the mic is up', async () => {
+        let micUp = (): void => {};
+        const opening = track(sound.playOpening('none', () => new Promise<void>((r) => (micUp = r))));
+        await settle();
+        expect(opening.over).toBe(false);
+        micUp();
+        await settle();
+        expect(opening.over).toBe(true);
+        expect(fetched).toEqual([]);
+    });
+});
+
+describe('the opening on Android, where the mic opens after it', () => {
+    // An echo-cancelled mic starts call mode there, and Android mutes media
+    // playback for 2s when a call starts: the opening's first second or so.
+    beforeEach(() => {
+        vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Linux; Android 16; CPH2655) wv' });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('plays the sound at once, then opens the mic, and is over once the mic is up', async () => {
+        let micUp = (): void => {};
+        const openMic = vi.fn(() => new Promise<void>((r) => (micUp = r)));
+        const opening = track(sound.playOpening('bloom', openMic));
+        await settle();
+        expect(ctx().sources).toHaveLength(1);
+        expect(openMic).not.toHaveBeenCalled();
+        ctx().sources[0]!.onended!();
+        await settle();
+        expect(openMic).toHaveBeenCalledOnce();
+        expect(opening.over).toBe(false);
+        micUp();
+        await settle();
+        expect(opening.over).toBe(true);
+    });
+
+    it('opens no mic for a session that ends inside its opening', async () => {
+        const openMic = vi.fn(() => Promise.resolve());
+        const opening = track(sound.playOpening('bloom', openMic));
+        await settle();
+        sound.playClosing('bloom');
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(opening.over).toBe(true);
+        expect(openMic).not.toHaveBeenCalled();
+    });
+
+    it("opens the mic first while the last session's close still holds one", async () => {
+        void sound.playOpening('bloom');
+        await settle();
+        ctx().sources[0]!.onended!();
+        await settle();
+        void sound.playClosing('bloom');
+        await settle();
+        let micUp = (): void => {};
+        const openMic = vi.fn(() => new Promise<void>((r) => (micUp = r)));
+        void sound.playOpening('bloom', openMic);
+        await settle();
+        expect(openMic).toHaveBeenCalledOnce();
+        expect(ctx().sources).toHaveLength(2);
+        micUp();
+        await vi.advanceTimersByTimeAsync(600 + 20);
+        expect(ctx().sources).toHaveLength(3);
+    });
+
+    it('with no sound picked, opens the mic at once and waits for it', async () => {
+        let micUp = (): void => {};
+        const openMic = vi.fn(() => new Promise<void>((r) => (micUp = r)));
+        const opening = track(sound.playOpening('none', openMic));
+        await settle();
+        expect(openMic).toHaveBeenCalledOnce();
+        expect(opening.over).toBe(false);
+        micUp();
+        await settle();
+        expect(opening.over).toBe(true);
+    });
+
+    it('stops waiting for a mic that does not open', async () => {
+        const opening = track(sound.playOpening('none', () => new Promise(() => {})));
+        await vi.advanceTimersByTimeAsync(1499);
+        expect(opening.over).toBe(false);
+        await vi.advanceTimersByTimeAsync(2);
+        expect(opening.over).toBe(true);
     });
 });
 

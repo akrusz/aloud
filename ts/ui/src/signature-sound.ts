@@ -204,28 +204,70 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
 }
 
 /**
- * A session starts. Resolves when the opening is over, which is when the
- * facilitator may speak. The orb ripples with it.
+ * Whether the opening plays before the mic opens, rather than after. On
+ * Android an echo-cancelled mic puts the app in call mode, and Android mutes
+ * media playback for 2s when a call starts and drops its outputs for ~0.5s
+ * when one ends. The opening plays on the WebAudio output, a media track, so
+ * it came in a second or so late on any session whose mic started call mode
+ * (meditation-pal-x4n9). The voice's tracks open after the switch, as call
+ * audio, and aren't muted.
  *
- * `micOpening` is the recognizer's capture stream being opened, where it opens
- * one now (SttEngine.prime). The sound waits for it and a beat more: opening
- * an echo-cancelled mic makes the OS rebuild its audio output (voice
- * processing on macOS), and a sound already playing drops out for a fraction
- * of a second when that happens during it (heard on MacBook speakers, 2026-10-12).
- * A recognizer that opens the mic only when it listens passes nothing, and
- * the sound starts at once.
+ * Not while the last session's close is sounding: its mic is held until the
+ * close is over (SttStopOptions.keepMicUntil), so call mode is already on, and
+ * the opening cutting the close lets that mic go. Opening this session's mic
+ * first keeps call mode on through the handover; the other way round it ends
+ * under the opening and starts again at its tail.
  */
-export async function playOpening(sound: SignatureSound, micOpening?: Promise<unknown>): Promise<void> {
+function micOpensAfterOpening(): boolean {
+    if (sounding?.half === 'close') return false;
+    return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+}
+
+async function waitForMic(micOpening: Promise<unknown>): Promise<void> {
+    const t0 = performance.now();
+    await Promise.race([micOpening.catch(() => {}), sleep(MIC_OPEN_CAP_MS)]);
+    diag(`[signature] open: mic ready after ${Math.round(performance.now() - t0)}ms`);
+}
+
+/**
+ * A session starts. Resolves when the opening is over and the mic is open,
+ * which is when the facilitator may speak. The orb ripples with it.
+ *
+ * `openMic` opens the recognizer's capture stream, where it opens one now
+ * (SttEngine.prime); a recognizer that opens the mic only when it listens
+ * passes nothing, and the sound starts at once. Opening an echo-cancelled mic
+ * disturbs sound already playing, so the two take turns. Mostly the sound
+ * waits for the mic and a beat more: the OS rebuilds its audio output (voice
+ * processing on macOS), and a sound playing through that drops out for a
+ * fraction of a second (heard on MacBook speakers, 2026-10-12). On Android
+ * the mic mostly waits for the sound instead (micOpensAfterOpening).
+ */
+export async function playOpening(
+    sound: SignatureSound,
+    openMic?: () => Promise<unknown> | undefined
+): Promise<void> {
     const mine = ++sessionTicket;
-    if (sound === 'none') return;
-    const ctx = playbackAudioContext();
-    diag(`[signature] open: requested, context ${ctx?.state ?? 'none'}${micOpening ? ', waiting for the mic' : ''}`);
+    if (micOpensAfterOpening()) {
+        if (sound !== 'none') {
+            void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
+            pulseNavOrb('session');
+            await play(sound, 'open');
+        }
+        // Ended (or restarted) during the sound: that session gets no mic.
+        if (sessionTicket !== mine) return;
+        const micOpening = openMic?.();
+        if (micOpening) await waitForMic(micOpening);
+        return;
+    }
+    const micOpening = openMic?.();
+    if (sound === 'none') {
+        if (micOpening) await waitForMic(micOpening);
+        return;
+    }
     void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
     if (micOpening) {
         openingWaiting = mine;
-        const t0 = performance.now();
-        await Promise.race([micOpening.catch(() => {}), sleep(MIC_OPEN_CAP_MS)]);
-        diag(`[signature] open: mic ready after ${Math.round(performance.now() - t0)}ms`);
+        await waitForMic(micOpening);
         await sleep(MIC_SETTLE_MS);
         if (openingWaiting === mine) openingWaiting = 0;
         // Ended (or restarted) while it waited.

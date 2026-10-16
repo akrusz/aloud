@@ -385,10 +385,10 @@ export async function mountNotingSessionView(
             minSpeechDurationMs: 150,
         }
     );
-    // The opening sound, once the mic is open (playOpening says why it waits);
-    // the opener waits for the sound.
+    // The opening sound and the mic, one after the other (playOpening says in
+    // which order); the opener waits for both.
     const signatureSound = resolveSignatureSound(appSettings.signatureSound);
-    const openingOver = playOpening(signatureSound, stt?.prime?.());
+    const openingOver = playOpening(signatureSound, () => stt?.prime?.());
 
     // One TTS engine per distinct voice id (participants + narrator).
     const ttsCache = new Map<string, TtsEngine>();
@@ -888,10 +888,10 @@ export async function mountNotingSessionView(
         setStatus(t('No microphone available. Noting needs a mic for your turns.'));
     } else {
         void (async () => {
-            // Prime the STT capture graph before the opener so its onset
-            // pre-buffer fills during the opening line; otherwise a barge-in on
-            // the first turn has an empty buffer and clips the opening word (d35).
-            await Promise.all([stt.prime?.(), openingOver]);
+            // The opening opens the mic (no stt.prime() here, which could open
+            // it under the sound), filling the onset pre-buffer during the
+            // opening line, or a barge-in on the first turn clips its word (d35).
+            await openingOver;
             await speakOpener();
             if (!torn) void advanceTurn();
         })();

@@ -48,6 +48,13 @@ and again a couple of seconds after it stops. Three rules keep the two apart
 - **Opening starts after the mic is up.** `playOpening` takes the engine's
   `prime()` and starts the sound once the mic is up plus `MIC_SETTLE_MS`.
   Started first, it dropped out for a fraction of a second as the mic arrived.
+  Android is the other way round (`micOpensAfterOpening`): the mic puts the
+  app in call mode, and Android mutes media playback for 2s when a call
+  starts, so the sound plays first and the mic opens after it. The exception
+  is a Begin during the last session's close, whose held mic keeps call mode
+  on: the mic opens first there, so letting the old one go doesn't end call
+  mode under the opening (meditation-pal-x4n9). Either way the session never
+  primes the mic itself, and the greeting waits for both.
 - **The listen loop and barge-in ignore the opening.** Both wait out
   `openingSounding` in `session.ts`. The echo canceller is cold at session
   start, so the sound reaches the mic near full strength, and the default pair
