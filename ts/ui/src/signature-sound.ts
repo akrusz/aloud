@@ -218,6 +218,8 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
 export async function playOpening(sound: SignatureSound, micOpening?: Promise<unknown>): Promise<void> {
     const mine = ++sessionTicket;
     if (sound === 'none') return;
+    const ctx = playbackAudioContext();
+    diag(`[signature] open: requested, context ${ctx?.state ?? 'none'}${micOpening ? ', waiting for the mic' : ''}`);
     void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
     if (micOpening) {
         openingWaiting = mine;

@@ -870,7 +870,13 @@ export class WhisperPcmSttEngine implements SttEngine {
         // the model, the graph persists across turns), and the caller holds
         // `busy` through the opening greeting, so a cold first-run model
         // download hides behind it.
-        await Promise.allSettled([this.acquireSilero(), this.ensureCaptureGraph()]);
+        const t0 = performance.now();
+        const took = (what: string) => () =>
+            diag(`[vad] prime: ${what} after ${Math.round(performance.now() - t0)}ms`);
+        await Promise.allSettled([
+            this.acquireSilero().finally(took('silero')),
+            this.ensureCaptureGraph().finally(took('capture graph')),
+        ]);
     }
 
     /**

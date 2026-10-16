@@ -27,6 +27,7 @@ import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
 import { acquireMicOnce, describeMicRequirement } from './mic-check.js';
 import { primeAudioPlayback } from './audio-unlock.js';
+import { diag } from './diag.js';
 import { preloadOpening, resolveSignatureSound } from './signature-sound.js';
 import { navOrbPainted } from './orb-pulse.js';
 import { alertDialog } from './dialog.js';
@@ -475,6 +476,7 @@ async function ensureMicAvailable(): Promise<boolean> {
     // playback permission if it is played from the click itself, and the first
     // spoken sentence is many awaits away (audio-unlock.ts).
     primeAudioPlayback();
+    diag('[signature] begin');
     const problem = describeMicRequirement(await acquireMicOnce());
     if (!problem) return true;
     await alertDialog(problem);
