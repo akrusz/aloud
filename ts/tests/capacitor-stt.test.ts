@@ -518,6 +518,22 @@ describe('Android native session events', () => {
         expect(finals(events)).toEqual([{ type: 'final', text: 'I notice' }]);
         expect(engine.userSpeechActive).toBe(false);
     });
+
+    it("lets a 'started' that no text follows go after a few seconds", async () => {
+        // The OnePlus recognizer reports 'started' after most launches with
+        // nothing to follow, then ends the turn ~10s later on silence: counted
+        // till then, it held every check-in and timer notice that long.
+        const engine = new CapacitorSttEngine(OPTS);
+        collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        started();
+        stopped();
+        await vi.advanceTimersByTimeAsync(2900);
+        expect(engine.userSpeechActive).toBe(true);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(engine.userSpeechActive).toBe(false);
+        await engine.stop();
+    });
 });
 
 describe('stitchUtterances (meditation-pal-7u9h)', () => {

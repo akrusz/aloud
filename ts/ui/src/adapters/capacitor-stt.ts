@@ -119,6 +119,12 @@ const RELAUNCH_WARMUP_MS = 400;
 // into the deaf relaunch gaps.
 const STARTUP_WATCHDOG_MS = 2500;
 const MAX_START_RETRIES = 3;
+// How long an Android 'started' with no text yet counts as the user speaking
+// (userSpeechActive). Real speech shows text within 1-2.5s of it (cddo), but
+// the OnePlus recognizer also reports 'started' ~1.4s after most launches with
+// nothing following; counted until its ~10s silence error, each one held a
+// check-in or timer notice that long (seen 2026-10-15, f50i's verification).
+const STARTED_WITHOUT_TEXT_MS = 3000;
 
 export class CapacitorSttEngine implements SttEngine {
     private readonly options: Required<CapacitorSttEngineOptions>;
@@ -135,6 +141,9 @@ export class CapacitorSttEngine implements SttEngine {
     // The current turn has heard speech and not yet submitted (see
     // userSpeechActive).
     private midTurn = false;
+    // When this turn's recognizer last reported 'started' (Android), if it
+    // has no text yet; 0 when not.
+    private startedAt = 0;
 
     constructor(options: CapacitorSttEngineOptions = {}) {
         const submitDelayMs = options.submitDelayMs ?? 0;
@@ -160,15 +169,18 @@ export class CapacitorSttEngine implements SttEngine {
         }
     }
 
-    /** True from the first sign of speech until the turn submits, pauses
-     *  between sentences included. */
+    /** True from the first text until the turn submits, pauses between
+     *  sentences included; an Android 'started' alone counts for a few
+     *  seconds (STARTED_WITHOUT_TEXT_MS). */
     get userSpeechActive(): boolean {
-        return this.midTurn;
+        if (this.midTurn) return true;
+        return this.startedAt > 0 && Date.now() - this.startedAt < STARTED_WITHOUT_TEXT_MS;
     }
 
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
         this.midTurn = false;
+        this.startedAt = 0;
 
         try {
             const perm = await SpeechRecognition.checkPermissions();
@@ -284,6 +296,7 @@ export class CapacitorSttEngine implements SttEngine {
             if (submitted || events.done) return;
             submitted = true;
             this.midTurn = false;
+            this.startedAt = 0;
             clearTimers();
             const text = combined();
             if (text) {
@@ -495,7 +508,7 @@ export class CapacitorSttEngine implements SttEngine {
                 markStarted();
                 // Android's 'started' is onBeginningOfSpeech, often seconds
                 // before the text. iOS sends it at launch, before anyone speaks.
-                if (status === 'started' && nativeSessionEvents && !submitted) this.midTurn = true;
+                if (status === 'started' && nativeSessionEvents && !submitted) this.startedAt = Date.now();
                 if (status === 'started' && segmentStopped && stitching) {
                     // Android dictation: a new utterance in the same session.
                     // Its partials replace, not extend, the last one's text,
@@ -654,6 +667,7 @@ export class CapacitorSttEngine implements SttEngine {
         } finally {
             this.wakeForStop = null;
             this.midTurn = false;
+            this.startedAt = 0;
             clearTimers();
             await this.partialListener?.remove().catch(() => {});
             await this.stateListener?.remove().catch(() => {});
