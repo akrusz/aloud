@@ -31,7 +31,10 @@ jobs:
         with:
           # Empty = the triggering ref, which is what the manual button wants.
           ref: ${{ inputs.ref }}
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Pinned to a commit, not @master or a tag: this job holds the Fly deploy
+      # token, and either of those can be moved to new code under it.
+      # Dependabot bumps the hash and the version comment together.
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       # Run from ts/ so the Docker build context includes ../src (@aloud/core);
       # the Dockerfile + fly.toml live under server/.
       - run: flyctl deploy --config server/fly.toml --remote-only
