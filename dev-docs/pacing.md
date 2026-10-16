@@ -13,7 +13,12 @@ Content and timing are separate settings (`checkinContent`, `checkinTiming`).
 **Content** is a canned (non-LLM) phrase, or "smart" (`smart-checkin.ts`): the
 LLM gets the session plus a bracketed silence-event turn and offers one short
 line in context, or replies `[PASS]` to keep quiet. Unusable replies fall back
-to the canned pool.
+to the canned pool. How much the line may steer follows the guidance slider
+(`CheckinSuggestion`): presence only at Following; from Somewhat following
+through Somewhat directing the model's call, presence or a suggestion (the way
+in for someone who doesn't know what to do; check-ins are minutes apart, so
+it isn't overbearing); at Directing a suggestion or observation is expected.
+The canned pool is presence only at every level.
 
 **Timing** is a fixed interval, or "smart": the LLM prefixes `[WAIT:Nm]`
 (parsed with the other turn signals) to set how long the next silence stays

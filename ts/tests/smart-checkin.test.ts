@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
     buildSmartCheckinEvent,
+    checkinSuggestionFor,
     isSmartCheckinEvent,
     parseSmartCheckinReply,
     runSmartCheckin,
@@ -76,11 +77,23 @@ describe('buildSmartCheckinEvent', () => {
         expect(buildSmartCheckinEvent(300, 1, { withWaitHint: true })).toContain('[WAIT:Nm]');
     });
 
-    it('invites substance (not just presence) when directive', () => {
-        expect(buildSmartCheckinEvent(300, 1)).toContain('one short sentence');
-        const directive = buildSmartCheckinEvent(300, 1, { directive: true });
-        expect(directive).not.toContain('one short sentence');
-        expect(directive).toContain('a suggestion');
+    it('maps the guidance slider onto the tiers', () => {
+        expect(checkinSuggestionFor(0)).toBe('none');
+        expect(checkinSuggestionFor(3)).toBe('offered');
+        expect(checkinSuggestionFor(7)).toBe('offered');
+        expect(checkinSuggestionFor(10)).toBe('expected');
+    });
+
+    it('scales how much the line may steer with the suggestion tier', () => {
+        const none = buildSmartCheckinEvent(300, 1);
+        expect(none).toContain('one short sentence');
+        expect(none).not.toContain('suggestion');
+        const offered = buildSmartCheckinEvent(300, 1, { suggestion: 'offered' });
+        expect(offered).toContain('one short sentence');
+        expect(offered).toContain('a suggestion');
+        const expected = buildSmartCheckinEvent(300, 1, { suggestion: 'expected' });
+        expect(expected).not.toContain('one short sentence');
+        expect(expected).toContain('a suggestion');
     });
 
     it('round-trips through isSmartCheckinEvent', () => {

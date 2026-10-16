@@ -97,6 +97,7 @@ export {
     runSmartCheckin,
     parseSmartCheckinReply,
     buildSmartCheckinEvent,
+    checkinSuggestionFor,
     isSmartCheckinEvent,
     PASS_PREFIX,
     SMART_CHECKIN_EVENT_PREFIX,

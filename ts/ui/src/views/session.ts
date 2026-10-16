@@ -41,6 +41,7 @@ import {
     defaultPacingConfig,
     runSmartCheckin,
     buildSmartCheckinEvent,
+    checkinSuggestionFor,
     buildTimerApproachEvent,
     buildTimerCompletionEvent,
     spokenExchanges,
@@ -3323,10 +3324,10 @@ export async function mountSessionView(
                             ? null
                             : silenceSec - smartCheckinPassedAtSec,
                     withWaitHint: smartTiming,
-                    // Substantive check-ins at the attentive end of either
-                    // slider. In pace modes the line is generated under the
-                    // mode's own system prompt, so it stays in-stance.
-                    directive: directiveness >= 7,
+                    // How much the line may steer follows the slider. In pace
+                    // modes the line is generated under the mode's own system
+                    // prompt, so it stays in-stance.
+                    suggestion: checkinSuggestionFor(directiveness),
                 }
             );
             debugLog(`event #${smartCheckinStreak} sent (silence ${Math.round(silenceSec)}s)`);

@@ -22,6 +22,7 @@ import {
     StagedModeController,
     TurnDecision,
     buildSmartCheckinEvent,
+    checkinSuggestionFor,
     buildTimerApproachEvent,
     buildTimerCompletionEvent,
     classifyHoldConfirm,
@@ -321,7 +322,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         const eventText = buildSmartCheckinEvent(silenceSec, smartCheckinSpoken + 1, {
             passedSecAgo: smartCheckinPassedAtSec === null ? null : silenceSec - smartCheckinPassedAtSec,
             withWaitHint: smartTiming,
-            directive: directiveness >= 7,
+            suggestion: checkinSuggestionFor(directiveness),
         });
         try {
             const t0 = Date.now();

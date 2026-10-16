@@ -46,12 +46,33 @@ export function isSmartCheckinEvent(text: string): boolean {
 export interface SmartCheckinEventOptions {
     /** Smart timing on: remind the model it can reschedule with [WAIT:Nm]. */
     withWaitHint?: boolean;
-    /** High guidance-level session: invite substance (an observation or
-     *  suggestion), not just a word of presence. */
-    directive?: boolean;
+    /** How much the line may steer, from the guidance slider: presence only
+     *  ('none'); presence or a suggestion, the model's call ('offered'); a
+     *  suggestion or observation expected ('expected'). Check-ins are minutes
+     *  apart, so a suggestion in the first one is not overbearing, and it is
+     *  the way in for someone who doesn't know what to do. */
+    suggestion?: CheckinSuggestion;
     /** The model answered the previous check-in with [PASS], this many seconds
      *  ago. Null or omitted when it spoke, and on the first of a stretch. */
     passedSecAgo?: number | null;
+}
+
+export type CheckinSuggestion = 'none' | 'offered' | 'expected';
+
+const SUGGESTION_ASKS: Record<CheckinSuggestion, string> = {
+    none: 'If a brief word would support their practice right now, reply with one short sentence.',
+    offered:
+        'If a brief word would support their practice right now, reply with one short sentence: presence, or if it would help more (they may not know what to do), a suggestion or one thing to notice.',
+    expected:
+        'If a word would support their practice right now, offer it: an observation, a suggestion, or a possible next step, in a sentence or two.',
+};
+
+/** The tier for a guidance level (DIRECTIVENESS_VALUES 0/3/5/7/10, or a pace
+ *  slider mapped onto it): Directing expects a suggestion, Following never
+ *  steers, and everything between leaves it to the model from the first
+ *  check-in. */
+export function checkinSuggestionFor(directiveness: number): CheckinSuggestion {
+    return directiveness >= 9 ? 'expected' : directiveness >= 3 ? 'offered' : 'none';
 }
 
 function aboutMinutes(sec: number): string {
@@ -91,9 +112,7 @@ export function buildSmartCheckinEvent(
                 ? '.'
                 : ', so nothing has been said since your last reply. Stay quiet again only if they asked for silence or for space.';
     }
-    const ask = opts.directive
-        ? 'If a word would support their practice right now, offer it: an observation, a suggestion, or a possible next step, in a sentence or two.'
-        : 'If a brief word would support their practice right now, reply with one short sentence.';
+    const ask = SUGGESTION_ASKS[opts.suggestion ?? 'none'];
     const waitHint = opts.withWaitHint
         ? ' Either way you may prefix [WAIT:Nm] to set when the next check-in may happen.'
         : '';
