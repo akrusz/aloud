@@ -12,7 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../ui/src/is-desktop.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../ui/src/is-desktop.js')>();
-    return { ...actual, isTauri: vi.fn(() => false) };
+    return { ...actual, isTauri: vi.fn(() => false), isCapacitor: vi.fn(() => false) };
 });
 
 import {
@@ -21,11 +21,12 @@ import {
     voiceIsOnlyCloudLeg,
     blocksForCredits,
 } from '../ui/src/cloud-gate.js';
-import { isTauri } from '../ui/src/is-desktop.js';
+import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
 import type { SessionSetup } from '../ui/src/settings.js';
 import type { AppSettings } from '../ui/src/app-settings.js';
 
 const isTauriMock = vi.mocked(isTauri);
+const isCapacitorMock = vi.mocked(isCapacitor);
 
 // Only .provider / .sttEngine / .notingParticipants are read; cast minimal fixtures.
 const setupWith = (provider: string): SessionSetup =>
@@ -86,6 +87,23 @@ describe('sessionUsesCloud', () => {
             isTauriMock.mockReturnValue(true);
             const setup = notingSetup('aloud', [{ type: 'fixed' }, { type: 'llm' }]);
             expect(sessionUsesCloud(setup, settingsWith('whisper'), false, 'noting')).toBe(true);
+        });
+
+        it('is false on a fresh phone install, where noting defaults to the free recognizer', () => {
+            // The facilitated modes default to aloud cloud on the phone; that
+            // default must not leak into noting and demand sign-in (the
+            // listings promise it needs no account).
+            isCapacitorMock.mockReturnValue(true);
+            try {
+                const setup = notingSetup('aloud', [{ type: 'sound' }]);
+                const fresh = { sttEngine: null, sparseSttEngine: null } as unknown as AppSettings;
+                expect(sessionUsesCloud(setup, fresh, true, 'noting')).toBe(false);
+                expect(sessionUsesCloud(setupWith('aloud'), fresh, true, 'exploration')).toBe(true);
+                const cloudNoting = { sttEngine: null, sparseSttEngine: 'aloud-gpt-transcribe' } as unknown as AppSettings;
+                expect(sessionUsesCloud(setup, cloudNoting, true, 'noting')).toBe(true);
+            } finally {
+                isCapacitorMock.mockReturnValue(false);
+            }
         });
 
         it('still trips on hosted STT, which bills whatever the circle is', () => {

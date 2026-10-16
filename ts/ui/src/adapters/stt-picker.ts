@@ -31,7 +31,9 @@ import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import { simulateSttFault } from '../dev-sim.js';
 import { whisperWarmUrl } from '../whisper-ready.js';
-import type { SttEngineChoice } from '../app-settings.js';
+import type { AppSettings, SttEngineChoice } from '../app-settings.js';
+import type { MeditationType } from '../settings.js';
+import { getMode } from '../../../src/facilitation/modes.js';
 
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
  *  capture-device pick and the local-Whisper model params. Only the PCM
@@ -236,10 +238,17 @@ export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
  * Whisper (local-only - no on-device backend on the web), then browser speech
  * (only when the browser exposes the API), then the hosted option (always, and
  * the only one that costs credits), then the phone's own recognizer. The first
- * entry is the mode's default.
+ * entry is the mode's default. In a sparse-speech mode (noting) the phone's
+ * recognizer leads instead (see sparseSttEngine in app-settings.ts).
  */
-export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoice; label: string }> {
+export function sttEngineOptions(
+    webMode: boolean,
+    mode: MeditationType = 'exploration'
+): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
+    const native = { value: 'capacitor' as const, label: 'Built-in transcription' };
+    const sparse = sparseSpeech(mode);
+    if (isCapacitor() && sparse) out.push(native);
     // Local Whisper exists only in the desktop (Tauri) Rust shell: Hono doesn't
     // serve the /app whisper route, and the desktop's loopback backend isn't
     // reachable from a separate browser, so offering it on the web gives a dead
@@ -265,22 +274,50 @@ export function sttEngineOptions(webMode: boolean): Array<{ value: SttEngineChoi
     // The native mobile recognizer: free, no credits. Labelled for what it IS,
     // not where the audio goes - Android's routes to Google, so don't
     // reintroduce a privacy claim ("private", "On-device"; sn1w tracks earning
-    // one back). Capacitor-only (web/desktop builds never have it). After aloud
-    // cloud, which the app's sessions already sign in for: the recognizer can't
-    // barge in or reject the facilitator's voice from the speaker, and hosted
-    // STT's echo-cancelled capture does both.
-    if (isCapacitor()) out.push({ value: 'capacitor', label: 'Built-in transcription' });
+    // one back). Capacitor-only (web/desktop builds never have it). In the
+    // facilitated modes it comes after aloud cloud, which those sessions
+    // already sign in for: the recognizer can't barge in or reject the
+    // facilitator's voice from the speaker, and hosted STT's echo-cancelled
+    // capture does both. A sparse mode has no facilitator to talk over and
+    // (noting) must run with no account, as the store listings promise, so
+    // there it leads.
+    if (isCapacitor() && !sparse) out.push(native);
     return out;
 }
 
+/** A word now and then, nobody speaking over the meditator (ModeSpec.sparseSpeech). */
+function sparseSpeech(mode: MeditationType): boolean {
+    return getMode(mode)?.sparseSpeech === true;
+}
+
+/** Which AppSettings field holds the STT pick for a mode: one for the
+ *  conversational modes, one for the sparse ones. */
+export function sttSettingKey(mode: MeditationType): 'sttEngine' | 'sparseSttEngine' {
+    return sparseSpeech(mode) ? 'sparseSttEngine' : 'sttEngine';
+}
+
+/** The STT choice a session in `mode` will use: its own stored pick, settled
+ *  against what the mode offers. */
+export function sttChoiceForMode(
+    settings: Pick<AppSettings, 'sttEngine' | 'sparseSttEngine'>,
+    webMode: boolean,
+    mode: MeditationType
+): SttEngineChoice {
+    return resolveSttChoice(settings[sttSettingKey(mode)] ?? null, webMode, mode);
+}
+
 /** The mode's default STT source: the first available option in flow order. */
-export function defaultSttChoice(webMode: boolean): SttEngineChoice {
-    return sttEngineOptions(webMode)[0]!.value;
+export function defaultSttChoice(webMode: boolean, mode: MeditationType = 'exploration'): SttEngineChoice {
+    return sttEngineOptions(webMode, mode)[0]!.value;
 }
 
 /** The stored pick if this mode offers it, else the mode's flow default.
  *  Handles null (never chosen) and a stale pick carried across a mode change. */
-export function resolveSttChoice(stored: SttEngineChoice | null, webMode: boolean): SttEngineChoice {
-    const offered = sttEngineOptions(webMode).map((o) => o.value);
-    return stored && offered.includes(stored) ? stored : defaultSttChoice(webMode);
+export function resolveSttChoice(
+    stored: SttEngineChoice | null,
+    webMode: boolean,
+    mode: MeditationType = 'exploration'
+): SttEngineChoice {
+    const offered = sttEngineOptions(webMode, mode).map((o) => o.value);
+    return stored && offered.includes(stored) ? stored : defaultSttChoice(webMode, mode);
 }

@@ -106,6 +106,12 @@ export interface AppSettings {
     /** Where speech-to-text runs, or null to use the mode's flow default. See
      *  SttEngineChoice + resolveSttChoice. */
     sttEngine: SttEngineChoice | null;
+    /** The same for the sparse-speech modes (ModeSpec.sparseSpeech, today
+     *  noting), kept apart (sttSettingKey): they hear one-word labels and no
+     *  facilitator, so the phone's free recognizer is good enough there and is
+     *  their mobile default, while the conversational modes default to aloud
+     *  cloud. */
+    sparseSttEngine: SttEngineChoice | null;
     /** Capture device (MediaDeviceInfo.deviceId) for the mic-capturing STT
      *  paths (Whisper / aloud cloud); null = the system default. Applied as an
      *  `ideal` constraint, so an unplugged saved mic falls back to the default
@@ -170,6 +176,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     language: 'en',
     sttWhisperModel: 'base',
     sttEngine: null,
+    sparseSttEngine: null,
     micDeviceId: null,
     sttSpeculation: true,
     silenceBaseMs: 3000,

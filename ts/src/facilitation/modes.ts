@@ -79,6 +79,12 @@ export interface ModeSpec {
      *  remaining effect here is check-in timing ([WAIT] bias, pacing seed,
      *  directive check-ins). */
     checkinPaceSlider?: boolean;
+    /** The meditator says a word now and then and no facilitator speaks over
+     *  them, as against a conversation. Sparse modes share one speech
+     *  recognition pick (AppSettings.sparseSttEngine), the conversational
+     *  ones another: a recognizer that is good enough for one-word labels
+     *  may not be for talk. */
+    sparseSpeech?: boolean;
 }
 
 export type StageSignal = 'advance' | 'back' | 'none';
@@ -416,6 +422,7 @@ export const NOTING_MODE: ModeSpec = {
     composes: { focuses: false, qualities: false, directiveness: false, verbosity: false, custom: false },
     openers: NOTING_STATIC_OPENERS,
     checkIns: NOTING_CHECK_IN_PROMPTS,
+    sparseSpeech: true,
 };
 
 // Built at load, so felt-sense.ts must never value-import this module back:

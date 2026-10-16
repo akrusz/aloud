@@ -13,7 +13,7 @@
 
 import { sessionNeedsLlm, type MeditationType, type SessionSetup } from './settings.js';
 import type { AppSettings } from './app-settings.js';
-import { isHostedSttChoice, resolveSttChoice } from './adapters/stt-picker.js';
+import { isHostedSttChoice, sttChoiceForMode } from './adapters/stt-picker.js';
 import { isWebMode, isDevBypass } from './app-mode.js';
 import { detectCapabilities } from './capabilities.js';
 import { fetchMe, getCloudToken, isInteractiveSignInConfigured } from './cloud-auth.js';
@@ -71,7 +71,7 @@ function sessionUsesCloudBeyondNarrator(
     ) {
         return true;
     }
-    return isHostedSttChoice(resolveSttChoice(settings.sttEngine, webMode));
+    return isHostedSttChoice(sttChoiceForMode(settings, webMode, mode));
 }
 
 /** True when the hosted voice (setup.voice) is the session's ONLY metered leg:

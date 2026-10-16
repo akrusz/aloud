@@ -17,7 +17,7 @@ import { appMode, isWebMode } from './app-mode.js';
 import { openExternal } from './external-links.js';
 import { appUrl } from './app-base.js';
 import { loadAppSettings } from './app-settings.js';
-import { resolveSttChoice } from './adapters/stt-picker.js';
+import { resolveSttChoice, sttChoiceForMode } from './adapters/stt-picker.js';
 import { withTimeout } from './net-timeout.js';
 import { recentErrors } from './error-log.js';
 import { choiceDialog } from './dialog.js';
@@ -72,6 +72,7 @@ async function sttDiagnostics(): Promise<string[]> {
         const s = await loadAppSettings();
         micDeviceId = s.micDeviceId;
         lines.push(`STT: ${resolveSttChoice(s.sttEngine, isWebMode())}`);
+        lines.push(`STT (noting): ${sttChoiceForMode(s, isWebMode(), 'noting')}`);
         lines.push(`TTS: ${s.ttsEngine}`);
     } catch {
         // settings unreadable - skip

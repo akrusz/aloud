@@ -39,7 +39,7 @@ import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { loadAppSettings, saveAppSettings } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
-import { createSttForChoice, resolveSttChoice } from '../adapters/stt-picker.js';
+import { createSttForChoice, sttChoiceForMode } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
 import { narratorSilencedForCloud } from '../cloud-gate.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
@@ -371,7 +371,7 @@ export async function mountNotingSessionView(
     // with no Web Speech gets asked to sign in for cloud STT and then handed a
     // mic-less session anyway (meditation-pal-j8k1).
     const stt: SttEngine | null = await createSttForChoice(
-        resolveSttChoice(appSettings.sttEngine, isWebMode()),
+        sttChoiceForMode(appSettings, isWebMode(), 'noting'),
         {
             micDeviceId: appSettings.micDeviceId,
             whisperModelSize: appSettings.sttWhisperModel,

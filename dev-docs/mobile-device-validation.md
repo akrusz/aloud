@@ -24,8 +24,11 @@ specific manufacturer's stack.
 
 - **STT**
   - `aloud-gpt-transcribe` - hosted STT (OpenAI `gpt-transcribe`), shown as "aloud cloud".
-    **Costs credits.** Current mobile default (since 2026-10-15, see below).
+    **Costs credits.** Current mobile default for the facilitated modes (since 2026-10-15, see below).
   - `capacitor` - native on-device (SFSpeechRecognizer / Android SpeechRecognizer). **Free.**
+    The noting default, under the sparse-speech modes' own pick (`ModeSpec.sparseSpeech`,
+    `AppSettings.sparseSttEngine`, `sttSettingKey`): noting hears one-word labels, talks over
+    nobody, and must run with no account. A future conversational mode shares exploration's pick.
   - (browser web-speech is *not* offered on native - the native plugin is better.)
 - **TTS**
   - `browser` - the WebView's `speechSynthesis`, i.e. the **native system voices**. **Free.** Current mobile default.
@@ -129,8 +132,9 @@ notices from the speaker as the meditator's turns; the native recognizers have
 no echo cancellation or barge-in, and the app's sessions sign in for the
 cloud LLM anyway, so the paywall catch above no longer applies to STT. The
 session now closes the recognizer while any line plays, but cloud stays the
-default. The rest of this section is the original plan, which still holds for
-TTS.
+default. Noting keeps the native default (a separate setting, so a cloud pick
+for the facilitated modes doesn't make noting demand sign-in). The rest of this
+section is the original plan, which still holds for TTS.
 
 Ship **native default everywhere + all options in the selector** (the
 original beta state). It's free, has no surprise paywall, and meets the "mediocre-for-a-bit,

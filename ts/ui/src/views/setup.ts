@@ -59,7 +59,8 @@ import { mountModelPicker, cloudUtilityCreditsPerHour } from '../model-picker.js
 import { assetPath } from '../route-base.js';
 import {
     sttEngineOptions,
-    resolveSttChoice,
+    sttChoiceForMode,
+    sttSettingKey,
     sttBackendForChoice,
     cloudSttCreditsPerHour,
 } from '../adapters/stt-picker.js';
@@ -194,14 +195,16 @@ export async function mountSetupView(
     // when NO provider is available (cloud momentarily unreachable), so resolve
     // a web-valid provider up front.
     setup.provider = resolveSetupProvider(setup.provider, capabilitiesSync(), byokOpts);
-    // Edits the app-level default, same as the Voice control. The select itself
-    // is built in renderSetupHTML.
-    const sttSetupSelected = resolveSttChoice(appSettings.sttEngine, isWebMode());
+    // Edits the app-level pick for the active tab's mode (noting keeps its own,
+    // sttSettingKey), same as the Voice control. The select itself is built in
+    // renderSetupHTML.
+    const sttSetupChoice = (): SttEngineChoice =>
+        sttChoiceForMode(appSettings, isWebMode(), setup.meditationType);
     // Warm the Silero VAD while the user configures: whisper-pcm's prime()
     // awaits the same app-lifetime singleton, so the multi-MB download is
     // usually done by the time they click Begin. web-speech and capacitor never
     // load the model.
-    if (sttBackendForChoice(sttSetupSelected) === 'server-whisper') {
+    if (sttBackendForChoice(sttSetupChoice()) === 'server-whisper') {
         void import('../adapters/silero-vad.js')
             .then((m) => m.loadSileroVad())
             .catch(() => {
@@ -237,6 +240,22 @@ export async function mountSetupView(
             );
         }
         renderWhisperNotice();
+    }
+
+    /** Point the STT select at the active mode's pick (a tab switch may change
+     *  it) and refresh what hangs off it. The device-quality note is for the
+     *  facilitated modes: in noting the recognizer hears one-word labels and
+     *  talks over nobody. */
+    function syncSttPicker(): void {
+        const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
+        if (!sttSel) return;
+        const choice = sttSetupChoice();
+        sttSel.value = choice;
+        root.querySelector<HTMLElement>('#setup-stt-quality-note')?.classList.toggle(
+            'hidden',
+            choice !== 'capacitor' || setup.meditationType === 'noting'
+        );
+        watchWhisper(choice);
     }
     // Lazy-loaded; the setup form is interactive while voices fetch.
     let scoredVoices: ScoredVoice[] = [];
@@ -360,6 +379,7 @@ export async function mountSetupView(
             // changes the estimate (noting has its own multiplier).
             updateBeginButton();
             updateAiNotes();
+            syncSttPicker();
             updateSessionEstimate();
         }
         paintContinuation();
@@ -483,7 +503,7 @@ export async function mountSetupView(
         }
 
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
-        const sttChoice = sttSel?.value ?? sttSetupSelected;
+        const sttChoice = sttSel?.value ?? sttSetupChoice();
 
         const ai = needsLLM();
         const llm = ai && setup.provider === 'aloud' ? getModelRate() : 0;
@@ -610,7 +630,7 @@ export async function mountSetupView(
     }
 
     function render(): void {
-        root.innerHTML = renderSetupHTML(byokOpts, sttSetupSelected);
+        root.innerHTML = renderSetupHTML(byokOpts, sttSetupChoice());
         wireTabBar();
         wireInfoButtons();
         wireNotingPanel();
@@ -794,19 +814,18 @@ export async function mountSetupView(
         getModelRate = () => modelPicker.getRate();
         refreshModelPicker = (p) => void modelPicker.refresh(p);
 
-        // App-level (like the default voice), so saving here mirrors Settings.
+        // App-level (like the default voice), so saving here mirrors Settings;
+        // under the Noting tab it's noting's own pick.
         const sttSel = root.querySelector<HTMLSelectElement>('#setup-stt-engine');
-        const sttQualityNote = root.querySelector<HTMLElement>('#setup-stt-quality-note');
-        const updateSttQualityNote = (choice: string): void => {
-            sttQualityNote?.classList.toggle('hidden', choice !== 'capacitor');
-        };
-        updateSttQualityNote(sttSetupSelected);
+        syncSttPicker();
         sttSel?.addEventListener('change', async () => {
+            const key = sttSettingKey(setup.meditationType);
+            const choice = sttSel.value as SttEngineChoice;
+            appSettings[key] = choice;
             const s = await loadAppSettings();
-            await saveAppSettings({ ...s, sttEngine: sttSel.value as SttEngineChoice });
-            updateSttQualityNote(sttSel.value);
+            await saveAppSettings({ ...s, [key]: choice });
+            syncSttPicker();
             updateSessionEstimate();
-            watchWhisper(sttSel.value);
         });
 
         // API key entry itself lives in Settings, not here.
@@ -1483,14 +1502,14 @@ export async function mountSetupView(
         () => void autoStartGuide(quickStart, continuationMode() !== null)
     );
     void loadVoiceCatalog();
-    watchWhisper(sttSetupSelected);
+    watchWhisper(sttSetupChoice());
 
     return {
         async show() {
             render();
             watchWhisper(
                 root.querySelector<HTMLSelectElement>('#setup-stt-engine')?.value ??
-                    sttSetupSelected
+                    sttSetupChoice()
             );
             await loadVoiceCatalog();
             void autoStartGuide(quickStart, continuationMode() !== null);
@@ -1753,9 +1772,9 @@ function renderSetupHTML(
                 <label for="setup-stt-engine">${t('Speech Recognition')}</label>
                 <select id="setup-stt-engine">${sttSetupOptions}</select>
                 <!-- Phone-only by construction: 'capacitor' is offered nowhere
-                     else (sttEngineOptions). The device recognizer is the free
-                     default, so say what it costs in accuracy before the sit
-                     rather than after. -->
+                     else (sttEngineOptions). A free pick in a facilitated mode:
+                     say what it costs in accuracy before the session rather
+                     than after (syncSttPicker shows it). -->
                 <p id="setup-stt-quality-note" class="credit-rate-legend hidden">
                     ${t("Quality varies by device, and speaking won't interrupt the facilitator. aloud cloud is recommended.")}
                 </p>

@@ -20,6 +20,8 @@ import {
     resolveSttChoice,
     sttBackendForChoice,
     sttLangTag,
+    sttSettingKey,
+    sttChoiceForMode,
     cloudSttCreditsPerHour,
     setCloudSttCreditsPerHour,
 } from '../ui/src/adapters/stt-picker.js';
@@ -166,6 +168,35 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'capacitor']);
         delete (globalThis as unknown as { window?: unknown }).window;
     });
+    describe('sparse-speech modes (noting)', () => {
+        // Noting hears one-word labels and no facilitator, and the store
+        // listings promise it works with no account, so the free recognizer
+        // leads there and the pick is stored apart (sttSettingKey, keyed on
+        // ModeSpec.sparseSpeech so a future talky mode lands with exploration).
+        it('offers the built-in recognizer first, then aloud cloud', () => {
+            expect(sttEngineOptions(true, 'noting').map((o) => o.value)).toEqual([
+                'capacitor',
+                'aloud-gpt-transcribe',
+            ]);
+            expect(defaultSttChoice(true, 'noting')).toBe('capacitor');
+        });
+        it('keeps a separate pick from the facilitated modes', () => {
+            expect(sttSettingKey('noting')).toBe('sparseSttEngine');
+            expect(sttSettingKey('exploration')).toBe('sttEngine');
+            expect(sttSettingKey('felt_sense')).toBe('sttEngine');
+            const settings = { sttEngine: 'aloud-gpt-transcribe' as const, sparseSttEngine: null };
+            expect(sttChoiceForMode(settings, true, 'noting')).toBe('capacitor');
+            expect(sttChoiceForMode(settings, true, 'exploration')).toBe('aloud-gpt-transcribe');
+            expect(
+                sttChoiceForMode({ sttEngine: null, sparseSttEngine: 'aloud-gpt-transcribe' }, true, 'noting')
+            ).toBe('aloud-gpt-transcribe');
+        });
+        it('is the same list as the other modes off the phone', () => {
+            isCapacitorMock.mockReturnValue(false);
+            expect(sttEngineOptions(true, 'noting').map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+        });
+    });
+
     it('resolveSttChoice honors a stored on-device pick', () => {
         expect(resolveSttChoice('capacitor', true)).toBe('capacitor');
     });
