@@ -6493,13 +6493,25 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
 }
 
 /* Stays up the whole time the cover does, so a glance at a black phone says
-   why. Dim grey, a few lit pixels on an OLED; under the Android app's dropped
-   brightness it gets dimmer still. */
+   why. Dim grey, a few lit pixels on an OLED, gliding to a new spot each
+   minute (DRIFT_MS in screen-dim.ts) so no pixels stay lit for a whole sit. */
 .screen-dim-hint {
     color: #707070;
     font-size: 0.9rem;
     padding: 0 16px;
     text-align: center;
+    transition: transform 60s ease-in-out, color 1s ease;
+}
+
+/* The Android app has dropped the brightness to 1%, where #707070 is lost. */
+.screen-dim.backlight-down .screen-dim-hint {
+    color: #b0b0b0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .screen-dim-hint {
+        transition: color 1s ease;
+    }
 }
 
 /* Dev-build-only "a failure is being simulated" banner (dev-sim.ts). Deliberately

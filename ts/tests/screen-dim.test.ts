@@ -14,6 +14,8 @@ type Listener = () => void;
 
 interface World {
     covers: () => number;
+    coverHas: (cls: string) => boolean;
+    hintTransform: () => string | undefined;
     tapCover: () => void;
     touch: () => void;
     setCharging: (charging: boolean) => void;
@@ -27,7 +29,14 @@ function plant(opts: { coarse?: boolean; battery?: 'charging' | 'discharging' | 
     const windowListeners: Record<string, Listener[]> = {};
     const documentListeners: Record<string, Listener[]> = {};
     const batteryListeners: Listener[] = [];
-    const covers: Array<{ click: Listener | null }> = [];
+    type FakeEl = {
+        click: Listener | null;
+        className: string;
+        classes: Set<string>;
+        style: { transform?: string };
+    };
+    const covers: FakeEl[] = [];
+    const created: FakeEl[] = [];
     let kasina = false;
     const battery = {
         charging: batteryKind === 'charging',
@@ -38,12 +47,21 @@ function plant(opts: { coarse?: boolean; battery?: 'charging' | 'discharging' | 
         querySelector: (selector: string) => (selector === '.kasina-active' && kasina ? {} : null),
         addEventListener: (type: string, l: Listener) => (documentListeners[type] ??= []).push(l),
         createElement: () => {
+            const classes = new Set<string>();
             const el = {
                 click: null as Listener | null,
                 className: '',
                 textContent: '',
-                offsetWidth: 0,
-                classList: { add: () => {} },
+                offsetWidth: 300,
+                offsetHeight: 20,
+                clientWidth: 360,
+                clientHeight: 780,
+                classes,
+                style: {} as { transform?: string },
+                classList: {
+                    add: (c: string) => classes.add(c),
+                    toggle: (c: string, on: boolean) => (on ? classes.add(c) : classes.delete(c)),
+                },
                 setAttribute: () => {},
                 appendChild: () => {},
                 addEventListener: (type: string, l: Listener) => {
@@ -54,10 +72,11 @@ function plant(opts: { coarse?: boolean; battery?: 'charging' | 'discharging' | 
                     if (i >= 0) covers.splice(i, 1);
                 },
             };
+            created.push(el);
             return el;
         },
         body: {
-            appendChild: (el: { click: Listener | null }) => covers.push(el),
+            appendChild: (el: FakeEl) => covers.push(el),
         },
     };
     const g = globalThis as unknown as Record<string, unknown>;
@@ -70,6 +89,8 @@ function plant(opts: { coarse?: boolean; battery?: 'charging' | 'discharging' | 
     vi.stubGlobal('navigator', batteryKind === 'none' ? {} : { getBattery: async () => battery });
     return {
         covers: () => covers.length,
+        coverHas: (cls) => covers[0]?.classes.has(cls) ?? false,
+        hintTransform: () => created.filter((el) => el.className === 'screen-dim-hint').at(-1)?.style.transform,
         tapCover: () => covers[0]?.click?.(),
         touch: () => windowListeners['pointerdown']?.forEach((l) => l()),
         setCharging: (charging) => {
@@ -202,11 +223,34 @@ describe('screen dim', () => {
         startScreenDim();
         await vi.advanceTimersByTimeAsync(DIM_AFTER_MS);
         expect(H.setDimmed).not.toHaveBeenCalled();
+        expect(world.coverHas('backlight-down')).toBe(false);
         await vi.advanceTimersByTimeAsync(HINT_MS);
         expect(H.setDimmed).toHaveBeenLastCalledWith({ dimmed: true });
+        // Its grey goes lighter to read under the dropped brightness.
+        expect(world.coverHas('backlight-down')).toBe(true);
         world.tapCover();
         await vi.advanceTimersByTimeAsync(0);
         expect(H.setDimmed).toHaveBeenLastCalledWith({ dimmed: false });
+    });
+
+    it('the hint drifts while it is dark, and stops on the tap', async () => {
+        const world = plant({});
+        const { startScreenDim, DIM_AFTER_MS, DRIFT_MS } = await load();
+        startScreenDim();
+        await vi.advanceTimersByTimeAsync(DIM_AFTER_MS);
+        expect(world.hintTransform()).toBeUndefined();
+        await vi.advanceTimersByTimeAsync(DRIFT_MS);
+        const first = world.hintTransform();
+        expect(first).toMatch(/^translate\(-?[\d.]+px, -?[\d.]+px\)$/);
+        // Inside the 30px either side a 300px line has on a 360px screen.
+        const x = Number(/translate\((-?[\d.]+)px/.exec(first!)![1]);
+        expect(Math.abs(x)).toBeLessThanOrEqual(30);
+        await vi.advanceTimersByTimeAsync(DRIFT_MS);
+        expect(world.hintTransform()).not.toBe(first);
+        world.tapCover();
+        const last = world.hintTransform();
+        await vi.advanceTimersByTimeAsync(DRIFT_MS * 2);
+        expect(world.hintTransform()).toBe(last);
     });
 
     it('web: no native call', async () => {

@@ -19,6 +19,12 @@ export const DIM_AFTER_MS = 3 * 60_000;
 /** How long the hint shows at full brightness, for whoever is looking as the
  *  black comes up, before the brightness drops under it. */
 export const HINT_MS = 5000;
+/** How often the hint sets off for a new spot, so no OLED pixels stay lit for
+ *  a whole sit. Matches its transform transition in app-base.css. */
+export const DRIFT_MS = 60_000;
+/** How far it wanders from the middle either way, as a share of the screen. */
+const DRIFT_X = 0.15;
+const DRIFT_Y = 0.2;
 
 interface BatteryLike {
     charging: boolean;
@@ -35,6 +41,7 @@ let installed = false;
 let cover: HTMLElement | null = null;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let hintTimer: ReturnType<typeof setTimeout> | null = null;
+let driftTimer: ReturnType<typeof setInterval> | null = null;
 
 // Wrapped in an object: a Capacitor plugin proxy answers every property read,
 // `then` included, so a promise resolved WITH one calls a native method named
@@ -52,6 +59,8 @@ async function setNativeDim(dimmed: boolean): Promise<void> {
         const { plugin } = await pluginLoad;
         // The latest ask, not this call's: a tap can brighten during the import.
         await plugin.setDimmed({ dimmed: nativeWanted });
+        // Grey that read fine a moment ago is lost at 1% brightness: lift it.
+        cover?.classList.toggle('backlight-down', nativeWanted);
     } catch {
         // No such plugin (iOS): the cover is the whole feature there.
     }
@@ -91,11 +100,23 @@ function dim(): void {
         hintTimer = null;
         void setNativeDim(true);
     }, HINT_MS);
+    driftTimer = setInterval(() => {
+        // Never past the edge: on a narrow phone the line is most of the width.
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        const maxX = Math.min(w * DRIFT_X, Math.max(0, (w - hint.offsetWidth) / 2));
+        const maxY = Math.min(h * DRIFT_Y, Math.max(0, (h - hint.offsetHeight) / 2));
+        const x = (Math.random() * 2 - 1) * maxX;
+        const y = (Math.random() * 2 - 1) * maxY;
+        hint.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    }, DRIFT_MS);
 }
 
 function brighten(): void {
     if (hintTimer) clearTimeout(hintTimer);
     hintTimer = null;
+    if (driftTimer) clearInterval(driftTimer);
+    driftTimer = null;
     if (cover) {
         cover.remove();
         cover = null;
