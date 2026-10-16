@@ -32,10 +32,15 @@ The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
    First seen in Android's WebView (meditation-pal-x4h4), then in mobile Chrome
    on the web build (meditation-pal-oxmt) - it's the speaker, not the wrapper.
    Capture already pauses while busy on both, so nothing is lost but the
-   interruption. Those platforms also hold the mic shut for
-   `MIC_RESUME_COOLDOWN_MS` (700ms, `session.ts`) after playback ends before
-   reopening it, so the speaker's decay isn't transcribed as the user; desktop
-   skips the wait, which would cost the start of a real barge-in.
+   interruption. A check-in or timer notice starts on its own, outside `busy`,
+   so `tts.speak` closes any recognizer off the engine-driven path
+   (`continuousCapture`) before the line plays (`[echo-guard]` in the diag log) and the
+   listen loop waits out `ttsSpeakingDepth`: left open, a phone's recognizer
+   took those lines from the speaker as the meditator's turn. Those platforms
+   also hold the mic shut for `MIC_RESUME_COOLDOWN_MS` (700ms, `session.ts`)
+   after playback ends before reopening it, so the speaker's decay isn't
+   transcribed as the user; desktop skips the wait, which would cost the start
+   of a real barge-in.
 
 ## The opening and closing sounds
 

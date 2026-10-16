@@ -392,11 +392,12 @@ then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:
 [deploy.md](deploy.md).
 
 **Mobile** is not built by CI. Once the release is out, the script offers to
-build both bundles here (`scripts/android-aab.sh --no-bump`, then
+build both bundles here (`scripts/android-aab.sh --no-bump --no-notes`, then
 `scripts/ios-archive.sh`, below). A failed build leaves the release as it is,
 and each script reruns on its own. With an iOS archive built it then offers
 the TestFlight upload (default no), and it closes on a reminder that the
-`.aab` still has to go into the Play Console by hand.
+`.aab` still has to go into the Play Console by hand, with Play's "What's new"
+notes printed last.
 
 ### Mobile (Capacitor - iOS / Android)
 
@@ -425,7 +426,8 @@ scripts/android-aab.sh   # bump versionCode + sync versionName from package.json
 Pass `--no-bump` to rebuild the current version (`release.sh` does, having
 taken a `versionCode` in its own bump). The script commits the
 `build.gradle` version bump itself once the bundle builds, and prints the latest
-stable release's notes for Play's "What's new" box.
+stable release's notes for Play's "What's new" box last (`print_whats_new` in
+`scripts/lib/whats-new.sh`; `--no-notes` skips them).
 
 **TestFlight archive**:
 

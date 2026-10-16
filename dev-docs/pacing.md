@@ -25,7 +25,7 @@ The canned pool is presence only at every level.
 protected, clamped and held by `PacingController.setCheckinInterval`. The
 default wait is biased by the guidance slider (`waitBiasFragment` /
 `defaultWaitSeconds`: 12m / 5m / 3m / 90s / 30s across the five stops), so high
-guidance means short waits and substantive check-ins. The default only seeds
+guidance means short waits. The default only seeds
 the model's `[WAIT]`s: the model scales its own off it and usually sets a
 longer one when it passes.
 
@@ -76,7 +76,12 @@ Two synthetic `[Timer: …]` event turns go through the smart-check-in path (eve
   `[HOLD]`**, and it puts the hold back afterwards (`restoreHoldAfterNotice`),
   since silence mode must not be able to suppress the timer.
 
-Both wait for a turn boundary rather than barging in. A notice takes an LLM call
+Both wait for a turn boundary rather than barging in. Pacing only sees finished
+turns, so a check-in or notice also holds while the recognizer reports the
+meditator mid-turn (`SttEngine.userSpeechActive`: live speech on the PCM
+engines, local Whisper and aloud cloud; unsubmitted text on Web Speech and the
+native recognizer, plus an Android `started` alone for
+`STARTED_WITHOUT_TEXT_MS`). A notice takes an LLM call
 to compose, so `SessionClock.armGeneration` lets the view drop one whose timer
 was cancelled or extended meanwhile, and `requeue` hands back one the meditator
 talked over, so it is said at the next turn boundary instead of lost.

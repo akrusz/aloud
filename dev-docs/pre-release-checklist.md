@@ -137,7 +137,10 @@ check each of these still reflects reality:
   README provider list, site provider pills, privacy-policy examples, store-listing
   provider claims.
 - **Added/removed a feature or mode** → README, site, store listings, CLAUDE.md
-  architecture, and privacy policy *if it changes a data flow*.
+  architecture, and privacy policy *if it changes a data flow*. A new mode also
+  joins an STT pick (`ModeSpec.sparseSpeech`), which sets its mobile default
+  recognizer and so whether it needs an account (`docs/mobile-beta/`, the store
+  review notes).
 - **Added/removed a hosted STT or TTS provider** → `.env.example` + the
   `ts-server.md` env table and audition table, `pricing/providers.ttsRateFor`
   and the estimate labels, and the **privacy policy's subprocessor list**

@@ -76,8 +76,8 @@ export interface ModeSpec {
     /** The mode doesn't compose directiveness but still shows the slider as a
      *  timing-only "Check-in pace" control (patient <-> attentive). The session
      *  view feeds the pace through PromptConfig.directiveness, whose only
-     *  remaining effect here is check-in timing ([WAIT] bias, pacing seed,
-     *  directive check-ins). */
+     *  remaining effect here is check-ins ([WAIT] bias, pacing seed, how much
+     *  a smart check-in may steer: checkinSuggestionFor). */
     checkinPaceSlider?: boolean;
     /** The meditator says a word now and then and no facilitator speaks over
      *  them, as against a conversation. Sparse modes share one speech
