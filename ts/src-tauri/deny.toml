@@ -9,6 +9,10 @@
 [advisories]
 # Fail on any crate with a known security advisory or that's been yanked.
 yanked = "deny"
+# Unsound advisories too, however deep: the default ("workspace") fails only
+# direct dependencies, so a transitive one passed here silently while
+# Dependabot still reported it.
+unsound = "all"
 # Add RUSTSEC IDs here (with a comment + expiry plan) to temporarily accept a
 # specific advisory that has no fix yet.
 ignore = [
@@ -33,6 +37,15 @@ ignore = [
     # moment plist ships a quick-xml 0.41 bump (re-check on every Tauri bump).
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+    # glib 0.18.5, unsound (GHSA-wrw7-89jp-8q8g on Dependabot): the iterator
+    # behind Variant::array_iter_str() can dereference NULL. Linux only, via
+    # Tauri's GTK3 stack (gtk/webkit2gtk 0.18). Nothing calls it: not glib's
+    # own crates, our code, or anything between (gtk3-rs, webkit2gtk,
+    # javascriptcore, libappindicator, wry, tao, muda, tray-icon, tauri and
+    # its plugins; checked October 2026, soup3 not checked). Fixed in glib
+    # 0.20, which is gtk4-rs; drop this once Tauri's Linux backend moves to
+    # GTK4.
+    "RUSTSEC-2024-0429",
     # zip 4.6.1, yanked: zip yanked every release before 9.0.3 after its
     # extract() symlink/permission advisories (GHSA-4684-h2q9-2vcp,
     # GHSA-4v9h-p7m9-rh26, GHSA-vv5m-jxxh-4627; October 2026). Our only path is
