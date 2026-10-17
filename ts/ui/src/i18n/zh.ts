@@ -309,7 +309,7 @@ export const ZH: Record<string, string> = {
     "Marimba": "马林巴",
     "Maximum {n} ☁.": "最多 {n} ☁。",
     "Medium": "中",
-    "Meeting what arises with care, tenderness, gentleness": "用关怀、温柔和轻柔，陪伴当下升起的一切",
+    "Meeting what arises with care and connection": "用关怀与联结，陪伴当下升起的一切",
     "Mic error: {message}": "麦克风错误：{message}",
     "Mic permission denied. Allow microphone access and try again.": "麦克风权限被拒绝。请允许麦克风访问后重试。",
     "Mic unavailable": "麦克风不可用",

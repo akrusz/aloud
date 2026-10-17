@@ -121,7 +121,7 @@ const QUALITIES: ReadonlyArray<{ value: Quality; name: string; description: stri
     {
         value: 'compassionate',
         name: QUALITY_LABELS.compassionate,
-        description: 'Meeting what arises with care, tenderness, gentleness',
+        description: 'Meeting what arises with care and connection',
     },
     {
         value: 'loving',
