@@ -75,7 +75,9 @@ function fetchBytes(url: string): Promise<ArrayBuffer> {
     let pending = bytes.get(url);
     if (!pending) {
         pending = fetch(url).then((res) => {
-            if (!res.ok) throw new Error(`signature sound ${res.status}`);
+            // Status 0 is the iOS app's own file server: Capacitor answers media
+            // extensions with no HTTP status, so a whole file reads as not ok.
+            if (!res.ok && res.status !== 0) throw new Error(`signature sound ${res.status}`);
             return res.arrayBuffer();
         });
         // Not cached, so the next session tries again.
@@ -199,7 +201,10 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
             // iOS), so the clock ends the wait and the sound with it.
             clearTimeout(giveUp);
             giveUp = setTimeout(me.stop, (wait + buffer.duration) * 1000 + 300);
-        })().catch(finish);
+        })().catch((err: unknown) => {
+            diag(`[signature] ${half}: failed, ${err instanceof Error ? err.message : String(err)}`);
+            finish();
+        });
     });
 }
 

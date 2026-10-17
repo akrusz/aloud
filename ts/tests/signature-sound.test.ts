@@ -179,6 +179,17 @@ describe('the opening', () => {
         expect(ctx().sources[0]!.stopAt).not.toBeNull();
     });
 
+    it("plays a file the iOS app serves with no HTTP status", async () => {
+        (globalThis as unknown as { fetch: unknown }).fetch = async () => ({
+            ok: false,
+            status: 0,
+            arrayBuffer: async () => new ArrayBuffer(8),
+        });
+        void sound.playOpening('bloom');
+        await settle();
+        expect(ctx().sources).toHaveLength(1);
+    });
+
     it('ends when the file cannot be fetched, and tries again next time', async () => {
         failing = true;
         const opening = track(sound.playOpening('drone'));
