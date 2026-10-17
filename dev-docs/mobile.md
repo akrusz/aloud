@@ -164,6 +164,28 @@ iteration use live-reload: uncomment the `server` block in
 `capacitor.config.ts` (point `url` at your LAN Vite dev server) or run
 `npx cap run ios --livereload --external`.
 
+**What the iOS Simulator can't test** (found 2026-10-17). It is good for
+layout, text fields, sign-in by email and the page flow, with Safari → Develop
+→ Simulator for the console. But:
+- **No speech recognition at all.** WKWebView's `getUserMedia` there is
+  WebKit's mock device ("Mock audio device 1" in the simulator's log), so
+  aloud cloud STT gets no speech. Built-in transcription fails with "Failed to
+  initialize recognizer": the simulator has no on-device speech model
+  (`localspeechrecognition` errors loading it). For the cloud-mic turn flow,
+  use desktop Chrome with DevTools' iPhone emulation, which takes the iPhone
+  path with a real mic.
+- **No mic permission prompt.** With the mock device WebKit skips the OS
+  prompt, so a fresh-install permission flow needs a phone.
+- **No echo test.** Even the real-mic path runs through the Mac's speakers
+  and macOS's echo canceller, which behaves nothing like an iPhone speaker
+  (meditation-pal-hi6f).
+- **Apple sign-in fails with error 1000** unless the simulator is signed in to
+  an Apple ID (Settings app inside the simulator).
+
+Building from Xcode also rewrites `project.pbxproj` (sorts entries) and strips
+the comments out of `Info.plist`: discard that churn before committing, but
+keep any entry you meant to add (a new Swift file's, say).
+
 > If you ever *do* regenerate iOS, it MUST use CocoaPods, not the Capacitor-8
 > default (SPM): `@capacitor-community/speech-recognition@7.0.1` has no
 > `Package.swift`, so an SPM build silently drops it and native STT breaks.
