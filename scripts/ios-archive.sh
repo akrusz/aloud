@@ -3,9 +3,10 @@
 #
 # The CLI path from dev-docs/mobile-signing.md in one shot:
 #   0. warns (doesn't block) if HEAD is ahead of the last release tag
-#   1. syncs MARKETING_VERSION in the Xcode project to ts/package.json's
-#      version (build numbers are assigned at export, so there's nothing else
-#      to bump)
+#   1. stamps MARKETING_VERSION in the Xcode project: ts/package.json's
+#      version, or --version's (build numbers are assigned at export, so
+#      there's nothing else to bump). The project's value is the version iOS
+#      is on, which can trail the release (release.sh's keep answer)
 #   2. verifies VITE_ALOUD_CLOUD_URL is supplied, then ui:build + cap sync ios
 #   3. archives UNSIGNED: with no devices on the team a signed archive fails
 #   4. ad-hoc signs the frameworks and the app with App.entitlements, then
@@ -15,6 +16,10 @@
 #   5. commits the version change (only after a good archive; only that file)
 #
 # Usage: scripts/ios-archive.sh            build and check the archive
+#        scripts/ios-archive.sh --version X
+#                                          the same, as version X: a new build
+#                                          of a version Apple already reviewed
+#                                          usually skips beta review
 #        scripts/ios-archive.sh --upload   sign the archive that's there for
 #                                          distribution and send it to App
 #                                          Store Connect (needs Xcode signed in)
@@ -43,6 +48,27 @@ fi
 
 VERSION=$(node -p "require('./ts/package.json').version")
 
+UPLOAD=false
+IOS_VERSION=$VERSION
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --upload) UPLOAD=true ;;
+        --version)
+            IOS_VERSION="${2#v}"
+            if ! echo "$IOS_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "--version takes X.Y.Z, got '${2:-}'" >&2
+                exit 1
+            fi
+            shift ;;
+        *) echo "unknown option '$1' - see the usage at the top of this script" >&2; exit 1 ;;
+    esac
+    shift
+done
+if [ "$UPLOAD" = true ] && [ "$IOS_VERSION" != "$VERSION" ]; then
+    echo "--version is for the build; --upload sends the archive as it was built" >&2
+    exit 1
+fi
+
 # Every entitlement the app declares has to be in the archive's signature.
 check_entitlements() {
     local have missing=0 key
@@ -57,14 +83,17 @@ check_entitlements() {
     return $missing
 }
 
-if [ "${1:-}" = "--upload" ]; then
+if [ "$UPLOAD" = true ]; then
     if [ ! -d "$APP" ]; then
         echo "no archive at $ARCHIVE - run scripts/ios-archive.sh first" >&2
         exit 1
     fi
     ARCHIVED=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$ARCHIVE/Info.plist")
-    if [ "$ARCHIVED" != "$VERSION" ]; then
-        echo "the archive is $ARCHIVED but ts/package.json is $VERSION - rebuild it first" >&2
+    # Against the project, not ts/package.json: the build stamps the project,
+    # and a release bump moves it, so an archive from before one still fails.
+    PROJECT=$(grep -m1 'MARKETING_VERSION = ' "$PBXPROJ" | sed -E 's/.*MARKETING_VERSION = ([0-9.]+);.*/\1/')
+    if [ "$ARCHIVED" != "$PROJECT" ]; then
+        echo "the archive is $ARCHIVED but the Xcode project is $PROJECT - rebuild it first" >&2
         exit 1
     fi
     check_entitlements
@@ -103,8 +132,12 @@ if [ -n "$LAST_TAG" ]; then
     fi
 fi
 
-perl -pi -e "s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/" "$PBXPROJ"
-echo "building $VERSION"
+perl -pi -e "s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $IOS_VERSION;/" "$PBXPROJ"
+if [ "$IOS_VERSION" = "$VERSION" ]; then
+    echo "building $IOS_VERSION"
+else
+    echo "building $VERSION's code as iOS $IOS_VERSION"
+fi
 
 (cd ts && npm run cap:require-cloud-url && npm run ui:build && npx cap sync ios)
 
@@ -129,7 +162,7 @@ check_entitlements
 # Commit the version change now that there's an archive worth uploading.
 # Pathspec commit: only this file, so other in-flight work can't get swept in.
 if ! git diff --quiet -- "$PBXPROJ"; then
-    git commit -m "ios: version $VERSION" -- "$PBXPROJ"
+    git commit -m "ios: version $IOS_VERSION" -- "$PBXPROJ"
 fi
 
 echo

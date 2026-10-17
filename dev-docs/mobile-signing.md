@@ -33,6 +33,7 @@ new build of a version that has passed it usually skips it.
 scripts/ios-archive.sh            # sync MARKETING_VERSION from ts/package.json,
                                   # ui:build + cap sync ios, archive, sign with
                                   # App.entitlements, check, commit the version
+scripts/ios-archive.sh --version 2.18.0   # the same, stamped 2.18.0 instead
 # → ts/ios/App/archive/App.xcarchive
 scripts/ios-archive.sh --upload   # sign that archive for distribution and send
                                   # it to App Store Connect
@@ -41,8 +42,16 @@ scripts/ios-archive.sh --upload   # sign that archive for distribution and send
 `scripts/release.sh` asks at the end of a release which stores to build for
 (default both); App Store runs both steps, the archive and the upload.
 `scripts/release.sh ios` is the iOS-only fix: both steps from HEAD under the
-current version, no tag, so web, desktop and Play get the fixes at the next
+version iOS is on, no tag, so web, desktop and Play get the fixes at the next
 release. It closes on TestFlight reminders and a drafted What to Test.
+
+A new build of a version Apple has already reviewed usually skips beta
+review; a new version doesn't. So when a release goes to the App Store, the
+script also asks for iOS's version: the new one, or **k** to keep iOS on the
+version it's on while web, desktop and Play take the new number (their build
+systems need it). A kept build shows in TestFlight as the old version, and the
+app's own About and bug reports say the release's, since those come from
+`ts/package.json`. The next release still counts up from the new number.
 
 With no devices on the team, Xcode can't mint a *development* profile, so a
 normal signed archive fails ("Your team has no devices"). The workaround:
@@ -96,9 +105,12 @@ gets a number when the desktop app holds `aloud.app`). For an .ipa, set
 (or `export` for a local .ipa dry-run first). Build numbers are auto-assigned
 at export (`manageAppVersionAndBuildNumber` defaults to true), so re-uploading
 never collides - no need to touch `CURRENT_PROJECT_VERSION`.
-`MARKETING_VERSION` in `project.pbxproj` follows the app version
-(`ts/package.json`): `release.sh` sets it in the version-bump commit, and the
-script syncs it again before archiving.
+`MARKETING_VERSION` in `project.pbxproj` is the version iOS is on, usually
+the app version (`ts/package.json`): `release.sh` sets it in the version-bump
+commit, and the script stamps it again before archiving (`--version` to keep
+an older one, committed after the archive). `release.sh ios` and the keep
+answer read it, so iOS stays on a kept version until a release uploads a new
+one. `--upload` checks the archive against it.
 
 `error: exportArchive Failed to Use Accounts` means Xcode has no Apple account
 signed in (it can drop one between uploads): Xcode → Settings → Accounts, add

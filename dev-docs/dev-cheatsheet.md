@@ -346,7 +346,7 @@ scripts/release.sh rc                 # patch bump, marked --prerelease (RC / te
 scripts/release.sh same               # re-release current version (moves tag)
 scripts/release.sh replace            # re-release, same title + notes (quick fix cycle)
 scripts/release.sh retry              # finish a release that failed after approval
-scripts/release.sh ios                # iOS-only fix: HEAD to TestFlight, same version, no tag
+scripts/release.sh ios                # iOS-only fix: HEAD to TestFlight, iOS's version, no tag
 scripts/release.sh --help             # every mode and prompt
 ```
 
@@ -392,13 +392,15 @@ three platforms, signed updater artifacts) and `deploy-release.yml` (server,
 then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:
 [deploy.md](deploy.md).
 
-**Mobile** is not built by CI. Once the release is out, the script offers to
-build both bundles here (`scripts/android-aab.sh --no-bump --no-notes`, then
-`scripts/ios-archive.sh`, below). A failed build leaves the release as it is,
-and each script reruns on its own. With an iOS archive built it then offers
-the TestFlight upload (default no), and it closes on a reminder that the
-`.aab` still has to go into the Play Console by hand, with Play's "What's new"
-notes printed last.
+**Mobile** is not built by CI. Once the release is out, one question picks the
+stores (default both): Play runs `scripts/android-aab.sh --no-bump --no-notes`,
+App Store runs `scripts/ios-archive.sh` and its upload (below). With App Store
+picked, a second asks for iOS's version: the new one, or keep the one iOS is
+on so the build usually skips beta review
+([mobile-signing.md](mobile-signing.md)). A failed build leaves the release as
+it is, and each script reruns on its own. It closes on a reminder that the
+`.aab` still has to go into the Play Console by hand, with the release notes
+printed last for Play's "What's new" and TestFlight's What to Test.
 
 ### Mobile (Capacitor - iOS / Android)
 
@@ -436,6 +438,7 @@ stable release's notes for Play's "What's new" box last (`print_whats_new` in
 scripts/ios-archive.sh            # sync MARKETING_VERSION from package.json,
                                   # ui:build + cap sync ios + archive, signed
                                   # with App.entitlements and checked
+                                  # (--version X.Y.Z stamps an older one)
 # → ts/ios/App/archive/App.xcarchive
 scripts/ios-archive.sh --upload   # distribution signing + upload to App Store
                                   # Connect, from the archive that's there

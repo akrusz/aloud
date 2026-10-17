@@ -25,11 +25,11 @@ Modes:
              rejected, gh error, dirty tree after the check): fix the cause
              (pull, commit), then retry. Reuses the approved version, title and
              notes; skips the drafting, prompts and pre-release check
-  ios        iOS-only fix: archive HEAD under the current version and upload
-             it to TestFlight. A new build of an already-reviewed version
-             usually skips beta review. No bump, tag or GitHub release, so
-             web, desktop and Play get the fixes at the next release. Ends on
-             reminders and a drafted What to Test
+  ios        iOS-only fix: archive HEAD under the version iOS is on and
+             upload it to TestFlight. A new build of an already-reviewed
+             version usually skips beta review. No bump, tag or GitHub
+             release, so web, desktop and Play get the fixes at the next
+             release. Ends on reminders and a drafted What to Test
   -h, --help show this help
 
 Before anything else: the tree must be clean and not behind its upstream
@@ -44,7 +44,10 @@ q abort; if it leaves items, f fixes them in a claude session here.
 
 Last, once the release is out, the mobile builds: Enter both, a App Store
 only (iOS archive + TestFlight upload), p Play only (Android .aab), n neither.
-The .aab goes into the Play Console by hand.
+The .aab goes into the Play Console by hand. With App Store picked, the iOS
+version: Enter the new one, k keep iOS on the version it's on, so the build
+usually skips beta review. The Xcode project remembers it, so 'ios' builds
+stay on it too; the next release still counts up from the new version.
 
 Env:
   ALOUD_RELEASE_MODEL  model for the claude CLI calls (default: opus)
@@ -166,6 +169,10 @@ fi
 # Read current version from tauri.conf.json (the source of truth)
 CURRENT=$(grep -m1 '"version"' ts/src-tauri/tauri.conf.json | sed -E 's/.*"version": *"([0-9][0-9.]*)".*/\1/')
 IFS='.' read -r MAJ MIN PAT <<< "$CURRENT"
+# The version iOS is on: the Xcode project's MARKETING_VERSION. The bump sets
+# it along with everything else, but the keep answer at the mobile prompt puts
+# it back, so it can trail CURRENT.
+IOS_CURRENT=$(grep -m1 'MARKETING_VERSION = ' ts/ios/App/App.xcodeproj/project.pbxproj | sed -E 's/.*MARKETING_VERSION = ([0-9.]+);.*/\1/')
 
 # iOS-only fix. Same CFBundleShortVersionString, and export assigns the next
 # build number. Everything else stays on the tag, so this never touches it.
@@ -184,7 +191,7 @@ if [ "$IOS_ONLY" = true ]; then
         read -r CONT
         case "$CONT" in y|Y) ;; *) echo "  Aborted."; exit 0 ;; esac
     else
-        echo "  iOS-only fix: $CURRENT from HEAD, adding what's past $TAG:"
+        echo "  iOS-only fix: $IOS_CURRENT from HEAD, adding what's past $TAG:"
         printf '%s\n' "$AHEAD"
         echo ""
         printf "  Archive and upload to TestFlight? [Y/n] "
@@ -198,14 +205,14 @@ if [ "$IOS_ONLY" = true ]; then
     if [ -n "$AHEAD" ] && command -v claude >/dev/null 2>&1; then
         echo "  Drafting What to Test…"
         LOG=$(git log --format='- %s%n%b' "${SKIP_VERSION_COMMITS[@]}" "$TAG..HEAD" | head -200)
-        WHAT_TO_TEST=$(claude --model "$RELEASE_MODEL" -p "Draft TestFlight 'What to Test' text for a new build of aloud v${CURRENT}, a voice meditation app. Testers already have an earlier build of this version; this one adds only these commits:
+        WHAT_TO_TEST=$(claude --model "$RELEASE_MODEL" -p "Draft TestFlight 'What to Test' text for a new build of aloud v${IOS_CURRENT}, a voice meditation app. Testers already have an earlier build of this version; this one adds only these commits:
 
 ${LOG}
 
 Write for testers, not developers: what changed and what to try. 1-3 lines, each one short bullet starting with '- '. Nothing else: no heading, no preamble. No em-dashes (use ' - ' or a comma). Call it a session, never a sit." </dev/null 2>/dev/null | grep '^- ' || true)
     fi
 
-    if ! scripts/ios-archive.sh; then
+    if ! scripts/ios-archive.sh --version "$IOS_CURRENT"; then
         echo "  iOS archive FAILED - rerun: scripts/release.sh ios" >&2
         exit 1
     fi
@@ -215,9 +222,9 @@ Write for testers, not developers: what changed and what to try. 1-3 lines, each
     fi
 
     echo ""
-    echo "  iOS $CURRENT uploaded from $(git rev-parse --short HEAD). Once it's processed, in TestFlight:"
+    echo "  iOS $IOS_CURRENT uploaded from $(git rev-parse --short HEAD). Once it's processed, in TestFlight:"
     echo "    - add it to the external group (it won't pick it up on its own)"
-    echo "    - expire the earlier $CURRENT build, or testers can still pick it under Previous Builds"
+    echo "    - expire the earlier $IOS_CURRENT build, or testers can still pick it under Previous Builds"
     echo "  For later:"
     echo "    - web, desktop and Play stay on $TAG; the next release brings them these fixes"
     echo "    - in-app bug reports say v$CURRENT for every build; the tester's TestFlight app shows which"
@@ -625,6 +632,15 @@ case "$MOBILE" in
     p|P) ANDROID=true; IOS=false ;;
     *) ANDROID=true; IOS=true ;;
 esac
+# Keeping iOS on its version makes this a new build of one Apple has already
+# reviewed, which usually skips beta review. Web, desktop and Play can't do
+# that: they need the higher number.
+IOS_KEEP=false
+if [ "$IOS" = true ] && [ -n "$IOS_CURRENT" ] && [ "$IOS_CURRENT" != "$VERSION" ]; then
+    printf "  iOS version: N %s (beta review), k keep %s (usually no review) [N/k] " "$VERSION" "$IOS_CURRENT"
+    read -r KEEP
+    case "$KEEP" in k|K) IOS_KEEP=true ;; esac
+fi
 
 ANDROID_LINE="Android: skipped - scripts/android-aab.sh --no-bump"
 if [ "$ANDROID" = true ]; then
@@ -639,10 +655,18 @@ fi
 
 IOS_LINE="iOS: skipped - scripts/ios-archive.sh, then scripts/ios-archive.sh --upload"
 if [ "$IOS" = true ]; then
-    if ! scripts/ios-archive.sh; then
-        IOS_LINE="iOS archive FAILED - rerun: scripts/ios-archive.sh"
+    IOS_ARCHIVE=(scripts/ios-archive.sh)
+    [ "$IOS_KEEP" = true ] && IOS_ARCHIVE+=(--version "$IOS_CURRENT")
+    if ! "${IOS_ARCHIVE[@]}"; then
+        IOS_LINE="iOS archive FAILED - rerun: ${IOS_ARCHIVE[*]}"
     elif ! scripts/ios-archive.sh --upload; then
         IOS_LINE="iOS upload FAILED - rerun: scripts/ios-archive.sh --upload"
+    elif [ "$IOS_KEEP" = true ]; then
+        # The archive committed the project back to the kept version, after
+        # the push.
+        IOS_LINE="iOS: uploaded as $IOS_CURRENT (the app says v$VERSION) - once it's processed, in TestFlight
+    add it to the external group and expire the earlier $IOS_CURRENT build.
+    'ios: version $IOS_CURRENT' is committed but not pushed"
     else
         # External groups don't pick up new builds on their own.
         IOS_LINE="iOS: uploaded - once it's processed, add it to the external group in TestFlight"
