@@ -8,7 +8,7 @@ heuristics below are tuned for typical conversation volume.
 ## Three pathways
 
 The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
-`engineDrivenBargeIn = sttBackend === 'server-whisper'`):
+`bargesInOnOwnStream`: server-Whisper, except on an iPhone's speaker):
 
 1. **Engine-driven (server-Whisper)** - `ts/ui/src/adapters/whisper-pcm-stt.ts`.
    The adapter keeps a continuous, echo-cancelled capture stream alive between
@@ -32,7 +32,18 @@ The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
    First seen in Android's WebView (meditation-pal-x4h4), then in mobile Chrome
    on the web build (meditation-pal-oxmt) - it's the speaker, not the wrapper.
    Capture already pauses while busy on both, so nothing is lost but the
-   interruption. A check-in or timer notice starts on its own, outside `busy`,
+   interruption. An iPhone on its speaker takes this path on aloud cloud too
+   (meditation-pal-hi6f): its echo canceller let the facilitator's voice
+   through at a level between the gates below, so every reply after the
+   greeting barged in on itself and its first words became the meditator's
+   turn. With headphones the iOS app keeps engine-driven barge-in: the native
+   `AudioRoutePlugin` reports the output route and its changes
+   (`ui/src/audio-route.ts`), and the session switches mode when headphones
+   come or go. iPhone Safari can't see the route, so it never barges in. The engine there still hears the reply, so the listen loop drops its
+   onset buffer (`dropOnsetBuffer`) before each turn, and the engine still
+   logs `[vad] tts window` for each reply: that measurement, sent from a phone
+   with dev mode on ("Report a bug" carries the audio `diag` lines), decides
+   whether iPhones can get barge-in back. A check-in or timer notice starts on its own, outside `busy`,
    so `tts.speak` closes any recognizer off the engine-driven path
    (`continuousCapture`) before the line plays (`[echo-guard]` in the diag log) and the
    listen loop waits out `ttsSpeakingDepth`: left open, a phone's recognizer

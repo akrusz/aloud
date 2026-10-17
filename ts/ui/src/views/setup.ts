@@ -72,6 +72,7 @@ import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
+import { capacitorPlatform } from '../is-desktop.js';
 import {
     computeProviderMarker,
     fetchKeyPresence,
@@ -254,6 +255,14 @@ export async function mountSetupView(
         root.querySelector<HTMLElement>('#setup-stt-quality-note')?.classList.toggle(
             'hidden',
             choice !== 'capacitor' || setup.meditationType === 'noting'
+        );
+        // aloud cloud barges in on an iPhone only with headphones (session.ts,
+        // meditation-pal-hi6f), so the iOS app says so for its pick too.
+        root.querySelector<HTMLElement>('#setup-stt-iphone-note')?.classList.toggle(
+            'hidden',
+            capacitorPlatform() !== 'ios' ||
+                choice === 'capacitor' ||
+                setup.meditationType === 'noting'
         );
         watchWhisper(choice);
     }
@@ -1777,6 +1786,9 @@ function renderSetupHTML(
                      than after (syncSttPicker shows it). -->
                 <p id="setup-stt-quality-note" class="credit-rate-legend hidden">
                     ${t("Quality varies by device, and speaking won't interrupt the facilitator. aloud cloud is recommended.")}
+                </p>
+                <p id="setup-stt-iphone-note" class="credit-rate-legend hidden">
+                    ${t("On iPhone, speaking interrupts the facilitator only with headphones. We hope to fix this before launch.")}
                 </p>
             </div>
         </div>

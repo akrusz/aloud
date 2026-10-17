@@ -121,6 +121,7 @@ import { simulateLlmFault } from '../dev-sim.js';
 import { isCheckinDebugOn, getJevClassifierMode } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
+import { iosHeadphones, watchIosHeadphones } from '../audio-route.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import {
     type SessionSetup,
@@ -165,7 +166,7 @@ import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { outOfCreditsNotice, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isCapacitor, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
+import { isCapacitor, isIosWeb, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { playClosing, playOpening, resolveSignatureSound } from '../signature-sound.js';
 import { navOrbPainted } from '../orb-pulse.js';
@@ -758,7 +759,16 @@ export async function mountSessionView(
     // stream doesn't get the OS echo-cancellation and trips on the facilitator's
     // own voice (the self-barge-in bug). web-speech has no such stream, so it
     // keeps the wrapper, except on phones (see buildTts).
-    let engineDrivenBargeIn = sttBackend === 'server-whisper';
+    // Not on an iPhone's speaker, whose echo canceller lets the facilitator's
+    // voice through: it barged in on every reply and sent the reply's first
+    // words as the meditator's turn (meditation-pal-hi6f). There the mic closes
+    // while the facilitator speaks, as on the built-in recognizer. Headphones
+    // are fine, and the iOS app can tell (watched below); iPhone Safari can't.
+    let iosHeadphonesOn = await iosHeadphones();
+    const bargesInOnOwnStream = (backend: SttBackend): boolean =>
+        backend === 'server-whisper' && (!isIosWeb() || iosHeadphonesOn);
+    let engineDrivenBargeIn = bargesInOnOwnStream(sttBackend);
+    if (isIosWeb()) diag(`[vad] iPhone headphones: ${iosHeadphonesOn ? 'on' : 'off'}`);
     // Continuous capture (meditation-pal-57gl): on the engine-driven path the
     // mic stays live through the LLM+TTS window instead of pausing while `busy`,
     // so the user is never "deaf" mid-response. Safe because that VAD rejects
@@ -772,7 +782,7 @@ export async function mountSessionView(
     let activeFullAbort: AbortController | null = null;
     let activeTtsAbort: AbortController | null = null;
     // The continuous-capture engine when that's the live backend; used for
-    // barge-in wiring and per-device echo calibration (setTtsActive below).
+    // barge-in wiring (echo calibration goes through echoListener).
     let whisperEngine = continuousWhisper(stt);
     function continuousWhisper(engine: SttEngine | null): WhisperPcmSttEngine | null {
         return continuousCapture && engine instanceof WhisperPcmSttEngine ? engine : null;
@@ -892,19 +902,26 @@ export async function mountSessionView(
             clearTimeout(ttsActiveOffTimer);
             ttsActiveOffTimer = null;
         }
-        whisperEngine?.setTtsActive(true);
-        whisperEngine?.noteVoicePlayback();
+        echoListener()?.setTtsActive(true);
+        echoListener()?.noteVoicePlayback();
     }
     function ttsPlaybackEnded(): void {
         tapFlags({ speaking: false });
         tapEvent('tts', 'end');
         releaseEchoGate();
     }
+    /** The engine told when the facilitator's audio plays. With continuous
+     *  capture that raises its echo gates; without it (iPhone) nothing listens
+     *  then, and it only measures the echo for the [vad] tts window line, the
+     *  number that decides whether iPhones can barge in (hi6f). */
+    function echoListener(): WhisperPcmSttEngine | null {
+        return stt instanceof WhisperPcmSttEngine ? stt : null;
+    }
     function releaseEchoGate(): void {
         lastTtsEndedAt = Date.now();
-        // whisperEngine is reassignable (in-session STT switch), so pin the one
-        // this playback belongs to.
-        const engine = whisperEngine;
+        // The engine is swappable (in-session STT switch), so pin the one this
+        // playback belongs to.
+        const engine = echoListener();
         if (!engine) return;
         ttsActiveOffTimer = setTimeout(() => {
             ttsActiveOffTimer = null;
@@ -965,7 +982,7 @@ export async function mountSessionView(
     // mic can take it for the meditator.
     if (openingSounding) {
         ++ttsSpeakingDepth;
-        whisperEngine?.setTtsActive(true);
+        echoListener()?.setTtsActive(true);
         void openingOver.then(() => {
             if (--ttsSpeakingDepth === 0) releaseEchoGate();
         });
@@ -1165,7 +1182,7 @@ export async function mountSessionView(
             }
             sttChoice = choice;
             sttBackend = sttBackendForChoice(choice);
-            engineDrivenBargeIn = sttBackend === 'server-whisper';
+            engineDrivenBargeIn = bargesInOnOwnStream(sttBackend);
             continuousCapture = engineDrivenBargeIn;
             const prev = adoptStt(next);
             await rebuildTts(setup.voice);
@@ -1536,6 +1553,29 @@ export async function mountSessionView(
     // Inside stt.start(): the recognizer is open and hearing the room.
     let sttCapturing = false;
     let torn = false;
+
+    // Headphones in or out mid-session (iOS app): switch between talking over
+    // the facilitator and the mic closing while it speaks.
+    let unwatchHeadphones = (): void => {};
+    void watchIosHeadphones((on) => {
+        if (torn || on === iosHeadphonesOn) return;
+        iosHeadphonesOn = on;
+        engineDrivenBargeIn = bargesInOnOwnStream(sttBackend);
+        continuousCapture = engineDrivenBargeIn;
+        const was = whisperEngine;
+        whisperEngine = continuousWhisper(stt);
+        // The engine still hears the speaker, so it must stop barging in.
+        if (!whisperEngine) was?.setBargeInHandler(null);
+        wireWhisperBargeIn();
+        // Unplugged mid-reply: the open turn would hear the speaker. Close it
+        // as for an unprompted line; the listen loop reopens it after playback.
+        if (!continuousCapture && sttCapturing && (busy || ttsSpeakingDepth > 0)) void stt?.stop();
+        diag(`[vad] iPhone headphones: ${on ? 'on' : 'off'}, barge-in ${engineDrivenBargeIn ? 'on' : 'off'}`);
+    }).then((off) => {
+        if (torn) off();
+        else unwatchHeadphones = off;
+    });
+
     // Capacitor App 'appStateChange' handle (mobile background-save); removed in
     // endSession. Held as the addListener promise so teardown can await + remove.
     let appStateListener: Promise<{ remove(): Promise<void> }> | null = null;
@@ -2502,6 +2542,11 @@ export async function mountSessionView(
                     previewLooksLikeTtsEcho(text, spokenTail);
                 try {
                     sttCapturing = true;
+                    // Its onset buffer kept listening through the reply, which
+                    // is the facilitator, not the start of this turn.
+                    if (!continuousCapture && stt instanceof WhisperPcmSttEngine) {
+                        stt.dropOnsetBuffer();
+                    }
                     for await (const event of stt.start()) {
                         if (event.type === 'partial') {
                             // Don't preview our own echo as the user's words: a
@@ -2681,16 +2726,20 @@ export async function mountSessionView(
     // its audio, so on desktop it gets a small dedicated meter stream; on phones
     // that stream starves the single system recognizer, so there is no ring.
     let micMeter: MicMeter | null = null;
-    let engineMeterOn = false;
+    let meterEngine: WhisperPcmSttEngine | null = null;
     function startMeter(): void {
-        if (whisperEngine) {
-            if (engineMeterOn) return;
-            engineMeterOn = true;
+        const engine = stt instanceof WhisperPcmSttEngine ? stt : null;
+        if (engine) {
+            if (meterEngine) return;
+            meterEngine = engine;
             // Same level mapping as mic-meter.ts (GAIN 4); smoothing retuned
             // for the ~85ms frame cadence vs its 60fps rAF.
             let smoothed = 0;
-            whisperEngine.setLevelListener((rms) => {
-                const level = Math.min(1, rms * 4);
+            engine.setLevelListener((rms) => {
+                // Without continuous capture the stream still hears the reply,
+                // but no turn is open: don't show the facilitator's voice as
+                // the meditator's level.
+                const level = continuousCapture || sttCapturing ? Math.min(1, rms * 4) : 0;
                 smoothed = smoothed * 0.6 + level * 0.4;
                 micBtn.style.setProperty('--mic-level', smoothed.toFixed(3));
             });
@@ -2707,10 +2756,10 @@ export async function mountSessionView(
             .catch(() => {});
     }
     function stopMeter(): void {
-        if (engineMeterOn) {
-            whisperEngine?.setLevelListener(null);
+        if (meterEngine) {
+            meterEngine.setLevelListener(null);
             micBtn.style.removeProperty('--mic-level');
-            engineMeterOn = false;
+            meterEngine = null;
         }
         micMeter?.stop();
         micMeter = null;
@@ -3449,6 +3498,7 @@ export async function mountSessionView(
     ): Promise<void> {
         if (torn) return;
         torn = true;
+        unwatchHeadphones();
         downloadSttClips();
         tapFlags({ ended: true });
         tapEvent('note', `session-ended${skipSave ? ' (unsaved)' : ''}`);

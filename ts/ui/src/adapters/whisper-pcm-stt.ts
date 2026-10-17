@@ -1224,6 +1224,14 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.opts.silenceMaxMs = Math.max(baseMs, maxMs);
     }
 
+    /** Forget the audio held for the next turn's onset. For a caller that
+     *  keeps the mic shut while the facilitator speaks (no barge-in): what the
+     *  stream heard since the last turn is the reply, and a turn starting soon
+     *  after would open with its tail. */
+    dropOnsetBuffer(): void {
+        this.preBuffer = [];
+    }
+
     async stop(options?: SttStopOptions): Promise<void> {
         this.stopRequested = true;
         this.capturing = false;
