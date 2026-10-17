@@ -461,6 +461,43 @@ describe('defaultVoicePick (a setup with no voice picked)', () => {
         expect(defaultVoicePick(zh)?.name).toBe('Google 普通话（中国大陆）');
     });
 
+    it("lands on the server's default hosted voice, not the top-ranked one", () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        vi.stubGlobal('speechSynthesis', { getVoices: () => googleVoices('Google UK English Female') });
+        const scored = buildScoredVoiceList(null, true, [
+            { name: 'Ada (GB)', gender: 'female', tier: 'value', multilingual: true },
+            { name: 'Harper', gender: 'female', tier: 'premium', multilingual: true, default: true },
+            { name: 'Serena', gender: 'female', tier: 'premium', multilingual: true, zhNative: true },
+        ]);
+        expect(scored[0]!.name).not.toBe('Harper');
+        expect(defaultVoicePick(scored)?.name).toBe('Harper');
+    });
+
+    it('takes a zh-native hosted voice in a zh session', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            null,
+            false,
+            [
+                { name: 'Harper', gender: 'female', tier: 'premium', multilingual: true, default: true },
+                { name: 'Serena', gender: 'female', tier: 'premium', multilingual: true, zhNative: true },
+            ],
+            'zh'
+        );
+        expect(defaultVoicePick(scored, 'zh')?.name).toBe('Serena');
+    });
+
+    it('skips a hosted default that cannot speak the session language', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const scored = buildScoredVoiceList(
+            [{ name: 'Tingting', lang: 'zh-CN', engine: 'macos' }],
+            false,
+            [{ name: 'Leda', gender: 'female', tier: 'premium', default: true }],
+            'zh'
+        );
+        expect(defaultVoicePick(scored, 'zh')?.name).toBe('Tingting');
+    });
+
     it('leaves a non-Google pick alone', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         vi.stubGlobal('speechSynthesis', { getVoices: () => googleVoices('Google UK English Female') });

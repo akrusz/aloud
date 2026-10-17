@@ -120,6 +120,8 @@ export interface ScoredVoice {
      *  zh-capable tier-mates in a zh session, and is what a no-voice zh
      *  session swaps to. */
     zhNative?: boolean;
+    /** The server's default hosted voice (CloudVoice.default). */
+    hostedDefault?: boolean;
 }
 
 export const TIER_LABELS: Record<number, string> = {
@@ -242,6 +244,7 @@ export function buildScoredVoiceList(
             ...(hv.multilingual || speaks('en') ? {} : { langMismatch: true }),
             ...(hv.fixedPace ? { fixedPace: true } : {}),
             ...(hv.zhNative ? { zhNative: true } : {}),
+            ...(hv.default ? { hostedDefault: true } : {}),
         });
         seen.add(hv.name);
     }
@@ -357,10 +360,21 @@ function preferGoogleDefault(pick: ScoredVoice | null, voices: readonly ScoredVo
     return voices.find((v) => v.name === GOOGLE_DEFAULT_VOICE && v.engine === 'browser' && !v.langMismatch) ?? pick;
 }
 
-/** The voice a setup with none picked lands on: the best-ranked (list is
- *  best-first) that doesn't need downloading. */
-export function defaultVoicePick(voices: readonly ScoredVoice[]): ScoredVoice | null {
-    return preferGoogleDefault(voices.find((v) => !v.needsDownload) ?? null, voices);
+/**
+ * The voice a setup with none picked lands on: the server's default hosted
+ * voice (Harper), or in a zh session one a native speaker signed off on - even
+ * where the session could otherwise run free, the start gate offers a free
+ * voice then (cloud-gate). With no hosted voices, the best-ranked (list is
+ * best-first) that doesn't need downloading, one speaking the session language
+ * first.
+ */
+export function defaultVoicePick(voices: readonly ScoredVoice[], sessionLang = 'en'): ScoredVoice | null {
+    const hosted =
+        (sessionLang === 'zh' ? voices.find((v) => v.zhNative && !v.langMismatch) : undefined) ??
+        voices.find((v) => v.hostedDefault && !v.langMismatch);
+    if (hosted) return hosted;
+    const ready = voices.filter((v) => !v.needsDownload);
+    return preferGoogleDefault(ready.find((v) => !v.langMismatch) ?? ready[0] ?? null, voices);
 }
 
 /**

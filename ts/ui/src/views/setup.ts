@@ -422,7 +422,7 @@ export async function mountSetupView(
         voicesLoaded = true;
         // Never leave the picker on a bare "Default".
         if (!stripVoicePrefix(setup.voice)) {
-            const top = defaultVoicePick(scoredVoices);
+            const top = defaultVoicePick(scoredVoices, setup.language);
             if (top) {
                 setup.voice = prefixedVoiceId(top.engine, top.name);
                 void persistDefaultVoice(setup.voice, setup.ttsRate);
