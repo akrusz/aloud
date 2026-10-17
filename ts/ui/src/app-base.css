@@ -726,6 +726,8 @@ body {
 .participant-field select {
     --select-chevron-lane: 1.6rem;
     padding-right: var(--select-chevron-lane);
+    /* base-select sizes to the chosen label; keep "AI" from shrinking to a stub. */
+    min-width: 4.5rem;
 }
 
 .participant-field input[type="number"] {
