@@ -1,0 +1,371 @@
+/* The app's dark tokens (ts/ui/src/app-base.css) and the orb gradient
+   (dev-docs/style.md), as the Play video has them. Copied, not imported: the
+   film renders without the dev server. */
+:root {
+    --bg-primary: #110d08;
+    --bg-card: #221a13;
+    --border: #302618;
+    --border-warm: #43341f;
+    --text-primary: #f5efe6;
+    --text-secondary: #c4b49e;
+    --accent: #e71f75;
+    --accent-text: #f5589a;
+    --yellow: #ffd820;
+    --facilitator-bg: #2e1720;
+    --user-bg: #2b2312;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --orb: radial-gradient(circle at 45% 45% in oklab, #fff4c0 0%, #f8f288 18%, #f5d820 38%, #ffb805 49%, #ed7326 65%, #e71f75 71%, #870a3e 76%);
+}
+
+@font-face {
+    font-family: 'Knewave';
+    src: url('/docs/assets/fonts/knewave-v15.woff2') format('woff2');
+    font-display: block;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+}
+
+#stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    transform-origin: 0 0;
+}
+
+/* Firelight falloff, as on the app's body. */
+#stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(8, 4, 0, 0.42) 100%);
+    pointer-events: none;
+    z-index: 50;
+}
+
+.layer {
+    position: absolute;
+    inset: 0;
+}
+
+.abs {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.orb {
+    border-radius: 50%;
+    background: var(--orb);
+}
+
+.ring {
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+}
+
+/* ---- type ---- */
+
+.caption {
+    font-weight: 780;
+    letter-spacing: -0.02em;
+    line-height: 1.14;
+    text-wrap: balance;
+}
+
+.word {
+    display: inline-block;
+    white-space: pre;
+}
+
+.sub {
+    font-weight: 550;
+    color: var(--text-secondary);
+    letter-spacing: -0.005em;
+    line-height: 1.25;
+    text-wrap: balance;
+}
+
+.hl {
+    background: linear-gradient(var(--ink, var(--accent)), var(--ink, var(--accent))) no-repeat 0 94% / calc(var(--drawn, 0) * 100%) 0.13em;
+    padding-bottom: 0.06em;
+}
+
+.pink {
+    color: var(--accent-text);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 26px 14px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 2px solid var(--border-warm);
+    font-size: 32px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.chip svg {
+    width: 34px;
+    height: 34px;
+}
+
+/* ---- cards ---- */
+
+.card {
+    background: var(--bg-card);
+    border: 3px solid var(--border-warm);
+    border-radius: 34px / 22px;
+    overflow: hidden;
+}
+
+.card .name {
+    font-size: 54px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.card .text {
+    margin-top: 12px;
+    font-size: 30px;
+    font-weight: 550;
+    line-height: 1.25;
+    color: var(--text-secondary);
+}
+
+.spectro {
+    display: block;
+    border-radius: 18px / 12px;
+    background: #0a0705;
+}
+
+.panel {
+    background: #0a0705;
+    border: 2px solid var(--border);
+    border-radius: 34px / 22px;
+    overflow: hidden;
+}
+
+.axis {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.sticker {
+    padding: 0.36em 0.7em 0.42em;
+    background: var(--bg-card);
+    border: 3px solid var(--border-warm);
+    border-radius: 40px / 26px;
+    font-size: 64px;
+    font-weight: 780;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    box-shadow: 8px 8px 0 #000;
+}
+
+
+.tag {
+    padding: 26px 34px 28px;
+}
+
+.tag .label {
+    font-size: 50px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--yellow);
+}
+
+.tag .why {
+    margin-top: 8px;
+    font-size: 28px;
+    font-weight: 550;
+    color: var(--text-secondary);
+}
+
+.tag .score {
+    position: absolute;
+    right: 30px;
+    top: 30px;
+    font-size: 40px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-text);
+}
+
+/* ---- the exchange (the app's transcript, large) ---- */
+
+.row {
+    display: flex;
+    align-items: flex-start;
+    gap: 22px;
+}
+
+.row.user {
+    justify-content: flex-end;
+}
+
+.avatar {
+    flex: none;
+    width: 60px;
+    height: 60px;
+    margin-top: 16px;
+}
+
+.bubble {
+    max-width: 1500px;
+    padding: 24px 38px 27px;
+    border-radius: 36px / 23px;
+    font-size: 46px;
+    line-height: 1.32;
+    font-weight: 560;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+}
+
+.bubble.facilitator {
+    background: var(--facilitator-bg);
+    border: 2px solid rgba(231, 31, 117, 0.22);
+}
+
+.bubble.user {
+    background: var(--user-bg);
+    border: 2px solid rgba(232, 184, 32, 0.22);
+}
+
+.bubble .who {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.bubble.user .who {
+    color: #d9b84a;
+}
+
+.bubble.facilitator .who {
+    color: var(--accent-text);
+}
+
+.bubble .rev {
+    font-weight: 780;
+    color: var(--yellow);
+}
+
+.media-label {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.media-label.on {
+    color: var(--yellow);
+}
+
+/* ---- the five ---- */
+
+.pair-name {
+    font-size: 132px;
+    font-weight: 820;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.pill {
+    display: inline-block;
+    padding: 10px 24px 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 30px;
+    font-weight: 750;
+    letter-spacing: 0;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.dots {
+    display: flex;
+    gap: 18px;
+}
+
+.dots i {
+    display: block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #4a3b28;
+}
+
+.dots i.on {
+    background: var(--accent);
+}
+
+.wordmark {
+    font-family: 'Knewave';
+    font-size: 200px;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.wordmark span {
+    position: absolute;
+    left: 0;
+    top: 0;
+    paint-order: stroke fill;
+    -webkit-text-stroke-linejoin: round;
+}
+
+.wordmark .under {
+    color: #000;
+    -webkit-text-stroke: 32px #000;
+}
+
+.wordmark .over {
+    color: var(--accent);
+    -webkit-text-stroke: 18px #ffd820;
+}
+
+/* ---- preview ---- */
+
+#hud {
+    position: fixed;
+    left: 12px;
+    bottom: 10px;
+    z-index: 100;
+    font: 13px/1.4 ui-monospace, Menlo, monospace;
+    color: #b0a090;
+}
+
+#hud input {
+    width: 60vw;
+    vertical-align: middle;
+}

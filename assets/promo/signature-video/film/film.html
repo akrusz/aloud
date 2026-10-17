@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  The signature-sound video, as a page. tools/build.mjs loads it in Chrome,
+  calls window.seek(t) for every frame and photographs the stage. Open it with
+  ?preview (build.mjs --preview prints the link) to watch it against the
+  soundtrack.
+
+  Nothing here runs on a clock: every position, colour and word is worked out
+  from the time it is asked for, so any frame can be rendered on its own.
+-->
+<html lang="en" data-theme="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <title>aloud. - signature sounds</title>
+        <link rel="icon" href="data:," />
+        <link rel="stylesheet" href="film.css" />
+    </head>
+    <body>
+        <div id="stage"></div>
+        <script type="module" src="film.js"></script>
+    </body>
+</html>

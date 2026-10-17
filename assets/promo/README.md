@@ -46,6 +46,9 @@ first when picking the work back up.
   (`synth_signature.py`), the audition page and the renders in the running.
   Five pairs ship in the app as presets (its README → "Chosen"). The video
   still opens and closes on `bowl-deep-long`.
+- **Signature sounds video** (X/YouTube, 2026-10-16): `signature-video/`, a
+  2:17 cut on how the opening and closing sounds were made, built from
+  `cut.mjs`. Its README has the build and what is the dev's to judge.
 - **Auditions** (all in `play-video/build/audition/`, gitignored): the
   excerpt cuts, Harper takes of f0, f1 and f3 in `harper/`, and the rough cut.
   The video uses the rough cut's f1 takes, `f0-settle-take2` and
