@@ -39,7 +39,10 @@ audit + cargo check + cargo deny must pass.
 Prompts (new versions): Claude drafts a name and notes from the commits since
 the last tag. Name: Enter takes the suggestion, - for none. Notes: Y use,
 e edit in $EDITOR, s write your own there from an empty file, n write in gh
-(at the end, after the push). Then the pre-release doc check: Y run, n skip,
+(at the end, after the push). A bullet for some platforms only starts with a
+tag: [iOS], [Android], [Mobile], [Desktop], [Web], or several ([iOS, Web]).
+GitHub shows them all; the closing what's-new blocks, one per store, keep
+the untagged bullets and that store's own, tag stripped. Then the pre-release doc check: Y run, n skip,
 q abort; if it leaves items, f fixes them in a claude session here.
 
 Last, once the release is out, the mobile builds: Enter both, a App Store
@@ -209,7 +212,7 @@ if [ "$IOS_ONLY" = true ]; then
 
 ${LOG}
 
-Write for testers, not developers: what changed and what to try. 1-3 lines, each one short bullet starting with '- '. Nothing else: no heading, no preamble. No em-dashes (use ' - ' or a comma). Call it a session, never a sit." </dev/null 2>/dev/null | grep '^- ' || true)
+Write for testers, not developers: what changed and what to try. Leave out what doesn't reach the iPhone app, and never name another platform (App Store guideline 2.3.10). 1-3 lines, each one short bullet starting with '- '. Nothing else: no heading, no preamble. No em-dashes (use ' - ' or a comma). Call it a session, never a sit." </dev/null 2>/dev/null | grep '^- ' || true)
     fi
 
     if ! scripts/ios-archive.sh --version "$IOS_CURRENT"; then
@@ -376,6 +379,8 @@ This is a brief overview of what's new, not detailed patch notes. About five lin
 Keep it terse - these are read at a glance. Each bullet is one clause, ideally under 10 words, no trailing explanation of the mechanism. 'Fallback for STT when Silero fails' is the right length; a full sentence is too long.
 
 The title is the release's name, so make it concise - maybe with some charm if it fits: cute or a little poetic, Title Case, five words at most and ideally two to four. Good examples: 'Clouds, Explained', 'The Quiet Part Out Loud', 'I Didn't Say That', 'Make It So'. Name the release's center of gravity, not every bullet in it.
+
+A bullet whose change reaches only some platforms starts with a tag naming them, right after the '- ': [iOS], [Android], [Mobile] (both phone apps), [Desktop] or [Web], comma-separated for several, e.g. '- [iOS] Opening sounds play again'. Tell from the commits (an 'ios:' prefix, files under ts/ios/ or ts/src-tauri/). An untagged bullet goes to every store, so it must not name a platform.
 
 Output exactly this shape and nothing else:
 TITLE: <the name>
@@ -679,5 +684,8 @@ echo "  $ANDROID_LINE"
 if [ "$ANDROID" = true ] || [ "$IOS" = true ]; then
     # Last, so it's on screen for Play's "What's new" and TestFlight's What to Test.
     . scripts/lib/whats-new.sh
-    print_whats_new
+    STORES=()
+    [ "$IOS" = true ] && STORES+=(ios)
+    [ "$ANDROID" = true ] && STORES+=(android)
+    print_whats_new "${STORES[@]}"
 fi

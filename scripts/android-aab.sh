@@ -113,4 +113,4 @@ if command -v open >/dev/null 2>&1 && [ -f "$AAB" ]; then
     open -R "$AAB"
 fi
 
-if [ "$NOTES" = true ]; then print_whats_new; fi
+if [ "$NOTES" = true ]; then print_whats_new android; fi
