@@ -434,7 +434,7 @@ export const ZH: Record<string, string> = {
     "Pull failed": "拉取失败",
     "Quality": "音质",
     "Quality varies by device, and speaking won't interrupt the facilitator. aloud cloud is recommended.": "质量因设备而异，说话也无法打断引导者。推荐使用 aloud cloud。",
-    "On iPhone, speaking interrupts the facilitator only with headphones. We hope to fix this before launch.": "在 iPhone 上，只有戴耳机时说话才能打断引导者。我们希望在正式发布前修复。",
+    "On iOS, speaking interrupts the facilitator only with headphones. We hope to fix this before launch.": "在 iOS 上，只有戴耳机时说话才能打断引导者。我们希望在正式发布前修复。",
     "Quick": "快",
     "Rattle": "沙铃",
     "Rin": "磬",
