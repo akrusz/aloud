@@ -173,7 +173,10 @@ Dev mode is also what turns the diagnostic console lines on in a release build
 (`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[judge]`,
 `[command]`. Dev builds always print them. They carry character counts, never
 transcript text. Failures stay on `console.warn`/`error`, which is what the
-bug-report block records.
+bug-report block records. With dev mode on, "Report a bug" also carries the
+last 40 audio lines (`[vad]`, `[stt-*]`, `[echo-guard]`, `[signature]`,
+`[turn]`; `recentAudioDiag`), so a tester's phone can send an echo
+measurement (`[vad] tts window`) without a Mac attached.
 
 #### Simulate failures (dev builds)
 

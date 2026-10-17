@@ -20,6 +20,7 @@ import { loadAppSettings } from './app-settings.js';
 import { resolveSttChoice, sttChoiceForMode } from './adapters/stt-picker.js';
 import { withTimeout } from './net-timeout.js';
 import { recentErrors } from './error-log.js';
+import { recentAudioDiag } from './diag.js';
 import { choiceDialog } from './dialog.js';
 import { t } from './i18n.js';
 
@@ -217,6 +218,7 @@ async function sttDiagnostics(): Promise<string[]> {
 
 async function diagnostics(extra: string[] = []): Promise<string> {
     const errs = recentErrors();
+    const audio = recentAudioDiag();
     return [
         `Version: ${__APP_VERSION__}`,
         `Platform: ${platformLabel()}`,
@@ -226,6 +228,7 @@ async function diagnostics(extra: string[] = []): Promise<string> {
         `Browser: ${navigator.userAgent}`,
         `Env: cores=${navigator.hardwareConcurrency ?? '?'}, isolated=${globalThis.crossOriginIsolated === true}`,
         ...(errs.length ? ['Recent errors:', ...errs.map((l) => `- ${l}`)] : []),
+        ...(audio.length ? ['Audio diagnostics (dev mode):', ...audio.map((l) => `- ${l}`)] : []),
     ].join('\n');
 }
 
