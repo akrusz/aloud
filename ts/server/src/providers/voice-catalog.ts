@@ -14,10 +14,11 @@ export type VoiceGender = 'female' | 'male' | 'androgynous';
 export type TtsProvider = 'google' | 'azure' | 'inworld';
 
 /** Voice quality/placement bucket (also the picker's cost-badge hint).
- *  'premium' = "Best", leads the picker, flagged recommended: most Azure and
- *  Inworld voices. 'value' = "Very Good", one rung down: every Google voice
- *  (Chirp3-HD at ~$30/1M included), plus any Azure/Inworld voice the dev
- *  places there. A taste call, not a price one. The real per-char rate comes from
+ *  'premium' = "Best", leads the picker, flagged recommended: Google Chirp3-HD
+ *  (~$30/1M) AND most Azure and Inworld voices (premium QUALITY at a
+ *  below-Chirp3-HD cost). 'value' = "Very Good", one rung down: the cheaper
+ *  Google Neural2 (~$16/1M), plus any Azure/Inworld voice the dev places
+ *  there (a taste call, not a price one). The real per-char rate comes from
  *  (provider, voiceId) via the meter (pricing/providers.ttsRateFor), and the
  *  picker's concrete credits/hr keeps the burn honest regardless of bucket, so
  *  a premium-bucket voice can read as a lower cost/hr. */
@@ -77,14 +78,12 @@ export interface CuratedVoice {
 }
 
 export const CURATED_VOICES: readonly CuratedVoice[] = [
-    // Google voices all sit in the value tier: the Azure and Inworld picks
-    // outclass them (dev call, 2026-10-17). Chirp3-HD (~$30/1M) is the most
-    // natural of them. Pulcherrima reads androgynous despite Google's "female"
-    // label.
-    { name: 'Pulcherrima', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'value' },
-    { name: 'Sadachbia', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'value' },
-    { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'value' },
-    // Google Neural2 (~$16/1M, about half), still natural and calm.
+    // Premium tier: Google Chirp3-HD (~$30/1M), most natural/expressive.
+    // Pulcherrima reads androgynous despite Google's "female" label.
+    { name: 'Pulcherrima', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'premium' },
+    { name: 'Sadachbia', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'premium' },
+    { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'premium' },
+    // Value tier: Google Neural2 (~$16/1M, about half), still natural and calm.
     // Unauditioned picks, refine after listening (meditation-pal-b7i).
     { name: 'Vega', provider: 'google', providerVoiceId: 'en-US-Neural2-F', gender: 'female', tier: 'value' },
     { name: 'Rigel', provider: 'google', providerVoiceId: 'en-US-Neural2-J', gender: 'male', tier: 'value' },

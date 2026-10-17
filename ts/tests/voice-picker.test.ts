@@ -53,17 +53,17 @@ describe('buildScoredVoiceList with hosted voices', () => {
         expect(pul.note).toBe('androgynous');
     });
 
-    it('keeps premium voices in Best but drops value ones into Very Good', () => {
+    it('keeps Chirp3-HD (premium) in Best but drops Neural2 (value) into Very Good', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         const scored = buildScoredVoiceList(null, false, [
-            { name: 'Harper', gender: 'female', tier: 'premium' },
-            { name: 'Leda', gender: 'female', tier: 'value' },
+            { name: 'Leda', gender: 'female', tier: 'premium' },
+            { name: 'Vega', gender: 'female', tier: 'value' },
         ]);
-        const harper = scored.find((v) => v.name === 'Harper')!;
-        expect(harper.recommended).toBe(true); // premium → Best
         const leda = scored.find((v) => v.name === 'Leda')!;
-        expect(leda.recommended).toBeFalsy(); // value → not Best…
-        expect(leda.score).toBe(4); // …it lands in the Very Good tier
+        expect(leda.recommended).toBe(true); // Chirp3-HD → Best
+        const vega = scored.find((v) => v.name === 'Vega')!;
+        expect(vega.recommended).toBeFalsy(); // Neural2 → not Best…
+        expect(vega.score).toBe(4); // …it lands in the Very Good tier
     });
 
     it('defaults to no hosted voices (availability-driven) when none are passed', () => {

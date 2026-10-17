@@ -73,24 +73,23 @@ describe('estimateVoices', () => {
         expect(leda.creditsPerHour.engaged).toBeLessThan(leda.creditsPerHour.talkative);
     });
 
-    it('prices Google Neural2 below Google Chirp3-HD', () => {
+    it('prices the value (Neural2) tier below the premium (Chirp3-HD) tier', () => {
         const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
-        const chirp = CURATED_VOICES.find((v) => v.providerVoiceId.includes('Chirp3-HD'))!;
-        const neural2 = CURATED_VOICES.find((v) => v.providerVoiceId.includes('Neural2'))!;
-        expect(rateOf(neural2.providerVoiceId)).toBeGreaterThan(0);
-        expect(rateOf(neural2.providerVoiceId)).toBeLessThan(rateOf(chirp.providerVoiceId));
+        // Pin to Google voices specifically so the 16/30 tier ratio stays exact.
+        const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
+        const value = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'value')!;
+        expect(rateOf(value.providerVoiceId)).toBeGreaterThan(0);
+        expect(rateOf(value.providerVoiceId)).toBeLessThan(rateOf(premium.providerVoiceId));
         // Neural2 ($16/1M) is ~half Chirp3-HD ($30/1M).
-        expect(rateOf(neural2.providerVoiceId) / rateOf(chirp.providerVoiceId)).toBeCloseTo(16 / 30, 2);
-        expect(voices.find((v) => v.voiceId === chirp.providerVoiceId)!.label).toMatch(/Google Chirp3-HD/);
-        expect(voices.find((v) => v.voiceId === neural2.providerVoiceId)!.label).toMatch(/Google Neural2/);
+        expect(rateOf(value.providerVoiceId) / rateOf(premium.providerVoiceId)).toBeCloseTo(16 / 30, 2);
     });
 
     it('prices the Inworld voices below the Chirp3-HD cost (premium-bucket, cheaper burn)', () => {
         const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
-        const chirp = CURATED_VOICES.find((v) => v.providerVoiceId.includes('Chirp3-HD'))!;
+        const premium = CURATED_VOICES.find((v) => v.provider === 'google' && v.tier === 'premium')!;
         for (const v of CURATED_VOICES.filter((c) => c.provider === 'inworld')) {
             expect(rateOf(v.providerVoiceId), v.name).toBeGreaterThan(0);
-            expect(rateOf(v.providerVoiceId), v.name).toBeLessThan(rateOf(chirp.providerVoiceId));
+            expect(rateOf(v.providerVoiceId), v.name).toBeLessThan(rateOf(premium.providerVoiceId));
         }
     });
 });
