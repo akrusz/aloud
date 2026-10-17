@@ -89,7 +89,7 @@ writes a self-contained, filterable HTML board of all tickets - open it in a bro
 
 ## Interacting with the developer
 
-Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this when running on his machine.
+Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this when running on his machine. Keep it to the latest ~5 entries, moving older ones to the end of recess-archive.md, so it stays cheap to read before writing.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
