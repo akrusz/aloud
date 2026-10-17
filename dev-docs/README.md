@@ -41,7 +41,7 @@ params, gotchas. It's the one to keep open.
 | [silence-mode.md](silence-mode.md) | `[HOLD]` as a bid, the three silence classifiers, and the Jev judge in front of them. |
 | [pacing.md](pacing.md) | Check-ins (canned vs smart content, fixed vs `[WAIT]` timing), the spoken session timer, and what a first sit ("Try right now") overrides. |
 | [voice-commands.md](voice-commands.md) | Mic pre-flight, the bare "mute", and the judge-backed spoken commands. |
-| [voice-barge-in.md](voice-barge-in.md) | How interrupting the facilitator mid-sentence works. Entirely client-side; the pathway depends on the STT backend. |
+| [voice-barge-in.md](voice-barge-in.md) | How interrupting the facilitator mid-sentence works. Entirely client-side; the pathway depends on the STT backend and, on iPhone, headphones. |
 | [language.md](language.md) | English / 中文: the prompt fragment, zh pools, STT locale, and the `t()` catalog. |
 
 ## Reference

@@ -378,7 +378,12 @@ tag (Claude reads the log + diffstat, not the whole tree). The suggested name is
 the default at the prompt (`-` for no name), and the bullets become the release
 body unless you pick `e` to edit them, `s` to write your own from an empty file
 (both in `$EDITOR`, before anything is pushed), or `n` to write them in gh's
-editor once the tag is up.
+editor once the tag is up. A bullet that reaches only some platforms starts
+with a tag: `[iOS]`, `[Android]`, `[Mobile]` (both apps), `[Desktop]`, `[Web]`,
+or several (`[iOS, Web]`). GitHub shows every bullet; each store's what's-new
+block (`print_whats_new` in `scripts/lib/whats-new.sh`) keeps the untagged
+bullets and that store's own, tag stripped, and flags an untagged line naming
+the other platform (Apple rejects that, guideline 2.3.10).
 `same`/`replace` carry the published notes forward instead, since deleting and
 re-creating the release would otherwise drop them.
 
@@ -403,7 +408,8 @@ on so the build usually skips beta review
 ([mobile-signing.md](mobile-signing.md)). A failed build leaves the release as
 it is, and each script reruns on its own. It closes on a reminder that the
 `.aab` still has to go into the Play Console by hand, with the release notes
-printed last for Play's "What's new" and TestFlight's What to Test.
+printed last, one block per store built, for Play's "What's new" and
+TestFlight's What to Test.
 
 ### Mobile (Capacitor - iOS / Android)
 
@@ -432,7 +438,7 @@ scripts/android-aab.sh   # bump versionCode + sync versionName from package.json
 Pass `--no-bump` to rebuild the current version (`release.sh` does, having
 taken a `versionCode` in its own bump). The script commits the
 `build.gradle` version bump itself once the bundle builds, and prints the latest
-stable release's notes for Play's "What's new" box last (`print_whats_new` in
+stable release's notes, Play's block, for the "What's new" box last (`print_whats_new` in
 `scripts/lib/whats-new.sh`; `--no-notes` skips them).
 
 **TestFlight archive**:

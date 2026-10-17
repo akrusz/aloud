@@ -24,7 +24,8 @@ the App Store. The how-to lives in [mobile.md](mobile.md) (native projects),
   (section 3 holds what blocks it).
 - **Both**: the model is aloud cloud (sign-in + ☁). Noting defaults to a circle
   of one sound participant: no model, no account.
-- **Known and accepted**: no barge-in on native STT (`x4h4`), no anonymous
+- **Known and accepted**: no barge-in on native STT (`x4h4`) or on an
+  iPhone's speaker (`hi6f`, headphones only), no anonymous
   first session on iPhone web (`2dy1`, native apps unaffected).
 
 ## 1. Necessary for the next build to testers

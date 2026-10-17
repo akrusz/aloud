@@ -95,8 +95,14 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       (`meditation-pal-oxmt`).
 - [ ] **The opening and closing sounds, on the phone's speaker.** Both play
       whole, at a level that sits with the voice, and the opening is not
-      transcribed as a turn. They shipped after 2.15.0, so no store build has
-      carried them yet.
+      transcribed as a turn. The iOS app played neither until the status-0
+      fix in `fetchBytes` (`signature-sound.ts`), so an iPhone is their first
+      real hearing.
+- [ ] **iPhone on aloud cloud (`hi6f`, `qaqb`).** On the speaker, replies play
+      through and a word said just after one still opens the turn. In the
+      app with headphones, talking over the facilitator stops it; unplug mid-session
+      and it goes back to the closed mic (`[vad] iPhone headphones` in the
+      diag log).
 - [ ] **Backgrounding doesn't kill the mic.** Mid-session, switch apps or lock
       the screen ~30s, come back, and speak - it must transcribe. Debug log:
       `stt restarted after foreground` (`meditation-pal-wudm`). **Then repeat the

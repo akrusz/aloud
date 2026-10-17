@@ -42,8 +42,9 @@ e edit in $EDITOR, s write your own there from an empty file, n write in gh
 (at the end, after the push). A bullet for some platforms only starts with a
 tag: [iOS], [Android], [Mobile], [Desktop], [Web], or several ([iOS, Web]).
 GitHub shows them all; the closing what's-new blocks, one per store, keep
-the untagged bullets and that store's own, tag stripped. Then the pre-release doc check: Y run, n skip,
-q abort; if it leaves items, f fixes them in a claude session here.
+the untagged bullets and that store's own, tag stripped. Then the
+pre-release doc check: Y run, n skip, q abort; if it leaves items, f fixes
+them in a claude session here.
 
 Last, once the release is out, the mobile builds: Enter both, a App Store
 only (iOS archive + TestFlight upload), p Play only (Android .aab), n neither.

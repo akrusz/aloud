@@ -154,6 +154,11 @@ check each of these still reflects reality:
   zh entry, the "Chosen" table in `assets/promo/signature-candidates/README.md`,
   and `design-push.md` where it names the default. A retired id needs no
   migration: `resolveSignatureSound` falls to the default.
+- **Changed where barge-in works** (an STT backend, a platform, the iPhone's
+  headphones check in `bargesInOnOwnStream`) → the setup STT notes
+  (`setup-stt-quality-note`, `setup-stt-iphone-note` in `ui/src/views/setup.ts`)
+  and their zh, the known issue on `docs/mobile-beta/`, "Known and accepted"
+  in `store-submission-checklist.md`, and `voice-barge-in.md`.
 - **Added/removed/reworded a spoken command** → its ask in
   `voice-command-specs.ts` and a rerun of `npm run jev:commands` (the asks share
   one request, so any edit rescores all of them), `COMMAND_LINES` (English *and*

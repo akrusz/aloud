@@ -38,13 +38,15 @@ and is a no-op on web/desktop, so these changes never touch the other builds:
 | STT | `CapacitorSttEngine` (SFSpeechRecognizer / Android SpeechRecognizer): noting's default; the facilitated modes default to aloud cloud and list it last (`sttSettingKey`, [mobile-device-validation.md](mobile-device-validation.md)) | web-speech / server-whisper / aloud cloud | `adapters/stt-picker.ts`, `adapters/capacitor-stt.ts` |
 | Keep-awake | `@capacitor-community/keep-awake` | web Wake Lock API | `wakelock.ts` |
 | Screen dim | on battery, black after 3 minutes without a touch (never during kasina gazing) with a dim "Screen dimmed, tap to brighten" left up, drifting once a minute against OLED burn-in, plus the window's brightness down on Android (`ScreenDimPlugin.java`, a plugin local to the app module) | the black cover alone, on touch devices whose browser reports the battery | `screen-dim.ts` |
+| Barge-in on aloud cloud | iOS: the app's own `AudioRoute` plugin (`AudioRoutePlugin.swift`) reports headphones and route changes; on the speaker the mic closes while the facilitator speaks ([voice-barge-in.md](voice-barge-in.md)). Android barges in on the speaker too | iPhone Safari can't see the route, so it never barges in | `audio-route.ts` |
 | Saving a file (History → Export sessions) | the app's own `FileExport` plugin: Android's system save picker (`FileExportPlugin.java`), iOS's share sheet (`FileExportPlugin.swift`). The WebViews drop a blob-link download without a word | a blob-link download (desktop reveals the sessions folder instead) | `file-export.ts` |
 | External links | `@capacitor/browser` (in-app SFSafariViewController / Custom Tab); a `mailto:` goes to the webview instead, which the plugin can't open | Tauri opener / full-page redirect | `external-links.ts` |
 | System bar icons | follow `data-theme` (Capacitor's core `SystemBars`), since the app draws edge-to-edge and the theme can differ from the device's | nothing | `system-bars.ts` |
 | Buying ☁ | nothing is sold in the app (`purchaseChannel()` is `'none'`); Android may name aloud.rest/account in plain text, never as a link; iOS says nothing (`topUpHint`) | our own checkout (Stripe, USDC) | `purchase-channel.ts` |
 | Sign-in | native Google/Apple via `@capgo/capacitor-social-login` (+ email) | web GIS / Apple JS, or desktop loopback PKCE | `sign-in-modal.ts`, `native-signin.ts` |
 
-The plugins local to the app (Android's `ScreenDim`, both apps' `FileExport`)
+The plugins local to the app (Android's `ScreenDim`, iOS's `AudioRoute`, both
+apps' `FileExport`)
 aren't found through npm, so each is registered by hand: Android in
 `MainActivity.onCreate`, before `super.onCreate`; iOS in
 `MainViewController.capacitorDidLoad`. That subclass
@@ -267,7 +269,10 @@ device/simulator and are tracked separately:
   (barge-in), 30-min playback with the screen off, survives backgrounding. This
   is the crux from `meditation-pal-nn1`. WKWebView's `getUserMedia` should work
   once `NSMicrophoneUsageDescription` is set, but the session category behavior
-  under TTS playback is the open risk.
+  under TTS playback is the open risk. Found on a tester's iPhone (2026-10-17,
+  `hi6f`): on the speaker the echo canceller lets the facilitator through, so
+  barge-in is headphones-only there ([voice-barge-in.md](voice-barge-in.md)).
+  Screen-off playback and backgrounding are still unchecked.
 - **Native STT/TTS quality per device** - which device/OS categories the free
   on-device recognizer + voices are good enough to default to, vs falling back
   to cloud (STT already defaults to cloud outside noting, since 2026-10-15). Full manual-validation matrix (buckets, test cases, default-by-
