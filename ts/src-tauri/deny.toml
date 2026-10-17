@@ -16,10 +16,8 @@ unsound = "all"
 # Add RUSTSEC IDs here (with a comment + expiry plan) to temporarily accept a
 # specific advisory that has no fix yet.
 ignore = [
-    # All entries here are "unmaintained" findings, not security
-    # vulnerabilities — informational notices that an upstream crate is no
-    # longer being maintained. Real CVEs and yanked crates still fail the gate.
-    # Re-check this list on every Tauri bump (it's almost all Tauri transitives).
+    # Each entry says why it can't reach us and what clears it. Re-check this
+    # list on every Tauri bump (it's almost all Tauri transitives).
     #
     # unic-* Unicode crates — also Tauri transitives, project is archived.
     "RUSTSEC-2025-0075",
@@ -46,15 +44,26 @@ ignore = [
     # 0.20, which is gtk4-rs; drop this once Tauri's Linux backend moves to
     # GTK4.
     "RUSTSEC-2024-0429",
-    # zip 4.6.1, yanked: zip yanked every release before 9.0.3 after its
-    # extract() symlink/permission advisories (GHSA-4684-h2q9-2vcp,
-    # GHSA-4v9h-p7m9-rh26, GHSA-vv5m-jxxh-4627; October 2026). Our only path is
-    # tauri-plugin-updater, Windows-only, and even its latest (2.14.0) pins zip
-    # ^4. It extracts only an update whose signature it has already checked
-    # against our key, so a crafted archive needs our signing key. Drop this
-    # (and expect RUSTSEC IDs for those GHSAs meanwhile) once the updater moves
-    # to zip >=9.0.1.
+    # zip 4.6.1: yanked (zip yanked every release before 9.0.3), and its
+    # extract() advisories (October 2026): 0367 keeps SUID/SGID bits, 0368
+    # lets a symlink point outside the destination, 0369 applies permissions
+    # through symlinks. Our only path is tauri-plugin-updater, Windows-only,
+    # and even its latest (2.14.0, and 3.0.0-alpha.3) pins zip ^4. 0367/0369
+    # are cfg(unix) in zip, so they can't run there, and the updater extracts
+    # only an update whose signature it has already checked against our key,
+    # so a crafted archive needs our signing key. Drop these once the updater
+    # moves to zip >=9.0.3.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
     { crate = "zip@4.6.1", reason = "yanked; only via tauri-plugin-updater, which pins zip ^4 and extracts signature-verified updates" },
+    # zvariant, zbus_names, zvariant_derive: unmaintained, folded into zbus 6
+    # (October 2026). Linux only, via tauri-plugin-opener -> zbus 5, and even
+    # opener's latest (2.7.2, and 3.0.0-alpha.3) pins zbus ^5.9. Drop these
+    # once opener moves to zbus 6.
+    "RUSTSEC-2026-0370",
+    "RUSTSEC-2026-0371",
+    "RUSTSEC-2026-0372",
 ]
 
 [bans]
