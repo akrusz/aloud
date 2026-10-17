@@ -31,6 +31,7 @@ import {
 } from '../settings.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
+    defaultVoicePick,
     downloadVoiceFromRow,
     invalidateServerVoicesCache,
     loadScoredVoices,
@@ -419,10 +420,9 @@ export async function mountSetupView(
         // loadSetup) hides incompatible voices in the picker.
         scoredVoices = await loadScoredVoices(setup.language);
         voicesLoaded = true;
-        // Never leave the picker on a bare "Default": take the best (list is
-        // sorted best-first) voice that doesn't need downloading.
+        // Never leave the picker on a bare "Default".
         if (!stripVoicePrefix(setup.voice)) {
-            const top = scoredVoices.find((v) => !v.needsDownload);
+            const top = defaultVoicePick(scoredVoices);
             if (top) {
                 setup.voice = prefixedVoiceId(top.engine, top.name);
                 void persistDefaultVoice(setup.voice, setup.ttsRate);

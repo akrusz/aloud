@@ -3,16 +3,18 @@
  * (.voice-row, .voice-tier-label, …) come from the base CSS.
  *
  * Scoring tiers (descending):
- *   4  Very Good - "Premium" in the name (Apple Premium) + hosted "value" voices
+ *   4  Very Good - "Premium" in the name (Apple Premium), hosted "value" voices,
+ *                  Chrome's Google voices
  *   3  Good      - Piper (desktop)
  *   2  Quality   - "Enhanced", "Online", "Natural"
  *   1  Standard  - Google, known-good macOS voices
  *   0  Other     - everything else
  *
  * A "Best" group sits above the tiers, reserved for hosted "premium" voices
- * and Chrome's cloud voices. Per the developer's preference cloud-neural beats
- * local, and the hosted "value" tier sits a notch below "premium", so it and
- * Apple Premium drop into "Very Good" and Piper into "Good".
+ * and the browser's other cloud voices (Edge's "Online (Natural)"). Per the
+ * developer's preference cloud-neural beats local, and the hosted "value" tier
+ * sits a notch below "premium", so it and Apple Premium drop into "Very Good"
+ * and Piper into "Good".
  */
 
 import type { TtsEngine } from '../../src/platform/index.js';
@@ -273,7 +275,7 @@ export function buildScoredVoiceList(
             }
             // Deliberately no promotion of server-"recommended" voices (macOS
             // Premium, Piper Libritts) into Best - they sort by score. Best is
-            // hosted + Chrome cloud only.
+            // hosted + browser cloud only.
             scored.push(entry);
             seen.add(sv.name);
             if (browserVoice) seen.add(browserVoice.name);
@@ -288,10 +290,13 @@ export function buildScoredVoiceList(
 
         let score = scoreVoice(v.name);
         // Non-local browser voices (Chrome/Edge cloud) are the genuinely good
-        // ones - bump them into Best alongside the hosted voices.
+        // ones - bump them into Best alongside the hosted voices, except
+        // Chrome's Google voices, which sit a rung down in Very Good (dev
+        // call, 2026-10-17).
         const remote = !v.localService;
-        if (remote) score = Math.max(score, 2);
-        const recommended = remote;
+        const google = isGoogleVoice(v.name);
+        if (remote) score = Math.max(score, google ? 4 : 2);
+        const recommended = remote && !google;
         // macOS system voices arrive through the browser (engine stays 'browser'
         // so playback routes to speechSynthesis) but badge as "macOS". Safari
         // exposes a com.apple voiceURI while Chrome on macOS uses a plain-name
@@ -339,6 +344,25 @@ export function buildScoredVoiceList(
     return scored;
 }
 
+function isGoogleVoice(name: string): boolean {
+    return /^Google/i.test(name);
+}
+
+/** The Google voice a default lands on whenever it would be one of them
+ *  (dev pick). */
+const GOOGLE_DEFAULT_VOICE = 'Google UK English Female';
+
+function preferGoogleDefault(pick: ScoredVoice | null, voices: readonly ScoredVoice[]): ScoredVoice | null {
+    if (pick?.engine !== 'browser' || !isGoogleVoice(pick.name) || pick.name === GOOGLE_DEFAULT_VOICE) return pick;
+    return voices.find((v) => v.name === GOOGLE_DEFAULT_VOICE && v.engine === 'browser' && !v.langMismatch) ?? pick;
+}
+
+/** The voice a setup with none picked lands on: the best-ranked (list is
+ *  best-first) that doesn't need downloading. */
+export function defaultVoicePick(voices: readonly ScoredVoice[]): ScoredVoice | null {
+    return preferGoogleDefault(voices.find((v) => !v.needsDownload) ?? null, voices);
+}
+
 /**
  * The best voice in a buildScoredVoiceList result (best-first) that costs
  * nothing to speak with and is ready now: not hosted, not ElevenLabs (the
@@ -349,8 +373,9 @@ export function bestFreeVoice(voices: readonly ScoredVoice[]): ScoredVoice | nul
     const free = voices.filter(
         (v) => v.engine !== 'aloud' && v.engine !== 'elevenlabs' && (!v.needsDownload || v.downloaded)
     );
-    return (
-        free.find((v) => !v.langMismatch && !v.glitchy) ?? free.find((v) => !v.langMismatch) ?? free[0] ?? null
+    return preferGoogleDefault(
+        free.find((v) => !v.langMismatch && !v.glitchy) ?? free.find((v) => !v.langMismatch) ?? free[0] ?? null,
+        free
     );
 }
 

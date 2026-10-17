@@ -2,10 +2,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
     bestFreeVoice,
     buildScoredVoiceList,
+    defaultVoicePick,
     downloadPercent,
     downloadVoiceModel,
     prefixedVoiceId,
     previewErrorMessage,
+    type ScoredVoice,
 } from '../ui/src/voice-picker.js';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -165,7 +167,7 @@ describe('downloadVoiceModel', () => {
     });
 });
 
-describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', () => {
+describe('Best tier is reserved for hosted + browser cloud (not macOS/Piper)', () => {
     it('does not promote server-recommended macOS Premium / Piper into Best', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         const scored = buildScoredVoiceList(
@@ -192,7 +194,7 @@ describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', ()
         expect(scored.find((v) => v.name === 'Rachel')!.score).toBe(2);
     });
 
-    it('tags Apple browser voices as macOS (display only) and floats Chrome cloud into Best', () => {
+    it('tags Apple browser voices as macOS (display only) and floats Edge cloud into Best', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         vi.stubGlobal('speechSynthesis', {
             getVoices: () => [
@@ -203,10 +205,10 @@ describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', ()
                     voiceURI: 'com.apple.voice.compact.en-US.Samantha',
                 },
                 {
-                    name: 'Google US English',
+                    name: 'Microsoft Aria Online (Natural) - English (United States)',
                     lang: 'en-US',
                     localService: false,
-                    voiceURI: 'Google US English',
+                    voiceURI: 'Microsoft Aria Online (Natural) - English (United States)',
                 },
             ],
         });
@@ -215,10 +217,22 @@ describe('Best tier is reserved for hosted + Chrome cloud (not macOS/Piper)', ()
         expect(sam.engine).toBe('browser'); // playback still routes to speechSynthesis
         expect(sam.displayEngine).toBe('macos'); // …but the badge reads macOS
         expect(sam.recommended).toBeFalsy(); // local → not Best
-        const goog = scored.find((v) => v.name === 'Google US English')!;
-        expect(goog.recommended).toBe(true); // Chrome cloud → Best
-        expect(goog.displayEngine).toBeUndefined();
+        const aria = scored.find((v) => v.name.startsWith('Microsoft Aria'))!;
+        expect(aria.recommended).toBe(true); // Edge cloud → Best
+        expect(aria.displayEngine).toBeUndefined();
         expect(sam.glitchy).toBeUndefined(); // not Firefox
+    });
+
+    it("drops Chrome's Google cloud voices into Very Good, not Best", () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        vi.stubGlobal('speechSynthesis', {
+            getVoices: () => [
+                { name: 'Google US English', lang: 'en-US', localService: false, voiceURI: 'Google US English' },
+            ],
+        });
+        const goog = buildScoredVoiceList(null, true).find((v) => v.name === 'Google US English')!;
+        expect(goog.recommended).toBeFalsy();
+        expect(goog.score).toBe(4);
     });
 
     it('flags macOS voices as glitchy in Firefox on a Mac', () => {
@@ -350,6 +364,20 @@ describe('buildScoredVoiceList session language (c3a0.6)', () => {
     });
 });
 
+function googleVoices(...names: string[]) {
+    return names.map((name) => ({
+        name,
+        lang: name.includes('UK') ? 'en-GB' : 'en-US',
+        localService: false,
+        voiceURI: name,
+    }));
+}
+
+/** Stand-in for any ranking that tops the list with `name`. */
+function rankedFirst(scored: ScoredVoice[], name: string): ScoredVoice[] {
+    return [scored.find((v) => v.name === name)!, ...scored.filter((v) => v.name !== name)];
+}
+
 describe('bestFreeVoice (the start gate\'s way past a hosted voice)', () => {
     const hosted = [{ name: 'Ada (GB)', gender: 'female' as const }];
 
@@ -396,5 +424,47 @@ describe('bestFreeVoice (the start gate\'s way past a hosted voice)', () => {
     it('is null when every voice is hosted (the Android WebView has no others)', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         expect(bestFreeVoice(buildScoredVoiceList(null, false, hosted))).toBeNull();
+    });
+
+    it('lands on Google UK English Female when it would take another Google voice', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        vi.stubGlobal('speechSynthesis', {
+            getVoices: () => googleVoices('Google UK English Female', 'Google US English'),
+        });
+        const scored = rankedFirst(buildScoredVoiceList(null, true, hosted), 'Google US English');
+        expect(bestFreeVoice(scored)?.name).toBe('Google UK English Female');
+    });
+});
+
+describe('defaultVoicePick (a setup with no voice picked)', () => {
+    it('swaps a Google pick for Google UK English Female', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        vi.stubGlobal('speechSynthesis', {
+            getVoices: () => googleVoices('Google UK English Female', 'Google US English'),
+        });
+        const scored = rankedFirst(buildScoredVoiceList(null, true), 'Google US English');
+        expect(defaultVoicePick(scored)?.name).toBe('Google UK English Female');
+    });
+
+    it('keeps a Google pick when UK English Female is missing or off-language', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        vi.stubGlobal('speechSynthesis', { getVoices: () => googleVoices('Google US English') });
+        expect(defaultVoicePick(buildScoredVoiceList(null, true))?.name).toBe('Google US English');
+
+        vi.stubGlobal('speechSynthesis', {
+            getVoices: () => [
+                ...googleVoices('Google UK English Female'),
+                { name: 'Google 普通话（中国大陆）', lang: 'zh-CN', localService: false, voiceURI: 'zh' },
+            ],
+        });
+        const zh = rankedFirst(buildScoredVoiceList(null, true, [], 'zh'), 'Google 普通话（中国大陆）');
+        expect(defaultVoicePick(zh)?.name).toBe('Google 普通话（中国大陆）');
+    });
+
+    it('leaves a non-Google pick alone', () => {
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        vi.stubGlobal('speechSynthesis', { getVoices: () => googleVoices('Google UK English Female') });
+        const scored = rankedFirst(buildScoredVoiceList(null, true, [{ name: 'Harper', gender: 'female' }]), 'Harper');
+        expect(defaultVoicePick(scored)?.name).toBe('Harper');
     });
 });
