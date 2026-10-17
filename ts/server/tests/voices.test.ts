@@ -82,14 +82,17 @@ describe('GET /cloud/v1/voices', () => {
         for (const name of namesFor('inworld')) expect(voices.map((v) => v.name)).not.toContain(name);
     });
 
-    it('carries a cost tier + credits/hr so the picker can show relative cost', async () => {
-        const app = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k' })));
+    it('carries a tier + credits/hr so the picker can place and price each voice', async () => {
+        const app = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', AZURE_SPEECH_KEY: 'k3' })));
         const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
-        const leda = voices.find((v) => v.name === 'Leda')!; // premium (Chirp3-HD)
+        const harper = voices.find((v) => v.name === 'Harper')!; // premium (Azure)
+        const leda = voices.find((v) => v.name === 'Leda')!; // value (Chirp3-HD)
         const vega = voices.find((v) => v.name === 'Vega')!; // value (Neural2)
-        expect(leda.tier).toBe('premium');
+        expect(harper.tier).toBe('premium');
+        expect(leda.tier).toBe('value');
         expect(vega.tier).toBe('value');
-        // The value voice must read as cheaper (lower credits/hr) than premium.
+        // Tier is placement, not price: credits/hr still tells the two Google
+        // engines apart.
         expect(vega.creditsPerHourTypical).toBeGreaterThan(0);
         expect(vega.creditsPerHourTypical).toBeLessThan(leda.creditsPerHourTypical);
     });
