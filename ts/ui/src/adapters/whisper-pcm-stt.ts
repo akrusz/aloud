@@ -301,6 +301,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // between replies. Diagnostic only - nothing reads it.
     private echoWatch: { frames: number; overGate: number; peak: number; sum: number } | null =
         null;
+    // Mic level per frame for the second after playback ends: how fast this
+    // device's speaker echo dies away, the measurement behind the session's
+    // PLAYBACK_TAIL_MS (qaqb). Null when not watching. Diagnostic only.
+    private tailWatch: number[] | null = null;
     // The shared Silero VAD (loadSileroVad), acquired by prime()/start(). Null
     // while capturing means the load failed and the energy fallback is the
     // speech signal (isSpeechFrame).
@@ -529,6 +533,17 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (this.voiceWarmup && this.ttsActive) {
             echoGate = Math.max(echoGate, ECHO_WARMUP_GATE);
             this.warmupPeak = Math.max(this.warmupPeak, energy);
+        }
+
+        if (this.tailWatch) {
+            this.tailWatch.push(energy);
+            if (this.tailWatch.length * FRAME_SIZE >= this.nativeRate) {
+                diag(
+                    `[vad] after playback, rms per ${Math.round((FRAME_SIZE / this.nativeRate) * 1000)}ms: ` +
+                        this.tailWatch.map((e) => e.toFixed(3)).join(' ')
+                );
+                this.tailWatch = null;
+            }
         }
 
         if (this.echoWatch) {
@@ -888,10 +903,12 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.bargeInHandler = handler;
     }
 
-    /** The facilitator's voice (not a sound) starts playing. The first one
-     *  after a new capture stream opens the echo warm-up (ECHO_WARMUP_GATE),
-     *  which lasts until that playback ends (setTtsActive). */
+    /** The facilitator's voice (not a sound) starts playing. It ends any
+     *  watch on the last playback's tail, and the first one after a new
+     *  capture stream opens the echo warm-up (ECHO_WARMUP_GATE), which lasts
+     *  until that playback ends (setTtsActive). */
     noteVoicePlayback(): void {
+        this.tailWatch = null;
         if (!this.voiceWarmupArmed) return;
         this.voiceWarmupArmed = false;
         this.voiceWarmup = true;
@@ -1224,12 +1241,19 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.opts.silenceMaxMs = Math.max(baseMs, maxMs);
     }
 
-    /** Forget the audio held for the next turn's onset. For a caller that
-     *  keeps the mic shut while the facilitator speaks (no barge-in): what the
-     *  stream heard since the last turn is the reply, and a turn starting soon
-     *  after would open with its tail. */
-    dropOnsetBuffer(): void {
-        this.preBuffer = [];
+    /** Playback just ended: log the next second of mic level ([vad] after
+     *  playback), unless more playback starts first (noteVoicePlayback). */
+    watchPlaybackTail(): void {
+        this.tailWatch = [];
+    }
+
+    /** Keep only the last `ms` of the audio held for the next turn's onset.
+     *  For a caller that keeps the mic shut while the facilitator speaks (no
+     *  barge-in): the stream heard the reply, which must not open the turn,
+     *  but a word said after the reply ended is the turn's (qaqb). */
+    keepOnsetTail(ms: number): void {
+        const keep = framesWithin(ms, this.nativeRate);
+        this.preBuffer = keep > 0 ? this.preBuffer.slice(-keep) : [];
     }
 
     async stop(options?: SttStopOptions): Promise<void> {
@@ -1292,6 +1316,11 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.stream = null;
         }
     }
+}
+
+/** Whole capture frames in `ms` at `rate`. Pure, for tests. */
+export function framesWithin(ms: number, rate: number): number {
+    return Math.max(0, Math.floor(((ms / 1000) * rate) / FRAME_SIZE));
 }
 
 /**

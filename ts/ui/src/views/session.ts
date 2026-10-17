@@ -923,6 +923,7 @@ export async function mountSessionView(
         // playback belongs to.
         const engine = echoListener();
         if (!engine) return;
+        if (!continuousCapture) engine.watchPlaybackTail();
         ttsActiveOffTimer = setTimeout(() => {
             ttsActiveOffTimer = null;
             if (ttsSpeakingDepth === 0) engine.setTtsActive(false);
@@ -934,6 +935,12 @@ export async function mountSessionView(
     /** How long a paused recognizer waits after playback before reopening the
      *  mic, so a phone speaker's reverb isn't heard as the user. */
     const MIC_RESUME_COOLDOWN_MS = 700;
+    /** How long after playback ends the mic still hears the facilitator: the
+     *  player's tail, then the speaker's echo dying away. The cloud mic without
+     *  barge-in (iPhone) opens a turn with only what it heard after this, so a
+     *  word said during the cooldown isn't lost (qaqb). A guess until an
+     *  iPhone's "[vad] after playback" line measures it. */
+    const PLAYBACK_TAIL_MS = 250;
     const micCooldown = isSingleOwnerMicPlatform();
     function inEchoWindow(): boolean {
         return ttsSpeakingDepth > 0 || Date.now() - lastTtsEndedAt < ECHO_TEXT_WINDOW_MS;
@@ -2545,7 +2552,7 @@ export async function mountSessionView(
                     // Its onset buffer kept listening through the reply, which
                     // is the facilitator, not the start of this turn.
                     if (!continuousCapture && stt instanceof WhisperPcmSttEngine) {
-                        stt.dropOnsetBuffer();
+                        stt.keepOnsetTail(Date.now() - lastTtsEndedAt - PLAYBACK_TAIL_MS);
                     }
                     for await (const event of stt.start()) {
                         if (event.type === 'partial') {
