@@ -2553,6 +2553,11 @@ export async function mountSessionView(
                     // is the facilitator, not the start of this turn.
                     if (!continuousCapture && stt instanceof WhisperPcmSttEngine) {
                         stt.keepOnsetTail(Date.now() - lastTtsEndedAt - PLAYBACK_TAIL_MS);
+                        // Playback is over, but the echo gate's hangover outlasts
+                        // the cooldown: left on, the turn opens at the bar for
+                        // speech over the facilitator (0.1 after the greeting),
+                        // and a short word said then never starts a turn.
+                        stt.setTtsActive(false);
                     }
                     for await (const event of stt.start()) {
                         if (event.type === 'partial') {
