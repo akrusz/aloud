@@ -167,7 +167,8 @@ later, not for approval.
 
 ## Each store update (one pass)
 
-- [ ] Builds: `scripts/release.sh` offers both at the end, or run
+- [ ] Builds: `scripts/release.sh` asks which stores at the end (an iOS-only
+      fix is `scripts/release.sh ios`), or run
       `scripts/android-aab.sh` (bumps `versionCode`, syncs `versionName`) and
       `scripts/ios-archive.sh` (refuses an archive without the Apple sign-in
       entitlement).

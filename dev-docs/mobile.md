@@ -186,6 +186,12 @@ the moment the plugin asks for the mic, rather than showing a prompt:
 (These are visible user-facing copy - keep them honest and warm, and mind the
 brand copy rules: no em-dashes, no "AI" tells.)
 
+The scene manifest (`UIApplicationSceneManifest`, one scene whose
+`UISceneStoryboardFile` is `Main`, delegate `SceneDelegate`) in place of
+`UIMainStoryboardFile`. Built with the iOS 27 SDK, an app without one is killed
+at launch. `SceneDelegate.swift` forwards to Capacitor's `SceneDelegateProxy`,
+so URL opens reach the plugins; `AppDelegate` no longer holds the window.
+
 ### Android - `android/app/src/main/AndroidManifest.xml`
 
 ```xml

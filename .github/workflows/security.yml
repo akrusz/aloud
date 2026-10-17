@@ -24,9 +24,9 @@ jobs:
         with:
           manifest-path: ts/src-tauri/Cargo.toml
           # Full enforcement: advisories + bans + sources + licenses. The
-          # allow-list and unmaintained-advisory ignores are reconciled in
-          # deny.toml; expand them when a new dep brings in a new license or
-          # a new informational notice.
+          # license allow-list and the accepted advisories (each with why it
+          # can't reach us) live in deny.toml; expand them when a new dep
+          # brings in a new license or an advisory with no fix to take.
           command: check
 
   npm-audit:
