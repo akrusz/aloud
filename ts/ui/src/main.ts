@@ -3,7 +3,7 @@ import { bootApp } from './app.js';
 import { applyTheme, initThemeToggle, resolveTheme, watchSystemTheme } from './theme.js';
 import { regenerateEmbers } from './embers.js';
 import { initAbout } from './about.js';
-import { isTauri, capacitorPlatform } from './is-desktop.js';
+import { isTauri, capacitorPlatform, isIosWeb } from './is-desktop.js';
 import { initTauriWindowDrag } from './tauri-chrome.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
@@ -37,6 +37,15 @@ adoptCheckinDebugParam();
 const nativePlatform = capacitorPlatform();
 if (nativePlatform !== 'web') {
     document.documentElement.dataset.platform = nativePlatform;
+}
+
+// iOS zooms the page in when a text field under 16px takes focus and stays
+// zoomed, content cut off at both edges (the phone root is 15px, app-base.css).
+// maximum-scale=1 stops that. Safari ignores the limit for pinch, so people can
+// still zoom the web app; the app's WKWebView honors it and doesn't zoom at all.
+if (isIosWeb()) {
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (viewport) viewport.content += ', maximum-scale=1';
 }
 
 // Android hardware/gesture back walks in-app history instead of exiting.

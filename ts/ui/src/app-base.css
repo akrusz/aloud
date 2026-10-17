@@ -5884,8 +5884,9 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         --slider-thumb: 24px;
     }
 
-    /* iOS Safari auto-zooms when focusing inputs with font-size < 16px.
-       Bump to 1rem (16px) to suppress that on phone. */
+    /* Fields at body size on phone. This is 15px here, under the 16px that
+       stops iOS zooming in on focus: the viewport's maximum-scale does that
+       (main.ts). */
     textarea,
     select,
     input[type="text"],
