@@ -23,7 +23,7 @@ Target: ~60s, landscape 1920x1080. As written it runs about 77s.
 
 ## 1. settle (0-3s)
 
-> note: orb breathing, one bowl strike. No caption yet; the first line
+> note: orb breathing, the app's opening sound. No caption yet; the first line
 > of speech is the hook.
 
 ## 2. the hook: caring for yourself (3-22s)

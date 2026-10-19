@@ -6,7 +6,7 @@
  *   node assets/promo/play-video/tools/build-audio.mjs [--clips <stt-clips dir>]
  *
  * Reads script.md (lines by id, the "Real excerpts" table), the recordings in
- * recordings/, the Harper takes named in HARPER_TAKES, and the bowls. Writes
+ * recordings/, the Harper takes named in HARPER_TAKES, and the sounds. Writes
  * build/audio/mix.wav and build/timeline.json. The edit follows the audio: a
  * line that runs long stretches its beat, and a line missing from script.md
  * drops out with the time it took.
@@ -55,7 +55,8 @@ const HARPER_TAKES = {
 
 /** Silence between a line and the reply, on top of the clips' own. */
 const GAP = { f0_e1: 0.6, e1_f1: 0.5, e3_e4: 0.8 };
-/** Where the first line's clip starts: the opening bowl has the first ~3s. */
+/** Where the first line's clip starts: the opening sound has the first ~3s
+ *  (the default's body is over by 2s; its tail runs under f0). */
 const FIRST_VOICE = 2.5;
 /** How long each silent caption holds. */
 const HOLD = {
@@ -74,17 +75,21 @@ const CEILING_DB = -1;
 
 const BOWL_DEEP = join(VIDEO_DIR, '..', 'bowl-candidates', 'bowl-deep-long.mp3');
 const RIN_LONG = join(VIDEO_DIR, '..', 'bowl-candidates', 'rin-long.mp3');
+/** The app's default opening and closing sounds (the `bloom` preset). */
+const SIGNATURE_OPEN = join(REPO_ROOT, 'ts/ui/public/audio/signature/bloom-open.mp3');
+const SIGNATURE_CLOSE = join(REPO_ROOT, 'ts/ui/public/audio/signature/bloom-close.mp3');
 /** The app's own noting sounds, as a noting circle plays them. */
 const NOTING_BOWL = join(REPO_ROOT, 'ts/ui/public/audio/bowl.mp3');
 const NOTING_RIN = join(REPO_ROOT, 'ts/ui/public/audio/rin.mp3');
 /**
- * Bowl and rin levels, as plain gain on files whose strike sits at -20 LUFS.
- * The opening bowl is the rough cut's; the rest are there so no stretch of
+ * Sound levels, as plain gain on files whose strike sits at -20 LUFS. The
+ * opening and closing sounds sit 7 dB under Harper, as a session plays them
+ * (signature-sound.ts); the bowls and rins are there so no stretch of
  * captions plays over dead air, and are kept well under the voices. Zero one
  * to drop it.
  */
 const LEVEL = {
-    open: 0.22,
+    open: 0.5,
     /** A rin as the picture cuts away from the exchange; rings under 3. */
     cut: 0.18,
     noting: 0.6,
@@ -92,11 +97,11 @@ const LEVEL = {
     tick: 0.14,
     /** The same rin, a little louder, as the timer takes. */
     timer: 0.22,
-    /** The opening bowl again under 7's last caption, into 8. */
+    /** The deep bowl under 7's last caption, into 8. */
     back: 0.22,
     /** And once more between the two closing excerpts, as their bed. */
     bed: 0.16,
-    close: 0.3,
+    close: 0.5,
 };
 
 function ffmpeg(argv, { capture = false } = {}) {
@@ -498,8 +503,8 @@ function beat(id, start, build) {
 
 let t = 0;
 
-// 1. settle: the orb and one bowl.
-sound('bowl-open', BOWL_DEEP, 0, LEVEL.open, 'afade=t=out:st=6:d=4');
+// 1. settle: the orb and the opening sound.
+sound('open', SIGNATURE_OPEN, 0, LEVEL.open);
 t = beat('settle', 0, () => (has('f0') ? FIRST_VOICE : 2.0));
 
 // 2. the hook: the exchange on the phone, cut straight after f1's question.
@@ -564,7 +569,7 @@ t = beat('different', t, (at) => {
     let end = at;
     if (has('c11')) end = show('c11', end, HOLD.c11);
     if (has('c12')) {
-        // The opening bowl again, so its tail is under the first words of 8.
+        // A deep bowl, so its tail is under the first words of 8.
         sound('bowl-return', BOWL_DEEP, end, LEVEL.back);
         end = show('c12', end, HOLD.c12);
     }
@@ -585,7 +590,7 @@ t = beat('why', t, (at) => {
 
 // 9. end card.
 t = beat('end', t, (at) => {
-    sound('bowl-close', BOWL_DEEP, at, LEVEL.close);
+    sound('close', SIGNATURE_CLOSE, at, LEVEL.close);
     for (const id of ['c13', 'c14', 'c15']) if (has(id)) show(id, at, HOLD.end);
     return at + HOLD.end;
 });

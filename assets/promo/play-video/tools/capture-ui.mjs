@@ -63,7 +63,7 @@ const shots = [
         stage: 'hook',
         boot: 'exploration',
         dpr: 2,
-        // Starts before the beat: the phone is already rising as the bowl fades.
+        // Starts before the beat: the phone is already rising as the opening sound fades.
         from: Math.max(0, beat('hook').start - 1.2),
         to: beat('hook').end,
         note: '#orb',

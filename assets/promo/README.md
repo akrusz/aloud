@@ -9,9 +9,12 @@ first when picking the work back up.
   since 2026-10-11 (`#film` in `docs/index.html` has the id). The build is
   `play-video/build/aloud-play-video.mp4` (gitignored), 81.7s, 1920x1080:
   first cut 2026-10-09, re-rendered 2026-10-11 with the ember burst and the UI
-  filmed afresh (the flame ember control); timings and sound are the first
-  cut's, which is beside it as `aloud-play-video-2026-10-09.mp4`. "Building
-  the video" below has how, and what in it is the dev's to judge.
+  filmed afresh (the flame ember control), and again 2026-10-18 opening and
+  closing on the app's default signature sounds in place of `bowl-deep-long`
+  (picture and timings unchanged). The earlier renders are beside it as
+  `aloud-play-video-2026-10-09.mp4` and `-2026-10-11.mp4`. The 2026-10-18
+  render is not uploaded yet. "Building the video" below has how, and what in
+  it is the dev's to judge.
 - **Play Store video script**: `play-video/script.md`, approved as written
   2026-10-08. The file is the source of truth; build from what it says, not
   from these notes.
@@ -44,8 +47,9 @@ first when picking the work back up.
   a venv with numpy + scipy).
 - **Opening and closing sounds**: `signature-candidates/` has the generator
   (`synth_signature.py`), the audition page and the renders in the running.
-  Five pairs ship in the app as presets (its README → "Chosen"). The video
-  still opens and closes on `bowl-deep-long`.
+  Five pairs ship in the app as presets (its README → "Chosen"). The Play
+  video opens and closes on the default pair, `bloom` (2026-10-18), read from
+  the app's own files.
 - **Signature sounds video** (X/YouTube, 2026-10-16): `signature-video/`, a
   2:17 cut on how the opening and closing sounds were made, built from
   `cut.mjs`. Its README has the build and what is the dev's to judge.
@@ -94,11 +98,15 @@ refuses UI shots filmed for a different cut.
 
 **The dev's to judge**, since none of it has been heard by a person:
 
-- The mix as a whole. It measures -15.2 LUFS integrated, peak -1 dBFS.
+- The mix as a whole. It measures -15.6 LUFS integrated, peak -1 dBFS.
+- The opening and closing sounds sit 7 dB under Harper, as a session plays
+  them; the bowl they replaced was 14 dB under at the open, 12 at the close. The close is
+  9.4s and the end card 5s, so the end card's fade takes its last ring (the
+  chord has settled by 2s).
 - The sounds added past the rough cut, there so no caption plays over dead
   air: a quiet `rin-long` on the cut to c1, the app's short `rin` as each
-  setup control lands and again as the timer takes, and the opening bowl
-  twice more under beats 7-8. Levels are `LEVEL` in `build-audio.mjs`; zero
+  setup control lands and again as the timer takes, and the deep bowl
+  twice under beats 7-8. Levels are `LEVEL` in `build-audio.mjs`; zero
   one to drop it.
 - n1 and v1 took 8.0 and 8.8 dB of gain to sit with the excerpts, so their
   room tone is near -46 dBFS now.
@@ -121,8 +129,8 @@ How the rough cut was made, and what the build repeats.
   cut: `f0-settle-take2`, `f-present-s1-take2`, `f-anywhere-s2-take2`,
   `f3-ready-take2`.
 - **Spacing**: 0.5-0.6s between a line and the reply, on top of the clips' own
-  silence. `bowl-deep-long.mp3` opens at 0.22 gain, faded out over 6-10s, with
-  the first voice at 2.5s.
+  silence. The opening sound starts at 0 with the first voice at 2.5s, over
+  its tail.
 - **Mix**: stereo, voices centred. ffmpeg's own mono-to-stereo upmix takes
   3 dB off, which would leave the voices that much under the bowls, so the
   build pans them instead. The build levels Harper with plain gain to -19 LUFS

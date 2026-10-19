@@ -122,7 +122,7 @@ function makeOrb(parent) {
 const breath = (t) => 1 + 0.028 * Math.sin((2 * Math.PI * t) / 7 - 1.2);
 const flicker = (t) => 1 + 0.07 * Math.sin((2 * Math.PI * t) / 4.3);
 
-/** Rings leaving a struck bowl. */
+/** Rings leaving a sound as it starts. */
 function makeRings(parent, count = 3) {
     const els = Array.from({ length: count }, () => h('div', 'abs ring', parent));
     return (t, at, x, y, r0, { color = '#e71f75', life = 3.6, spread = 1.7, strength = 1 } = {}) => {
@@ -374,7 +374,7 @@ const EMBER_COLORS = ['#e8a840', '#d4873a', '#c07830', '#e0a038', '#cc8030'];
                 bright: flicker(t),
                 opacity: ramp(t, 0, 0.9) * (1 - ramp(t, hookAt - 0.1, hookAt + 0.06)),
             });
-            rings(t, strike('bowl-open'), 960, 540, 150, { strength: 1 - ramp(t, hookAt - 1.1, hookAt - 0.6) });
+            rings(t, strike('open'), 960, 540, 150, { strength: 1 - ramp(t, hookAt - 1.1, hookAt - 0.6) });
             voiceRings(t, null, 0, 0, 0);
             listening.forEach((el) => show(el, false));
             return;
@@ -386,7 +386,7 @@ const EMBER_COLORS = ['#e8a840', '#d4873a', '#c07830', '#e0a038', '#cc8030'];
         const at = { x: lerp(WHY.x, END.x, p), y: lerp(WHY.y, END.y, p), d: lerp(WHY.d, END.d, p) };
         const arrive = B.why ? easeOut(ramp(t, B.why.start, B.why.start + 0.5)) : 1;
         orb({ ...at, scale: (0.9 + 0.1 * arrive) * (breath(t) + 0.035 * voice), bright: flicker(t) + 0.05 * voice, glow: 1 + 0.5 * voice, opacity: arrive });
-        rings(t, strike('bowl-close'), at.x, at.y, at.d / 2, { spread: 2.2 });
+        rings(t, strike('close'), at.x, at.y, at.d / 2, { spread: 2.2 });
         voiceRings(t, strike('bowl-bed'), at.x, at.y, at.d / 2, { strength: 0.6 * arrive, spread: 2 });
         // Listening: slow rings that are there while he speaks and gone when
         // he stops, their strength his voice over the last half second.
