@@ -13,8 +13,8 @@ first when picking the work back up.
   closing on the app's default signature sounds in place of `bowl-deep-long`
   (picture and timings unchanged). The earlier renders are beside it as
   `aloud-play-video-2026-10-09.mp4` and `-2026-10-11.mp4`. The 2026-10-18
-  render is not uploaded yet. "Building the video" below has how, and what in
-  it is the dev's to judge.
+  render is the one on YouTube (`60aQf-LUyl4`). "Building the video" below has
+  how, and what in it is the dev's to judge.
 - **Play Store video script**: `play-video/script.md`, approved as written
   2026-10-08. The file is the source of truth; build from what it says, not
   from these notes.
