@@ -44,10 +44,10 @@ ignore = [
     # 0.20, which is gtk4-rs; drop this once Tauri's Linux backend moves to
     # GTK4.
     "RUSTSEC-2024-0429",
-    # zip 4.6.1: yanked (zip yanked every release before 9.0.3), and its
-    # extract() advisories (October 2026): 0367 keeps SUID/SGID bits, 0368
-    # lets a symlink point outside the destination, 0369 applies permissions
-    # through symlinks. Our only path is tauri-plugin-updater, Windows-only,
+    # zip 4.6.1, its extract() advisories (October 2026): 0367 keeps SUID/SGID
+    # bits, 0368 lets a symlink point outside the destination, 0369 applies
+    # permissions through symlinks. (4.6.1 itself is no longer yanked, so it
+    # needs no yanked exception.) Our only path is tauri-plugin-updater, Windows-only,
     # and even its latest (2.14.0, and 3.0.0-alpha.3) pins zip ^4. 0367/0369
     # are cfg(unix) in zip, so they can't run there, and the updater extracts
     # only an update whose signature it has already checked against our key,
@@ -56,7 +56,6 @@ ignore = [
     "RUSTSEC-2026-0367",
     "RUSTSEC-2026-0368",
     "RUSTSEC-2026-0369",
-    { crate = "zip@4.6.1", reason = "yanked; only via tauri-plugin-updater, which pins zip ^4 and extracts signature-verified updates" },
     # zvariant, zbus_names, zvariant_derive: unmaintained, folded into zbus 6
     # (October 2026). Linux only, via tauri-plugin-opener -> zbus 5, and even
     # opener's latest (2.7.2, and 3.0.0-alpha.3) pins zbus ^5.9. Drop these
