@@ -230,6 +230,9 @@ export class WhisperPcmSttEngine implements SttEngine {
     private processor: ScriptProcessorNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
     private stopRequested = false;
+    /** Bumped by every stop(), so work that awaited across one can tell its
+     *  teardown already ran (openCaptureGraph, start). */
+    private stopSeq = 0;
     /** Which utterance a transcription pass belongs to (stt-clip-recorder.ts). */
     private turnSeq = 0;
 
@@ -735,6 +738,14 @@ export class WhisperPcmSttEngine implements SttEngine {
     private graphOpening: Promise<void> | null = null;
 
     private async openCaptureGraph(): Promise<void> {
+        // stop() can land at any await below: a foreground rebuild
+        // (restartSttAfterForeground) stops this engine wherever it is, and iOS
+        // holds getUserMedia and resume() while the app is inactive, so the
+        // notification shade opens a wide window. Its teardown has already
+        // run, so carrying on would read the context it nulled and claim a mic
+        // nothing will release. Bail instead; start() ends the turn quietly.
+        const seq = this.stopSeq;
+        const stopped = (): boolean => seq !== this.stopSeq;
         if (streamNeedsRefresh(this.stream)) {
             // Says WHY we re-acquired, which is the whole signal when verifying
             // the backgrounding fix on a device (meditation-pal-wudm): a
@@ -755,12 +766,13 @@ export class WhisperPcmSttEngine implements SttEngine {
             // the app holds RECORD_AUDIO, which nothing else on this cloud path
             // requests, so pre-flight it (no-op elsewhere, mic-permission.ts).
             await ensureMicPermission();
+            if (stopped()) return;
             // echoCancellation matters more than usual here: this stream stays
             // live across turns, so it fills the onset pre-buffer WHILE TTS
             // plays. Without EC the pre-buffer captures the speakers, and a
             // barge-in would prepend the facilitator's own words to the user's
             // utterance before sending it to Whisper. Matches barge-in.ts.
-            this.stream = await navigator.mediaDevices
+            const stream = await navigator.mediaDevices
                 .getUserMedia({
                     audio: {
                         ...(this.opts.micDeviceId
@@ -790,6 +802,11 @@ export class WhisperPcmSttEngine implements SttEngine {
                     console.warn(`[stt-cloud] getUserMedia failed - ${detail}`);
                     throw err;
                 });
+            if (stopped()) {
+                for (const track of stream.getTracks()) track.stop();
+                return;
+            }
+            this.stream = stream;
             this.teardownGraph(); // any prior nodes belong to a dead stream
             this.voiceWarmupArmed = true;
 
@@ -798,7 +815,6 @@ export class WhisperPcmSttEngine implements SttEngine {
             // with no error anywhere. Seen alongside WebKit's "capture
             // MediaStreamTrack was destroyed without having been stopped"
             // warning. 'mute'/'unmute' are logged for the same investigation.
-            const stream = this.stream;
             const track = stream.getAudioTracks()[0];
             // Did the platform honor the constraints? WebKit may bundle NS into
             // its voice-processing unit and ignore ns=false; this log is how we
@@ -851,6 +867,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             } catch {
                 /* best effort */
             }
+            if (stopped()) return;
         }
 
         // Wire the continuous graph once; it stays alive across turns.
@@ -1031,6 +1048,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     async *start(): AsyncIterable<SttEvent> {
         this.stopRequested = false;
         this.turnSeq++;
+        const seq = this.stopSeq;
         try {
             // Silero is the preferred speech signal; a load failure leaves the
             // energy fallback in charge (acquireSilero swallows it), so only a
@@ -1038,10 +1056,14 @@ export class WhisperPcmSttEngine implements SttEngine {
             await this.acquireSilero();
             await this.ensureCaptureGraph();
         } catch (err) {
+            if (this.stopSeq !== seq) return; // stopped mid-open: see below
             yield { type: 'error', error: err };
             return;
         }
-        const nativeRate = this.context!.sampleRate;
+        // stop() landed while the graph was opening (openCaptureGraph): this
+        // turn is over, not failed, and the context is gone.
+        if (this.stopSeq !== seq || !this.context) return;
+        const nativeRate = this.context.sampleRate;
 
         // Begin a fresh utterance. The pre-buffer + echo floor persist (warmed
         // between turns); only the per-utterance accumulators reset.
@@ -1258,6 +1280,7 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     async stop(options?: SttStopOptions): Promise<void> {
         this.stopRequested = true;
+        this.stopSeq++;
         this.capturing = false;
         // Taken out of releaseAll's reach: everything else is torn down now,
         // and nothing reads this stream again.
