@@ -51,7 +51,7 @@
         "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vite": "^8.3.0",
-        "vitest": "^5.0.1"
+        "vitest": "^5.0.5"
     },
     "dependencies": {
         "@capacitor-community/keep-awake": "^7.1.0",
