@@ -6542,3 +6542,44 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Touch targets on a touchscreen: 44 px, Apple's minimum (WCAG 2.5.8's floor
+   is 24), for the controls the phone layout drew smaller - Begin at 40, the
+   history row's buttons at 37, Export at 29, the ☁ pill at 33, the "?"
+   buttons at 26, two text links at 15. A playtest on a phone missed about a
+   third of its taps on these. The "?" buttons keep their look: a clear ring
+   around them takes the tap. */
+@media (pointer: coarse) {
+    .btn-small,
+    .btn-config-path,
+    .clouds-help,
+    .setup-footer .btn-begin,
+    .setup-clock-btn,
+    .setup-voice-btn,
+    select {
+        min-height: 44px;
+    }
+    .info-btn,
+    .credit-rate-legend .btn-link,
+    p > a[data-nav='settings'] {
+        position: relative;
+    }
+    .info-btn::after {
+        content: '';
+        position: absolute;
+        inset: calc((100% - 44px) / 2);
+    }
+    /* Text links: rings too, so the line they sit in keeps its height (the
+       models link's padding is zeroed for the baseline it shares with the ☁
+       legend; the TTS link sits in a notice). */
+    .credit-rate-legend .btn-link::after,
+    p > a[data-nav='settings']::after {
+        content: '';
+        position: absolute;
+        inset: calc((100% - 44px) / 2) 0;
+    }
+    .btn-link {
+        display: inline-block;
+        padding-block: 0.8rem;
+    }
+}
