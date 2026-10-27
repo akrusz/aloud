@@ -24,6 +24,7 @@ import { cloudUrl } from '../cloud-base.js';
 import { setKnownBalance } from '../cloud-balance.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
+import { sendWithNetworkRetry } from '../net-retry.js';
 
 /** Providers the server is willing to forward to (mirrors contract.ts ProviderId). */
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
@@ -36,6 +37,11 @@ const DEFAULT_MAX_TOKENS = 512;
 // instead of hanging on "Thinking…". Generous; even Opus warming up its first
 // token speaks far sooner.
 const CLOUD_STALL_MS = 60_000;
+// How long a dropped connection is re-sent before the turn fails (net-retry.ts).
+// The meditator is waiting on the dots, and the slow-response status shows at
+// 15s (session.ts SLOW_RESPONSE_STATUS_MS), so about that long: enough for a
+// phone to settle onto a new cell or back from a dead patch.
+const CLOUD_RETRY_BUDGET_MS = 15_000;
 
 export interface CloudLlmProviderOptions {
     provider: CloudProviderId;
@@ -97,7 +103,9 @@ export class CloudLlmProvider implements LLMProvider {
     }
 
     /** POST with bearer auth; on a 401 the cached token is stale - clear it,
-     *  re-sign-in, and retry once before giving up. */
+     *  re-sign-in, and retry once before giving up. A dropped connection is
+     *  re-sent for a while (net-retry.ts); only until the response arrives, so
+     *  a stream that dies midway is never replayed. */
     private async post(
         messages: Message[],
         options: CompletionOptions,
@@ -116,12 +124,21 @@ export class CloudLlmProvider implements LLMProvider {
                 signal: signal ?? null,
             });
 
-        let res = await send(await ensureCloudToken());
-        if (res.status === 401) {
-            await clearCloudToken();
-            res = await send(await ensureCloudToken());
-        }
-        return res;
+        return sendWithNetworkRetry(
+            async () => {
+                let res = await send(await ensureCloudToken());
+                if (res.status === 401) {
+                    await clearCloudToken();
+                    res = await send(await ensureCloudToken());
+                }
+                return res;
+            },
+            {
+                budgetMs: CLOUD_RETRY_BUDGET_MS,
+                ...(signal ? { signal } : {}),
+                onRetry: (n, why) => console.warn(`[cloud-llm] retry ${n} after ${why}`),
+            }
+        );
     }
 
     private async throwFromError(res: Response): Promise<never> {
@@ -137,7 +154,7 @@ export class CloudLlmProvider implements LLMProvider {
 
     async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
         const res = await withTimeout(
-            this.post(messages, options, false),
+            this.post(messages, options, false, options.signal),
             CLOUD_STALL_MS,
             'aloud cloud did not respond in time.'
         );
@@ -170,6 +187,13 @@ export class CloudLlmProvider implements LLMProvider {
                 CLOUD_STALL_MS
             );
         };
+
+        // The caller's signal (a newer turn superseding this one) ends it too,
+        // a network retry's wait included.
+        const callerSignal = options.signal;
+        const onCallerAbort = (): void => ac.abort(callerSignal?.reason);
+        if (callerSignal?.aborted) onCallerAbort();
+        else callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
 
         try {
             armStall();
@@ -236,6 +260,7 @@ export class CloudLlmProvider implements LLMProvider {
             yield { text: '', done: true, finishReason };
         } finally {
             clearTimeout(stallTimer);
+            callerSignal?.removeEventListener('abort', onCallerAbort);
             // Release the fetch on every exit: normal completion, a thrown
             // upstream/stall error, or the consumer breaking the for-await on
             // barge-in (generator return runs this finally). Without it a

@@ -21,6 +21,7 @@ import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitatio
 import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
+import { sendWithNetworkRetry } from '../net-retry.js';
 import { ensureMicPermission } from '../mic-permission.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
@@ -36,6 +37,14 @@ const FRAME_SIZE = 4096;
 // audio then hangs would leave the mic stuck "processing" forever. The listen
 // loop already retries a rejected transcription.
 const TRANSCRIBE_TIMEOUT_MS = 45_000;
+// How long hosted STT's FINAL pass keeps re-sending a turn's audio through a
+// dropped connection (net-retry.ts) before giving up on it (stt-picker
+// createServerAloudStt). The audio is what the meditator said, and losing it
+// means saying it again, so this outlasts a short dead patch on a walk.
+// Speculative passes never retry: a late preview is useless, and the final
+// re-sends anyway. The desktop's loopback Whisper doesn't retry at all: a
+// refused connection there is a backend that's down, not a network blip.
+export const CLOUD_FINAL_RETRY_BUDGET_MS = 30_000;
 // Pause (ms) that fires a speculative transcription so the user sees their
 // words mid-utterance. Skipped when the submit threshold is shorter (nothing to
 // preview). 750 (not 500) trims false trips on between-phrase breaths while
@@ -201,6 +210,10 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Buffered audio (ms) past which a speculative pass waits for the late
      *  trigger. Default SPEC_EARLY_MAX_BUFFER_MS. */
     specEarlyMaxBufferMs?: number;
+    /** How long the final pass re-sends through a dropped connection
+     *  (net-retry.ts). Default 0 (no retry); hosted STT sets
+     *  CLOUD_FINAL_RETRY_BUDGET_MS. */
+    finalRetryBudgetMs?: number;
     /** Collapse long interior silences in the uploaded payload (default on).
      *  Off exists for A/B measurement (soak harness), not as a user setting. */
     compactSilence?: boolean;
@@ -342,6 +355,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             speculation: options.speculation ?? true,
             specEarlyMaxBufferMs: options.specEarlyMaxBufferMs ?? SPEC_EARLY_MAX_BUFFER_MS,
             compactSilence: options.compactSilence ?? true,
+            finalRetryBudgetMs: options.finalRetryBudgetMs ?? 0,
             fetchImpl: options.fetchImpl ?? globalThis.fetch.bind(globalThis),
             authProvider: options.authProvider ?? null,
             onAuthError: options.onAuthError ?? null,
@@ -1020,12 +1034,25 @@ export class WhisperPcmSttEngine implements SttEngine {
                     TRANSCRIBE_TIMEOUT_MS,
                     'aloud cloud transcription timed out.'
                 );
-            let response = await send();
-            // Self-heal a stale token: one retry on a 401 (see onAuthError).
-            if (response.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
-                await this.opts.onAuthError();
-                response = await send();
-            }
+            const response = await sendWithNetworkRetry(
+                async () => {
+                    let res = await send();
+                    // Self-heal a stale token: one retry on a 401 (see onAuthError).
+                    if (res.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
+                        await this.opts.onAuthError();
+                        res = await send();
+                    }
+                    return res;
+                },
+                // No abort on stop(): the session also stops the engine to close
+                // the mic for an unprompted line, and an in-flight final pass has
+                // always outlived that (the listen loop drops it after a real
+                // teardown or mute).
+                {
+                    budgetMs: label === 'final' ? this.opts.finalRetryBudgetMs : 0,
+                    onRetry: (n, why) => console.warn(`[stt] final pass retry ${n} after ${why}`),
+                }
+            );
             if (!response.ok) {
                 const detail = await response.text().catch(() => '');
                 return { ok: false, error: new Error(`Whisper endpoint ${response.status}: ${detail}`) };

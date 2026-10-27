@@ -19,7 +19,11 @@ import type { PacingConfig } from '../../../src/facilitation/pacing.js';
 
 import { rateSuffix } from '../credit-rate.js';
 import { CapacitorSttEngine, type CapacitorSttEngineOptions } from './capacitor-stt.js';
-import { CLOUD_SPEC_EARLY_MAX_BUFFER_MS, WhisperPcmSttEngine } from './whisper-pcm-stt.js';
+import {
+    CLOUD_FINAL_RETRY_BUDGET_MS,
+    CLOUD_SPEC_EARLY_MAX_BUFFER_MS,
+    WhisperPcmSttEngine,
+} from './whisper-pcm-stt.js';
 import {
     WebSpeechSttEngine,
     isWebSpeechSupported,
@@ -95,6 +99,7 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
         ...rest,
         ...(model ? { cloudModel: model } : {}),
         specEarlyMaxBufferMs: CLOUD_SPEC_EARLY_MAX_BUFFER_MS,
+        finalRetryBudgetMs: CLOUD_FINAL_RETRY_BUDGET_MS,
         endpointUrl: cloudUrl('/stt'),
         authProvider: ensureCloudToken,
         onAuthError: clearCloudToken,

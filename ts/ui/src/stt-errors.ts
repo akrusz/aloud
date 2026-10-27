@@ -36,6 +36,21 @@ export function describeCloudError(msg: string): string | null {
     return null;
 }
 
+/**
+ * Did the request die for want of a connection - a phone changing cells,
+ * dropping signal, or a stall our own deadlines caught? Each engine words a
+ * failed fetch its own way: Chrome "Failed to fetch", Safari "Load failed" /
+ * "The network connection was lost.", Firefox "NetworkError when attempting to
+ * fetch resource.". The rest are the cloud adapters' timeouts (cloud-llm,
+ * cloud-tts, whisper-pcm-stt).
+ */
+export function isConnectionFailure(msg: string): boolean {
+    return (
+        /failed to fetch|load failed|networkerror|network connection was lost|network error/i.test(msg) ||
+        /aloud cloud (did not respond in time|stopped responding|transcription timed out|TTS timed out)/i.test(msg)
+    );
+}
+
 export function describeSttError(err: unknown): string {
     const msg = err instanceof Error ? err.message : String(err);
     // Hosted credits/auth conditions get a clear line instead of a raw
@@ -55,8 +70,16 @@ export function describeSttError(err: unknown): string {
         }
         return t('Whisper model still loading. Try again in a moment.');
     }
-    if (/Whisper endpoint 5\d\d/.test(msg) || /failed to fetch/i.test(msg)) {
+    if (/Whisper endpoint 5\d\d/.test(msg)) {
         return t('Speech-recognition backend unreachable. Check your connection.');
+    }
+    // The connection, not the service: hosted STT already re-sent the audio
+    // for a while (net-retry.ts), so what was said is gone and has to be said
+    // again - the one thing the meditator needs to know. `network-lost` is
+    // Web Speech's `network` from a recognizer that had been working
+    // (web-speech-stt.ts).
+    if (msg === 'network-lost' || isConnectionFailure(msg)) {
+        return t("Your words didn't get through - the connection dropped. Try saying that again.");
     }
     // `service-not-allowed` is a blocked *service*, not a denied mic. On
     // Windows/Edge it's usually the OS "online speech recognition" privacy

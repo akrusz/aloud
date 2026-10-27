@@ -121,6 +121,9 @@ export class WebSpeechSttEngine implements SttEngine {
     private recognition: SpeechRecognitionLike | null = null;
     // The current turn has text and has not yet submitted (see userSpeechActive).
     private midTurn = false;
+    // This recognizer has returned a transcript at least once, so its speech
+    // endpoint works here: a later `network` error is the connection.
+    private heardOnce = false;
 
     constructor(options: WebSpeechSttEngineOptions = {}) {
         const Ctor = getSpeechRecognitionCtor();
@@ -215,6 +218,7 @@ export class WebSpeechSttEngine implements SttEngine {
             }
             const transcript = tidyTranscript(parts.join(' '));
             latestTranscript = transcript;
+            if (transcript) this.heardOnce = true;
             if (!submitted) this.midTurn = transcript !== '';
 
             if (submitDelayMs > 0) {
@@ -238,7 +242,14 @@ export class WebSpeechSttEngine implements SttEngine {
         recognition.onerror = (event) => {
             // 'no-speech' and 'aborted' are routine end-of-turn signals, not errors.
             if (event.error === 'no-speech' || event.error === 'aborted') return;
-            push({ type: 'error', error: event.error });
+            // 'network' is two faults: a Chromium whose speech endpoint is
+            // blocked (it never works), or a working recognizer that lost its
+            // connection (a phone changing cells). Once this one has heard
+            // anything, or the device says it's offline, it's the second.
+            const lost =
+                event.error === 'network' &&
+                (this.heardOnce || (typeof navigator !== 'undefined' && navigator.onLine === false));
+            push({ type: 'error', error: lost ? 'network-lost' : event.error });
         };
         recognition.onend = () => {
             // If the recognizer ends on its own (Chrome's timeout, network)
