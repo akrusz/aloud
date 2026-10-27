@@ -709,8 +709,11 @@ export async function mountSetupView(
 
         const dirSlider = root.querySelector<HTMLInputElement>('#directiveness')!;
         dirSlider.value = String(setup.dirStep);
+        const sayDir = (): void => sayStop(dirSlider, t('Following'), t('Directing'));
+        sayDir();
         dirSlider.addEventListener('input', () => {
             setup.dirStep = Number(dirSlider.value);
+            sayDir();
             persist();
         });
 
@@ -718,8 +721,11 @@ export async function mountSetupView(
         // stored value, timing only (SessionSetup.feltSensePaceStep).
         const paceSlider = root.querySelector<HTMLInputElement>('#checkin-pace')!;
         paceSlider.value = String(setup.feltSensePaceStep);
+        const sayPace = (): void => sayStop(paceSlider, t('Patient'), t('Attentive'));
+        sayPace();
         paceSlider.addEventListener('input', () => {
             setup.feltSensePaceStep = Number(paceSlider.value);
+            sayPace();
             persist();
         });
         // Felt sense owns whether silence check-ins happen at all, rather than
@@ -1543,6 +1549,22 @@ const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
     ['felt_sense', 'felt-sense-panel'],
 ];
 
+/**
+ * A stepped slider's position in the words at its ends, for a screen reader:
+ * the end labels are only drawn, so without this it reads a bare "2".
+ */
+function sayStop(slider: HTMLInputElement, low: string, high: string): void {
+    const value = Number(slider.value), max = Number(slider.max);
+    slider.setAttribute(
+        'aria-valuetext',
+        value <= 0
+            ? low
+            : value >= max
+              ? high
+              : t('{step} of {max}, between {low} and {high}', { step: String(value), max: String(max), low, high })
+    );
+}
+
 /** The focus / vibe grids: one checkbox card per option, grouped by `name`. */
 function modifierTogglesHTML(
     name: string,
@@ -1686,7 +1708,7 @@ function renderSetupHTML(
                         <p>${t('How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.')}</p>
                         <p>${t('If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~12 minutes on low, <1 min on high.')}</p>
                     </div>
-                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2">
+                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2" aria-label="${escapeHtml(t('Guidance Level'))}">
                     <div class="range-labels">
                         <span>${t('Following')}</span>
                         <span>${t('Directing')}</span>
@@ -1743,7 +1765,7 @@ function renderSetupHTML(
                     <label class="checkin-pace-label" for="checkin-enabled">
                         <input type="checkbox" id="checkin-enabled" checked>${t("Check in if I'm quiet")}</label>
                     <div class="slider-control" id="checkin-pace-control">
-                        <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
+                        <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1" aria-label="${escapeHtml(t('Check-in pace'))}">
                         <div class="range-labels">
                             <span>${t('Patient')}</span>
                             <span>${t('Attentive')}</span>
