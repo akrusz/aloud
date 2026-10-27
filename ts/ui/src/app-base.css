@@ -6569,15 +6569,29 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     .setup-footer .btn-begin,
     .setup-clock-btn,
     .setup-voice-btn,
-    select {
+    select,
+    .clock-preset,
+    .clock-modal-actions .btn {
         min-height: 44px;
     }
+    /* The session clock's minute stepper is 2rem wide; every dialog's × close
+       gets a ring, so the dialogs keep their look. The clock's presets and
+       Done measured 36-37px and missed in the playtest. */
+    .clock-custom .stepper {
+        min-height: 46px; /* 44 inside its 1px border */
+    }
+    .clock-custom .stepper-btn {
+        min-width: 44px;
+        flex-shrink: 0;
+    }
     .info-btn,
+    .voice-modal-close,
     .credit-rate-legend .btn-link,
     p > a[data-nav='settings'] {
         position: relative;
     }
-    .info-btn::after {
+    .info-btn::after,
+    .voice-modal-close::after {
         content: '';
         position: absolute;
         inset: calc((100% - 44px) / 2);
