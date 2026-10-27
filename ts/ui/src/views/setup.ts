@@ -95,6 +95,7 @@ import {
 } from '../tour/index-guide.js';
 import { firstSitSetup } from '../first-sit.js';
 import { onBackdropClick } from '../modal-backdrop.js';
+import { getNavHeight } from '../tour/tour-common.js';
 
 const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }> = [
     {
@@ -673,6 +674,13 @@ export async function mountSetupView(
         customizeToggle?.addEventListener('click', () => {
             const open = customizeSection?.classList.toggle('open') ?? false;
             customizeToggle.setAttribute('aria-expanded', String(open));
+            // The toggle sits low on the page, so the grids it opens land under
+            // the fixed Begin bar and bottom nav (at 200 % zoom, all of them):
+            // bring the opened panel up under the top bar.
+            if (open) {
+                const top = customizeToggle.getBoundingClientRect().top - getNavHeight();
+                if (top > 0) window.scrollBy({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+            }
         });
         // The collapsed toggle still shows what's active, so persisted picks
         // from a previous session aren't invisible.
