@@ -6213,6 +6213,19 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         font-size: 0.95rem;
         cursor: pointer;
     }
+
+    /* While the on-screen keyboard is up (keyboard-inset.ts): Begin and Save
+       ride on the keys instead of under them, and the bottom nav, which the
+       keys cover anyway, steps aside. No nav under the bar, so no overlap to
+       pad for, and the keys cover the home indicator. */
+    body.keyboard-up .bottom-nav {
+        display: none;
+    }
+    body.keyboard-up .setup-footer,
+    body.keyboard-up .settings-footer {
+        bottom: var(--keyboard-inset, 0px);
+        padding-bottom: 0.3rem;
+    }
 }
 
 /* Width-only halves of the phone layout: a phone on its side keeps the phone
