@@ -92,7 +92,7 @@ writes a self-contained, filterable HTML board of all tickets - open it in a bro
 Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this when running on his machine. Keep it to the latest ~5 entries, moving older ones to the end of recess-archive.md, so it stays cheap to read before writing.
 
 **Open reminders** - raise these with the developer at the start of a session, and delete each line once it's done:
-- (added 2026-10-28) PR #92 (dropped-connection retries for hosted STT/LLM/TTS) still needs a real-device check before merging: the airplane-mode item under "Phone" in `dev-docs/manual-smoke.md`, on the Android app with aloud cloud speech. Unit tests and CI can't simulate a real cell handover.
+- (added 2026-10-28) PR #92 (dropped-connection retries for hosted STT/LLM/TTS) still needs a real-device check before merging: the airplane-mode item the PR adds under "Phone" in `dev-docs/manual-smoke.md`, on the Android app with aloud cloud speech. Unit tests and CI can't simulate a real cell handover.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
