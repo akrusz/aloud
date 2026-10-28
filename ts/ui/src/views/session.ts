@@ -116,7 +116,7 @@ import {
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
-import { describeCloudError, describeSttError } from '../stt-errors.js';
+import { describeCloudError, describeSttError, isConnectionFailure } from '../stt-errors.js';
 import { simulateLlmFault } from '../dev-sim.js';
 import { isCheckinDebugOn, getJevClassifierMode } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
@@ -1124,9 +1124,13 @@ export async function mountSessionView(
     // whole session unaware. Streak-tracked so a network blip doesn't flash it.
     const sttTroubleEl = root.querySelector<HTMLElement>('#stt-trouble');
     let sttFailureStreak = 0;
+    // The latest failure was the connection (a phone out of signal), not the
+    // recognizer: the banner says so instead of blaming the browser.
+    let sttFailureIsConnection = false;
     /** Show the banner once failures pass the threshold; called on each STT error. */
-    function noteSttFailure(): void {
+    function noteSttFailure(connection: boolean): void {
         sttFailureStreak++;
+        sttFailureIsConnection = connection;
         if (sttFailureStreak >= 2 && sttTroubleEl) renderSttTrouble();
     }
     /**
@@ -1142,7 +1146,7 @@ export async function mountSessionView(
             sttEngineOptions(isWebMode()).some((o) => o.value === 'aloud-gpt-transcribe');
         sttTroubleEl.replaceChildren();
         const msg = document.createElement('span');
-        msg.textContent = canSwitchToCloud
+        msg.textContent = canSwitchToCloud && !sttFailureIsConnection
             ? t('Trouble hearing you - your browser may be blocking its speech recognition.')
             : t(
                   "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings."
@@ -2456,8 +2460,16 @@ export async function mountSessionView(
                 }
             } else {
                 // Other failures: a toast is more visible than the small status
-                // line, and the loop resumes listening so nothing is wedged.
-                showErrorToast(describeCloudError(msg) ?? t('Something went wrong: {msg}', { msg }));
+                // line, and the loop resumes listening so nothing is wedged. A
+                // dropped connection (already re-sent for a while, net-retry.ts)
+                // says so plainly: the words are in history, so the next turn
+                // answers them too.
+                showErrorToast(
+                    describeCloudError(msg) ??
+                        (isConnectionFailure(msg)
+                            ? t("The connection dropped before the reply came back. What you said is kept - carry on when you're ready.")
+                            : t('Something went wrong: {msg}', { msg }))
+                );
             }
             setStatus(idleStatus());
             // Reset the check-in clock like the success path does, or a long
@@ -2538,6 +2550,9 @@ export async function mountSessionView(
                 // report it; the guard then falls back to the arrival window.
                 let finalStartedDuringTts: boolean | undefined;
                 let micError: string | null = null;
+                // micError came from a lost connection (stt-errors.ts), not the
+                // recognizer or the mic.
+                let micErrorIsConnection = false;
                 // Echo test: did the utterance start during playback (or, absent
                 // that signal, land near it), AND does it read as a verbatim run
                 // of the recently synthesized text?
@@ -2599,6 +2614,7 @@ export async function mountSessionView(
                             // Hosted STT failures reach the operator's incident
                             // log; device recognizers are the user's own.
                             const sttMsg = event.error instanceof Error ? event.error.message : String(event.error);
+                            micErrorIsConnection = sttMsg === 'network-lost' || isConnectionFailure(sttMsg);
                             if (/Whisper endpoint (?!402)/.test(sttMsg)) {
                                 reportCloudIncident('client_stt_error', { detail: sttMsg });
                             }
@@ -2606,6 +2622,7 @@ export async function mountSessionView(
                     }
                 } catch (err) {
                     micError = describeSttError(err);
+                    micErrorIsConnection = isConnectionFailure(err instanceof Error ? err.message : String(err));
                 } finally {
                     sttCapturing = false;
                 }
@@ -2701,7 +2718,7 @@ export async function mountSessionView(
                         showErrorToast(micError);
                         lastMicErrorToast = micError;
                     }
-                    noteSttFailure();
+                    noteSttFailure(micErrorIsConnection);
                     // Brief backoff so a broken mic doesn't tight-loop us.
                     await sleep(2000);
                 } else if (Date.now() - cycleStart < 1000) {

@@ -20,11 +20,19 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { isTauri } from '../is-desktop.js';
 import { audioContextCtor, playbackAudio } from '../audio-unlock.js';
 import { withTimeout } from '../net-timeout.js';
+import { sendWithNetworkRetry } from '../net-retry.js';
 
 // Dead-server ceiling, not a latency budget: a synthesis request that hangs
 // would leave speak() awaiting forever, freezing the turn in "Speaking…". A
 // sentence's WAV renders in a second or two.
 const TTS_REQUEST_TIMEOUT_MS = 45_000;
+
+/** How long a hosted session's synthesis re-sends through a dropped connection
+ *  (net-retry.ts; tts-picker createCloudAloudTts). Sentences prefetch in
+ *  parallel but play in order, so one that is still retrying holds up the rest
+ *  of the reply: long enough to ride out a cell handover, short enough that a
+ *  dead patch costs a sentence, not the turn. */
+export const CLOUD_TTS_RETRY_BUDGET_MS = 10_000;
 
 /** Preview-URL version - see buildRequest's GET branch. Bump when a curated
  *  voice's server-side sound changes (style/pace treatment, not new voices). */
@@ -102,6 +110,10 @@ export interface CloudTtsEngineOptions {
      * LLM path self-heals. Wire to clearCloudToken for the hosted engine.
      */
     onAuthError?: () => Promise<void>;
+    /** How long a synthesis re-sends through a dropped connection
+     *  (net-retry.ts). Default 0 (no retry): the app backend is on loopback
+     *  (desktop) or a preview nobody is waiting on mid-sit. */
+    networkRetryMs?: number;
 }
 
 /** Drop every listener this engine put on the shared playback element, so a
@@ -122,6 +134,7 @@ export class CloudTtsEngine implements TtsEngine {
     private readonly usePost: boolean;
     private readonly authProvider: (() => Promise<string | null>) | undefined;
     private readonly onAuthError: (() => Promise<void>) | undefined;
+    private readonly networkRetryMs: number;
 
     private currentAudio: HTMLAudioElement | null = null;
     private currentUrl: string | null = null;
@@ -141,6 +154,7 @@ export class CloudTtsEngine implements TtsEngine {
         this.usePost = options.usePost ?? false;
         this.authProvider = options.authProvider;
         this.onAuthError = options.onAuthError;
+        this.networkRetryMs = options.networkRetryMs ?? 0;
     }
 
     private async buildRequest(
@@ -195,12 +209,21 @@ export class CloudTtsEngine implements TtsEngine {
                 const { url, init } = await this.buildRequest(text, options);
                 return timed(this.fetchImpl(url, init));
             };
-            let response = await send();
-            // Self-heal a stale token: one retry on a 401 (see onAuthError).
-            if (response.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
-                await this.onAuthError();
-                response = await send();
-            }
+            const response = await sendWithNetworkRetry(
+                async () => {
+                    let res = await send();
+                    // Self-heal a stale token: one retry on a 401 (see onAuthError).
+                    if (res.status === 401 && this.usePost && this.authProvider && this.onAuthError) {
+                        await this.onAuthError();
+                        res = await send();
+                    }
+                    return res;
+                },
+                {
+                    budgetMs: this.networkRetryMs,
+                    onRetry: (n, why) => console.warn(`[cloud-tts] retry ${n} after ${why}`),
+                }
+            );
             if (!response.ok) {
                 // Phrase as "endpoint <status>", mirroring the Whisper adapter,
                 // so the session views' describeCloudError recognizes hosted

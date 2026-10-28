@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { CloudLlmProvider } from '../ui/src/adapters/cloud-llm.js';
 import { setCloudAuthBackend, setCloudAuthFetch } from '../ui/src/cloud-auth.js';
@@ -188,5 +188,91 @@ describe('CloudLlmProvider.completeStream', () => {
         await expect(async () => {
             for await (const _ of provider.completeStream([{ role: 'user', content: 'hi' }])) void _;
         }).rejects.toThrow('upstream provider error');
+    });
+});
+
+/** A dropped connection (net-retry.ts): re-sent until the response arrives,
+ *  never after, so a half-spoken reply is never replayed. */
+describe('CloudLlmProvider on a dropped connection', () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const done = `data: ${JSON.stringify({ text: '', done: true })}\n\n`;
+
+    it('re-sends a stream whose request failed before any response', async () => {
+        await kv.set('server:token', 'tok-1');
+        const fetchImpl = vi
+            .fn()
+            .mockRejectedValueOnce(new TypeError('Load failed'))
+            .mockResolvedValueOnce(sseResponse([`data: ${JSON.stringify({ text: 'Welcome back.', done: false })}\n\n`, done]));
+        const provider = new CloudLlmProvider({ provider: 'anthropic', model: 'm', fetchImpl });
+
+        const chunks: StreamChunk[] = [];
+        const run = (async () => {
+            for await (const c of provider.completeStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
+        })();
+        await vi.advanceTimersByTimeAsync(600);
+        await run;
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(chunks.filter((c) => !c.done).map((c) => c.text)).toEqual(['Welcome back.']);
+    });
+
+    it('does not re-send once the stream has started', async () => {
+        await kv.set('server:token', 'tok-1');
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: 'Hel', done: false })}\n\n`));
+                controller.error(new TypeError('network error'));
+            },
+        });
+        const fetchImpl = vi.fn(async () => new Response(body, { status: 200 }));
+        const provider = new CloudLlmProvider({ provider: 'anthropic', model: 'm', fetchImpl });
+
+        await expect(async () => {
+            for await (const _ of provider.completeStream([{ role: 'user', content: 'hi' }])) void _;
+        }).rejects.toThrow('network error');
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it("a newer turn's abort ends the re-sending", async () => {
+        await kv.set('server:token', 'tok-1');
+        const fetchImpl = vi.fn(async () => {
+            throw new TypeError('Failed to fetch');
+        });
+        const provider = new CloudLlmProvider({ provider: 'anthropic', model: 'm', fetchImpl });
+        const ac = new AbortController();
+
+        const run = (async () => {
+            for await (const _ of provider.completeStream([{ role: 'user', content: 'hi' }], { signal: ac.signal })) void _;
+        })();
+        const settled = expect(run).rejects.toThrow();
+        await vi.advanceTimersByTimeAsync(100);
+        ac.abort();
+        await settled;
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes the caller's signal to the fetch, so a superseded turn stops streaming", async () => {
+        await kv.set('server:token', 'tok-1');
+        let seen: AbortSignal | null = null;
+        const provider = new CloudLlmProvider({
+            provider: 'anthropic',
+            model: 'm',
+            fetchImpl: async (_url, init) => {
+                seen = init?.signal ?? null;
+                return sseResponse([done]);
+            },
+        });
+        const ac = new AbortController();
+        const it = provider.completeStream([{ role: 'user', content: 'hi' }], { signal: ac.signal })[Symbol.asyncIterator]();
+        await it.next();
+        expect(seen!.aborted).toBe(false);
+        ac.abort();
+        expect(seen!.aborted).toBe(true);
+        await it.return?.(undefined);
     });
 });
