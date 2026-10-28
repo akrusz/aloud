@@ -12,6 +12,7 @@ import { adoptCheckinDebugParam } from './dev-mode.js';
 import { initAndroidBack } from './android-back.js';
 import { initSystemBarsTheme } from './system-bars.js';
 import { initSliderTouchGuard } from './slider-touch.js';
+import { initKeyboardInset } from './keyboard-inset.js';
 import { installErrorLog } from './error-log.js';
 import { initNativeBugReportMenu } from './bug-report.js';
 
@@ -53,6 +54,9 @@ initAndroidBack();
 
 // A page scroll that starts on a slider must not change the slider.
 initSliderTouchGuard();
+
+// The Begin and Save bars ride above the on-screen keyboard instead of under it.
+initKeyboardInset();
 
 // Dev only: the dev server shares port 4649 with the retired app, whose service
 // worker may still be registered from a past session - it would shadow Vite

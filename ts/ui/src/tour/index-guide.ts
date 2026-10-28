@@ -12,6 +12,7 @@ import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
 import { FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { footerHtml, getNavHeight, placeCard } from './tour-common.js';
+import { manageModalFocus } from '../modal-focus.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
@@ -154,8 +155,37 @@ function stopQuickStartPoll(): void {
     quickStartPoll = null;
 }
 
+// The centred welcome card is a modal dialog: the page behind it is inert
+// (out of Tab, the screen reader and the pointer, Begin's fixed bar included)
+// and focus starts on the card. Without this a screen reader read the whole
+// setup, then Begin, and met the card's "Try right now" last; and Begin was
+// the one control behind the card that still took a click.
+let heldPage: HTMLElement[] = [];
+let releaseCardFocus: (() => void) | null = null;
+
+function holdPage(card: HTMLElement): void {
+    heldPage = Array.from(document.body.children).filter(
+        (el): el is HTMLElement =>
+            el instanceof HTMLElement && el !== card && el !== overlayEl && el !== spotlightEl && !el.inert
+    );
+    for (const el of heldPage) el.inert = true;
+    // A frame later: the card is placed and shown after it's added, and focus
+    // skips controls that have no box yet.
+    requestAnimationFrame(() => {
+        if (cardEl === card && !releaseCardFocus) releaseCardFocus = manageModalFocus(card);
+    });
+}
+
+function releasePage(): void {
+    for (const el of heldPage) el.inert = false;
+    heldPage = [];
+    releaseCardFocus?.();
+    releaseCardFocus = null;
+}
+
 function cleanup(): void {
     stopQuickStartPoll();
+    releasePage();
     overlayEl?.remove();
     spotlightEl?.remove();
     cardEl?.remove();
@@ -170,17 +200,24 @@ function cleanup(): void {
 
 function showCard(html: string, className?: string): void {
     stopQuickStartPoll();
+    releasePage();
     if (cardEl) cardEl.remove();
     cardEl = document.createElement('div');
     cardEl.className = className || 'tour-tooltip';
     cardEl.innerHTML = html;
     document.body.appendChild(cardEl);
     const centered = className === 'tour-welcome';
+    if (centered) {
+        cardEl.setAttribute('role', 'dialog');
+        cardEl.setAttribute('aria-modal', 'true');
+        cardEl.setAttribute('aria-label', t('Welcome to aloud'));
+    }
     if (overlayEl) overlayEl.classList.toggle('tour-overlay-flat', centered);
     // A section step. On phones the Begin bar steps aside for these
     // (app-base.css), leaving its slot to the docked card.
     document.body.classList.toggle('guide-spotlit', !centered);
     wireActions();
+    if (centered) holdPage(cardEl);
 }
 
 function wireActions(): void {
