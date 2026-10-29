@@ -17,9 +17,9 @@
         "voices": "tsx scripts/preview-voices.ts"
     },
     "dependencies": {
-        "@hono/node-server": "^2.1.1",
+        "@hono/node-server": "^2.1.5",
         "hono": "^4.13.9",
-        "jose": "^6.2.12",
+        "jose": "^6.2.13",
         "tsx": "^4.23.15"
     },
     "devDependencies": {
