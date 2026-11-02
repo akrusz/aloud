@@ -606,6 +606,9 @@ function appendRow(
     previewBtn.type = 'button';
     previewBtn.className = 'voice-row-preview';
     previewBtn.textContent = t('Preview');
+    // Every row's button reads "Preview"; a screen reader's list of buttons
+    // needs the voice in the name to tell them apart.
+    previewBtn.setAttribute('aria-label', t('Preview {voice}', { voice: entry.name }));
     previewBtn.dataset['voiceName'] = entry.name;
     if (entry.needsDownload && !entry.downloaded) {
         previewBtn.classList.add('preview-unavailable');

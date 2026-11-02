@@ -479,7 +479,16 @@ export async function mountSessionView(
                 <button id="back" type="button" data-nav="setup">${t('Back to setup')}</button>
             </section>`;
         const noop = (): void => {};
-        return { teardown: noop, requestLeave: noop, showInfo: noop, toggleKasina: noop };
+        // Nothing is running, so leaving needs no confirmation: "Back to setup",
+        // the nav and the browser's Back all route through requestLeave while
+        // this view is the live session, and a no-op there left the user stuck
+        // on the error.
+        return {
+            teardown: noop,
+            requestLeave: (destination) => onEnd(destination),
+            showInfo: noop,
+            toggleKasina: noop,
+        };
     }
 
     // The pause-before-submit window is provider-aware. A non-streaming
