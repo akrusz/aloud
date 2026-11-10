@@ -39,6 +39,13 @@ ever a bid, and a wrong match gets asked "Would you like to end the session?".
 The answer is a small vocabulary where any no-word wins and one unknown word
 makes it an ordinary turn ("yes, I think my leg is asleep").
 
+A noting circle has its own listen loop (`views/noting-session.ts`) and no
+judge at all, so these two are its whole command set: on the meditator's turn
+"mute" pauses the circle as the mic button does, and "end the session" asks,
+listens once (past the echo window, since the question was just spoken), and
+ends on a yes. A reply that is neither yes nor no is taken as the note it most
+likely is.
+
 Where there is a judge it still hears everything first. These run after it:
 `isEndCommand` when the judge named no command (down, timed out, or missed),
 `endConfirmReply` when its answer to the open question was `other`. The

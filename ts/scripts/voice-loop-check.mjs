@@ -41,7 +41,7 @@ function check(name, ok, detail = '') {
 }
 
 /** A fresh browser context seeded with a BYOK session and the given settings. */
-async function open(settings) {
+async function open(settings, setupPatch = {}) {
     const context = await browser.newContext({ permissions: ['microphone'], viewport: { width: 1100, height: 900 } });
     await context.addInitScript({
         content: `(() => {
@@ -54,6 +54,7 @@ async function open(settings) {
     merge('preview:setup', { meditationType: 'exploration', intention: '', intentionByMode: {}, focuses: [], qualities: [],
         dirStep: 2, feltSensePaceStep: 2, feltSenseCheckins: true, verbosity: 'low', customInstructions: '',
         provider: 'openai', model: 'gpt-5-nano' });
+    merge('preview:setup', ${JSON.stringify(setupPatch)});
     merge('app:settings', Object.assign({ defaultProvider: 'openai', defaultModel: 'gpt-5-nano', sttEngine: 'web-speech',
         ttsEngine: 'browser', defaultVoice: null, checkinTiming: 'fixed', checkinContent: 'canned', silenceCheckinSec: 600,
         silenceModeEnabled: true, sessionClockMode: 'elapsed', saveSessionLogs: false, autoQuitAfterSilence: false,
@@ -136,6 +137,19 @@ async function open(settings) {
         /** Wait for the app to be listening, then say it. */
         async say(text) {
             if (!(await until(recognizerOpen, 20_000))) throw new Error(`nothing was listening for: ${text}`);
+            await page.evaluate((t) => window.__say(t), text);
+        },
+        /** As say(), but only once the app has been listening for `ms`: the
+         *  noting circle drops anything heard sooner as the tail of its own
+         *  voice (ECHO_REJECT_MS). */
+        async sayAfter(ms, text) {
+            if (!(await until(recognizerOpen, 20_000))) throw new Error(`nothing was listening for: ${text}`);
+            const id = await page.evaluate(() => window.__stt.started);
+            await page.waitForTimeout(ms);
+            // Still the same turn? If the app moved on, wait for the next one.
+            if ((await page.evaluate(() => window.__stt.started)) !== id || !(await recognizerOpen())) {
+                return this.sayAfter(ms, text);
+            }
             await page.evaluate((t) => window.__say(t), text);
         },
         /** Wait for the next model call after `since`. */
@@ -253,6 +267,36 @@ try {
         await s.shown(/Would you like to end the session\?/);
         await s.say('Yes.');
         check('and it ends by voice like any other', await s.until(async () => !(await s.inSession())));
+        await s.context.close();
+    }
+
+    // ---- a noting circle: its own listen loop -----------------------------------
+    {
+        const s = await open({ voiceStart: false }, { meditationType: 'noting' });
+        await s.setup();
+        await s.page.locator('#begin-btn').click();
+        check('noting session starts', await s.until(s.inSession));
+        await s.sayAfter(1700, 'thinking');
+        check('a note is a note', await s.shown(/thinking/i));
+
+        await s.sayAfter(1700, 'End the session.');
+        check('noting: "end the session" is answered with the question', await s.shown(/Would you like to end the session\?/));
+        await s.sayAfter(1700, 'Not yet.');
+        check('noting: "not yet" carries on', (await s.shown(/we'll keep going/)) && (await s.inSession()));
+        await s.sayAfter(1700, 'hearing');
+        check('noting: the circle goes on taking notes', await s.shown(/hearing/i));
+
+        await s.sayAfter(1700, 'Mute.');
+        check('noting: "mute" pauses the circle', await s.shown(/Paused, unmute to resume/));
+        check('noting: and closes the mic', await s.until(async () => !(await s.recognizerOpen()), 5_000));
+        await s.page.locator('#voice-btn').click();
+
+        await s.sayAfter(1700, 'Can we end the session?');
+        await s.until(async () => (await s.asked()) > 1);
+        await s.sayAfter(1700, 'Yes.');
+        check('noting: "yes" ends the session', await s.until(async () => !(await s.inSession())));
+        const text = await s.page.evaluate(() => document.body.innerText);
+        check('noting: none of it was taken as a note', !/You\s*\n?\s*(End the session|Not yet|Mute|Yes)\b/i.test(text));
         await s.context.close();
     }
 } catch (err) {
