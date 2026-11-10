@@ -145,7 +145,8 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!provider || !VALID_PROVIDERS.has(provider) || typeof model !== 'string' || !model || !validMessages(messages)) {
             return errorJson(c, 'bad_request', 'provider, model, messages required');
         }
-        if (body.system !== undefined && typeof body.system !== 'string') {
+        // null is "none", as an absent field is; only a wrong type is refused.
+        if (body.system != null && typeof body.system !== 'string') {
             return errorJson(c, 'bad_request', 'system must be a string');
         }
         if (!isModelAllowed(provider, model)) {

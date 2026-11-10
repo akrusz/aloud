@@ -247,6 +247,9 @@ describe('POST /cloud/v1/llm/complete: request shape', () => {
         const badSystem = await complete(app, token, { system: ['x'], messages: [{ role: 'user', content: 'hi' }] });
         expect(badSystem.status).toBe(400);
         expect(log.calls).toBe(0);
+        // A null system is "none", not a wrong type.
+        const nullSystem = await complete(app, token, { system: null, messages: [{ role: 'user', content: 'hi' }] });
+        expect(nullSystem.status).toBe(200);
     });
 
     it('treats a non-numeric maxTokens as unspecified instead of holding NaN', async () => {
