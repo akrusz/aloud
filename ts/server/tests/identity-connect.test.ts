@@ -338,3 +338,57 @@ describe('decideConnectGrant (pure rules)', () => {
         expect(isTrustedProvider('email')).toBe(false);
     });
 });
+
+describe('account email verification', () => {
+    const emailSignup = (email: string): VerifiedIdentity => ({
+        provider: 'email',
+        sub: normalizeEmail(email),
+        email,
+        emailVerified: false,
+    });
+
+    it('a trusted login for the SAME mailbox, connected from settings, verifies the account', async () => {
+        const d = deps();
+        const signup = await connectIdentity(d, emailSignup('a@example.com'));
+        expect(signup.account.emailVerified).toBe(false);
+
+        const linked = await connectIdentity(d, google({ email: 'A@Example.com' }), {
+            linkToAccountId: signup.account.id,
+        });
+        expect(linked.account.id).toBe(signup.account.id);
+        expect(linked.account.emailVerified).toBe(true);
+        expect((await d.store.getAccountById(signup.account.id))!.emailVerified).toBe(true);
+    });
+
+    it('a trusted login for a DIFFERENT mailbox proves nothing about this one', async () => {
+        const d = deps();
+        const signup = await connectIdentity(d, emailSignup('victim@example.com'));
+        const linked = await connectIdentity(d, google({ email: 'attacker@example.com' }), {
+            linkToAccountId: signup.account.id,
+        });
+        expect(linked.account.emailVerified).toBe(false);
+        expect((await d.store.getAccountById(signup.account.id))!.emailVerified).toBe(false);
+    });
+
+    it('an unverified provider email does not verify it either', async () => {
+        const d = deps();
+        const signup = await connectIdentity(d, emailSignup('a@example.com'));
+        const linked = await connectIdentity(d, google({ emailVerified: false }), {
+            linkToAccountId: signup.account.id,
+        });
+        expect(linked.account.emailVerified).toBe(false);
+    });
+
+    it('an account that connected before the flag existed catches up on its next sign-in', async () => {
+        const d = deps();
+        const signup = await connectIdentity(d, emailSignup('a@example.com'));
+        // The old link: identity row present, account still unverified.
+        await d.store.createIdentity({
+            provider: 'google', sub: 'g-1', accountId: signup.account.id,
+            emailVerified: true, grantedCredits: false, createdAt: 1,
+        });
+        const back = await connectIdentity(d, google());
+        expect(back.isNewIdentity).toBe(false);
+        expect(back.account.emailVerified).toBe(true);
+    });
+});

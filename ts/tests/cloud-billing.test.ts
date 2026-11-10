@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
     fetchPacks,
     startCheckout,
-    fetchGifts,
+    fetchGiftInbox,
     acceptGift,
     declineGift,
 } from '../ui/src/cloud-billing.js';
@@ -119,7 +119,7 @@ describe('startCheckout', () => {
 });
 
 describe('gifts', () => {
-    it('fetchGifts returns the list, and [] on error (never blocks the app)', async () => {
+    it('fetchGiftInbox returns the list, and an empty inbox on error (never blocks the app)', async () => {
         await kv.set('server:token', 'tok');
         vi.stubGlobal(
             'fetch',
@@ -127,10 +127,19 @@ describe('gifts', () => {
                 new Response(JSON.stringify({ gifts: [{ id: 'g1', credits: 50, createdAt: 1 }] }), { status: 200 })
             )
         );
-        expect(await fetchGifts()).toHaveLength(1);
+        expect(await fetchGiftInbox()).toMatchObject({ gifts: [{ id: 'g1' }], awaitingVerification: 0 });
 
         vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
-        expect(await fetchGifts()).toEqual([]);
+        expect(await fetchGiftInbox()).toEqual({ gifts: [], awaitingVerification: 0 });
+    });
+
+    it('fetchGiftInbox carries the count of gifts an unverified address cannot see yet', async () => {
+        await kv.set('server:token', 'tok');
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(JSON.stringify({ gifts: [], awaitingVerification: 2 }), { status: 200 }))
+        );
+        expect(await fetchGiftInbox()).toEqual({ gifts: [], awaitingVerification: 2 });
     });
 
     it('accept/decline POST to the gift routes with the bearer token', async () => {

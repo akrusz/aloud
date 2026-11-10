@@ -13,6 +13,7 @@ import type { AuthResponse, CompleteResponse, TranscribeResponse } from '../src/
 import type { Forwarder } from '../src/providers/forward.js';
 import { activeRetreatCoverage } from '../src/credits/retreat.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
+import { connectIdentity, issueAuthResponse } from '../src/auth/identity.js';
 
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
 const realFetch = globalThis.fetch;
@@ -236,11 +237,12 @@ describe('retreat pass — /me retreatCovered flag', () => {
     });
 });
 
-describe('retreat invite — binds on first sign-in', () => {
-    it('an emailed invite becomes coverage when that address signs up', async () => {
+describe('retreat invite — binds on first verified sign-in', () => {
+    async function invited() {
         const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '0' });
         const store = new MemoryCreditsStore();
-        const app = createApp(buildDeps(config, { store }));
+        const deps = buildDeps(config, { store });
+        const app = createApp(deps);
         const now = Date.now() / 1000;
         await store.createRetreatPass({
             id: 'p', label: 'R', startsAt: now - 100, endsAt: now + 3600,
@@ -248,8 +250,27 @@ describe('retreat invite — binds on first sign-in', () => {
         });
         // Operator invites an email that has no account yet.
         await store.addRetreatInvite({ passId: 'p', email: 'newyogi@example.com', invitedAt: now - 50 });
+        return { deps, store, app };
+    }
 
-        // That person signs up (different case) → invite binds during sign-in.
+    it('an emailed invite becomes coverage when that address signs in with Google', async () => {
+        const { deps, store } = await invited();
+        // That person signs in (different case) → invite binds during sign-in.
+        const { account } = await connectIdentity(deps, {
+            provider: 'google', sub: 'g-yogi', email: 'NewYogi@example.com', emailVerified: true,
+        });
+        const body = await issueAuthResponse(deps, account, true);
+        expect(body.account.retreatCovered).toBe(true);
+
+        // Membership now exists and the invite is consumed.
+        expect((await store.listRetreatMembers('p')).map((m) => m.accountId)).toEqual([account.id]);
+        expect(await store.invitesForEmail('newyogi@example.com')).toEqual([]);
+    });
+
+    it('an email/password signup with the invited address collects nothing', async () => {
+        // The signup form takes any address, so it proves nothing about who
+        // owns the mailbox the pass was sent to.
+        const { store, app } = await invited();
         const res = await app.request('/cloud/v1/auth/email/signup', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -257,10 +278,30 @@ describe('retreat invite — binds on first sign-in', () => {
         });
         expect(res.status).toBe(200);
         const body = (await res.json()) as { account: { id: string; retreatCovered: boolean } };
-        expect(body.account.retreatCovered).toBe(true);
+        expect(body.account.retreatCovered).toBe(false);
+        expect(await store.listRetreatMembers('p')).toEqual([]);
+        // Still waiting for its owner.
+        expect((await store.invitesForEmail('newyogi@example.com')).map((i) => i.passId)).toEqual(['p']);
+    });
 
-        // Membership now exists and the invite is consumed.
-        expect((await store.listRetreatMembers('p')).map((m) => m.accountId)).toEqual([body.account.id]);
+    it('binds once that signup proves the address by connecting Google for the same mailbox', async () => {
+        const { deps, store, app } = await invited();
+        const res = await app.request('/cloud/v1/auth/email/signup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: 'newyogi@example.com', password: 'hunter2hunter2' }),
+        });
+        const signup = (await res.json()) as { account: { id: string } };
+
+        const { account } = await connectIdentity(
+            deps,
+            { provider: 'google', sub: 'g-yogi', email: 'newyogi@example.com', emailVerified: true },
+            { linkToAccountId: signup.account.id }
+        );
+        expect(account.id).toBe(signup.account.id);
+        expect(account.emailVerified).toBe(true);
+        const body = await issueAuthResponse(deps, account, false);
+        expect(body.account.retreatCovered).toBe(true);
         expect(await store.invitesForEmail('newyogi@example.com')).toEqual([]);
     });
 });

@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import type { Deps } from '../deps.js';
 import type { Account, IdentityProvider } from '../credits/store.js';
 import type { AccountView, AuthResponse, SignInGrants } from '../contract.js';
-import { decideConnectGrant } from '../quota/freetier.js';
+import { decideConnectGrant, isTrustedProvider } from '../quota/freetier.js';
 import { issueSessionToken } from './session.js';
 import { emailGrantKey, normalizeEmail } from './email-key.js';
 import { log } from '../logger.js';
@@ -76,6 +76,28 @@ export class EmailInUseError extends Error {
     }
 }
 
+/**
+ * An account's email starts unverified when it was typed into the signup form,
+ * and nothing else ever proved it. It is proven when a trusted provider vouches
+ * for the same mailbox on a sign-in to this account: a Google/Apple login
+ * connected from settings, or one already linked signing in again (which is
+ * how an account that connected before this existed catches up).
+ *
+ * The flag matters because some things are addressed to an email and bind to
+ * whichever account holds it: gifts, retreat invites, the admin allowlist. Only
+ * a verified account may claim those (credits/gifts.ts, bindRetreatInvites) -
+ * otherwise signing up with someone else's address collects what was sent to
+ * them. A different mailbox on the linked login proves nothing about this one.
+ */
+async function adoptVerifiedEmail(deps: Deps, account: Account, ident: VerifiedIdentity): Promise<Account> {
+    if (account.emailVerified || !ident.emailVerified || !ident.email) return account;
+    if (!isTrustedProvider(ident.provider)) return account;
+    if (normalizeEmail(ident.email) !== normalizeEmail(account.email)) return account;
+    await deps.store.setAccountEmailVerified(account.id);
+    log.info('account email verified by a trusted sign-in', { accountId: account.id, provider: ident.provider });
+    return { ...account, emailVerified: true };
+}
+
 export async function connectIdentity(
     deps: Deps,
     ident: VerifiedIdentity,
@@ -89,8 +111,9 @@ export async function connectIdentity(
         if (opts.linkToAccountId && opts.linkToAccountId !== existing.accountId) {
             throw new IdentityConflictError();
         }
-        const account = await deps.store.getAccountById(existing.accountId);
-        if (!account) throw new Error(`identity ${ident.provider} points at a missing account`);
+        const found = await deps.store.getAccountById(existing.accountId);
+        if (!found) throw new Error(`identity ${ident.provider} points at a missing account`);
+        const account = await adoptVerifiedEmail(deps, found, ident);
         return { account, isNewAccount: false, isNewIdentity: false, granted: 0, breakerTripped: false };
     }
 
@@ -105,7 +128,7 @@ export async function connectIdentity(
         ? await deps.store.getAccountById(opts.linkToAccountId)
         : undefined;
     if (linked) {
-        account = linked;
+        account = await adoptVerifiedEmail(deps, linked, ident);
     } else {
         // Cold sign-in (no caller session). Before minting an account, check
         // whether this mailbox already has one - canonical match, so Gmail
@@ -297,6 +320,12 @@ export async function ageOutSignupIps(deps: Deps, now: number): Promise<number> 
  *  attendees by email before they have an account; coverage binds on first
  *  sign-in, in any order. Matched case-insensitively. */
 async function bindRetreatInvites(deps: Deps, account: Account): Promise<void> {
+    // An invite is addressed to a mailbox, so only an account that has proven
+    // it owns that mailbox may take it (adoptVerifiedEmail). An email/password
+    // signup has proven nothing: without this, registering an invited address
+    // before its owner does collected the pass. The invite stays pending, and
+    // binds on the first sign-in after the address is verified.
+    if (!account.emailVerified) return;
     const email = account.email.toLowerCase();
     const invites = await deps.store.invitesForEmail(email);
     if (invites.length === 0) return;

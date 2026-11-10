@@ -136,14 +136,23 @@ async function authed(path: string, init?: RequestInit): Promise<Response> {
     });
 }
 
-/** GET /cloud/v1/gifts. Returns [] on any error so a hiccup never blocks the app. */
-export async function fetchGifts(): Promise<GiftView[]> {
+export interface GiftInbox {
+    gifts: GiftView[];
+    /** Gifts sent to this account's email that it can't see yet, because the
+     *  address was only ever typed into the signup form. Connecting Google or
+     *  Apple for the same address releases them. */
+    awaitingVerification: number;
+}
+
+/** GET /cloud/v1/gifts. Empty on any error so a hiccup never blocks the app. */
+export async function fetchGiftInbox(): Promise<GiftInbox> {
     try {
         const res = await authed('/gifts');
-        if (!res.ok) return [];
-        return ((await res.json()) as { gifts?: GiftView[] }).gifts ?? [];
+        if (!res.ok) return { gifts: [], awaitingVerification: 0 };
+        const body = (await res.json()) as { gifts?: GiftView[]; awaitingVerification?: number };
+        return { gifts: body.gifts ?? [], awaitingVerification: body.awaitingVerification ?? 0 };
     } catch {
-        return [];
+        return { gifts: [], awaitingVerification: 0 };
     }
 }
 
@@ -168,7 +177,7 @@ export interface ReturnedGiftView {
     createdAt: number;
 }
 
-/** GET /cloud/v1/gifts/returned. Returns [] on any error, like fetchGifts. */
+/** GET /cloud/v1/gifts/returned. Returns [] on any error, like fetchGiftInbox. */
 export async function fetchReturnedGifts(): Promise<ReturnedGiftView[]> {
     try {
         const res = await authed('/gifts/returned');

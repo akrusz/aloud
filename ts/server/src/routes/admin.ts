@@ -542,8 +542,16 @@ export function adminRoutes(deps: Deps): Hono {
         const account = await deps.store.findLiveAccountByEmail(email);
         const now = Date.now() / 1000;
         if (account) {
+            // Added by the operator's own hand, so an unverified account is
+            // let in where a pending invite would not bind to one (identity.ts
+            // bindRetreatInvites). The flag is so the panel can say that this
+            // address was only ever typed into the signup form.
             await deps.store.addRetreatMember({ passId: pass.id, accountId: account.id, joinedAt: now });
-            return c.json({ status: 'member', email: account.email });
+            return c.json({
+                status: 'member',
+                email: account.email,
+                ...(account.emailVerified ? {} : { unverified: true }),
+            });
         }
         await deps.store.addRetreatInvite({ passId: pass.id, email: email.toLowerCase(), invitedAt: now });
         return c.json({ status: 'invited', email: email.toLowerCase() });
