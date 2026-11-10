@@ -111,7 +111,8 @@ banner**. Either forces the whole update path without a real release: the brand
 lights up the nav "Update" pill + mobile More entry, and the About box renders
 the install button - a simulated, non-relaunching download in the desktop shell,
 the releases link in a browser. A bare flag pretends one patch above the running
-build; `?previewUpdate=2.0.0` sets the version verbatim. Unlike the params above
+build; `?previewUpdate=2.0.0` sets the version (anything not shaped like a
+version is ignored and gets the same one-patch bump, since a link can set this). Unlike the params above
 this one is **not** DEV-gated - deliberately, so you can preview inside a bundled
 desktop debug build (`scripts/dev-bundle.sh`), which is the only place the real
 updater button runs.

@@ -158,6 +158,7 @@ import {
 import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle, setTheme, toggleTheme, updateThemeIcon, type Theme } from '../theme.js';
 import { t } from '../i18n.js';
+import { escapeHtml } from '../escape-html.js';
 import { showErrorToast } from '../toast.js';
 import { alertDialog, confirmDialog } from '../dialog.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
@@ -472,7 +473,7 @@ export async function mountSessionView(
         root.innerHTML = `
             <section class="session-stage">
                 <div class="status">
-                    <div id="status">${(err as Error).message}</div>
+                    <div id="status">${escapeHtml((err as Error).message)}</div>
                 </div>
             </section>
             <section class="controls">

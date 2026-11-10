@@ -570,6 +570,7 @@ export const ZH: Record<string, string> = {
     "The facilitator says the time is up either way. If checked, it will also end the session.": "无论如何引导者都会告诉你时间到了。勾选后，还会结束这次冥想。",
     "The facilitator stays quiet until you ask to resume.": "引导者会保持安静，直到你请它继续。",
     "The language you and the facilitator speak in sessions.": "你和引导者在冥想中使用的语言。",
+    "The payment request didn't match this pack, so nothing was signed.": "付款请求与所选套餐不符，因此没有签署任何内容。",
     "The server did not return payment requirements.": "服务器未返回支付要求。",
     "The voice service had a problem (error {status}). Try again in a moment.": "语音服务出了问题（错误 {status}）。请稍后重试。",
     "That voice isn't available right now. Try another voice.": "这个声音目前无法使用。请换一个声音试试。",
