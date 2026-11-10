@@ -157,6 +157,18 @@ describe('ClaudeProxyProvider', () => {
         expect(calls[0]!.args[calls[0]!.args.length - 1]).toBe('breathe');
     });
 
+    it('ends the options before the prompt, so a turn starting with a dash stays a prompt', async () => {
+        // Checked against the real CLI: without `--`, a lone turn of "--help"
+        // printed the usage instead of reaching the model.
+        const calls = fakeSpawn(JSON.stringify({ result: 'ok' }));
+        const provider = new ClaudeProxyProvider({ binaryPath: '/bin/claude' });
+        await provider.complete([{ role: 'user', content: '--settings={"x":1}' }], { system: 'be calm' });
+        const { args } = calls[0]!;
+        expect(args.slice(-2)).toEqual(['--', '--settings={"x":1}']);
+        // Every real option comes before it.
+        expect(args.indexOf('--system-prompt')).toBeLessThan(args.indexOf('--'));
+    });
+
     it('surfaces non-zero exit codes', async () => {
         fakeSpawn('', 1);
         const provider = new ClaudeProxyProvider({ binaryPath: '/bin/claude' });

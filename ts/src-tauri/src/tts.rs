@@ -393,10 +393,14 @@ fn synth_macos(voice: &str, text: &str, rate: Option<u32>) -> Result<Vec<u8>, St
     if let Some(r) = rate {
         cmd.arg("-r").arg(r.to_string());
     }
+    // `--` ends the options: the text is whatever the model said, and a
+    // sentence starting with a dash would otherwise be read as one
+    // (`--input-file=<path>` speaks a local file, `-o<path>` writes one).
     cmd.arg("-o")
         .arg(&tmp)
         .arg("--file-format=WAVE")
         .arg("--data-format=LEI16")
+        .arg("--")
         .arg(text);
 
     let status = cmd.status().map_err(|e| format!("run say: {e}"))?;

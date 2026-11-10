@@ -114,7 +114,9 @@ export class ClaudeProxyProvider implements LLMProvider {
         if (options.system) {
             args.push('--system-prompt', options.system);
         }
-        args.push(prompt);
+        // `--` ends the options: a lone user turn is passed verbatim, and one
+        // starting with a dash would otherwise be parsed as a CLI option.
+        args.push('--', prompt);
 
         const { stdout, stderr, exitCode, signal, timedOut } = await runProcess(
             binary,
