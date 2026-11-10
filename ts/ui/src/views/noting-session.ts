@@ -18,6 +18,10 @@ import {
     timerApproachLeadSec,
     NOTING_STATIC_OPENERS,
     sessionLanguageOf,
+    isMuteCommand,
+    isEndCommand,
+    endConfirmReply,
+    COMMAND_LINES,
     localizePool,
     TIMER_APPROACH_FALLBACKS,
     TIMER_CLOSE_FALLBACKS,
@@ -604,8 +608,24 @@ export async function mountNotingSessionView(
         // replaying the cue. The echo guard only rejects audio right at turn
         // start (TTS tail from the previous participant).
         while (!torn && !paused) {
-            const note = (await listenOnce()).trim();
+            let note = (await listenOnce()).trim();
             if (torn || paused) return;
+            // The two things that can be said to the app rather than noted,
+            // matched outright as in a facilitated sit (core mute-command.ts,
+            // end-command.ts). A note is a word or two about what is noticed;
+            // neither of these is one.
+            if (isMuteCommand(note)) {
+                // The mic button's own path: mutes, and pauses the circle.
+                micBtn.click();
+                return;
+            }
+            if (isEndCommand(note)) {
+                const reply = await askToEnd();
+                if (torn || paused) return;
+                // Not an answer: whatever they said instead is their note.
+                if (reply === null) continue;
+                note = reply;
+            }
             const tooSoon = Date.now() - userTurnStart < ECHO_REJECT_MS;
             // A cough/breath transcribing to only non-speech markers ("[cough]",
             // "(sigh)") shouldn't become a noting label: re-listen, as for
@@ -627,6 +647,45 @@ export async function mountNotingSessionView(
             }
             await sleep(200); // brief breath before re-listening
         }
+    }
+
+    /**
+     * "End the session" was said on the meditator's turn. Ending is a bid here
+     * too: ask, and listen once for the answer. A yes ends the sit on the same
+     * terms as the timer's close; a no says so and returns null, so the turn
+     * goes on listening for a note. Anything else is returned as what they
+     * said, since on their turn that is most likely the note itself.
+     */
+    async function askToEnd(): Promise<string | null> {
+        const say = async (line: string): Promise<void> => {
+            session.addAssistantMessage(line, 'Facilitator');
+            appendMessage('facilitator', line, t('Facilitator'));
+            setStatus(narratorSilenced ? '' : t('Speaking…'));
+            await speakNarrator(line);
+        };
+        await say(COMMAND_LINES.endConfirm(notingLanguage));
+        if (torn || paused) return null;
+        setStatus(t('Listening…'));
+        // The question was just spoken, so the first thing heard can be its
+        // own tail: the same window the turn loop rejects at turn start.
+        let reply = '';
+        for (let tries = 0; tries < 3 && !reply; tries++) {
+            const listenedFrom = Date.now();
+            const heard = (await listenOnce()).trim();
+            if (torn || paused) return null;
+            if (heard && !isNonSpeechOnly(heard) && Date.now() - listenedFrom >= ECHO_REJECT_MS) reply = heard;
+        }
+        const verdict = endConfirmReply(reply);
+        if (verdict === 'yes') {
+            await endSession(undefined, !appSettings.saveSessionLogs);
+            return null;
+        }
+        if (verdict === 'no') {
+            await say(COMMAND_LINES.endDeclined(notingLanguage));
+            if (!torn && !paused) setStatus(t('Your turn. Say something you notice now, 1-2 words.'));
+            return null;
+        }
+        return reply || null;
     }
 
     /** The narrator's lines (opener, timer notices) in setup.voice. Silenced
