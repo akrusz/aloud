@@ -13,7 +13,11 @@ export function tooManyRequests(c: Context<any>) {
     return errorJson(c, 'quota_exceeded', 'too many requests; slow down');
 }
 
+/** Longest client session id kept. The app sends a UUID (36); anything longer
+ *  is cut, since the value is stored on every usage and incident row. */
+const MAX_SESSION_ID_CHARS = 64;
+
 /** A client-sent session id (usage/incident grouping), or null. */
 export function sessionIdOf(v: unknown): string | null {
-    return typeof v === 'string' && v ? v : null;
+    return typeof v === 'string' && v ? v.slice(0, MAX_SESSION_ID_CHARS) : null;
 }

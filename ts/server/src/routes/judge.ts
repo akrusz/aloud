@@ -24,6 +24,9 @@ import { askNouls, JEV_USD_PER_INPUT_TOKEN } from '../providers/typesafe.js';
 import { log } from '../logger.js';
 import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 
+/** deps.judgeGlobalCap's one key: it counts every account together. */
+const ALL_ACCOUNTS = '*';
+
 /** One spoken utterance. Anything longer is not what this route is for. */
 const MAX_UTTERANCE_CHARS = 2000;
 const MAX_EARLIER_ITEMS = 50;
@@ -63,11 +66,16 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
         const apiKey = deps.config.typesafeApiKey;
         if (!apiKey) return errorJson(c, 'provider_error', 'judge is not configured on this server');
         if (!deps.judgeGuard.allow(account.id)) return tooManyRequests(c);
-        // The daily cap is the cost ceiling on accounts that pay nothing. One with
-        // credits is never cut off (the per-minute guard still bounds it), and
-        // isn't billed either: a credit funds ~1,000 calls, so there is nothing
-        // per-call to charge. The balance is only read once the cap is spent.
-        if (!deps.judgeDailyCap.allow(account.id) && (await deps.ledger.balance(account.id)) <= 0) {
+        // The daily caps are the cost ceiling on accounts that pay nothing: one
+        // per account, and one across all of them, because an email signup is
+        // free to repeat and a per-account cap alone bounds nothing. An account
+        // with credits is never cut off by either (the per-minute guard still
+        // bounds it), and isn't billed: a credit funds ~1,000 calls, so there
+        // is nothing per-call to charge. The balance is only read once a cap
+        // is spent. Both are asked every time so both keep counting.
+        const underAccountCap = deps.judgeDailyCap.allow(account.id);
+        const underGlobalCap = deps.judgeGlobalCap.allow(ALL_ACCOUNTS);
+        if (!(underAccountCap && underGlobalCap) && (await deps.ledger.balance(account.id)) <= 0) {
             return errorJson(c, 'quota_exceeded', 'daily judge limit reached');
         }
 

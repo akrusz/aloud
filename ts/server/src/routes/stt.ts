@@ -24,7 +24,7 @@ import { serverIncidents } from '../credits/incidents.js';
 import { chargeUpfront, gateUpfront } from './upfront-charge.js';
 import { int16ToFloat32, transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
-import { errorJson, tooManyRequests } from '../http.js';
+import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 
 /** Sample rates a client legitimately records at (mic captures + the common
  *  output rates). Billing divides by this value, so it's an allowlist, not a
@@ -69,7 +69,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const samples = format === 'i16' ? int16ToFloat32(new Int16Array(raw)) : new Float32Array(raw);
         const seconds = samples.length / sampleRate;
 
-        const sessionId = c.req.query('session_id') || null;
+        const sessionId = sessionIdOf(c.req.query('session_id'));
         const incident = serverIncidents(deps.store, { accountId: account.id, provider: stt.provider, model, sessionId });
 
         const billedSeconds = sttBilledSeconds(seconds, model);
@@ -104,6 +104,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 });
             }
         } catch (err) {
+            gate.release();
             log.error('stt forward failed', { err: String(err) });
             incident('stt_error', `${seconds.toFixed(1)}s: ${String(err)}`);
             return errorJson(c, 'provider_error', 'STT upstream error');
