@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS accounts (
     -- Backfilled and uniquely indexed (live rows only) by migrateAddCanonicalEmail.
     canonical_email TEXT,
     -- Opt-in to occasional product-update emails (strictly opt-in, default off).
-    email_updates INTEGER NOT NULL DEFAULT 0
+    email_updates INTEGER NOT NULL DEFAULT 0,
+    -- Session tokens issued before this (epoch seconds) no longer authenticate.
+    -- NULL: nothing has ever been revoked. Added by migrateAddSessionsValidAfter.
+    sessions_valid_after REAL
 );
 -- Sign-in identities (meditation-pal-116). (provider, sub) is globally unique:
 -- one external identity → at most one account, ever. granted_credits records
@@ -215,6 +218,7 @@ function rowToAccount(r: Row): Account {
     if (r['signup_ip'] != null) account.signupIp = String(r['signup_ip']);
     if (r['deleted_at'] != null) account.deletedAt = Number(r['deleted_at']);
     if (Number(r['email_updates']) !== 0) account.emailUpdates = true;
+    if (r['sessions_valid_after'] != null) account.sessionsValidAfter = Number(r['sessions_valid_after']);
     return account;
 }
 
@@ -343,6 +347,7 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddUsageCacheCreation1h();
         this.migrateAddUsagePurpose();
         this.migrateAddEmailUpdates();
+        this.migrateAddSessionsValidAfter();
         this.migrateIncidentAccountNullable();
         // Index on pass_id AFTER the column migration above: on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
@@ -376,6 +381,14 @@ export class SqliteCreditsStore implements CreditsStore {
     private migrateAddEmailUpdates(): void {
         if (this.hasColumn('accounts', 'email_updates')) return;
         this.db.exec('ALTER TABLE accounts ADD COLUMN email_updates INTEGER NOT NULL DEFAULT 0');
+    }
+
+    /** Add accounts.sessions_valid_after to a DB predating session revocation.
+     *  Existing rows stay NULL: every token already out there keeps working
+     *  until its account revokes. */
+    private migrateAddSessionsValidAfter(): void {
+        if (this.hasColumn('accounts', 'sessions_valid_after')) return;
+        this.db.exec('ALTER TABLE accounts ADD COLUMN sessions_valid_after REAL');
     }
 
     /** incidents.account_id was NOT NULL, so a row with no account (the public
@@ -554,6 +567,10 @@ export class SqliteCreditsStore implements CreditsStore {
 
     async setAccountEmailVerified(accountId: string): Promise<void> {
         this.db.prepare('UPDATE accounts SET email_verified = 1 WHERE id = ?').run(accountId);
+    }
+
+    async setSessionsValidAfter(accountId: string, ts: number): Promise<void> {
+        this.db.prepare('UPDATE accounts SET sessions_valid_after = ? WHERE id = ?').run(ts, accountId);
     }
 
     async setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void> {

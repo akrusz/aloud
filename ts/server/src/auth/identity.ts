@@ -224,6 +224,8 @@ export async function connectIdentity(
  * changes it. Keyed on the account's OWN canonical email, never a client-supplied
  * address, so it can only add a password to your own mailbox. Grants no credits
  * (email identities are untrusted), bypassing connectIdentity's grant path.
+ * Returns true when an existing password was replaced, false when a first one
+ * was added.
  *
  * Guards the one unsafe case: an 'email' identity for this canonical mailbox
  * owned by a DIFFERENT account (a cross-account takeover) → IdentityConflictError.
@@ -234,7 +236,7 @@ export async function setAccountPassword(
     deps: Deps,
     account: Account,
     passwordHash: string
-): Promise<void> {
+): Promise<boolean> {
     const sub = normalizeEmail(account.email);
     const existing = await deps.store.getIdentity('email', sub);
     if (existing && existing.accountId !== account.id) {
@@ -256,6 +258,7 @@ export async function setAccountPassword(
         });
     }
     log.info('account password set', { accountId: account.id, changed: existing != null });
+    return existing != null;
 }
 
 /** Account + live balance + linked sign-in methods (GET /me and every auth

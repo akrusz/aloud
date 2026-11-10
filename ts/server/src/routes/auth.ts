@@ -25,9 +25,8 @@ import type { Deps } from '../deps.js';
 import { verifyGoogleIdToken, exchangeGoogleCode } from '../auth/google.js';
 import { verifyAppleIdToken } from '../auth/apple.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
-import { bearer, forwardedIp, ipRateLimit } from '../auth/middleware.js';
+import { bearer, forwardedIp, ipRateLimit, sessionForToken } from '../auth/middleware.js';
 import { RateGuard } from '../quota/freetier.js';
-import { verifySessionToken } from '../auth/session.js';
 import { connectIdentity, issueAuthResponse, setAccountPassword, IdentityConflictError, EmailInUseError } from '../auth/identity.js';
 import type { VerifiedIdentity } from '../auth/identity.js';
 import { grantBetaBonus } from '../quota/beta-bonus.js';
@@ -38,12 +37,14 @@ import { errorJson } from '../http.js';
 const MIN_PASSWORD_LEN = 8;
 
 /** Account id from a valid bearer token on the request, if any. Used to link a
- *  freshly-verified identity to the already-signed-in account. */
+ *  freshly-verified identity to the already-signed-in account.
+ *
+ *  "Valid" as requireAuth means it (sessionForToken): a token for a deleted
+ *  account, or one revoked since, is not a signed-in caller. Taking the id
+ *  off the signature alone linked a sign-in to the tombstone of an account
+ *  deleted on another device, and that login could never sign in again. */
 async function callerAccountId(c: Context, deps: Deps): Promise<string | undefined> {
-    const token = bearer(c);
-    if (!token) return undefined;
-    const claims = await verifySessionToken(token, deps.config.sessionSecret);
-    return claims?.accountId;
+    return (await sessionForToken(deps, bearer(c)))?.account.id;
 }
 
 /** Shared tail for federated (Google/Apple) sign-in once an identity is verified:
@@ -222,23 +223,43 @@ export function authRoutes(deps: Deps): Hono {
     // client-supplied address), so it can't attach a password to someone else's
     // mailbox or mint free credits. Under the same /email/* IP rate limit.
     app.post('/email/set-password', async (c) => {
-        const accountId = await callerAccountId(c, deps);
-        if (!accountId) return errorJson(c, 'unauthenticated', 'sign in first');
-        const account = await deps.store.getAccountById(accountId);
-        if (!account || account.deletedAt != null) return errorJson(c, 'unauthenticated', 'sign in first');
+        const account = (await sessionForToken(deps, bearer(c)))?.account;
+        if (!account) return errorJson(c, 'unauthenticated', 'sign in first');
         const body = (await c.req.json().catch(() => ({}))) as Partial<SetPasswordRequest>;
         const password = body.password ?? '';
         if (password.length < MIN_PASSWORD_LEN) {
             return errorJson(c, 'bad_request', `password must be at least ${MIN_PASSWORD_LEN} characters`);
         }
         try {
-            await setAccountPassword(deps, account, await hashPassword(password));
+            const changed = await setAccountPassword(deps, account, await hashPassword(password));
+            // Changing a password is what someone does when they think the old
+            // one is known, so it ends every session opened before now; the
+            // response carries the one that replaces this device's. Adding a
+            // first password to a Google/Apple account changes no credential
+            // and revokes nothing.
+            if (changed) await deps.store.setSessionsValidAfter(account.id, Math.floor(Date.now() / 1000));
             return c.json(await issueAuthResponse(deps, account, false));
         } catch (err) {
             if (err instanceof IdentityConflictError) return errorJson(c, 'bad_request', err.message);
             log.error('set-password failed', { err: String(err) });
             return errorJson(c, 'internal', 'could not set the password');
         }
+    });
+
+    // "Sign out everywhere": end every session on the account, this one
+    // included. A session token is stateless and renews itself, so signing out
+    // on a device only forgets the token there; a copy held anywhere else (a
+    // lost phone, a backup, a shared browser) would otherwise stay good until
+    // it went 90 days unused.
+    app.post('/signout-all', async (c) => {
+        const account = (await sessionForToken(deps, bearer(c)))?.account;
+        if (!account) return errorJson(c, 'unauthenticated', 'sign in first');
+        // +1: tokenStillValid lets a token from the revoking second through,
+        // for a replacement minted in the same request. There is none here,
+        // and the caller's own token may be that young.
+        await deps.store.setSessionsValidAfter(account.id, Math.floor(Date.now() / 1000) + 1);
+        log.info('all sessions revoked', { accountId: account.id });
+        return c.json({ signedOut: true });
     });
 
     // Stable identity for the single local dev account, reused across sign-ins so

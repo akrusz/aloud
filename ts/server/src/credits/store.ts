@@ -57,6 +57,12 @@ export interface Account {
      *  false), toggled at signup or on the account page; the address is never
      *  shared or sold. */
     emailUpdates?: boolean;
+    /** Session tokens issued before this moment (seconds since epoch) no longer
+     *  authenticate. Set when the password changes and by "sign out
+     *  everywhere"; absent means no token has ever been revoked. The tokens
+     *  are stateless and renew themselves, so this is the only thing that can
+     *  end one that has leaked (auth/session.ts tokenStillValid). */
+    sessionsValidAfter?: number;
 }
 
 /** Sign-in methods an account can carry. TRUSTED providers (google, apple) are
@@ -177,6 +183,8 @@ export interface CreditsStore {
      *  adoptVerifiedEmail): a trusted provider vouched for that same mailbox.
      *  One-way; nothing un-verifies an address. */
     setAccountEmailVerified(accountId: string): Promise<void>;
+    /** Revoke every session token issued before `ts` (Account.sessionsValidAfter). */
+    setSessionsValidAfter(accountId: string, ts: number): Promise<void>;
     /** Flip the email-updates opt-in (PATCH /me and the signup checkbox). */
     setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void>;
 

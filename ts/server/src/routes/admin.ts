@@ -25,7 +25,8 @@ import { PACK_MARKUP } from '../pricing/meter.js';
 import { renderAdminPanel } from '../admin/panel.js';
 import { renderCallsPage } from '../admin/calls-page.js';
 import { buildSessionDetail, buildSessionList } from '../admin/calls.js';
-import { ADMIN_MAX_TOKEN_AGE_SECONDS, verifySessionToken } from '../auth/session.js';
+import { ADMIN_MAX_TOKEN_AGE_SECONDS } from '../auth/session.js';
+import { sessionForToken } from '../auth/middleware.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 import { errorJson } from '../http.js';
 import { apiError } from '../contract.js';
@@ -56,17 +57,14 @@ async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
     const expected = deps.config.adminToken;
     if (expected && tokenOk(provided, expected)) return null;
     if (provided && deps.config.adminEmails.length > 0) {
-        const verified = await verifySessionToken(provided, deps.config.sessionSecret);
-        const claims =
-            verified && Date.now() / 1000 - verified.issuedAtSeconds <= ADMIN_MAX_TOKEN_AGE_SECONDS
-                ? verified
-                : undefined;
-        const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
+        // The same check every other route makes (live account, token not
+        // revoked), plus the admin gate's own: young, verified, on the list.
+        const session = await sessionForToken(deps, provided);
         if (
-            account &&
-            account.deletedAt == null &&
-            account.emailVerified &&
-            deps.config.adminEmails.includes(account.email.toLowerCase())
+            session &&
+            Date.now() / 1000 - session.claims.issuedAtSeconds <= ADMIN_MAX_TOKEN_AGE_SECONDS &&
+            session.account.emailVerified &&
+            deps.config.adminEmails.includes(session.account.email.toLowerCase())
         ) {
             return null;
         }

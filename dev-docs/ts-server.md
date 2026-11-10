@@ -128,7 +128,8 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
 | `POST /cloud/v1/auth/email/signup` | public (optional bearer) | create an email/password account (scrypt hash). UNTRUSTED → no free credits until it connects Google/Apple (meditation-pal-116). Optional `emailUpdates` body flag carries the signup opt-in |
 | `POST /cloud/v1/auth/email/login` | public | email/password sign-in; one generic 401 for wrong-password / unknown-email |
-| `POST /cloud/v1/auth/email/set-password` | session | add/change a password on an OAuth-created account |
+| `POST /cloud/v1/auth/email/set-password` | session | add/change a password on an OAuth-created account. CHANGING one ends every session issued before now (`Account.sessionsValidAfter`) and the response carries this device's replacement token; adding a first password revokes nothing |
+| `POST /cloud/v1/auth/signout-all` | session | "Sign out everywhere": ends every session on the account, the caller's included. The tokens are stateless and renew themselves, so this (and a password change) is the only thing that ends one held elsewhere; the app's plain Sign out only forgets the token on that device. Every token check goes through `auth/middleware.ts` `sessionForToken` |
 | `POST /cloud/v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s unless `ALOUD_ENABLE_DEV_AUTH` is set |
 | `GET /cloud/v1/me` | session | account + live balance |
 | `PATCH /cloud/v1/me` | session | flip the email-updates opt-in (`{emailUpdates: boolean}`); returns the updated account view |

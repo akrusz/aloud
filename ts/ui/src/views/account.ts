@@ -8,6 +8,7 @@ import { detectCapabilities, watchCloudReachable } from '../capabilities.js';
 import {
     fetchMe,
     clearCloudToken,
+    signOutEverywhere,
     deleteAccount,
     setCloudPassword,
     setEmailUpdates,
@@ -26,7 +27,7 @@ import { purchaseChannel, topUpHint } from '../purchase-channel.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { showSignInModal } from '../sign-in-modal.js';
 import { signInNames } from '../sign-in-providers.js';
-import { confirmTypedDialog, alertDialog } from '../dialog.js';
+import { confirmTypedDialog, confirmDialog, alertDialog } from '../dialog.js';
 import { showSuccessToast, showErrorToast } from '../toast.js';
 import { t } from '../i18n.js';
 import { escapeHtml } from '../escape-html.js';
@@ -97,6 +98,7 @@ async function render(root: HTMLElement): Promise<void> {
                 <span class="account-email">${escapeHtml(account.email)}</span>
                 <button type="button" class="btn btn-secondary" id="acct-signout">${t('Sign out')}</button>
             </div>
+            <button type="button" class="account-connect-prompt provider-hint" id="acct-signout-all">${t('Sign out everywhere')}</button>
             <h2 class="account-subhead">${t('Cloud Balance')}</h2>
             <div class="account-row">
                 <span class="account-credits">${
@@ -192,7 +194,7 @@ function wirePasswordSection(root: HTMLElement, hasPassword: boolean): void {
             .then(() => {
                 showSuccessToast(
                     hasPassword
-                        ? t('Password changed.')
+                        ? t('Password changed. Other devices have been signed out.')
                         : t('Password set - you can now sign in with your email and password.')
                 );
                 void render(root);
@@ -236,6 +238,20 @@ function wireAccountSection(root: HTMLElement): void {
         clearKnownBalance();
         clearRetreatCovered();
         void clearCloudToken().then(() => render(root));
+    });
+    root.querySelector('#acct-signout-all')?.addEventListener('click', () => {
+        void confirmDialog(
+            t('Sign out of aloud cloud on every device, this one included? Use this if a device is lost, or you signed in somewhere shared.'),
+            { okLabel: t('Sign out everywhere') }
+        ).then((ok) => {
+            if (!ok) return;
+            signOutEverywhere()
+                .then(() => {
+                    showSuccessToast(t('Signed out everywhere.'));
+                    void render(root);
+                })
+                .catch((err: unknown) => showErrorToast(err instanceof Error ? err.message : String(err)));
+        });
     });
     wireCloudsExplainer(root, 'acct-clouds-what');
     root.querySelector('#acct-connect')?.addEventListener('click', () => {
