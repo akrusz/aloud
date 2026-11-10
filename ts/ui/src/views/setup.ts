@@ -64,7 +64,15 @@ import {
     sttSettingKey,
     sttBackendForChoice,
     cloudSttCreditsPerHour,
+    createSttForChoice,
 } from '../adapters/stt-picker.js';
+import {
+    listenForBegin,
+    micAlreadyGranted,
+    pageTouched,
+    voiceStartBlocker,
+    type VoiceStartHandle,
+} from '../voice-start.js';
 import { probeMic, describeMicRequirement, type MicStatus } from '../mic-check.js';
 import { watchWhisperReady, describeWhisperWait, type WhisperStatus } from '../whisper-ready.js';
 import { t } from '../i18n.js';
@@ -849,8 +857,17 @@ export async function mountSetupView(
         // One Begin path handles fresh and continued sessions. A cold-boot resume
         // runs through the modal, so pendingContinue here is only ever a History
         // "Continue" (or null).
+        root.querySelector('#voice-start-status')?.addEventListener('click', () => {
+            voiceStartClosed = false;
+            void syncVoiceStart();
+        });
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
+            // Begun by hand while the mic was open for "begin": close it, so
+            // the session opens its own. (When "begin" was heard, it already is.)
+            const listening = voiceStart;
+            voiceStart = null;
+            void listening?.handle.stop();
             const queued = pendingContinue?.state ?? null;
             if (pendingContinue) {
                 pendingContinue = null;
@@ -935,6 +952,80 @@ export async function mountSetupView(
      * user with (say) Ollama stopped sees a disabled button instead of a
      * session that dies on the first turn.
      */
+    // ---- say "begin" (voice-start.ts) ------------------------------------
+    // Opt-in. Runs only while this screen is up, Begin itself is possible, the
+    // mic is already granted and the chosen recognizer is free; closes itself
+    // after VOICE_START_WINDOW_MS and when the screen goes away.
+    let voiceStart: { handle: VoiceStartHandle; choice: SttEngineChoice } | null = null;
+    let voiceStartGen = 0;
+    let micGranted = false;
+    // The window ran out (or the recognizer failed): stay closed until asked.
+    let voiceStartClosed = false;
+    void micAlreadyGranted().then((granted) => {
+        micGranted = granted;
+        void syncVoiceStart();
+    });
+
+    function paintVoiceStart(text: string, actionable: boolean): void {
+        const el = root.querySelector<HTMLButtonElement>('#voice-start-status');
+        if (!el) return;
+        el.textContent = text;
+        el.classList.toggle('hidden', text === '');
+        el.disabled = !actionable;
+    }
+
+    async function syncVoiceStart(): Promise<void> {
+        const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
+        if (!beginBtn) return;
+        const choice = sttSetupChoice();
+        const blocker = voiceStartBlocker({
+            enabled: appSettings.voiceStart,
+            sttChoice: choice,
+            micGranted,
+            canBegin: !beginBtn.disabled,
+            touched: pageTouched(),
+        });
+        if (voiceStart && (blocker || voiceStart.choice !== choice)) {
+            const { handle } = voiceStart;
+            voiceStart = null;
+            await handle.stop();
+        }
+        if (blocker === 'no-touch-yet') {
+            // A page nobody has touched can't play sound, so a session begun
+            // now would be silent. Any touch lifts it.
+            paintVoiceStart(t('Tap anywhere, then say "begin"'), false);
+            document.addEventListener('pointerdown', () => void syncVoiceStart(), { once: true });
+            return;
+        }
+        if (blocker) return paintVoiceStart('', false);
+        if (voiceStart) return;
+        if (voiceStartClosed) {
+            return paintVoiceStart(t('Stopped listening. Tap here to listen for "begin" again.'), true);
+        }
+        const gen = ++voiceStartGen;
+        // The recognizer listens in the app's language, as a session's does.
+        const engine = await createSttForChoice(choice, { language: appSettings.language });
+        // Something changed while the engine was being built, or it isn't
+        // usable here: leave it to the sync that change triggered.
+        if (gen !== voiceStartGen || voiceStart || !engine || !beginBtn.isConnected) return;
+        const handle = listenForBegin({
+            engine,
+            alive: () => beginBtn.isConnected && document.body.dataset['sessionActive'] === undefined,
+            // The same path as the click, queued continue and all.
+            onBegin: () => beginBtn.click(),
+            onEnd: (why) => {
+                if (voiceStart?.handle === handle) voiceStart = null;
+                voiceStartClosed = why === 'window' || why === 'error';
+                paintVoiceStart(
+                    why === 'window' ? t('Stopped listening. Tap here to listen for "begin" again.') : '',
+                    why === 'window'
+                );
+            },
+        });
+        voiceStart = { handle, choice };
+        paintVoiceStart(t('Listening for "begin"…'), false);
+    }
+
     function updateBeginButton(): void {
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
         if (!beginBtn) return;
@@ -947,6 +1038,7 @@ export async function mountSetupView(
             whisperStatus.state !== 'ready';
         beginBtn.disabled = disabled;
         beginBtn.classList.toggle('btn-disabled', disabled);
+        void syncVoiceStart();
     }
 
     /**
@@ -1837,6 +1929,11 @@ function renderSetupHTML(
          bottom; the inner wrapper caps width so Begin doesn't span wide
          screens. -->
     <div class="setup-footer">
+        <!-- Says when the mic is open for "begin" (voice-start.ts); empty and
+             hidden unless that setting is on. A button, so the "listen again"
+             state is reachable by keyboard. Its own line above the Begin row,
+             which is a flex row the button fills. -->
+        <button id="voice-start-status" type="button" class="voice-start-status hidden" aria-live="polite"></button>
         <div class="setup-footer-inner">
             <button id="begin-btn" type="button" class="btn btn-primary btn-begin">${t('Begin Session')}</button>
         </div>

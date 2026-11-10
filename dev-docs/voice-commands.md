@@ -45,6 +45,38 @@ Where there is a judge it still hears everything first. These run after it:
 save/discard variants ("end without saving") and every other command stay
 judge-only.
 
+## Starting by voice (opt-in)
+
+Settings → Advanced → **Start by voice (experimental)**
+(`AppSettings.voiceStart`, off by default). On the setup screen the mic
+listens for "begin" (`isBeginCommand`, `begin-command.ts`: begin or start,
+optionally the session, and the words people wrap around it) and starts the
+session the Begin button would. With the judge-free "end the session" this
+makes a sitting hands-free after the first touch: begin, speak, end, begin
+again.
+
+A mic open before a session exists is held to narrower rules than one inside
+it (`ui/src/voice-start.ts`, `voiceStartBlocker`):
+
+- **Free recognizers only**: the browser's, the phone's, local Whisper. A
+  session set to hosted STT gets no listening before Begin, since a room with
+  a television in it would be billed for the television. The word is matched
+  on the device, not by the judge, so the lobby costs nothing on any account.
+- **Never prompts.** It runs only when the mic is already granted
+  (`micAlreadyGranted`; unknown counts as no, which rules out Safari).
+- **Two minutes**, then the mic closes (`VOICE_START_WINDOW_MS`) and the
+  status line offers to listen again. It also closes the moment the setup
+  screen goes away.
+- **One touch first.** A page nobody has interacted with can't play sound, so
+  a session begun there would be silent (`pageTouched`). This is the one thing
+  between here and a start with no hands at all, and it is the platform's rule
+  on the web; whether the desktop and mobile shells need it is untested.
+
+Opt-in until it has been through real devices: the Android recognizer's
+start/stop chime, what local Whisper costs in CPU while idle, and WebKit's
+activation rules in the Tauri and Capacitor webviews
+([manual-smoke.md](manual-smoke.md)).
+
 ## Spoken commands (judge sessions)
 
 Defined in `voice-command.ts`, with the asks in `voice-command-specs.ts`:
