@@ -1080,7 +1080,10 @@ export async function mountSetupView(
                 ? { available: true }
                 : providerStatus?.[setup.provider];
         if (info && !info.available && info.hint) {
-            hintEl.innerHTML = info.hint;
+            // Text, as Settings renders the same field: the hint comes from
+            // the backend (/app/v1/providers), which on web and mobile is a
+            // remote server, and it carries no markup.
+            hintEl.textContent = info.hint;
             hintEl.classList.remove('hidden');
         } else {
             hintEl.classList.add('hidden');
