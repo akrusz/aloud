@@ -16,13 +16,34 @@ Setup holds Begin the same way while local Whisper's model is still downloading
 or loading (`ui/src/whisper-ready.ts` polls the shell's `/stt/whisper/warm`,
 optimistic on any probe failure), so a first-launch session can't start deaf.
 
-## Bare "mute"
+## The two that need no judge
 
-`isMuteCommand` (`mute-command.ts`): a bare "mute" outranks every dispatch
-route, since it's the one thing you say when you want the app to stop hearing
-you. It is judge-free, so it works on every provider. Deliberately strict -
-losing the mic mid-sentence beats reaching for the button - so the whole
-utterance must be the command. Unmuting is button-only.
+Recognized outright, so they work on every provider, signed out, offline, and
+when the judge is down. They cost nothing.
+
+**Bare "mute".** `isMuteCommand` (`mute-command.ts`): a bare "mute" outranks
+every dispatch route, since it's the one thing you say when you want the app to
+stop hearing you. Deliberately strict - losing the mic mid-sentence beats
+reaching for the button - so the whole utterance must be the command. Unmuting
+is button-only.
+
+**"End the session", and the yes or no after it.** `isEndCommand` and
+`endConfirmReply` (`end-command.ts`). A sit that can be started by voice has to
+be leavable by voice, and before this a BYOK or local sit that hadn't opted in
+could only be ended by hand. The request is a verb (end, stop, finish, close,
+quit) plus what is being ended (session, sit, meditation) and nothing else but
+the words that politely surround a request, so "can we end the session" and
+"I'd like to stop the meditation now" match and "I don't want this session to
+end" does not. Looser than mute, because the failure is cheaper: ending is only
+ever a bid, and a wrong match gets asked "Would you like to end the session?".
+The answer is a small vocabulary where any no-word wins and one unknown word
+makes it an ordinary turn ("yes, I think my leg is asleep").
+
+Where there is a judge it still hears everything first. These run after it:
+`isEndCommand` when the judge named no command (down, timed out, or missed),
+`endConfirmReply` when its answer to the open question was `other`. The
+save/discard variants ("end without saving") and every other command stay
+judge-only.
 
 ## Spoken commands (judge sessions)
 
@@ -50,7 +71,8 @@ Each command speaks a canned acknowledgment (`COMMAND_LINES`).
 
 ## How an utterance is checked
 
-1. The bare-mute check (`isMuteCommand`).
+1. The bare-mute check (`isMuteCommand`). If the end question is open, the
+   reply goes to `handleEndConfirm` instead of the steps below.
 2. **Gate.** Short utterances (`mightBeCommand`) first get one cheap ask
    (`command-gate`, ~600 tokens: "an instruction to the app at all?", bar 0.2,
    fails open). The full command set costs ~4,200 tokens whatever the answer,
@@ -89,8 +111,9 @@ Around that:
 - **Misses.** A request that misses the judge reaches the model as an ordinary
   turn, so `appControlsFragment` (`prompts.ts`) tells it that it cannot work
   the app and must never say it did.
-- **No judge** (not opted in, signed out, outage) means no commands, only the
-  bare "mute".
+- **No judge** (not opted in, signed out, outage) means only the two above:
+  the bare "mute" and the plain "end the session". The info panel's Voice
+  commands row says so rather than "Off".
 
 ## Opt-in and discovery
 

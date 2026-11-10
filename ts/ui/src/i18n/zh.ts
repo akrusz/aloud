@@ -37,6 +37,7 @@ export const ZH: Record<string, string> = {
     "About the session clock": "关于冥想时钟",
     "About vibes": "关于氛围",
     "Accept": "接受",
+    "\"Mute\" and \"end the session\" only": "仅“静音”和“结束冥想”",
     "A gift is waiting": "有一份礼物在等你",
     "Accept to add them to your balance, or decline to send them back to the sender.": "接受即添加到你的余额，谢绝则退回给赠送者。",
     "Account": "账户",
