@@ -148,9 +148,21 @@ pub fn run() {
       let (port, token) = server::start(data_dir);
       // The per-launch token gates every /app/v1 request (server.rs
       // require_token). Hex-only, so splicing it into the literal is safe.
+      // An initialization script runs on every top-level navigation, so a
+      // remote page that ends up in this window (the UI falls back to
+      // navigating it when the opener plugin fails: Stripe checkout) would be
+      // handed both. Skip any http(s) page that isn't one of ours; the app's
+      // own origins are tauri://localhost, http://tauri.localhost (Windows)
+      // and the Vite dev server on localhost.
       let init = format!(
-        "window.__ALOUD_API_BASE__ = 'http://127.0.0.1:{port}';\n\
-         window.__ALOUD_API_TOKEN__ = '{token}';"
+        "(function () {{\n\
+           var l = window.location;\n\
+           var web = l.protocol === 'http:' || l.protocol === 'https:';\n\
+           var ours = l.hostname === 'localhost' || l.hostname === '127.0.0.1' || l.hostname === 'tauri.localhost';\n\
+           if (web && !ours) return;\n\
+           window.__ALOUD_API_BASE__ = 'http://127.0.0.1:{port}';\n\
+           window.__ALOUD_API_TOKEN__ = '{token}';\n\
+         }})();"
       );
 
       let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
