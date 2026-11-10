@@ -62,7 +62,7 @@ CI (`.github/workflows/ci.yml`) is the TS gate (typecheck + vitest + ui:build + 
 - **Pacing**: `PacingController` times the turn from timestamps (last speech, last response, hold start): respond after the response delay, check in after a silence interval, stay quiet in a hold. Check-in content and timing can each be canned/fixed or "smart" (LLM-chosen line or `[PASS]`; LLM-set `[WAIT:Nm]`). The session timer speaks its approach and completion notices, the completion one even inside a hold. Detail: `dev-docs/pacing.md`.
 - **Context strategies**: `full` (all history) or `rolling` (last N exchanges) context windows.
 - **Language is one setting** (`AppSettings.language`): English or `中文` (beta), driving the prompt + canned pools, the STT locale, and the UI (`t()` keyed on the English string, so rewording English orphans its zh entry). Detail: `dev-docs/language.md`.
-- **Voice is the only input**: no text mode, so a session can't start without a mic (`mic-check.ts` pre-flights Begin). A bare "mute" always works (`isMuteCommand`); judge sessions also take natural-language commands (timer, speed, end session, …) via Jev. Detail: `dev-docs/voice-commands.md`.
+- **Voice is the only input**: no text mode, so a session can't start without a mic (`mic-check.ts` pre-flights Begin). A bare "mute" and a plain "end the session" always work, with no judge (`isMuteCommand`, `isEndCommand`); judge sessions also take natural-language commands (timer, speed, …) via Jev. Detail: `dev-docs/voice-commands.md`.
 
 ## Configuration
 
