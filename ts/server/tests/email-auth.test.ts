@@ -107,6 +107,43 @@ describe('POST /cloud/v1/auth/email/login', () => {
     });
 });
 
+describe('per-IP limit behind a proxy that names the client', () => {
+    // Fly appends to a client-sent X-Forwarded-For, so its first hop is the
+    // client's to choose: rotating it walked straight past the limit. Where the
+    // proxy sets a header the client can't forge, that one is the key.
+    function flyApp() {
+        return createApp(
+            buildDeps(loadConfig({ ANTHROPIC_API_KEY: 'sk-test', FLY_APP_NAME: 'aloud-cloud' }))
+        );
+    }
+    const attempt = (a: ReturnType<typeof createApp>, headers: Record<string, string>) =>
+        a.request('/cloud/v1/auth/email/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', ...headers },
+            body: JSON.stringify({ email: 'brute@example.com', password: 'guess-me-not' }),
+        });
+
+    it('keys on Fly-Client-IP, whatever X-Forwarded-For claims', async () => {
+        const a = flyApp();
+        for (let i = 0; i < 10; i++) {
+            const res = await attempt(a, { 'fly-client-ip': '203.0.113.9', 'x-forwarded-for': `10.0.0.${i}` });
+            expect(res.status).toBe(401);
+        }
+        const spoofed = await attempt(a, { 'fly-client-ip': '203.0.113.9', 'x-forwarded-for': '10.9.9.9' });
+        expect(spoofed.status).toBe(429);
+        // Another real client is unaffected.
+        expect((await attempt(a, { 'fly-client-ip': '198.51.100.4' })).status).toBe(401);
+    });
+
+    it('loadConfig picks the header up on Fly, takes an explicit one, and otherwise leaves it unset', () => {
+        expect(loadConfig({ FLY_APP_NAME: 'x' }).clientIpHeader).toBe('fly-client-ip');
+        expect(loadConfig({ FLY_APP_NAME: 'x', ALOUD_CLIENT_IP_HEADER: 'CF-Connecting-IP' }).clientIpHeader).toBe(
+            'cf-connecting-ip'
+        );
+        expect(loadConfig({}).clientIpHeader).toBeUndefined();
+    });
+});
+
 describe('POST /cloud/v1/auth/email/set-password', () => {
     // A signed-in Google account (no password) + its bearer token.
     async function googleSession() {

@@ -11,6 +11,7 @@ import { SqliteCreditsStore } from './credits/sqlite-store.js';
 import { Ledger } from './credits/ledger.js';
 import { Forwarder } from './providers/forward.js';
 import { DailyCap, FreeGrantBreaker, RateGuard } from './quota/freetier.js';
+import { InFlightSum } from './quota/in-flight.js';
 import { HttpModelProber, ModelLiveness } from './pricing/liveness.js';
 
 /** A busy sit makes 2-4 judge calls a minute; this leaves room for prefetching
@@ -35,7 +36,18 @@ export interface Deps {
      *  turn refused - nor be starved by a turn's TTS sentences. */
     judgeGuard: RateGuard;
     judgeDailyCap: DailyCap;
+    /** Every account's judge calls together, per UTC day: the ceiling the
+     *  per-account cap can't give, since an email signup costs nothing to
+     *  repeat. Like that cap it only binds accounts with no credits. */
+    judgeGlobalCap: DailyCap;
     grantBreaker: FreeGrantBreaker;
+    /** How far the LLM turns an account has in flight could run past their
+     *  holds, kept under MAX_UNCOVERED_CREDITS (routes/llm.ts). */
+    overdraft: InFlightSum;
+    /** STT/TTS calls past the balance gate and not yet debited, so calls
+     *  arriving together can't each be admitted on the same balance
+     *  (routes/upfront-charge.ts). */
+    upfrontPending: InFlightSum;
     /** Which allowlisted models the providers still serve. Everything reads
      *  live until index.ts's hourly sweep proves otherwise; tests never sweep,
      *  so they see the full allowlist unless they stub this. */
@@ -61,7 +73,10 @@ export function buildDeps(config: Config, options: BuildDepsOptions = {}): Deps 
         rateGuard: new RateGuard(),
         judgeGuard: new RateGuard(JUDGE_REQUESTS_PER_MINUTE),
         judgeDailyCap: new DailyCap(JUDGE_REQUESTS_PER_DAY),
+        judgeGlobalCap: new DailyCap(config.judgeCallsPerDay),
         grantBreaker: new FreeGrantBreaker(config.freeGrantBudgetPerHour),
+        overdraft: new InFlightSum(),
+        upfrontPending: new InFlightSum(),
         liveness: new ModelLiveness(new HttpModelProber(config.providerKeys)),
     };
 }

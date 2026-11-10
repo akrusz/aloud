@@ -10,7 +10,9 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { cors } from 'hono/cors';
+import { bodyLimit } from 'hono/body-limit';
 import type { Deps } from './deps.js';
 import { configuredProviders } from './config.js';
 import { authRoutes } from './routes/auth.js';
@@ -27,6 +29,22 @@ import { giftRoutes } from './routes/gifts.js';
 import { incidentRoutes } from './routes/incidents.js';
 import { adminRoutes } from './routes/admin.js';
 import { appBackendRoutes } from './routes/app.js';
+import { apiError } from './contract.js';
+
+/** Largest request body read into memory. Nothing else bounds it: the routes
+ *  parse first and validate after, several of them before any sign-in (the
+ *  auth routes, the Stripe webhook ahead of its signature check), and the
+ *  server is one small machine.
+ *
+ *  JSON: the biggest real one is a late turn of a long sit, a system prompt
+ *  plus the whole log, in the hundreds of KB. 2 MB clears that several times
+ *  over.
+ *
+ *  STT: raw PCM, where the client caps an utterance at 120 s (whisper-pcm-stt
+ *  maxUtteranceMs). Current clients send 16 kHz Int16 (3.8 MB); the limit
+ *  leaves room for the older Float32 wire format at 48 kHz (23 MB). */
+const JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const STT_BODY_LIMIT_BYTES = 32 * 1024 * 1024;
 
 export function createApp(deps: Deps): Hono {
     const app = new Hono();
@@ -54,6 +72,11 @@ export function createApp(deps: Deps): Hono {
             exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining', 'X-Session-Refresh'],
         })
     );
+
+    const tooLarge = (c: Context) => c.json(apiError('bad_request', 'request body too large'), 413);
+    const jsonLimit = bodyLimit({ maxSize: JSON_BODY_LIMIT_BYTES, onError: tooLarge });
+    const sttLimit = bodyLimit({ maxSize: STT_BODY_LIMIT_BYTES, onError: tooLarge });
+    app.use('*', (c, next) => (c.req.path.startsWith('/cloud/v1/stt') ? sttLimit : jsonLimit)(c, next));
 
     // Liveness + a peek at what's wired, without leaking secrets.
     app.get('/health', (c) =>

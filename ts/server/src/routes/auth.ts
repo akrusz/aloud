@@ -57,7 +57,7 @@ async function finishFederatedSignIn(
 ): Promise<Response> {
     // Client IP for velocity-based abuse detection (mass-account creation
     // clusters by IP/subnet).
-    const signupIp = forwardedIp(c);
+    const signupIp = forwardedIp(c, deps.config);
     const linkToAccountId = await callerAccountId(c, deps);
     const verified: VerifiedIdentity = {
         provider,
@@ -94,7 +94,7 @@ export function authRoutes(deps: Deps): Hono {
     // CPU per attempt), so cap attempts per IP. 10/min is generous for a human
     // mistyping a password and useless for an online brute force.
     const emailAuthGuard = new RateGuard(10, 60_000);
-    app.use('/email/*', ipRateLimit(emailAuthGuard));
+    app.use('/email/*', ipRateLimit(emailAuthGuard, deps.config));
 
     app.post('/google', async (c) => {
         const body = (await c.req.json().catch(() => ({}))) as Partial<GoogleAuthRequest>;
@@ -176,7 +176,7 @@ export function authRoutes(deps: Deps): Hono {
             return errorJson(c, 'bad_request', 'an account with this email already exists - try signing in');
         }
 
-        const signupIp = forwardedIp(c);
+        const signupIp = forwardedIp(c, deps.config);
         const linkToAccountId = await callerAccountId(c, deps);
 
         try {

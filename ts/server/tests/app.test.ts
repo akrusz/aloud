@@ -129,3 +129,55 @@ describe('strict (production) config gate', () => {
         expect(() => loadConfig({ ...env, GEMINI_API_KEY: 'gk' })).not.toThrow();
     });
 });
+
+describe('request body limit', () => {
+    // Routes parse the body before validating it, several before any sign-in.
+    const json = (bytes: number) => JSON.stringify({ idToken: 'x'.repeat(bytes) });
+
+    it('refuses an oversized JSON body with 413, before the route reads it', async () => {
+        const res = await app().request('/cloud/v1/auth/google', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: json(3 * 1024 * 1024),
+        });
+        expect(res.status).toBe(413);
+        expect(((await res.json()) as { error: { code: string } }).error.code).toBe('bad_request');
+    });
+
+    it('refuses one sent without a content-length too', async () => {
+        const body = new TextEncoder().encode(json(3 * 1024 * 1024));
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                for (let i = 0; i < body.length; i += 65_536) controller.enqueue(body.subarray(i, i + 65_536));
+                controller.close();
+            },
+        });
+        const res = await app().request(
+            new Request('http://localhost/cloud/v1/billing/webhook', {
+                method: 'POST',
+                headers: { 'transfer-encoding': 'chunked' },
+                body: stream,
+                duplex: 'half', // Node's fetch needs this for a streamed body
+            } as RequestInit)
+        );
+        expect(res.status).toBe(413);
+    });
+
+    it('lets an ordinary body through', async () => {
+        const res = await app().request('/cloud/v1/auth/google', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: json(200_000),
+        });
+        expect(res.status).toBe(401); // read, verified, rejected as a bad token
+    });
+
+    it('gives the STT route room for two minutes of audio, and no more than its own limit', async () => {
+        const a = app();
+        const pcm = (bytes: number) =>
+            a.request('/cloud/v1/stt?sample_rate=16000&format=i16', { method: 'POST', body: new Uint8Array(bytes) });
+        // Past the JSON limit, so only the STT allowance lets it reach the auth check.
+        expect((await pcm(4 * 1024 * 1024)).status).toBe(401);
+        expect((await pcm(33 * 1024 * 1024)).status).toBe(413);
+    });
+});

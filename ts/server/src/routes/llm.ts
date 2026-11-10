@@ -28,7 +28,14 @@ import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { isMeteredBlocked, FREE_LIMIT_MESSAGE, BILLING_PAUSED_FINISH } from '../admin/runtime-config.js';
 import { isModelAllowed, allowedModels, pricingFor } from '../pricing/providers.js';
-import { holdForTurn, holdAgainstBalance, priceLlmTurn, turnMaxTokens } from '../pricing/meter.js';
+import {
+    estimateTurnCredits,
+    holdAgainstBalance,
+    holdTarget,
+    priceLlmTurn,
+    turnMaxTokens,
+    MAX_UNCOVERED_CREDITS,
+} from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
@@ -101,6 +108,25 @@ function billedAttempts(
     }));
 }
 
+const ROLES = new Set(['user', 'assistant', 'system']);
+
+/** Is this the message list the contract describes: role + STRING content?
+ *  The hold is sized from the text, and the providers also accept content as
+ *  an array of blocks, which would be forwarded (and billed to us) while
+ *  estimating as nothing. */
+function validMessages(messages: unknown): messages is CompleteRequest['messages'] {
+    return (
+        Array.isArray(messages) &&
+        messages.every(
+            (m) =>
+                m !== null &&
+                typeof m === 'object' &&
+                ROLES.has((m as { role?: unknown }).role as string) &&
+                typeof (m as { content?: unknown }).content === 'string'
+        )
+    );
+}
+
 // Derived from the pricing allowlist so it can't drift: a provider is billable
 // exactly when some model of its is. (A hand-kept copy once silently dropped
 // 'openai', bouncing every gpt-5.x turn as bad_request.)
@@ -116,8 +142,11 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<CompleteRequest>;
         const { provider, model, messages } = body;
-        if (!provider || !VALID_PROVIDERS.has(provider) || !model || !Array.isArray(messages)) {
+        if (!provider || !VALID_PROVIDERS.has(provider) || typeof model !== 'string' || !model || !validMessages(messages)) {
             return errorJson(c, 'bad_request', 'provider, model, messages required');
+        }
+        if (body.system !== undefined && typeof body.system !== 'string') {
+            return errorJson(c, 'bad_request', 'system must be a string');
         }
         if (!isModelAllowed(provider, model)) {
             return errorJson(c, 'model_not_allowed', `model not available on aloud cloud: ${provider}/${model}`);
@@ -161,7 +190,13 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         // Clamp output length server-side so the client can't request a turn
         // pricier than the pre-auth hold is sized for (meditation-pal-aa8).
-        const maxTokens = turnMaxTokens(provider, model, body.maxTokens);
+        // Anything but a positive number is "not specified": a string would
+        // otherwise reach the hold arithmetic as NaN.
+        const requestedMax =
+            typeof body.maxTokens === 'number' && Number.isFinite(body.maxTokens) && body.maxTokens > 0
+                ? body.maxTokens
+                : undefined;
+        const maxTokens = turnMaxTokens(provider, model, requestedMax);
 
         // Hold what THIS turn could cost, leaving a sliver of the balance
         // spendable. Sized from the request, not a flat cap: the TTS/STT legs
@@ -169,17 +204,35 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // so holding more than the turn can bill - or the whole of a small
         // balance - starves them mid-reply (meditation-pal-hd24).
         let holdId: string | null = null;
+        // Takes this turn's uncovered part back off the account's in-flight
+        // sum. Idempotent; called wherever the turn ends.
+        let releaseOverdraft = (): void => undefined;
         if (!pass) {
             const balance = await deps.ledger.balance(account.id);
             if (balance <= 0) {
                 incident('insufficient_credits', 'llm: balance 0');
                 return errorJson(c, 'insufficient_credits', 'out of credits');
             }
-            const promptTexts = [body.system ?? '', ...messages.map((m) => m.content ?? '')];
-            const holdAmount = holdAgainstBalance(holdForTurn(provider, model, promptTexts, maxTokens), balance);
+            const promptTexts = [body.system ?? '', ...messages.map((m) => m.content)];
+            const estimate = estimateTurnCredits(provider, model, promptTexts, maxTokens);
+            const holdAmount = holdAgainstBalance(holdTarget(estimate), balance);
+            // What the turn could cost past its hold is ours if the balance
+            // runs out under it. A near-empty account's last turn is allowed
+            // that; an oversized prompt, or a burst of turns each holding a
+            // sliver of the same small balance, is not (MAX_UNCOVERED_CREDITS).
+            const admitted = deps.overdraft.tryAdd(account.id, estimate - holdAmount, MAX_UNCOVERED_CREDITS);
+            if (!admitted) {
+                incident(
+                    'insufficient_credits',
+                    `llm: turn est ${estimate.toFixed(2)} vs hold ${holdAmount.toFixed(2)}, balance ${balance.toFixed(2)}`
+                );
+                return errorJson(c, 'insufficient_credits', 'out of credits');
+            }
+            releaseOverdraft = admitted;
             try {
                 holdId = await deps.ledger.placeHold(account.id, holdAmount, `turn:${provider}:${model}`);
             } catch (err) {
+                releaseOverdraft();
                 if (!(err instanceof InsufficientCreditsError)) throw err;
                 incident('insufficient_credits', `llm: hold ${holdAmount.toFixed(2)} > balance ${balance.toFixed(2)}`);
                 return errorJson(c, 'insufficient_credits', 'out of credits');
@@ -209,6 +262,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 ? await deps.ledger.settleHold(account.id, holdId, credits, `llm:${provider}:${model}`)
                 : credits;
             settled = true;
+            releaseOverdraft();
             // One row per model that ran, so per-model reports price its tokens
             // at its own rates. A declined attempt is tagged utility: it isn't a
             // facilitator turn (the fallback's row is), but its cost still counts.
@@ -289,6 +343,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                     // upstream error, or a generator that ended without a done
                     // chunk): nothing to bill, so return the held credits. The
                     // placeHold-side stale-hold sweep backstops a process crash.
+                    releaseOverdraft();
                     if (!settled && holdId) await deps.ledger.releaseHold(account.id, holdId);
                 }
             });
@@ -301,6 +356,7 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         } catch (err) {
             log.error('forward failed', { err: String(err), provider });
             incident('llm_error', String(err));
+            releaseOverdraft();
             if (holdId) await deps.ledger.releaseHold(account.id, holdId);
             return errorJson(c, 'provider_error', 'upstream provider error');
         }

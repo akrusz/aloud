@@ -132,6 +132,22 @@ export interface Config {
      *  Empty means no sign-in qualifies. */
     betaBonusClientIds: string[];
 
+    /** Ceiling on /cloud/v1/judge calls across ALL accounts per UTC day. The
+     *  judge is free and each account has its own daily cap, but an email
+     *  signup costs nothing to repeat, so the per-account cap alone bounds
+     *  nothing. Past this, accounts with no credits are refused (their clients
+     *  fall back to the LLM classifiers and lose spoken commands for the day);
+     *  one with a balance is never cut off. At ~$0.0001 a call the default is
+     *  about $50 a day. */
+    judgeCallsPerDay: number;
+
+    /** The request header that carries the real client IP, lower-cased, when
+     *  the proxy in front of us sets one the client can't forge (Fly:
+     *  `fly-client-ip`). Unset, the first X-Forwarded-For hop is used, which a
+     *  client can spoof wherever the proxy appends to the header instead of
+     *  replacing it. Keys the per-IP rate limits and the stored signup IP. */
+    clientIpHeader?: string;
+
     /** Soft-launch switch (operator-tunable via admin panel): when true, the
      *  LLM route answers with a canned turn instead of a billed one
      *  (isMeteredBlocked), so signed-up users keep their granted credits but
@@ -259,6 +275,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),
         betaBonusCredits: Number(env['ALOUD_BETA_BONUS_CREDITS'] ?? 40),
         betaBonusClientIds: list(env['ALOUD_BETA_BONUS_CLIENT_IDS']),
+        judgeCallsPerDay: Number(env['ALOUD_JUDGE_CALLS_PER_DAY'] ?? 500_000),
         meteredPaused: env['ALOUD_METERED_PAUSED'] === '1',
         testerEmails: list(env['ALOUD_TESTER_EMAILS']).map((e) => e.toLowerCase()),
         adminEmails: list(env['ALOUD_ADMIN_EMAILS']).map((e) => e.toLowerCase()),
@@ -268,6 +285,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         // default rather than producing an empty hostname segment.
         azureSpeechRegion: env['AZURE_SPEECH_REGION'] || 'eastus',
     };
+    // Fly sets FLY_APP_NAME on every machine and overwrites Fly-Client-IP on
+    // every request, so there the header is trustworthy with no configuration.
+    const clientIpHeader = (env['ALOUD_CLIENT_IP_HEADER'] || (env['FLY_APP_NAME'] ? 'fly-client-ip' : '')).trim().toLowerCase();
+    if (clientIpHeader) config.clientIpHeader = clientIpHeader;
     const sttConfig = resolveSttConfig(env);
     if (sttConfig) config.sttConfig = sttConfig;
     if (env['GOOGLE_TTS_API_KEY']) config.googleTtsApiKey = env['GOOGLE_TTS_API_KEY'];
