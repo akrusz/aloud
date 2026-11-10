@@ -23,6 +23,7 @@ import {
     CloudSignInRequiredError,
     setCloudAuthBackend,
     setCloudAuthFetch,
+    signOutEverywhere,
 } from '../ui/src/cloud-auth.js';
 import type { KvStorage } from '../src/platform/storage.js';
 
@@ -228,6 +229,48 @@ describe('additional sign-in methods (meditation-pal-s75)', () => {
         });
         await googleSignIn('id-token');
         expect(authHeader).toBe('Bearer existing-tok');
+    });
+});
+
+describe('signOutEverywhere', () => {
+    it('asks the server to end every session, then forgets this one', async () => {
+        await kv.set('server:token', 'tok');
+        let seen: { url: string; init: RequestInit | undefined } | null = null;
+        setCloudAuthFetch(async (url, init) => {
+            seen = { url: String(url), init };
+            return new Response(JSON.stringify({ signedOut: true }), { status: 200 });
+        });
+        await signOutEverywhere();
+        expect(seen!.url).toMatch(/\/auth\/signout-all$/);
+        expect(seen!.init?.method).toBe('POST');
+        expect(new Headers(seen!.init?.headers).get('authorization')).toBe('Bearer tok');
+        expect(await getCloudToken()).toBeNull();
+    });
+
+    it('treats a 401 as done: the token was already dead', async () => {
+        await kv.set('server:token', 'tok');
+        setCloudAuthFetch(async () => new Response(JSON.stringify({ error: { message: 'sign in first' } }), { status: 401 }));
+        await signOutEverywhere();
+        expect(await getCloudToken()).toBeNull();
+    });
+
+    it('stays signed in here when the server could not do it', async () => {
+        // Otherwise the button would look like it worked while every other
+        // device kept its session.
+        await kv.set('server:token', 'tok');
+        setCloudAuthFetch(async () => new Response('nope', { status: 503 }));
+        await expect(signOutEverywhere()).rejects.toThrow(/sign out everywhere/i);
+        expect(await getCloudToken()).toBe('tok');
+    });
+
+    it('with no session here, only clears local state', async () => {
+        let called = false;
+        setCloudAuthFetch(async () => {
+            called = true;
+            return new Response('{}', { status: 200 });
+        });
+        await signOutEverywhere();
+        expect(called).toBe(false);
     });
 });
 

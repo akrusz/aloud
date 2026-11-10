@@ -31,6 +31,19 @@ export interface SessionClaims {
     issuedAtSeconds: number;
 }
 
+/**
+ * Has this token outlived a revocation? A token is a signature over an account
+ * id and nothing is stored about it, so one that leaks keeps working, and
+ * keeps renewing itself, until it expires. The account's sessionsValidAfter is
+ * the one lever: everything issued before it is dead (credits/store.ts).
+ * Whole seconds on both sides, and a token issued in the very second of the
+ * revocation still passes, so the session that replaces the revoked ones
+ * (minted in the same request) is never rejected by its own revocation.
+ */
+export function tokenStillValid(claims: SessionClaims, account: { sessionsValidAfter?: number }): boolean {
+    return account.sessionsValidAfter == null || claims.issuedAtSeconds >= account.sessionsValidAfter;
+}
+
 function key(secret: string): Uint8Array {
     return new TextEncoder().encode(secret);
 }

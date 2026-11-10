@@ -465,6 +465,10 @@ describe('SqliteCreditsStore column migrations', () => {
             expect((await store.allUsage())[1]).toEqual(covered);
             await store.setAccountEmailUpdates('acct-1', true);
             expect((await store.getAccountById('acct-1'))?.emailUpdates).toBe(true);
+            // sessions_valid_after: absent on the old row (nothing revoked), then set.
+            expect((await store.getAccountById('acct-1'))?.sessionsValidAfter).toBeUndefined();
+            await store.setSessionsValidAfter('acct-1', 150);
+            expect((await store.getAccountById('acct-1'))?.sessionsValidAfter).toBe(150);
             await store.markAccountDeleted('acct-1', 200, 'deleted+acct-1@deleted.invalid');
             expect((await store.getAccountById('acct-1'))?.deletedAt).toBe(200);
             store.close();
