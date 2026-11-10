@@ -266,6 +266,11 @@ cd ts && npm run jev:commands          # every spoken-command ask, through the g
 cd ts && npm run stt:replay -- <dir> --set noise --models openai,azure   # the no-speech gate: generated noise only
 cd ts && npm run stt:replay -- <capture-dir> --models openai,azure       # then the recorded turns
 
+# A sitting by voice (by hand, NOT in CI - the real web UI with a scripted
+# recognizer and a mocked model, no mic or keys; needs `npm run web:dev` up).
+# Rerun after touching the session listen loop or the judge-free commands.
+node ts/scripts/voice-loop-check.mjs
+
 # Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
 # sessions; see dev-docs/soak-harness.md). Run before a release.
 npm run soak -- --battery=pre-release  # the release check; report in ts/soak-runs/

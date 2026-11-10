@@ -163,6 +163,13 @@ info panel's Voice commands row opens the list.
 
 ## Changing a command
 
+The judge-free matchers have unit tests (`tests/mute-command.test.ts`,
+`end-command.test.ts`, `begin-command.test.ts`), and
+`node ts/scripts/voice-loop-check.mjs` runs a whole sitting through the real
+web UI with a scripted recognizer and a mocked model (`npm run web:dev` up; no
+mic, no keys). It is the only thing short of a real session that exercises the
+listen loop's dispatch in `views/session.ts`.
+
 `npm run jev:commands` scores every ask (through the gate) against a labelled
 corpus and prints the thinnest margins, then runs the pointing-back cases
 (`POINTING_BACK`) through `detectVoiceCommand` itself. The asks share one
