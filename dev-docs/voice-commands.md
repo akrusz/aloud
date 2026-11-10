@@ -49,9 +49,13 @@ judge-only.
 
 Settings → Advanced → **Start by voice (experimental)**
 (`AppSettings.voiceStart`, off by default). On the setup screen the mic
-listens for "begin" (`isBeginCommand`, `begin-command.ts`: begin or start,
+listens for "begin" (`parseBeginRequest`, `begin-command.ts`: begin or start,
 optionally the session, and the words people wrap around it) and starts the
-session the Begin button would. With the judge-free "end the session" this
+session the Begin button would. The request can name the two choices worth
+making with eyes closed: a mode by its setup-screen name and a length, as in
+"begin a twenty minute felt sense session". The mode is a tab tap; the length
+becomes the session timer the way an in-session "set a timer" does, default
+included. Voice, model and focuses stay whatever they were. With the judge-free "end the session" this
 makes a sitting hands-free after the first touch: begin, speak, end, begin
 again.
 
@@ -71,6 +75,14 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`):
   a session begun there would be silent (`pageTouched`). This is the one thing
   between here and a start with no hands at all, and it is the platform's rule
   on the web; whether the desktop and mobile shells need it is untested.
+
+The listener belongs to one mount of the setup screen and one begin attempt.
+The view has no teardown, so its probe callbacks keep firing after it is
+replaced (`setupMounts` / `isLiveMount` in `views/setup.ts`), and a begin that
+is under way holds the mic closed until it has become a session or been
+turned back (`beginning`). Both were found the hard way: a second listener on
+the next setup screen, and one that reopened for half a second under a
+starting session.
 
 Opt-in until it has been through real devices: the Android recognizer's
 start/stop chime, what local Whisper costs in CPU while idle, and WebKit's

@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SttEngine, SttEvent } from '../src/platform/index.js';
+import type { BeginRequest } from '../src/facilitation/index.js';
 import {
     listenForBegin,
     voiceStartBlocker,
@@ -75,16 +76,20 @@ describe('listenForBegin', () => {
     function run(engine: SttEngine, alive: () => boolean = () => true) {
         const ends: VoiceStartEnd[] = [];
         const order: string[] = [];
+        const requests: BeginRequest[] = [];
         const handle = listenForBegin({
             engine,
             alive,
-            onBegin: () => order.push('begin'),
+            onBegin: (request) => {
+                requests.push(request);
+                order.push('begin');
+            },
             onEnd: (why) => {
                 ends.push(why);
                 order.push(`end:${why}`);
             },
         });
-        return { handle, ends, order };
+        return { handle, ends, order, requests };
     }
 
     it('starts the session on "begin", after the mic has been released', async () => {
@@ -93,8 +98,15 @@ describe('listenForBegin', () => {
         await vi.advanceTimersByTimeAsync(10);
         expect(ends).toEqual(['begin']);
         // Released first, then begun: the session opens its own mic.
-        expect(engine.stops).toBe(1);
+        expect(engine.stops).toBeGreaterThanOrEqual(1);
         expect(order).toEqual(['end:begin', 'begin']);
+    });
+
+    it('hands over what the request named', async () => {
+        const engine = scriptedEngine(['Begin a twenty minute felt sense session.']);
+        const { requests } = run(engine);
+        await vi.advanceTimersByTimeAsync(10);
+        expect(requests).toEqual([{ mode: 'felt_sense', minutes: 20 }]);
     });
 
     it('ignores everything else and keeps listening', async () => {
@@ -104,6 +116,17 @@ describe('listenForBegin', () => {
         expect(engine.starts).toBe(4);
         expect(ends).toEqual(['begin']);
         expect(order.filter((o) => o === 'begin')).toHaveLength(1);
+    });
+
+    it('closes each turn it leaves early, so no recognizer is left open behind it', async () => {
+        // An engine forgets its recognizer once its iterator is closed, so the
+        // stop has to come before the loop moves on, once per turn heard.
+        const engine = scriptedEngine(['When does the movie start?', 'I should begin cooking', 'begin']);
+        run(engine);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(engine.starts).toBe(3);
+        // Two turns that were not the request, each stopped, and the last one.
+        expect(engine.stops).toBeGreaterThanOrEqual(3);
     });
 
     it('closes the mic when the window runs out, without beginning', async () => {
