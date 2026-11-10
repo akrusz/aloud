@@ -552,6 +552,10 @@ export class SqliteCreditsStore implements CreditsStore {
             );
     }
 
+    async setAccountEmailVerified(accountId: string): Promise<void> {
+        this.db.prepare('UPDATE accounts SET email_verified = 1 WHERE id = ?').run(accountId);
+    }
+
     async setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void> {
         this.db
             .prepare('UPDATE accounts SET email_updates = ? WHERE id = ?')

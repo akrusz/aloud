@@ -1080,7 +1080,7 @@ ${ADMIN_STYLE}</style>
         : '<tr><td colspan="3" class="muted">No attendees signed in yet.</td></tr>';
       // Pending invites (added by email, not yet claimed by a sign-in).
       var pending = (p.invites && p.invites.length)
-        ? '<p class="sub" style="margin:8px 0 0">Pending (will join on first sign-in): ' +
+        ? '<p class="sub" style="margin:8px 0 0">Pending (joins on first Google or Apple sign-in; an email/password signup proves nothing about the address, so add it again once the account exists): ' +
             p.invites.map(esc).join(', ') + '</p>'
         : '';
       return '<div class="card">' +
@@ -1130,7 +1130,15 @@ ${ADMIN_STYLE}</style>
         if (!email) { setMsg(msg, 'Enter an email.', 'err'); return; }
         btn.disabled = true;
         send('POST', '/retreats/' + id + '/members', { email: email })
-          .then(function () { input.value = ''; return loadRetreats(); })
+          .then(function (added) {
+            input.value = '';
+            return loadRetreats().then(function () {
+              // The list was re-rendered, so the note goes on the new element.
+              if (!added || !added.unverified) return;
+              var note = $('retreatList').querySelector('[data-msg="' + id + '"]');
+              if (note) setMsg(note, 'Added ' + added.email + '. Its address is unverified (email/password signup): check with the attendee that the account is theirs.', 'ok');
+            });
+          })
           .catch(function (e) { setMsg(msg, e.message, 'err'); btn.disabled = false; });
       });
     });

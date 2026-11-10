@@ -130,10 +130,10 @@ export function billingRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 status: 'pending',
                 createdAt: Date.now() / 1000,
             });
+            // No recipient address: the logs never carry one (the gift row does).
             log.info('gift purchased', {
                 buyerAccountId: purchase.accountId,
                 credits: purchase.credits,
-                recipientEmail: purchase.giftToEmail,
             });
         } else if (purchase) {
             await deps.ledger.purchase(

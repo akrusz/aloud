@@ -5,8 +5,9 @@
  * involved, the payment already cleared. Reuses the `.voice-modal-*` chrome.
  */
 
-import { fetchGifts, acceptGift, declineGift, type GiftView } from './cloud-billing.js';
+import { fetchGiftInbox, acceptGift, declineGift, type GiftView } from './cloud-billing.js';
 import { fetchMe } from './cloud-auth.js';
+import { signInNames } from './sign-in-providers.js';
 import { creditAmount } from './credit-rate.js';
 import { manageModalFocus } from './modal-focus.js';
 import { showSuccessToast, showErrorToast } from './toast.js';
@@ -16,10 +17,31 @@ import { onBackdropClick } from './modal-backdrop.js';
 
 const OVERLAY_ID = 'gift-modal-overlay';
 
+/** Asked once per app load: the sign-in modal calls back into
+ *  checkAndShowGifts when it closes, and connecting a login for a different
+ *  address leaves the gift waiting, which would otherwise ask again at once. */
+let askedToVerify = false;
+
 /** Safe to call when signed out or offline; it no-ops. */
 export async function checkAndShowGifts(): Promise<void> {
-    const gifts = await fetchGifts();
-    if (gifts.length > 0) showGiftModal(gifts);
+    const { gifts, awaitingVerification } = await fetchGiftInbox();
+    if (gifts.length > 0) {
+        showGiftModal(gifts);
+    } else if (awaitingVerification > 0 && !askedToVerify) {
+        askedToVerify = true;
+        // A gift is addressed to an email, and an email/password signup hasn't
+        // shown the address is its own. Connecting Google or Apple for the same
+        // address does; the modal then runs this check again and the gift shows.
+        // Imported here: sign-in-modal imports this module.
+        const { showSignInModal } = await import('./sign-in-modal.js');
+        void showSignInModal({
+            title: t('A gift is waiting'),
+            subtitle: t(
+                "Clouds were gifted to this email address. Connect {providers} with the same address to confirm it's yours, and they'll be here to accept.",
+                { providers: signInNames() }
+            ),
+        });
+    }
 }
 
 function showGiftModal(gifts: GiftView[]): void {

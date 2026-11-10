@@ -173,6 +173,10 @@ export interface CreditsStore {
      *  one-account-per-mailbox key behind sign-in linking and the duplicate
      *  guard. Excludes tombstones, so a deleted mailbox can sign up fresh. */
     findLiveAccountByEmail(email: string): Promise<Account | undefined>;
+    /** Mark the account's own email as proven (auth/identity.ts
+     *  adoptVerifiedEmail): a trusted provider vouched for that same mailbox.
+     *  One-way; nothing un-verifies an address. */
+    setAccountEmailVerified(accountId: string): Promise<void>;
     /** Flip the email-updates opt-in (PATCH /me and the signup checkbox). */
     setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void>;
 

@@ -32,9 +32,23 @@ function norm(email: string): string {
     return email.trim().toLowerCase();
 }
 
+/**
+ * May this account act on gifts addressed to its email? Only once the address
+ * is proven (auth/identity.ts adoptVerifiedEmail). A gift is paid for and
+ * addressed to a mailbox; an email/password signup can name any mailbox, so
+ * without this, signing up with the recipient's address before they did
+ * listed the gift (with the sender's email) and accepted it.
+ */
+function ownsMailbox(account: Account): boolean {
+    return account.emailVerified;
+}
+
 /** Pending, non-expired gifts for this account's email. Expired ones bounce to
- *  'returned' in passing, so a recipient never sees them. */
+ *  'returned' in passing, so a recipient never sees them. None for an account
+ *  whose address is unverified (ownsMailbox); giftsAwaitingVerification counts
+ *  those instead. */
 export async function pendingGiftsForAccount(deps: Deps, account: Account, now: number): Promise<Gift[]> {
+    if (!ownsMailbox(account)) return [];
     const gifts = await deps.store.getPendingGiftsForEmail(norm(account.email));
     const cutoff = now - GIFT_EXPIRY_SECONDS;
     const live: Gift[] = [];
@@ -46,6 +60,15 @@ export async function pendingGiftsForAccount(deps: Deps, account: Account, now: 
         }
     }
     return live;
+}
+
+/** How many live gifts are waiting on this account proving its address: the
+ *  count only, so the app can say what to do, with nothing of who sent what.
+ *  0 for a verified account, which sees its gifts directly. */
+export async function giftsAwaitingVerification(deps: Deps, account: Account, now: number): Promise<number> {
+    if (ownsMailbox(account)) return 0;
+    const gifts = await deps.store.getPendingGiftsForEmail(norm(account.email));
+    return gifts.filter((g) => g.createdAt > now - GIFT_EXPIRY_SECONDS).length;
 }
 
 export type GiftResolution =
@@ -67,7 +90,9 @@ export async function acceptGift(
     const gift = await deps.store.getGiftById(giftId);
     if (!gift) return { ok: false, reason: 'not_found' };
     if (gift.status !== 'pending') return { ok: false, reason: 'not_pending' };
-    if (gift.recipientEmail !== norm(account.email)) return { ok: false, reason: 'wrong_recipient' };
+    if (!ownsMailbox(account) || gift.recipientEmail !== norm(account.email)) {
+        return { ok: false, reason: 'wrong_recipient' };
+    }
 
     const won = await deps.store.resolveGift(gift.id, 'accepted', now);
     if (!won) return { ok: false, reason: 'not_pending' }; // lost the race
@@ -86,7 +111,9 @@ export async function declineGift(
     const gift = await deps.store.getGiftById(giftId);
     if (!gift) return { ok: false, reason: 'not_found' };
     if (gift.status !== 'pending') return { ok: false, reason: 'not_pending' };
-    if (gift.recipientEmail !== norm(account.email)) return { ok: false, reason: 'wrong_recipient' };
+    if (!ownsMailbox(account) || gift.recipientEmail !== norm(account.email)) {
+        return { ok: false, reason: 'wrong_recipient' };
+    }
 
     const returned = await markReturned(deps, gift, now);
     return returned ? { ok: true, credits: gift.credits } : { ok: false, reason: 'not_pending' };

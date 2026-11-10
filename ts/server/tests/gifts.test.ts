@@ -17,6 +17,7 @@ import {
     claimReturned,
     reconcileExpiredGifts,
     pendingGiftsForAccount,
+    giftsAwaitingVerification,
     GIFT_EXPIRY_SECONDS,
 } from '../src/credits/gifts.js';
 import type { Account } from '../src/credits/store.js';
@@ -254,5 +255,57 @@ describe('webhook records a gift instead of crediting the buyer', () => {
         expect(pending).toHaveLength(1);
         expect(pending[0]?.credits).toBe(40); // starter re-derived from the pack table
         expect(await d.ledger.balance(buyer.id)).toBe(0); // buyer not credited; clouds await acceptance
+    });
+});
+
+describe('an unverified address claims nothing', () => {
+    // An email/password signup can name any mailbox. A gift is paid for and
+    // addressed to one, so only an account that has proven the address acts on it.
+    async function squatter(d: Deps, email: string): Promise<Account> {
+        const a: Account = { id: randomUUID(), email, emailVerified: false, createdAt: 1000 };
+        await d.store.createAccount(a);
+        return a;
+    }
+
+    it('cannot list, accept or decline a gift sent to the address it signed up with', async () => {
+        const d = deps();
+        const buyer = await account(d, 'buyer@e.com');
+        const squat = await squatter(d, 'recip@e.com');
+        const g = await gift(d, buyer, 'recip@e.com', 50, NOW - 10);
+
+        expect(await pendingGiftsForAccount(d, squat, NOW)).toEqual([]);
+        expect(await acceptGift(d, squat, g.id, NOW)).toEqual({ ok: false, reason: 'wrong_recipient' });
+        expect(await declineGift(d, squat, g.id, NOW)).toEqual({ ok: false, reason: 'wrong_recipient' });
+        expect(await d.ledger.balance(squat.id)).toBe(0);
+        expect((await d.store.getGiftById(g.id))!.status).toBe('pending');
+    });
+
+    it('is told only how many gifts are waiting, and only while they are live', async () => {
+        const d = deps();
+        const buyer = await account(d, 'buyer@e.com');
+        const squat = await squatter(d, 'recip@e.com');
+        await gift(d, buyer, 'recip@e.com', 50, NOW - 10);
+        await gift(d, buyer, 'recip@e.com', 50, NOW - GIFT_EXPIRY_SECONDS - 1); // expired
+        expect(await giftsAwaitingVerification(d, squat, NOW)).toBe(1);
+        // A verified account sees its gifts directly instead.
+        const verified = await account(d, 'other@e.com');
+        await gift(d, buyer, 'other@e.com', 50, NOW - 10);
+        expect(await giftsAwaitingVerification(d, verified, NOW)).toBe(0);
+    });
+
+    it('GET /gifts carries the count and no gift', async () => {
+        const d = deps();
+        const a = createApp(d);
+        const res = await a.request('/cloud/v1/auth/email/signup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: 'recip@e.com', password: 'hunter2hunter2' }),
+        });
+        const { token } = (await res.json()) as { token: string };
+        const buyer = await account(d, 'buyer@e.com');
+        await gift(d, buyer, 'recip@e.com', 50, Date.now() / 1000 - 10);
+
+        const list = await a.request('/cloud/v1/gifts', { headers: { authorization: `Bearer ${token}` } });
+        expect(await list.json()).toEqual({ gifts: [], awaitingVerification: 1 });
     });
 });
