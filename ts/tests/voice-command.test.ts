@@ -376,6 +376,12 @@ describe('parseTimerRequest', () => {
         ['forty five minutes please', 45],
         ['Timer for a minute.', 1],
         ['Make it an hour.', 60],
+        // The article in front of a number is not part of it: these armed 11
+        // minutes, 46 minutes and two hours.
+        ['Set a ten minute timer.', 10],
+        ['A forty five minute timer please', 45],
+        ['Set a one hour timer', 60],
+        ['Give me a twenty-minute timer', 20],
         ['Set it for an hour and a half.', 90],
         ['two hours', 120],
         ['Half an hour, please.', 30],

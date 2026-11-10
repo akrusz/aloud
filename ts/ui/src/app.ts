@@ -425,13 +425,11 @@ function wireHomeOrbBounce(): void {
 async function goSetup(root: HTMLElement): Promise<void> {
     teardownInflightSessions();
     setActiveNav('setup');
-    await mountSetupView(root, (setup, continueFrom) => {
-        if (setup.meditationType === 'noting') {
-            void goNotingSession(root, setup);
-        } else {
-            void goSession(root, setup, continueFrom);
-        }
-    });
+    // Returned, so the setup view knows when a begin attempt is over: it
+    // either became a session or was turned back (no mic, sign-in dismissed).
+    await mountSetupView(root, (setup, continueFrom) =>
+        setup.meditationType === 'noting' ? goNotingSession(root, setup) : goSession(root, setup, continueFrom)
+    );
     void loadAppSettings().then((s) => preloadOpening(resolveSignatureSound(s.signatureSound)));
 }
 

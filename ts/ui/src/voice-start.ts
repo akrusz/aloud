@@ -20,11 +20,13 @@
  * - It waits for one touch. A browser won't play sound for a page nobody has
  *   interacted with, and a session started that way would be a silent one.
  *
- * Everything said that isn't the request is dropped where it lands.
+ * The request can name a mode and a length ("begin a twenty minute felt sense
+ * session"); the setup screen applies those before it begins. Everything said
+ * that isn't the request is dropped where it lands.
  */
 
 import type { SttEngine } from '../../src/platform/index.js';
-import { isBeginCommand } from '../../src/facilitation/begin-command.js';
+import { parseBeginRequest, type BeginRequest } from '../../src/facilitation/begin-command.js';
 import type { SttEngineChoice } from './app-settings.js';
 
 /** How long the mic stays open on the setup screen before it closes itself. */
@@ -90,8 +92,9 @@ export interface ListenForBeginOptions {
     engine: SttEngine;
     /** False once the setup screen is gone; checked on every tick. */
     alive: () => boolean;
-    /** Runs after the mic has been released, so the session can open its own. */
-    onBegin: () => void;
+    /** Runs after the mic has been released, so the session can open its own.
+     *  Carries what the request named beyond beginning: a mode, a length. */
+    onBegin: (request: BeginRequest) => void;
     /** Why listening ended, for the status line. */
     onEnd: (why: VoiceStartEnd) => void;
     windowMs?: number;
@@ -108,7 +111,7 @@ export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
     const deadline = now() + (opts.windowMs ?? VOICE_START_WINDOW_MS);
     let ended = false;
 
-    const end = async (why: VoiceStartEnd): Promise<void> => {
+    const end = async (why: VoiceStartEnd, request?: BeginRequest): Promise<void> => {
         if (ended) return;
         ended = true;
         clearInterval(watchdog);
@@ -116,7 +119,7 @@ export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
         // is about to open its own.
         await opts.engine.stop().catch(() => undefined);
         opts.onEnd(why);
-        if (why === 'begin') opts.onBegin();
+        if (request) opts.onBegin(request);
     };
 
     const watchdog = setInterval(() => {
@@ -133,9 +136,14 @@ export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
                     if (ended) break;
                     if (event.type === 'error') failed = true;
                     if (event.type === 'final') {
-                        // Act on it now. Leaving the loop closes the turn; some
-                        // recognizers take their time ending one by themselves.
+                        // Act on it now: some recognizers take their time
+                        // ending a turn by themselves. Stop this one before
+                        // leaving the loop, while the engine still holds it;
+                        // an engine forgets its recognizer once its iterator
+                        // is closed, and stop() after that reaches nothing,
+                        // leaving a mic open that no one is reading.
                         heard = event.text;
+                        await opts.engine.stop().catch(() => undefined);
                         break;
                     }
                 }
@@ -144,7 +152,8 @@ export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
             }
             if (ended) return;
             if (failed) return void end('error');
-            if (heard && isBeginCommand(heard)) return void end('begin');
+            const request = heard ? parseBeginRequest(heard) : null;
+            if (request) return void end('begin', request);
             // A recognizer that returns at once with nothing (no speech, or a
             // refusal it reports as an ordinary end) must not spin.
             if (!heard) await new Promise((r) => setTimeout(r, 300));
